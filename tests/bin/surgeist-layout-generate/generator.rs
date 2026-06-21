@@ -19,7 +19,7 @@ const FILTER_ENV: &str = "SURGEIST_LAYOUT_GENERATE_FILTER";
 const BROWSER_PATH_ENV: &str = "SURGEIST_BROWSER_PATH";
 const BROWSER_CACHE_ENV: &str = "SURGEIST_BROWSER_CACHE";
 const BROWSER_VERSION_ENV: &str = "SURGEIST_BROWSER_VERSION";
-const DEFAULT_ROOT: &str = "crates/surgeist-layout/tests/layout/browser_parity";
+const DEFAULT_ROOT: &str = "tests/layout/browser_parity";
 const DEFAULT_BROWSER_CACHE: &str = "target/surgeist-browser";
 const DEFAULT_BROWSER_VERSION: &str = "149.0.7827.115";
 const BROWSER_FIXTURE_BATCH_SIZE: usize = 50;
@@ -4073,23 +4073,17 @@ if (actual !== expected) {{
 
     #[test]
     fn browser_cache_defaults_to_project_target_not_system_cache() {
-        let config = Config::from_root(PathBuf::from(
-            "crates/surgeist-layout/tests/layout/browser_parity",
-        ))
-        .expect("browser parity root should resolve");
+        let config = Config::from_root(PathBuf::from(DEFAULT_ROOT))
+            .expect("browser parity root should resolve");
 
         assert!(config.browser_cache.ends_with("target/surgeist-browser"));
         assert!(config.root.is_relative());
         assert!(
             config
                 .html_root
-                .ends_with("crates/surgeist-layout/tests/layout/browser_parity/html")
+                .ends_with("tests/layout/browser_parity/html")
         );
-        assert!(
-            config
-                .xml_root
-                .ends_with("crates/surgeist-layout/tests/layout/browser_parity/xml")
-        );
+        assert!(config.xml_root.ends_with("tests/layout/browser_parity/xml"));
         assert!(config.browser_cache.is_relative());
         assert!(config.browser_path.is_none());
         assert_eq!(
@@ -4352,14 +4346,15 @@ if (actual !== expected) {{
     #[test]
     fn fixture_url_accepts_relative_paths_for_browser_navigation() {
         let url = fixture_url(Path::new(
-            "crates/surgeist-layout/tests/layout/browser_parity/html/block/block_basic.html",
+            "tests/layout/browser_parity/html/block/block_basic.html",
         ))
         .expect("relative fixture should become file URL");
 
         assert_eq!(url.scheme(), "file");
-        assert!(url.as_str().ends_with(
-            "crates/surgeist-layout/tests/layout/browser_parity/html/block/block_basic.html"
-        ));
+        assert!(
+            url.as_str()
+                .ends_with("tests/layout/browser_parity/html/block/block_basic.html")
+        );
     }
 
     #[test]

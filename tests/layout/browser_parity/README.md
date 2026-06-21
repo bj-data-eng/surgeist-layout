@@ -1,7 +1,7 @@
 # Surgeist Layout Browser Parity
 
 This harness runs Surgeist layout against browser-derived parity fixtures. The
-corpus is rooted at `crates/surgeist-layout/tests/layout/browser_parity`:
+corpus is rooted at `tests/layout/browser_parity`:
 
 - `html/`: current constrained HTML corpus. This includes the pinned Taffy
   green baseline plus Surgeist-authored fixtures.
