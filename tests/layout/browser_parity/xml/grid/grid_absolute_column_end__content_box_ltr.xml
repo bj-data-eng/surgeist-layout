@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_absolute_column_end.html" source-sha256="4b36482bb1e26dcc33674803bc2909a87e0553ccda27b408ade03b604b6501df" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_absolute_column_end__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" padding-top="10px" padding-left="40px" padding-bottom="30px" padding-right="20px" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" position="absolute" top="1px" left="4px" bottom="2px" right="3px" grid-column-end="1"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="160">
+      <node x="4" y="1" width="33" height="157"/>
+    </node>
+  </expectations>
+</test>

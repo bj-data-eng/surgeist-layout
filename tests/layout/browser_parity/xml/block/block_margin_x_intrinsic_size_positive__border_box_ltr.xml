@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_margin_x_intrinsic_size_positive.html" source-sha256="97ce21b0e18fc73cfa523dc1b4a1217d728faf21c3988cdb1e2eabde5ead032f" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_margin_x_intrinsic_size_positive__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="ltr">
+      <div source-tag="div" display="flex" direction="ltr" height="10px" margin-left="10px" margin-right="5px"/>
+      <div source-tag="div" display="flex" direction="ltr" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="15" height="20">
+      <node x="10" y="0" width="0" height="10"/>
+      <node x="0" y="10" width="15" height="10"/>
+    </node>
+  </expectations>
+</test>

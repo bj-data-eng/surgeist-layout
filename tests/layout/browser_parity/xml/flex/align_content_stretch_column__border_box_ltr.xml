@@ -1,0 +1,26 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/align_content_stretch_column.html" source-sha256="9bfb53c7cf9bd287c9ff6e76b8777fd5a3ee44c182a16f6b56f141231fa29dbd" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="align_content_stretch_column__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" flex-wrap="wrap" align-content="stretch" width="100px" height="150px">
+      <div source-tag="div" display="flex" direction="ltr" flex-direction="column" height="50px">
+        <div source-tag="div" display="flex" direction="ltr" flex-grow="1" flex-basis="0%"/>
+      </div>
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="1" flex-basis="0%" height="50px"/>
+      <div source-tag="div" display="flex" direction="ltr" height="50px"/>
+      <div source-tag="div" display="flex" direction="ltr" height="50px"/>
+      <div source-tag="div" display="flex" direction="ltr" height="50px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="150">
+      <node x="0" y="0" width="50" height="50">
+        <node x="0" y="0" width="50" height="50"/>
+      </node>
+      <node x="0" y="50" width="50" height="0"/>
+      <node x="0" y="50" width="50" height="50"/>
+      <node x="0" y="100" width="50" height="50"/>
+      <node x="50" y="0" width="50" height="50"/>
+    </node>
+  </expectations>
+</test>

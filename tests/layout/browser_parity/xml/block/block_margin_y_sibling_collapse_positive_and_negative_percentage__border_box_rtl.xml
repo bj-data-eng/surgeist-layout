@@ -1,0 +1,26 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_margin_y_sibling_collapse_positive_and_negative_percentage.html" source-sha256="ac44ca5db1e13ec43582beeaa9a24a13ed2da58b928158fc38982d7e5c0a5575" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_margin_y_sibling_collapse_positive_and_negative_percentage__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" width="50px">
+      <div source-tag="div" display="flex" direction="rtl" height="10px" margin-top="10%" margin-bottom="10%"/>
+      <div source-tag="div" display="flex" direction="rtl" height="10px" margin-top="-10%" margin-bottom="10%"/>
+      <div source-tag="div" display="flex" direction="rtl" height="10px" margin-top="-5%" margin-bottom="5%"/>
+      <div source-tag="div" display="flex" direction="rtl" height="10px" margin-top="-10%" margin-bottom="-10%"/>
+      <div source-tag="div" display="flex" direction="rtl" height="10px" margin-top="10%" margin-bottom="-10%"/>
+      <div source-tag="div" display="flex" direction="rtl" height="10px" margin-top="5%" margin-bottom="-5%"/>
+      <div source-tag="div" display="flex" direction="rtl" height="10px" margin-top="10%" margin-bottom="10%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="80">
+      <node x="0" y="5" width="50" height="10"/>
+      <node x="0" y="15" width="50" height="10"/>
+      <node x="0" y="28" width="50" height="10"/>
+      <node x="0" y="35" width="50" height="10"/>
+      <node x="0" y="45" width="50" height="10"/>
+      <node x="0" y="53" width="50" height="10"/>
+      <node x="0" y="65" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>

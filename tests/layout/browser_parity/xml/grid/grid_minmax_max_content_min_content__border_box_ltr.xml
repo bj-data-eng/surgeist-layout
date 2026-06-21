@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_minmax_max_content_min_content.html" source-sha256="17b788ee983a988e91a168fa3ea07a5398a092cd98bc76dc61593c2822a02070" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_minmax_max_content_min_content__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr" grid-template-rows="40px" grid-template-columns="minmax(max-content,min-content)">
+      <text source-tag="div" display="flex" direction="ltr">
+        HH​HH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="40">
+      <node x="0" y="0" width="40" height="40"/>
+    </node>
+  </expectations>
+</test>

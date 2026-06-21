@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/blockgrid/blockgrid_grid_in_block.html" source-sha256="96b9add659dc9aa290ca1d52e8bc812249b1ee6153c5e171f213e0a025124db2" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="blockgrid_grid_in_block__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" width="200px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="50px" height="50px"/>
+      </div>
+      <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" width="50px" height="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="70">
+      <node x="0" y="0" width="200" height="50">
+        <node x="150" y="0" width="50" height="50"/>
+      </node>
+      <node x="150" y="50" width="50" height="20"/>
+    </node>
+  </expectations>
+</test>

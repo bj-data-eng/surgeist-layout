@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid sibling overflow footer second matches first</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/sibling-nested-subgrids-overflow-hidden-contribution.html
+Original assertion:
+assert_equals(h2, h1, "Second card's .footer height matches the first's");
+Contract:
+Sibling nested subgrids with overflow:hidden leaves size the second card footer
+to the same row height as the first card footer.
+-->
+<div id="test-root" style="display: grid; gap: 16px; width: 400px;">
+  <div style="border: 1px solid black; display: grid; grid-template-rows: subgrid; grid-row-start: span 3; row-gap: 0;">
+    <div>Top</div>
+    <div style="display: grid; grid-template-rows: subgrid; grid-row-start: span 2; padding: 16px;">
+      <div style="overflow: hidden;">Long text long enough to wrap onto multiple lines so that overflow:hidden can clip the overflowing portion</div>
+    </div>
+  </div>
+  <div style="border: 1px solid black; display: grid; grid-template-rows: subgrid; grid-row-start: span 3; row-gap: 0;">
+    <div>Top</div>
+    <div style="display: grid; grid-template-rows: subgrid; grid-row-start: span 2; padding: 16px;">
+      <div style="overflow: hidden;">Long text long enough to wrap onto multiple lines so that overflow:hidden can clip the overflowing portion</div>
+    </div>
+  </div>
+  <div style="border: 1px solid black; display: grid; grid-template-rows: subgrid; grid-row-start: span 3; row-gap: 0;">
+    <div>Top</div>
+    <div style="display: grid; grid-template-rows: subgrid; grid-row-start: span 2; padding: 16px;">
+      <div style="overflow: hidden;">Long text long enough to wrap onto multiple lines so that overflow:hidden can clip the overflowing portion</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

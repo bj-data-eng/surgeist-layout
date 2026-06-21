@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/percentage_absolute_position.html" source-sha256="baed515df0eb809d9810cfab27058537eb076973ea9abf8ded652765e356100e" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="percentage_absolute_position__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" flex-direction="column" width="200px" height="100px">
+      <div source-tag="div" display="flex" direction="rtl" position="absolute" width="10px" height="10px" top="10%" left="30%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="100">
+      <node x="60" y="10" width="10" height="10"/>
+    </node>
+  </expectations>
+</test>

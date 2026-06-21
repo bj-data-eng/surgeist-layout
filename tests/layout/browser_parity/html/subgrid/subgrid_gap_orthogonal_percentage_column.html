@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Orthogonal subgrid percentage column gap</title>
+  <style>
+    html, body { color: black; background-color: white; font: 24px/1 monospace; padding: 0; margin: 0; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/grid-gap-008.html.
+
+A vertical-lr subgrid spanning both parent tracks resolves a percentage
+column-gap in an orthogonal writing mode while justifying the subgrid content to
+the end.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-rows: 100px auto; grid-template-columns: 200px auto; border: 3px solid; background: grey; width: 300px; height: 500px; font: 24px/1 monospace;">
+  <div style="display: grid; writing-mode: vertical-lr; direction: rtl; grid-template-rows: 50px; grid-template-columns: subgrid; column-gap: 10%; grid-area: span 2 / span 2; justify-content: end; background: lightgrey;">
+    <span style="writing-mode: horizontal-tb; direction: ltr; display: block; width: 72px; height: 24px; background: cyan;">ccc</span>
+  </div>
+</div>
+</body>
+</html>

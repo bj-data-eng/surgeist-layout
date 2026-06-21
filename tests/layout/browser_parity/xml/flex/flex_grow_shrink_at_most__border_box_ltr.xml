@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/flex_grow_shrink_at_most.html" source-sha256="2c3d140dd9adcce0c59184fbe126ee6d835a8be418393fdeb79aee7c26c838ad" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="flex_grow_shrink_at_most__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="100px" height="100px">
+      <div source-tag="div" display="flex" direction="ltr">
+        <div source-tag="div" display="flex" direction="ltr" flex-grow="1"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="0" height="100">
+        <node x="0" y="0" width="0" height="100"/>
+      </node>
+    </node>
+  </expectations>
+</test>

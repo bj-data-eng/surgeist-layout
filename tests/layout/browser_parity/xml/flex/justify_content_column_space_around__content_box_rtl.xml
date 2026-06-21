@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/justify_content_column_space_around.html" source-sha256="fbf0ae2b6b2aa780f35661678061c9120e56b0455d1c6ecb88d8a50be8c7fc76" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="justify_content_column_space_around__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column" justify-content="space-around" width="100px" height="100px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" height="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" height="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="12" width="100" height="10"/>
+      <node x="0" y="45" width="100" height="10"/>
+      <node x="0" y="78" width="100" height="10"/>
+    </node>
+  </expectations>
+</test>

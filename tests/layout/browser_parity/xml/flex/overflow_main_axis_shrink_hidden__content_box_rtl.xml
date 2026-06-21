@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/overflow_main_axis_shrink_hidden.html" source-sha256="d30d48dc4ccf9cd5ea486ae860d7314b24e3661841dda9452b79a628c4758e03" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="overflow_main_axis_shrink_hidden__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="50px" height="50px">
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15">
+        HHHHHHHHHH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="50">
+      <node x="0" y="0" width="50" height="50" scroll_width="50" scroll_height="0"/>
+    </node>
+  </expectations>
+</test>

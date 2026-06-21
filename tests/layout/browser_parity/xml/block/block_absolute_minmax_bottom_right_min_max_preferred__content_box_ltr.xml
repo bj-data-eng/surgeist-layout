@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_absolute_minmax_bottom_right_min_max_preferred.html" source-sha256="c006628c2e0deb157dfe534c94e00e4f3f0fe45070dffcfe7cfaae1551119886" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_absolute_minmax_bottom_right_min_max_preferred__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" width="100px" height="100px">
+      <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" position="absolute" width="200px" height="200px" min-width="50px" min-height="60px" max-width="40px" max-height="30px" bottom="10px" right="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="40" y="30" width="50" height="60"/>
+    </node>
+  </expectations>
+</test>

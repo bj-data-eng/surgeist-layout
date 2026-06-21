@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/percentage_flex_basis_cross_min_height.html" source-sha256="d3a9ee15d912698bf57c19cca1501d35c37c05f5d313096e3a54a1494a643058" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="percentage_flex_basis_cross_min_height__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" flex-direction="column" width="200px" height="400px">
+      <div source-tag="div" display="flex" direction="rtl" flex-grow="1" min-height="60%"/>
+      <div source-tag="div" display="flex" direction="rtl" flex-grow="2" min-height="10%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="400">
+      <node x="0" y="0" width="200" height="240"/>
+      <node x="0" y="240" width="200" height="160"/>
+    </node>
+  </expectations>
+</test>

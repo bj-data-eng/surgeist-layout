@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/single_flex_child_after_absolute_child.html" source-sha256="16bb4dc2084ce0aa12d226c72a8f457ad1b73c55e7869aa38b05380640d505e4" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="single_flex_child_after_absolute_child__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" flex-direction="column" width="428px" height="845px">
+      <div source-tag="div" display="flex" direction="rtl" position="absolute" width="100%" height="100%"/>
+      <div source-tag="div" display="flex" direction="rtl" flex-grow="1"/>
+      <div source-tag="div" display="flex" direction="rtl" flex-shrink="0" flex-basis="174px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="428" height="845">
+      <node x="0" y="0" width="428" height="845"/>
+      <node x="0" y="0" width="428" height="671"/>
+      <node x="0" y="671" width="428" height="174"/>
+    </node>
+  </expectations>
+</test>

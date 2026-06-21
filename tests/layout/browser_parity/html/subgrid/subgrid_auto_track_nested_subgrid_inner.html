@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subgrid auto track nested subgrid inner</title>
+  <style>
+    html, body { color: black; background-color: white; font: 16px/1 monospace; padding: 0; margin: 0; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/auto-track-sizing-002.html.
+
+The outer nested subgrid uses a 100% column track while the inner subgrid
+inherits its columns and contributes the same text width.
+-->
+<article id="test-root" style="display: inline-grid; max-width: 260px; padding: 1px 5px; border: 1px solid; grid-template-columns: 100px;">
+  <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: 100%; margin: 0 5px 0 10px;">
+    <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: subgrid; margin: 0 5px 0 0; background: grey;">
+      The cat can not be separated from milk
+    </div>
+  </div>
+</article>
+</body>
+</html>

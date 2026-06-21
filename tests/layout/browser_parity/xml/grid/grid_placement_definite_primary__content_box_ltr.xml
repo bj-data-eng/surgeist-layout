@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_placement_definite_primary.html" source-sha256="62c8f38b9bacbc72b21faff4c19ebdc84cb12fc9b11177d9c579c48bdfd714be" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_placement_definite_primary__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" width="200px" height="200px" grid-template-columns="33% 74%">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" grid-column-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" grid-column-start="2"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" grid-column-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" grid-column-start="2"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" grid-column-start="1"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="200">
+      <node x="0" y="0" width="66" height="67"/>
+      <node x="66" y="0" width="148" height="67"/>
+      <node x="0" y="67" width="66" height="66"/>
+      <node x="66" y="67" width="148" height="66"/>
+      <node x="0" y="133" width="66" height="67"/>
+    </node>
+  </expectations>
+</test>

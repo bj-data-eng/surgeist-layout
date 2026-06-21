@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid item percentage height</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/item-percentage-height-001.html
+Original assertion:
+A subgrid item with height: 100% resolves its percentage height against the
+subgridded row span, matching the explicit 100px second item in the reference.
+Contract:
+In a 300px-tall two-row grid with a row subgrid spanning both rows, the first
+100px-wide child uses height: 100% while the second child is explicitly 100px.
+-->
+<div id="test-root" style="display: grid; grid-template-rows: auto auto; grid-template-columns: auto; row-gap: 60px; border: 1px solid; padding: 5px 2px 2px 2px; height: 300px;">
+  <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: auto; grid-row: span 2; row-gap: 40px; padding: 5px 10px 10px 10px;">
+    <div style="align-self: start; height: 100%; width: 100px;"></div>
+    <div style="align-self: start; height: 100px; width: 100px;"></div>
+  </div>
+</div>
+
+</body>
+</html>

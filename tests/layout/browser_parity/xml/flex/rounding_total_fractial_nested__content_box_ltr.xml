@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/rounding_total_fractial_nested.html" source-sha256="673ce088325410439f6abb79131687c31288c28d5c5822ccb3f08ed7935f1339" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="rounding_total_fractial_nested__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" width="87.4px" height="113.4px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" flex-grow="0.7" flex-basis="50.3px" height="20.3px">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="1" flex-basis="0.3px" height="9.9px" bottom="13.3px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="4" flex-basis="0.3px" height="1.1px" top="13.3px"/>
+      </div>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="1.6" height="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="1.1" height="10.7px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="87" height="113">
+      <node x="0" y="0" width="87" height="59">
+        <node x="0" y="-13" width="87" height="12"/>
+        <node x="0" y="25" width="87" height="47"/>
+      </node>
+      <node x="0" y="59" width="87" height="30"/>
+      <node x="0" y="89" width="87" height="24"/>
+    </node>
+  </expectations>
+</test>

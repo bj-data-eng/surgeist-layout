@@ -1,0 +1,28 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_span_6_all_non_flex_indefinite.html" source-sha256="8782dd40b04f2f54f49fc36d600ee9391e1963acd442ea1162a0b05410eae857" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_span_6_all_non_flex_indefinite__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" grid-template-rows="40px 40px" grid-template-columns="min-content max-content fit-content(20px) auto 10px 20%">
+      <text source-tag="div" display="flex" direction="rtl" grid-column-start="1" grid-column-end="span 6">
+        HHHHHHHH​HHHHHHHH
+      </text>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="160" height="80">
+      <node x="0" y="0" width="160" height="40"/>
+      <node x="151" y="40" width="9" height="40"/>
+      <node x="61" y="40" width="90" height="40"/>
+      <node x="52" y="40" width="9" height="40"/>
+      <node x="42" y="40" width="10" height="40"/>
+      <node x="32" y="40" width="10" height="40"/>
+      <node x="0" y="40" width="32" height="40"/>
+    </node>
+  </expectations>
+</test>

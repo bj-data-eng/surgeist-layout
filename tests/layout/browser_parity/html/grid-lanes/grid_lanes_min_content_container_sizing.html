@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid-lanes min-content container sizing</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/grid-lanes/row-min-max-content-container.html
+Original assertion:
+<div class="grid-lanes" style="margin-bottom: 10px; width: min-content;">
+Contract:
+A grid-lanes container whose children and own width are min-content sizes to
+the same min-content width as the reference grid grouping Number 1 with Number 4.
+-->
+<div id="test-root" style="display: block; font: 15px/1 monospace;">
+  <div style="display: grid-lanes; position: relative; grid-template-rows: auto auto auto; padding: 10px; width: min-content; margin-bottom: 10px;">
+    <div style="width: min-content;">Number 1</div>
+    <div style="width: min-content;">Number 2</div>
+    <div style="width: min-content;">Number 3</div>
+    <div style="width: min-content; grid-row-start: span 2;">Number 4</div>
+  </div>
+  <div style="display: grid-lanes; position: relative; grid-template-rows: auto auto auto; padding: 10px; width: max-content;">
+    <div style="width: max-content;">Number 1</div>
+    <div style="width: max-content;">Number 2</div>
+    <div style="width: max-content;">Number 3</div>
+    <div style="width: max-content; grid-row-start: span 2;">Number 4</div>
+  </div>
+</div>
+
+</body>
+</html>

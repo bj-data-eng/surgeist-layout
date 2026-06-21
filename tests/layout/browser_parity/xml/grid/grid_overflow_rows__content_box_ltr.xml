@@ -1,0 +1,26 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_overflow_rows.html" source-sha256="7d665fa97d01e9fdddb4c53592645930890b20f687a9c6cddbbe0efcde087830" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_overflow_rows__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" grid-template-rows="40px 40px" grid-template-columns="min-content max-content 10px 20%">
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" grid-column-start="1" grid-column-end="span 4">
+        HHHHHHHHHHHHHHHH​HHHHHHHHHHHHHHHH
+      </text>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="320" height="80">
+      <node x="0" y="0" width="320" height="40"/>
+      <node x="0" y="40" width="43" height="40"/>
+      <node x="43" y="40" width="203" height="40"/>
+      <node x="246" y="40" width="10" height="40"/>
+      <node x="256" y="40" width="64" height="40"/>
+      <node x="0" y="80" width="43" height="0"/>
+    </node>
+  </expectations>
+</test>

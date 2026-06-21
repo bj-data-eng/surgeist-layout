@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid-lanes item containing block content width</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/grid-lanes/grid-lanes-columns-item-containing-block-is-grid-content-width.html
+Original assertion:
+Test passes if SVG uses grid's content logical width for its containing block
+size and get sized to 100px x 100px.
+Contract:
+A percentage-sized child of a grid-lanes container resolves against the 100px
+grid content width and is capped to 100px by max-width.
+-->
+<div id="test-root" style="display: grid-lanes; grid-template-rows: auto; width: 100px;">
+  <div style="width: 100%; max-width: 100px; height: 100px;"></div>
+</div>
+
+</body>
+</html>

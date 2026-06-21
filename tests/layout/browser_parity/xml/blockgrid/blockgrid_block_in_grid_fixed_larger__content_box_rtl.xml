@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/blockgrid/blockgrid_block_in_grid_fixed_larger.html" source-sha256="d3930e2f31d7ecadad58d526e75d480126a6764586f2d562a6e56b8826bb3c93" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="blockgrid_block_in_grid_fixed_larger__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="50px">
+      <text source-tag="div" display="block" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <div source-tag="div" display="block" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="10">
+      <node x="0" y="0" width="50" height="10"/>
+      <node x="0" y="10" width="50" height="0"/>
+    </node>
+  </expectations>
+</test>

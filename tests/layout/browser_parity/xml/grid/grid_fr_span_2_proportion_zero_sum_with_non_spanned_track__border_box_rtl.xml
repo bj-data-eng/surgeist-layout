@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_fr_span_2_proportion_zero_sum_with_non_spanned_track.html" source-sha256="01930840142ade2c27537643cadcb56e13b4ee778065bec74bc6d53ff38e9392" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_fr_span_2_proportion_zero_sum_with_non_spanned_track__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" grid-template-rows="40px 40px" grid-template-columns="0fr 0fr 0fr">
+      <div source-tag="div" display="flex" direction="rtl" width="60px" grid-column-start="span 2"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="60" height="80">
+      <node x="0" y="0" width="60" height="40"/>
+      <node x="0" y="0" width="0" height="40"/>
+      <node x="30" y="40" width="30" height="40"/>
+      <node x="0" y="40" width="30" height="40"/>
+      <node x="0" y="40" width="0" height="40"/>
+    </node>
+  </expectations>
+</test>

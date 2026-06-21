@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid-lanes empty column container zero block size</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/grid-lanes/column-empty-grid-lanes-container-001.html
+Original assertion:
+Test that an empty grid-lanes container renders nothing.
+Contract:
+An empty grid-lanes container without padding or children has zero block size.
+-->
+<div id="test-root" style="display: grid-lanes;"></div>
+
+</body>
+</html>

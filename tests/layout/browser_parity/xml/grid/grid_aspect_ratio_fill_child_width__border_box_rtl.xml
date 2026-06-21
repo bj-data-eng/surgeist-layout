@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_aspect_ratio_fill_child_width.html" source-sha256="9fa42395e7a09ed78db9c0cdab7f1f1073cd024d9171b7f00e9d71bd4560cb37" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_aspect_ratio_fill_child_width__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" width="100px" height="100px">
+      <div source-tag="div" display="flex" direction="rtl" height="50px" aspect-ratio="2"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="100" height="50"/>
+    </node>
+  </expectations>
+</test>

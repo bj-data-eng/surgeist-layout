@@ -1,0 +1,30 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_justify_content_space_around.html" source-sha256="afbd63bf1dccd95e25ee58f5a92297e02f66c8b06b91754d4f2504d64db36cac" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_justify_content_space_around__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr" justify-content="space-around" width="200px" height="200px" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px">
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="200">
+      <node x="13" y="0" width="40" height="40"/>
+      <node x="80" y="0" width="40" height="40"/>
+      <node x="147" y="0" width="40" height="40"/>
+      <node x="13" y="40" width="40" height="40"/>
+      <node x="80" y="40" width="40" height="40"/>
+      <node x="147" y="40" width="40" height="40"/>
+      <node x="13" y="80" width="40" height="40"/>
+      <node x="80" y="80" width="40" height="40"/>
+      <node x="147" y="80" width="40" height="40"/>
+    </node>
+  </expectations>
+</test>

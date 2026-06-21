@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_gap_orthogonal_percentage_row.html" source-sha256="bd1fa8c1405189463eee7518f7d86704986120b5d4e68d84693ca6e92b0eb4ba" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_gap_orthogonal_percentage_row__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="inline-grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="24px" line-height="24px" width="300px" height="400px" border-top="3px" border-left="3px" border-bottom="3px" border-right="3px" grid-template-rows="100px auto" grid-template-columns="200px auto">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" writing-mode="vertical-lr" font-family="monospace" font-size="24px" line-height="24px" row-gap="10%" grid-template-rows="subgrid" grid-template-columns="50px" grid-row-start="span 2" grid-column-start="span 2">
+        <text source-tag="span" display="block" box-sizing="content-box" direction="ltr" writing-mode="horizontal-tb" font-family="monospace" font-size="24px" line-height="24px" width="48px" height="24px">
+          cc
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="306" height="406">
+      <node x="3" y="3" width="300" height="400">
+        <node x="0" y="376" width="48" height="24"/>
+      </node>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_stretch_vertical_rows_max_width_50.html" source-sha256="c50267e9f5a5ff2f95624b4a70cb8dcc507684f7359e3c03c1adbbd0ff45cda3" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_stretch_vertical_rows_max_width_50__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-rows="100px" grid-template-columns="100px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" writing-mode="vertical-rl" justify-self="baseline" max-width="50px" grid-template-rows="subgrid"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="100" height="100"/>
+    </node>
+  </expectations>
+</test>

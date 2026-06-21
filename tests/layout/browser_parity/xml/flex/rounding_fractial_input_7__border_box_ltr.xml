@@ -1,0 +1,44 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/rounding_fractial_input_7.html" source-sha256="8bb134232fe447f8dab2a64826294c4cf6ab3c58528e41d00f3673f6179afffe" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="rounding_fractial_input_7__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="7px">
+      <div source-tag="div" display="flex" direction="ltr" flex-wrap="wrap" width="25%">
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+      </div>
+      <div source-tag="div" display="flex" direction="ltr" flex-wrap="wrap" width="25%">
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+      </div>
+      <div source-tag="div" display="flex" direction="ltr" flex-wrap="wrap" width="25%">
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+      </div>
+      <div source-tag="div" display="flex" direction="ltr" flex-wrap="wrap" width="25%">
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+        <div source-tag="div" display="flex" direction="ltr" width="1px" height="10px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="7" height="20">
+      <node x="0" y="0" width="2" height="20">
+        <node x="0" y="0" width="1" height="10"/>
+        <node x="0" y="10" width="1" height="10"/>
+      </node>
+      <node x="2" y="0" width="2" height="20">
+        <node x="0" y="0" width="1" height="10"/>
+        <node x="0" y="10" width="1" height="10"/>
+      </node>
+      <node x="4" y="0" width="1" height="20">
+        <node x="0" y="0" width="1" height="10"/>
+        <node x="0" y="10" width="1" height="10"/>
+      </node>
+      <node x="5" y="0" width="2" height="20">
+        <node x="0" y="0" width="1" height="10"/>
+        <node x="0" y="10" width="1" height="10"/>
+      </node>
+    </node>
+  </expectations>
+</test>

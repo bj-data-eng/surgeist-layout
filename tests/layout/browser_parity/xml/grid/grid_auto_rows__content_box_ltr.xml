@@ -1,0 +1,28 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_auto_rows.html" source-sha256="fe61550d36b3e869e78f3266d2d0781227d92c0c2e71bdfd9a6661e2e4679ec1" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_auto_rows__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" grid-template-rows="40px" grid-template-columns="100px" grid-auto-rows="10px 20px 30px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" grid-row-start="-4"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="180">
+      <node x="0" y="0" width="100" height="20"/>
+      <node x="0" y="20" width="100" height="30"/>
+      <node x="0" y="50" width="100" height="40"/>
+      <node x="0" y="90" width="100" height="10"/>
+      <node x="0" y="100" width="100" height="20"/>
+      <node x="0" y="120" width="100" height="30"/>
+      <node x="0" y="150" width="100" height="10"/>
+      <node x="0" y="160" width="100" height="20"/>
+    </node>
+  </expectations>
+</test>

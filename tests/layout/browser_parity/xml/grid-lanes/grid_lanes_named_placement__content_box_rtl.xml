@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid-lanes/grid_lanes_named_placement.html" source-sha256="cfd9f841b3d8a21e53ae39e40a64c68c9a63ebeabe92bc86872674e7b420d8d9" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_lanes_named_placement__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid-lanes" box-sizing="content-box" direction="rtl" grid-template-columns="[lane] 20px [lane] 30px [lane] 40px [lane]">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-column-start="lane 2" grid-column-end="lane 4"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="90" height="0">
+      <node x="0" y="0" width="70" height="0"/>
+    </node>
+  </expectations>
+</test>

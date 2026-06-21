@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/wrapped_row_within_align_items_flex_start.html" source-sha256="b376e326d3223e9c2a531539638b50ab72d0e21628ed9e3cc9b4975ca14b3412" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="wrapped_row_within_align_items_flex_start__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-items="flex-start" width="200px" height="200px">
+      <div source-tag="div" display="flex" direction="rtl" flex-wrap="wrap">
+        <div source-tag="div" display="flex" direction="rtl" width="150px" height="80px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="80px" height="80px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="200">
+      <node x="0" y="0" width="200" height="160">
+        <node x="50" y="0" width="150" height="80"/>
+        <node x="120" y="80" width="80" height="80"/>
+      </node>
+    </node>
+  </expectations>
+</test>

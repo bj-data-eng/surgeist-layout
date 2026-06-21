@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgridded item height after dynamic change</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/dynamic-subgridded-item-height.html
+Original assertion:
+After changing the inner item height to 100px, test passes if there is a filled
+green square and no red.
+Contract:
+The post-mutation layout recomputes a column subgrid containing an
+overflow-clipped item so that its child height fills a 100px by 100px wrapper.
+-->
+<div id="test-root" style="width: 100px; height: 100px;">
+  <div style="display: grid; grid-template-columns: 100px;">
+    <div style="display: grid; grid-template-columns: subgrid; overflow: clip;">
+      <div>
+        <div style="height: 100px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

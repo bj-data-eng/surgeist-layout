@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_display_none_with_position_absolute.html" source-sha256="2b586233a6a8df572c308f765b4d6264751280c620d88b507ffd79e53be0e815" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_display_none_with_position_absolute__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" width="100px" height="100px">
+      <div source-tag="div" display="none" box-sizing="content-box" direction="ltr" position="absolute" width="100px" height="100px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="0" height="0"/>
+    </node>
+  </expectations>
+</test>

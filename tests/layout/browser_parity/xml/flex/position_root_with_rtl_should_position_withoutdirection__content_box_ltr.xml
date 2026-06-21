@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/position_root_with_rtl_should_position_withoutdirection.html" source-sha256="0db247d2574bada718f4aa508d3d7b0819e6275eb2a468367ac9af9c420346c5" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="position_root_with_rtl_should_position_withoutdirection__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="52px" height="52px" left="72px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="52" height="52">
+      <node x="72" y="0" width="52" height="52"/>
+    </node>
+  </expectations>
+</test>

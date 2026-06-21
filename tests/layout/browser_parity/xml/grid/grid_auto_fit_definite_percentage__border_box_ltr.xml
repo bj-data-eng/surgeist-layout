@@ -1,0 +1,32 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_auto_fit_definite_percentage.html" source-sha256="2a318d1781c8258d657ab37f29f2f958c810b27a85e3fd4d9277d9553155c565" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_auto_fit_definite_percentage__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="730px" height="300px">
+      <div source-tag="div" display="grid" direction="ltr" width="100%" height="100%" row-gap="10px" column-gap="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" grid-template-columns="repeat(auto-fill, minmax(150px,1fr))">
+        <div source-tag="div" display="block" direction="ltr"/>
+        <div source-tag="div" display="block" direction="ltr"/>
+        <div source-tag="div" display="block" direction="ltr"/>
+        <div source-tag="div" display="block" direction="ltr"/>
+        <div source-tag="div" display="block" direction="ltr"/>
+        <div source-tag="div" display="block" direction="ltr"/>
+        <div source-tag="div" display="block" direction="ltr"/>
+        <div source-tag="div" display="block" direction="ltr"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="730" height="300">
+      <node x="0" y="0" width="730" height="300">
+        <node x="10" y="10" width="170" height="135"/>
+        <node x="190" y="10" width="170" height="135"/>
+        <node x="370" y="10" width="170" height="135"/>
+        <node x="550" y="10" width="170" height="135"/>
+        <node x="10" y="155" width="170" height="135"/>
+        <node x="190" y="155" width="170" height="135"/>
+        <node x="370" y="155" width="170" height="135"/>
+        <node x="550" y="155" width="170" height="135"/>
+      </node>
+    </node>
+  </expectations>
+</test>

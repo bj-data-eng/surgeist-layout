@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/justify_content_column_space_around_negative_space_gap.html" source-sha256="1eb55dcda5b98265ab6552b572dcd816702ba68e2e2a47b9a4972569c0edd0cf" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="justify_content_column_space_around_negative_space_gap__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" width="320px" height="320px" border-top="60px" border-left="60px" border-bottom="60px" border-right="60px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" align-items="center" justify-content="space-around" height="10px" row-gap="10px" column-gap="10px">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-shrink="0" width="80%" height="20px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-shrink="0" width="80%" height="20px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-shrink="0" width="80%" height="20px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="440" height="440">
+      <node x="60" y="60" width="320" height="10">
+        <node x="32" y="0" width="256" height="20"/>
+        <node x="32" y="30" width="256" height="20"/>
+        <node x="32" y="60" width="256" height="20"/>
+      </node>
+    </node>
+  </expectations>
+</test>

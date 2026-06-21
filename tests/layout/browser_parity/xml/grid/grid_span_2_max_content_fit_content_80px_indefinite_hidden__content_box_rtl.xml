@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_span_2_max_content_fit_content_80px_indefinite_hidden.html" source-sha256="894d8c92f96b0051753407122aa5312b4d5dd75291f1d872a4ff33dac3d75251" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_span_2_max_content_fit_content_80px_indefinite_hidden__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-rows="40px" grid-template-columns="max-content fit-content(80px)">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-row-start="1" grid-column-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-row-start="1" grid-column-start="2"/>
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15" grid-row-start="1" grid-column-start="1" grid-column-end="span 2">
+        HHHH​HHHH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="80" height="40">
+      <node x="0" y="0" width="80" height="40"/>
+      <node x="0" y="0" width="0" height="40"/>
+      <node x="0" y="0" width="80" height="40" scroll_width="0" scroll_height="0"/>
+    </node>
+  </expectations>
+</test>

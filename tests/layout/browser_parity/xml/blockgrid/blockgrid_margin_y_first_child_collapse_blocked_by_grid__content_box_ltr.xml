@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/blockgrid/blockgrid_margin_y_first_child_collapse_blocked_by_grid.html" source-sha256="6d934a70e01ba0cb59bfd816784b0551328a208ac9e64cdfef55d5452c1b5a53" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="blockgrid_margin_y_first_child_collapse_blocked_by_grid__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" width="50px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" margin-top="10px">
+        <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" margin-top="10px">
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="10" width="50" height="20">
+        <node x="0" y="10" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

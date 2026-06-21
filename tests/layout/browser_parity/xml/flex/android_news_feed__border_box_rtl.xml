@@ -1,0 +1,64 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/android_news_feed.html" source-sha256="be360afc1773211579e18212d2d4c07b68047700cd68814af4185f09a6a29289" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="android_news_feed__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-content="stretch" flex-shrink="0" width="1080px">
+      <div source-tag="div" display="flex" direction="rtl" flex-direction="column" flex-shrink="0">
+        <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-content="stretch">
+          <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-content="stretch">
+            <div source-tag="div" display="flex" direction="rtl" align-items="flex-start" align-content="stretch" margin-top="24px" margin-left="36px">
+              <div source-tag="div" display="flex" direction="rtl" align-content="stretch" flex-shrink="0">
+                <div source-tag="div" display="flex" direction="rtl" align-content="stretch" flex-shrink="0" width="120px" height="120px"/>
+              </div>
+              <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-content="stretch" margin-right="36px" padding-top="21px" padding-left="36px" padding-bottom="18px" padding-right="36px">
+                <div source-tag="div" display="flex" direction="rtl" align-content="stretch"/>
+                <div source-tag="div" display="flex" direction="rtl" align-content="stretch"/>
+              </div>
+            </div>
+          </div>
+          <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-content="stretch">
+            <div source-tag="div" display="flex" direction="rtl" align-items="flex-start" align-content="stretch" margin-top="24px" margin-left="174px">
+              <div source-tag="div" display="flex" direction="rtl" align-content="stretch" flex-shrink="0">
+                <div source-tag="div" display="flex" direction="rtl" align-content="stretch" flex-shrink="0" width="72px" height="72px"/>
+              </div>
+              <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-content="stretch" margin-right="36px" padding-top="21px" padding-left="36px" padding-bottom="18px" padding-right="36px">
+                <div source-tag="div" display="flex" direction="rtl" align-content="stretch"/>
+                <div source-tag="div" display="flex" direction="rtl" align-content="stretch"/>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="1080" height="240">
+      <node x="0" y="0" width="1080" height="240">
+        <node x="0" y="0" width="1080" height="240">
+          <node x="0" y="0" width="1080" height="144">
+            <node x="36" y="24" width="1044" height="120">
+              <node x="924" y="0" width="120" height="120">
+                <node x="0" y="0" width="120" height="120"/>
+              </node>
+              <node x="816" y="0" width="72" height="39">
+                <node x="36" y="21" width="0" height="0"/>
+                <node x="36" y="21" width="0" height="0"/>
+              </node>
+            </node>
+          </node>
+          <node x="0" y="144" width="1080" height="96">
+            <node x="174" y="24" width="906" height="72">
+              <node x="834" y="0" width="72" height="72">
+                <node x="0" y="0" width="72" height="72"/>
+              </node>
+              <node x="726" y="0" width="72" height="39">
+                <node x="36" y="21" width="0" height="0"/>
+                <node x="36" y="21" width="0" height="0"/>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

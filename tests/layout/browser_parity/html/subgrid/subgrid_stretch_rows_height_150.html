@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid stretches row axis with 150px height</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/subgrid-stretch.html
+Original assertion:
+The subgrid is always stretched in its subgridded dimension(s).
+Contract:
+A row subgrid in a 100px by 100px grid stretches to the grid area block size
+even when it specifies height: 150px.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-columns: 100px; grid-template-rows: 100px;">
+  <div style="display: grid; grid-template-rows: subgrid; align-self: baseline; height: 150px;"></div>
+</div>
+
+</body>
+</html>

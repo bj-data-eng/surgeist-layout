@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_align_items_baseline_child.html" source-sha256="23c25f373a068b1cd55aaa07cb03982fbe19316dc86bfa304ee53f9aeb7e552b" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_align_items_baseline_child__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" align-items="baseline" width="100px" height="100px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" width="50px" height="50px"/>
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" width="50px" height="20px">
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" width="50px" height="10px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="50" height="50"/>
+      <node x="0" y="65" width="50" height="20">
+        <node x="0" y="0" width="50" height="10"/>
+      </node>
+    </node>
+  </expectations>
+</test>

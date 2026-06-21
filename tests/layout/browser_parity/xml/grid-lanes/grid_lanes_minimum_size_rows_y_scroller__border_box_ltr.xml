@@ -1,0 +1,48 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid-lanes/grid_lanes_minimum_size_rows_y_scroller.html" source-sha256="37345ab7105654357a6e2add96476cc851960f8a867e254fb7e4d56c7e4a3328" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_lanes_minimum_size_rows_y_scroller__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column">
+      <div source-tag="div" display="grid-lanes" direction="ltr" overflow-x="clip" overflow-y="clip" scrollbar-width="15" flex-basis="0px" width="100px" aspect-ratio="1" grid-template-rows="auto">
+        <div source-tag="div" display="flex" direction="ltr" width="100px" height="100px"/>
+      </div>
+      <div source-tag="div" display="grid-lanes" direction="ltr" overflow-x="clip" overflow-y="hidden" scrollbar-width="15" flex-basis="0px" width="100px" aspect-ratio="1" grid-template-rows="auto">
+        <div source-tag="div" display="flex" direction="ltr" width="100px" height="100px"/>
+      </div>
+      <div source-tag="div" display="grid-lanes" direction="ltr" overflow-x="hidden" overflow-y="clip" scrollbar-width="15" flex-basis="0px" width="100px" aspect-ratio="1" grid-template-rows="auto">
+        <div source-tag="div" display="flex" direction="ltr" width="100px" height="100px"/>
+      </div>
+      <div source-tag="div" display="grid-lanes" direction="ltr" overflow-x="clip" overflow-y="clip" scrollbar-width="15" flex-basis="0px" width="100px" aspect-ratio="1" grid-template-columns="auto">
+        <div source-tag="div" display="flex" direction="ltr" width="100px" height="100px"/>
+      </div>
+      <div source-tag="div" display="grid-lanes" direction="ltr" overflow-x="clip" overflow-y="hidden" scrollbar-width="15" flex-basis="0px" width="100px" aspect-ratio="1" grid-template-columns="auto">
+        <div source-tag="div" display="flex" direction="ltr" width="100px" height="100px"/>
+      </div>
+      <div source-tag="div" display="grid-lanes" direction="ltr" overflow-x="hidden" overflow-y="clip" scrollbar-width="15" flex-basis="0px" width="100px" aspect-ratio="1" grid-template-columns="auto">
+        <div source-tag="div" display="flex" direction="ltr" width="100px" height="100px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="200">
+      <node x="0" y="0" width="100" height="100">
+        <node x="0" y="0" width="100" height="100"/>
+      </node>
+      <node x="0" y="100" width="100" height="0" scroll_width="0" scroll_height="100">
+        <node x="0" y="0" width="100" height="100"/>
+      </node>
+      <node x="0" y="100" width="100" height="0" scroll_width="0" scroll_height="100">
+        <node x="0" y="0" width="100" height="100"/>
+      </node>
+      <node x="0" y="100" width="100" height="100">
+        <node x="0" y="0" width="100" height="100"/>
+      </node>
+      <node x="0" y="200" width="100" height="0" scroll_width="0" scroll_height="100">
+        <node x="0" y="0" width="100" height="100"/>
+      </node>
+      <node x="0" y="200" width="100" height="0" scroll_width="0" scroll_height="100">
+        <node x="0" y="0" width="100" height="100"/>
+      </node>
+    </node>
+  </expectations>
+</test>

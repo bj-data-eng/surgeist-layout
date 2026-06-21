@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/align_content_space_around_wrapped.html" source-sha256="3d2d7ec4ab39d87e6fe9dc9d81f984ae7af07d52c84aee2effa9371812781648" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="align_content_space_around_wrapped__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-wrap="wrap" align-content="space-around" width="100px" height="100px">
+      <div source-tag="div" display="flex" direction="ltr" width="50px" height="10px"/>
+      <div source-tag="div" display="flex" direction="ltr" width="50px" height="10px"/>
+      <div source-tag="div" display="flex" direction="ltr" width="50px" height="10px"/>
+      <div source-tag="div" display="flex" direction="ltr" width="50px" height="10px"/>
+      <div source-tag="div" display="flex" direction="ltr" width="50px" height="10px"/>
+      <div source-tag="div" display="flex" direction="ltr" width="50px" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="12" width="50" height="10"/>
+      <node x="50" y="12" width="50" height="10"/>
+      <node x="0" y="45" width="50" height="10"/>
+      <node x="50" y="45" width="50" height="10"/>
+      <node x="0" y="78" width="50" height="10"/>
+      <node x="50" y="78" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>

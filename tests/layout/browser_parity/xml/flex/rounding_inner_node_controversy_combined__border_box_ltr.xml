@@ -1,0 +1,30 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/rounding_inner_node_controversy_combined.html" source-sha256="be8b35a8fc9524e0877e540a08f30a843a05a7948a7be7252422a350c4e64b89" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="rounding_inner_node_controversy_combined__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="640px" height="320px">
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="1" height="100%"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-direction="column" flex-grow="1" height="100%">
+        <div source-tag="div" display="flex" direction="ltr" flex-grow="1" width="100%"/>
+        <div source-tag="div" display="flex" direction="ltr" flex-direction="column" flex-grow="1" width="100%">
+          <div source-tag="div" display="flex" direction="ltr" flex-grow="1" width="100%"/>
+        </div>
+        <div source-tag="div" display="flex" direction="ltr" flex-grow="1" width="100%"/>
+      </div>
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="1" height="100%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="640" height="320">
+      <node x="0" y="0" width="213" height="320"/>
+      <node x="213" y="0" width="214" height="320">
+        <node x="0" y="0" width="214" height="107"/>
+        <node x="0" y="107" width="214" height="106">
+          <node x="0" y="0" width="214" height="106"/>
+        </node>
+        <node x="0" y="213" width="214" height="107"/>
+      </node>
+      <node x="427" y="0" width="213" height="320"/>
+    </node>
+  </expectations>
+</test>

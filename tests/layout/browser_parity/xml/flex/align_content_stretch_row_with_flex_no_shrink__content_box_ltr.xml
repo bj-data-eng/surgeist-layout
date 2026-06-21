@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/align_content_stretch_row_with_flex_no_shrink.html" source-sha256="2f0413e61fffb37a915976c3c8e3fbada6a4a1ff38de653255a7d0fa21087dc9" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="align_content_stretch_row_with_flex_no_shrink__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-wrap="wrap" align-content="stretch" width="150px" height="100px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="1" flex-basis="0%" width="50px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="1" flex-shrink="0" flex-basis="0%" width="50px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="150" height="100">
+      <node x="0" y="0" width="50" height="100"/>
+      <node x="50" y="0" width="0" height="100"/>
+      <node x="50" y="0" width="50" height="100"/>
+      <node x="100" y="0" width="0" height="100"/>
+      <node x="100" y="0" width="50" height="100"/>
+    </node>
+  </expectations>
+</test>

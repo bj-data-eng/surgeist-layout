@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/percentage_multiple_nested_with_padding_margin_and_percentage_values.html" source-sha256="75f1f99bbb84a24155151707598befe0d5181245b27fd0848e71133bfa79b70e" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="percentage_multiple_nested_with_padding_margin_and_percentage_values__content_box_ltr" use-rounding="false">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" width="200px" height="200px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" flex-grow="1" flex-basis="10%" min-width="60%" margin-top="5px" margin-left="5px" margin-bottom="5px" margin-right="5px" padding-top="3px" padding-left="3px" padding-bottom="3px" padding-right="3px">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" width="50%" margin-top="5px" margin-left="5px" margin-bottom="5px" margin-right="5px" padding-top="3%" padding-left="3%" padding-bottom="3%" padding-right="3%">
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="45%" margin-top="5%" margin-left="5%" margin-bottom="5%" margin-right="5%" padding-top="3px" padding-left="3px" padding-bottom="3px" padding-right="3px"/>
+        </div>
+      </div>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="4" flex-basis="15%" min-width="20%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="200">
+      <node x="5" y="5" width="190" height="52.796875">
+        <node x="8" y="8" width="103.03125" height="26.21875">
+          <node x="10.109375" y="10.109375" width="47.390625" height="6"/>
+        </node>
+      </node>
+      <node x="0" y="62.796875" width="200" height="137.20313"/>
+    </node>
+  </expectations>
+</test>

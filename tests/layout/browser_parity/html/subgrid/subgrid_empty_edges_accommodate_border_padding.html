@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid empty edges accommodate border and padding</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/subgrid-no-items-on-edges-001.html
+Original assertion:
+Test passes if there is a filled green square and no red.
+Contract:
+A nested empty subgrid spanning all parent tracks still contributes edge
+placeholders for its own border and padding, filling a 100px by 100px wrapper.
+-->
+<div id="test-root" style="width: 100px; height: 100px;">
+  <div style="display: inline-grid; grid-template-rows: repeat(3, auto); grid-template-columns: repeat(5, auto);">
+    <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: subgrid; grid-row-start: 1; grid-row-end: -1; grid-column-start: 1; grid-column-end: -1; padding: 11px 7px 20px 13px; border-width: 14px 18px 5px 12px; border-style: solid;">
+      <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: subgrid; grid-row-start: 1; grid-row-end: -1; grid-column-start: 1; grid-column-end: -1; padding: 11px 7px 20px 13px; border-width: 14px 18px 5px 12px; border-style: solid;"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

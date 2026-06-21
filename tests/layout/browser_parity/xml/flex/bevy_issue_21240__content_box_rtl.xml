@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/bevy_issue_21240.html" source-sha256="1598937023de53f7ebd2aee0e6dcd8dbba5dd9fbcfbc7581cc104c434f24df64" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="bevy_issue_21240__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="8px" column-gap="8px" padding-top="8px" padding-left="8px" padding-bottom="8px" padding-right="8px" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px 40px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-column-start="1" grid-column-end="-1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-column-start="1" grid-column-end="span 4"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="152">
+      <node x="152" y="8" width="40" height="40"/>
+      <node x="104" y="8" width="40" height="40"/>
+      <node x="56" y="8" width="40" height="40"/>
+      <node x="8" y="8" width="40" height="40"/>
+      <node x="8" y="56" width="184" height="40"/>
+      <node x="8" y="104" width="184" height="40"/>
+    </node>
+  </expectations>
+</test>

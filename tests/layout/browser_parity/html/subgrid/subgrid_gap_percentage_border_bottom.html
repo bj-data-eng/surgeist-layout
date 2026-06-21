@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subgrid percentage gap with border bottom</title>
+  <style>
+    html, body { color: black; background-color: white; font: 12px/1 monospace; padding: 0; margin: 0; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/grid-gap-003.html.
+
+A subgrid with percentage row and column gaps and a bottom border resolves those
+gaps while spanning parent rows and columns.
+-->
+<div id="test-root" style="display: grid; grid-template-rows: repeat(4, auto); grid-template-columns: repeat(5, auto); place-content: start; border: 1px solid; font: 12px/1 monospace;">
+  <div style="grid-row: 1; min-width: 10px; min-height: 0; background: silver;"></div>
+  <div style="grid-row: 2; min-width: 10px; min-height: 0; background: magenta;"></div>
+  <div style="grid-row: 3; min-width: 10px; min-height: 0; background: silver;"></div>
+  <div style="grid-row: 4; min-width: 10px; min-height: 0; background: magenta;"></div>
+  <div style="grid-row: 5; min-width: 10px; min-height: 0; background: silver;"></div>
+  <div style="grid-row: 6; min-width: 10px; min-height: 0; background: magenta;"></div>
+  <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: auto auto; gap: 20% 20%; grid-column: 2 / span 5; grid-row: 2 / span 5; min-width: 10px; min-height: 0; border: 0 solid lightblue; border-bottom-width: 40px; background: grey;">
+    <div style="background: lightgrey;"><div style="display: block; width: 20px; height: 15px; background: black;"></div></div>
+    <div style="background: lightgrey;"><div style="display: block; width: 20px; height: 15px; background: black;"></div></div>
+    <div style="background: lightgrey;"><div style="display: block; width: 20px; height: 15px; background: black;"></div></div>
+    <div style="background: lightgrey;"><div style="display: block; width: 20px; height: 15px; background: black;"></div></div>
+  </div>
+</div>
+</body>
+</html>

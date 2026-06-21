@@ -1,0 +1,30 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_out_of_order_items.html" source-sha256="adf28f050db032edebceccd19579cb418699f51462b486e895e0f52080d19ee8" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_out_of_order_items__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" width="120px" height="120px" grid-auto-flow="row dense" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="35px" height="35px" grid-column-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="20px" height="20px" grid-row-start="1" grid-column-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="10px" height="10px" grid-row-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="120" height="120">
+      <node x="0" y="0" width="40" height="40"/>
+      <node x="80" y="40" width="40" height="40"/>
+      <node x="85" y="80" width="35" height="35"/>
+      <node x="40" y="40" width="40" height="40"/>
+      <node x="0" y="40" width="40" height="40"/>
+      <node x="100" y="0" width="20" height="20"/>
+      <node x="40" y="80" width="40" height="40"/>
+      <node x="70" y="0" width="10" height="10"/>
+      <node x="0" y="80" width="40" height="40"/>
+    </node>
+  </expectations>
+</test>

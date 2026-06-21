@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_overflow_scrollbars_overridden_by_available_space.html" source-sha256="3c4ab419302057f1e3c1a0399890de14e499076cf8e15cc5b920a0abf9e35052" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_overflow_scrollbars_overridden_by_available_space__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" width="2px" height="4px">
+      <div source-tag="div" display="grid" direction="rtl" overflow-x="scroll" overflow-y="scroll" scrollbar-width="15">
+        <div source-tag="div" display="flex" direction="rtl"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="2" height="4">
+      <node x="0" y="0" width="2" height="4" scroll_width="0" scroll_height="0">
+        <node x="2" y="0" width="0" height="0"/>
+      </node>
+    </node>
+  </expectations>
+</test>

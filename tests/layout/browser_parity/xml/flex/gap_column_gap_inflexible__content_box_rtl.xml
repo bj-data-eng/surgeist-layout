@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/gap_column_gap_inflexible.html" source-sha256="df6ed8ab0007809948de37ebf6caf760d0271c5c6707d9964a77e3d19839719c" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="gap_column_gap_inflexible__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="80px" height="100px" column-gap="10px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="20px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="20px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="80" height="100">
+      <node x="60" y="0" width="20" height="100"/>
+      <node x="30" y="0" width="20" height="100"/>
+      <node x="0" y="0" width="20" height="100"/>
+    </node>
+  </expectations>
+</test>

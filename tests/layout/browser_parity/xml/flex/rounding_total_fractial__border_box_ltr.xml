@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/rounding_total_fractial.html" source-sha256="f1e0bed7f607cb2444148000599264d56ac14156b1dbfeffc46a9dcdcd1c4b36" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="rounding_total_fractial__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" width="87.4px" height="113.4px">
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="0.7" flex-basis="50.3px" height="20.3px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="1.6" height="10px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="1.1" height="10.7px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="87" height="113">
+      <node x="0" y="0" width="87" height="59"/>
+      <node x="0" y="59" width="87" height="30"/>
+      <node x="0" y="89" width="87" height="24"/>
+    </node>
+  </expectations>
+</test>

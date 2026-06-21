@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/align_items_flex_end_child_with_margin_bigger_than_parent.html" source-sha256="0b619e2934467c8746e3b5cb55bb925a289b84bdff9de293736ccc663e211626" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="align_items_flex_end_child_with_margin_bigger_than_parent__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" align-items="center" justify-content="center" width="50px" height="50px">
+      <div source-tag="div" display="flex" direction="rtl" align-items="flex-end">
+        <div source-tag="div" display="flex" direction="rtl" width="50px" height="50px" margin-left="10px" margin-right="10px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="50">
+      <node x="-10" y="0" width="70" height="50">
+        <node x="10" y="0" width="50" height="50"/>
+      </node>
+    </node>
+  </expectations>
+</test>

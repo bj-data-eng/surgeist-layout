@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/xaspect_ratio_flex_column_stretch_fill_min_height.html" source-sha256="7ddae3b4b731263aaeb44481f53c67c6e885f4228eb96082a89bc0ca3a5f98fb" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="xaspect_ratio_flex_column_stretch_fill_min_height__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" width="100px" height="100px">
+      <div source-tag="div" display="flex" direction="ltr" min-width="40px" aspect-ratio="2"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="100" height="50"/>
+    </node>
+  </expectations>
+</test>

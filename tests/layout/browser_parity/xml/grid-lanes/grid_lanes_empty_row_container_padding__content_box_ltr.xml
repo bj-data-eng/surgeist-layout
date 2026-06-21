@@ -1,0 +1,10 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid-lanes/grid_lanes_empty_row_container_padding.html" source-sha256="53265b52fe8e3cffbb140a5e693aff33dbde83686a82aac7a0a90631fb186e30" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_lanes_empty_row_container_padding__content_box_ltr" use-rounding="true">
+  <viewport width="800px" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid-lanes" box-sizing="content-box" direction="ltr" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px"/>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="800" height="40"/>
+  </expectations>
+</test>

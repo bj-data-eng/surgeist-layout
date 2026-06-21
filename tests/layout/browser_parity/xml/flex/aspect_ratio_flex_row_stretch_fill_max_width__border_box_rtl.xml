@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/aspect_ratio_flex_row_stretch_fill_max_width.html" source-sha256="2cdf7c1a191491afd6d2ee7d96e27e716f60f8dde99feea5318fcbfa1861a58a" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="aspect_ratio_flex_row_stretch_fill_max_width__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" width="100px" height="100px">
+      <text source-tag="div" display="flex" direction="rtl" max-height="20px" aspect-ratio="2">
+        HH​HH​HH​HH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="60" y="0" width="40" height="20"/>
+    </node>
+  </expectations>
+</test>

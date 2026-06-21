@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_available_space_smaller_than_max_content.html" source-sha256="95abfc426f1337c0a4c936852eaaab07b4a1d651366ecf99727d0844a67b84a0" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_available_space_smaller_than_max_content__content_box_ltr" use-rounding="true">
+  <viewport width="80px" height="max-content" root-context="flex-item"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" grid-template-columns="auto auto">
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr">
+        HH​HH​HH​HH
+      </text>
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr">
+        HH​HH​HH​HH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="80" height="20">
+      <node x="0" y="0" width="40" height="20"/>
+      <node x="40" y="0" width="40" height="20"/>
+    </node>
+  </expectations>
+</test>

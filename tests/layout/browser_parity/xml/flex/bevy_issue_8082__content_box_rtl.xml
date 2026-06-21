@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/bevy_issue_8082.html" source-sha256="2cf973b68d2b8c908297e80fed2fefd389127c2c3298403095e4d520b29791a1" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="bevy_issue_8082__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column" align-items="stretch" align-content="center" justify-content="flex-start" width="200px" height="400px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-wrap="wrap" align-items="flex-start" align-content="center" justify-content="center">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="50px" height="50px" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="50px" height="50px" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="50px" height="50px" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="50px" height="50px" margin-top="10px" margin-left="10px" margin-bottom="10px" margin-right="10px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="400">
+      <node x="0" y="0" width="200" height="140">
+        <node x="110" y="10" width="50" height="50"/>
+        <node x="40" y="10" width="50" height="50"/>
+        <node x="110" y="80" width="50" height="50"/>
+        <node x="40" y="80" width="50" height="50"/>
+      </node>
+    </node>
+  </expectations>
+</test>

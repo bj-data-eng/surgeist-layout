@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid baseline margin border padding subgrid child offset</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/align-self-baseline-with-subgrid-mbp.html
+Original assertion:
+<div data-offset-y="31"  class="first-baseline">X</div>
+Contract:
+The child of the subgrid is offset to y=31 in the shared baseline alignment
+context after the subgrid margin, border, and padding are applied.
+-->
+<div id="test-root" style="display: inline-grid; border: 1px solid black; grid-template-columns: auto auto; font: 16px/1 ahem;">
+  <div style="display: block; align-self: baseline;">X</div>
+  <div style="display: grid; grid-template-rows: subgrid; border: 9px solid blue; margin-top: 15px; padding-top: 6px;">
+    <div style="display: block; align-self: baseline;">X</div>
+  </div>
+</div>
+
+</body>
+</html>

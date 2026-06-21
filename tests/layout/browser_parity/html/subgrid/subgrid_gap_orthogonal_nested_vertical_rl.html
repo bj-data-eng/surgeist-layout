@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Orthogonal nested vertical-rl subgrid gap</title>
+  <style>
+    html, body { color: black; background-color: white; font: 24px/1 monospace; padding: 0; margin: 0; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/grid-gap-007.html.
+
+A vertical-rl outer subgrid and horizontal-tb inner row subgrid preserve the
+overridden 100px gaps while mapping the inherited rows and columns across
+orthogonal writing modes.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-rows: 100px auto; grid-template-columns: 100px auto; gap: 20px; border: 3px solid; background: yellow; font: 24px/1 monospace;">
+  <div style="writing-mode: vertical-rl; direction: ltr; display: grid; grid-template-rows: subgrid; grid-template-columns: subgrid; gap: 100px; grid-area: span 2 / span 2; background: pink;">
+    <div style="writing-mode: horizontal-tb; direction: ltr; display: grid; grid-template-rows: subgrid; grid-template-columns: 100px; gap: 100px; grid-column: span 2; background: lightgrey;">
+      <span style="display: block; width: 24px; height: 24px; background: grey;">a</span>
+      <span style="display: block; width: 24px; height: 24px; background: cyan;">b</span>
+    </div>
+    <span style="display: block; inline-size: 24px; block-size: 72px; background: grey; grid-area: 1 / 2;">ccc</span>
+  </div>
+</div>
+</body>
+</html>

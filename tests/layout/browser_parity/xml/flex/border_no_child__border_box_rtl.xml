@@ -1,0 +1,10 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/border_no_child.html" source-sha256="f366072a7e7d61c8874f9ec49bd0c503280e2636f8691837c2af0415341874a7" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="border_no_child__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" border-top="10px" border-left="10px" border-bottom="10px" border-right="10px"/>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20"/>
+  </expectations>
+</test>

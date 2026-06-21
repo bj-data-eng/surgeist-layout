@@ -1,0 +1,60 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_sibling_overflow_footer_second_matches_first.html" source-sha256="74c92a5ac60e37031a7f992ea1748a8ee4dc8ceaeb30b4a8e224e145f169d94a" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_sibling_overflow_footer_second_matches_first__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" width="400px" row-gap="16px" column-gap="16px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="0px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-rows="subgrid" grid-row-start="span 3">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          Top
+        </text>
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" padding-top="16px" padding-left="16px" padding-bottom="16px" padding-right="16px" grid-template-rows="subgrid" grid-row-start="span 2">
+          <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15">
+            Long text long enough to wrap onto multiple lines so that overflow:hidden can clip the overflowing portion
+          </text>
+        </div>
+      </div>
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="0px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-rows="subgrid" grid-row-start="span 3">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          Top
+        </text>
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" padding-top="16px" padding-left="16px" padding-bottom="16px" padding-right="16px" grid-template-rows="subgrid" grid-row-start="span 2">
+          <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15">
+            Long text long enough to wrap onto multiple lines so that overflow:hidden can clip the overflowing portion
+          </text>
+        </div>
+      </div>
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="0px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-rows="subgrid" grid-row-start="span 3">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          Top
+        </text>
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" padding-top="16px" padding-left="16px" padding-bottom="16px" padding-right="16px" grid-template-rows="subgrid" grid-row-start="span 2">
+          <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15">
+            Long text long enough to wrap onto multiple lines so that overflow:hidden can clip the overflowing portion
+          </text>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="400" height="308">
+      <node x="0" y="0" width="400" height="92">
+        <node x="1" y="1" width="398" height="10"/>
+        <node x="1" y="11" width="398" height="80">
+          <node x="16" y="16" width="366" height="40" scroll_width="0" scroll_height="0"/>
+        </node>
+      </node>
+      <node x="0" y="108" width="400" height="92">
+        <node x="1" y="1" width="398" height="10"/>
+        <node x="1" y="11" width="398" height="80">
+          <node x="16" y="16" width="366" height="40" scroll_width="0" scroll_height="0"/>
+        </node>
+      </node>
+      <node x="0" y="216" width="400" height="92">
+        <node x="1" y="1" width="398" height="10"/>
+        <node x="1" y="11" width="398" height="80">
+          <node x="16" y="16" width="366" height="40" scroll_width="0" scroll_height="0"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

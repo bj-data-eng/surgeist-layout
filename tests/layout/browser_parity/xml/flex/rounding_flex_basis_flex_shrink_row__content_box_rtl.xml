@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/rounding_flex_basis_flex_shrink_row.html" source-sha256="9ebc474e21bbcc312dec591b63f2cae216cf134412b60a878a258a1edfbacf21" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="rounding_flex_basis_flex_shrink_row__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="101px" height="100px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-basis="100px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-basis="25px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-basis="25px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="101" height="100">
+      <node x="34" y="0" width="67" height="100"/>
+      <node x="17" y="0" width="17" height="100"/>
+      <node x="0" y="0" width="17" height="100"/>
+    </node>
+  </expectations>
+</test>

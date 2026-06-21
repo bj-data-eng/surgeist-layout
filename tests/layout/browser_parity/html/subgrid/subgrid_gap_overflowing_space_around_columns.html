@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subgrid overflowing space-around column gap</title>
+  <style>
+    html, body { color: black; background-color: white; font: 24px/1 monospace; padding: 0; margin: 0; }
+    body { margin: 200px; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/grid-gap-006.html.
+
+An overflowing inline grid with justify-content: space-around and a column
+subgrid spanning two parent columns still uses the subgrid's own column gap.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-rows: 100px; grid-template-columns: 100px 10px 10px; gap: 100px; border: 1px solid; justify-content: space-around; width: 50px; font: 24px/1 monospace;">
+  <div style="display: grid; grid-template-rows: 100px; grid-template-columns: subgrid; gap: 20px; grid-column: span 2;">
+    <span style="display: block; width: 24px; height: 24px; background: grey;">a</span>
+    <span style="display: block; width: 24px; height: 24px; background: cyan;">b</span>
+  </div>
+</div>
+</body>
+</html>

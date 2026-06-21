@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/justify_content_column_min_height_and_margin.html" source-sha256="334ca4b0662a4de488f1e2cf3f2f6f0defaa9de3befba236dc25224808e3177d" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="justify_content_column_min_height_and_margin__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl">
+      <div source-tag="div" display="flex" direction="rtl" flex-direction="column" justify-content="center" min-height="50px" margin-top="100px">
+        <div source-tag="div" display="flex" direction="rtl" width="20px" height="20px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="150">
+      <node x="0" y="100" width="20" height="50">
+        <node x="0" y="15" width="20" height="20"/>
+      </node>
+    </node>
+  </expectations>
+</test>

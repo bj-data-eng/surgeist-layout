@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_percent_items_width_and_padding.html" source-sha256="9fc1f57f7050c5c31a28a85f24f2eba88f9d1e83257be38da623c604c3dc49b9" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_percent_items_width_and_padding__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr" width="200px">
+      <div source-tag="div" display="flex" direction="ltr" width="50%" padding-top="3%" padding-left="3%" padding-bottom="3%" padding-right="3%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="12">
+      <node x="0" y="0" width="100" height="12"/>
+    </node>
+  </expectations>
+</test>

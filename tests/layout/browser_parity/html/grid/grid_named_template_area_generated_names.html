@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid named template area generated names</title>
+</head>
+<body>
+
+<!--
+Contract:
+grid-template-areas generates main-start and main-end names on both axes, and an
+ordinary grid item can place itself with those generated names.
+-->
+<div id="test-root" style="display: grid; grid-template-rows: 20px 40px; grid-template-columns: 30px 50px; grid-template-areas: 'head head' 'nav main';">
+  <div style="grid-row: main-start / main-end; grid-column: main-start / main-end; background: grey;"></div>
+</div>
+
+</body>
+</html>

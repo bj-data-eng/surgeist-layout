@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_line_names_nested_span_a_to_a_minus_1.html" source-sha256="266d7d925ace01f0869d12b753aab97fcf70219582739234173be201611115ac" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_line_names_nested_span_a_to_a_minus_1__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="24px" line-height="24px" padding-top="20px" padding-left="10px" padding-bottom="20px" padding-right="10px" grid-template-rows="auto" grid-template-columns="[a] 50px 50px [a] 50px 50px [a]">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="24px" line-height="24px" grid-template-rows="50px" grid-template-columns="subgrid" grid-column-start="span 4">
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="24px" line-height="24px" grid-template-rows="50px" grid-template-columns="subgrid" grid-column-start="span 3">
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="24px" line-height="24px" grid-column-start="span a" grid-column-end="a -1"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="220" height="90">
+      <node x="10" y="20" width="200" height="50">
+        <node x="50" y="0" width="150" height="50">
+          <node x="50" y="0" width="100" height="50"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

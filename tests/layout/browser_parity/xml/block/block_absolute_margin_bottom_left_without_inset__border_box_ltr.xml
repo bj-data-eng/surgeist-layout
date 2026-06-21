@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_absolute_margin_bottom_left_without_inset.html" source-sha256="f546ef9d7e24b3c0d9f4044860e5decd28c828292d892198ec1e6dd202964efe" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_absolute_margin_bottom_left_without_inset__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="ltr" width="100px" height="100px">
+      <div source-tag="div" display="block" direction="ltr" position="absolute" width="10px" height="10px" margin-left="10px" margin-bottom="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="10" y="0" width="10" height="10"/>
+    </node>
+  </expectations>
+</test>

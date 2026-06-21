@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/gap_column_gap_determines_parent_width.html" source-sha256="2b848e735adfd90aed69597ad93cbb65458136614843e2be3dc9c2b74b04fef2" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="gap_column_gap_determines_parent_width__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" align-items="stretch" height="100px" column-gap="10px">
+      <div source-tag="div" display="flex" direction="ltr" width="10px"/>
+      <div source-tag="div" display="flex" direction="ltr" width="20px"/>
+      <div source-tag="div" display="flex" direction="ltr" width="30px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="80" height="100">
+      <node x="0" y="0" width="10" height="100"/>
+      <node x="20" y="0" width="20" height="100"/>
+      <node x="50" y="0" width="30" height="100"/>
+    </node>
+  </expectations>
+</test>

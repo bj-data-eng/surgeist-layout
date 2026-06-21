@@ -1,0 +1,34 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_align_content_space_evenly_negative_space_gap.html" source-sha256="491ec521330d0cf6c1f868a04f0552eaa8fff8e2947f6681941fbe41e8202440" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_align_content_space_evenly_negative_space_gap__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" width="240px" height="240px" border-top="60px" border-left="60px" border-bottom="60px" border-right="60px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" align-content="space-between" justify-content="center" width="120px" height="120px" row-gap="10px" column-gap="10px" grid-template-rows="40px 40px 40px" grid-template-columns="20px 20px 20px">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="360" height="360">
+      <node x="60" y="60" width="120" height="120">
+        <node x="20" y="0" width="20" height="40"/>
+        <node x="50" y="0" width="20" height="40"/>
+        <node x="80" y="0" width="20" height="40"/>
+        <node x="20" y="50" width="20" height="40"/>
+        <node x="50" y="50" width="20" height="40"/>
+        <node x="80" y="50" width="20" height="40"/>
+        <node x="20" y="100" width="20" height="40"/>
+        <node x="50" y="100" width="20" height="40"/>
+        <node x="80" y="100" width="20" height="40"/>
+      </node>
+    </node>
+  </expectations>
+</test>

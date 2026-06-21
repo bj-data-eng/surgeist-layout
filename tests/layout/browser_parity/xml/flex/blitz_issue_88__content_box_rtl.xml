@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/blitz_issue_88.html" source-sha256="b7ce5218dd2b5451fb88e02e29c77f4ff00d3f00459f6e464a19c98e29aedbdc" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="blitz_issue_88__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" width="600px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column" justify-content="start">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1">
+          <text source-tag="div" display="block" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="0px">
+            HHHH​HHHH​HHHH​HHHH​HHHH
+          </text>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="600" height="10">
+      <node x="0" y="0" width="600" height="10">
+        <node x="0" y="0" width="600" height="10">
+          <node x="0" y="0" width="600" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

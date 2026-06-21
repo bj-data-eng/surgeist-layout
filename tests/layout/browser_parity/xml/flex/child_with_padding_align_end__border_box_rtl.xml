@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/child_with_padding_align_end.html" source-sha256="30a55cc8cd930127d0a4464b695aa2cb46ee32fe9691634493399207de5d727d" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="child_with_padding_align_end__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" flex-direction="column" align-items="flex-end" justify-content="flex-end" width="200px" height="200px">
+      <div source-tag="div" display="flex" direction="rtl" width="100px" height="100px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="200">
+      <node x="0" y="100" width="100" height="100"/>
+    </node>
+  </expectations>
+</test>

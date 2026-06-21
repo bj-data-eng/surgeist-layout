@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/wrap_reverse_row_single_line_different_size.html" source-sha256="4b0c191f8428de5bc1452dac169041e875c9568499cdab67f5cc56f6ce21735f" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="wrap_reverse_row_single_line_different_size__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-wrap="wrap-reverse" align-content="flex-start" width="300px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="30px" height="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="30px" height="20px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="30px" height="30px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="30px" height="40px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="30px" height="50px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="300" height="50">
+      <node x="270" y="40" width="30" height="10"/>
+      <node x="240" y="30" width="30" height="20"/>
+      <node x="210" y="20" width="30" height="30"/>
+      <node x="180" y="10" width="30" height="40"/>
+      <node x="150" y="0" width="30" height="50"/>
+    </node>
+  </expectations>
+</test>

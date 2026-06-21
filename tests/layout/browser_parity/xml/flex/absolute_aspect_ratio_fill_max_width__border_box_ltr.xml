@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/absolute_aspect_ratio_fill_max_width.html" source-sha256="20a83b0229182e7e52c3d2fd04ea3fad090fbb08ebae77445fd1ff18ef52c6f3" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="absolute_aspect_ratio_fill_max_width__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="400px" height="300px">
+      <text source-tag="div" display="flex" direction="ltr" position="absolute" max-height="50px" aspect-ratio="0.5">
+        HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="400" height="300">
+      <node x="0" y="0" width="25" height="50"/>
+    </node>
+  </expectations>
+</test>

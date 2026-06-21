@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/gridflex/gridflex_kitchen_sink_minimise2.html" source-sha256="7aa0d3b4f5fd752c6c062ea4c48ed5abfcb0686876c70da9f77b7464f1c381a6" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="gridflex_kitchen_sink_minimise2__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-grow="1" width="50px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" grid-template-rows="auto" grid-template-columns="auto">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="20px" height="20px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="20">
+      <node x="0" y="0" width="20" height="20">
+        <node x="0" y="0" width="20" height="20"/>
+      </node>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_align_baseline_child_padding.html" source-sha256="f1b3bc6f4acdcece3fff8d0f015c025db21be8091e08f4e905ad3b1005c7fda3" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_align_baseline_child_padding__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" align-items="baseline" width="100px" height="100px" padding-top="5px" padding-left="5px" padding-bottom="5px" padding-right="5px">
+      <div source-tag="div" display="block" direction="rtl" width="50px" height="50px"/>
+      <div source-tag="div" display="block" direction="rtl" width="50px" height="20px" padding-top="5px" padding-left="5px" padding-bottom="5px" padding-right="5px">
+        <div source-tag="div" display="block" direction="rtl" width="50px" height="10px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="55" y="5" width="40" height="50"/>
+      <node x="5" y="35" width="50" height="20">
+        <node x="-5" y="5" width="50" height="10"/>
+      </node>
+    </node>
+  </expectations>
+</test>

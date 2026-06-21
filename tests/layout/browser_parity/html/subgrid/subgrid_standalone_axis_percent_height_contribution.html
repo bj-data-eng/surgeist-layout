@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid standalone axis percent height contribution</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/standalone-axis-size-009.html
+Original assertion:
+Test passes if there is a filled green square and no red.
+Contract:
+A 100% tall column subgrid contributes through the parent's 100px max row
+limit instead of expanding the inline-grid to its 200px child.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-rows: minmax(auto, 100px); grid-template-columns: 100px;">
+  <div style="display: grid; height: 100%; grid-template-columns: subgrid;">
+    <div style="height: 200px;"></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/intrinsic_sizing_main_size_row_wrap.html" source-sha256="ecf8c357f3638dbe77964bb39a7a4a4fa32db44e5ee9ce0a9ab6824c2fa7e2e7" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="intrinsic_sizing_main_size_row_wrap__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-wrap="wrap">
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+        HH​HH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="80" height="10">
+      <node x="40" y="0" width="40" height="10"/>
+      <node x="0" y="0" width="40" height="10"/>
+    </node>
+  </expectations>
+</test>

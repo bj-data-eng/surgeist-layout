@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/margin_auto_left.html" source-sha256="e1b171b7addb610ef15789ad0109dcea713b7b36ef1a7876da9bdd1960caf807" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="margin_auto_left__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" align-items="center" width="200px" height="200px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px" height="50px" margin-left="auto"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px" height="50px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="200">
+      <node x="100" y="75" width="50" height="50"/>
+      <node x="150" y="75" width="50" height="50"/>
+    </node>
+  </expectations>
+</test>

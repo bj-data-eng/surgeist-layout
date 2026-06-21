@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/bevy_issue_8082_percent.html" source-sha256="4b23f01c36094b3b929acf6ec96d8ecad608d21fbb63ebc37aa259e68dc76bef" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="bevy_issue_8082_percent__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" align-items="stretch" align-content="center" justify-content="flex-start" width="200px" height="400px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-wrap="wrap" align-items="flex-start" align-content="center" justify-content="center" width="50%">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px" height="50px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px" height="50px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px" height="50px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="50px" height="50px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="400">
+      <node x="0" y="0" width="100" height="100">
+        <node x="0" y="0" width="50" height="50"/>
+        <node x="50" y="0" width="50" height="50"/>
+        <node x="0" y="50" width="50" height="50"/>
+        <node x="50" y="50" width="50" height="50"/>
+      </node>
+    </node>
+  </expectations>
+</test>

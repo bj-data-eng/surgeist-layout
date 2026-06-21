@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/absolute_layout_percentage_bottom_based_on_parent_height.html" source-sha256="ede7ef0a12c8964b9a0895d4f7d8c5191329efa16da0316dd98906070320a4b5" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="absolute_layout_percentage_bottom_based_on_parent_height__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="100px" height="200px">
+      <div source-tag="div" display="flex" direction="ltr" position="absolute" width="10px" height="10px" top="50%"/>
+      <div source-tag="div" display="flex" direction="ltr" position="absolute" width="10px" height="10px" bottom="50%"/>
+      <div source-tag="div" display="flex" direction="ltr" position="absolute" width="10px" top="10%" bottom="10%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="200">
+      <node x="0" y="100" width="10" height="10"/>
+      <node x="0" y="90" width="10" height="10"/>
+      <node x="0" y="20" width="10" height="160"/>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid standalone axis oversized block child</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/standalone-axis-size-008.html
+Original assertion:
+Test passes if there is a filled green square and no red.
+Contract:
+The subgrid's explicit 100px standalone block size controls the contribution
+even when its child has a 200px height.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-columns: 100px;">
+  <div style="display: grid; height: 100px; grid-template-columns: subgrid;">
+    <div style="height: 200px;"></div>
+  </div>
+</div>
+
+</body>
+</html>

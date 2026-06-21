@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_basic_implicit_tracks.html" source-sha256="cf8b604cb54d1aab425fd34e9aceffb8127ecc2b0e2510cc4251bd1f6f65a135" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_basic_implicit_tracks__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr" grid-template-rows="40px" grid-template-columns="40px">
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr" width="35px" height="35px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="40" height="75">
+      <node x="0" y="0" width="40" height="40"/>
+      <node x="0" y="40" width="35" height="35"/>
+    </node>
+  </expectations>
+</test>

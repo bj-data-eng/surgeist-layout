@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_max_width_greater_than_max_content.html" source-sha256="bc44f889c7115f9c6f5401466788066754ef4b194400f56fedbbf6e2f57a5eff" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_max_width_greater_than_max_content__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-columns="max-content">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" max-width="400px" grid-template-columns="auto auto">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          HH​HH​HH​HH
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          HH​HH​HH​HH
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="160" height="10">
+      <node x="0" y="0" width="160" height="10">
+        <node x="80" y="0" width="80" height="10"/>
+        <node x="0" y="0" width="80" height="10"/>
+      </node>
+    </node>
+  </expectations>
+</test>

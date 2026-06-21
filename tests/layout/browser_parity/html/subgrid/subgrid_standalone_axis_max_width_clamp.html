@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid standalone axis max-width clamp</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/standalone-axis-size-006.html
+Original assertion:
+Test passes if there is a filled green square and no red.
+Contract:
+The subgrid's max-width clamps its max-content standalone-axis width to 100px,
+wrapping two 100px inline-block children into a 100px by 100px contribution.
+-->
+<div id="test-root" style="display: grid; width: min-content;">
+  <div style="display: grid; max-width: 100px; width: max-content; grid-template-rows: subgrid;">
+    <div style="font-size: 0;">
+      <div style="display: inline-block; width: 100px; height: 50px;"></div>
+      <div style="display: inline-block; width: 100px; height: 50px;"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

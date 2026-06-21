@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/justify_content_min_width_with_padding_child_width_greater_than_parent.html" source-sha256="155872322f5f89f5ddda2f506182525b094a33f4adca3a9c0c35ea5cf304abeb" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="justify_content_min_width_with_padding_child_width_greater_than_parent__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" align-content="stretch" width="1000px" height="1584px">
+      <div source-tag="div" display="flex" direction="ltr" align-content="stretch">
+        <div source-tag="div" display="flex" direction="ltr" align-content="stretch" justify-content="center" min-width="400px" padding-left="100px" padding-right="100px">
+          <div source-tag="div" display="flex" direction="ltr" align-content="stretch" width="300px" height="100px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="1000" height="1584">
+      <node x="0" y="0" width="1000" height="100">
+        <node x="0" y="0" width="500" height="100">
+          <node x="100" y="0" width="300" height="100"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

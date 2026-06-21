@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid placement invalidation after template change</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/placement-invalidation-001.html
+Original assertion:
+<div id="item" data-offset-x="140"></div>
+Contract:
+After the parent grid changes from "[start] auto [end] 1fr" to
+"1fr [start] auto [end]", the subgridded item is placed in the inherited auto
+track and is offset to x=140.
+-->
+<div id="test-root" style="width: 200px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: 100px;">
+  <div style="display: grid; grid-column-start: 1; grid-column-end: -1; grid-template-columns: subgrid;">
+    <div style="width: 50px; border: 5px solid gray; grid-column-start: 2; grid-column-end: 3;"></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid-lanes named placement</title>
+</head>
+<body>
+
+<!--
+Contract:
+A grid-lanes item can resolve repeated explicit column line names through the
+same named-placement path as ordinary grid layout.
+-->
+<div id="test-root" style="display: grid-lanes; grid-template-columns: [lane] 20px [lane] 30px [lane] 40px [lane];">
+  <div style="grid-column: lane 2 / lane 4; background: grey;"></div>
+</div>
+
+</body>
+</html>

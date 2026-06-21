@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid line names from outer grid span to previous a line</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/line-names-001.html
+Reference:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/line-names-001-ref.html
+
+Original assertion:
+A subgrid item can use line names from the outer grid, and the subgrid's
+computed grid-template-columns serializes as "subgrid [] [] [] []".
+Contract:
+The layout-visible contract is that grid-column: span a / a -1 on the item
+inside a three-track column subgrid resolves to the same placement as the WPT
+reference grid-column: 1 / 3.
+-->
+<div id="test-root" style="display: grid; grid-template-rows: auto; grid-template-columns: [a] 50px 50px [a] 50px 50px [a]; padding: 20px 10px; font: 24px/1 monospace;">
+  <div style="display: grid; grid-template-rows: 50px; grid-template-columns: subgrid; grid-column: span 3;">
+    <div style="background: grey; grid-column: span a / a -1;"></div>
+  </div>
+</div>
+
+</body>
+</html>

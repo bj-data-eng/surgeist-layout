@@ -1,0 +1,32 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_gap_nested_override.html" source-sha256="5c000bad58891e6d9bf646111d33a913e1069b063a6cbd79466ff39a8283c591" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_gap_nested_override__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="inline-grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="24px" line-height="24px" row-gap="20px" column-gap="20px" border-top="3px" border-left="3px" border-bottom="3px" border-right="3px" grid-template-rows="100px auto" grid-template-columns="100px auto">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="24px" line-height="24px" row-gap="100px" column-gap="100px" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="span 2" grid-column-start="span 2">
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="24px" line-height="24px" row-gap="100px" column-gap="100px" grid-template-rows="subgrid" grid-template-columns="100px" grid-row-start="span 2">
+          <text source-tag="span" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="24px" line-height="24px" width="24px" height="24px">
+            a
+          </text>
+          <text source-tag="span" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="24px" line-height="24px" width="24px" height="24px">
+            b
+          </text>
+        </div>
+        <text source-tag="span" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="24px" line-height="24px" width="24px" height="24px" grid-row-start="2" grid-column-start="2">
+          c
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="190" height="190">
+      <node x="3" y="3" width="184" height="184">
+        <node x="0" y="0" width="60" height="184">
+          <node x="0" y="0" width="24" height="24"/>
+          <node x="0" y="160" width="24" height="24"/>
+        </node>
+        <node x="160" y="160" width="24" height="24"/>
+      </node>
+    </node>
+  </expectations>
+</test>

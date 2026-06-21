@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_empty_edges_accommodate_border_padding.html" source-sha256="50be3139b9b49d933e0eb0b64bd092ddb243d75d3771f573d9126a3c1afff370" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_empty_edges_accommodate_border_padding__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" width="100px" height="100px">
+      <div source-tag="div" display="grid" direction="rtl" grid-template-rows="repeat(3, auto)" grid-template-columns="repeat(5, auto)">
+        <div source-tag="div" display="grid" direction="rtl" padding-top="11px" padding-left="13px" padding-bottom="20px" padding-right="7px" border-top="14px" border-left="12px" border-bottom="5px" border-right="18px" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="-1" grid-column-start="1" grid-column-end="-1">
+          <div source-tag="div" display="grid" direction="rtl" padding-top="11px" padding-left="13px" padding-bottom="20px" padding-right="7px" border-top="14px" border-left="12px" border-bottom="5px" border-right="18px" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="-1" grid-column-start="1" grid-column-end="-1"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="100" height="100">
+        <node x="0" y="0" width="100" height="100">
+          <node x="25" y="25" width="50" height="50"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

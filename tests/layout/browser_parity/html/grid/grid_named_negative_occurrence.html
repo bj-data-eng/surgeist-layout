@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid named negative occurrence</title>
+</head>
+<body>
+
+<!--
+Contract:
+An ordinary grid item can resolve repeated explicit column line names by
+negative occurrence. The item spans from the third-from-last a line to the last
+a line.
+-->
+<div id="test-root" style="display: grid; grid-template-rows: 20px; grid-template-columns: [a] 20px [a] 30px [a] 40px [a];">
+  <div style="grid-column: a -3 / a -1; background: grey;"></div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_margins_percent_end.html" source-sha256="b7c8c898483242ce5736211d351f1f93214c2e99a5ac30d70b0a883a53de8561" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_margins_percent_end__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-rows="40px 40px 40px" grid-template-columns="20px 20px 20px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" align-self="end" justify-self="end" width="20px" height="20px" margin-top="5%" margin-left="20%" margin-bottom="15%" margin-right="10%"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="60" height="120">
+      <node x="44" y="17" width="20" height="20"/>
+      <node x="20" y="0" width="20" height="40"/>
+      <node x="0" y="0" width="20" height="40"/>
+      <node x="40" y="40" width="20" height="40"/>
+      <node x="20" y="40" width="20" height="40"/>
+      <node x="0" y="40" width="20" height="40"/>
+    </node>
+  </expectations>
+</test>

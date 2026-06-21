@@ -1,0 +1,26 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_percent_tracks_indefinite_with_content_overflow.html" source-sha256="aeaf0f24e9973e9ab09ada9f3c52fae6161bd2c6546687788a2d474833522ccd" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_percent_tracks_indefinite_with_content_overflow__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-rows="50% 80%" grid-template-columns="40% 40% 40%">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="100px" height="100px" grid-row-start="1" grid-column-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-row-start="1" grid-column-start="1"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="100" height="100"/>
+      <node x="60" y="0" width="40" height="50"/>
+      <node x="20" y="0" width="40" height="50"/>
+      <node x="-20" y="0" width="40" height="50"/>
+      <node x="60" y="50" width="40" height="80"/>
+      <node x="20" y="50" width="40" height="80"/>
+      <node x="-20" y="50" width="40" height="80"/>
+    </node>
+  </expectations>
+</test>

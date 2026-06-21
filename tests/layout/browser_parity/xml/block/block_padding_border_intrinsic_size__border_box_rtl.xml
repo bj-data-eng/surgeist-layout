@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_padding_border_intrinsic_size.html" source-sha256="550aefa6cf7074c521f5b3bc98d73a186feeea0b2eb41c50d11e691529739770" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_padding_border_intrinsic_size__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" padding-top="1px" padding-left="7px" padding-bottom="5px" padding-right="3px" border-top="2px" border-left="8px" border-bottom="6px" border-right="4px">
+      <div source-tag="div" display="flex" direction="rtl" width="50px" height="10px"/>
+      <div source-tag="div" display="flex" direction="rtl" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="72" height="34">
+      <node x="15" y="3" width="50" height="10"/>
+      <node x="15" y="13" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>

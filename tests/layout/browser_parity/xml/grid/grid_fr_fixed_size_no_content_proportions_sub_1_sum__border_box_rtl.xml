@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_fr_fixed_size_no_content_proportions_sub_1_sum.html" source-sha256="068574fcf65785f3a4a7e3b53680130ee0fd3345a76557ad93e3bf09f4e1b398" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_fr_fixed_size_no_content_proportions_sub_1_sum__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" width="100px" grid-template-rows="40px" grid-template-columns="0.3fr 0.2fr">
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="40">
+      <node x="70" y="0" width="30" height="40"/>
+      <node x="50" y="0" width="20" height="40"/>
+    </node>
+  </expectations>
+</test>

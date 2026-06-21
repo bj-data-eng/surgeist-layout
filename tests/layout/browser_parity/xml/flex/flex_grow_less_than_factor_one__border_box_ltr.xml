@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/flex_grow_less_than_factor_one.html" source-sha256="d6ee379f9ada8c157fd3ba058b787f22b3f9d04abd22b8fab59756cbafef733b" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="flex_grow_less_than_factor_one__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="500px" height="200px">
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="0.2" flex-shrink="0" flex-basis="40px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="0.2" flex-shrink="0"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-grow="0.4" flex-shrink="0"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="500" height="200">
+      <node x="0" y="0" width="132" height="200"/>
+      <node x="132" y="0" width="92" height="200"/>
+      <node x="224" y="0" width="184" height="200"/>
+    </node>
+  </expectations>
+</test>

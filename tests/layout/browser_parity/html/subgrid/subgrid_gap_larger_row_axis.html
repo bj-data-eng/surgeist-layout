@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subgrid larger row gap than parent</title>
+  <style>
+    html, body { color: black; background-color: white; font: 16px/1 monospace; padding: 0; margin: 0; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/grid-gap-larger-002.html.
+
+A row subgrid spanning two parent rows uses a 100px subgrid gap even though the
+parent row gap is 20px.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-rows: 100px auto; grid-template-columns: 100px; gap: 20px; border: 3px solid; background: yellow; font: 16px/1 monospace;">
+  <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: 100px; gap: 100px; grid-row: span 2;">
+    <span style="display: block; width: 16px; height: 16px; background: grey;">a</span>
+    <span style="display: block; width: 16px; height: 16px; background: lightgrey;">b</span>
+  </div>
+</div>
+</body>
+</html>

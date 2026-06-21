@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_alignment_002_end_center_item.html" source-sha256="34d9fcc0b88012d0ff327de3c9773f6e748d9e4938f13a6c9edaa99acd2c8f7d" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_alignment_002_end_center_item__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="inline-grid" box-sizing="content-box" direction="ltr" font-size="16px" row-gap="5px" column-gap="5px" grid-template-rows="50px" grid-template-columns="50px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-size="16px" row-gap="5px" column-gap="5px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+        <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-size="16px" align-self="end" justify-self="center" width="20px" height="20px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="50">
+      <node x="0" y="0" width="50" height="50">
+        <node x="15" y="30" width="20" height="20"/>
+      </node>
+    </node>
+  </expectations>
+</test>

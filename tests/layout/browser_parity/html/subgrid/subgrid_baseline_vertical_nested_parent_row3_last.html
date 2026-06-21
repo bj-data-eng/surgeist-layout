@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid baseline vertical nested parent row 3 last</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/subgrid-baseline-006.html
+Original assertion:
+<div data-offset-x="190" class="item small last"></div>
+Contract:
+In the parent grid that hosts the vertical-rl nested subgrid, the last baseline
+reference item in the third row is offset to x=190.
+-->
+<div id="test-root" style="writing-mode: vertical-rl; width: 600px; position: relative; display: grid; grid-template-rows: 150px 150px 150px; grid-template-columns: 100px 100px 100px 100px;">
+  <div style="display: grid; gap: 10px; grid-column-start: 1; grid-column-end: span 2; grid-row-start: 1; grid-row-end: span 3; grid-template-rows: subgrid; grid-template-columns: subgrid; margin-right: 5px; margin-left: 10px; border: 5px solid black; padding-right: 10px; padding-left: 20px;">
+    <div style="display: grid; gap: 20px; grid-column-start: 1; grid-column-end: span 2; grid-row-start: 1; grid-row-end: span 2; grid-template-rows: subgrid; grid-template-columns: subgrid; margin-right: 3px; margin-left: 7px; border: 5px solid black; padding-right: 5px; padding-left: 10px;">
+      <div style="height: 40px; box-sizing: border-box; border: 5px solid hotpink; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: baseline;">
+        <span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span><br><span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span>
+      </div>
+      <div style="height: 40px; box-sizing: border-box; border: 5px solid hotpink; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: last baseline;">
+        <span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span><br><span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span>
+      </div>
+      <div style="height: 40px; box-sizing: border-box; border: 5px solid hotpink; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: baseline;">
+        <span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span><br><span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span>
+      </div>
+      <div style="height: 40px; box-sizing: border-box; border: 5px solid hotpink; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: last baseline;">
+        <span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span><br><span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span>
+      </div>
+    </div>
+    <div style="height: 40px; box-sizing: border-box; border: 5px solid hotpink; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: baseline;">
+      <span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span><br><span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span>
+    </div>
+    <div style="height: 40px; box-sizing: border-box; border: 5px solid hotpink; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: last baseline;">
+      <span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span><br><span style="width: 20px; height: 20px; box-sizing: border-box; border: 5px solid orange; display: inline-block;"></span>
+    </div>
+  </div>
+  <div style="width: 30px; height: 30px; box-sizing: border-box; border: 5px solid cyan; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: baseline;"></div>
+  <div style="width: 30px; height: 30px; box-sizing: border-box; border: 5px solid cyan; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: last baseline;"></div>
+  <div style="width: 30px; height: 30px; box-sizing: border-box; border: 5px solid cyan; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: baseline;"></div>
+  <div style="width: 30px; height: 30px; box-sizing: border-box; border: 5px solid cyan; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: last baseline;"></div>
+  <div style="width: 30px; height: 30px; box-sizing: border-box; border: 5px solid cyan; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: baseline;"></div>
+  <div style="width: 30px; height: 30px; box-sizing: border-box; border: 5px solid cyan; line-height: 0; margin-right: 3px; margin-left: 5px; align-self: last baseline;"></div>
+</div>
+
+</body>
+</html>

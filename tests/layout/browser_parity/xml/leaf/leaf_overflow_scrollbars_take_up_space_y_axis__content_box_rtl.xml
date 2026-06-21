@@ -1,0 +1,12 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/leaf/leaf_overflow_scrollbars_take_up_space_y_axis.html" source-sha256="a9d2d7f9f215e38218f4c29ffe18f36d7bfd45bba78fda5767567200e0f5a8b2" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="leaf_overflow_scrollbars_take_up_space_y_axis__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-y="scroll" scrollbar-width="15">
+      HH
+    </text>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="35" height="10" scroll_width="0" scroll_height="0"/>
+  </expectations>
+</test>

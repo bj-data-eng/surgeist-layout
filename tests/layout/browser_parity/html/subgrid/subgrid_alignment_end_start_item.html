@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid alignment end/start item</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/alignment-in-subgridded-axes-001.html
+Original assertion:
+<div class="item" data-offset-x="130" data-expected-width="40" data-offset-y="30" data-expected-height="40"></div>
+Contract:
+An item in an end/start-aligned subgrid is positioned in the second inline-grid
+column after the subgrid margin, border, and padding, with a 40px used size in
+both axes.
+-->
+<div id="test-root" style="display: block; font-size: 0;">
+  <div style="display: inline-grid; grid-auto-rows: 100px; grid-template-columns: 100px;">
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: start; justify-self: start; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: start; justify-self: end; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: start; justify-self: center; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: start; justify-self: baseline; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+  </div>
+  <div style="display: inline-grid; grid-auto-rows: 100px; grid-template-columns: 100px;">
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: end; justify-self: start; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: end; justify-self: end; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: end; justify-self: center; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: end; justify-self: baseline; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+  </div>
+  <div style="display: inline-grid; grid-auto-rows: 100px; grid-template-columns: 100px;">
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: center; justify-self: start; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: center; justify-self: end; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: center; justify-self: center; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: center; justify-self: baseline; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+  </div>
+  <div style="display: inline-grid; grid-auto-rows: 100px; grid-template-columns: 100px;">
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: baseline; justify-self: start; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: baseline; justify-self: end; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: baseline; justify-self: center; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+    <div style="display: grid; grid-template: subgrid / subgrid; align-self: baseline; justify-self: baseline; margin: 10px; border: 10px solid blue; padding: 10px;">
+      <div style="display: block;"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

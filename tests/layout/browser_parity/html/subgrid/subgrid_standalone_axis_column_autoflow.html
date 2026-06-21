@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid standalone axis column auto-flow</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/standalone-axis-size-007.html
+Original assertion:
+Test passes if there is a filled green square and no red.
+Contract:
+A row subgrid spanning two rows uses column auto-flow and min-content inline
+sizing to place two 100px by 50px items into a 100px by 100px contribution.
+-->
+<div id="test-root" style="display: inline-grid;">
+  <div style="display: grid; grid-row: span 2; min-width: min-content; grid-auto-flow: column; grid-template-rows: subgrid;">
+    <div style="width: 100px; height: 50px;"></div>
+    <div style="width: 100px; height: 50px;"></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_gap_larger_overrides_parent.html" source-sha256="7a2d28daa4e754b6be1250f8672d9d91e5e36e6db64e7e8ff7d48c4367bda302" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_gap_larger_overrides_parent__content_box_rtl" use-rounding="true">
+  <viewport width="800px" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" row-gap="0px" column-gap="0px" grid-template-rows="repeat(3, auto)" grid-template-columns="150px 100px 150px 100px">
+      <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px" grid-column-start="1" grid-column-end="3">
+        A
+      </text>
+      <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px" grid-column-start="4">
+        B
+      </text>
+      <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px" grid-row-start="2" grid-row-end="4" grid-column-start="1">
+        C
+      </text>
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" row-gap="20px" column-gap="20px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="2" grid-row-end="4" grid-column-start="2" grid-column-end="5">
+        <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px">
+          E
+        </text>
+        <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px">
+          F
+        </text>
+        <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px">
+          G
+        </text>
+        <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px">
+          H
+        </text>
+        <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px">
+          I
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="800" height="228">
+      <node x="0" y="0" width="250" height="56"/>
+      <node x="400" y="0" width="100" height="56"/>
+      <node x="0" y="56" width="150" height="172"/>
+      <node x="150" y="56" width="350" height="172">
+        <node x="20" y="20" width="70" height="56"/>
+        <node x="110" y="20" width="130" height="56"/>
+        <node x="260" y="20" width="70" height="56"/>
+        <node x="20" y="96" width="70" height="56"/>
+        <node x="110" y="96" width="130" height="56"/>
+      </node>
+    </node>
+  </expectations>
+</test>

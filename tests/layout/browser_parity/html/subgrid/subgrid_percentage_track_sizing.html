@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid percentage track sizing</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/percentage-track-sizing.html
+Original assertion:
+Test passes if there is a filled green square and no red.
+Contract:
+A row subgrid inside a definite 100px by 100px grid resolves standalone
+percentage columns as 100% and 0%, so the single child occupies the full square.
+-->
+<div id="test-root" style="display: grid; width: 100px; height: 100px;">
+  <div style="display: grid; grid-template-columns: 100% 0%; grid-template-rows: subgrid;">
+    <div></div>
+  </div>
+</div>
+
+</body>
+</html>

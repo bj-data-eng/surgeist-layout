@@ -1,0 +1,30 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_basic_with_padding.html" source-sha256="c87f7c550eb23632d52c4550d8bf457b833eea9291475f0e6749ba6ddbb07ffc" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_basic_with_padding__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr" padding-top="10px" padding-left="40px" padding-bottom="30px" padding-right="20px" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px">
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+      <div source-tag="div" display="flex" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="160">
+      <node x="40" y="10" width="40" height="40"/>
+      <node x="80" y="10" width="40" height="40"/>
+      <node x="120" y="10" width="40" height="40"/>
+      <node x="40" y="50" width="40" height="40"/>
+      <node x="80" y="50" width="40" height="40"/>
+      <node x="120" y="50" width="40" height="40"/>
+      <node x="40" y="90" width="40" height="40"/>
+      <node x="80" y="90" width="40" height="40"/>
+      <node x="120" y="90" width="40" height="40"/>
+    </node>
+  </expectations>
+</test>

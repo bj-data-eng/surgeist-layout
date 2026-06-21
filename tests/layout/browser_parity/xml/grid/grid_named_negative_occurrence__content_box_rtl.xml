@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_named_negative_occurrence.html" source-sha256="265ef4a135e14382fe9bd7ae28ef909518adedbde4cd95900d6cf89147bd9a94" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_named_negative_occurrence__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-rows="20px" grid-template-columns="[a] 20px [a] 30px [a] 40px [a]">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-column-start="a -3" grid-column-end="a -1"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="90" height="20">
+      <node x="0" y="0" width="70" height="20"/>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_fit_content_points_min_content_hidden.html" source-sha256="8f3d92c90251462da6665df7915445a79f41d55855de1d9fc26951837076d008" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_fit_content_points_min_content_hidden__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" grid-template-rows="40px" grid-template-columns="fit-content(30px)">
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15">
+        HHHH​HH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="40">
+      <node x="0" y="0" width="30" height="40" scroll_width="10" scroll_height="0"/>
+    </node>
+  </expectations>
+</test>

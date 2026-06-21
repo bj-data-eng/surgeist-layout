@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/justify_content_overflow_min_max.html" source-sha256="ad0d7b8eb25eb2aa0723d1529c370dc6e643056081c843249b920d084dcdb742" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="justify_content_overflow_min_max__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" justify-content="center" min-height="100px" max-height="110px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-shrink="0" width="50px" height="50px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-shrink="0" width="50px" height="50px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-shrink="0" width="50px" height="50px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="110">
+      <node x="0" y="-20" width="50" height="50"/>
+      <node x="0" y="30" width="50" height="50"/>
+      <node x="0" y="80" width="50" height="50"/>
+    </node>
+  </expectations>
+</test>

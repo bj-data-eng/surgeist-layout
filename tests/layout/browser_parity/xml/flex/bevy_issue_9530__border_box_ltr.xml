@@ -1,0 +1,26 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/bevy_issue_9530.html" source-sha256="0e8f7204696a3f077fc6fffc8a42df7e6f918dfe434de6cb6828855db683b2e3" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="bevy_issue_9530__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" align-items="center" align-content="center" width="300px" height="300px" margin-top="auto" margin-left="auto" margin-bottom="auto" margin-right="auto">
+      <div source-tag="div" display="flex" direction="ltr" flex-direction="column" width="100%" height="20px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-direction="column" flex-grow="1" width="100%" margin-top="20px" margin-left="20px" margin-bottom="20px" margin-right="20px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px">
+        <div source-tag="div" display="flex" direction="ltr" width="100%" height="50px"/>
+        <text source-tag="div" display="flex" direction="ltr" align-items="center" align-content="center" justify-content="center" flex-grow="1" margin-top="20px" margin-left="20px" margin-bottom="20px" margin-right="20px">
+          HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH​HHHH
+        </text>
+        <div source-tag="div" display="flex" direction="ltr" width="100%" height="50px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="300" height="300">
+      <node x="0" y="0" width="300" height="0"/>
+      <node x="0" y="20" width="300" height="420">
+        <node x="20" y="20" width="260" height="50"/>
+        <node x="40" y="90" width="220" height="240"/>
+        <node x="20" y="350" width="260" height="50"/>
+      </node>
+    </node>
+  </expectations>
+</test>

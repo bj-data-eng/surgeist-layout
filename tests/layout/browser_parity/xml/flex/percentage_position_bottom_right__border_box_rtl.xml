@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/percentage_position_bottom_right.html" source-sha256="4b441f8f1446fdc51e1580b081989a493f656bd375b13cdce6f88a5e9b23a87c" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="percentage_position_bottom_right__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" width="500px" height="500px">
+      <div source-tag="div" display="flex" direction="rtl" width="55.00000000000001%" height="15%" bottom="10%" right="20%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="500" height="500">
+      <node x="125" y="-50" width="275" height="75"/>
+    </node>
+  </expectations>
+</test>

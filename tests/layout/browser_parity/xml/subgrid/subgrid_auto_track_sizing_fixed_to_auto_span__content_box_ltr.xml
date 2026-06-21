@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_auto_track_sizing_fixed_to_auto_span.html" source-sha256="d58702a186ebcc9d146980b0c37203b99250a5b68858f68bc42ac9309893f28c" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_auto_track_sizing_fixed_to_auto_span__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="article" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" max-width="260px" padding-top="1px" padding-left="5px" padding-bottom="1px" padding-right="5px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-columns="auto 100px auto">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" margin-top="7px" margin-left="5px" margin-bottom="3px" margin-right="11px" padding-top="3px" padding-left="11px" padding-bottom="7px" padding-right="5px" border-top="5px" border-left="3px" border-bottom="11px" border-right="7px" grid-template-rows="subgrid" grid-column-start="2" grid-column-end="span 2">
+        The cat can not be separated from milk
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="272" height="72">
+      <node x="11" y="9" width="244" height="58"/>
+    </node>
+  </expectations>
+</test>

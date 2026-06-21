@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/wrap_row.html" source-sha256="d896e24edf0f00704c9cb0bcac0e6ed7214e7e1366d406ba211891d7c4e04640" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="wrap_row__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-wrap="wrap" width="100px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="31px" height="30px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="32px" height="30px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="33px" height="30px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="34px" height="30px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="60">
+      <node x="0" y="0" width="31" height="30"/>
+      <node x="31" y="0" width="32" height="30"/>
+      <node x="63" y="0" width="33" height="30"/>
+      <node x="0" y="30" width="34" height="30"/>
+    </node>
+  </expectations>
+</test>

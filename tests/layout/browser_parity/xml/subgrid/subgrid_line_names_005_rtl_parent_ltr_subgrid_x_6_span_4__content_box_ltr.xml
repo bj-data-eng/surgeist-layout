@@ -1,0 +1,40 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_line_names_005_rtl_parent_ltr_subgrid_x_6_span_4.html" source-sha256="470d6c02dc2bc690f4768c90910853823eb287aa9cadf64d45d2ae3bfcf4fc47" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_line_names_005_rtl_parent_ltr_subgrid_x_6_span_4__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="12px" line-height="12px" align-content="start" justify-content="start" width="500px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-rows="[a] repeat(1, [b] auto [c]) [d] repeat(3, [b] auto [c]) [d]" grid-template-columns="[a] 30px [b] 30px [c] 30px 30px [e-start] 30px 30px [x] 30px [h] 30px [i] 30px [j] 30px [k]" grid-auto-rows="100px" grid-auto-columns="100px">
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="i" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1"/>
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" writing-mode="horizontal-tb" font-family="monospace" font-size="12px" line-height="12px" min-width="0px" min-height="0px" grid-template-rows="auto" grid-template-columns="subgrid" grid-row-start="2" grid-row-end="span 2" grid-column-start="2" grid-column-end="span 8">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" min-width="10px" min-height="20px" grid-column-start="x 6" grid-column-end="span 4">
+          x
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="502" height="22">
+      <node x="471" y="1" width="30" height="0"/>
+      <node x="441" y="1" width="30" height="0"/>
+      <node x="411" y="1" width="30" height="0"/>
+      <node x="381" y="1" width="30" height="0"/>
+      <node x="351" y="1" width="30" height="0"/>
+      <node x="321" y="1" width="30" height="0"/>
+      <node x="291" y="1" width="30" height="0"/>
+      <node x="261" y="1" width="30" height="0"/>
+      <node x="231" y="1" width="30" height="0"/>
+      <node x="201" y="1" width="30" height="0"/>
+      <node x="231" y="1" width="240" height="20">
+        <node x="210" y="0" width="30" height="20"/>
+      </node>
+    </node>
+  </expectations>
+</test>

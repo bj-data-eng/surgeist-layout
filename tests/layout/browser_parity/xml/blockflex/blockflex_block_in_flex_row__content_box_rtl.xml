@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/blockflex/blockflex_block_in_flex_row.html" source-sha256="aa1a5fe15a11b563b3dac4a3b0bf4fe2181cc7def9f9aacbba0d99754c68cf25" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="blockflex_block_in_flex_row__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="200px" height="50px">
+      <div source-tag="div" display="block" box-sizing="content-box" direction="rtl"/>
+      <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" width="50px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="50">
+      <node x="200" y="0" width="0" height="50"/>
+      <node x="150" y="0" width="50" height="50"/>
+    </node>
+  </expectations>
+</test>

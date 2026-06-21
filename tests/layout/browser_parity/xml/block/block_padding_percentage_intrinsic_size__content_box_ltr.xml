@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_padding_percentage_intrinsic_size.html" source-sha256="4c06640cea9a52a147d654a3fe7d50981705112094d7e4e56f8ce718ab8094b0" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_padding_percentage_intrinsic_size__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="ltr">
+      <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" padding-top="1%" padding-left="4%" padding-bottom="3%" padding-right="2%">
+        <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" height="10px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="0" height="10">
+      <node x="0" y="0" width="0" height="10">
+        <node x="0" y="0" width="0" height="10"/>
+      </node>
+    </node>
+  </expectations>
+</test>

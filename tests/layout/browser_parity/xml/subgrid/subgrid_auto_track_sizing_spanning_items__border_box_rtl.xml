@@ -1,0 +1,28 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_auto_track_sizing_spanning_items.html" source-sha256="515cc4292b656fd6188401e89760e741f9f8adee5086f73437f44165848176e5" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_auto_track_sizing_spanning_items__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" width="100px" height="100px">
+      <div source-tag="div" display="grid" direction="rtl" grid-template-rows="repeat(5, 5px auto)" grid-template-columns="repeat(10, auto)">
+        <div source-tag="div" display="grid" direction="rtl" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="-1" grid-column-start="1" grid-column-end="-1">
+          <div source-tag="div" display="flex" direction="rtl" width="50px" height="50px" grid-row-start="span 8" grid-column-start="span 3"/>
+          <div source-tag="div" display="flex" direction="rtl" width="50px" height="50px" grid-row-start="span 8" grid-column-start="span 7"/>
+          <div source-tag="div" display="flex" direction="rtl" width="50px" height="50px" grid-row-start="span 2" grid-column-start="span 6"/>
+          <div source-tag="div" display="flex" direction="rtl" width="50px" height="50px" grid-row-start="span 2" grid-column-start="span 4"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="100" height="100">
+        <node x="0" y="0" width="100" height="100">
+          <node x="50" y="0" width="50" height="50"/>
+          <node x="0" y="0" width="50" height="50"/>
+          <node x="50" y="50" width="50" height="50"/>
+          <node x="0" y="50" width="50" height="50"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

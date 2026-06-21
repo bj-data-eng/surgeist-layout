@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_absolute_aspect_ratio_fill_min_height.html" source-sha256="a98169ae960bd9a9b56ad8573a1a0fc1aeb7f94adc033ddc3dbb6f8fe54ac9f7" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_absolute_aspect_ratio_fill_min_height__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" width="400px" height="300px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" position="absolute" min-width="50px" aspect-ratio="3"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="400" height="300">
+      <node x="350" y="0" width="50" height="17"/>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,28 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_margin_y_collapse_complex.html" source-sha256="ad6b862ab0f06762a29ad1eb127a5cb42d5ea0e119af90cdc1d1fe87e02620be" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_margin_y_collapse_complex__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" width="50px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px" margin-top="-10px" margin-bottom="-10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px" margin-top="-10px" margin-bottom="-10px">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px" margin-top="-5px" margin-bottom="-5px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px" margin-top="7px" margin-bottom="3px"/>
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px" margin-top="-6px" margin-bottom="9px"/>
+      </div>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px" margin-top="-5px" margin-bottom="-5px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" height="10px" margin-top="-10px" margin-bottom="-10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="0">
+      <node x="0" y="-10" width="50" height="10"/>
+      <node x="0" y="-10" width="50" height="10">
+        <node x="0" y="-5" width="0" height="10"/>
+        <node x="0" y="7" width="0" height="10"/>
+        <node x="0" y="-6" width="0" height="10"/>
+      </node>
+      <node x="0" y="-10" width="50" height="10"/>
+      <node x="0" y="-10" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_padding_border_percentage_fixed_size.html" source-sha256="a1e25de92362664b7661c0c510bdf57157dfc5ab91a2ba2792529ff5e05bd6af" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_padding_border_percentage_fixed_size__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" width="50px" height="50px">
+      <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" padding-top="1%" padding-left="4%" padding-bottom="3%" padding-right="2%">
+        <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" height="10px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="50">
+      <node x="0" y="0" width="50" height="12">
+        <node x="2" y="1" width="47" height="10"/>
+      </node>
+    </node>
+  </expectations>
+</test>

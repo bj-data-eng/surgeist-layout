@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subgrid row gap with border bottom</title>
+  <style>
+    html, body { color: black; background-color: white; font: 24px/1 monospace; padding: 0; margin: 0; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/grid-gap-002.html.
+
+A row-axis subgrid with a bottom border and a definite row/column gap keeps the
+spanned parent rows aligned while the border contributes to the subgrid block
+size.
+-->
+<div id="test-root" style="display: grid; grid-template-rows: repeat(4, auto); grid-template-columns: repeat(5, auto); place-content: start; border: 1px solid; font: 24px/1 monospace;">
+  <div style="grid-row: 1; min-width: 10px; min-height: 0; background: silver;"></div>
+  <div style="grid-row: 2; min-width: 10px; min-height: 0; background: magenta;"></div>
+  <div style="grid-row: 3; min-width: 10px; min-height: 0; background: silver;"></div>
+  <div style="grid-row: 4; min-width: 10px; min-height: 0; background: magenta;"></div>
+  <div style="grid-row: 5; min-width: 10px; min-height: 0; background: silver;"></div>
+  <div style="grid-row: 6; min-width: 10px; min-height: 0; background: magenta;"></div>
+  <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: auto; gap: 10px 20px; grid-column: 2 / span 5; grid-row: 2 / span 5; min-width: 10px; min-height: 0; border: 0 solid lightblue; border-bottom-width: 40px; background: yellow;">
+    <div style="background: lightgrey; width: 24px; height: 24px;">c</div>
+    <div style="background: lightgrey; width: 24px; height: 24px;">d</div>
+  </div>
+</div>
+</body>
+</html>

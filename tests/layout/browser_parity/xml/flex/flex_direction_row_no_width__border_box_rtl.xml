@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/flex_direction_row_no_width.html" source-sha256="1fbc3f18faa1c8e56f8844d0d702b36eae2305e9882637c7af2d62b11b139254" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="flex_direction_row_no_width__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" height="100px">
+      <div source-tag="div" display="flex" direction="rtl" width="10px"/>
+      <div source-tag="div" display="flex" direction="rtl" width="10px"/>
+      <div source-tag="div" display="flex" direction="rtl" width="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="30" height="100">
+      <node x="20" y="0" width="10" height="100"/>
+      <node x="10" y="0" width="10" height="100"/>
+      <node x="0" y="0" width="10" height="100"/>
+    </node>
+  </expectations>
+</test>

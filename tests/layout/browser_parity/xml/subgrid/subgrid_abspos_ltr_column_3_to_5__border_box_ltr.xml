@@ -1,0 +1,60 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_abspos_ltr_column_3_to_5.html" source-sha256="654f080ab27c4a2cdc8fa43a8b053e4aaeb951f23e7adbb467acd1dd3bbd19d6" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_abspos_ltr_column_3_to_5__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" align-content="start" justify-content="start" width="500px" padding-top="4px" padding-left="10px" padding-bottom="1px" padding-right="3px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-rows="repeat(4, auto)" grid-template-columns="repeat(10, 30px)" grid-auto-rows="100px" grid-auto-columns="100px">
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        1
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        2
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        3
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        4
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        5
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        6
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        7
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        8
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        9
+      </text>
+      <text source-tag="div" display="flex" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
+        10
+      </text>
+      <div source-tag="div" display="grid" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" min-width="0px" min-height="0px" grid-template-rows="auto" grid-template-columns="subgrid" grid-row-start="2" grid-row-end="span 2" grid-column-start="2" grid-column-end="span 8">
+        <text source-tag="div" display="flex" direction="ltr" position="absolute" font-family="monospace" font-size="12px" line-height="12px" top="0px" left="0px" bottom="0px" right="0px" grid-column-start="3" grid-column-end="5">
+          x
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="500" height="19">
+      <node x="11" y="5" width="30" height="12"/>
+      <node x="41" y="5" width="30" height="12"/>
+      <node x="71" y="5" width="30" height="12"/>
+      <node x="101" y="5" width="30" height="12"/>
+      <node x="131" y="5" width="30" height="12"/>
+      <node x="161" y="5" width="30" height="12"/>
+      <node x="191" y="5" width="30" height="12"/>
+      <node x="221" y="5" width="30" height="12"/>
+      <node x="251" y="5" width="30" height="12"/>
+      <node x="281" y="5" width="30" height="12"/>
+      <node x="41" y="17" width="240" height="0">
+        <node x="60" y="0" width="60" height="0"/>
+      </node>
+    </node>
+  </expectations>
+</test>

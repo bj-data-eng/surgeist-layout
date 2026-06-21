@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid-lanes empty column container padding</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/grid-lanes/column-empty-grid-lanes-container-002.html
+Original assertion:
+Test that an empty grid-lanes container still renders padding.
+Contract:
+An empty grid-lanes container with 20px padding still occupies block space from
+its padding, yielding a 40px-tall box while stretching in the inline axis.
+-->
+<div id="test-root" style="display: grid-lanes; position: relative; padding: 20px;"></div>
+
+</body>
+</html>

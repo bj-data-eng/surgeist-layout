@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subgrid alignment 002 start/baseline item</title>
+  <style>
+    html, body { color: black; background-color: white; padding: 0; margin: 0; }
+  </style>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/alignment-in-subgridded-axes-002.html.
+
+An item with align-self:start and justify-self:baseline inside a subgrid in both
+subgridded axes is positioned like the non-subgrid reference.
+-->
+<div id="test-root" style="display: inline-grid; gap: 5px; grid-template-rows: 50px; grid-template-columns: 50px;">
+  <div style="display: inline-grid; gap: 5px; background: gray; grid-template-rows: subgrid; grid-template-columns: subgrid;">
+    <div style="background: orange; height: 20px; width: 20px; align-self: start; justify-self: baseline;"></div>
+  </div>
+</div>
+</body>
+</html>

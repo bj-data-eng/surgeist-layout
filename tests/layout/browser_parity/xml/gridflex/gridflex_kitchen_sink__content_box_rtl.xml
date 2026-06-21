@@ -1,0 +1,50 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/gridflex/gridflex_kitchen_sink.html" source-sha256="7b22c02b4a939b9f551c8bfe58d85616c1ffa9a93f2899d1bc5aa9b2a91b7ddf" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="gridflex_kitchen_sink__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-rows="1fr 1fr" grid-template-columns="1fr 1fr">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="20px"/>
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" width="50px">
+            <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" grid-template-rows="30% 10%" grid-template-columns="auto 10%">
+              <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" width="20px"/>
+              <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+              <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+              <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl"/>
+            </div>
+          </div>
+        </div>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          HH
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          HH
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl">
+          HH
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="140" height="20">
+      <node x="0" y="0" width="140" height="20">
+        <node x="70" y="0" width="70" height="10">
+          <node x="50" y="0" width="20" height="10"/>
+          <node x="0" y="0" width="50" height="10">
+            <node x="30" y="0" width="20" height="10">
+              <node x="0" y="0" width="20" height="3"/>
+              <node x="-2" y="0" width="2" height="3"/>
+              <node x="0" y="3" width="20" height="1"/>
+              <node x="-2" y="3" width="2" height="1"/>
+            </node>
+          </node>
+        </node>
+        <node x="0" y="0" width="70" height="10"/>
+        <node x="70" y="10" width="70" height="10"/>
+        <node x="0" y="10" width="70" height="10"/>
+      </node>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid baseline standalone axis first item</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/subgrid-baseline-010.html
+Original assertion:
+<div class="item" data-offset-y="12" data-expected-height="15">X</div>
+Contract:
+In a subgrid with a baseline-aligned standalone axis, the first 15px item is
+offset to y=12 when aligned with the second 30px item.
+-->
+<div id="test-root" style="display: inline-grid; align-items: baseline; grid-template-rows: 30px; grid-template-columns: 60px; font: 15px/1 ahem;">
+  <div style="display: inline-grid; align-items: baseline; grid-template-rows: subgrid; grid-template-columns: repeat(2, 30px);">
+    <div style="display: inline-grid; align-items: baseline; grid-template-rows: auto; grid-template-columns: subgrid;">X</div>
+    <div style="display: inline-grid; align-items: baseline; grid-template-rows: auto; grid-template-columns: subgrid; font-size: 30px;">X</div>
+  </div>
+</div>
+
+</body>
+</html>

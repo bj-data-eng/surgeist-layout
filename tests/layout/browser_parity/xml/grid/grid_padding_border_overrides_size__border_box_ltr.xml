@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_padding_border_overrides_size.html" source-sha256="e08c719fd40acd82e5c5e9a99eecb1ca7bafaa1ea73c973a9e4473af1ca2bea6" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_padding_border_overrides_size__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="ltr">
+      <div source-tag="div" display="flex" direction="ltr" width="12px" height="12px" padding-top="2px" padding-left="8px" padding-bottom="6px" padding-right="4px" border-top="1px" border-left="7px" border-bottom="5px" border-right="3px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="22" height="14">
+      <node x="0" y="0" width="22" height="14"/>
+    </node>
+  </expectations>
+</test>

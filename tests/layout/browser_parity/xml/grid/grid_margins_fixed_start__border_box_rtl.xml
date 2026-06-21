@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_margins_fixed_start.html" source-sha256="8cb8aea2c00fc9bb46c248087471b2aad1d84f7d7dc1854cfea142681176d838" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_margins_fixed_start__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" padding-top="10px" padding-left="40px" padding-bottom="30px" padding-right="20px" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px">
+      <div source-tag="div" display="flex" direction="rtl" align-self="start" justify-self="start" width="20px" height="20px" margin-top="1px" margin-left="4px" margin-bottom="3px" margin-right="2px"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+      <div source-tag="div" display="flex" direction="rtl"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="160">
+      <node x="138" y="11" width="20" height="20"/>
+      <node x="80" y="10" width="40" height="40"/>
+      <node x="40" y="10" width="40" height="40"/>
+      <node x="120" y="50" width="40" height="40"/>
+      <node x="80" y="50" width="40" height="40"/>
+      <node x="40" y="50" width="40" height="40"/>
+    </node>
+  </expectations>
+</test>

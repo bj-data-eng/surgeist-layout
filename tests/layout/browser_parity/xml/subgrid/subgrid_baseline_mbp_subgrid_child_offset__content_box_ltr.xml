@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_baseline_mbp_subgrid_child_offset.html" source-sha256="ed7c44eecd7887a55f8cfa583193764aba30c65bb90622e9cda5371f249da8e7" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_baseline_mbp_subgrid_child_offset__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-size="16px" line-height="16px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-columns="auto auto">
+      <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-size="16px" line-height="16px" align-self="baseline">
+        X
+      </text>
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-size="16px" line-height="16px" margin-top="15px" padding-top="6px" border-top="9px" border-left="9px" border-bottom="9px" border-right="9px" grid-template-rows="subgrid">
+        <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-size="16px" line-height="16px" align-self="baseline">
+          X
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="52" height="57">
+      <node x="1" y="31" width="16" height="16"/>
+      <node x="17" y="16" width="34" height="40">
+        <node x="9" y="15" width="16" height="16"/>
+      </node>
+    </node>
+  </expectations>
+</test>

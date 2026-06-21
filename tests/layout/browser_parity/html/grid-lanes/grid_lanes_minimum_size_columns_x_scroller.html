@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Grid-lanes columns x-scroller automatic minimum size</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/grid-lanes/grid-lanes-container-minimum-size-single-axis-scroll-container.html
+Original assertion:
+<div class="masonry columns x-scroller" data-expected-width="100" data-expected-height="100">
+Contract:
+A columns-axis grid-lanes container with scrollable inline-axis overflow still
+keeps the automatic minimum block size contributed by its 100px child.
+-->
+<div id="test-root" style="display: flex; flex-direction: column;">
+  <div style="display: grid-lanes; aspect-ratio: 1 / 1; width: 100px; height: auto; flex-basis: 0px; grid-template-rows: auto; overflow: clip;">
+    <div style="width: 100px; height: 100px;"></div>
+  </div>
+  <div style="display: grid-lanes; aspect-ratio: 1 / 1; width: 100px; height: auto; flex-basis: 0px; grid-template-rows: auto; overflow-x: clip; overflow-y: hidden;">
+    <div style="width: 100px; height: 100px;"></div>
+  </div>
+  <div style="display: grid-lanes; aspect-ratio: 1 / 1; width: 100px; height: auto; flex-basis: 0px; grid-template-rows: auto; overflow-x: hidden; overflow-y: clip;">
+    <div style="width: 100px; height: 100px;"></div>
+  </div>
+  <div style="display: grid-lanes; aspect-ratio: 1 / 1; width: 100px; height: auto; flex-basis: 0px; grid-template-columns: auto; overflow: clip;">
+    <div style="width: 100px; height: 100px;"></div>
+  </div>
+  <div style="display: grid-lanes; aspect-ratio: 1 / 1; width: 100px; height: auto; flex-basis: 0px; grid-template-columns: auto; overflow-x: clip; overflow-y: hidden;">
+    <div style="width: 100px; height: 100px;"></div>
+  </div>
+  <div style="display: grid-lanes; aspect-ratio: 1 / 1; width: 100px; height: auto; flex-basis: 0px; grid-template-columns: auto; overflow-x: hidden; overflow-y: clip;">
+    <div style="width: 100px; height: 100px;"></div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/align_content_stretch_row_with_single_row.html" source-sha256="512f85f84ff9cb85c2f982542e23182611e7f784d381e3444eeb81ce5d94c661" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="align_content_stretch_row_with_single_row__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl" flex-wrap="wrap" align-content="stretch" width="150px" height="100px">
+      <div source-tag="div" display="flex" direction="rtl" width="50px"/>
+      <div source-tag="div" display="flex" direction="rtl" width="50px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="150" height="100">
+      <node x="100" y="0" width="50" height="100"/>
+      <node x="50" y="0" width="50" height="100"/>
+    </node>
+  </expectations>
+</test>

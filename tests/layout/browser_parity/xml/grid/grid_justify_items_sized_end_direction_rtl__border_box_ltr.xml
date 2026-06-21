@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_justify_items_sized_end_direction_rtl.html" source-sha256="f7ab86ef0a3b39b618e4d156e90a8303767e1c5bd90ead70253c65d6cdf9ef06" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_justify_items_sized_end_direction_rtl__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" justify-items="end" width="120px" height="120px" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px">
+      <div source-tag="div" display="flex" direction="ltr" width="20px" height="20px" grid-row-start="1" grid-column-start="1"/>
+      <div source-tag="div" display="flex" direction="ltr" width="20px" height="20px" grid-row-start="3" grid-column-start="3"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="120" height="120">
+      <node x="80" y="0" width="20" height="20"/>
+      <node x="0" y="80" width="20" height="20"/>
+    </node>
+  </expectations>
+</test>

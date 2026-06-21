@@ -1,0 +1,20 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_auto_track_nested_subgrid_both.html" source-sha256="11706a85e4a902aba4d4f9c6fb0c49c1d94d4e4f83a347bcd50b9d46a0519710" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_auto_track_nested_subgrid_both__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="article" display="inline-grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" max-width="260px" padding-top="1px" padding-left="5px" padding-bottom="1px" padding-right="5px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-columns="100px">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" margin-top="0px" margin-left="10px" margin-bottom="0px" margin-right="5px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" margin-top="0px" margin-left="0px" margin-bottom="0px" margin-right="5px" grid-template-rows="subgrid" grid-template-columns="subgrid">
+          The cat can not be separated from milk
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="112" height="100">
+      <node x="16" y="2" width="85" height="96">
+        <node x="0" y="0" width="80" height="96"/>
+      </node>
+    </node>
+  </expectations>
+</test>

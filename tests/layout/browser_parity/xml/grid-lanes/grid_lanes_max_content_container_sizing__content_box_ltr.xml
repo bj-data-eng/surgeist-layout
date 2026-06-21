@@ -1,0 +1,52 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid-lanes/grid_lanes_max_content_container_sizing.html" source-sha256="997009e354f48de29fec1bf88e11c89b9cd4b4d930cca4d33ce4cc0f4a0ab1d3" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_lanes_max_content_container_sizing__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px">
+      <div source-tag="div" display="grid-lanes" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="min-content" margin-bottom="10px" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" grid-template-rows="auto auto auto">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="min-content">
+          Number 1
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="min-content">
+          Number 2
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="min-content">
+          Number 3
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="min-content" grid-row-start="span 2">
+          Number 4
+        </text>
+      </div>
+      <div source-tag="div" display="grid-lanes" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="max-content" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px" grid-template-rows="auto auto auto">
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="max-content">
+          Number 1
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="max-content">
+          Number 2
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="max-content">
+          Number 3
+        </text>
+        <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="15px" line-height="15px" width="max-content" grid-row-start="span 2">
+          Number 4
+        </text>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="165" height="185">
+      <node x="0" y="0" width="128" height="110">
+        <node x="10" y="10" width="54" height="30"/>
+        <node x="10" y="40" width="54" height="30"/>
+        <node x="10" y="70" width="54" height="30"/>
+        <node x="64" y="10" width="54" height="60"/>
+      </node>
+      <node x="0" y="120" width="165" height="65">
+        <node x="10" y="10" width="72" height="15"/>
+        <node x="10" y="25" width="72" height="15"/>
+        <node x="10" y="40" width="72" height="15"/>
+        <node x="82" y="10" width="73" height="30"/>
+      </node>
+    </node>
+  </expectations>
+</test>

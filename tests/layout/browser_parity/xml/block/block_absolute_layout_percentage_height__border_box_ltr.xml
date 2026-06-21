@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_absolute_layout_percentage_height.html" source-sha256="86d4ccbc137e7fd85f9cc490df62bb9049c11443776a527f63b298913f596aa4" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_absolute_layout_percentage_height__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="ltr" width="200px" height="100px">
+      <div source-tag="div" display="flex" direction="ltr" position="absolute" width="10px" height="50%" top="10px" left="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="100">
+      <node x="10" y="10" width="10" height="50"/>
+    </node>
+  </expectations>
+</test>

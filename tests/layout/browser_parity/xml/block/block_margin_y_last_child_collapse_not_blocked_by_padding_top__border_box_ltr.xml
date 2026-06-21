@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_margin_y_last_child_collapse_not_blocked_by_padding_top.html" source-sha256="8397c46c1b8c1ce61f82d2c326776b46b1fba8beb18d88b03dbf21bd0f56bc22" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_margin_y_last_child_collapse_not_blocked_by_padding_top__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="ltr" width="50px">
+      <div source-tag="div" display="block" direction="ltr" margin-bottom="10px" padding-top="1px">
+        <div source-tag="div" display="block" direction="ltr" margin-bottom="10px">
+          <div source-tag="div" display="flex" direction="ltr" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="21">
+      <node x="0" y="0" width="50" height="11">
+        <node x="0" y="1" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

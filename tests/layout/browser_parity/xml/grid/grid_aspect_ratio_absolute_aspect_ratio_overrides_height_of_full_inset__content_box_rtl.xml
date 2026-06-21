@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_aspect_ratio_absolute_aspect_ratio_overrides_height_of_full_inset.html" source-sha256="8d159da05c91deddae2cf23ee84f2f5fc0865da5ff15272cf2964d10f22e8096" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_aspect_ratio_absolute_aspect_ratio_overrides_height_of_full_inset__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" width="400px" height="300px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" position="absolute" aspect-ratio="3" top="5%" left="5%" bottom="5%" right="5%"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="400" height="300">
+      <node x="20" y="15" width="360" height="120"/>
+    </node>
+  </expectations>
+</test>

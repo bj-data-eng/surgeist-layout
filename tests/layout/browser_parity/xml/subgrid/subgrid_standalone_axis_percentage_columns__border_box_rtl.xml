@@ -1,0 +1,28 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_standalone_axis_percentage_columns.html" source-sha256="9d608f0279f9f2ff1a0ecddd258ef85c493b96f8e43b7db7301305f4e76d8c05" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_standalone_axis_percentage_columns__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" grid-template-rows="100px">
+      <div source-tag="div" display="grid" direction="rtl" width="min-content" grid-template-rows="subgrid" grid-template-columns="20% 30%">
+        <div source-tag="div" display="flex" direction="rtl">
+          <div source-tag="div" display="flex" direction="rtl" width="100px"/>
+        </div>
+        <div source-tag="div" display="flex" direction="rtl">
+          <div source-tag="div" display="flex" direction="rtl" width="100px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="100">
+      <node x="100" y="0" width="100" height="100">
+        <node x="60" y="0" width="40" height="100">
+          <node x="0" y="0" width="40" height="100"/>
+        </node>
+        <node x="0" y="0" width="60" height="100">
+          <node x="0" y="0" width="60" height="100"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

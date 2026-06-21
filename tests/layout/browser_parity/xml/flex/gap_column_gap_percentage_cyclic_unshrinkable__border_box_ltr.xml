@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/gap_column_gap_percentage_cyclic_unshrinkable.html" source-sha256="5aa5d97e38cbec1fc5fa52e5d527ab69754ca1b4364614632b86b4748bdb5628" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="gap_column_gap_percentage_cyclic_unshrinkable__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" column-gap="20%">
+      <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="20px" height="40px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="20px" height="40px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" width="20px" height="40px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="60" height="40">
+      <node x="0" y="0" width="20" height="40"/>
+      <node x="32" y="0" width="20" height="40"/>
+      <node x="64" y="0" width="20" height="40"/>
+    </node>
+  </expectations>
+</test>

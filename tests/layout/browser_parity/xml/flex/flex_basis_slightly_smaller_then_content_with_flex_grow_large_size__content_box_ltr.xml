@@ -1,0 +1,24 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/flex_basis_slightly_smaller_then_content_with_flex_grow_large_size.html" source-sha256="64ffa7ed1e63e4204fd29c0a67eaf30fe9a7fafe237faeb45bd756fb4fb95668" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="flex_basis_slightly_smaller_then_content_with_flex_grow_large_size__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="100px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" flex-grow="1" flex-basis="60px">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="70px" height="100px"/>
+      </div>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" flex-grow="1" flex-basis="0px">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="20px" height="100px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="80" height="100">
+        <node x="0" y="0" width="70" height="100"/>
+      </node>
+      <node x="80" y="0" width="20" height="100">
+        <node x="0" y="0" width="20" height="100"/>
+      </node>
+    </node>
+  </expectations>
+</test>

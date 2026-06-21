@@ -1,0 +1,26 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/absolute_correct_cross_child_size_with_percentage.html" source-sha256="ef52406bb6e1e11c32fc20f2f0e64c72045bca33278d45a977dc40a17366c7b1" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="absolute_correct_cross_child_size_with_percentage__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" width="300px" height="110px">
+      <div source-tag="div" display="flex" direction="rtl" position="absolute" flex-direction="column" top="40px" left="50px">
+        <div source-tag="div" display="flex" direction="rtl" width="200px" height="10px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="100%" height="10px"/>
+        <div source-tag="div" display="flex" direction="rtl" width="100%" height="10px">
+          <div source-tag="div" display="flex" direction="rtl" width="10px" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="300" height="110">
+      <node x="50" y="40" width="200" height="30">
+        <node x="0" y="0" width="200" height="10"/>
+        <node x="0" y="10" width="200" height="10"/>
+        <node x="0" y="20" width="200" height="10">
+          <node x="190" y="0" width="10" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

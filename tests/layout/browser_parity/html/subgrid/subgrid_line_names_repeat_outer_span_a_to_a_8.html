@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Subgrid line names from repeated outer grid</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/line-names-002.html
+Reference:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/line-names-002-ref.html
+
+Original assertion:
+A subgrid item can resolve repeated line names inherited from the outer grid.
+Contract:
+Inside a 10-track column subgrid spanning the repeated [a] section of the
+parent grid, grid-column: span a / a 8 resolves to the same visual placement as
+the WPT reference grid-column: 3 / 4.
+-->
+<div id="test-root" style="display: grid; grid-template-rows: auto; grid-template-columns: repeat(10, 10px) repeat(10, [a] 10px) [a]; padding: 20px 10px; font: 24px/1 monospace;">
+  <div style="display: grid; grid-template-rows: 50px; grid-template-columns: subgrid; grid-column: span 10;">
+    <div style="background: grey; grid-column: span a / a 8;"></div>
+  </div>
+</div>
+
+</body>
+</html>

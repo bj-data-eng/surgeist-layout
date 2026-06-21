@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/gap_row_gap_column_child_margins.html" source-sha256="3899f20088b8f0b40bef673d327fab33d9d2b936d391db2c67027558ed8ae417" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="gap_row_gap_column_child_margins__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column" width="100px" height="200px" row-gap="10px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="0%" margin-top="2px" margin-bottom="2px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="0%" margin-top="10px" margin-bottom="10px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1" flex-basis="0%" margin-top="15px" margin-bottom="15px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="200">
+      <node x="0" y="2" width="100" height="42"/>
+      <node x="0" y="66" width="100" height="42"/>
+      <node x="0" y="143" width="100" height="42"/>
+    </node>
+  </expectations>
+</test>

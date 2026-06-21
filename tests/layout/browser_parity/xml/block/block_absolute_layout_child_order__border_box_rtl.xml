@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_absolute_layout_child_order.html" source-sha256="e1f7106111de07d4b1039218088657dabc6de4252360057b3909669cfd70e3f1" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_absolute_layout_child_order__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" align-items="center" justify-content="center" width="110px" height="100px">
+      <div source-tag="div" display="block" direction="rtl" width="60px" height="40px"/>
+      <div source-tag="div" display="block" direction="rtl" position="absolute" width="60px" height="40px"/>
+      <div source-tag="div" display="block" direction="rtl" width="60px" height="40px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="110" height="100">
+      <node x="50" y="0" width="60" height="40"/>
+      <node x="50" y="40" width="60" height="40"/>
+      <node x="50" y="40" width="60" height="40"/>
+    </node>
+  </expectations>
+</test>

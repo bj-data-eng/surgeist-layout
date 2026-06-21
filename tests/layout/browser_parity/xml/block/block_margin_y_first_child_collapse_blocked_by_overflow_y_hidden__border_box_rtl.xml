@@ -1,0 +1,22 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_margin_y_first_child_collapse_blocked_by_overflow_y_hidden.html" source-sha256="ba860aa90c5382ffd18ef378aab85e9894d9a7e593af9a2e2155fb6a58e30a8e" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_margin_y_first_child_collapse_blocked_by_overflow_y_hidden__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" width="50px">
+      <div source-tag="div" display="block" direction="rtl" overflow-y="hidden" scrollbar-width="15" margin-top="10px">
+        <div source-tag="div" display="block" direction="rtl" margin-top="10px">
+          <div source-tag="div" display="flex" direction="rtl" height="10px"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="30">
+      <node x="0" y="10" width="50" height="20" scroll_width="0" scroll_height="0">
+        <node x="0" y="10" width="50" height="10">
+          <node x="0" y="0" width="50" height="10"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/xpadding_border_overrides_size_flex_basis_0.html" source-sha256="ae2eb70d28b00f34f55dafb2f027636edaff0c368b8d5a063cbd064c21cda47a" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="xpadding_border_overrides_size_flex_basis_0__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="rtl">
+      <div source-tag="div" display="flex" direction="rtl" flex-basis="0px" width="12px" height="12px" padding-top="2px" padding-left="8px" padding-bottom="6px" padding-right="4px" border-top="1px" border-left="7px" border-bottom="5px" border-right="3px"/>
+      <div source-tag="div" display="flex" direction="rtl" flex-basis="0px" width="12px" height="12px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="22" height="14">
+      <node x="0" y="0" width="22" height="14"/>
+      <node x="0" y="0" width="0" height="12"/>
+    </node>
+  </expectations>
+</test>

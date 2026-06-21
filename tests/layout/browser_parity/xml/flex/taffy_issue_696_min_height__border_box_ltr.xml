@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/taffy_issue_696_min_height.html" source-sha256="e232f4a491a24ba1b6092a615a431720a571729ec06279b7204b57a99867dcc2" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="taffy_issue_696_min_height__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" width="200px">
+      <div source-tag="div" display="flex" direction="ltr" flex-direction="column" flex-basis="0px" min-height="100px" padding-top="20px" padding-left="20px" padding-bottom="20px" padding-right="20px">
+        <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" height="200px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="100">
+      <node x="0" y="0" width="200" height="100">
+        <node x="20" y="20" width="160" height="200"/>
+      </node>
+    </node>
+  </expectations>
+</test>

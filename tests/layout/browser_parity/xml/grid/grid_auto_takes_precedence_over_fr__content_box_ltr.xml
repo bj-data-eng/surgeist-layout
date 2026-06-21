@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_auto_takes_precedence_over_fr.html" source-sha256="be41366114cdd3af6398a295ec570a2d7fffd42b9ec84670f4a64153f7a1cf57" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="grid_auto_takes_precedence_over_fr__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" width="200px" height="200px" grid-template-rows="40px" grid-template-columns="auto 1fr">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="200">
+      <node x="0" y="0" width="0" height="40"/>
+      <node x="0" y="0" width="200" height="40"/>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/flex_wrap_children_with_min_main_overriding_flex_basis.html" source-sha256="eeb540637f6e73b40152f08b977842a2534636544668c3eb6cd33d52750eba7d" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="flex_wrap_children_with_min_main_overriding_flex_basis__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-wrap="wrap" width="100px">
+      <div source-tag="div" display="flex" direction="ltr" flex-basis="50px" height="50px" min-width="55px"/>
+      <div source-tag="div" display="flex" direction="ltr" flex-basis="50px" height="50px" min-width="55px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="55" height="50"/>
+      <node x="0" y="50" width="55" height="50"/>
+    </node>
+  </expectations>
+</test>

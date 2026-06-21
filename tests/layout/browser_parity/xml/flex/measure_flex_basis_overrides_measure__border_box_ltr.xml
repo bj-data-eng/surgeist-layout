@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/measure_flex_basis_overrides_measure.html" source-sha256="0da64a7d85e6f71f4bd8358fd1b3343c42a3a2e19ae444152d1d94429ea60567" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="measure_flex_basis_overrides_measure__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="50px" height="50px">
+      <text source-tag="div" display="flex" direction="ltr">
+        H
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="50">
+      <node x="0" y="0" width="10" height="50"/>
+    </node>
+  </expectations>
+</test>

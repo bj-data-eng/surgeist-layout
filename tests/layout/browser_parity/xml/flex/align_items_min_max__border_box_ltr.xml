@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/align_items_min_max.html" source-sha256="0901e91f1b77e971f28aed74d70c3991ea98ecbf65701a619b9913845354a6ce" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="align_items_min_max__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" align-items="center" height="100px" min-width="100px" max-width="200px">
+      <div source-tag="div" display="flex" direction="ltr" width="60px" height="60px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="20" y="0" width="60" height="60"/>
+    </node>
+  </expectations>
+</test>

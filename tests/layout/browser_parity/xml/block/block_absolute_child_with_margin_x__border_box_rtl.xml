@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_absolute_child_with_margin_x.html" source-sha256="ee6422e1ad501a045cbb33b6a9fcd6561da05a6faee4a4d8cea47ad3b6ae68dd" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_absolute_child_with_margin_x__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" width="20px" height="37px">
+      <div source-tag="div" display="flex" direction="rtl" position="absolute" width="9px" height="9px" margin-left="7px"/>
+      <div source-tag="div" display="flex" direction="rtl" position="absolute" width="9px" height="9px" margin-right="7px"/>
+      <div source-tag="div" display="flex" direction="rtl" position="absolute" width="9px" height="9px" margin-left="10px" margin-right="5px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="37">
+      <node x="11" y="0" width="9" height="9"/>
+      <node x="4" y="0" width="9" height="9"/>
+      <node x="6" y="0" width="9" height="9"/>
+    </node>
+  </expectations>
+</test>

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Vertical subgrid stretches column axis with 50px max-height</title>
+</head>
+<body>
+
+<!--
+Derived from WPT:
+https://github.com/web-platform-tests/wpt/blob/f01d00b6963a/css/css-grid/subgrid/subgrid-stretch.html
+Original assertion:
+The subgrid is always stretched in its subgridded dimension(s).
+Contract:
+A vertical-rl column subgrid in a 100px by 100px grid stretches to the grid
+area block size even when it specifies max-height: 50px.
+-->
+<div id="test-root" style="display: inline-grid; grid-template-columns: 100px; grid-template-rows: 100px;">
+  <div style="display: grid; writing-mode: vertical-rl; grid-template-columns: subgrid; align-self: baseline; max-height: 50px;"></div>
+</div>
+
+</body>
+</html>

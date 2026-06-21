@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_standalone_axis_oversized_child_contribution.html" source-sha256="f75576048ca318afe48cb39737cd0f331d5f1e09f16da0922ee68e7d630552a4" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="subgrid_standalone_axis_oversized_child_contribution__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid" direction="rtl" grid-template-rows="100px">
+      <div source-tag="div" display="grid" direction="rtl" width="100px" grid-template-rows="subgrid">
+        <div source-tag="div" display="flex" direction="rtl" width="200px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="100">
+      <node x="0" y="0" width="100" height="100">
+        <node x="-100" y="0" width="200" height="100"/>
+      </node>
+    </node>
+  </expectations>
+</test>

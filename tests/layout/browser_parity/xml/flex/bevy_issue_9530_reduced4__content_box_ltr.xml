@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/bevy_issue_9530_reduced4.html" source-sha256="115604e40f8515a3353a8f290949bea38e4801ceb92984497e55e8480a3871ef" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="bevy_issue_9530_reduced4__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" flex-direction="column" width="80px">
+      <text source-tag="div" display="flex" box-sizing="content-box" direction="ltr" margin-top="20px" margin-left="20px" margin-bottom="20px" margin-right="20px">
+        HH​HH​HH​HH​HH​HH​HH​HH
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="80" height="80">
+      <node x="20" y="20" width="40" height="40"/>
+    </node>
+  </expectations>
+</test>

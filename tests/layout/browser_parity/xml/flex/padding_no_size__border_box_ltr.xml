@@ -1,0 +1,10 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/padding_no_size.html" source-sha256="877f18bd09c43c4633f7bf2cd55df663f4ac596d24345a8455cb4db8ba459f7c" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="padding_no_size__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" padding-top="10px" padding-left="10px" padding-bottom="10px" padding-right="10px"/>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="20" height="20"/>
+  </expectations>
+</test>

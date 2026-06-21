@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Subgrid auto track sizing min-content text runs</title>
+</head>
+<body>
+<!--
+Derived from WPT css/css-grid/subgrid/auto-track-sizing-003.html.
+
+Test passes if there is a filled green square and no red.
+
+The source uses Ahem text "X XXXX XX XXX". These inline runs model the same
+25px text units explicitly, making the longest unbreakable run 100px and the
+wrapped block contribution 100px tall.
+-->
+<div id="test-root" style="display: block; width: 100px; height: 100px; background: red;">
+  <div style="display: grid; width: min-content; background: green; font-size: 25px; line-height: 1; color: transparent;">
+    <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: subgrid; grid-row: 1 / -1; grid-column: 1 / -1;">
+      <span style="display: inline-block; width: 25px; height: 25px;"></span>
+      <span style="display: inline-block; width: 100px; height: 25px;"></span>
+      <span style="display: inline-block; width: 50px; height: 25px;"></span>
+      <span style="display: inline-block; width: 75px; height: 25px;"></span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

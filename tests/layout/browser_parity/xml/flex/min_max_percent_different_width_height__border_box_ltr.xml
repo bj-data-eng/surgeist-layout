@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/min_max_percent_different_width_height.html" source-sha256="611fe368d393c9ff16dd29f5d2f621fbefccf76649a388816f992b86ba1dee5b" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="min_max_percent_different_width_height__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" flex-direction="column" align-items="flex-start" width="100px" height="200px">
+      <text source-tag="div" display="flex" direction="ltr" min-width="10%" min-height="10%" max-width="10%" max-height="10%">
+        
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="100" height="200">
+      <node x="0" y="0" width="10" height="20"/>
+    </node>
+  </expectations>
+</test>
