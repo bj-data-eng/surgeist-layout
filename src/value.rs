@@ -34,6 +34,63 @@ impl Available {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CalcId(u32);
+
+impl CalcId {
+    #[must_use]
+    pub const fn new(index: u32) -> Self {
+        Self(index)
+    }
+
+    #[must_use]
+    pub const fn index(self) -> u32 {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CalcResolution {
+    pub value: Option<Scalar>,
+    pub depends_on_basis: bool,
+}
+
+impl CalcResolution {
+    #[must_use]
+    pub const fn definite(value: Scalar, depends_on_basis: bool) -> Self {
+        Self {
+            value: Some(value),
+            depends_on_basis,
+        }
+    }
+
+    #[must_use]
+    pub const fn unresolved(depends_on_basis: bool) -> Self {
+        Self {
+            value: None,
+            depends_on_basis,
+        }
+    }
+}
+
+pub trait CalcResolver {
+    fn resolve_calc(&self, id: CalcId, basis: Option<Scalar>) -> CalcResolution;
+    fn calc_depends_on_basis(&self, id: CalcId) -> bool;
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoCalcResolver;
+
+impl CalcResolver for NoCalcResolver {
+    fn resolve_calc(&self, _id: CalcId, _basis: Option<Scalar>) -> CalcResolution {
+        CalcResolution::unresolved(false)
+    }
+
+    fn calc_depends_on_basis(&self, _id: CalcId) -> bool {
+        false
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Length {
     Normal,
@@ -56,12 +113,40 @@ impl Length {
     }
 
     #[must_use]
+    pub const fn depends_on_basis(self) -> bool {
+        matches!(self, Self::Percent(_))
+    }
+
+    #[must_use]
     pub fn resolve(self, basis: Scalar) -> Scalar {
         match self {
             Self::Normal => 0.0,
             Self::Px(value) => value,
             Self::Percent(value) => value * basis,
         }
+    }
+
+    #[must_use]
+    pub fn resolve_or_zero(self, basis: Option<Scalar>) -> Scalar {
+        self.resolve_optional(basis).unwrap_or(0.0)
+    }
+
+    #[must_use]
+    pub fn resolve_optional(self, basis: Option<Scalar>) -> Option<Scalar> {
+        match self {
+            Self::Normal => Some(0.0),
+            Self::Px(value) => Some(value),
+            Self::Percent(value) => basis.map(|basis| value * basis),
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_with(
+        self,
+        basis: Option<Scalar>,
+        _resolver: &dyn CalcResolver,
+    ) -> Option<Scalar> {
+        self.resolve_optional(basis)
     }
 }
 
@@ -98,10 +183,29 @@ impl LengthAuto {
     }
 
     #[must_use]
+    pub const fn depends_on_basis(self) -> bool {
+        matches!(self, Self::Percent(_))
+    }
+
+    #[must_use]
     pub fn resolve(self, basis: Scalar) -> Option<Scalar> {
         match self {
             Self::Px(value) => Some(value),
             Self::Percent(value) => Some(value * basis),
+            Self::Auto => None,
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_or_zero(self, basis: Option<Scalar>) -> Scalar {
+        self.resolve_optional(basis).unwrap_or(0.0)
+    }
+
+    #[must_use]
+    pub fn resolve_optional(self, basis: Option<Scalar>) -> Option<Scalar> {
+        match self {
+            Self::Px(value) => Some(value),
+            Self::Percent(value) => basis.map(|basis| value * basis),
             Self::Auto => None,
         }
     }
@@ -165,10 +269,24 @@ impl Dimension {
     }
 
     #[must_use]
+    pub const fn depends_on_basis(self) -> bool {
+        matches!(self, Self::Percent(_))
+    }
+
+    #[must_use]
     pub fn resolve(self, basis: Scalar) -> Option<Scalar> {
         match self {
             Self::Px(value) => Some(value),
             Self::Percent(value) => Some(value * basis),
+            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_optional(self, basis: Option<Scalar>) -> Option<Scalar> {
+        match self {
+            Self::Px(value) => Some(value),
+            Self::Percent(value) => basis.map(|basis| value * basis),
             Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }

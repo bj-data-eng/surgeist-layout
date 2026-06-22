@@ -40,7 +40,9 @@ pub use output::{
     SizingMode,
 };
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
-pub use value::{Available, Dimension, Length, LengthAuto};
+pub use value::{
+    Available, CalcId, CalcResolution, CalcResolver, Dimension, Length, LengthAuto, NoCalcResolver,
+};
 pub use value::{
     GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,
     SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackComponent,

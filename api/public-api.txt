@@ -73,6 +73,7 @@ pub const surgeist_layout::Dimension::MAX_CONTENT: Self
 pub const surgeist_layout::Dimension::MIN_CONTENT: Self
 pub const surgeist_layout::Dimension::ZERO: Self
 pub const fn surgeist_layout::Dimension::auto() -> Self
+pub const fn surgeist_layout::Dimension::depends_on_basis(self) -> bool
 pub const fn surgeist_layout::Dimension::fr(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::Dimension::is_auto(self) -> bool
 pub const fn surgeist_layout::Dimension::is_max_content(self) -> bool
@@ -80,6 +81,7 @@ pub const fn surgeist_layout::Dimension::is_min_content(self) -> bool
 pub const fn surgeist_layout::Dimension::percent(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::Dimension::px(value: surgeist_layout::Scalar) -> Self
 pub fn surgeist_layout::Dimension::resolve(self, basis: surgeist_layout::Scalar) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::Dimension::resolve_optional(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::MaxTrackSizing
 pub fn surgeist_layout::MaxTrackSizing::from(value: surgeist_layout::Dimension) -> Self
 impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::MinTrackSizing
@@ -164,9 +166,13 @@ pub surgeist_layout::Length::Px(surgeist_layout::Scalar)
 impl surgeist_layout::Length
 pub const surgeist_layout::Length::NORMAL: Self
 pub const surgeist_layout::Length::ZERO: Self
+pub const fn surgeist_layout::Length::depends_on_basis(self) -> bool
 pub const fn surgeist_layout::Length::percent(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::Length::px(value: surgeist_layout::Scalar) -> Self
 pub fn surgeist_layout::Length::resolve(self, basis: surgeist_layout::Scalar) -> surgeist_layout::Scalar
+pub fn surgeist_layout::Length::resolve_optional(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::Length::resolve_or_zero(self, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::Scalar
+pub fn surgeist_layout::Length::resolve_with(self, basis: core::option::Option<surgeist_layout::Scalar>, _resolver: &dyn surgeist_layout::CalcResolver) -> core::option::Option<surgeist_layout::Scalar>
 impl core::convert::From<surgeist_layout::Length> for surgeist_layout::Dimension
 pub fn surgeist_layout::Dimension::from(value: surgeist_layout::Length) -> Self
 impl core::convert::From<surgeist_layout::Length> for surgeist_layout::LengthAuto
@@ -189,10 +195,13 @@ impl surgeist_layout::LengthAuto
 pub const surgeist_layout::LengthAuto::AUTO: Self
 pub const surgeist_layout::LengthAuto::ZERO: Self
 pub const fn surgeist_layout::LengthAuto::auto() -> Self
+pub const fn surgeist_layout::LengthAuto::depends_on_basis(self) -> bool
 pub const fn surgeist_layout::LengthAuto::is_auto(self) -> bool
 pub const fn surgeist_layout::LengthAuto::percent(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::LengthAuto::px(value: surgeist_layout::Scalar) -> Self
 pub fn surgeist_layout::LengthAuto::resolve(self, basis: surgeist_layout::Scalar) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::LengthAuto::resolve_optional(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::LengthAuto::resolve_or_zero(self, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::Scalar
 impl core::convert::From<surgeist_layout::Length> for surgeist_layout::LengthAuto
 pub fn surgeist_layout::LengthAuto::from(value: surgeist_layout::Length) -> Self
 impl core::convert::From<surgeist_layout::LengthAuto> for surgeist_layout::Dimension
@@ -345,6 +354,16 @@ pub const fn surgeist_layout::Cache::new() -> Self
 pub fn surgeist_layout::Cache::store(&mut self, input: &surgeist_layout::ComputeInput, output: surgeist_layout::ComputeOutput)
 impl core::default::Default for surgeist_layout::Cache
 pub fn surgeist_layout::Cache::default() -> Self
+pub struct surgeist_layout::CalcId(_)
+impl surgeist_layout::CalcId
+pub const fn surgeist_layout::CalcId::index(self) -> u32
+pub const fn surgeist_layout::CalcId::new(index: u32) -> Self
+pub struct surgeist_layout::CalcResolution
+pub surgeist_layout::CalcResolution::depends_on_basis: bool
+pub surgeist_layout::CalcResolution::value: core::option::Option<surgeist_layout::Scalar>
+impl surgeist_layout::CalcResolution
+pub const fn surgeist_layout::CalcResolution::definite(value: surgeist_layout::Scalar, depends_on_basis: bool) -> Self
+pub const fn surgeist_layout::CalcResolution::unresolved(depends_on_basis: bool) -> Self
 pub struct surgeist_layout::CollapsibleMargin
 impl surgeist_layout::CollapsibleMargin
 pub const surgeist_layout::CollapsibleMargin::ZERO: Self
@@ -484,6 +503,10 @@ pub surgeist_layout::LaneTrackSpan::end: usize
 pub surgeist_layout::LaneTrackSpan::start: usize
 impl surgeist_layout::LaneTrackSpan
 pub const fn surgeist_layout::LaneTrackSpan::new(start: usize, end: usize) -> Self
+pub struct surgeist_layout::NoCalcResolver
+impl surgeist_layout::CalcResolver for surgeist_layout::NoCalcResolver
+pub fn surgeist_layout::NoCalcResolver::calc_depends_on_basis(&self, _id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::NoCalcResolver::resolve_calc(&self, _id: surgeist_layout::CalcId, _basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 pub struct surgeist_layout::NodeInput
 pub surgeist_layout::NodeInput::align_content: core::option::Option<surgeist_layout::AlignContent>
 pub surgeist_layout::NodeInput::align_items: core::option::Option<surgeist_layout::AlignItems>
@@ -638,6 +661,12 @@ pub type surgeist_layout::CacheAccess::Node: core::marker::Copy + core::cmp::Eq
 pub fn surgeist_layout::CacheAccess::cache_clear(&mut self, node: Self::Node)
 pub fn surgeist_layout::CacheAccess::cache_get(&self, node: Self::Node, input: &surgeist_layout::ComputeInput) -> core::option::Option<surgeist_layout::ComputeOutput>
 pub fn surgeist_layout::CacheAccess::cache_store(&mut self, node: Self::Node, input: &surgeist_layout::ComputeInput, output: surgeist_layout::ComputeOutput)
+pub trait surgeist_layout::CalcResolver
+pub fn surgeist_layout::CalcResolver::calc_depends_on_basis(&self, id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::CalcResolver::resolve_calc(&self, id: surgeist_layout::CalcId, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
+impl surgeist_layout::CalcResolver for surgeist_layout::NoCalcResolver
+pub fn surgeist_layout::NoCalcResolver::calc_depends_on_basis(&self, _id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::NoCalcResolver::resolve_calc(&self, _id: surgeist_layout::CalcId, _basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 pub trait surgeist_layout::Compute: surgeist_layout::Traverse
 pub fn surgeist_layout::Compute::compute_child(&mut self, node: Self::Node, input: surgeist_layout::ComputeInput) -> surgeist_layout::ComputeOutput
 pub fn surgeist_layout::Compute::node_input(&self, node: Self::Node) -> &surgeist_layout::NodeInput
