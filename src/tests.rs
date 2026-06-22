@@ -1,6 +1,7 @@
 use super::{
     Available, Baselines, CalcExpression, CalcResolver, CalcTerm, ComputeOutput, Dimension,
-    Display, Edges, LayoutCalcStore, Length, LengthAuto, NoCalcResolver, Point, Size, TrackSizing,
+    Display, Edges, LayoutCalcStore, Length, LengthAuto, MaxTrackSizing, MinTrackSizing,
+    NoCalcResolver, Point, Size, TrackSizing,
 };
 
 #[test]
@@ -120,6 +121,23 @@ fn layout_calc_store_reports_basis_dependency_and_unresolved_percent() {
 }
 
 #[test]
+fn layout_calc_store_reports_signed_percent_fraction() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([
+        CalcTerm::percent(0.50),
+        CalcTerm::percent(-0.25),
+    ]));
+    let track = TrackSizing::new(
+        MinTrackSizing::Length(Length::calc(id)),
+        MaxTrackSizing::Length(Length::px(80.0)),
+    );
+
+    assert_eq!(store.calc_percent_fraction(id), Some(0.25));
+    assert_eq!(track.percent_fraction_with(&store), 0.25);
+    assert_eq!(store.resolve_calc(id, Some(200.0)).value, Some(50.0));
+}
+
+#[test]
 fn length_calc_resolves_through_resolver_hook() {
     let mut store = LayoutCalcStore::new();
     let id = store.push(CalcExpression::sum([
@@ -164,6 +182,38 @@ fn track_sizing_reports_basis_dependency() {
     assert!(TrackSizing::percent(0.25).depends_on_basis());
     assert!(TrackSizing::fit_content(Length::percent(0.25)).depends_on_basis());
     assert!(!TrackSizing::fr(1.0).depends_on_basis());
+}
+
+#[test]
+fn calc_percent_track_participates_in_percent_detection() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([
+        CalcTerm::px(20.0),
+        CalcTerm::percent(0.10),
+    ]));
+    let track = TrackSizing::new(
+        MinTrackSizing::Length(Length::calc(id)),
+        MaxTrackSizing::Length(Length::px(80.0)),
+    );
+
+    assert!(track.depends_on_basis_with(&store));
+    assert_eq!(track.percent_fraction_with(&store), 0.10);
+}
+
+#[test]
+fn calc_px_only_track_does_not_request_percent_rerun() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([
+        CalcTerm::px(20.0),
+        CalcTerm::px(10.0),
+    ]));
+    let track = TrackSizing::new(
+        MinTrackSizing::Length(Length::calc(id)),
+        MaxTrackSizing::Length(Length::px(80.0)),
+    );
+
+    assert!(!track.depends_on_basis_with(&store));
+    assert_eq!(track.percent_fraction_with(&store), 0.0);
 }
 
 #[test]

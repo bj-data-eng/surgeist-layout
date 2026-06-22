@@ -181,6 +181,7 @@ pub const fn surgeist_layout::Length::calc(id: surgeist_layout::CalcId) -> Self
 pub const fn surgeist_layout::Length::depends_on_basis(self) -> bool
 pub fn surgeist_layout::Length::depends_on_basis_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> bool
 pub const fn surgeist_layout::Length::percent(value: surgeist_layout::Scalar) -> Self
+pub fn surgeist_layout::Length::percent_fraction_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::Scalar
 pub const fn surgeist_layout::Length::px(value: surgeist_layout::Scalar) -> Self
 pub fn surgeist_layout::Length::resolve(self, basis: surgeist_layout::Scalar) -> surgeist_layout::Scalar
 pub fn surgeist_layout::Length::resolve_optional(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
@@ -239,12 +240,14 @@ pub const surgeist_layout::MaxTrackSizing::MIN_CONTENT: Self
 pub const surgeist_layout::MaxTrackSizing::ZERO: Self
 pub fn surgeist_layout::MaxTrackSizing::definite(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 pub const fn surgeist_layout::MaxTrackSizing::depends_on_basis(self) -> bool
+pub fn surgeist_layout::MaxTrackSizing::depends_on_basis_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> bool
 pub const fn surgeist_layout::MaxTrackSizing::fit_content(limit: surgeist_layout::Length) -> Self
 pub fn surgeist_layout::MaxTrackSizing::fit_limit(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 pub const fn surgeist_layout::MaxTrackSizing::fr(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::MaxTrackSizing::is_flexible(self) -> bool
 pub const fn surgeist_layout::MaxTrackSizing::is_intrinsic(self) -> bool
 pub const fn surgeist_layout::MaxTrackSizing::percent(value: surgeist_layout::Scalar) -> Self
+pub fn surgeist_layout::MaxTrackSizing::percent_fraction_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::Scalar
 pub const fn surgeist_layout::MaxTrackSizing::px(value: surgeist_layout::Scalar) -> Self
 impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::MaxTrackSizing
 pub fn surgeist_layout::MaxTrackSizing::from(value: surgeist_layout::Dimension) -> Self
@@ -262,8 +265,10 @@ pub const surgeist_layout::MinTrackSizing::MIN_CONTENT: Self
 pub const surgeist_layout::MinTrackSizing::ZERO: Self
 pub fn surgeist_layout::MinTrackSizing::definite(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 pub const fn surgeist_layout::MinTrackSizing::depends_on_basis(self) -> bool
+pub fn surgeist_layout::MinTrackSizing::depends_on_basis_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> bool
 pub const fn surgeist_layout::MinTrackSizing::is_intrinsic(self) -> bool
 pub const fn surgeist_layout::MinTrackSizing::percent(value: surgeist_layout::Scalar) -> Self
+pub fn surgeist_layout::MinTrackSizing::percent_fraction_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::Scalar
 pub const fn surgeist_layout::MinTrackSizing::px(value: surgeist_layout::Scalar) -> Self
 impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::MinTrackSizing
 pub fn surgeist_layout::MinTrackSizing::from(value: surgeist_layout::Dimension) -> Self
@@ -376,6 +381,7 @@ pub fn surgeist_layout::Cache::default() -> Self
 pub struct surgeist_layout::CalcExpression
 impl surgeist_layout::CalcExpression
 pub fn surgeist_layout::CalcExpression::depends_on_basis(&self) -> bool
+pub fn surgeist_layout::CalcExpression::percent_fraction(&self) -> surgeist_layout::Scalar
 pub fn surgeist_layout::CalcExpression::resolve(&self, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 pub fn surgeist_layout::CalcExpression::sum(terms: impl core::iter::traits::collect::IntoIterator<Item = surgeist_layout::CalcTerm>) -> Self
 pub struct surgeist_layout::CalcId(_)
@@ -536,6 +542,7 @@ pub const fn surgeist_layout::LayoutCalcStore::new() -> Self
 pub fn surgeist_layout::LayoutCalcStore::push(&mut self, expression: surgeist_layout::CalcExpression) -> surgeist_layout::CalcId
 impl surgeist_layout::CalcResolver for surgeist_layout::LayoutCalcStore
 pub fn surgeist_layout::LayoutCalcStore::calc_depends_on_basis(&self, id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::LayoutCalcStore::calc_percent_fraction(&self, id: surgeist_layout::CalcId) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::LayoutCalcStore::resolve_calc(&self, id: surgeist_layout::CalcId, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 pub struct surgeist_layout::NoCalcResolver
 impl surgeist_layout::CalcResolver for surgeist_layout::NoCalcResolver
@@ -677,11 +684,13 @@ pub const surgeist_layout::TrackSizing::MAX_CONTENT: Self
 pub const surgeist_layout::TrackSizing::MIN_CONTENT: Self
 pub const surgeist_layout::TrackSizing::ZERO: Self
 pub const fn surgeist_layout::TrackSizing::depends_on_basis(self) -> bool
+pub fn surgeist_layout::TrackSizing::depends_on_basis_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> bool
 pub const fn surgeist_layout::TrackSizing::fit_content(limit: surgeist_layout::Length) -> Self
 pub const fn surgeist_layout::TrackSizing::fr(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::TrackSizing::minmax(min: surgeist_layout::MinTrackSizing, max: surgeist_layout::MaxTrackSizing) -> Self
 pub const fn surgeist_layout::TrackSizing::new(min: surgeist_layout::MinTrackSizing, max: surgeist_layout::MaxTrackSizing) -> Self
 pub const fn surgeist_layout::TrackSizing::percent(value: surgeist_layout::Scalar) -> Self
+pub fn surgeist_layout::TrackSizing::percent_fraction_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::Scalar
 pub const fn surgeist_layout::TrackSizing::px(value: surgeist_layout::Scalar) -> Self
 impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::TrackSizing
 pub fn surgeist_layout::TrackSizing::from(value: surgeist_layout::Dimension) -> Self
@@ -698,9 +707,11 @@ pub fn surgeist_layout::CacheAccess::cache_get(&self, node: Self::Node, input: &
 pub fn surgeist_layout::CacheAccess::cache_store(&mut self, node: Self::Node, input: &surgeist_layout::ComputeInput, output: surgeist_layout::ComputeOutput)
 pub trait surgeist_layout::CalcResolver
 pub fn surgeist_layout::CalcResolver::calc_depends_on_basis(&self, id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::CalcResolver::calc_percent_fraction(&self, id: surgeist_layout::CalcId) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::CalcResolver::resolve_calc(&self, id: surgeist_layout::CalcId, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 impl surgeist_layout::CalcResolver for surgeist_layout::LayoutCalcStore
 pub fn surgeist_layout::LayoutCalcStore::calc_depends_on_basis(&self, id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::LayoutCalcStore::calc_percent_fraction(&self, id: surgeist_layout::CalcId) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::LayoutCalcStore::resolve_calc(&self, id: surgeist_layout::CalcId, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 impl surgeist_layout::CalcResolver for surgeist_layout::NoCalcResolver
 pub fn surgeist_layout::NoCalcResolver::calc_depends_on_basis(&self, _id: surgeist_layout::CalcId) -> bool

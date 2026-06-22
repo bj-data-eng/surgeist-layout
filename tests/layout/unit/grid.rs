@@ -1,6 +1,9 @@
 use super::support::oracle_tree::{OracleMeasurement, OracleTree};
 use super::*;
-use surgeist_layout::{GridTemplateAreaRow, GridTemplateAreas, RawGridLine, RawGridPlacement};
+use surgeist_layout::{
+    CalcExpression, CalcResolver, CalcTerm, GridTemplateAreaRow, GridTemplateAreas,
+    LayoutCalcStore, RawGridLine, RawGridPlacement,
+};
 
 fn baseline_measure(
     width: Scalar,
@@ -11134,6 +11137,112 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
 
     assert_eq!(tree.layouts[&2].location, Point::new(25.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
+}
+
+#[test]
+fn grid_child_calc_size_and_margin_resolve_against_grid_area() {
+    #[derive(Default)]
+    struct GridTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+        inputs: HashMap<u32, Vec<ComputeInput>>,
+        calcs: LayoutCalcStore,
+    }
+
+    impl Traverse for GridTree {
+        type Node = u32;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
+
+    impl Compute for GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            self.inputs.entry(node).or_default().push(input);
+            ComputeOutput::from_outer_size(Size::new(
+                input.known.width.unwrap_or(0.0),
+                input.known.height.unwrap_or(10.0),
+            ))
+        }
+
+        fn calc_resolver(&self) -> &dyn CalcResolver {
+            &self.calcs
+        }
+    }
+
+    let mut tree = GridTree::default();
+    let width = tree.calcs.push(CalcExpression::sum([
+        CalcTerm::px(10.0),
+        CalcTerm::percent(0.5),
+    ]));
+    let margin = tree.calcs.push(CalcExpression::sum([
+        CalcTerm::px(5.0),
+        CalcTerm::percent(0.1),
+    ]));
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            grid_template_columns: vec![TrackComponent::px(100.0)],
+            grid_template_rows: vec![TrackComponent::px(40.0)],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            size: Size::new(Dimension::calc(width), Dimension::px(10.0)),
+            margin: Edges {
+                left: LengthAuto::calc(margin),
+                right: LengthAuto::ZERO,
+                top: LengthAuto::ZERO,
+                bottom: LengthAuto::ZERO,
+            },
+            ..NodeInput::default()
+        },
+    );
+
+    surgeist_layout::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(100.0), Some(40.0)),
+            available: Size::new(Available::Definite(100.0), Available::Definite(40.0)),
+        },
+    );
+
+    assert_eq!(
+        tree.inputs[&2].last().map(|input| input.known),
+        Some(Size::new(Some(60.0), Some(10.0)))
+    );
+    assert_eq!(tree.layouts[&2].location, Point::new(15.0, 0.0));
+    assert_eq!(tree.layouts[&2].size, Size::new(60.0, 10.0));
 }
 
 #[test]

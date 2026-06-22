@@ -76,6 +76,13 @@ impl CalcResolution {
 pub trait CalcResolver {
     fn resolve_calc(&self, id: CalcId, basis: Option<Scalar>) -> CalcResolution;
     fn calc_depends_on_basis(&self, id: CalcId) -> bool;
+    fn calc_percent_fraction(&self, id: CalcId) -> Option<Scalar> {
+        Some(if self.calc_depends_on_basis(id) {
+            1.0
+        } else {
+            0.0
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -139,6 +146,10 @@ impl CalcResolver for LayoutCalcStore {
     fn calc_depends_on_basis(&self, id: CalcId) -> bool {
         self.get(id).is_some_and(CalcExpression::depends_on_basis)
     }
+
+    fn calc_percent_fraction(&self, id: CalcId) -> Option<Scalar> {
+        self.get(id).map(CalcExpression::percent_fraction)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -159,6 +170,17 @@ impl CalcExpression {
         self.terms
             .iter()
             .any(|term| matches!(term, CalcTerm::Percent(_)))
+    }
+
+    #[must_use]
+    pub fn percent_fraction(&self) -> Scalar {
+        self.terms
+            .iter()
+            .filter_map(|term| match *term {
+                CalcTerm::Px(_) => None,
+                CalcTerm::Percent(percent) => Some(percent),
+            })
+            .sum()
     }
 
     #[must_use]
@@ -238,6 +260,21 @@ impl Length {
         match self {
             Self::Calc(id) => resolver.calc_depends_on_basis(id),
             _ => self.depends_on_basis(),
+        }
+    }
+
+    #[must_use]
+    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver) -> Scalar {
+        match self {
+            Self::Percent(value) => value,
+            Self::Calc(id) => resolver.calc_percent_fraction(id).unwrap_or_else(|| {
+                if resolver.calc_depends_on_basis(id) {
+                    1.0
+                } else {
+                    0.0
+                }
+            }),
+            Self::Normal | Self::Px(_) => 0.0,
         }
     }
 
@@ -555,6 +592,22 @@ impl MinTrackSizing {
     }
 
     #[must_use]
+    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver) -> bool {
+        match self {
+            Self::Length(length) => length.depends_on_basis_with(resolver),
+            Self::Auto | Self::MinContent | Self::MaxContent => false,
+        }
+    }
+
+    #[must_use]
+    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver) -> Scalar {
+        match self {
+            Self::Length(length) => length.percent_fraction_with(resolver),
+            Self::Auto | Self::MinContent | Self::MaxContent => 0.0,
+        }
+    }
+
+    #[must_use]
     pub fn definite(self, basis: Option<Scalar>) -> Option<Scalar> {
         match self {
             Self::Length(length) => length.resolve_optional(basis),
@@ -636,6 +689,26 @@ impl MaxTrackSizing {
         match self {
             Self::Length(length) | Self::FitContent(length) => length.depends_on_basis(),
             Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
+        }
+    }
+
+    #[must_use]
+    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver) -> bool {
+        match self {
+            Self::Length(length) | Self::FitContent(length) => {
+                length.depends_on_basis_with(resolver)
+            }
+            Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
+        }
+    }
+
+    #[must_use]
+    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver) -> Scalar {
+        match self {
+            Self::Length(length) | Self::FitContent(length) => {
+                length.percent_fraction_with(resolver)
+            }
+            Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => 0.0,
         }
     }
 
@@ -740,6 +813,18 @@ impl TrackSizing {
     #[must_use]
     pub const fn depends_on_basis(self) -> bool {
         self.min.depends_on_basis() || self.max.depends_on_basis()
+    }
+
+    #[must_use]
+    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver) -> bool {
+        self.min.depends_on_basis_with(resolver) || self.max.depends_on_basis_with(resolver)
+    }
+
+    #[must_use]
+    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver) -> Scalar {
+        self.min
+            .percent_fraction_with(resolver)
+            .max(self.max.percent_fraction_with(resolver))
     }
 }
 
