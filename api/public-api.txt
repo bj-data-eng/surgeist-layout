@@ -221,6 +221,7 @@ pub const surgeist_layout::MaxTrackSizing::MAX_CONTENT: Self
 pub const surgeist_layout::MaxTrackSizing::MIN_CONTENT: Self
 pub const surgeist_layout::MaxTrackSizing::ZERO: Self
 pub fn surgeist_layout::MaxTrackSizing::definite(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
+pub const fn surgeist_layout::MaxTrackSizing::depends_on_basis(self) -> bool
 pub const fn surgeist_layout::MaxTrackSizing::fit_content(limit: surgeist_layout::Length) -> Self
 pub fn surgeist_layout::MaxTrackSizing::fit_limit(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 pub const fn surgeist_layout::MaxTrackSizing::fr(value: surgeist_layout::Scalar) -> Self
@@ -243,6 +244,7 @@ pub const surgeist_layout::MinTrackSizing::MAX_CONTENT: Self
 pub const surgeist_layout::MinTrackSizing::MIN_CONTENT: Self
 pub const surgeist_layout::MinTrackSizing::ZERO: Self
 pub fn surgeist_layout::MinTrackSizing::definite(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
+pub const fn surgeist_layout::MinTrackSizing::depends_on_basis(self) -> bool
 pub const fn surgeist_layout::MinTrackSizing::is_intrinsic(self) -> bool
 pub const fn surgeist_layout::MinTrackSizing::percent(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::MinTrackSizing::px(value: surgeist_layout::Scalar) -> Self
@@ -642,6 +644,7 @@ pub const surgeist_layout::TrackSizing::AUTO: Self
 pub const surgeist_layout::TrackSizing::MAX_CONTENT: Self
 pub const surgeist_layout::TrackSizing::MIN_CONTENT: Self
 pub const surgeist_layout::TrackSizing::ZERO: Self
+pub const fn surgeist_layout::TrackSizing::depends_on_basis(self) -> bool
 pub const fn surgeist_layout::TrackSizing::fit_content(limit: surgeist_layout::Length) -> Self
 pub const fn surgeist_layout::TrackSizing::fr(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::TrackSizing::minmax(min: surgeist_layout::MinTrackSizing, max: surgeist_layout::MaxTrackSizing) -> Self

@@ -1,6 +1,6 @@
 use super::{
     Available, Baselines, ComputeOutput, Dimension, Display, Edges, Length, LengthAuto,
-    NoCalcResolver, Point, Size,
+    NoCalcResolver, Point, Size, TrackSizing,
 };
 
 #[test]
@@ -74,6 +74,23 @@ fn no_calc_resolver_keeps_plain_values_working() {
         Length::percent(0.5).resolve_with(Some(40.0), &resolver),
         Some(20.0)
     );
+}
+
+#[test]
+fn track_sizing_reports_basis_dependency() {
+    assert!(!TrackSizing::px(12.0).depends_on_basis());
+    assert!(TrackSizing::percent(0.25).depends_on_basis());
+    assert!(TrackSizing::fit_content(Length::percent(0.25)).depends_on_basis());
+    assert!(!TrackSizing::fr(1.0).depends_on_basis());
+}
+
+#[test]
+fn track_sizing_definite_uses_shared_optional_basis_resolution() {
+    let track = TrackSizing::percent(0.25);
+    assert_eq!(track.min.definite(None), None);
+    assert_eq!(track.min.definite(Some(80.0)), Some(20.0));
+    assert_eq!(track.max.definite(None), None);
+    assert_eq!(track.max.definite(Some(80.0)), Some(20.0));
 }
 
 #[test]

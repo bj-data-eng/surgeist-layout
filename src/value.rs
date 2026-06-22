@@ -363,11 +363,17 @@ impl MinTrackSizing {
     }
 
     #[must_use]
+    pub const fn depends_on_basis(self) -> bool {
+        match self {
+            Self::Length(length) => length.depends_on_basis(),
+            Self::Auto | Self::MinContent | Self::MaxContent => false,
+        }
+    }
+
+    #[must_use]
     pub fn definite(self, basis: Option<Scalar>) -> Option<Scalar> {
         match self {
-            Self::Length(length) => basis
-                .map(|basis| length.resolve(basis))
-                .or_else(|| matches!(length, Length::Px(_)).then(|| length.resolve(0.0))),
+            Self::Length(length) => length.resolve_optional(basis),
             Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
@@ -441,11 +447,17 @@ impl MaxTrackSizing {
     }
 
     #[must_use]
+    pub const fn depends_on_basis(self) -> bool {
+        match self {
+            Self::Length(length) | Self::FitContent(length) => length.depends_on_basis(),
+            Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
+        }
+    }
+
+    #[must_use]
     pub fn definite(self, basis: Option<Scalar>) -> Option<Scalar> {
         match self {
-            Self::Length(length) => basis
-                .map(|basis| length.resolve(basis))
-                .or_else(|| matches!(length, Length::Px(_)).then(|| length.resolve(0.0))),
+            Self::Length(length) => length.resolve_optional(basis),
             Self::Flex(_)
             | Self::Auto
             | Self::MinContent
@@ -457,9 +469,7 @@ impl MaxTrackSizing {
     #[must_use]
     pub fn fit_limit(self, basis: Option<Scalar>) -> Option<Scalar> {
         match self {
-            Self::FitContent(limit) => basis
-                .map(|basis| limit.resolve(basis))
-                .or_else(|| matches!(limit, Length::Px(_)).then(|| limit.resolve(0.0))),
+            Self::FitContent(limit) => limit.resolve_optional(basis),
             _ => None,
         }
     }
@@ -539,6 +549,11 @@ impl TrackSizing {
     #[must_use]
     pub const fn minmax(min: MinTrackSizing, max: MaxTrackSizing) -> Self {
         Self::new(min, max)
+    }
+
+    #[must_use]
+    pub const fn depends_on_basis(self) -> bool {
+        self.min.depends_on_basis() || self.max.depends_on_basis()
     }
 }
 

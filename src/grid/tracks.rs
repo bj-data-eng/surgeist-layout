@@ -2001,17 +2001,19 @@ pub(super) fn track_base_size_for_intrinsics(
     let min = track_min_size_for_intrinsics(track.min, basis, min_intrinsic, max_intrinsic);
     let max_base = match track.max {
         MaxTrackSizing::Length(length) => {
-            resolve_length_optional(length, basis).unwrap_or_else(|| match length {
-                Length::Percent(_) => max_intrinsic,
-                Length::Normal => 0.0,
-                Length::Px(_) => length.resolve(0.0),
-            })
+            length
+                .resolve_optional(basis)
+                .unwrap_or_else(|| match length {
+                    Length::Percent(_) => max_intrinsic,
+                    Length::Normal => 0.0,
+                    Length::Px(_) => length.resolve_or_zero(None),
+                })
         }
         MaxTrackSizing::Flex(_) => 0.0,
         MaxTrackSizing::Auto | MaxTrackSizing::MaxContent => max_intrinsic,
         MaxTrackSizing::MinContent => min_intrinsic,
         MaxTrackSizing::FitContent(limit) => {
-            let limit = resolve_length_optional(limit, basis).unwrap_or(max_intrinsic);
+            let limit = limit.resolve_optional(basis).unwrap_or(max_intrinsic);
             max_intrinsic.min(limit)
         }
     };
@@ -2025,7 +2027,7 @@ pub(super) fn track_min_size_for_intrinsics(
     max_intrinsic: Scalar,
 ) -> Scalar {
     match min {
-        MinTrackSizing::Length(length) => resolve_length_optional(length, basis).unwrap_or(0.0),
+        MinTrackSizing::Length(length) => length.resolve_optional(basis).unwrap_or(0.0),
         MinTrackSizing::Auto | MinTrackSizing::MaxContent => max_intrinsic,
         MinTrackSizing::MinContent => min_intrinsic,
     }
@@ -2051,7 +2053,7 @@ pub(super) fn track_growth_limit_for_intrinsics(
 ) -> Option<Scalar> {
     match track.max {
         MaxTrackSizing::Length(length) | MaxTrackSizing::FitContent(length) => {
-            resolve_length_optional(length, basis).or(match length {
+            length.resolve_optional(basis).or(match length {
                 Length::Percent(_) => Some(max_intrinsic),
                 Length::Normal => Some(0.0),
                 Length::Px(_) => None,
@@ -2076,7 +2078,7 @@ pub(super) fn resolve_fit_content_tracks(
             MaxTrackSizing::FitContent(limit) => {
                 let min_content = intrinsic_at(min_intrinsic_sizes, index);
                 let max_content = intrinsic_at(max_intrinsic_sizes, index);
-                let limit = resolve_length_optional(limit, basis).unwrap_or(max_content);
+                let limit = limit.resolve_optional(basis).unwrap_or(max_content);
                 max_content.min(min_content.max(limit))
             }
             _ => track_base_size_for_intrinsics(
@@ -2361,11 +2363,11 @@ pub(super) fn track_base_size(
 ) -> Scalar {
     let min = track_min_size(track.min, basis, intrinsic);
     let max_base = match track.max {
-        MaxTrackSizing::Length(length) => resolve_length_optional(length, basis).unwrap_or(0.0),
+        MaxTrackSizing::Length(length) => length.resolve_optional(basis).unwrap_or(0.0),
         MaxTrackSizing::Flex(_) => 0.0,
         MaxTrackSizing::Auto | MaxTrackSizing::MinContent | MaxTrackSizing::MaxContent => intrinsic,
         MaxTrackSizing::FitContent(limit) => {
-            let limit = resolve_length_optional(limit, basis).unwrap_or(intrinsic);
+            let limit = limit.resolve_optional(basis).unwrap_or(intrinsic);
             intrinsic.min(limit)
         }
     };
@@ -2378,7 +2380,7 @@ pub(super) fn track_min_size(
     intrinsic: Scalar,
 ) -> Scalar {
     match min {
-        MinTrackSizing::Length(length) => resolve_length_optional(length, basis).unwrap_or(0.0),
+        MinTrackSizing::Length(length) => length.resolve_optional(basis).unwrap_or(0.0),
         MinTrackSizing::Auto | MinTrackSizing::MinContent | MinTrackSizing::MaxContent => intrinsic,
     }
 }
@@ -2389,13 +2391,13 @@ pub(super) fn track_growth_limit(
     intrinsic: Scalar,
 ) -> Option<Scalar> {
     match track.max {
-        MaxTrackSizing::Length(length) => resolve_length_optional(length, basis),
+        MaxTrackSizing::Length(length) => length.resolve_optional(basis),
         MaxTrackSizing::FitContent(limit) => {
             let min = track_min_size(track.min, basis, intrinsic);
             Some(
                 intrinsic
                     .max(min)
-                    .min(resolve_length_optional(limit, basis).unwrap_or(intrinsic)),
+                    .min(limit.resolve_optional(basis).unwrap_or(intrinsic)),
             )
         }
         MaxTrackSizing::Flex(_)

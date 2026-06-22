@@ -311,30 +311,15 @@ pub fn compute_leaf(
 }
 
 fn resolve_length_or_zero(length: super::Length, basis: Option<Scalar>) -> Scalar {
-    match length {
-        super::Length::Normal => 0.0,
-        super::Length::Px(value) => value,
-        super::Length::Percent(value) => basis.map_or(0.0, |basis| value * basis),
-    }
+    length.resolve_or_zero(basis)
 }
 
 fn resolve_auto_or_zero(length: super::LengthAuto, basis: Option<Scalar>) -> Scalar {
-    match length {
-        super::LengthAuto::Px(value) => value,
-        super::LengthAuto::Percent(value) => basis.map_or(0.0, |basis| value * basis),
-        super::LengthAuto::Auto => 0.0,
-    }
+    length.resolve_or_zero(basis)
 }
 
 fn resolve_dimension(dimension: super::Dimension, basis: Option<Scalar>) -> Option<Scalar> {
-    match dimension {
-        super::Dimension::Px(value) => Some(value),
-        super::Dimension::Percent(value) => basis.map(|basis| value * basis),
-        super::Dimension::Fr(_)
-        | super::Dimension::Auto
-        | super::Dimension::MinContent
-        | super::Dimension::MaxContent => None,
-    }
+    dimension.resolve_optional(basis)
 }
 
 trait SizeOptionExt {

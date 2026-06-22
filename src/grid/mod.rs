@@ -1713,43 +1713,19 @@ impl Constants {
 }
 
 fn resolve_length_or_zero(length: Length, basis: Option<Scalar>) -> Scalar {
-    match length {
-        Length::Normal => 0.0,
-        Length::Px(value) => value,
-        Length::Percent(value) => basis.map_or(0.0, |basis| value * basis),
-    }
-}
-
-fn resolve_length_optional(length: Length, basis: Option<Scalar>) -> Option<Scalar> {
-    match length {
-        Length::Normal => Some(0.0),
-        Length::Px(value) => Some(value),
-        Length::Percent(value) => basis.map(|basis| value * basis),
-    }
+    length.resolve_or_zero(basis)
 }
 
 fn resolve_auto_or_zero(length: LengthAuto, basis: Option<Scalar>) -> Scalar {
-    match length {
-        LengthAuto::Px(value) => value,
-        LengthAuto::Percent(value) => basis.map_or(0.0, |basis| value * basis),
-        LengthAuto::Auto => 0.0,
-    }
+    length.resolve_or_zero(basis)
 }
 
 fn resolve_auto_optional(length: LengthAuto, basis: Option<Scalar>) -> Option<Scalar> {
-    match length {
-        LengthAuto::Px(value) => Some(value),
-        LengthAuto::Percent(value) => basis.map(|basis| value * basis),
-        LengthAuto::Auto => None,
-    }
+    length.resolve_optional(basis)
 }
 
 fn resolve_dimension(dimension: Dimension, basis: Option<Scalar>) -> Option<Scalar> {
-    match dimension {
-        Dimension::Px(value) => Some(value),
-        Dimension::Percent(value) => basis.map(|basis| value * basis),
-        Dimension::Fr(_) | Dimension::Auto | Dimension::MinContent | Dimension::MaxContent => None,
-    }
+    dimension.resolve_optional(basis)
 }
 
 trait SizeOptionExt {
