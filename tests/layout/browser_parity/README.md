@@ -16,14 +16,14 @@ update the source fixture, importer, manifest, or generator instead.
 Run checked-in fixtures:
 
 ```sh
-just test parity
+cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored
 ```
 
 Regenerate XML fixtures from constrained HTML fixtures:
 
 ```sh
-just test parity generate
-just test parity generate subgrid
+cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
+SURGEIST_PARITY_FILTER=subgrid cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
 ```
 
 Import or verify the pinned Taffy green baseline:
@@ -31,7 +31,6 @@ Import or verify the pinned Taffy green baseline:
 ```sh
 cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- import-taffy
 cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- check-taffy-corpus
-just test parity check-taffy
 ```
 
 The Taffy baseline is fetched from the pinned upstream repository and commit in
