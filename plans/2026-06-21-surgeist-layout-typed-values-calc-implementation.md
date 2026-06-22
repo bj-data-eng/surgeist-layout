@@ -494,6 +494,13 @@ git commit -m "layout: centralize basis resolution"
 
 This task belongs to the `surgeist-style` and `surgeist-css` crate projects after the split. Do not execute or commit this task from the `surgeist-layout` repo. Use this section as an issue draft or handoff checklist for the owning crate coordinators; the layout crate should proceed only once the needed style-owned calc representation and lowering contract are available or mocked through a layout-local resolver test.
 
+The authoritative split plans now live in:
+
+- `../surgeist-style/plans/2026-06-21-surgeist-style-typed-calc-integration.md`
+- `../surgeist-css/plans/2026-06-21-surgeist-css-calc-parsing-integration.md`
+
+If any code snippet below disagrees with those crate-local plans, the crate-local plan wins. Layout workers should treat the rest of this task as historical monorepo source material only, not as an executable implementation recipe.
+
 **Files:**
 - Upstream handoff create: `../surgeist-style/src/calc.rs`
 - Upstream handoff: `../surgeist-style/src/lib.rs`
@@ -932,6 +939,16 @@ impl LayoutCalcStore {
     pub fn get(&self, id: CalcId) -> Option<&CalcExpression> {
         self.expressions.get(id.index() as usize)
     }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.expressions.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.expressions.is_empty()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1053,6 +1070,8 @@ pub trait Compute: Traverse {
 
 In `../surgeist-style/src/adapters/layout.rs`, add an output type and lowering session:
 
+This step is a handoff preview only. The authoritative style implementation recipe is `../surgeist-style/plans/2026-06-21-surgeist-style-typed-calc-integration.md`; keep the public contract names synchronized with that plan: `LayoutLoweringOutput`, `LayoutLoweringSession`, `lower_with_store`, `CalcExpression`, `CalcTerm`, and `LayoutCalcStore::push`.
+
 ```rust
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayoutLoweringOutput {
@@ -1096,11 +1115,11 @@ impl LayoutLoweringSession {
             crate::style::CalcLength::Sum(terms) => {
                 let mut lowered = Vec::new();
                 for term in terms {
-                    let sign = match term {
-                        crate::style::CalcTerm::Add(_) => 1.0,
-                        crate::style::CalcTerm::Sub(_) => -1.0,
+                    let sign = match term.operator {
+                        crate::style::CalcOperator::Add => 1.0,
+                        crate::style::CalcOperator::Sub => -1.0,
                     };
-                    collect_calc_terms(term.value(), sign, &mut lowered);
+                    collect_calc_terms(&term.value, sign, &mut lowered);
                 }
                 layout::CalcExpression::sum(lowered)
             }
@@ -1120,21 +1139,26 @@ fn collect_calc_terms(
         }
         crate::style::CalcLength::Sum(terms) => {
             for term in terms {
-                match term {
-                    crate::style::CalcTerm::Add(value) => collect_calc_terms(value, sign, output),
-                    crate::style::CalcTerm::Sub(value) => collect_calc_terms(value, -sign, output),
-                }
+                let term_sign = match term.operator {
+                    crate::style::CalcOperator::Add => sign,
+                    crate::style::CalcOperator::Sub => -sign,
+                };
+                collect_calc_terms(&term.value, term_sign, output);
             }
         }
     }
 }
 ```
 
-Keep the existing calc-free convenience API available for current callers and add the store-returning API:
+Keep the existing calc-free convenience API available for current callers and add the store-returning API. The calc-free `lower(resolved)` must reject calc-bearing resolved values instead of discarding a calc store; calc-bearing callers use `lower_with_store(resolved)`.
 
 ```rust
 pub fn lower(resolved: &Resolved) -> Result<layout::NodeInput> {
-    Ok(lower_with_store(resolved)?.node)
+    if resolved_uses_calc(resolved) {
+        return Err(unsupported("calc values require lower_with_store"));
+    }
+    let mut session = LayoutLoweringSession::new();
+    session.lower_node(resolved)
 }
 
 pub fn lower_with_store(resolved: &Resolved) -> Result<LayoutLoweringOutput> {
@@ -1165,7 +1189,7 @@ Expected: tests pass.
 
 ```sh
 git add -- src/value.rs src/lib.rs src/traits.rs src/tests.rs
-git commit -m "style: lower calc values into layout handles"
+git commit -m "layout: add calc value handles"
 ```
 
 ### Task 5: Make Calc Participate in Flex and Grid Basis Logic
