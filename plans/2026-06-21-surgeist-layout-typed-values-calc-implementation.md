@@ -2,36 +2,62 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Upgrade Surgeist style and layout value boundaries so calc expressions, open property/value descriptors, and basis-dependent sizing behavior can grow without turning every extension into closed enum churn.
+**Goal:** Upgrade the `surgeist-layout` value boundary so calc handles and basis-dependent sizing behavior can grow without turning every extension into closed enum churn, while handing style/CSS authoring work to the owning crates.
 
 **Architecture:** Keep layout algorithm dispatch enums private unless they become intentional extension surfaces. Style owns authored CSS values, calc AST parsing, serialization, validation, and property metadata; the style-to-layout adapter normalizes CSS percent semantics once and lowers values into typed layout handles. Layout values carry only typed concrete values plus opaque calc handles and resolve through a resolver hook that reports both numeric results and basis dependency.
 
-**Tech Stack:** Rust in `crates/surgeist`, focused module tests with `cargo test -p surgeist`, formatting with `cargo fmt --check`, lint verification with `cargo clippy -p surgeist --all-targets -- -D warnings`, reference checks against `crates/des-document/layout/src/style/dimension.rs` and `crates/des-document/layout/src/style/compact_length.rs`.
+**Tech Stack:** Rust in this `surgeist-layout` crate, focused module tests with `cargo test -p surgeist-layout`, formatting with `cargo fmt --check`, lint verification with `cargo clippy -p surgeist-layout --all-targets -- -D warnings`, optional read-only comparison against `../des-document/layout/src/style/dimension.rs` and `../des-document/layout/src/style/compact_length.rs` when that checkout is available.
 
 ---
 
 ## Non-Negotiable Constraints
 
-- Plan execution must use scoped diffs and scoped commits. The current worktree contains unrelated paused app-runtime edits under `crates/surgeist/src/app/*` and `docs/superpowers/plans/2026-06-20-surgeist-app-runtime-foundation-implementation.md`; implementation workers must leave those files untouched.
-- Do not modify existing app-runtime plan files while executing this plan.
+- Plan execution must use scoped diffs and scoped commits. This crate repo may be used as a submodule by the top-level `surgeist` workspace; implementation workers must leave sibling crates and top-level submodule pointers untouched unless a coordinator explicitly hands off that work.
+- Do not edit `../surgeist-style`, `../surgeist-css`, `../surgeist`, or any other sibling checkout from this crate project. Capture required sibling changes as handoff notes or execute them in the owning project.
 - Do not make layout algorithm enums public unless a task explicitly promotes one as an extension surface.
 - Do not add `#[allow]`, `#[expect]`, crate-level lint allow lists, or `clippy::` suppressions. Fix warnings by improving API shape, names, tests, or code structure.
 - Do not copy Taffy's pointer tagging, unsafe calc storage, or lint-suppression approach. Surgeist calc storage must use typed handles and ordinary safe Rust.
 - Preserve the semantic split between authored CSS percentages such as `50.0` and layout-normalized percentage factors such as `0.5`; normalization happens exactly once in the style adapter.
 - Every implementation task is TDD-first: write a focused failing test, run it and observe the expected failure, implement the smallest change, verify, then commit with the scoped message listed in the task.
 
+## Split-Repo Execution Scope
+
+This document now lives in the standalone `surgeist-layout` crate repo. Tasks that touch `src/...`, `tests/...`, `api/...`, or this crate's `plans/...` are executable here. Tasks that mention `../surgeist-style`, `../surgeist-css`, or `../surgeist` are cross-crate handoff notes only; do not edit those sibling checkouts from this project. If a layout task depends on a style/CSS API that is not available yet, stop after capturing the exact upstream issue or issue draft for the owning crate.
+
+The original monorepo plan included style parsing, style resolver, CSS parser, and facade export work. Those details are retained as implementation guidance for the owning crates, but this crate-local plan should commit only layout value, layout algorithm, layout tests, parity tooling, and source-derived API artifact changes.
+
+## Revised Task Ownership
+
+Execute these tasks in this crate project:
+
+1. Task 1: baseline layout value resolver seam in `src/value.rs`, `src/lib.rs`, and `src/tests.rs`.
+2. Task 2: centralized layout resolution helpers in `src/compute.rs`, `src/block.rs`, `src/flex.rs`, and `src/grid/**/*.rs`.
+3. Task 4 layout portion: `CalcId`, `CalcResolver`, `LayoutCalcStore`, calc-bearing layout value variants, `Compute::calc_resolver`, and crate-local tests.
+4. Task 5: flex/grid basis logic and resolver threading.
+5. Task 9: layout lint suppression cleanup, if any suppressions exist.
+6. Task 10: final crate-local verification and public API artifact refresh.
+
+Treat these sections as upstream handoff drafts, not executable crate-local tasks:
+
+- Task 3 belongs to `surgeist-style` and `surgeist-css`.
+- The style adapter lowering portion of Task 4 belongs to `surgeist-style`.
+- Task 6 belongs to `surgeist-style`.
+- Task 7 belongs to `surgeist-style` and `surgeist-css`, except for any explicit `src/node_input.rs` compatibility tests requested by the style adapter contract.
+- Task 8 belongs to `surgeist-style`.
+- Any facade export work belongs to the top-level `surgeist` repo.
+
 ## Calc Ownership Invariant
 
-Style owns authored calc ASTs. Lowering creates a `layout::LayoutCalcStore` owned by the layout lowering output, layout session, or root tree object for the duration of one layout pass. Every `layout::CalcId` stored anywhere in that layout tree resolves against that one store through `Compute::calc_resolver(&self) -> &dyn CalcResolver`; no individual `NodeInput` owns or clones the store.
+`surgeist-style` owns authored calc ASTs and normalization into layout-facing values. `surgeist-layout` owns only typed concrete values, opaque `CalcId` handles, safe resolver/store contracts, and algorithm behavior when a value depends on a sizing basis. Every `CalcId` stored anywhere in a layout tree resolves against one layout-pass store through `Compute::calc_resolver(&self) -> &dyn CalcResolver`; no individual `NodeInput` owns or clones the store.
 
 ## Evidence From Evaluation
 
 - The biggest extension bottleneck is the closed `style::Property` and `style::Value` lane, not private layout enums.
 - `style::Display` currently mixes CSS spelling, inline participation, box generation, and layout dispatch. Split rich style descriptors from closed layout dispatch after calc/property plumbing is stable.
-- `style::Length` is broad and context-rejected in `crates/surgeist/src/style/adapters/layout.rs`; future work should introduce narrower wrappers instead of expanding adapter rejections.
+- `style::Length` is broad and context-rejected in `../surgeist-style/src/adapters/layout.rs`; future work should introduce narrower wrappers instead of expanding adapter rejections.
 - Calc support is risky because percent-dependent behavior currently depends on duplicated resolution helpers and direct `Percent(_)` matches in flex/grid code.
 - Layout modules currently duplicate helpers such as `resolve_length_or_zero`, `resolve_auto_optional`, and `resolve_dimension` in `compute.rs`, `flex.rs`, `block.rs`, and `grid/mod.rs`.
-- Grid and flex rerun/intrinsic logic checks exact percent variants in places such as `crates/surgeist/src/layout/flex.rs`, `crates/surgeist/src/layout/grid/mod.rs`, and `crates/surgeist/src/layout/grid/tracks.rs`; `calc(20px + 10%)` must participate in the same decisions.
+- Grid and flex rerun/intrinsic logic checks exact percent variants in places such as `src/flex.rs`, `src/grid/mod.rs`, and `src/grid/tracks.rs`; `calc(20px + 10%)` must participate in the same decisions.
 
 ## Module Evaluation Pattern
 
@@ -48,64 +74,64 @@ Use this pattern before upgrading each Surgeist module after this plan:
 
 ## File Map
 
-- Modify: `crates/surgeist/src/layout/value.rs`
+- Modify: `src/value.rs`
   - Add layout calc handle/resolver traits, value resolution methods, and basis-dependency methods.
-- Modify: `crates/surgeist/src/layout/mod.rs`
+- Modify: `src/lib.rs`
   - Re-export only intentional front-door layout value APIs.
-- Modify: `crates/surgeist/src/layout/node_input.rs`
+- Modify: `src/node_input.rs`
   - Continue to store per-node normalized layout values; do not store layout calc arenas here.
-- Modify: `crates/surgeist/src/layout/traits.rs`
+- Modify: `src/traits.rs`
   - Expose the layout-pass calc resolver from tree/session implementations.
-- Modify: `crates/surgeist/src/layout/tests.rs`
+- Modify: `src/tests.rs`
   - Add egui-free layout value tests for resolution, calc handles, and basis dependency.
-- Modify: `crates/surgeist/src/layout/compute.rs`
+- Modify: `src/compute.rs`
   - Replace local px/percent helper bodies with layout value methods.
-- Modify: `crates/surgeist/src/layout/block.rs`
+- Modify: `src/block.rs`
   - Replace local px/percent helper bodies with layout value methods.
-- Modify: `crates/surgeist/src/layout/flex.rs`
+- Modify: `src/flex.rs`
   - Replace local helpers and exact percent checks with layout value dependency methods.
-- Modify: `crates/surgeist/src/layout/grid/mod.rs`
+- Modify: `src/grid/mod.rs`
   - Replace local helpers and track rerun checks with layout value dependency methods.
-- Modify: `crates/surgeist/src/layout/grid/tracks.rs`
+- Modify: `src/grid/tracks.rs`
   - Replace track percent detection and intrinsic percent math with track sizing methods that understand calc metadata.
-- Modify: `crates/surgeist/src/layout/grid/lanes.rs`
+- Modify: `src/grid/lanes.rs`
   - Replace exact percent checks where lane placement depends on basis or percent-aware track sizing.
-- Modify: `crates/surgeist/src/layout/grid/child.rs`
+- Modify: `src/grid/child.rs`
   - Replace local helper calls with shared layout value methods where the same semantics are already used.
-- Modify: `crates/surgeist/src/layout/grid/subgrid.rs`
+- Modify: `src/grid/subgrid.rs`
   - Replace local helper calls with shared layout value methods where subgrid edge/gap semantics match existing behavior.
-- Create: `crates/surgeist/src/style/calc.rs`
+- Upstream handoff to `surgeist-style` (do not edit from this repo): `../surgeist-style/src/calc.rs`
   - Own authored calc AST, validation, display/debug-friendly serialization helpers, and tests.
-- Modify: `crates/surgeist/src/style/mod.rs`
+- Upstream handoff to `surgeist-style` (do not edit from this repo): `../surgeist-style/src/lib.rs`
   - Export style calc and open property/value boundary types intentionally.
-- Modify: `crates/surgeist/src/style/value.rs`
+- Upstream handoff to `surgeist-style` (do not edit from this repo): `../surgeist-style/src/value.rs`
   - Add style calc-bearing length variants or typed value wrappers and grid name newtypes.
-- Modify: `crates/surgeist/src/style/property.rs`
+- Upstream handoff to `surgeist-style` (do not edit from this repo): `../surgeist-style/src/property.rs`
   - Add `PropertyId`, `PropertyDescriptor`, and descriptor conversion for built-in `Property`.
-- Modify: `crates/surgeist/src/style/declaration.rs`
+- Upstream handoff to `surgeist-style` (do not edit from this repo): `../surgeist-style/src/declaration.rs`
   - Preserve fingerprints and value hashing for open/custom value lanes and calc values.
-- Modify: `crates/surgeist/src/style/resolver.rs`
+- Upstream handoff to `surgeist-style` (do not edit from this repo): `../surgeist-style/src/resolver.rs`
   - Resolve and cache built-in and open property IDs without forcing custom values into the closed enum.
-- Modify: `crates/surgeist/src/style/adapters/layout.rs`
+- Upstream handoff to `surgeist-style` (do not edit from this repo): `../surgeist-style/src/adapters/layout.rs`
   - Normalize CSS percentages once and lower authored calc ASTs into layout `CalcId` handles.
-- Modify: `crates/surgeist/src/css/mod.rs`
+- Upstream handoff to `surgeist-css` (do not edit from this repo): `../surgeist-css/src/lib.rs`
   - Parse and serialize CSS calc expressions in style-owned values.
-- Modify: `crates/surgeist/src/lib.rs` only if a new public module export is already mirrored by existing module policy.
-- Read-only reference: `crates/des-document/layout/src/style/dimension.rs`
+- Top-level handoff to `surgeist` (do not edit from this repo): `../surgeist/src/lib.rs` only if a new public module export is already mirrored by existing module policy.
+- Read-only reference: `../des-document/layout/src/style/dimension.rs`
   - Compare typed layout value API shape.
-- Read-only reference: `crates/des-document/layout/src/style/compact_length.rs`
+- Read-only reference: `../des-document/layout/src/style/compact_length.rs`
   - Compare compact value handling and avoid copying unsafe internals.
 
 ### Task 1: Baseline Characterization and No-Op Resolver Surface
 
 **Files:**
-- Modify: `crates/surgeist/src/layout/value.rs`
-- Modify: `crates/surgeist/src/layout/mod.rs`
-- Modify: `crates/surgeist/src/layout/tests.rs`
+- Modify: `src/value.rs`
+- Modify: `src/lib.rs`
+- Modify: `src/tests.rs`
 
 - [ ] **Step 1: Write failing layout value tests**
 
-Add these tests to `crates/surgeist/src/layout/tests.rs`:
+Add these tests to `src/tests.rs`:
 
 ```rust
 #[test]
@@ -152,14 +178,14 @@ fn no_calc_resolver_keeps_plain_values_working() {
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::layout_lengths_report_basis_dependency layout::tests::layout_lengths_resolve_optional_basis_consistently layout::tests::no_calc_resolver_keeps_plain_values_working
+cargo test -p surgeist-layout tests::layout_lengths_report_basis_dependency tests::layout_lengths_resolve_optional_basis_consistently tests::no_calc_resolver_keeps_plain_values_working
 ```
 
 Expected: tests fail to compile because `depends_on_basis`, `resolve_or_zero`, `resolve_optional`, `NoCalcResolver`, and `resolve_with` do not exist.
 
 - [ ] **Step 3: Add minimal no-op resolver and value methods**
 
-In `crates/surgeist/src/layout/value.rs`, add the resolver API near the top after `Available`:
+In `src/value.rs`, add the resolver API near the top after `Available`:
 
 ```rust
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -295,7 +321,7 @@ impl Dimension {
 }
 ```
 
-In `crates/surgeist/src/layout/mod.rs`, extend the value re-export:
+In `src/lib.rs`, extend the value re-export:
 
 ```rust
 pub use value::{
@@ -308,7 +334,7 @@ pub use value::{
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::layout_lengths_report_basis_dependency layout::tests::layout_lengths_resolve_optional_basis_consistently layout::tests::no_calc_resolver_keeps_plain_values_working
+cargo test -p surgeist-layout tests::layout_lengths_report_basis_dependency tests::layout_lengths_resolve_optional_basis_consistently tests::no_calc_resolver_keeps_plain_values_working
 ```
 
 Expected: all three tests pass.
@@ -316,27 +342,27 @@ Expected: all three tests pass.
 - [ ] **Step 5: Commit**
 
 ```sh
-git add -- crates/surgeist/src/layout/value.rs crates/surgeist/src/layout/mod.rs crates/surgeist/src/layout/tests.rs
+git add -- src/value.rs src/lib.rs src/tests.rs
 git commit -m "layout: add typed calc resolver seam"
 ```
 
 ### Task 2: Centralize Layout Resolution Helpers
 
 **Files:**
-- Modify: `crates/surgeist/src/layout/value.rs`
-- Modify: `crates/surgeist/src/layout/tests.rs`
-- Modify: `crates/surgeist/src/layout/compute.rs`
-- Modify: `crates/surgeist/src/layout/block.rs`
-- Modify: `crates/surgeist/src/layout/flex.rs`
-- Modify: `crates/surgeist/src/layout/grid/mod.rs`
-- Modify: `crates/surgeist/src/layout/grid/child.rs`
-- Modify: `crates/surgeist/src/layout/grid/tracks.rs`
-- Modify: `crates/surgeist/src/layout/grid/lanes.rs`
-- Modify: `crates/surgeist/src/layout/grid/subgrid.rs`
+- Modify: `src/value.rs`
+- Modify: `src/tests.rs`
+- Modify: `src/compute.rs`
+- Modify: `src/block.rs`
+- Modify: `src/flex.rs`
+- Modify: `src/grid/mod.rs`
+- Modify: `src/grid/child.rs`
+- Modify: `src/grid/tracks.rs`
+- Modify: `src/grid/lanes.rs`
+- Modify: `src/grid/subgrid.rs`
 
 - [ ] **Step 1: Write failing track sizing dependency tests**
 
-Add these tests to `crates/surgeist/src/layout/tests.rs`:
+Add these tests to `src/tests.rs`:
 
 ```rust
 #[test]
@@ -362,14 +388,14 @@ fn track_sizing_definite_uses_shared_optional_basis_resolution() {
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::track_sizing_reports_basis_dependency layout::tests::track_sizing_definite_uses_shared_optional_basis_resolution
+cargo test -p surgeist-layout tests::track_sizing_reports_basis_dependency tests::track_sizing_definite_uses_shared_optional_basis_resolution
 ```
 
 Expected: `track_sizing_reports_basis_dependency` fails to compile because track sizing types do not expose `depends_on_basis`.
 
 - [ ] **Step 3: Add track sizing dependency methods**
 
-In `crates/surgeist/src/layout/value.rs`, update `MinTrackSizing::definite`, `MaxTrackSizing::definite`, and `MaxTrackSizing::fit_limit` to call `Length::resolve_optional`.
+In `src/value.rs`, update `MinTrackSizing::definite`, `MaxTrackSizing::definite`, and `MaxTrackSizing::fit_limit` to call `Length::resolve_optional`.
 
 Add these methods:
 
@@ -406,7 +432,7 @@ impl TrackSizing {
 
 For each module listed below, replace duplicated local helper bodies with calls to the layout value methods. Keep function names temporarily where that produces the smallest diff.
 
-In `crates/surgeist/src/layout/compute.rs`:
+In `src/compute.rs`:
 
 ```rust
 fn resolve_length_or_zero(length: super::Length, basis: Option<Scalar>) -> Scalar {
@@ -425,24 +451,24 @@ fn resolve_dimension(dimension: super::Dimension, basis: Option<Scalar>) -> Opti
 Apply the same pattern in:
 
 ```text
-crates/surgeist/src/layout/block.rs
-crates/surgeist/src/layout/flex.rs
-crates/surgeist/src/layout/grid/mod.rs
-crates/surgeist/src/layout/grid/child.rs
-crates/surgeist/src/layout/grid/lanes.rs
-crates/surgeist/src/layout/grid/subgrid.rs
+src/block.rs
+src/flex.rs
+src/grid/mod.rs
+src/grid/child.rs
+src/grid/lanes.rs
+src/grid/subgrid.rs
 ```
 
-For `crates/surgeist/src/layout/grid/tracks.rs`, replace `resolve_length_optional(length, basis)` and direct `length.resolve(0.0)` fallback paths with `length.resolve_optional(basis)` and `length.resolve_or_zero(None)` when the current behavior explicitly treats px as definite without a basis.
+For `src/grid/tracks.rs`, replace `resolve_length_optional(length, basis)` and direct `length.resolve(0.0)` fallback paths with `length.resolve_optional(basis)` and `length.resolve_or_zero(None)` when the current behavior explicitly treats px as definite without a basis.
 
 - [ ] **Step 5: Run focused layout tests**
 
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::track_sizing_reports_basis_dependency layout::tests::track_sizing_definite_uses_shared_optional_basis_resolution
-cargo test -p surgeist layout::grid::tests::vertical_subgrid_percentage_gap_uses_flow_relative_axis_basis
-cargo test -p surgeist layout::grid::tests::intrinsic_subgrid_context_is_needed_for_row_subgrid_with_percent_columns
+cargo test -p surgeist-layout tests::track_sizing_reports_basis_dependency tests::track_sizing_definite_uses_shared_optional_basis_resolution
+cargo test -p surgeist-layout grid::tests::vertical_subgrid_percentage_gap_uses_flow_relative_axis_basis
+cargo test -p surgeist-layout grid::tests::intrinsic_subgrid_context_is_needed_for_row_subgrid_with_percent_columns
 ```
 
 Expected: all selected tests pass.
@@ -452,7 +478,7 @@ Expected: all selected tests pass.
 Run:
 
 ```sh
-cargo test -p surgeist layout::
+cargo test -p surgeist-layout --lib
 ```
 
 Expected: layout module tests pass.
@@ -460,22 +486,24 @@ Expected: layout module tests pass.
 - [ ] **Step 7: Commit**
 
 ```sh
-git add -- crates/surgeist/src/layout/value.rs crates/surgeist/src/layout/tests.rs crates/surgeist/src/layout/compute.rs crates/surgeist/src/layout/block.rs crates/surgeist/src/layout/flex.rs crates/surgeist/src/layout/grid/mod.rs crates/surgeist/src/layout/grid/child.rs crates/surgeist/src/layout/grid/tracks.rs crates/surgeist/src/layout/grid/lanes.rs crates/surgeist/src/layout/grid/subgrid.rs
+git add -- src/value.rs src/tests.rs src/compute.rs src/block.rs src/flex.rs src/grid/mod.rs src/grid/child.rs src/grid/tracks.rs src/grid/lanes.rs src/grid/subgrid.rs
 git commit -m "layout: centralize basis resolution"
 ```
 
-### Task 3: Style Calc AST and CSS Parsing
+### Task 3: Upstream Handoff - Style Calc AST and CSS Parsing
+
+This task belongs to the `surgeist-style` and `surgeist-css` crate projects after the split. Do not execute or commit this task from the `surgeist-layout` repo. Use this section as an issue draft or handoff checklist for the owning crate coordinators; the layout crate should proceed only once the needed style-owned calc representation and lowering contract are available or mocked through a layout-local resolver test.
 
 **Files:**
-- Create: `crates/surgeist/src/style/calc.rs`
-- Modify: `crates/surgeist/src/style/mod.rs`
-- Modify: `crates/surgeist/src/style/value.rs`
-- Modify: `crates/surgeist/src/style/declaration.rs`
-- Modify: `crates/surgeist/src/css/mod.rs`
+- Upstream handoff create: `../surgeist-style/src/calc.rs`
+- Upstream handoff: `../surgeist-style/src/lib.rs`
+- Upstream handoff: `../surgeist-style/src/value.rs`
+- Upstream handoff: `../surgeist-style/src/declaration.rs`
+- Upstream handoff: `../surgeist-css/src/lib.rs`
 
 - [ ] **Step 1: Write failing style calc tests**
 
-Create `crates/surgeist/src/style/calc.rs` with the implementation skeleton and tests in the same file:
+Create `../surgeist-style/src/calc.rs` with the implementation skeleton and tests in the same file:
 
 ```rust
 #[cfg(test)]
@@ -504,7 +532,7 @@ mod tests {
 }
 ```
 
-Add these CSS parser tests to the existing test module in `crates/surgeist/src/css/mod.rs`. If the file has no test module, create `#[cfg(test)] mod tests` at the end:
+Add these CSS parser tests to the existing test module in `../surgeist-css/src/lib.rs`. If the file has no test module, create `#[cfg(test)] mod tests` at the end:
 
 ```rust
 #[test]
@@ -543,14 +571,14 @@ fn parses_nested_calc_width_with_subtraction() {
 Run:
 
 ```sh
-cargo test -p surgeist style::calc::tests::calc_length_ast_reports_percentage_use style::calc::tests::calc_length_ast_rejects_non_finite_terms css::tests::parses_calc_width_as_style_calc_length css::tests::parses_nested_calc_width_with_subtraction
+cargo test -p surgeist-style style::calc::tests::calc_length_ast_reports_percentage_use style::calc::tests::calc_length_ast_rejects_non_finite_terms
 ```
 
 Expected: tests fail to compile because `style::calc`, `Length::Calc`, and CSS calc parsing do not exist.
 
 - [ ] **Step 3: Implement authored calc AST**
 
-In `crates/surgeist/src/style/calc.rs`, implement safe AST types:
+In `../surgeist-style/src/calc.rs`, implement safe AST types:
 
 ```rust
 use super::{Error, ErrorCode, Result};
@@ -688,9 +716,9 @@ fn format_number(value: f32) -> String {
 }
 ```
 
-In `crates/surgeist/src/style/value.rs`, add `Calc(CalcLength)` to `style::Length`, update `validate`, and update all match expressions that must remain exhaustive.
+In `../surgeist-style/src/value.rs`, add `Calc(CalcLength)` to `style::Length`, update `validate`, and update all match expressions that must remain exhaustive.
 
-In `crates/surgeist/src/style/mod.rs`, add:
+In `../surgeist-style/src/lib.rs`, add:
 
 ```rust
 mod calc;
@@ -699,7 +727,7 @@ pub use calc::{CalcLength, CalcTerm};
 
 - [ ] **Step 4: Parse CSS calc into style values**
 
-In `crates/surgeist/src/css/mod.rs`, extend `parse_length` to recognize the CSS `calc` function before the generic token branch:
+In `../surgeist-css/src/lib.rs`, extend `parse_length` to recognize the CSS `calc` function before the generic token branch:
 
 ```rust
 Token::Function(name) if name.eq_ignore_ascii_case("calc") => {
@@ -753,7 +781,7 @@ If `cssparser` yields whitespace-separated delimiters differently in the current
 
 - [ ] **Step 5: Update hashing and validation**
 
-In `crates/surgeist/src/style/declaration.rs`, update `hash_length`:
+In `../surgeist-style/src/declaration.rs`, update `hash_length`:
 
 ```rust
 fn hash_length(value: super::Length, state: &mut DefaultHasher) {
@@ -780,15 +808,15 @@ fn hash_length(value: super::Length, state: &mut DefaultHasher) {
 }
 ```
 
-In `crates/surgeist/src/style/value.rs`, ensure `Length::validate` delegates to `calc.validate()` for `Length::Calc(calc)`.
+In `../surgeist-style/src/value.rs`, ensure `Length::validate` delegates to `calc.validate()` for `Length::Calc(calc)`.
 
 - [ ] **Step 6: Run tests**
 
 Run:
 
 ```sh
-cargo test -p surgeist style::calc::tests::calc_length_ast_reports_percentage_use style::calc::tests::calc_length_ast_rejects_non_finite_terms css::tests::parses_calc_width_as_style_calc_length css::tests::parses_nested_calc_width_with_subtraction
-cargo test -p surgeist style::declaration::tests::value_hash_distinguishes_grid_flow_tolerance_from_box_sizing
+cargo test -p surgeist-style style::calc::tests::calc_length_ast_reports_percentage_use style::calc::tests::calc_length_ast_rejects_non_finite_terms
+cargo test -p surgeist-style
 ```
 
 Expected: tests pass.
@@ -796,22 +824,24 @@ Expected: tests pass.
 - [ ] **Step 7: Commit**
 
 ```sh
-git add -- crates/surgeist/src/style/calc.rs crates/surgeist/src/style/mod.rs crates/surgeist/src/style/value.rs crates/surgeist/src/style/declaration.rs crates/surgeist/src/css/mod.rs
+echo "commit upstream files in the owning crate repo"
 git commit -m "style: add authored calc length values"
 ```
 
-### Task 4: Lower Style Calc Into Layout Handles
+### Task 4: Coordinate Lowering Contract and Add Layout Handles
+
+The layout-owned parts of this task are `src/value.rs`, `src/lib.rs`, `src/traits.rs`, and `src/tests.rs`. The `../surgeist-style/src/adapters/layout.rs` work belongs to the `surgeist-style` project and must be handed off; do not edit that sibling checkout from this repo. If the style adapter API is not ready, finish the layout resolver/store API with crate-local tests and report the exact adapter contract needed upstream.
 
 **Files:**
-- Modify: `crates/surgeist/src/layout/value.rs`
-- Modify: `crates/surgeist/src/layout/mod.rs`
-- Modify: `crates/surgeist/src/layout/traits.rs`
-- Modify: `crates/surgeist/src/layout/tests.rs`
-- Modify: `crates/surgeist/src/style/adapters/layout.rs`
+- Modify: `src/value.rs`
+- Modify: `src/lib.rs`
+- Modify: `src/traits.rs`
+- Modify: `src/tests.rs`
+- Upstream handoff: `../surgeist-style/src/adapters/layout.rs`
 
 - [ ] **Step 1: Write failing layout calc store tests**
 
-Add to `crates/surgeist/src/layout/tests.rs`:
+Add to `src/tests.rs`:
 
 ```rust
 #[test]
@@ -840,7 +870,7 @@ fn length_calc_resolves_through_resolver_hook() {
 }
 ```
 
-Add to `crates/surgeist/src/style/adapters/layout.rs` tests:
+Add to `../surgeist-style/src/adapters/layout.rs` tests:
 
 ```rust
 #[test]
@@ -869,14 +899,14 @@ If `style/adapters/layout.rs` has no test harness tree, create a minimal local t
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::layout_calc_store_resolves_px_and_percent_terms layout::tests::length_calc_resolves_through_resolver_hook style::adapters::layout::tests::lower_calc_width_normalizes_percent_once
+cargo test -p surgeist-layout tests::layout_calc_store_resolves_px_and_percent_terms tests::length_calc_resolves_through_resolver_hook
 ```
 
 Expected: tests fail to compile because `LayoutCalcStore`, `CalcExpression`, layout calc variants, and `lower_with_store` do not exist.
 
 - [ ] **Step 3: Add safe layout calc store**
 
-In `crates/surgeist/src/layout/value.rs`, add:
+In `src/value.rs`, add:
 
 ```rust
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -996,7 +1026,7 @@ Self::Percent(_) | Self::Calc(_) => true
 
 - [ ] **Step 4: Expose the layout-pass calc resolver through the compute trait**
 
-In `crates/surgeist/src/layout/traits.rs`, import calc resolver types:
+In `src/traits.rs`, import calc resolver types:
 
 ```rust
 use super::{CalcResolver, ComputeInput, ComputeOutput, NoCalcResolver, NodeInput, NodeOutput};
@@ -1021,7 +1051,7 @@ pub trait Compute: Traverse {
 
 - [ ] **Step 5: Lower style calc into layout calc handles**
 
-In `crates/surgeist/src/style/adapters/layout.rs`, add an output type and lowering session:
+In `../surgeist-style/src/adapters/layout.rs`, add an output type and lowering session:
 
 ```rust
 #[derive(Clone, Debug, PartialEq)]
@@ -1126,8 +1156,7 @@ Ensure `percent(value)` remains the only place CSS percent `10.0` becomes layout
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::layout_calc_store_resolves_px_and_percent_terms layout::tests::length_calc_resolves_through_resolver_hook style::adapters::layout::tests::lower_calc_width_normalizes_percent_once
-cargo test -p surgeist style::adapters::layout::
+cargo test -p surgeist-layout tests::layout_calc_store_resolves_px_and_percent_terms tests::length_calc_resolves_through_resolver_hook
 ```
 
 Expected: tests pass.
@@ -1135,24 +1164,24 @@ Expected: tests pass.
 - [ ] **Step 7: Commit**
 
 ```sh
-git add -- crates/surgeist/src/layout/value.rs crates/surgeist/src/layout/mod.rs crates/surgeist/src/layout/traits.rs crates/surgeist/src/layout/tests.rs crates/surgeist/src/style/adapters/layout.rs
+git add -- src/value.rs src/lib.rs src/traits.rs src/tests.rs
 git commit -m "style: lower calc values into layout handles"
 ```
 
 ### Task 5: Make Calc Participate in Flex and Grid Basis Logic
 
 **Files:**
-- Modify: `crates/surgeist/src/layout/value.rs`
-- Modify: `crates/surgeist/src/layout/tests.rs`
-- Modify: `crates/surgeist/src/layout/traits.rs`
-- Modify: `crates/surgeist/src/layout/flex.rs`
-- Modify: `crates/surgeist/src/layout/grid/mod.rs`
-- Modify: `crates/surgeist/src/layout/grid/tracks.rs`
-- Modify: `crates/surgeist/src/layout/grid/lanes.rs`
+- Modify: `src/value.rs`
+- Modify: `src/tests.rs`
+- Modify: `src/traits.rs`
+- Modify: `src/flex.rs`
+- Modify: `src/grid/mod.rs`
+- Modify: `src/grid/tracks.rs`
+- Modify: `src/grid/lanes.rs`
 
 - [ ] **Step 1: Write failing value tests for calc percentage behavior**
 
-Add to `crates/surgeist/src/layout/tests.rs`:
+Add to `src/tests.rs`:
 
 ```rust
 #[test]
@@ -1190,14 +1219,14 @@ fn calc_px_only_track_does_not_request_percent_rerun() {
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::calc_percent_track_participates_in_percent_detection layout::tests::calc_px_only_track_does_not_request_percent_rerun
+cargo test -p surgeist-layout tests::calc_percent_track_participates_in_percent_detection tests::calc_px_only_track_does_not_request_percent_rerun
 ```
 
 Expected: tests fail to compile because resolver-aware track methods do not exist.
 
 - [ ] **Step 3: Add resolver-aware track methods**
 
-In `crates/surgeist/src/layout/value.rs`, add:
+In `src/value.rs`, add:
 
 ```rust
 impl Length {
@@ -1299,10 +1328,10 @@ For `MaxTrackSizing::FitContent(limit)`, include `limit.percent_fraction_with(re
 
 - [ ] **Step 4: Replace exact percent checks in flex**
 
-In `crates/surgeist/src/layout/flex.rs`, find direct checks:
+In `src/flex.rs`, find direct checks:
 
 ```sh
-rg -n "Dimension::Percent|Length::Percent|depends_on_basis|resolve_dimension" crates/surgeist/src/layout/flex.rs
+rg -n "Dimension::Percent|Length::Percent|depends_on_basis|resolve_dimension" src/flex.rs
 ```
 
 Replace rerun/intrinsic checks such as:
@@ -1317,7 +1346,7 @@ with resolver-aware checks:
 style.size.height.depends_on_basis_with(constants.resolver)
 ```
 
-Update exact flex structures and signatures in `crates/surgeist/src/layout/flex.rs`:
+Update exact flex structures and signatures in `src/flex.rs`:
 
 ```rust
 struct Constants<'a> {
@@ -1426,7 +1455,7 @@ fn resolve_dimension(
 
 - [ ] **Step 5: Replace exact percent checks in grid**
 
-In `crates/surgeist/src/layout/grid/mod.rs`, update the container constants and track input structs:
+In `src/grid/mod.rs`, update the container constants and track input structs:
 
 ```rust
 struct Constants<'a> {
@@ -1509,7 +1538,7 @@ fn track_needs_layout_height_resolution(
 }
 ```
 
-In `crates/surgeist/src/layout/grid/tracks.rs`, replace percent helpers with resolver-aware forms:
+In `src/grid/tracks.rs`, replace percent helpers with resolver-aware forms:
 
 ```rust
 pub(super) fn track_has_percent_sizing(track: &TrackSizing, resolver: &dyn CalcResolver) -> bool {
@@ -1556,7 +1585,7 @@ pub(super) fn distribute_intrinsic_span(
 )
 ```
 
-In `crates/surgeist/src/layout/grid/lanes.rs`, update lane sizing inputs that inspect tracks:
+In `src/grid/lanes.rs`, update lane sizing inputs that inspect tracks:
 
 ```rust
 pub resolver: &'a dyn CalcResolver,
@@ -1566,7 +1595,7 @@ Pass `tree.calc_resolver()` from `compute_grid`, through `Constants::new`, into 
 
 - [ ] **Step 6: Add focused flex/grid calc tests**
 
-Add a flex test in `crates/surgeist/src/layout/flex.rs` tests or the existing flex test module:
+Add a flex test in `src/flex.rs` tests or the existing flex test module:
 
 ```rust
 #[test]
@@ -1583,7 +1612,7 @@ fn flex_percent_dependent_calc_size_requests_definite_cross_rerun() {
 }
 ```
 
-Add a grid test in `crates/surgeist/src/layout/grid/tests.rs`:
+Add a grid test in `src/grid/tests.rs`:
 
 ```rust
 #[test]
@@ -1608,10 +1637,10 @@ fn grid_calc_percent_track_needs_layout_resolution() {
 Run:
 
 ```sh
-cargo test -p surgeist layout::tests::calc_percent_track_participates_in_percent_detection layout::tests::calc_px_only_track_does_not_request_percent_rerun
-cargo test -p surgeist layout::grid::tests::grid_calc_percent_track_needs_layout_resolution
-cargo test -p surgeist layout::flex::
-cargo test -p surgeist layout::grid::
+cargo test -p surgeist-layout tests::calc_percent_track_participates_in_percent_detection tests::calc_px_only_track_does_not_request_percent_rerun
+cargo test -p surgeist-layout grid::tests::grid_calc_percent_track_needs_layout_resolution
+cargo test -p surgeist-layout flex::
+cargo test -p surgeist-layout grid::
 ```
 
 Expected: selected tests pass, and existing flex/grid tests keep passing.
@@ -1619,22 +1648,24 @@ Expected: selected tests pass, and existing flex/grid tests keep passing.
 - [ ] **Step 8: Commit**
 
 ```sh
-git add -- crates/surgeist/src/layout/value.rs crates/surgeist/src/layout/tests.rs crates/surgeist/src/layout/traits.rs crates/surgeist/src/layout/flex.rs crates/surgeist/src/layout/grid/mod.rs crates/surgeist/src/layout/grid/tracks.rs crates/surgeist/src/layout/grid/lanes.rs
+git add -- src/value.rs src/tests.rs src/traits.rs src/flex.rs src/grid/mod.rs src/grid/tracks.rs src/grid/lanes.rs
 git commit -m "layout: route calc through percent-dependent sizing"
 ```
 
-### Task 6: Open Property and Typed Value Descriptor Boundary
+### Task 6: Upstream Handoff - Open Property and Typed Value Descriptor Boundary
+
+This task belongs to `surgeist-style` after the split. It is retained here only because it affects the overall typed-value roadmap and future layout adapter inputs. Do not execute or commit this task from the `surgeist-layout` repo.
 
 **Files:**
-- Modify: `crates/surgeist/src/style/property.rs`
-- Modify: `crates/surgeist/src/style/value.rs`
-- Modify: `crates/surgeist/src/style/declaration.rs`
-- Modify: `crates/surgeist/src/style/resolver.rs`
-- Modify: `crates/surgeist/src/style/mod.rs`
+- Upstream handoff: `../surgeist-style/src/property.rs`
+- Upstream handoff: `../surgeist-style/src/value.rs`
+- Upstream handoff: `../surgeist-style/src/declaration.rs`
+- Upstream handoff: `../surgeist-style/src/resolver.rs`
+- Upstream handoff: `../surgeist-style/src/lib.rs`
 
 - [ ] **Step 1: Write failing property descriptor tests**
 
-Add tests to the existing `#[cfg(test)]` module in `crates/surgeist/src/style/property.rs` or create one at the bottom:
+Add tests to the existing `#[cfg(test)]` module in `../surgeist-style/src/property.rs` or create one at the bottom:
 
 ```rust
 #[test]
@@ -1659,7 +1690,7 @@ fn custom_property_descriptor_carries_metadata_without_value_enum_variant() {
 }
 ```
 
-Add a value-lane test in `crates/surgeist/src/style/value.rs`:
+Add a value-lane test in `../surgeist-style/src/value.rs`:
 
 ```rust
 #[test]
@@ -1676,7 +1707,7 @@ fn custom_typed_value_preserves_property_identity() {
 }
 ```
 
-Add declaration and resolver integration tests to `crates/surgeist/src/style/declaration.rs` and `crates/surgeist/src/style/resolver.rs`:
+Add declaration and resolver integration tests to `../surgeist-style/src/declaration.rs` and `../surgeist-style/src/resolver.rs`:
 
 ```rust
 #[test]
@@ -1739,15 +1770,15 @@ fn resolver_preserves_custom_typed_declarations_in_snapshot() {
 Run:
 
 ```sh
-cargo test -p surgeist style::property::tests::built_in_property_has_stable_open_property_id style::property::tests::custom_property_descriptor_carries_metadata_without_value_enum_variant style::value::tests::custom_typed_value_preserves_property_identity
-cargo test -p surgeist style::declaration::tests::declarations_fingerprint_includes_custom_property_identity_and_value style::resolver::tests::resolver_preserves_custom_typed_declarations_in_snapshot
+cargo test -p surgeist-style
+cargo test -p surgeist-style
 ```
 
 Expected: tests fail to compile because `PropertyId`, `PropertyDescriptor`, `ValueKind`, `TypedValue`, `CustomValue`, declaration custom insertion, and resolved typed lookup do not exist.
 
 - [ ] **Step 3: Add open property IDs and descriptors**
 
-In `crates/surgeist/src/style/property.rs`, add:
+In `../surgeist-style/src/property.rs`, add:
 
 ```rust
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -1952,7 +1983,7 @@ pub const fn name(self) -> &'static str {
 
 - [ ] **Step 4: Add typed custom value lane**
 
-In `crates/surgeist/src/style/value.rs`, add open typed values without forcing them into the existing closed `Value` enum:
+In `../surgeist-style/src/value.rs`, add open typed values without forcing them into the existing closed `Value` enum:
 
 ```rust
 #[derive(Clone, Debug, PartialEq)]
@@ -2057,7 +2088,7 @@ impl Value {
 
 - [ ] **Step 5: Integrate typed declarations and fingerprints**
 
-In `crates/surgeist/src/style/declaration.rs`, change declarations to carry `TypedValue`:
+In `../surgeist-style/src/declaration.rs`, change declarations to carry `TypedValue`:
 
 ```rust
 #[derive(Clone, Debug, PartialEq)]
@@ -2181,7 +2212,7 @@ Add `Hash` to `ValueKind` derives and implement `hash_custom_value` by hashing t
 
 - [ ] **Step 6: Integrate resolver snapshots**
 
-In `crates/surgeist/src/style/resolver.rs`, store custom typed values beside built-in resolved values:
+In `../surgeist-style/src/resolver.rs`, store custom typed values beside built-in resolved values:
 
 ```rust
 #[derive(Clone, Debug, PartialEq)]
@@ -2257,7 +2288,7 @@ The resolver stores built-in typed values in `custom_values` under `PropertyId::
 
 - [ ] **Step 7: Export new boundary types**
 
-In `crates/surgeist/src/style/mod.rs`, update exports:
+In `../surgeist-style/src/lib.rs`, update exports:
 
 ```rust
 pub use property::{
@@ -2280,9 +2311,8 @@ pub use value::{
 Run:
 
 ```sh
-cargo test -p surgeist style::property::tests::built_in_property_has_stable_open_property_id style::property::tests::custom_property_descriptor_carries_metadata_without_value_enum_variant style::value::tests::custom_typed_value_preserves_property_identity
-cargo test -p surgeist style::declaration::tests::declarations_fingerprint_includes_custom_property_identity_and_value style::resolver::tests::resolver_preserves_custom_typed_declarations_in_snapshot
-cargo test -p surgeist style::
+cargo test -p surgeist-style
+cargo test -p surgeist-style
 ```
 
 Expected: selected tests and style module tests pass.
@@ -2290,22 +2320,24 @@ Expected: selected tests and style module tests pass.
 - [ ] **Step 9: Commit**
 
 ```sh
-git add -- crates/surgeist/src/style/property.rs crates/surgeist/src/style/value.rs crates/surgeist/src/style/declaration.rs crates/surgeist/src/style/resolver.rs crates/surgeist/src/style/mod.rs
+echo "commit upstream files in the owning crate repo"
 git commit -m "style: introduce open property descriptors"
 ```
 
-### Task 7: Split Rich Style Display From Layout Dispatch
+### Task 7: Cross-Crate Handoff - Split Rich Style Display From Layout Dispatch
+
+The style descriptor and CSS parser work belongs to `surgeist-style` and `surgeist-css`. The only crate-local layout work in this task is preserving the existing closed `src/node_input.rs::Display` dispatch contract and adding layout tests if a new adapter output requires it. Do not edit sibling crates from this project.
 
 **Files:**
-- Modify: `crates/surgeist/src/style/value.rs`
-- Modify: `crates/surgeist/src/style/adapters/layout.rs`
-- Modify: `crates/surgeist/src/layout/node_input.rs`
-- Modify: `crates/surgeist/src/layout/tests.rs`
-- Modify: `crates/surgeist/src/css/mod.rs`
+- Upstream handoff: `../surgeist-style/src/value.rs`
+- Upstream handoff: `../surgeist-style/src/adapters/layout.rs`
+- Modify: `src/node_input.rs`
+- Modify: `src/tests.rs`
+- Upstream handoff: `../surgeist-css/src/lib.rs`
 
 - [ ] **Step 1: Write failing display descriptor tests**
 
-Add to `crates/surgeist/src/style/value.rs` tests:
+Add to `../surgeist-style/src/value.rs` tests:
 
 ```rust
 #[test]
@@ -2328,7 +2360,7 @@ fn display_none_has_no_box_generation_without_layout_dispatch_leak() {
 }
 ```
 
-Add to `crates/surgeist/src/style/adapters/layout.rs` tests:
+Add to `../surgeist-style/src/adapters/layout.rs` tests:
 
 ```rust
 #[test]
@@ -2349,14 +2381,14 @@ fn lower_display_descriptor_to_closed_layout_dispatch() {
 Run:
 
 ```sh
-cargo test -p surgeist style::value::tests::style_display_descriptor_separates_outer_inner_and_box_generation style::value::tests::display_none_has_no_box_generation_without_layout_dispatch_leak style::adapters::layout::tests::lower_display_descriptor_to_closed_layout_dispatch
+cargo test -p surgeist-style
 ```
 
 Expected: tests fail to compile because descriptor types do not exist and adapter lowering still accepts `style::Display`.
 
 - [ ] **Step 3: Add style display descriptor types**
 
-In `crates/surgeist/src/style/value.rs`, add:
+In `../surgeist-style/src/value.rs`, add:
 
 ```rust
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2455,7 +2487,7 @@ impl From<Display> for DisplayDescriptor {
 
 - [ ] **Step 4: Update adapter lowering**
 
-Change `lower_display` in `crates/surgeist/src/style/adapters/layout.rs` to accept `DisplayDescriptor`:
+Change `lower_display` in `../surgeist-style/src/adapters/layout.rs` to accept `DisplayDescriptor`:
 
 ```rust
 fn lower_display(display: DisplayDescriptor) -> Result<layout::Display> {
@@ -2488,8 +2520,8 @@ display: lower_display(DisplayDescriptor::from(resolved.display()))?,
 Run:
 
 ```sh
-cargo test -p surgeist style::value::tests::style_display_descriptor_separates_outer_inner_and_box_generation style::value::tests::display_none_has_no_box_generation_without_layout_dispatch_leak style::adapters::layout::tests::lower_display_descriptor_to_closed_layout_dispatch
-cargo test -p surgeist layout::tests::inline_display_values_preserve_outer_participation_and_inner_context
+cargo test -p surgeist-style
+cargo test -p surgeist-layout tests::inline_display_values_preserve_outer_participation_and_inner_context
 ```
 
 Expected: tests pass and existing layout dispatch remains closed.
@@ -2497,18 +2529,20 @@ Expected: tests pass and existing layout dispatch remains closed.
 - [ ] **Step 6: Commit**
 
 ```sh
-git add -- crates/surgeist/src/style/value.rs crates/surgeist/src/style/adapters/layout.rs crates/surgeist/src/layout/node_input.rs crates/surgeist/src/layout/tests.rs crates/surgeist/src/css/mod.rs
+echo "commit upstream files in the owning crate repo"
 git commit -m "style: split display descriptor from layout dispatch"
 ```
 
-### Task 8: Narrow Length Wrappers and Grid Name Newtypes
+### Task 8: Upstream Handoff - Narrow Length Wrappers and Grid Name Newtypes
+
+This task belongs to `surgeist-style` after the split. Keep this section as source material for an upstream issue or style-crate plan; do not execute it from the `surgeist-layout` project.
 
 **Files:**
-- Modify: `crates/surgeist/src/style/value.rs`
+- Upstream handoff: `../surgeist-style/src/value.rs`
 
 - [ ] **Step 1: Write failing wrapper tests**
 
-Add to `crates/surgeist/src/style/value.rs` tests:
+Add to `../surgeist-style/src/value.rs` tests:
 
 ```rust
 #[test]
@@ -2535,14 +2569,14 @@ fn grid_line_name_newtype_rejects_empty_names() {
 Run:
 
 ```sh
-cargo test -p surgeist style::value::tests::style_context_lengths_reject_wrong_keywords_before_adapter_lowering style::value::tests::grid_line_name_newtype_rejects_empty_names
+cargo test -p surgeist-style
 ```
 
 Expected: tests fail to compile because wrapper and name types do not exist.
 
 - [ ] **Step 3: Add narrow wrappers**
 
-In `crates/surgeist/src/style/value.rs`, add:
+In `../surgeist-style/src/value.rs`, add:
 
 ```rust
 #[derive(Clone, Debug, PartialEq)]
@@ -2598,7 +2632,7 @@ This task only introduces the wrapper types and their tests. Parser, adapter, de
 
 - [ ] **Step 4: Add grid line and area name newtypes**
 
-In `crates/surgeist/src/style/value.rs`, add:
+In `../surgeist-style/src/value.rs`, add:
 
 ```rust
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -2661,9 +2695,7 @@ Do not convert existing `Vec<String>` grid fields in this task. A later scoped m
 Run:
 
 ```sh
-cargo test -p surgeist style::value::tests::style_context_lengths_reject_wrong_keywords_before_adapter_lowering style::value::tests::grid_line_name_newtype_rejects_empty_names
-cargo test -p surgeist style::
-cargo test -p surgeist css::
+cargo test -p surgeist-style
 ```
 
 Expected: selected wrapper tests pass and existing style/CSS tests pass.
@@ -2671,33 +2703,33 @@ Expected: selected wrapper tests pass and existing style/CSS tests pass.
 - [ ] **Step 6: Commit**
 
 ```sh
-git add -- crates/surgeist/src/style/value.rs
+echo "commit upstream files in the owning crate repo"
 git commit -m "style: add narrowed value wrappers"
 ```
 
 ### Task 9: Retire Existing Layout Lint Suppressions In a Separate Pass
 
 **Files:**
-- Modify only if suppressions exist: `crates/surgeist/src/layout/grid/mod.rs`
-- Modify only if suppressions exist: `crates/surgeist/src/layout/grid/tracks.rs`
-- Modify only if suppressions exist: `crates/surgeist/src/layout/grid/child.rs`
-- Modify only if suppressions exist: `crates/surgeist/src/layout/grid/lanes.rs`
-- Modify only if suppressions exist: `crates/surgeist/src/layout/grid/subgrid.rs`
-- Modify only if suppressions exist: any other `crates/surgeist/src/layout/**/*.rs` file reported by the scan command below
+- Modify only if suppressions exist: `src/grid/mod.rs`
+- Modify only if suppressions exist: `src/grid/tracks.rs`
+- Modify only if suppressions exist: `src/grid/child.rs`
+- Modify only if suppressions exist: `src/grid/lanes.rs`
+- Modify only if suppressions exist: `src/grid/subgrid.rs`
+- Modify only if suppressions exist: any other `src/**/*.rs` file reported by the scan command below
 
 - [ ] **Step 1: Scan existing layout suppressions**
 
 Run:
 
 ```sh
-grep -RInE '#\[(allow|expect)\]|clippy::' crates/surgeist/src/layout || true
+grep -RInE '#\[(allow|expect)\]|clippy::' src || true
 ```
 
 Expected: command reports existing suppressions or no matches. Record the exact matched files in the task notes before editing. This task may remove existing suppressions but must not add new ones.
 
 - [ ] **Step 2: Pick one suppression group and write a focused behavior test**
 
-If the scan reports a suppression around grid track sizing, add a test to `crates/surgeist/src/layout/grid/tests.rs` that proves the behavior protected by the surrounding code. Example for a branch-heavy track helper:
+If the scan reports a suppression around grid track sizing, add a test to `src/grid/tests.rs` that proves the behavior protected by the surrounding code. Example for a branch-heavy track helper:
 
 ```rust
 #[test]
@@ -2727,7 +2759,7 @@ If the scan reports no suppressions, add no test and proceed to Step 5.
 Run the exact test added in Step 2, for example:
 
 ```sh
-cargo test -p surgeist layout::grid::tests::percent_tracks_keep_intrinsic_distribution_stable_after_lint_cleanup
+cargo test -p surgeist-layout grid::tests::percent_tracks_keep_intrinsic_distribution_stable_after_lint_cleanup
 ```
 
 Expected: test passes before cleanup, proving the behavior is already present.
@@ -2743,8 +2775,8 @@ Do not add replacement suppression attributes, lint expectation attributes, crat
 Run:
 
 ```sh
-cargo clippy -p surgeist --all-targets -- -D warnings
-cargo test -p surgeist layout::
+cargo clippy -p surgeist-layout --all-targets -- -D warnings
+cargo test -p surgeist-layout --lib
 ```
 
 Expected: clippy exits successfully with no warnings and layout tests pass.
@@ -2756,17 +2788,18 @@ If Step 1 found no suppressions, make no commit in this task and proceed to fina
 If the example grid track sizing group was changed, stage only the exact edited files:
 
 ```sh
-git add -- crates/surgeist/src/layout/grid/tracks.rs crates/surgeist/src/layout/grid/tests.rs
+git add -- src/grid/tracks.rs src/grid/tests.rs
 git commit -m "layout: retire lint suppressions"
 ```
 
-If a different suppression group was changed, replace the file list with the exact files recorded in Step 1 and edited in Step 4. Do not stage `crates/surgeist/src/layout` as a directory.
+If a different suppression group was changed, replace the file list with the exact files recorded in Step 1 and edited in Step 4. Do not stage `src` as a directory.
 
 ### Task 10: Final Verification
 
 **Files:**
 - Read: all files changed by previous tasks
-- Do not modify: unrelated app-runtime files
+- Do not modify: sibling crates or top-level workspace files
+- Modify only if public API changed: `api/public-api.txt`
 
 - [ ] **Step 1: Confirm scoped diff**
 
@@ -2777,7 +2810,7 @@ git status --short --branch
 git diff --stat
 ```
 
-Expected: only files listed in this plan are modified. The unrelated app-runtime files may still appear from the pre-existing worktree state; do not stage or commit them.
+Expected: only files listed in this plan are modified. Sibling crate or top-level changes are outside this crate-local plan; do not stage or commit them from this repo.
 
 - [ ] **Step 2: Run formatting**
 
@@ -2789,45 +2822,54 @@ cargo fmt --check
 
 Expected: exits successfully. If formatting fails, run `cargo fmt`, inspect the diff, then rerun `cargo fmt --check`.
 
-- [ ] **Step 3: Run focused package tests**
+- [ ] **Step 3: Refresh source-derived public API artifact if needed**
+
+If any public item, re-export, trait method, enum variant, or public type signature changed, run:
+
+```sh
+cargo run --manifest-path api/generator/Cargo.toml
+```
+
+Expected: `api/public-api.txt` is unchanged for internal-only work or contains the expected source-derived public API delta for intentional public API changes.
+
+- [ ] **Step 4: Run focused package tests**
 
 Run:
 
 ```sh
-cargo test -p surgeist layout::
-cargo test -p surgeist style::
-cargo test -p surgeist css::
-cargo test -p surgeist style::adapters::layout::
+cargo test -p surgeist-layout --lib
+cargo test -p surgeist-layout grid::
+cargo test -p surgeist-layout flex::
 ```
 
 Expected: all focused tests pass.
 
-- [ ] **Step 4: Run full package tests**
+- [ ] **Step 5: Run full package tests**
 
 Run:
 
 ```sh
-cargo test -p surgeist
+cargo test -p surgeist-layout
 ```
 
 Expected: package tests pass.
 
-- [ ] **Step 5: Run lint verification**
+- [ ] **Step 6: Run lint verification**
 
 Run:
 
 ```sh
-cargo clippy -p surgeist --all-targets -- -D warnings
+cargo clippy -p surgeist-layout --all-targets -- -D warnings
 ```
 
 Expected: exits successfully with no warnings.
 
-- [ ] **Step 6: Confirm no new lint suppression text in changed files**
+- [ ] **Step 7: Confirm no new lint suppression text in changed files**
 
 Run:
 
 ```sh
-files=$(git diff --name-only -- crates/surgeist/src)
+files=$(git diff --name-only -- src)
 if [ -n "$files" ]; then
   if printf '%s\n' "$files" | xargs grep -nE '#\[(allow|expect)\]|clippy::'; then
     echo "unexpected lint suppression text found in changed source files"
@@ -2847,12 +2889,12 @@ fi
 
 Expected: no matches in newly changed source files. Existing matches in files not touched by this plan are outside this final check.
 
-- [ ] **Step 7: Commit final verification-only adjustments if any**
+- [ ] **Step 8: Commit final verification-only adjustments if any**
 
 Only if Steps 2 through 6 required formatting or small test-name adjustments, commit them:
 
 ```sh
-git add -- crates/surgeist/src/layout/value.rs crates/surgeist/src/layout/mod.rs crates/surgeist/src/layout/traits.rs crates/surgeist/src/layout/tests.rs crates/surgeist/src/layout/compute.rs crates/surgeist/src/layout/block.rs crates/surgeist/src/layout/flex.rs crates/surgeist/src/layout/grid/mod.rs crates/surgeist/src/layout/grid/child.rs crates/surgeist/src/layout/grid/tracks.rs crates/surgeist/src/layout/grid/lanes.rs crates/surgeist/src/layout/grid/subgrid.rs crates/surgeist/src/style/calc.rs crates/surgeist/src/style/mod.rs crates/surgeist/src/style/value.rs crates/surgeist/src/style/property.rs crates/surgeist/src/style/declaration.rs crates/surgeist/src/style/resolver.rs crates/surgeist/src/style/adapters/layout.rs crates/surgeist/src/css/mod.rs
+git add -- src/value.rs src/lib.rs src/traits.rs src/tests.rs src/compute.rs src/block.rs src/flex.rs src/grid/mod.rs src/grid/child.rs src/grid/tracks.rs src/grid/lanes.rs src/grid/subgrid.rs api/public-api.txt
 git commit -m "layout: verify typed calc upgrade"
 ```
 
@@ -2860,7 +2902,7 @@ Expected: no commit is needed if previous tasks already left the tree formatted,
 
 ## Execution Notes
 
-- Keep each task's commit scoped to the exact files in that task. Do not stage unrelated app-runtime files even if they remain dirty in `git status`.
+- Keep each task's commit scoped to the exact files in that task. Do not stage sibling crate or top-level files from this crate repo.
 - If a calc behavior requires subtraction in layout expressions, represent subtraction as a negative px or percent term inside `layout::CalcExpression`; keep authored sign structure in `style::CalcLength`.
 - If trait objects are required for `CalcResolver`, make the trait object-safe by avoiding generic methods on the trait itself.
 - The open property/value work is intentionally after calc because it is the broadest API boundary. Do not begin the display split before calc lowering and percent-dependent behavior are passing.
