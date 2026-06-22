@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "schema_version": 1,
+    "generator": "surgeist-layout-generate",
+    "browser_source": "chrome-for-testing",
+    "browser_version": "149.0.7827.115",
+    "helper_sha256": "a3caf30233bd9bc79cb1697929eec23066c60329e47d2aface395232eb2018fc",
+    "corpus_manifest_sha256": "79583ee028d64b34cec351a776fdf0c25cd656364f60f38baacb00fe78a9e394",
+    "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
+  },
+  "filter": "grid/grid_max_content_single_item_margin_percent",
+  "summary": {
+    "generated": 4,
+    "unsupported": 0,
+    "expected_fail": 0,
+    "quarantined": 0,
+    "failed_to_generate": 0
+  },
+  "generated": [
+    {
+      "name": "grid_max_content_single_item_margin_percent__border_box_ltr",
+      "source": "html/grid/grid_max_content_single_item_margin_percent.html",
+      "output": "xml/grid/grid_max_content_single_item_margin_percent__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "grid_max_content_single_item_margin_percent__content_box_ltr",
+      "source": "html/grid/grid_max_content_single_item_margin_percent.html",
+      "output": "xml/grid/grid_max_content_single_item_margin_percent__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "grid_max_content_single_item_margin_percent__border_box_rtl",
+      "source": "html/grid/grid_max_content_single_item_margin_percent.html",
+      "output": "xml/grid/grid_max_content_single_item_margin_percent__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "grid_max_content_single_item_margin_percent__content_box_rtl",
+      "source": "html/grid/grid_max_content_single_item_margin_percent.html",
+      "output": "xml/grid/grid_max_content_single_item_margin_percent__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    }
+  ],
+  "unsupported": [],
+  "expected_fail": [],
+  "quarantined": [],
+  "failed_to_generate": []
+}

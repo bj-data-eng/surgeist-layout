@@ -1,13 +1,13 @@
-<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_margins_auto_margins.html" source-sha256="d928de5fd3179159db8c5616852a706cdb08c364b774d28505f3980c295c89ce" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_margins_auto_margins.html" source-sha256="d928de5fd3179159db8c5616852a706cdb08c364b774d28505f3980c295c89ce" helper-sha256="a3caf30233bd9bc79cb1697929eec23066c60329e47d2aface395232eb2018fc" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
 <test name="grid_margins_auto_margins__content_box_ltr" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
     <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" padding-top="10px" padding-left="40px" padding-bottom="30px" padding-right="20px" grid-template-rows="40px 40px 40px" grid-template-columns="40px 40px 40px">
       <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
       <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
-      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" justify-self="start" width="20px" margin-top="0px" margin-left="auto" margin-bottom="0px" margin-right="auto"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" justify-self="start" width="20px" margin-left="auto" margin-right="auto"/>
       <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
-      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" align-self="start" height="20px" margin-top="auto" margin-left="0px" margin-bottom="auto" margin-right="0px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" align-self="start" height="20px" margin-top="auto" margin-bottom="auto"/>
       <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>
       <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" align-self="start" justify-self="start" width="20px" height="20px" margin-top="auto" margin-left="auto" margin-bottom="auto" margin-right="auto"/>
       <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr"/>

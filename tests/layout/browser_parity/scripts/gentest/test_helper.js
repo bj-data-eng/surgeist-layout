@@ -199,18 +199,20 @@ function parseEdges(edges) {
 
 function parseEffectiveMargin(e, computedStyle) {
   const autoEdges = inlineAutoMarginEdges(e, computedStyle);
+  const authoredEdges = authoredMarginEdges(e, computedStyle);
   if (!hasAuthoredMarginDeclaration(e, computedStyle) && !Object.values(autoEdges).some(Boolean)) return undefined;
 
   return parseEdges({
-    left: effectiveMarginValue(computedStyle.marginLeft, autoEdges.left),
-    right: effectiveMarginValue(computedStyle.marginRight, autoEdges.right),
-    top: effectiveMarginValue(computedStyle.marginTop, autoEdges.top),
-    bottom: effectiveMarginValue(computedStyle.marginBottom, autoEdges.bottom),
+    left: effectiveMarginValue(authoredEdges.left, computedStyle.marginLeft, autoEdges.left),
+    right: effectiveMarginValue(authoredEdges.right, computedStyle.marginRight, autoEdges.right),
+    top: effectiveMarginValue(authoredEdges.top, computedStyle.marginTop, autoEdges.top),
+    bottom: effectiveMarginValue(authoredEdges.bottom, computedStyle.marginBottom, autoEdges.bottom),
   });
 }
 
-function effectiveMarginValue(computedValue, isAuto) {
+function effectiveMarginValue(authoredValue, computedValue, isAuto) {
   if (isAuto) return "auto";
+  if (authoredValue.trim() !== "auto" && marginValueIsNonInitial(authoredValue)) return authoredValue;
   return marginValueIsNonInitial(computedValue) ? computedValue : "";
 }
 
@@ -523,6 +525,80 @@ function hasAuthoredMarginDeclaration(e, computedStyle) {
   }
 
   return hadOpaqueSheet && computedMarginIsNonInitial(computedStyle);
+}
+
+function authoredMarginEdges(e, computedStyle) {
+  const typedOmEdges = typedOmMarginEdges(e);
+  if (typedOmEdges) return typedOmEdges;
+
+  const edges = { left: "", right: "", top: "", bottom: "" };
+  applyInlineAuthoredMarginDeclarations(edges, e.style, computedStyle);
+  return edges;
+}
+
+function typedOmMarginEdges(e) {
+  if (!e.computedStyleMap) return undefined;
+  const styleMap = e.computedStyleMap();
+  if (!styleMap || !styleMap.get) return undefined;
+  return {
+    left: typedOmMarginValue(styleMap.get("margin-left")),
+    right: typedOmMarginValue(styleMap.get("margin-right")),
+    top: typedOmMarginValue(styleMap.get("margin-top")),
+    bottom: typedOmMarginValue(styleMap.get("margin-bottom")),
+  };
+}
+
+function typedOmMarginValue(value) {
+  if (!value) return "";
+  if (value.unit === "percent") return `${value.value}%`;
+  if (value.unit === "px") return `${value.value}px`;
+  return "";
+}
+
+function applyInlineAuthoredMarginDeclarations(edges, style, computedStyle) {
+  for (const property of styleDeclarationProperties(style)) {
+    applyInlineAuthoredMarginDeclaration(edges, property, styleDeclarationValue(style, property), computedStyle);
+  }
+}
+
+function applyInlineAuthoredMarginDeclaration(edges, property, value, computedStyle) {
+  if (!marginValueIsNonInitial(value)) return;
+
+  switch (property) {
+    case "margin-top":
+      edges.top = value;
+      return;
+    case "margin-right":
+      edges.right = value;
+      return;
+    case "margin-bottom":
+      edges.bottom = value;
+      return;
+    case "margin-left":
+      edges.left = value;
+      return;
+    case "margin-inline-start":
+      edges[inlineStartEdge(computedStyle)] = value;
+      return;
+    case "margin-inline-end":
+      edges[inlineEndEdge(computedStyle)] = value;
+      return;
+    case "margin-inline": {
+      const [start, end = start] = value.trim().split(/\s+/);
+      edges[inlineStartEdge(computedStyle)] = start;
+      edges[inlineEndEdge(computedStyle)] = end;
+      return;
+    }
+    case "margin": {
+      const parts = value.trim().split(/\s+/);
+      const [top, right = top, bottom = top, left = right] = parts;
+      edges.top = top;
+      edges.right = right;
+      edges.bottom = bottom;
+      edges.left = left;
+      return;
+    }
+  }
 }
 
 function styleDeclarationHasMargin(style) {

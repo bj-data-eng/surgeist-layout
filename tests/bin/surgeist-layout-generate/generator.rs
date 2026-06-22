@@ -3785,6 +3785,192 @@ if (actual !== expected) {{
     }
 
     #[test]
+    fn bundled_helper_preserves_authored_percentage_margin_values() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-percentage-margin-capture-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("percentage-margin-capture.js");
+        let script = format!(
+            r##"
+const window = {{}};
+const CSSRule = {{ STYLE_RULE: 1 }};
+function styleDeclaration(entries) {{
+  const declaration = {{
+    ...Object.fromEntries(entries.flatMap(([property, value]) => [
+      [property, value],
+      [property.replace(/-([a-z])/g, (_, c) => c.toUpperCase()), value],
+    ])),
+    length: entries.length,
+    getPropertyValue(property) {{
+      const entry = entries.find(([name]) => name === property);
+      return entry ? entry[1] : "";
+    }},
+  }};
+  entries.forEach(([property], index) => {{
+    declaration[index] = property;
+  }});
+  return declaration;
+}}
+const document = {{
+  styleSheets: [
+    {{
+      cssRules: [
+        {{
+          type: CSSRule.STYLE_RULE,
+          selectorText: ".shorthand",
+          style: styleDeclaration([["margin", "5% 10% 15% 20%"]]),
+        }},
+        {{
+          type: CSSRule.STYLE_RULE,
+          selectorText: ".logical",
+          style: styleDeclaration([["margin-inline", "20% 10%"]]),
+        }},
+        {{
+          type: CSSRule.STYLE_RULE,
+          selectorText: ".inline",
+          style: styleDeclaration([["margin-left", "10px"]]),
+        }},
+        {{
+          type: CSSRule.STYLE_RULE,
+          selectorText: "#specific",
+          style: styleDeclaration([["margin-left", "10px"]]),
+        }},
+        {{
+          type: CSSRule.STYLE_RULE,
+          selectorText: ".specific",
+          style: styleDeclaration([["margin-left", "20%"]]),
+        }},
+      ],
+    }},
+  ],
+}};
+function getComputedStyle() {{
+  throw new Error("unexpected getComputedStyle call");
+}}
+
+{TEST_HELPER_SOURCE}
+
+function assertMargin(name, element, computedStyle, expected) {{
+  const actual = JSON.stringify(parseEffectiveMargin(element, computedStyle));
+  const expectedJson = JSON.stringify(expected);
+  if (actual !== expectedJson) {{
+    throw new Error(`${{name}} expected ${{expectedJson}} but got ${{actual}}`);
+  }}
+}}
+function unit(value, unit) {{
+  return {{ value, unit }};
+}}
+function elementFor(selectors, style, typedOmValues) {{
+  const selectorSet = new Set(Array.isArray(selectors) ? selectors : [selectors]);
+  return {{
+    classList: {{ contains() {{ return false; }} }},
+    matches(candidate) {{ return selectorSet.has(candidate); }},
+    computedStyleMap() {{
+      return {{
+        get(property) {{
+          return typedOmValues[property] || unit(0, "px");
+        }},
+      }};
+    }},
+    style,
+  }};
+}}
+
+assertMargin("inline longhands", elementFor("", styleDeclaration([
+  ["margin-left", "20%"],
+  ["margin-right", "10%"],
+]), {{
+  "margin-left": unit(20, "percent"),
+  "margin-right": unit(10, "percent"),
+}}), {{
+  marginLeft: "20px",
+  marginRight: "10px",
+  marginTop: "0px",
+  marginBottom: "0px",
+  direction: "ltr",
+}}, {{
+  left: {{ unit: "percent", value: 0.2 }},
+  right: {{ unit: "percent", value: 0.1 }},
+}});
+
+assertMargin("stylesheet shorthand", elementFor(".shorthand", styleDeclaration([]), {{
+  "margin-left": unit(20, "percent"),
+  "margin-right": unit(10, "percent"),
+  "margin-top": unit(5, "percent"),
+  "margin-bottom": unit(15, "percent"),
+}}), {{
+  marginLeft: "20px",
+  marginRight: "10px",
+  marginTop: "5px",
+  marginBottom: "15px",
+  direction: "ltr",
+}}, {{
+  left: {{ unit: "percent", value: 0.2 }},
+  right: {{ unit: "percent", value: 0.1 }},
+  top: {{ unit: "percent", value: 0.05 }},
+  bottom: {{ unit: "percent", value: 0.15 }},
+}});
+
+assertMargin("stylesheet margin-inline", elementFor(".logical", styleDeclaration([]), {{
+  "margin-left": unit(20, "percent"),
+  "margin-right": unit(10, "percent"),
+}}), {{
+  marginLeft: "20px",
+  marginRight: "10px",
+  marginTop: "0px",
+  marginBottom: "0px",
+  direction: "ltr",
+}}, {{
+  left: {{ unit: "percent", value: 0.2 }},
+  right: {{ unit: "percent", value: 0.1 }},
+}});
+
+assertMargin("inline beats stylesheet", elementFor(".inline", styleDeclaration([
+  ["margin-left", "20%"],
+]), {{
+  "margin-left": unit(20, "percent"),
+}}), {{
+  marginLeft: "20px",
+  marginRight: "0px",
+  marginTop: "0px",
+  marginBottom: "0px",
+  direction: "ltr",
+}}, {{
+  left: {{ unit: "percent", value: 0.2 }},
+}});
+
+assertMargin("defeated stylesheet percent falls back to computed", elementFor(["#specific", ".specific"], styleDeclaration([]), {{
+  "margin-left": unit(10, "px"),
+}}), {{
+  marginLeft: "10px",
+  marginRight: "0px",
+  marginTop: "0px",
+  marginBottom: "0px",
+  direction: "ltr",
+}}, {{
+  left: {{ unit: "px", value: 10 }},
+}});
+"##
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run percentage margin capture smoke test");
+
+        assert!(
+            output.status.success(),
+            "node percentage margin capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
     fn bundled_helper_does_not_guess_stylesheet_auto_margin_when_specificity_defeats_it() {
         let root = std::env::temp_dir().join(format!(
             "surgeist-layout-defeated-auto-margin-capture-{}",

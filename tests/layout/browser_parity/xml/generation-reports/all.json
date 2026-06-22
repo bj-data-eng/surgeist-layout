@@ -4,7 +4,7 @@
     "generator": "surgeist-layout-generate",
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
-    "helper_sha256": "6417cce548f24eb86277f0498b94dd98282d514ad5fb9c84b7bf8f879a28a62d",
+    "helper_sha256": "a3caf30233bd9bc79cb1697929eec23066c60329e47d2aface395232eb2018fc",
     "corpus_manifest_sha256": "79583ee028d64b34cec351a776fdf0c25cd656364f60f38baacb00fe78a9e394",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },

@@ -1,9 +1,9 @@
-<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_auto_track_nested_direct_margin.html" source-sha256="eda125c50c8c7846c5ce3a9b65a08fa36346c9bbe788841a6f2b02f9b1516ade" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_auto_track_nested_direct_margin.html" source-sha256="eda125c50c8c7846c5ce3a9b65a08fa36346c9bbe788841a6f2b02f9b1516ade" helper-sha256="a3caf30233bd9bc79cb1697929eec23066c60329e47d2aface395232eb2018fc" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
 <test name="subgrid_auto_track_nested_direct_margin__content_box_rtl" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
     <div source-tag="article" display="inline-grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" max-width="260px" padding-top="1px" padding-left="5px" padding-bottom="1px" padding-right="5px" border-top="1px" border-left="1px" border-bottom="1px" border-right="1px" grid-template-columns="100px">
-      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" margin-top="0px" margin-left="10px" margin-bottom="0px" margin-right="10px" grid-template-rows="subgrid" grid-template-columns="100%">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="16px" line-height="16px" margin-left="10px" margin-right="10px" grid-template-rows="subgrid" grid-template-columns="100%">
         The cat can not be separated from milk
       </div>
     </div>

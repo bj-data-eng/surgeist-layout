@@ -1,4 +1,4 @@
-<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_abspos_relative_rtl_column_auto_to_1.html" source-sha256="dd6ff6ab57e09ffb0d6e1cd151b2b7a3c0fe20eb44c5db87c5011e2b0565d935" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/subgrid/subgrid_abspos_relative_rtl_column_auto_to_1.html" source-sha256="dd6ff6ab57e09ffb0d6e1cd151b2b7a3c0fe20eb44c5db87c5011e2b0565d935" helper-sha256="a3caf30233bd9bc79cb1697929eec23066c60329e47d2aface395232eb2018fc" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
 <test name="subgrid_abspos_relative_rtl_column_auto_to_1__border_box_rtl" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
@@ -33,7 +33,7 @@
       <text source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-family="monospace" font-size="12px" line-height="12px" grid-row-start="1">
         10
       </text>
-      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" writing-mode="horizontal-tb" font-family="monospace" font-size="12px" line-height="12px" min-width="0px" min-height="12px" padding-top="4px" padding-left="10px" padding-bottom="1px" padding-right="33px" border-top="3px" border-left="3px" border-bottom="3px" border-right="3px" grid-template-rows="auto" grid-template-columns="subgrid" grid-row-start="2" grid-row-end="span 2" grid-column-start="2" grid-column-end="span 8">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" font-family="monospace" font-size="12px" line-height="12px" min-width="0px" min-height="12px" padding-top="4px" padding-left="10px" padding-bottom="1px" padding-right="33px" border-top="3px" border-left="3px" border-bottom="3px" border-right="3px" grid-template-rows="auto" grid-template-columns="subgrid" grid-row-start="2" grid-row-end="span 2" grid-column-start="2" grid-column-end="span 8">
         <text source-tag="div" display="block" box-sizing="content-box" direction="rtl" position="absolute" font-family="monospace" font-size="12px" line-height="12px" top="0px" left="0px" bottom="0px" right="0px" grid-column-end="1">
           x
         </text>

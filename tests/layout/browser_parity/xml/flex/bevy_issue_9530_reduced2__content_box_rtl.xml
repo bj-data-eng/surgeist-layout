@@ -1,9 +1,9 @@
-<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/bevy_issue_9530_reduced2.html" source-sha256="e12a796eb3fc18412722692d398612905bc1a57f27ad78bb74f3a075c959fb57" helper-sha256="b50bfab98f18d4c1195dc0ced8b76fdb61357b5c5519f7bfbebfe088037fccd2" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/bevy_issue_9530_reduced2.html" source-sha256="e12a796eb3fc18412722692d398612905bc1a57f27ad78bb74f3a075c959fb57" helper-sha256="a3caf30233bd9bc79cb1697929eec23066c60329e47d2aface395232eb2018fc" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
 <test name="bevy_issue_9530_reduced2__content_box_rtl" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
     <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column">
-      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column" flex-grow="1" width="80px" margin-top="0px" margin-left="20px" margin-bottom="0px" margin-right="20px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-direction="column" flex-grow="1" width="80px" margin-left="20px" margin-right="20px">
         <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" flex-grow="1">
           HH​HH​HH​HH​HH​HH​HH​HH
         </text>
