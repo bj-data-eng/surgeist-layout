@@ -1,6 +1,6 @@
 use super::{
-    Available, Baselines, ComputeOutput, Dimension, Display, Edges, Length, LengthAuto,
-    NoCalcResolver, Point, Size, TrackSizing,
+    Available, Baselines, CalcExpression, CalcResolver, CalcTerm, ComputeOutput, Dimension,
+    Display, Edges, LayoutCalcStore, Length, LengthAuto, NoCalcResolver, Point, Size, TrackSizing,
 };
 
 #[test]
@@ -74,6 +74,88 @@ fn no_calc_resolver_keeps_plain_values_working() {
         Length::percent(0.5).resolve_with(Some(40.0), &resolver),
         Some(20.0)
     );
+}
+
+#[test]
+fn layout_calc_store_resolves_px_and_percent_terms() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([
+        CalcTerm::px(12.0),
+        CalcTerm::percent(0.25),
+    ]));
+
+    assert_eq!(id.index(), 0);
+    assert_eq!(store.len(), 1);
+    assert!(!store.is_empty());
+    assert!(store.calc_depends_on_basis(id));
+
+    let resolved = store.resolve_calc(id, Some(80.0));
+    assert_eq!(resolved.value, Some(32.0));
+    assert!(resolved.depends_on_basis);
+}
+
+#[test]
+fn layout_calc_store_reports_basis_dependency_and_unresolved_percent() {
+    let mut store = LayoutCalcStore::new();
+    let px_only = store.push(CalcExpression::sum([CalcTerm::px(12.0)]));
+    let with_percent = store.push(CalcExpression::sum([
+        CalcTerm::px(12.0),
+        CalcTerm::percent(0.25),
+    ]));
+    let unknown = super::CalcId::new(99);
+
+    assert!(!store.calc_depends_on_basis(px_only));
+    assert!(store.calc_depends_on_basis(with_percent));
+    assert!(!store.calc_depends_on_basis(unknown));
+
+    assert_eq!(store.resolve_calc(px_only, None).value, Some(12.0));
+
+    let unresolved = store.resolve_calc(with_percent, None);
+    assert_eq!(unresolved.value, None);
+    assert!(unresolved.depends_on_basis);
+
+    let unknown_resolution = store.resolve_calc(unknown, Some(80.0));
+    assert_eq!(unknown_resolution.value, None);
+    assert!(!unknown_resolution.depends_on_basis);
+}
+
+#[test]
+fn length_calc_resolves_through_resolver_hook() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([
+        CalcTerm::px(8.0),
+        CalcTerm::percent(0.5),
+    ]));
+    let length = Length::calc(id);
+
+    assert_eq!(length.resolve_with(Some(40.0), &store), Some(28.0));
+    assert_eq!(length.resolve_with(None, &store), None);
+}
+
+#[test]
+fn length_calc_reports_basis_dependency_through_resolver_hook() {
+    let mut store = LayoutCalcStore::new();
+    let px_only = store.push(CalcExpression::sum([CalcTerm::px(8.0)]));
+    let with_percent = store.push(CalcExpression::sum([
+        CalcTerm::px(8.0),
+        CalcTerm::percent(0.5),
+    ]));
+
+    assert!(Length::calc(px_only).depends_on_basis());
+    assert!(!Length::calc(px_only).depends_on_basis_with(&store));
+    assert!(Length::calc(with_percent).depends_on_basis_with(&store));
+}
+
+#[test]
+fn calc_variants_preserve_optional_resolution_without_resolver() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([CalcTerm::px(8.0)]));
+
+    assert_eq!(Length::calc(id).resolve_optional(Some(40.0)), None);
+    assert_eq!(Length::calc(id).resolve_or_zero(Some(40.0)), 0.0);
+    assert_eq!(LengthAuto::calc(id).resolve_optional(Some(40.0)), None);
+    assert_eq!(LengthAuto::calc(id).resolve_or_zero(Some(40.0)), 0.0);
+    assert_eq!(Dimension::calc(id).resolve_optional(Some(40.0)), None);
 }
 
 #[test]

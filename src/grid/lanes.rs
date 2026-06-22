@@ -559,7 +559,7 @@ fn initialized_track_base(track: TrackSizing, available: Option<Scalar>) -> Scal
         MinTrackSizing::Length(Length::Percent(factor)) => {
             available.map_or(0.0, |available| available * factor)
         }
-        MinTrackSizing::Length(Length::Normal) => 0.0,
+        MinTrackSizing::Length(Length::Normal | Length::Calc(_)) => 0.0,
         MinTrackSizing::Auto | MinTrackSizing::MinContent | MinTrackSizing::MaxContent => 0.0,
     }
 }
@@ -1457,9 +1457,11 @@ fn intrinsic_available_for_dimension(dimension: Dimension) -> Available {
     match dimension {
         Dimension::MinContent => Available::MIN_CONTENT,
         Dimension::MaxContent => Available::MAX_CONTENT,
-        Dimension::Px(_) | Dimension::Percent(_) | Dimension::Fr(_) | Dimension::Auto => {
-            Available::MAX_CONTENT
-        }
+        Dimension::Px(_)
+        | Dimension::Percent(_)
+        | Dimension::Calc(_)
+        | Dimension::Fr(_)
+        | Dimension::Auto => Available::MAX_CONTENT,
     }
 }
 

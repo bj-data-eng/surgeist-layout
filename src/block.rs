@@ -988,9 +988,11 @@ fn in_flow_child_available_width(
     match style.size.width {
         Dimension::MinContent => Available::MIN_CONTENT,
         Dimension::MaxContent => Available::MAX_CONTENT,
-        Dimension::Px(_) | Dimension::Percent(_) | Dimension::Fr(_) | Dimension::Auto => {
-            available_width.map(Available::definite).unwrap_or(fallback)
-        }
+        Dimension::Px(_)
+        | Dimension::Percent(_)
+        | Dimension::Calc(_)
+        | Dimension::Fr(_)
+        | Dimension::Auto => available_width.map(Available::definite).unwrap_or(fallback),
     }
 }
 

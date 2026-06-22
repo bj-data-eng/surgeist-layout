@@ -2004,7 +2004,7 @@ pub(super) fn track_base_size_for_intrinsics(
             length
                 .resolve_optional(basis)
                 .unwrap_or_else(|| match length {
-                    Length::Percent(_) => max_intrinsic,
+                    Length::Percent(_) | Length::Calc(_) => max_intrinsic,
                     Length::Normal => 0.0,
                     Length::Px(_) => length.resolve_or_zero(None),
                 })
@@ -2054,7 +2054,7 @@ pub(super) fn track_growth_limit_for_intrinsics(
     match track.max {
         MaxTrackSizing::Length(length) | MaxTrackSizing::FitContent(length) => {
             length.resolve_optional(basis).or(match length {
-                Length::Percent(_) => Some(max_intrinsic),
+                Length::Percent(_) | Length::Calc(_) => Some(max_intrinsic),
                 Length::Normal => Some(0.0),
                 Length::Px(_) => None,
             })

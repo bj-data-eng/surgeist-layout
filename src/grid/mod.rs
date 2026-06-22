@@ -89,7 +89,11 @@ fn intrinsic_available_for_dimension(dimension: Dimension) -> Option<Available> 
     match dimension {
         Dimension::MinContent => Some(Available::MIN_CONTENT),
         Dimension::MaxContent => Some(Available::MAX_CONTENT),
-        Dimension::Px(_) | Dimension::Percent(_) | Dimension::Fr(_) | Dimension::Auto => None,
+        Dimension::Px(_)
+        | Dimension::Percent(_)
+        | Dimension::Calc(_)
+        | Dimension::Fr(_)
+        | Dimension::Auto => None,
     }
 }
 

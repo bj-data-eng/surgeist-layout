@@ -1,4 +1,4 @@
-use super::{ComputeInput, ComputeOutput, NodeInput, NodeOutput};
+use super::{CalcResolver, ComputeInput, ComputeOutput, NoCalcResolver, NodeInput, NodeOutput};
 
 pub trait Traverse {
     type Node: Copy + Eq;
@@ -15,6 +15,10 @@ pub trait Compute: Traverse {
     fn node_input(&self, node: Self::Node) -> &NodeInput;
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput);
     fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput;
+
+    fn calc_resolver(&self) -> &dyn CalcResolver {
+        &NoCalcResolver
+    }
 }
 
 pub trait Round: Traverse {
