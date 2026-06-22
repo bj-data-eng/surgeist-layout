@@ -1535,6 +1535,12 @@ fn to_style_dimension(value: layout::Dimension) -> Result<s::Length, Error> {
         layout::Dimension::Auto => s::Length::Auto,
         layout::Dimension::MinContent => s::Length::MinContent,
         layout::Dimension::MaxContent => s::Length::MaxContent,
+        layout::Dimension::Calc(id) => {
+            return Err(Error::new(format!(
+                "unsupported calc dimension handle `{}`",
+                id.index()
+            )));
+        }
         layout::Dimension::Fr(value) if (value - 1.0).abs() < Scalar::EPSILON => s::Length::Fill,
         layout::Dimension::Fr(value) => {
             return Err(Error::new(format!(
@@ -1549,6 +1555,9 @@ fn to_style_length(value: layout::Length) -> s::Length {
         layout::Length::Normal => s::Length::NORMAL,
         layout::Length::Px(value) => s::Length::px(value),
         layout::Length::Percent(value) => s::Length::percent(value * 100.0),
+        layout::Length::Calc(id) => {
+            panic!("unsupported calc length handle `{}`", id.index());
+        }
     }
 }
 
@@ -1556,6 +1565,9 @@ fn to_style_length_auto(value: layout::LengthAuto) -> s::Length {
     match value {
         layout::LengthAuto::Px(value) => s::Length::px(value),
         layout::LengthAuto::Percent(value) => s::Length::percent(value * 100.0),
+        layout::LengthAuto::Calc(id) => {
+            panic!("unsupported calc length-auto handle `{}`", id.index());
+        }
         layout::LengthAuto::Auto => s::Length::Auto,
     }
 }

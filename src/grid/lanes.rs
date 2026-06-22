@@ -1,4 +1,5 @@
 use super::*;
+use crate::NoCalcResolver;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LanePlacementInput<Item> {
@@ -294,6 +295,13 @@ pub fn place_lanes<Item>(
 pub fn lane_intrinsic_sizing(
     input: LaneIntrinsicSizingInput,
 ) -> Result<LaneIntrinsicSizingReport, LanePlacementError> {
+    lane_intrinsic_sizing_with(input, &NoCalcResolver)
+}
+
+pub(super) fn lane_intrinsic_sizing_with(
+    input: LaneIntrinsicSizingInput,
+    resolver: &dyn CalcResolver,
+) -> Result<LaneIntrinsicSizingReport, LanePlacementError> {
     if input.content_sized_tracks.is_empty() || input.tracks.is_empty() {
         return Err(LanePlacementError::EmptyTrackList);
     }
@@ -382,6 +390,7 @@ pub fn lane_intrinsic_sizing(
                         available: input.available,
                         gap: input.gap,
                         content_track_count,
+                        resolver,
                     },
                     group,
                 ));
@@ -392,7 +401,7 @@ pub fn lane_intrinsic_sizing(
     let mut final_track_sizes = input
         .tracks
         .iter()
-        .map(|track| initialized_track_base(*track, input.available))
+        .map(|track| initialized_track_base(*track, input.available, resolver))
         .collect::<Vec<_>>();
     for item in definite_items
         .iter()
@@ -404,6 +413,7 @@ pub fn lane_intrinsic_sizing(
             input.gap,
             input.available,
             *item,
+            resolver,
         );
     }
     for item in &sizing_items {
@@ -413,6 +423,7 @@ pub fn lane_intrinsic_sizing(
             input.gap,
             input.available,
             *item,
+            resolver,
         );
     }
 
@@ -467,6 +478,7 @@ struct MasonrySizingProjection<'a> {
     available: Option<Scalar>,
     gap: Scalar,
     content_track_count: usize,
+    resolver: &'a dyn CalcResolver,
 }
 
 fn masonry_sizing_contribution(
@@ -480,6 +492,7 @@ fn masonry_sizing_contribution(
         available,
         gap,
         content_track_count,
+        resolver,
     } = projection;
     let start_index = span.start - 1;
     let end_index = span.end - 1;
@@ -491,7 +504,7 @@ fn masonry_sizing_contribution(
         .fold(0.0, Scalar::max);
     let full_existing = tracks[full_start_index..full_end_index]
         .iter()
-        .map(|track| initialized_track_base(*track, available))
+        .map(|track| initialized_track_base(*track, available, resolver))
         .sum::<Scalar>()
         + gap
             * full_span
@@ -500,7 +513,7 @@ fn masonry_sizing_contribution(
                 .saturating_sub(1) as Scalar;
     let content_existing = tracks[start_index..end_index]
         .iter()
-        .map(|track| initialized_track_base(*track, available))
+        .map(|track| initialized_track_base(*track, available, resolver))
         .sum::<Scalar>()
         + gap
             * span
@@ -553,13 +566,13 @@ fn masonry_track_maximum_size(
     }
 }
 
-fn initialized_track_base(track: TrackSizing, available: Option<Scalar>) -> Scalar {
+fn initialized_track_base(
+    track: TrackSizing,
+    available: Option<Scalar>,
+    resolver: &dyn CalcResolver,
+) -> Scalar {
     match track.min {
-        MinTrackSizing::Length(Length::Px(size)) => size,
-        MinTrackSizing::Length(Length::Percent(factor)) => {
-            available.map_or(0.0, |available| available * factor)
-        }
-        MinTrackSizing::Length(Length::Normal) => 0.0,
+        MinTrackSizing::Length(length) => length.resolve_with(available, resolver).unwrap_or(0.0),
         MinTrackSizing::Auto | MinTrackSizing::MinContent | MinTrackSizing::MaxContent => 0.0,
     }
 }
@@ -578,6 +591,7 @@ fn apply_lane_sizing_contribution(
     gap: Scalar,
     available: Option<Scalar>,
     item: DefiniteLaneIntrinsicItem,
+    resolver: &dyn CalcResolver,
 ) {
     let start = item.span.start - 1;
     let end = item.span.end - 1;
@@ -593,6 +607,7 @@ fn apply_lane_sizing_contribution(
             span_tracks[0],
             contribution,
             available,
+            resolver,
         ));
         return;
     }
@@ -605,7 +620,7 @@ fn apply_lane_sizing_contribution(
                 if track_accepts_intrinsic_contribution(*track) {
                     0.0
                 } else {
-                    initialized_track_base(*track, available)
+                    initialized_track_base(*track, available, resolver)
                 }
             })
             .sum::<Scalar>();
@@ -623,12 +638,13 @@ fn lane_track_minimum_size(
     track: TrackSizing,
     contribution: LaneContributions,
     available: Option<Scalar>,
+    resolver: &dyn CalcResolver,
 ) -> Scalar {
     match track.min {
         MinTrackSizing::MinContent => contribution.min_content,
         MinTrackSizing::MaxContent => contribution.max_content,
         MinTrackSizing::Auto => contribution.minimum,
-        MinTrackSizing::Length(_) => initialized_track_base(track, available),
+        MinTrackSizing::Length(_) => initialized_track_base(track, available, resolver),
     }
 }
 
@@ -719,12 +735,14 @@ where
         let lane_axis_margin_box = measure_lane_axis_margin_box_with_grid_axis(
             tree,
             child,
-            &child_style,
-            style,
-            constants,
-            lane_axis,
-            grid_axis,
-            grid_axis_size,
+            LaneAxisMarginBoxMeasureInput {
+                child_style: &child_style,
+                container_style: style,
+                constants,
+                lane_axis,
+                grid_axis,
+                grid_axis_size,
+            },
         );
         let previous = running[start..end].iter().copied().fold(0.0, Scalar::max);
         let new_position = previous + lane_axis_margin_box + lane_gap;
@@ -843,14 +861,17 @@ where
         items.push(item);
     }
 
-    lane_intrinsic_sizing(LaneIntrinsicSizingInput {
-        axis,
-        available: available_basis,
-        gap,
-        tracks: tracks.to_vec(),
-        content_sized_tracks,
-        items,
-    })
+    lane_intrinsic_sizing_with(
+        LaneIntrinsicSizingInput {
+            axis,
+            available: available_basis,
+            gap,
+            tracks: tracks.to_vec(),
+            content_sized_tracks,
+            items,
+        },
+        tree.calc_resolver(),
+    )
     .map(|report| report.final_track_sizes)
 }
 
@@ -903,7 +924,11 @@ where
             available: max_available,
         },
     );
-    let margin = intrinsic_contribution_margin(child_style, constants.node_inner_size.width);
+    let margin = intrinsic_contribution_margin(
+        child_style,
+        constants.node_inner_size.width,
+        tree.calc_resolver(),
+    );
     LaneContributionFacts {
         min_content: axis_size(min_output.size, axis) + axis_margin_sum(margin, axis),
         max_content: axis_size(max_output.size, axis) + axis_margin_sum(margin, axis),
@@ -1154,14 +1179,19 @@ where
             style,
             area_size,
             Size::splat(Some(area_size.width)),
+            tree.calc_resolver(),
         );
         let area_width_basis = Size::splat(Some(area_size.width));
         let padding = child_style
             .padding
-            .zip_inline_size(area_width_basis, resolve_length_or_zero);
+            .zip_inline_size(area_width_basis, |length, basis| {
+                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+            });
         let border = child_style
             .border
-            .zip_inline_size(area_width_basis, resolve_length_or_zero);
+            .zip_inline_size(area_width_basis, |length, basis| {
+                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+            });
         let resolved_margin = item.unresolved_margin.map(|margin| margin.unwrap_or(0.0));
         let subgrid_content_box_size =
             (area_size - resolved_margin.sum_axes() - padding.sum_axes() - border.sum_axes())
@@ -1184,6 +1214,7 @@ where
             margin: item.unresolved_margin,
             border,
             padding,
+            resolver: tree.calc_resolver(),
         });
         let child_input = ComputeInput {
             run_mode: RunMode::PerformLayout,
@@ -1219,7 +1250,7 @@ where
         let relative_offset = relative_inset_offset(
             child_style.inset.zip_size(
                 Size::new(Some(area_size.width), Some(area_size.height)),
-                resolve_auto_optional,
+                |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
             ),
             style.direction,
             child_style.position,
@@ -1357,68 +1388,89 @@ where
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn measure_lane_axis_margin_box_with_grid_axis<Tree>(
-    tree: &mut Tree,
-    child: <Tree as Traverse>::Node,
-    child_style: &NodeInput,
-    container_style: &NodeInput,
-    constants: &Constants,
+#[derive(Clone, Copy)]
+struct LaneAxisMarginBoxMeasureInput<'a> {
+    child_style: &'a NodeInput,
+    container_style: &'a NodeInput,
+    constants: &'a Constants,
     lane_axis: GridAxisKind,
     grid_axis: GridAxisKind,
     grid_axis_size: Scalar,
+}
+
+fn measure_lane_axis_margin_box_with_grid_axis<Tree>(
+    tree: &mut Tree,
+    child: <Tree as Traverse>::Node,
+    input: LaneAxisMarginBoxMeasureInput<'_>,
 ) -> Scalar
 where
     Tree: Compute,
 {
+    let LaneAxisMarginBoxMeasureInput {
+        child_style,
+        container_style,
+        constants,
+        lane_axis,
+        grid_axis,
+        grid_axis_size,
+    } = input;
     let area_width_basis = match grid_axis {
         GridAxisKind::Column => Size::splat(Some(grid_axis_size)),
         GridAxisKind::Row => constants.node_inner_size,
     };
-    let unresolved_margin = child_style
-        .margin
-        .zip_inline_size(area_width_basis, resolve_auto_optional);
-    let margin = unresolved_margin.map(|margin| margin.unwrap_or(0.0));
-    let mut known = Size::NONE;
-    let mut parent = Size::NONE;
-    let mut available = Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT);
-    match lane_axis {
-        GridAxisKind::Column => {
-            available.width = intrinsic_available_for_dimension(child_style.size.width);
-        }
-        GridAxisKind::Row => {
-            available.height = intrinsic_available_for_dimension(child_style.size.height);
-        }
-    }
-    match grid_axis {
-        GridAxisKind::Column => {
-            let available_width = (grid_axis_size - margin.horizontal_sum()).max(0.0);
-            let justify_self = child_style
-                .justify_self
-                .or(container_style.justify_items)
-                .unwrap_or(AlignItems::Stretch);
-            known.width = child_style
-                .size
-                .width
-                .resolve(grid_axis_size)
-                .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_width));
-            parent.width = Some(grid_axis_size);
-            available.width = Available::Definite(available_width);
-        }
-        GridAxisKind::Row => {
-            let available_height = (grid_axis_size - margin.vertical_sum()).max(0.0);
-            let align_self = child_style
-                .align_self
-                .or(container_style.align_items)
-                .unwrap_or(AlignItems::Stretch);
-            known.height = child_style.size.height.resolve(grid_axis_size).or_else(|| {
-                (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
-                    .then_some(available_height)
+    let (margin, known, parent, available) = {
+        let resolver = tree.calc_resolver();
+        let unresolved_margin = child_style
+            .margin
+            .zip_inline_size(area_width_basis, |length, basis| {
+                resolve_auto_optional_with(length, basis, resolver)
             });
-            parent.height = Some(grid_axis_size);
-            available.height = Available::Definite(available_height);
+        let margin = unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+        let mut known = Size::NONE;
+        let mut parent = Size::NONE;
+        let mut available = Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT);
+        match lane_axis {
+            GridAxisKind::Column => {
+                available.width = intrinsic_available_for_dimension(child_style.size.width);
+            }
+            GridAxisKind::Row => {
+                available.height = intrinsic_available_for_dimension(child_style.size.height);
+            }
         }
-    }
+        match grid_axis {
+            GridAxisKind::Column => {
+                let available_width = (grid_axis_size - margin.horizontal_sum()).max(0.0);
+                let justify_self = child_style
+                    .justify_self
+                    .or(container_style.justify_items)
+                    .unwrap_or(AlignItems::Stretch);
+                known.width =
+                    resolve_dimension_with(child_style.size.width, Some(grid_axis_size), resolver)
+                        .or_else(|| {
+                            (justify_self == AlignItems::Stretch).then_some(available_width)
+                        });
+                parent.width = Some(grid_axis_size);
+                available.width = Available::Definite(available_width);
+            }
+            GridAxisKind::Row => {
+                let available_height = (grid_axis_size - margin.vertical_sum()).max(0.0);
+                let align_self = child_style
+                    .align_self
+                    .or(container_style.align_items)
+                    .unwrap_or(AlignItems::Stretch);
+                known.height =
+                    resolve_dimension_with(child_style.size.height, Some(grid_axis_size), resolver)
+                        .or_else(|| {
+                            (align_self == AlignItems::Stretch
+                                && child_style.aspect_ratio.is_none())
+                            .then_some(available_height)
+                        });
+                parent.height = Some(grid_axis_size);
+                available.height = Available::Definite(available_height);
+            }
+        }
+        (margin, known, parent, available)
+    };
     let output = tree.compute_child(
         child,
         ComputeInput {
@@ -1457,9 +1509,11 @@ fn intrinsic_available_for_dimension(dimension: Dimension) -> Available {
     match dimension {
         Dimension::MinContent => Available::MIN_CONTENT,
         Dimension::MaxContent => Available::MAX_CONTENT,
-        Dimension::Px(_) | Dimension::Percent(_) | Dimension::Fr(_) | Dimension::Auto => {
-            Available::MAX_CONTENT
-        }
+        Dimension::Px(_)
+        | Dimension::Percent(_)
+        | Dimension::Calc(_)
+        | Dimension::Fr(_)
+        | Dimension::Auto => Available::MAX_CONTENT,
     }
 }
 
@@ -1548,4 +1602,127 @@ fn max_running_position(running: &[Scalar], start: usize, span: usize) -> Scalar
         .iter()
         .copied()
         .fold(0.0, Scalar::max)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        Baselines, CalcExpression, CalcResolver, CalcTerm, ComputeInput, ComputeOutput,
+        LayoutCalcStore, LengthAuto, NodeOutput,
+    };
+
+    #[test]
+    fn lane_axis_margin_box_measurement_resolves_calc_margins_against_grid_axis() {
+        let mut store = LayoutCalcStore::new();
+        let margin = store.push(CalcExpression::sum([
+            CalcTerm::px(4.0),
+            CalcTerm::percent(0.10),
+        ]));
+        let child_style = NodeInput {
+            margin: Edges {
+                left: LengthAuto::calc(margin),
+                right: LengthAuto::px(6.0),
+                top: LengthAuto::ZERO,
+                bottom: LengthAuto::ZERO,
+            },
+            ..NodeInput::default()
+        };
+        let container_style = NodeInput::default();
+        let constants = Constants {
+            node_outer_size: Size::new(Some(200.0), Some(80.0)),
+            node_inner_size: Size::new(Some(200.0), Some(80.0)),
+            node_min_size: Size::NONE,
+            node_max_size: Size::NONE,
+            available_inner_size: Size::new(Some(200.0), Some(80.0)),
+            content_box_inset: Edges::ZERO,
+            padding: Edges::ZERO,
+            border: Edges::ZERO,
+        };
+        let mut tree = LaneMarginMeasureTree {
+            child_style: child_style.clone(),
+            resolver: store,
+            child_output: ComputeOutput::from_sizes_and_baselines(
+                Size::new(50.0, 12.0),
+                Size::new(50.0, 12.0),
+                Baselines::NONE,
+            ),
+            last_input: None,
+        };
+
+        let measured = measure_lane_axis_margin_box_with_grid_axis(
+            &mut tree,
+            LaneMarginMeasureTree::CHILD,
+            LaneAxisMarginBoxMeasureInput {
+                child_style: &child_style,
+                container_style: &container_style,
+                constants: &constants,
+                lane_axis: GridAxisKind::Column,
+                grid_axis: GridAxisKind::Column,
+                grid_axis_size: 200.0,
+            },
+        );
+
+        assert_eq!(measured, 80.0);
+        let input = tree
+            .last_input
+            .expect("measurement should compute the child");
+        assert_eq!(input.known.width, Some(170.0));
+        assert_eq!(input.parent.width, Some(200.0));
+        assert_eq!(input.available.width, Available::Definite(170.0));
+    }
+
+    struct LaneMarginMeasureTree {
+        child_style: NodeInput,
+        resolver: LayoutCalcStore,
+        child_output: ComputeOutput,
+        last_input: Option<ComputeInput>,
+    }
+
+    impl LaneMarginMeasureTree {
+        const ROOT: usize = 0;
+        const CHILD: usize = 1;
+    }
+
+    impl Traverse for LaneMarginMeasureTree {
+        type Node = usize;
+        type Children<'a> = std::vec::IntoIter<Self::Node>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            match node {
+                Self::ROOT => vec![Self::CHILD].into_iter(),
+                _ => Vec::new().into_iter(),
+            }
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            usize::from(node == Self::ROOT)
+        }
+
+        fn child(&self, _node: Self::Node, index: usize) -> Self::Node {
+            assert_eq!(index, 0);
+            Self::CHILD
+        }
+    }
+
+    impl Compute for LaneMarginMeasureTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            assert_eq!(node, Self::CHILD);
+            &self.child_style
+        }
+
+        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {
+            unreachable!("lane margin measurement should not write layout output");
+        }
+
+        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            assert_eq!(node, Self::CHILD);
+            self.last_input = Some(input);
+            self.child_output
+        }
+
+        fn calc_resolver(&self) -> &dyn CalcResolver {
+            &self.resolver
+        }
+    }
 }
