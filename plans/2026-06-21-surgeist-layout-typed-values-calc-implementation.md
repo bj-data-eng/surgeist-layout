@@ -1070,7 +1070,7 @@ pub trait Compute: Traverse {
 
 In `../surgeist-style/src/adapters/layout.rs`, add an output type and lowering session:
 
-This step is a handoff preview only. The authoritative style implementation recipe is `../surgeist-style/plans/2026-06-21-surgeist-style-typed-calc-integration.md`; keep the public contract names synchronized with that plan: `LayoutLoweringOutput`, `LayoutLoweringSession`, `lower_with_store`, `CalcExpression`, `CalcTerm`, and `LayoutCalcStore::push`.
+This step is a handoff preview only. The authoritative style implementation recipe is `../surgeist-style/plans/2026-06-21-surgeist-style-typed-calc-integration.md`; keep the public contract names synchronized with that plan: `LayoutLoweringOutput`, `LayoutLoweringSession`, `lower_with_store`, `CalcExpression`, `CalcTerm`, `LayoutCalcStore::push`, `LayoutCalcStore::get`, `LayoutCalcStore::len`, and `LayoutCalcStore::is_empty`.
 
 ```rust
 #[derive(Clone, Debug, PartialEq)]
