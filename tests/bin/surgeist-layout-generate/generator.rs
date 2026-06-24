@@ -3101,6 +3101,10 @@ fn dimension(value: &Value) -> Option<String> {
             number_attr_value(number(&value["value"]) * 100.0)
         )),
         "fraction" => Some(format!("{}fr", number_attr(&value["value"]))),
+        "calc" => value
+            .get("value")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         _ => None,
     }
 }
@@ -3482,6 +3486,51 @@ mod tests {
     }
 
     #[test]
+    fn xml_generation_preserves_calc_lengths() {
+        let node = json!({
+            "useRounding": true,
+            "viewport": {"width": {"unit": "px", "value": 200}, "height": {"unit": "max-content"}},
+            "style": {
+                "display": "block",
+                "size": {"width": {"unit": "calc", "value": "calc(50% + 20px)"}},
+                "margin": {"left": {"unit": "calc", "value": "calc(10% - 4px)"}}
+            },
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 120, "height": 10, "scrollWidth": 120, "scrollHeight": 10},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 120, "height": 10, "scrollWidth": 120, "scrollHeight": 10},
+            "naivelyRoundedLayout": {"clientWidth": 120, "clientHeight": 10},
+            "children": []
+        });
+
+        let xml = generate_xml("calc_lengths__border_box_ltr", &node);
+
+        assert!(xml.contains(r#"width="calc(50% + 20px)""#));
+        assert!(xml.contains(r#"margin-left="calc(10% - 4px)""#));
+    }
+
+    #[test]
+    fn xml_generation_preserves_calc_grid_tracks() {
+        let node = json!({
+            "useRounding": true,
+            "viewport": {"width": {"unit": "px", "value": 240}, "height": {"unit": "max-content"}},
+            "style": {
+                "display": "grid",
+                "gridTemplateColumns": [
+                    {"kind": "scalar", "unit": "calc", "value": "calc(25% + 20px)"},
+                    {"kind": "scalar", "unit": "px", "value": 80}
+                ]
+            },
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 240, "height": 10, "scrollWidth": 240, "scrollHeight": 10},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 240, "height": 10, "scrollWidth": 240, "scrollHeight": 10},
+            "naivelyRoundedLayout": {"clientWidth": 240, "clientHeight": 10},
+            "children": []
+        });
+
+        let xml = generate_xml("calc_grid_tracks__border_box_ltr", &node);
+
+        assert!(xml.contains(r#"grid-template-columns="calc(25% + 20px) 80px""#));
+    }
+
+    #[test]
     fn xml_generation_preserves_grid_template_areas() {
         let node = json!({
             "useRounding": true,
@@ -3621,8 +3670,12 @@ mod tests {
 
     #[test]
     fn bundled_helper_falls_back_to_computed_min_size_units() {
-        assert!(TEST_HELPER_SOURCE.contains("parseResolvedDimension(styleValue(\"minWidth\")"));
-        assert!(TEST_HELPER_SOURCE.contains("parseResolvedDimension(styleValue(\"minHeight\")"));
+        assert!(
+            TEST_HELPER_SOURCE.contains("parseResolvedDimension(lengthStyleValue(\"minWidth\")")
+        );
+        assert!(
+            TEST_HELPER_SOURCE.contains("parseResolvedDimension(lengthStyleValue(\"minHeight\")")
+        );
     }
 
     #[test]
@@ -3964,6 +4017,331 @@ assertMargin("defeated stylesheet percent falls back to computed", elementFor(["
         assert!(
             output.status.success(),
             "node percentage margin capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn bundled_helper_preserves_calc_dimension_values() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-calc-dimension-capture-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("calc-dimension-capture.js");
+        let script = format!(
+            r##"
+const window = {{}};
+const CSSRule = {{ STYLE_RULE: 1 }};
+const document = {{ styleSheets: [] }};
+function getComputedStyle() {{
+  throw new Error("unexpected getComputedStyle call");
+}}
+
+{TEST_HELPER_SOURCE}
+
+function assertEqual(name, actual, expected) {{
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {{
+    throw new Error(`${{name}} expected ${{expectedJson}} but got ${{actualJson}}`);
+  }}
+}}
+
+// Live Chrome 149 probe: computedStyleMap().get("width") for
+// width: calc(50% + 20px) returned CSSMathSum, operator "sum",
+// values [CSSUnitValue percent 50, CSSUnitValue px 20], and toString()
+// reconstructed "calc(50% + 20px)". margin-left subtraction also returned
+// CSSMathSum with the negative px term represented by CSSMathNegate.
+assertEqual("typed om calc", parseDimension({{
+  toString() {{ return "calc(50% + 20px)"; }},
+}}), {{ unit: "calc", value: "calc(50% + 20px)" }});
+
+assertEqual(
+  "inline authored calc fallback",
+  parseDimension("calc(10% - 4px)"),
+  {{ unit: "calc", value: "calc(10% - 4px)" }}
+);
+"##
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run calc dimension capture smoke test");
+
+        assert!(
+            output.status.success(),
+            "node calc dimension capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn bundled_helper_preserves_calc_grid_tracks() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-calc-grid-track-capture-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("calc-grid-track-capture.js");
+        let script = format!(
+            r##"
+const window = {{}};
+const CSSRule = {{ STYLE_RULE: 1 }};
+const document = {{ styleSheets: [] }};
+
+{TEST_HELPER_SOURCE}
+
+const actual = JSON.stringify(parseGridTrackDefinitions("calc(25% + 20px) 80px"));
+const expected = JSON.stringify([
+  {{ kind: "scalar", unit: "calc", value: "calc(25% + 20px)" }},
+  {{ kind: "scalar", unit: "px", value: 80 }},
+]);
+if (actual !== expected) {{
+  throw new Error(`unexpected calc grid tracks ${{actual}}`);
+}}
+"##
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run calc grid track capture smoke test");
+
+        assert!(
+            output.status.success(),
+            "node calc grid track capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn bundled_helper_preserves_inline_shorthand_calc_margin_with_typed_om() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-inline-calc-margin-capture-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("inline-calc-margin-capture.js");
+        let script = format!(
+            r##"
+const window = {{}};
+const CSSRule = {{ STYLE_RULE: 1 }};
+const document = {{ styleSheets: [] }};
+function styleDeclaration(entries) {{
+  const declaration = {{
+    ...Object.fromEntries(entries.flatMap(([property, value]) => [
+      [property, value],
+      [property.replace(/-([a-z])/g, (_, c) => c.toUpperCase()), value],
+    ])),
+    length: entries.length,
+    getPropertyValue(property) {{
+      const entry = entries.find(([name]) => name === property);
+      return entry ? entry[1] : "";
+    }},
+  }};
+  entries.forEach(([property], index) => {{
+    declaration[index] = property;
+  }});
+  return declaration;
+}}
+
+{TEST_HELPER_SOURCE}
+
+const element = {{
+  classList: {{ contains() {{ return false; }} }},
+  matches() {{ return false; }},
+  style: styleDeclaration([["margin", "calc(10% - 4px) 0px"]]),
+  computedStyleMap() {{
+    return {{
+      get(property) {{
+        if (property === "margin-top") return {{ toString() {{ return "calc(10% - 4px)"; }} }};
+        return {{ unit: "px", value: 0 }};
+      }},
+    }};
+  }},
+}};
+const margin = parseEffectiveMargin(element, {{
+  marginLeft: "0px",
+  marginRight: "0px",
+  marginTop: "16px",
+  marginBottom: "0px",
+  direction: "ltr",
+}});
+const actual = JSON.stringify(margin);
+const expected = JSON.stringify({{
+  top: {{ unit: "calc", value: "calc(10% - 4px)" }},
+}});
+if (actual !== expected) {{
+  throw new Error(`unexpected inline shorthand calc margin ${{actual}}`);
+}}
+"##
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run inline calc margin capture smoke test");
+
+        assert!(
+            output.status.success(),
+            "node inline calc margin capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn bundled_helper_does_not_preserve_stylesheet_scanned_calc_lengths() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-stylesheet-calc-capture-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("stylesheet-calc-capture.js");
+        let script = format!(
+            r##"
+const window = {{ innerWidth: 800 }};
+const Node = {{ ELEMENT_NODE: 1, TEXT_NODE: 3 }};
+const CSSRule = {{ STYLE_RULE: 1 }};
+function styleDeclaration(entries) {{
+  const declaration = {{
+    ...Object.fromEntries(entries.flatMap(([property, value]) => [
+      [property, value],
+      [property.replace(/-([a-z])/g, (_, c) => c.toUpperCase()), value],
+    ])),
+    length: entries.length,
+    getPropertyValue(property) {{
+      const entry = entries.find(([name]) => name === property);
+      return entry ? entry[1] : "";
+    }},
+  }};
+  entries.forEach(([property], index) => {{
+    declaration[index] = property;
+  }});
+  return declaration;
+}}
+const document = {{
+  styleSheets: [
+    {{
+      cssRules: [
+        {{
+          type: CSSRule.STYLE_RULE,
+          selectorText: ".stylesheet-calc",
+          style: styleDeclaration([
+            ["width", "calc(50% + 20px)"],
+            ["height", "10px"],
+            ["grid-template-columns", "calc(25% + 20px) 80px"],
+          ]),
+        }},
+      ],
+    }},
+  ],
+  createElement() {{
+    return {{
+      style: {{}},
+      offsetWidth: 0,
+      clientWidth: 0,
+      remove() {{}},
+    }};
+  }},
+  body: {{ appendChild() {{}} }},
+}};
+
+{TEST_HELPER_SOURCE}
+
+const parent = {{
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 200, height: 10, right: 200, left: 0, bottom: 10, top: 0 }}; }},
+  classList: {{ contains() {{ return false; }} }},
+  clientLeft: 0,
+  clientTop: 0,
+}};
+const element = {{
+  tagName: "DIV",
+  classList: {{ contains() {{ return false; }} }},
+  matches(selector) {{ return selector === ".stylesheet-calc"; }},
+  style: styleDeclaration([]),
+  computedStyleMap() {{
+    return {{
+      get(property) {{
+        if (property === "width") return {{ toString() {{ return "calc(50% + 20px)"; }} }};
+        if (property === "height") return {{ unit: "px", value: 10 }};
+        if (property === "grid-template-columns") return {{
+          toString() {{ return "calc(25% + 20px) 80px"; }},
+        }};
+        return undefined;
+      }},
+    }};
+  }},
+  parentNode: parent,
+  childNodes: [],
+  childElementCount: 0,
+  textContent: "",
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 120, height: 10, right: 120, left: 0, bottom: 10, top: 0 }}; }},
+  scrollWidth: 120,
+  scrollHeight: 10,
+  clientWidth: 120,
+  clientHeight: 10,
+  offsetWidth: 120,
+  offsetHeight: 10,
+  offsetLeft: 0,
+  offsetTop: 0,
+  getAttribute() {{ return null; }},
+}};
+function getComputedStyle() {{
+  return {{
+    display: "block",
+    boxSizing: "border-box",
+    direction: "ltr",
+    writingMode: "horizontal-tb",
+    fontFamily: "ahem",
+    fontSize: "10px",
+    lineHeight: "10px",
+    width: "120px",
+    height: "10px",
+    minWidth: "0px",
+    minHeight: "0px",
+    maxWidth: "none",
+    maxHeight: "none",
+    marginLeft: "0px",
+    marginRight: "0px",
+    marginTop: "0px",
+    marginBottom: "0px",
+  }};
+}}
+
+const data = describeElement(element, {{}});
+const actual = JSON.stringify(data.style.size);
+const expected = JSON.stringify({{ height: {{ unit: "px", value: 10 }} }});
+if (actual !== expected) {{
+  throw new Error(`stylesheet calc should not be preserved; got ${{actual}}`);
+}}
+if (data.style.gridTemplateColumns !== undefined) {{
+  throw new Error(`stylesheet compound calc should not be preserved; got ${{JSON.stringify(data.style.gridTemplateColumns)}}`);
+}}
+"##
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run stylesheet calc capture smoke test");
+
+        assert!(
+            output.status.success(),
+            "node stylesheet calc capture smoke failed\nstdout:\n{}\nstderr:\n{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );

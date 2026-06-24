@@ -84,6 +84,7 @@ class TrackSizingParser {
       }
 
       if (char === '(') {
+        if (token === 'calc') return { kind: 'scalar', ...this._parseCalcItem(token) };
         this.index++;
         const args = this._parseItemList(',', ')');
         this.index++;
@@ -96,6 +97,37 @@ class TrackSizingParser {
     if (token === 'subgrid') return { kind: 'subgrid', lineNames: [] };
     return { kind: 'scalar', ...this._parseScalarItem(token) };
 
+  }
+
+  _parseCalcItem(name) {
+    const body = this._parseBalancedParenthesized();
+    const dimension = parseDimension(`${name}(${body})`, { allowFrUnits: this.options.allowFrUnits });
+    if (!dimension) throw new Error(`Invalid scalar grid track sizing function ${name}(${body})`);
+    return dimension;
+  }
+
+  _parseBalancedParenthesized() {
+    if (this.input[this.index] !== '(') throw new Error('Expected parenthesized calc value');
+    this.index++;
+    let depth = 1;
+    let body = '';
+    while (this.index < this.input.length) {
+      const char = this.input[this.index];
+      this.index++;
+      if (char === '(') {
+        depth++;
+        body += char;
+        continue;
+      }
+      if (char === ')') {
+        depth--;
+        if (depth === 0) return body;
+        body += char;
+        continue;
+      }
+      body += char;
+    }
+    throw new Error('Unterminated calc grid track sizing function');
   }
 
   _parseLineNames() {
@@ -149,7 +181,9 @@ function parseRepetition(input) {
 
 function parseDimension(input, options = { allowFrUnits: false }) {
   if (!input) return undefined;
-  if (typeof input === 'object') return input;
+  if (typeof input === 'object') return parseTypedOmDimension(input) || input;
+  const calc = parseCalcDimension(input);
+  if (calc) return calc;
   if (options.allowFrUnits && input.endsWith('fr')) return { unit: 'fraction', value: parseFloat(input.replace('fr', '')) };
   if (input.endsWith('px')) return { unit: 'px', value: parseFloat(input.replace('px', '')) };
   if (input.endsWith('%')) return { unit: 'percent', value: parseFloat(input.replace('%', '')) / 100 };
@@ -157,6 +191,30 @@ function parseDimension(input, options = { allowFrUnits: false }) {
   if (input === 'min-content') return { unit: 'min-content' };
   if (input === 'max-content') return { unit: 'max-content' };
   return undefined;
+}
+
+function parseTypedOmDimension(value) {
+  if (!value) return undefined;
+  if (value.unit === "percent") return { unit: "percent", value: value.value / 100 };
+  if (value.unit === "px") return { unit: "px", value: value.value };
+  if (value.unit === "fr") return { unit: "fraction", value: value.value };
+  return parseCalcDimension(value.toString ? value.toString() : "");
+}
+
+function parseCalcDimension(input) {
+  const value = normalizeCalcString(input);
+  return value ? { unit: "calc", value } : undefined;
+}
+
+function normalizeCalcString(input) {
+  if (typeof input !== "string") return "";
+  const value = input.trim();
+  if (!value.startsWith("calc(") || !value.endsWith(")")) return "";
+  return value;
+}
+
+function containsCalcFunction(input) {
+  return typeof input === "string" && input.includes("calc(");
 }
 
 function parseResolvedDimension(input, computedInput) {
@@ -249,13 +307,48 @@ function parseGaps(styleValue) {
   const rowGap = styleValue("rowGap");
   const columnGap = styleValue("columnGap");
   if (gap) {
-    const gaps = gap.trim().split(/\s+/).map(part => parseDimension(part));
+    const gaps = splitCssComponentValues(gap).map(part => parseDimension(part));
     return { row: gaps[0], column: gaps[1] ?? gaps[0] };
   }
   if (rowGap || columnGap) {
     return { row: parseDimension(rowGap), column: parseDimension(columnGap) };
   }
   return undefined;
+}
+
+function splitCssComponentValues(input) {
+  const values = [];
+  let current = "";
+  let depth = 0;
+  for (const char of input.trim()) {
+    if (/\s/.test(char) && depth === 0) {
+      if (current) {
+        values.push(current);
+        current = "";
+      }
+      continue;
+    }
+    if (char === "(") depth++;
+    if (char === ")") depth = Math.max(0, depth - 1);
+    current += char;
+  }
+  if (current) values.push(current);
+  return values;
+}
+
+function cssPropertyName(property) {
+  return property.replace(/[A-Z]/g, match => `-${match.toLowerCase()}`);
+}
+
+function typedOmStyleValue(e, property) {
+  if (!e.computedStyleMap) return undefined;
+  const styleMap = e.computedStyleMap();
+  if (!styleMap || !styleMap.get) return undefined;
+  return parseTypedOmDimension(styleMap.get(cssPropertyName(property)));
+}
+
+function inlineAuthoredCalcValue(e, property) {
+  return containsCalcFunction(e.style[property]) ? e.style[property] : "";
 }
 
 
@@ -297,6 +390,14 @@ function describeElement(e, expectedElement = null) {
   const computedStyle = getComputedStyle(e);
   const useAuthoredCssRules = expectedElement !== null;
   const styleValue = (property) => useAuthoredCssRules ? authoredStyleValue(e, property, computedStyle) : e.style[property];
+  const lengthStyleValue = (property) => {
+    const authored = styleValue(property);
+    const inlineCalc = inlineAuthoredCalcValue(e, property);
+    if (!inlineCalc) return containsCalcFunction(authored) ? "" : authored;
+    const typed = typedOmStyleValue(e, property);
+    if (typed?.unit === "calc") return typed;
+    return inlineCalc;
+  };
   const children = describeChildNodes(e, expectedElement);
 
   return {
@@ -336,12 +437,12 @@ function describeElement(e, expectedElement = null) {
 
       flexGrow: parseNumber(styleValue("flexGrow")),
       flexShrink: parseNumber(styleValue("flexShrink")),
-      flexBasis: parseDimension(styleValue("flexBasis")),
+      flexBasis: parseDimension(lengthStyleValue("flexBasis")),
 
-      gridTemplateRows: parseGridTrackDefinitions(styleValue("gridTemplateRows")),
-      gridTemplateColumns: parseGridTrackDefinitions(styleValue("gridTemplateColumns")),
-      gridAutoRows: parseGridTrackDefinitions(styleValue("gridAutoRows")),
-      gridAutoColumns: parseGridTrackDefinitions(styleValue("gridAutoColumns")),
+      gridTemplateRows: parseGridTrackDefinitions(lengthStyleValue("gridTemplateRows")),
+      gridTemplateColumns: parseGridTrackDefinitions(lengthStyleValue("gridTemplateColumns")),
+      gridAutoRows: parseGridTrackDefinitions(lengthStyleValue("gridAutoRows")),
+      gridAutoColumns: parseGridTrackDefinitions(lengthStyleValue("gridAutoColumns")),
       gridAutoFlow: parseGridAutoFlow(styleValue("gridAutoFlow")),
 
       gridRowStart: parseGridPosition(styleValue("gridRowStart")),
@@ -349,40 +450,40 @@ function describeElement(e, expectedElement = null) {
       gridColumnStart: parseGridPosition(styleValue("gridColumnStart")),
       gridColumnEnd: parseGridPosition(styleValue("gridColumnEnd")),
 
-      gap: parseGaps(styleValue),
+      gap: parseGaps(lengthStyleValue),
 
-      size: parseElementSize(styleValue, computedStyle),
+      size: parseElementSize(lengthStyleValue, computedStyle),
       minSize: parseSize({
-        width: parseResolvedDimension(styleValue("minWidth"), computedStyle.minWidth),
-        height: parseResolvedDimension(styleValue("minHeight"), computedStyle.minHeight),
+        width: parseResolvedDimension(lengthStyleValue("minWidth"), computedStyle.minWidth),
+        height: parseResolvedDimension(lengthStyleValue("minHeight"), computedStyle.minHeight),
       }),
       maxSize: parseSize({
-        width: parseResolvedDimension(styleValue("maxWidth"), computedStyle.maxWidth),
-        height: parseResolvedDimension(styleValue("maxHeight"), computedStyle.maxHeight),
+        width: parseResolvedDimension(lengthStyleValue("maxWidth"), computedStyle.maxWidth),
+        height: parseResolvedDimension(lengthStyleValue("maxHeight"), computedStyle.maxHeight),
       }),
       aspectRatio: parseRatio(styleValue("aspectRatio")),
 
       margin: parseEffectiveMargin(e, computedStyle),
 
       padding: parseEdges({
-        left: styleValue("paddingLeft"),
-        right: styleValue("paddingRight"),
-        top: styleValue("paddingTop"),
-        bottom: styleValue("paddingBottom"),
+        left: lengthStyleValue("paddingLeft"),
+        right: lengthStyleValue("paddingRight"),
+        top: lengthStyleValue("paddingTop"),
+        bottom: lengthStyleValue("paddingBottom"),
       }),
 
       border: parseEdges({
-        left: styleValue("borderLeftWidth"),
-        right: styleValue("borderRightWidth"),
-        top: styleValue("borderTopWidth"),
-        bottom: styleValue("borderBottomWidth"),
+        left: lengthStyleValue("borderLeftWidth"),
+        right: lengthStyleValue("borderRightWidth"),
+        top: lengthStyleValue("borderTopWidth"),
+        bottom: lengthStyleValue("borderBottomWidth"),
       }),
 
       inset: parseEdges({
-        left: styleValue("left"),
-        right: styleValue("right"),
-        top: styleValue("top"),
-        bottom: styleValue("bottom"),
+        left: lengthStyleValue("left"),
+        right: lengthStyleValue("right"),
+        top: lengthStyleValue("top"),
+        bottom: lengthStyleValue("bottom"),
       }),
     },
 
@@ -528,7 +629,7 @@ function hasAuthoredMarginDeclaration(e, computedStyle) {
 }
 
 function authoredMarginEdges(e, computedStyle) {
-  const typedOmEdges = typedOmMarginEdges(e);
+  const typedOmEdges = typedOmMarginEdges(e, inlineAuthoredMarginHasCalc(e.style));
   if (typedOmEdges) return typedOmEdges;
 
   const edges = { left: "", right: "", top: "", bottom: "" };
@@ -536,23 +637,31 @@ function authoredMarginEdges(e, computedStyle) {
   return edges;
 }
 
-function typedOmMarginEdges(e) {
+function typedOmMarginEdges(e, allowCalc = false) {
   if (!e.computedStyleMap) return undefined;
   const styleMap = e.computedStyleMap();
   if (!styleMap || !styleMap.get) return undefined;
   return {
-    left: typedOmMarginValue(styleMap.get("margin-left")),
-    right: typedOmMarginValue(styleMap.get("margin-right")),
-    top: typedOmMarginValue(styleMap.get("margin-top")),
-    bottom: typedOmMarginValue(styleMap.get("margin-bottom")),
+    left: typedOmMarginValue(styleMap.get("margin-left"), allowCalc),
+    right: typedOmMarginValue(styleMap.get("margin-right"), allowCalc),
+    top: typedOmMarginValue(styleMap.get("margin-top"), allowCalc),
+    bottom: typedOmMarginValue(styleMap.get("margin-bottom"), allowCalc),
   };
 }
 
-function typedOmMarginValue(value) {
-  if (!value) return "";
-  if (value.unit === "percent") return `${value.value}%`;
-  if (value.unit === "px") return `${value.value}px`;
+function typedOmMarginValue(value, allowCalc = false) {
+  const dimension = parseTypedOmDimension(value);
+  if (!dimension) return "";
+  if (dimension.unit === "percent") return `${dimension.value * 100}%`;
+  if (dimension.unit === "px") return `${dimension.value}px`;
+  if (dimension.unit === "calc" && allowCalc) return dimension.value;
   return "";
+}
+
+function inlineAuthoredMarginHasCalc(style) {
+  return styleDeclarationProperties(style).some((property) => {
+    return property.startsWith("margin") && containsCalcFunction(styleDeclarationValue(style, property));
+  });
 }
 
 function applyInlineAuthoredMarginDeclarations(edges, style, computedStyle) {
@@ -584,13 +693,13 @@ function applyInlineAuthoredMarginDeclaration(edges, property, value, computedSt
       edges[inlineEndEdge(computedStyle)] = value;
       return;
     case "margin-inline": {
-      const [start, end = start] = value.trim().split(/\s+/);
+      const [start, end = start] = splitCssComponentValues(value);
       edges[inlineStartEdge(computedStyle)] = start;
       edges[inlineEndEdge(computedStyle)] = end;
       return;
     }
     case "margin": {
-      const parts = value.trim().split(/\s+/);
+      const parts = splitCssComponentValues(value);
       const [top, right = top, bottom = top, left = right] = parts;
       edges.top = top;
       edges.right = right;
@@ -609,7 +718,7 @@ function styleDeclarationHasMargin(style) {
 
 function marginValueIsNonInitial(value) {
   if (!value) return false;
-  const parts = value.trim().split(/\s+/);
+  const parts = splitCssComponentValues(value);
   return parts.some((part) => part !== "0" && part !== "0px");
 }
 
@@ -663,13 +772,13 @@ function applyAutoMarginDeclaration(edges, property, value, computedStyle) {
       edges[inlineEndEdge(computedStyle)] = isAuto;
       return;
     case "margin-inline": {
-      const [start, end = start] = value.trim().split(/\s+/);
+      const [start, end = start] = splitCssComponentValues(value);
       edges[inlineStartEdge(computedStyle)] = start === "auto";
       edges[inlineEndEdge(computedStyle)] = end === "auto";
       return;
     }
     case "margin": {
-      const parts = value.trim().split(/\s+/);
+      const parts = splitCssComponentValues(value);
       const [top, right = top, bottom = top, left = right] = parts;
       edges.top = top === "auto";
       edges.right = right === "auto";
