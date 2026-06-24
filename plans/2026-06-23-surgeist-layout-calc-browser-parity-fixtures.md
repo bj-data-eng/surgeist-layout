@@ -20,6 +20,7 @@
 - Do not add unsafe code.
 - Code changes must go through worker and reviewer cycles per `AGENTS.md`.
 - Commit at logical checkpoints only after review comes back clean.
+- Do not commit intentionally red compile-failing code without explicit coordinator waiver.
 
 ## Current Baseline
 
@@ -47,6 +48,7 @@ fn parse_length(raw: &str) -> Result<layout::Length, Error> {
 
 - `support.rs` currently parses XML style attributes through `surgeist-style` declarations, resolves them, and calls `s::adapters::layout::lower(&resolved)`, which rejects calc-bearing style values because calc requires an accompanying `LayoutCalcStore`.
 - `surgeist-style` already exposes `CalcLength`, `CalcLengthTerm`, and `Length::Calc`, plus `s::adapters::layout::lower_with_store(&resolved)`. The implementation must parse fixture calc strings into style calc ASTs, lower with a store, and merge that store into `TestTree` so the layout compute path can resolve the generated `CalcId` handles.
+- Style calc support was reviewed and is real enough for this layout plan to rely on, though direct style coverage is currently narrow. Do not create a `surgeist-style` implementation plan unless layout implementation uncovers a concrete API gap.
 - `test_helper.js` recently learned to preserve browser-selected percent margins via CSS Typed OM. Calc fixture preservation should use the same principle: trust the browser-selected value, not a hand-rolled cascade approximation.
 
 ## Boundary Notes For Style And CSS
@@ -122,7 +124,7 @@ Rejected syntax must fail with a clear fixture parse error naming the unsupporte
   - Register new Surgeist-authored calc fixtures as active cases.
 - Generated: `tests/layout/browser_parity/xml/...`
   - Regenerate XML after source/helper/parser changes. Do not hand-edit generated geometry.
-- Generated: `tests/layout/browser_parity/xml/generation-reports/...`
+- Generated: `tests/layout/browser_parity/xml/generation-reports/all.json` and related report files
   - Regenerate reports with the updated helper hash and generated case inventory.
 - Optional docs modify: `tests/layout/browser_parity/README.md`
   - Document that the XML fixture format supports a limited `calc(px +/- percent)` syntax for layout parity tests.
@@ -172,16 +174,9 @@ cargo test -p surgeist-layout --test layout layout::browser_parity::support::tes
 
 Expected: the tests fail to compile because the style-facing helper functions do not exist yet.
 
-- [ ] **Step 3: Commit the failing tests if following strict TDD checkpointing**
+- [ ] **Step 3: Do not commit red tests**
 
-Only commit this step if the coordinator wants test-only traceability:
-
-```sh
-git add tests/layout/browser_parity/support.rs
-git commit -m "test: characterize calc fixture parsing gap"
-```
-
-Otherwise continue without committing until Task 2 makes the tests pass.
+Continue without committing until Task 2 makes the tests pass. Intentionally red compile-failing TDD commits are forbidden unless the coordinator explicitly waives this rule.
 
 ## Task 2: Add Fixture-Local Calc Parser And Store Plumbing
 
@@ -304,6 +299,8 @@ fn parse_style_dimension(raw: &str) -> Result<s::Length, Error> {
 ```
 
 Update `to_declarations`, `insert_edges`, `insert_edges_auto`, gap parsing, flex-basis parsing, size/min/max parsing, and style track-list parsing so calc-capable properties use the style-aware helpers.
+
+For grid track lists, do not delegate calc-bearing track sizing through calc-blind layout parsing. Add or use style-native parsing for track sizing components that may contain calc, then lower through `LayoutLoweringSession`. Cover direct track lengths such as `calc(25% + 20px)`, and generated forms that may appear inside `fit-content(calc(...))`, `minmax(calc(...), ...)`, and `repeat(...)` contents.
 
 - [ ] **Step 4: Lower calc values with one layout calc store**
 
@@ -602,15 +599,15 @@ Do not commit the new active fixtures immediately after generation. Continue to 
 - Modify: `tests/layout/browser_parity/support.rs`
 - Generated: `tests/layout/browser_parity/xml/...`
 
-- [ ] **Step 1: Run focused XML parse tests**
+- [ ] **Step 1: Run XML parse tests**
 
 Run:
 
 ```sh
-SURGEIST_PARITY_FILTER=calc cargo test -p surgeist-layout --test layout layout::browser_parity::parses_all_checked_in_browser_parity_xml -- --nocapture
+cargo test -p surgeist-layout --test layout layout::browser_parity::parses_all_checked_in_browser_parity_xml -- --nocapture
 ```
 
-Expected: all calc XML files parse. If this fails, fix the parser in `support.rs` rather than editing generated XML.
+Expected: all checked-in browser parity XML files parse, including the calc XML files. `SURGEIST_PARITY_FILTER=calc` does not currently focus this parse-check test; only add that environment variable here if a filtered parse helper is implemented first. If this fails, fix the parser in `support.rs` rather than editing generated XML.
 
 - [ ] **Step 2: Run focused parity test**
 
@@ -775,6 +772,7 @@ The final implementation report must include:
 - all changed source, fixture, and generated-artifact paths,
 - whether any sibling crate issue was discovered,
 - generation report counts before and after,
+- any relevant generated report path, especially `tests/layout/browser_parity/xml/generation-reports/all.json`,
 - confirmation that `rg -n 'calc\\(' tests/layout/browser_parity/xml/...` finds calc input attributes,
 - verification command outputs for:
   - `cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- check-corpus`,
