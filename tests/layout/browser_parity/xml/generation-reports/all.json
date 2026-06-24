@@ -4,13 +4,13 @@
     "generator": "surgeist-layout-generate",
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
-    "helper_sha256": "a3caf30233bd9bc79cb1697929eec23066c60329e47d2aface395232eb2018fc",
-    "corpus_manifest_sha256": "79583ee028d64b34cec351a776fdf0c25cd656364f60f38baacb00fe78a9e394",
+    "helper_sha256": "98a38953da70c20585341157247d181f9ac9f70302a1414f1d10ff35b3354597",
+    "corpus_manifest_sha256": "2a525f4afa8e1dac0bca53fbd533d4d2aa38503b51d6bfd1835c5c064f617e5d",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },
   "filter": null,
   "summary": {
-    "generated": 4972,
+    "generated": 4984,
     "unsupported": 356,
     "expected_fail": 0,
     "quarantined": 0,
@@ -1815,6 +1815,30 @@
       "name": "block_border_percentage_intrinsic_size__content_box_rtl",
       "source": "html/block/block_border_percentage_intrinsic_size.html",
       "output": "xml/block/block_border_percentage_intrinsic_size__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_calc_width_margin__border_box_ltr",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_calc_width_margin__content_box_ltr",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_calc_width_margin__border_box_rtl",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_calc_width_margin__content_box_rtl",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
@@ -11127,6 +11151,30 @@
       "name": "flex_basis_zero_undefined_main_size__content_box_rtl",
       "source": "html/flex/flex_basis_zero_undefined_main_size.html",
       "output": "xml/flex/flex_basis_zero_undefined_main_size__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_calc_basis_margin_gap__border_box_ltr",
+      "source": "html/flex/flex_calc_basis_margin_gap.html",
+      "output": "xml/flex/flex_calc_basis_margin_gap__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_calc_basis_margin_gap__content_box_ltr",
+      "source": "html/flex/flex_calc_basis_margin_gap.html",
+      "output": "xml/flex/flex_calc_basis_margin_gap__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_calc_basis_margin_gap__border_box_rtl",
+      "source": "html/flex/flex_calc_basis_margin_gap.html",
+      "output": "xml/flex/flex_calc_basis_margin_gap__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_calc_basis_margin_gap__content_box_rtl",
+      "source": "html/flex/flex_calc_basis_margin_gap.html",
+      "output": "xml/flex/flex_calc_basis_margin_gap__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
@@ -21783,6 +21831,30 @@
       "name": "grid_basic_with_padding__content_box_rtl",
       "source": "html/grid/grid_basic_with_padding.html",
       "output": "xml/grid/grid_basic_with_padding__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "grid_calc_track_and_item_margin__border_box_ltr",
+      "source": "html/grid/grid_calc_track_and_item_margin.html",
+      "output": "xml/grid/grid_calc_track_and_item_margin__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "grid_calc_track_and_item_margin__content_box_ltr",
+      "source": "html/grid/grid_calc_track_and_item_margin.html",
+      "output": "xml/grid/grid_calc_track_and_item_margin__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "grid_calc_track_and_item_margin__border_box_rtl",
+      "source": "html/grid/grid_calc_track_and_item_margin.html",
+      "output": "xml/grid/grid_calc_track_and_item_margin__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "grid_calc_track_and_item_margin__content_box_rtl",
+      "source": "html/grid/grid_calc_track_and_item_margin.html",
+      "output": "xml/grid/grid_calc_track_and_item_margin__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {

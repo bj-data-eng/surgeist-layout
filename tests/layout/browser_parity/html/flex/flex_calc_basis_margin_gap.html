@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>Flex calc basis margin gap</title>
+</head>
+<body>
+<div id="test-root" style="display: flex; width: 240px; gap: calc(5% + 2px);">
+  <div style="height: 10px; flex: 0 0 calc(25% + 12px); margin-left: calc(10% - 6px);"></div>
+  <div style="height: 10px; width: calc(30% + 4px);"></div>
+</div>
+</body>
+</html>

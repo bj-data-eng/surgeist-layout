@@ -1,4 +1,5 @@
 use super::*;
+use surgeist_layout::{CalcExpression, CalcResolver, CalcTerm, LayoutCalcStore};
 
 #[test]
 fn block_lays_out_atomic_inline_children_on_one_line() {
@@ -1236,6 +1237,109 @@ fn block_layout_stacks_in_flow_children_vertically() {
     assert_eq!(tree.layouts[&3].size, Size::new(30.0, 12.0));
     assert_eq!(tree.inputs[&2][0].parent, Size::new(Some(82.0), None));
     assert_eq!(tree.inputs[&3][0].parent, Size::new(Some(82.0), None));
+}
+
+#[test]
+fn block_in_flow_calc_margin_resolves_against_containing_block_width() {
+    #[derive(Default)]
+    struct BlockTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+        inputs: HashMap<u32, Vec<ComputeInput>>,
+        calcs: LayoutCalcStore,
+    }
+
+    impl Traverse for BlockTree {
+        type Node = u32;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
+
+    impl Compute for BlockTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            self.inputs.entry(node).or_default().push(input);
+            ComputeOutput::from_outer_size(Size::new(
+                input.known.width.unwrap_or(0.0),
+                input.known.height.unwrap_or(10.0),
+            ))
+        }
+
+        fn calc_resolver(&self) -> &dyn CalcResolver {
+            &self.calcs
+        }
+    }
+
+    let mut tree = BlockTree::default();
+    let margin_left = tree.calcs.push(CalcExpression::sum([
+        CalcTerm::percent(0.1),
+        CalcTerm::px(-4.0),
+    ]));
+    let width = tree.calcs.push(CalcExpression::sum([
+        CalcTerm::percent(0.5),
+        CalcTerm::px(20.0),
+    ]));
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(Dimension::calc(width), Dimension::AUTO),
+            margin: Edges {
+                left: LengthAuto::calc(margin_left),
+                right: LengthAuto::ZERO,
+                top: LengthAuto::ZERO,
+                bottom: LengthAuto::ZERO,
+            },
+            ..NodeInput::default()
+        },
+    );
+
+    surgeist_layout::compute_block(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(200.0), None),
+            available: Size::new(Available::Definite(200.0), Available::MAX_CONTENT),
+        },
+    );
+
+    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(120.0), None));
+    assert_eq!(tree.layouts[&2].location, Point::new(16.0, 0.0));
+    assert_eq!(tree.layouts[&2].margin.left, 16.0);
+    assert_eq!(tree.layouts[&2].size, Size::new(120.0, 10.0));
 }
 
 #[test]

@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_calc_width_margin.html" source-sha256="e40496ab951b538645bab1983cb6f415c3dbc35a799ddf730d9a78ab6371bdce" helper-sha256="98a38953da70c20585341157247d181f9ac9f70302a1414f1d10ff35b3354597" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_calc_width_margin__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" width="200px">
+      <div source-tag="div" display="flex" direction="rtl" width="calc(50% + 20px)" height="10px" margin-left="calc(10% - 4px)" margin-right="calc(5% + 2px)"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="200" height="10">
+      <node x="68" y="0" width="120" height="10"/>
+    </node>
+  </expectations>
+</test>

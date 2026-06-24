@@ -13,6 +13,11 @@ corpus is rooted at `tests/layout/browser_parity`:
 XML files are generated artifacts. Do not edit browser geometry in XML by hand;
 update the source fixture, importer, manifest, or generator instead.
 
+The XML fixture format accepts a deliberately small calc syntax for layout
+parity inputs: `calc(<number>px +/- <number>%)`. This is fixture syntax only;
+app-facing CSS parsing remains owned by `surgeist-css` and authored style calc
+modeling remains owned by `surgeist-style`.
+
 Run checked-in fixtures:
 
 ```sh

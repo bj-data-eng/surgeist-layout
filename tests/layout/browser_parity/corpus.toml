@@ -41,6 +41,27 @@ generator = "constrained-html"
 status = "active"
 
 [[cases]]
+id = "block/block_calc_width_margin"
+source_root = "surgeist"
+source = "block/block_calc_width_margin.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_calc_basis_margin_gap"
+source_root = "surgeist"
+source = "flex/flex_calc_basis_margin_gap.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_calc_track_and_item_margin"
+source_root = "surgeist"
+source = "grid/grid_calc_track_and_item_margin.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
 id = "grid-lanes/grid_lanes_empty_column_container_padding"
 source_root = "surgeist"
 source = "grid-lanes/grid_lanes_empty_column_container_padding.html"

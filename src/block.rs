@@ -2,7 +2,7 @@ use super::inline::{
     AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem, layout_atomic_inline_items,
 };
 use super::{
-    Available, Baselines, BoxSizing, Clear, CollapsibleMargin, Compute, ComputeInput,
+    Available, Baselines, BoxSizing, CalcResolver, Clear, CollapsibleMargin, Compute, ComputeInput,
     ComputeOutput, Dimension, Direction, Edges, Float, Length, LengthAuto, NodeInput, NodeOutput,
     Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size, SizingMode, TextAlign,
     Traverse, VerticalAlign, WritingMode,
@@ -447,7 +447,9 @@ where
 
         let unresolved_margin = child_style
             .margin
-            .zip_inline_size(node_inner_size, resolve_auto_optional);
+            .zip_inline_size(node_inner_size, |length, basis| {
+                resolve_auto_optional_with(length, basis, tree.calc_resolver())
+            });
         let child_padding = child_style
             .padding
             .zip_inline_size(node_inner_size, resolve_length_or_zero);
@@ -464,6 +466,7 @@ where
             child_padding + child_border,
             node_inner_size,
             available_child_width,
+            tree.calc_resolver(),
         );
         let output = tree.compute_child(
             child,
@@ -934,6 +937,7 @@ fn in_flow_child_known_size(
     padding_border: Edges,
     parent: Size<Option<Scalar>>,
     available_width: Option<Scalar>,
+    resolver: &dyn CalcResolver,
 ) -> Size<Option<Scalar>> {
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border.sum_axes()
@@ -942,12 +946,16 @@ fn in_flow_child_known_size(
     };
     let min_size = style
         .min_size
-        .zip_map(parent, resolve_dimension)
+        .zip_map(parent, |dimension, basis| {
+            resolve_dimension_with(dimension, basis, resolver)
+        })
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let mut max_size = style
         .max_size
-        .zip_map(parent, resolve_dimension)
+        .zip_map(parent, |dimension, basis| {
+            resolve_dimension_with(dimension, basis, resolver)
+        })
         .add_optional(box_sizing_adjustment);
     let aspect_height_limit = style
         .aspect_ratio
@@ -958,7 +966,9 @@ fn in_flow_child_known_size(
     }
     let mut known = style
         .size
-        .zip_map(parent, resolve_dimension)
+        .zip_map(parent, |dimension, basis| {
+            resolve_dimension_with(dimension, basis, resolver)
+        })
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment)
         .clamp_optional(min_size, max_size);
@@ -1625,8 +1635,24 @@ fn resolve_auto_optional(length: LengthAuto, basis: Option<Scalar>) -> Option<Sc
     length.resolve_optional(basis)
 }
 
+fn resolve_auto_optional_with(
+    length: LengthAuto,
+    basis: Option<Scalar>,
+    resolver: &dyn CalcResolver,
+) -> Option<Scalar> {
+    length.resolve_with(basis, resolver)
+}
+
 fn resolve_dimension(dimension: Dimension, basis: Option<Scalar>) -> Option<Scalar> {
     dimension.resolve_optional(basis)
+}
+
+fn resolve_dimension_with(
+    dimension: Dimension,
+    basis: Option<Scalar>,
+    resolver: &dyn CalcResolver,
+) -> Option<Scalar> {
+    dimension.resolve_with(basis, resolver)
 }
 
 trait SizeOptionExt {

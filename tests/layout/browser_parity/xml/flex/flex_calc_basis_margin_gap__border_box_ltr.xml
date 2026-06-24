@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/flex/flex_calc_basis_margin_gap.html" source-sha256="c8b27572e4b775292daa82619f05f56da4e0ed14bd65963ebeb6228c6cccb439" helper-sha256="98a38953da70c20585341157247d181f9ac9f70302a1414f1d10ff35b3354597" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="flex_calc_basis_margin_gap__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" direction="ltr" width="240px" row-gap="calc(5% + 2px)" column-gap="calc(5% + 2px)">
+      <div source-tag="div" display="flex" direction="ltr" flex-shrink="0" flex-basis="calc(25% + 12px)" height="10px" margin-left="calc(10% - 6px)"/>
+      <div source-tag="div" display="flex" direction="ltr" width="calc(30% + 4px)" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="240" height="10">
+      <node x="18" y="0" width="72" height="10"/>
+      <node x="104" y="0" width="76" height="10"/>
+    </node>
+  </expectations>
+</test>

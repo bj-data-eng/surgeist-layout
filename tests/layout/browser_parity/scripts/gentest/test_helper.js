@@ -275,11 +275,17 @@ function effectiveMarginValue(authoredValue, computedValue, isAuto) {
 }
 
 function parseSize(size) {
-  const width = parseDimension(size.width);
-  const height = parseDimension(size.height);
+  const width = parseSizeDimension(size.width);
+  const height = parseSizeDimension(size.height);
 
   if (!width && !height) return undefined;
   return { width, height };
+}
+
+function parseSizeDimension(input) {
+  if (!input) return undefined;
+  if (typeof input === 'object') return input;
+  return parseDimension(input);
 }
 
 function px(value) {
@@ -307,6 +313,10 @@ function parseGaps(styleValue) {
   const rowGap = styleValue("rowGap");
   const columnGap = styleValue("columnGap");
   if (gap) {
+    if (typeof gap === 'object') {
+      const parsedGap = parseDimension(gap);
+      return { row: parsedGap, column: parsedGap };
+    }
     const gaps = splitCssComponentValues(gap).map(part => parseDimension(part));
     return { row: gaps[0], column: gaps[1] ?? gaps[0] };
   }

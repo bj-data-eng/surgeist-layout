@@ -442,17 +442,28 @@ struct TestTree {
     calc_store: layout::LayoutCalcStore,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct InheritedTextContext {
+    font_family: FontFamily,
+    font_size: Scalar,
+    line_height: LineHeightState,
+    grid_lanes_text: bool,
+    inline_level_text: bool,
+}
+
 impl TestTree {
     fn from_golden(root: &Node) -> Result<Self, Error> {
         let mut tree = Self::default();
         let mut lowering = s::adapters::layout::LayoutLoweringSession::new();
         tree.push_node(
             root,
-            FontFamily::Ahem,
-            TextMeasure::LINE_HEIGHT,
-            LineHeightState::Normal,
-            false,
-            false,
+            InheritedTextContext {
+                font_family: FontFamily::Ahem,
+                font_size: TextMeasure::LINE_HEIGHT,
+                line_height: LineHeightState::Normal,
+                grid_lanes_text: false,
+                inline_level_text: false,
+            },
             &mut lowering,
         )?;
         tree.calc_store = lowering.finish();
@@ -462,27 +473,23 @@ impl TestTree {
     fn push_node(
         &mut self,
         node: &Node,
-        inherited_font_family: FontFamily,
-        inherited_font_size: Scalar,
-        inherited_line_height: LineHeightState,
-        inherited_grid_lanes_text: bool,
-        inherited_inline_level_text: bool,
+        inherited: InheritedTextContext,
         lowering: &mut s::adapters::layout::LayoutLoweringSession,
     ) -> Result<usize, Error> {
         let id = self.nodes.len();
-        let font_family = font_family(&node.style)?.unwrap_or(inherited_font_family);
-        let font_size = font_size(&node.style)?.unwrap_or(inherited_font_size);
+        let font_family = font_family(&node.style)?.unwrap_or(inherited.font_family);
+        let font_size = font_size(&node.style)?.unwrap_or(inherited.font_size);
         let line_height = match line_height(&node.style)? {
             Some(value) => LineHeightState::Px(value),
-            None => inherited_line_height,
+            None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
         let node_input = to_node_input(&node.style, lowering)?;
-        let grid_lanes_text = inherited_grid_lanes_text
+        let grid_lanes_text = inherited.grid_lanes_text
             || node_input
                 .display
                 .establishes_grid_lanes_formatting_context();
-        let inline_level_text = inherited_inline_level_text || node_input.display.is_inline_level();
+        let inline_level_text = inherited.inline_level_text || node_input.display.is_inline_level();
         self.nodes.push(TestNode {
             node_input,
             font_family,
@@ -491,8 +498,8 @@ impl TestTree {
             text: node.text.clone(),
             children: Vec::new(),
             synthetic: false,
-            preserve_fractional_min_content: inherited_grid_lanes_text,
-            use_tighter_monospace_wrap: !inherited_inline_level_text,
+            preserve_fractional_min_content: inherited.grid_lanes_text,
+            use_tighter_monospace_wrap: !inherited.inline_level_text,
             cache: layout::Cache::new(),
             unrounded: layout::NodeOutput::new(),
             final_layout: layout::NodeOutput::new(),
@@ -504,11 +511,13 @@ impl TestTree {
             .map(|child| {
                 self.push_node(
                     child,
-                    font_family,
-                    font_size,
-                    line_height,
-                    grid_lanes_text,
-                    inline_level_text,
+                    InheritedTextContext {
+                        font_family,
+                        font_size,
+                        line_height,
+                        grid_lanes_text,
+                        inline_level_text,
+                    },
                     lowering,
                 )
             })

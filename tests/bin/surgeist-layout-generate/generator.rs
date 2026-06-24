@@ -3679,6 +3679,46 @@ mod tests {
     }
 
     #[test]
+    fn bundled_helper_preserves_resolved_percentage_min_max_size_values() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-resolved-percent-min-max-size-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("resolved-percent-min-max-size.js");
+        let script = format!(
+            r#"
+const window = {{}};
+{TEST_HELPER_SOURCE}
+
+const resolved = parseResolvedDimension("10%", "10%");
+const actual = JSON.stringify(parseSize({{ width: resolved, height: resolved }}));
+const expected = JSON.stringify({{
+  width: {{ unit: "percent", value: 0.1 }},
+  height: {{ unit: "percent", value: 0.1 }},
+}});
+if (actual !== expected) {{
+  throw new Error(`resolved percentage min/max size should not be reparsed; got ${{actual}}`);
+}}
+"#
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run resolved percentage min/max size smoke test");
+
+        assert!(
+            output.status.success(),
+            "node resolved percentage min/max size smoke failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
     fn bundled_helper_uses_computed_font_size() {
         assert!(TEST_HELPER_SOURCE.contains("fontSize: parseDimension(computedStyle.fontSize)"));
     }
@@ -4118,6 +4158,51 @@ if (actual !== expected) {{
         assert!(
             output.status.success(),
             "node calc grid track capture smoke failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn bundled_helper_preserves_single_calc_gap_shorthand() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-calc-gap-capture-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("calc-gap-capture.js");
+        let script = format!(
+            r##"
+const window = {{}};
+const CSSRule = {{ STYLE_RULE: 1 }};
+const document = {{ styleSheets: [] }};
+
+{TEST_HELPER_SOURCE}
+
+const actual = JSON.stringify(parseGaps((property) => {{
+  if (property === "gap") return {{ unit: "calc", value: "calc(5% + 2px)" }};
+  return "";
+}}));
+const expected = JSON.stringify({{
+  row: {{ unit: "calc", value: "calc(5% + 2px)" }},
+  column: {{ unit: "calc", value: "calc(5% + 2px)" }},
+}});
+if (actual !== expected) {{
+  throw new Error(`unexpected calc gap ${{actual}}`);
+}}
+"##
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run calc gap capture smoke test");
+
+        assert!(
+            output.status.success(),
+            "node calc gap capture smoke failed\nstdout:\n{}\nstderr:\n{}",
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );

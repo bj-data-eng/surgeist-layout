@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "schema_version": 1,
+    "generator": "surgeist-layout-generate",
+    "browser_source": "chrome-for-testing",
+    "browser_version": "149.0.7827.115",
+    "helper_sha256": "98a38953da70c20585341157247d181f9ac9f70302a1414f1d10ff35b3354597",
+    "corpus_manifest_sha256": "2a525f4afa8e1dac0bca53fbd533d4d2aa38503b51d6bfd1835c5c064f617e5d",
+    "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
+  },
+  "filter": "block/block_calc_width_margin",
+  "summary": {
+    "generated": 4,
+    "unsupported": 0,
+    "expected_fail": 0,
+    "quarantined": 0,
+    "failed_to_generate": 0
+  },
+  "generated": [
+    {
+      "name": "block_calc_width_margin__border_box_ltr",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_calc_width_margin__content_box_ltr",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_calc_width_margin__border_box_rtl",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_calc_width_margin__content_box_rtl",
+      "source": "html/block/block_calc_width_margin.html",
+      "output": "xml/block/block_calc_width_margin__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    }
+  ],
+  "unsupported": [],
+  "expected_fail": [],
+  "quarantined": [],
+  "failed_to_generate": []
+}
