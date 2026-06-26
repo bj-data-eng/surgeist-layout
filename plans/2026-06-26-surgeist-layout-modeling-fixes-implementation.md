@@ -21,6 +21,15 @@
 - Use source-derived API artifacts only; do not treat `api/public-api.txt` as the authority.
 - Every code task must use worker/reviewer cycles per `AGENTS.md`.
 - Commit at the logical checkpoints listed below only after the reviewer cycle for that task is clean.
+- Surgeist is pre-release. Do not preserve backwards compatibility when the
+  current API models the wrong state; prefer the correct first-principles
+  contract and record the public API delta in the generated artifact and README.
+- Do not add compatibility shims for resolver-free calc collapse. Symbolic calc
+  values must either resolve with an explicit resolver/context or remain a typed
+  unresolved state.
+- Do not expose internal helpers only so integration tests can reach them. Test
+  internal phase states in crate unit tests, and test integration behavior
+  through intentional front-door APIs.
 
 ## Finding Coverage Matrix
 
@@ -110,7 +119,6 @@
 - Modify: `src/compute.rs`
 - Modify: `src/block.rs`
 - Modify: `src/tests.rs`
-- Modify: `tests/layout/unit/leaf.rs`
 - Modify: `tests/layout/unit/block.rs`
 
 - [ ] **Step 1: Add failing tests for missing calc ids and resolver-free paths**
@@ -130,11 +138,10 @@ fn missing_calc_id_reports_missing_expression() {
 }
 
 #[test]
-fn resolver_free_calc_resolution_is_visible() {
+fn calc_values_require_an_explicit_resolver() {
     let mut store = LayoutCalcStore::new();
     let id = store.push(CalcExpression::sum([CalcTerm::px(8.0)]));
 
-    assert_eq!(Length::calc(id).resolve_optional(Some(40.0)), None);
     assert!(Length::calc(id).requires_resolver());
     assert_eq!(
         Length::calc(id).resolve_with_status(Some(40.0), &NoCalcResolver).status(),
@@ -143,7 +150,9 @@ fn resolver_free_calc_resolution_is_visible() {
 }
 ```
 
-Add a focused leaf test to `tests/layout/unit/leaf.rs`:
+Add resolver-aware leaf tests as crate unit tests in `src/compute.rs`, where
+crate-private helpers are visible without making them part of the public
+integration-test contract:
 
 ```rust
 #[test]
@@ -217,12 +226,17 @@ implementation.
 Run:
 
 ```sh
-cargo test -p surgeist-layout tests::missing_calc_id_reports_missing_expression tests::resolver_free_calc_resolution_is_visible -- --nocapture
-cargo test -p surgeist-layout --test layout layout::leaf::leaf_calc_width_uses_tree_resolver -- --nocapture
+cargo test -p surgeist-layout tests::missing_calc_id_reports_missing_expression -- --nocapture
+cargo test -p surgeist-layout tests::calc_values_require_an_explicit_resolver -- --nocapture
+cargo test -p surgeist-layout compute::tests::leaf_calc_width_uses_tree_resolver -- --nocapture
 cargo test -p surgeist-layout --test layout layout::block::block_container_calc_padding_uses_tree_resolver -- --nocapture
 ```
 
-Expected: tests fail because `CalcResolutionStatus`, `is_missing_expression`, `requires_resolver`, `resolve_with_status`, and `compute_leaf_with_resolver` do not exist, and block constants still use resolver-free helpers.
+Expected: tests fail because `CalcResolutionStatus`,
+`is_missing_expression`, `requires_resolver`, `resolve_with_status`, and the
+crate-private resolver-aware leaf path do not exist, and block constants still
+use resolver-free helpers. No failing test should require exposing
+`compute_leaf_with_resolver` publicly.
 
 - [ ] **Step 3: Add calc resolution status and test-only raw id constructor**
 
@@ -324,11 +338,18 @@ impl Length {
 }
 ```
 
-Add equivalent `requires_resolver` and `resolve_with_status` methods for `LengthAuto` and `Dimension`.
+Add equivalent `requires_resolver` and `resolve_with_status` methods for
+`LengthAuto` and `Dimension`. Remove or restrict resolver-free numeric helpers
+such as `resolve_optional` and `resolve_or_zero` for calc-bearing values instead
+of keeping them as compatibility shims.
 
 - [ ] **Step 6: Thread resolver-aware helpers through root, leaf, and block constants**
 
-Update `src/compute.rs` so root and leaf resolution use resolver-aware helpers. If `compute_leaf` cannot take a resolver without a public signature break, add an internal `compute_leaf_with_resolver` and keep `compute_leaf` delegating with `NoCalcResolver`.
+Update `src/compute.rs` so root and leaf resolution use resolver-aware helpers.
+Keep any `compute_leaf_with_resolver` helper crate-private and cover it with
+crate unit tests only; do not make it public just for integration tests. If
+`compute_leaf` keeps a public resolver-free signature, it must visibly use
+`NoCalcResolver` and produce typed unresolved status where calc values appear.
 
 Update `src/block.rs` so `Constants::new` receives `tree.calc_resolver()` or a resolver parameter, and its padding, border, size, min-size, max-size, and own margin helpers use resolver-aware methods.
 
@@ -337,7 +358,9 @@ Update `src/block.rs` so `Constants::new` receives `tree.calc_resolver()` or a r
 Run:
 
 ```sh
-cargo test -p surgeist-layout tests::missing_calc_id_reports_missing_expression tests::resolver_free_calc_resolution_is_visible -- --nocapture
+cargo test -p surgeist-layout tests::missing_calc_id_reports_missing_expression -- --nocapture
+cargo test -p surgeist-layout tests::calc_values_require_an_explicit_resolver -- --nocapture
+cargo test -p surgeist-layout compute::tests::leaf_calc_width_uses_tree_resolver -- --nocapture
 cargo test -p surgeist-layout --test layout layout::leaf -- --nocapture
 cargo test -p surgeist-layout --test layout layout::block -- --nocapture
 ```
@@ -347,7 +370,7 @@ Expected: all selected tests pass.
 - [ ] **Step 8: Commit**
 
 ```sh
-git add src/value.rs src/traits.rs src/compute.rs src/block.rs src/tests.rs tests/layout/unit/leaf.rs tests/layout/unit/block.rs
+git add src/value.rs src/traits.rs src/compute.rs src/block.rs src/tests.rs tests/layout/unit/block.rs
 git commit -m "Make layout calc resolution explicit"
 ```
 
@@ -359,8 +382,10 @@ git commit -m "Make layout calc resolution explicit"
 - Modify: `src/cache.rs`
 - Modify: `src/output.rs`
 - Modify: `src/traits.rs`
+- Modify: `src/value.rs`
 - Modify: `src/lib.rs`
 - Modify: `tests/layout/unit/cache.rs`
+- Modify: `tests/layout/browser_parity/support.rs`
 
 - [ ] **Step 1: Add failing cache tests for mode, axis, parent, and resolver generation**
 
@@ -378,52 +403,72 @@ fn cache_test_input() -> ComputeInput {
     }
 }
 
+fn static_cache_context() -> CacheKeyContext {
+    CacheKeyContext::static_no_calc()
+}
+
 #[test]
 fn cache_miss_when_run_mode_changes() {
     let mut cache = Cache::new();
     let base = cache_test_input();
-    cache.store(&base, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
+    cache.store_with_context(
+        &base,
+        static_cache_context(),
+        ComputeOutput::from_outer_size(Size::new(20.0, 10.0)),
+    );
 
     let mut changed = base;
     changed.run_mode = RunMode::ComputeSize;
 
-    assert_eq!(cache.get(&changed), None);
+    assert_eq!(cache.get_with_context(&changed, static_cache_context()), None);
 }
 
 #[test]
 fn cache_miss_when_sizing_mode_changes() {
     let mut cache = Cache::new();
     let base = cache_test_input();
-    cache.store(&base, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
+    cache.store_with_context(
+        &base,
+        static_cache_context(),
+        ComputeOutput::from_outer_size(Size::new(20.0, 10.0)),
+    );
 
     let mut changed = base;
     changed.sizing_mode = SizingMode::ContentSize;
 
-    assert_eq!(cache.get(&changed), None);
+    assert_eq!(cache.get_with_context(&changed, static_cache_context()), None);
 }
 
 #[test]
 fn cache_miss_when_requested_axis_changes() {
     let mut cache = Cache::new();
     let base = cache_test_input();
-    cache.store(&base, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
+    cache.store_with_context(
+        &base,
+        static_cache_context(),
+        ComputeOutput::from_outer_size(Size::new(20.0, 10.0)),
+    );
 
     let mut changed = base;
     changed.axis = RequestedAxis::Horizontal;
 
-    assert_eq!(cache.get(&changed), None);
+    assert_eq!(cache.get_with_context(&changed, static_cache_context()), None);
 }
 
 #[test]
 fn cache_miss_when_parent_size_changes() {
     let mut cache = Cache::new();
     let base = cache_test_input();
-    cache.store(&base, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
+    cache.store_with_context(
+        &base,
+        static_cache_context(),
+        ComputeOutput::from_outer_size(Size::new(20.0, 10.0)),
+    );
 
     let mut changed = base;
     changed.parent = Size::new(Some(200.0), Some(40.0));
 
-    assert_eq!(cache.get(&changed), None);
+    assert_eq!(cache.get_with_context(&changed, static_cache_context()), None);
 }
 
 #[test]
@@ -506,10 +551,10 @@ Expected: new tests fail because cache keys ignore these fields and `CalcGenerat
 
 - [ ] **Step 3: Add `CalcGeneration` and `CacheKeyContext`**
 
-In `src/value.rs` or `src/output.rs`, add:
+In `src/value.rs`, add:
 
 ```rust
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct CalcGeneration(u64);
 
 impl CalcGeneration {
@@ -517,13 +562,18 @@ impl CalcGeneration {
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
+
+    #[must_use]
+    pub const fn static_no_calc() -> Self {
+        Self(0)
+    }
 }
 ```
 
 In `src/cache.rs`, add:
 
 ```rust
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct CacheKeyContext {
     calc_generation: CalcGeneration,
 }
@@ -532,6 +582,11 @@ impl CacheKeyContext {
     #[must_use]
     pub const fn new(calc_generation: CalcGeneration) -> Self {
         Self { calc_generation }
+    }
+
+    #[must_use]
+    pub const fn static_no_calc() -> Self {
+        Self::new(CalcGeneration::static_no_calc())
     }
 }
 ```
@@ -549,10 +604,13 @@ contract intentionally.
 Extend `CalcResolver` with:
 
 ```rust
-fn calc_generation(&self) -> CalcGeneration {
-    CalcGeneration::default()
-}
+fn calc_generation(&self) -> CalcGeneration;
 ```
+
+Every resolver implementation must return an explicit generation. Stateless
+resolvers such as `NoCalcResolver` should return a named static generation, for
+example `CalcGeneration::static_no_calc()`, rather than inheriting a silent
+default.
 
 Make `LayoutCalcStore` return a generation that changes when expressions are pushed. If the store is append-only, the expression count is acceptable:
 
@@ -562,13 +620,15 @@ fn calc_generation(&self) -> CalcGeneration {
 }
 ```
 
-Extend `CacheAccess` with a default context hook:
+Extend `CacheAccess` with a required context hook:
 
 ```rust
-fn cache_context(&self) -> CacheKeyContext {
-    CacheKeyContext::default()
-}
+fn cache_context(&self) -> CacheKeyContext;
 ```
+
+Every tree implementation must choose the cache context deliberately. Trees
+without calc support should return a named static/no-calc context, not an
+implicit default.
 
 Update real tree implementations that own a calc store, including browser
 parity `TestTree`, so `cache_context()` returns
@@ -594,9 +654,12 @@ struct CacheKey {
 
 Implement `CacheKey::from_input(input: &ComputeInput, context: CacheKeyContext) -> Self`, store it in entries, and make `matches_output` compare the full key except for the existing known-size shortcut only when all other fields are equal.
 
-Add `Cache::get_with_context` and `Cache::store_with_context`. Keep
-`Cache::get` and `Cache::store` as compatibility wrappers that use
-`CacheKeyContext::default()`.
+Replace `Cache::get` and `Cache::store` with context-bearing methods rather
+than keeping default-context compatibility wrappers. A context-free cache lookup
+is not a valid model once calc resolver generation participates in layout
+identity. Update all crate-local callers and tests to pass an explicit
+`CacheKeyContext`, using `CacheKeyContext::static_no_calc()` only in tests that
+are specifically proving non-calc behavior.
 
 - [ ] **Step 6: Stamp cache context in production cache paths**
 
@@ -744,6 +807,7 @@ git commit -m "Model aspect ratio as a validated value"
 **Findings:** `LAYOUT-MODEL-CALC-SYMBOLIC-COLLAPSE`, `LAYOUT-MODEL-BLOCK-MARGIN-OPTION-STATES`
 
 **Files:**
+- Modify: `src/value.rs`
 - Modify: `src/compute.rs`
 - Modify: `src/block.rs`
 - Modify: `src/flex.rs`
@@ -761,14 +825,24 @@ In `src/value.rs`, add:
 
 ```rust
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CalcUnresolvedReason {
+    MissingBasis,
+    MissingResolver,
+    MissingExpression,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ResolvedLengthAuto {
     Auto,
     Resolved(Scalar),
-    Unresolved(CalcResolutionStatus),
+    Unresolved(CalcUnresolvedReason),
 }
 ```
 
-Add `LengthAuto::resolve_auto_with_status(basis, resolver) -> ResolvedLengthAuto`.
+Add `CalcResolution::unresolved_reason() -> Option<CalcUnresolvedReason>` and
+`LengthAuto::resolve_auto_with_status(basis, resolver) -> ResolvedLengthAuto`.
+Do not store `CalcResolutionStatus` directly in an unresolved enum variant,
+because `CalcResolutionStatus::Resolved` is not a valid unresolved state.
 
 - [ ] **Step 2: Replace ambiguous block margin state**
 
@@ -776,7 +850,8 @@ In `src/block.rs`, change in-flow margin resolution from `Edges<Option<Scalar>>`
 
 - [ ] **Step 3: Add focused block margin regression tests**
 
-Add to `tests/layout/unit/block.rs`:
+Add the direct margin-state regression as a crate unit test in `src/block.rs`,
+where `resolve_in_flow_margin` remains private:
 
 ```rust
 #[test]
@@ -794,33 +869,23 @@ fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
         },
     );
 
-    let resolved = resolve_in_flow_margin_for_tests(
-        tree.styles[&1].margin,
-        Size::new(10.0, 10.0),
+    let resolved = tree.styles[&1].margin.zip_inline_size(
         Size::new(None, None),
-        &tree.calcs,
+        |length, basis| length.resolve_auto_with_status(basis, &tree.calcs),
+    );
+    let resolved = resolve_in_flow_margin(
+        resolved,
+        Size::new(10.0, 10.0),
+        None,
     );
 
     assert_eq!(resolved.top, 0.0);
 }
 ```
 
-Expose the helper only under tests:
-
-```rust
-#[cfg(test)]
-fn resolve_in_flow_margin_for_tests(
-    margin: Edges<LengthAuto>,
-    child_size: Size,
-    container_size: Size<Option<Scalar>>,
-    resolver: &dyn CalcResolver,
-) -> Edges {
-    let resolved = margin.zip_inline_size(container_size, |length, basis| {
-        length.resolve_auto_with_status(basis, resolver)
-    });
-    resolve_in_flow_margin(resolved, child_size, container_size.width)
-}
-```
+Do not add a public or integration-visible
+`resolve_in_flow_margin_for_tests` helper. Keep integration tests in
+`tests/layout/unit/block.rs` focused on observable `compute_block` behavior.
 
 - [ ] **Step 4: Replace exact percent/calc checks in flex/grid**
 
@@ -1035,14 +1100,14 @@ git commit -m "Validate grid track repetition values"
 **Files:**
 - Modify: `src/grid/named.rs`
 - Modify: `src/grid/mod.rs`
-- Modify: `src/output.rs`
 - Modify: `src/grid/tests.rs`
 - Modify: `src/lib.rs`
 - Modify: `tests/layout/unit/grid.rs`
 
 - [ ] **Step 1: Add failing named-grid report test**
 
-Add this context-report test to `tests/layout/unit/grid.rs`:
+Add this context-report test to `tests/layout/unit/grid.rs`. The test must use
+a grid-owned diagnostic entry point, not a generic `ComputeOutput.reports` bag:
 
 ```rust
 #[test]
@@ -1064,7 +1129,7 @@ fn invalid_named_grid_context_is_reported() {
         },
     );
 
-    let output = compute_grid(
+    let report = compute_grid_with_report(
         &mut tree,
         0,
         ComputeInput {
@@ -1075,10 +1140,13 @@ fn invalid_named_grid_context_is_reported() {
             parent: Size::new(Some(200.0), Some(100.0)),
             available: Size::new(Available::definite(200.0), Available::MAX_CONTENT),
         },
-    );
+    ).report;
 
-    assert!(output.reports.named_grid_errors().any(|error| {
-        matches!(error.kind(), NamedGridErrorKind::InvalidTemplateAreas)
+    assert!(report.named_grid_errors().any(|error| {
+        matches!(
+            error,
+            NamedGridErrorReport::TemplateAreaRowLengthMismatch { .. }
+        )
     }));
 }
 ```
@@ -1105,58 +1173,78 @@ fn named_grid_placement_fallback_is_reported() {
 
     assert_eq!(placement, GridPlacement::AUTO);
     assert!(report.errors().any(|error| {
-        matches!(error.kind(), NamedGridErrorKind::UnresolvedLineName)
+        matches!(error, NamedGridErrorReport::UnresolvedLineName { .. })
     }));
 }
 ```
 
 - [ ] **Step 2: Add named grid report types**
 
-Add a report type that records named-grid errors while preserving the current fallback layout behavior:
+Add grid-owned report types that record named-grid errors while preserving the
+current fallback layout behavior. Preserve semantic variant data from
+`NamedGridError`; do not collapse errors into broad kind buckets:
 
 ```rust
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GridComputationReport {
+    named_grid: NamedGridReport,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NamedGridReport {
     errors: Vec<NamedGridErrorReport>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct NamedGridErrorReport {
-    kind: NamedGridErrorKind,
-}
-```
-
-Define `NamedGridErrorKind` from the existing `NamedGridError` variants:
-
-```rust
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum NamedGridErrorKind {
-    ReservedLineName,
-    UnresolvedAutoRepeatNames,
-    InvalidTemplateAreas,
-    InvalidRepeat,
-    InvalidLine,
+pub enum NamedGridErrorReport {
+    ReservedLineName { name: String },
+    UnresolvedAutoRepeatNames { axis: Axis },
+    EmptyTemplateAreas,
+    TemplateAreaRowLengthMismatch { row: usize, expected: usize, actual: usize },
+    NonRectangularTemplateArea { name: String },
+    ZeroRepeat { axis: Axis },
+    MultipleAutoFillRepeats { axis: Axis },
+    ZeroLine,
+    ZeroSpan,
     AutoWithoutCursor,
-    LineBeforeFirst,
+    LineBeforeFirst { axis: Axis, line: isize },
+    UnresolvedLineName { name: String, nth: isize },
 }
 
-impl From<&NamedGridError> for NamedGridErrorKind {
-    fn from(error: &NamedGridError) -> Self {
+impl From<NamedGridError> for NamedGridErrorReport {
+    fn from(error: NamedGridError) -> Self {
         match error {
-            NamedGridError::ReservedLineName { .. } => Self::ReservedLineName,
-            NamedGridError::UnresolvedAutoRepeatNames { .. } => Self::UnresolvedAutoRepeatNames,
-            NamedGridError::EmptyTemplateAreas
-            | NamedGridError::TemplateAreaRowLengthMismatch { .. }
-            | NamedGridError::NonRectangularTemplateArea { .. } => Self::InvalidTemplateAreas,
-            NamedGridError::ZeroRepeat { .. }
-            | NamedGridError::MultipleAutoFillRepeats { .. } => Self::InvalidRepeat,
-            NamedGridError::ZeroLine | NamedGridError::ZeroSpan => Self::InvalidLine,
+            NamedGridError::ReservedLineName { name } => Self::ReservedLineName { name },
+            NamedGridError::UnresolvedAutoRepeatNames { axis } => {
+                Self::UnresolvedAutoRepeatNames { axis }
+            }
+            NamedGridError::EmptyTemplateAreas => Self::EmptyTemplateAreas,
+            NamedGridError::TemplateAreaRowLengthMismatch { row, expected, actual } => {
+                Self::TemplateAreaRowLengthMismatch { row, expected, actual }
+            }
+            NamedGridError::NonRectangularTemplateArea { name } => {
+                Self::NonRectangularTemplateArea { name }
+            }
+            NamedGridError::ZeroRepeat { axis } => Self::ZeroRepeat { axis },
+            NamedGridError::MultipleAutoFillRepeats { axis } => {
+                Self::MultipleAutoFillRepeats { axis }
+            }
+            NamedGridError::ZeroLine => Self::ZeroLine,
+            NamedGridError::ZeroSpan => Self::ZeroSpan,
             NamedGridError::AutoWithoutCursor => Self::AutoWithoutCursor,
-            NamedGridError::LineBeforeFirst { .. } => Self::LineBeforeFirst,
+            NamedGridError::LineBeforeFirst { axis, line } => {
+                Self::LineBeforeFirst { axis, line }
+            }
+            NamedGridError::UnresolvedLineName { name, nth } => {
+                Self::UnresolvedLineName { name, nth }
+            }
         }
     }
 }
 ```
+
+Add `NamedGridError::UnresolvedLineName { name, nth }` if placement resolution
+does not already preserve that failure semantically.
 
 Expose read-only accessors, not mutable fields. Add a helper that reports the
 existing placement fallback instead of hiding it:
@@ -1171,7 +1259,7 @@ pub(super) fn resolve_grid_placement_or_auto_with_report(
         Ok(placement) => (placement, NamedGridReport::default()),
         Err(error) => (
             GridPlacement::AUTO,
-            NamedGridReport::from_error(NamedGridErrorKind::from(&error)),
+            NamedGridReport::from_error(NamedGridErrorReport::from(error)),
         ),
     }
 }
@@ -1179,11 +1267,23 @@ pub(super) fn resolve_grid_placement_or_auto_with_report(
 
 - [ ] **Step 3: Keep fallback explicit**
 
-Change named context construction so `build_grid_named_context` errors are captured into `NamedGridReport` before falling back to `empty_grid_named_context`. Change placement resolution call sites to use `resolve_grid_placement_or_auto_with_report` and merge those reports into the grid output report.
+Change named context construction so `build_grid_named_context` errors are
+captured into `NamedGridReport` before falling back to
+`empty_grid_named_context`. Change placement resolution call sites to use
+`resolve_grid_placement_or_auto_with_report` and merge those reports into the
+grid-owned `GridComputationReport`.
+
+Add a grid-specific diagnostic computation entry point, for example
+`compute_grid_with_report`, that returns the normal `ComputeOutput` plus
+`GridComputationReport`. Keep `compute_grid` as the ordinary layout entry point
+by delegating to the diagnostic form and discarding the report. This keeps
+fallback visibility available without making every layout algorithm carry a
+generic report bag.
 
 Re-export the public report access types needed by integration tests from
-`src/lib.rs`, including `NamedGridReport`, `NamedGridErrorReport`, and
-`NamedGridErrorKind`.
+`src/lib.rs`, including `GridComputationReport`, `NamedGridReport`, and
+`NamedGridErrorReport`. Do not add `reports` to the generic `ComputeOutput`
+type.
 
 - [ ] **Step 4: Run grid tests**
 
@@ -1198,7 +1298,7 @@ Expected: grid tests pass and new report test passes.
 - [ ] **Step 5: Commit**
 
 ```sh
-git add src/grid/named.rs src/grid/mod.rs src/output.rs src/grid/tests.rs src/lib.rs tests/layout/unit/grid.rs
+git add src/grid/named.rs src/grid/mod.rs src/grid/tests.rs src/lib.rs tests/layout/unit/grid.rs
 git commit -m "Report named grid validation fallback"
 ```
 
