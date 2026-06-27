@@ -29,12 +29,10 @@ Do not edit sibling crates from this repo. When a dependency is discovered:
 
 ### LAYOUT-XCRATE-0001: Style Adapter Must Lower Validated Aspect Ratio
 
-- Status: `open`
+- Status: `closed`
 - Layout task: Task 3, `Model Aspect Ratio As A Validated Semantic Type`
 - Layout commit: `fb04e1e0` (`Model aspect ratio as a validated value`)
-- Layout state: implemented locally, clean-context reviewed, and committed;
-  focused tests are pending because the style dev-dependency does not yet
-  compile against the new layout API.
+- Layout state: implemented locally, clean-context reviewed, committed, and final layout verification passed after `surgeist-style` commit `4665d70` (`style: align layout adapter with validated layout types`).
 - Owning crate: `surgeist-style`
 - Owning issue: https://github.com/bj-data-eng/surgeist-style/issues/2
 - Required owning change: update
@@ -52,7 +50,7 @@ error[E0308]: mismatched types
     |                       ^^^^^^^^^^^^^^^^^^^^^^ expected `Option<AspectRatio>`, found `Option<f32>`
 ```
 
-- Pending layout verification:
+- Closed layout verification:
 
 ```sh
 cargo test -p surgeist-layout tests::aspect_ratio_rejects_non_positive_or_non_finite_values -- --nocapture
@@ -63,9 +61,7 @@ cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
 ```
 
 - Additional dependent layout tasks:
-  - Task 4, `Replace Resolver-Free Algorithm Helpers`, is implemented locally
-    and clean-context reviewed. Its focused block/flex/grid integration tests
-    are pending on the same style adapter fix:
+  - Task 4, `Replace Resolver-Free Algorithm Helpers`, is implemented locally, clean-context reviewed, and verified after the same style adapter fix:
 
 ```sh
 cargo test -p surgeist-layout --test layout layout::block -- --nocapture
@@ -81,12 +77,10 @@ cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
 
 ### LAYOUT-XCRATE-0002: Style Adapter Must Lower Validated Grid Placement
 
-- Status: `open`
+- Status: `closed`
 - Layout task: Task 5, `Validate Public Grid Placement`
 - Layout commit: `8a093643` (`Validate public grid placement values`)
-- Layout state: implemented locally, clean-context reviewed, and committed;
-  focused tests are pending because the style dev-dependency does not yet
-  compile against the new layout API.
+- Layout state: implemented locally, clean-context reviewed, committed, and final layout verification passed after `surgeist-style` commit `4665d70` (`style: align layout adapter with validated layout types`).
 - Owning crate: `surgeist-style`
 - Owning issue: https://github.com/bj-data-eng/surgeist-style/issues/2
 - Required owning change: update
@@ -137,7 +131,7 @@ error[E0308]: mismatched types
     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `GridPlacement`, found `Option<GridSpan>`
 ```
 
-- Pending layout verification:
+- Closed layout verification:
 
 ```sh
 cargo test -p surgeist-layout grid::tests::public_grid_placement_rejects_zero_line_and_span -- --nocapture
@@ -150,18 +144,14 @@ cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
     `cargo check -p surgeist-layout --lib`,
     `cargo clippy -p surgeist-layout --lib -- -D warnings`,
     `cargo fmt --check`, and `git diff --check`.
-  - `api/public-api.txt` and README refresh are still tracked by Task 11 of
-    the implementation plan unless the reviewer cycle requires an earlier
-    source-derived artifact update.
+  - Final verification passed after the style adapter fix and layout issue #2 follow-up.
 
 ### LAYOUT-XCRATE-0003: Style Adapter Must Handle Fallible Track Repetition
 
-- Status: `open`
+- Status: `closed`
 - Layout task: Task 6, `Validate Track Repetition Values`
 - Layout commit: `1c94f4b2` (`Validate grid track repetition values`)
-- Layout state: implemented locally, clean-context reviewed, and committed;
-  focused tests are pending because the style dev-dependency does not yet
-  compile against the new layout API.
+- Layout state: implemented locally, clean-context reviewed, committed, and final layout verification passed after `surgeist-style` commit `4665d70` (`style: align layout adapter with validated layout types`).
 - Owning crate: `surgeist-style`
 - Owning issue: https://github.com/bj-data-eng/surgeist-style/issues/2
 - Required owning change: update
@@ -200,7 +190,7 @@ error[E0308]: mismatched types
     |                                      -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `TrackRepetition`, found `Result<TrackRepetition, ...>`
 ```
 
-- Pending layout verification:
+- Closed layout verification:
 
 ```sh
 cargo test -p surgeist-layout tests::track_repetition_rejects_zero_count_and_empty_components -- --nocapture
@@ -212,5 +202,4 @@ cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
     `cargo check -p surgeist-layout --lib`,
     `cargo clippy -p surgeist-layout --lib -- -D warnings`,
     `cargo fmt --check`, and `git diff --check`.
-  - `api/public-api.txt` and README refresh are still tracked by Task 11 of
-    the implementation plan.
+  - Final verification passed after the style adapter fix and layout issue #2 follow-up.

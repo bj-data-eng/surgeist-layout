@@ -56,7 +56,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phases 1, 3
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/value.rs:38`
   - `src/value.rs:42`
@@ -97,7 +97,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phase 2
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/output.rs:38`
   - `src/output.rs:39`
@@ -127,7 +127,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phase 1
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/node_input.rs:487`
   - `src/compute.rs:207`
@@ -150,7 +150,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phase 5
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/node_input.rs:333`
   - `src/node_input.rs:335`
@@ -175,7 +175,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phase 8
 - Owner: tooling-only
-- Status: verified
+- Status: accepted
 - Evidence:
   - `tests/bin/surgeist-layout-generate/generator.rs:42`
   - `tests/bin/surgeist-layout-generate/generator.rs:1095`
@@ -198,7 +198,7 @@ Copy this template for each verified finding:
 - Confidence: medium
 - Review phase: phase 1
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/value.rs:849`
   - `src/value.rs:851`
@@ -221,7 +221,7 @@ Copy this template for each verified finding:
 - Confidence: medium
 - Review phase: phase 3
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/block.rs:448`
   - `src/block.rs:459`
@@ -248,7 +248,7 @@ Copy this template for each verified finding:
 - Confidence: medium
 - Review phase: phase 4
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/flex.rs:190`
   - `src/flex.rs:195`
@@ -277,7 +277,7 @@ Copy this template for each verified finding:
 - Confidence: medium
 - Review phase: phase 6
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/grid/named.rs:91`
   - `src/grid/named.rs:238`
@@ -301,7 +301,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phases 6, 9
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/lib.rs:26`
   - `src/lib.rs:27`
@@ -336,7 +336,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phase 10
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/grid/lanes.rs:41`
   - `src/grid/lanes.rs:44`
@@ -364,7 +364,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phases 6, 7, 9
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/grid/lanes.rs:31`
   - `src/grid/lanes.rs:36`
@@ -386,7 +386,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phase 8
 - Owner: tooling-only
-- Status: verified
+- Status: accepted
 - Evidence:
   - `tests/bin/surgeist-layout-generate/generator.rs:132`
   - `tests/bin/surgeist-layout-generate/generator.rs:134`
@@ -408,7 +408,7 @@ Copy this template for each verified finding:
 - Confidence: medium
 - Review phase: phase 7
 - Owner: tooling-only
-- Status: verified
+- Status: accepted
 - Evidence:
   - `tests/layout/browser_parity/support.rs:990`
   - `tests/layout/browser_parity/support.rs:991`
@@ -428,7 +428,7 @@ Copy this template for each verified finding:
 - Confidence: high
 - Review phase: phase 10
 - Owner: layout crate
-- Status: verified
+- Status: accepted
 - Evidence:
   - `src/grid/child.rs:116`
   - `src/grid/named.rs:87`
@@ -466,4 +466,5 @@ No rejected findings recorded yet.
 
 ## Reconciliation Log
 
+- 2026-06-27: Implementation plan completed. Each verified finding has a corresponding implementation commit and final crate-local verification passed.
 - 2026-06-25: Ran clean-context review lanes for phases 0-2, 3-4, 5-6, 7-8, and 9-10. Merged overlapping calc findings into `LAYOUT-MODEL-CALC-SYMBOLIC-COLLAPSE` and overlapping lane item public API findings into `GRID-LANES-INTRINSIC-ITEM-PHASE-BAG`. Recorded verified findings only after local line-evidence checks.
