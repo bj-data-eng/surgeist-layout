@@ -153,3 +153,64 @@ cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
   - `api/public-api.txt` and README refresh are still tracked by Task 11 of
     the implementation plan unless the reviewer cycle requires an earlier
     source-derived artifact update.
+
+### LAYOUT-XCRATE-0003: Style Adapter Must Handle Fallible Track Repetition
+
+- Status: `open`
+- Layout task: Task 6, `Validate Track Repetition Values`
+- Layout commit: `1c94f4b2` (`Validate grid track repetition values`)
+- Layout state: implemented locally, clean-context reviewed, and committed;
+  focused tests are pending because the style dev-dependency does not yet
+  compile against the new layout API.
+- Owning crate: `surgeist-style`
+- Owning issue: https://github.com/bj-data-eng/surgeist-style/issues/2
+- Required owning change: update
+  `surgeist-style/src/adapters/layout.rs` so layout track repetition lowering
+  handles `TrackRepetition::{count_components, auto_fill_components,
+  auto_fit_components}` returning
+  `Result<surgeist_layout::TrackRepetition,
+  surgeist_layout::TrackRepetitionError>`. The adapter should propagate or map
+  invalid repeat counts and empty repeated component lists instead of assuming
+  construction cannot fail.
+- Observed failure:
+
+```text
+error[E0308]: mismatched types
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:540:46
+    |
+540 |           TrackRepeatCount::Count(count) => Ok(layout::TrackRepetition::count_components(
+    |  ___________________________________________--_^
+    | |                                           |
+    | |                                           arguments to this enum variant are incorrect
+541 | |             usize::from(count),
+542 | |             components,
+543 | |         )),
+    | |_________^ expected `TrackRepetition`, found `Result<TrackRepetition, ...>`
+
+error[E0308]: mismatched types
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:544:42
+    |
+544 |         TrackRepeatCount::AutoFill => Ok(layout::TrackRepetition::auto_fill_components(components)),
+    |                                       -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `TrackRepetition`, found `Result<TrackRepetition, ...>`
+
+error[E0308]: mismatched types
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:545:41
+    |
+545 |         TrackRepeatCount::AutoFit => Ok(layout::TrackRepetition::auto_fit_components(components)),
+    |                                      -- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `TrackRepetition`, found `Result<TrackRepetition, ...>`
+```
+
+- Pending layout verification:
+
+```sh
+cargo test -p surgeist-layout tests::track_repetition_rejects_zero_count_and_empty_components -- --nocapture
+cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
+```
+
+- Notes:
+  - Layout-local checks passed before this entry was opened:
+    `cargo check -p surgeist-layout --lib`,
+    `cargo clippy -p surgeist-layout --lib -- -D warnings`,
+    `cargo fmt --check`, and `git diff --check`.
+  - `api/public-api.txt` and README refresh are still tracked by Task 11 of
+    the implementation plan.
