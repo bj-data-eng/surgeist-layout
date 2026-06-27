@@ -38,8 +38,13 @@ impl Available {
 pub struct CalcId(u32);
 
 impl CalcId {
+    pub(crate) const fn from_store_index(index: u32) -> Self {
+        Self(index)
+    }
+
+    #[cfg(test)]
     #[must_use]
-    pub const fn new(index: u32) -> Self {
+    pub const fn from_raw_for_tests(index: u32) -> Self {
         Self(index)
     }
 
@@ -49,10 +54,20 @@ impl CalcId {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CalcResolutionStatus {
+    Resolved,
+    MissingBasis,
+    MissingResolver,
+    MissingExpression,
+    NonNumeric,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CalcResolution {
     pub value: Option<Scalar>,
     pub depends_on_basis: bool,
+    status: CalcResolutionStatus,
 }
 
 impl CalcResolution {
@@ -61,6 +76,7 @@ impl CalcResolution {
         Self {
             value: Some(value),
             depends_on_basis,
+            status: CalcResolutionStatus::Resolved,
         }
     }
 
@@ -69,7 +85,45 @@ impl CalcResolution {
         Self {
             value: None,
             depends_on_basis,
+            status: CalcResolutionStatus::MissingBasis,
         }
+    }
+
+    #[must_use]
+    pub const fn missing_expression() -> Self {
+        Self {
+            value: None,
+            depends_on_basis: false,
+            status: CalcResolutionStatus::MissingExpression,
+        }
+    }
+
+    #[must_use]
+    pub const fn missing_resolver() -> Self {
+        Self {
+            value: None,
+            depends_on_basis: false,
+            status: CalcResolutionStatus::MissingResolver,
+        }
+    }
+
+    #[must_use]
+    pub const fn non_numeric() -> Self {
+        Self {
+            value: None,
+            depends_on_basis: false,
+            status: CalcResolutionStatus::NonNumeric,
+        }
+    }
+
+    #[must_use]
+    pub const fn status(self) -> CalcResolutionStatus {
+        self.status
+    }
+
+    #[must_use]
+    pub const fn is_missing_expression(self) -> bool {
+        matches!(self.status, CalcResolutionStatus::MissingExpression)
     }
 }
 
@@ -90,7 +144,7 @@ pub struct NoCalcResolver;
 
 impl CalcResolver for NoCalcResolver {
     fn resolve_calc(&self, _id: CalcId, _basis: Option<Scalar>) -> CalcResolution {
-        CalcResolution::unresolved(false)
+        CalcResolution::missing_resolver()
     }
 
     fn calc_depends_on_basis(&self, _id: CalcId) -> bool {
@@ -114,7 +168,7 @@ impl LayoutCalcStore {
     pub fn push(&mut self, expression: CalcExpression) -> CalcId {
         let index = u32::try_from(self.expressions.len())
             .expect("layout calc store exhausted CalcId range");
-        let id = CalcId::new(index);
+        let id = CalcId::from_store_index(index);
         self.expressions.push(expression);
         id
     }
@@ -138,7 +192,7 @@ impl LayoutCalcStore {
 impl CalcResolver for LayoutCalcStore {
     fn resolve_calc(&self, id: CalcId, basis: Option<Scalar>) -> CalcResolution {
         self.get(id)
-            .map_or(CalcResolution::unresolved(false), |expression| {
+            .map_or(CalcResolution::missing_expression(), |expression| {
                 expression.resolve(basis)
             })
     }
@@ -279,12 +333,17 @@ impl Length {
     }
 
     #[must_use]
+    pub const fn requires_resolver(self) -> bool {
+        matches!(self, Self::Calc(_))
+    }
+
+    #[must_use]
     pub fn resolve(self, basis: Scalar) -> Scalar {
         match self {
             Self::Normal => 0.0,
             Self::Px(value) => value,
             Self::Percent(value) => value * basis,
-            Self::Calc(_) => 0.0,
+            Self::Calc(_) => panic!("calc values require an explicit resolver"),
         }
     }
 
@@ -299,7 +358,7 @@ impl Length {
             Self::Normal => Some(0.0),
             Self::Px(value) => Some(value),
             Self::Percent(value) => basis.map(|basis| value * basis),
-            Self::Calc(_) => None,
+            Self::Calc(_) => panic!("calc values require an explicit resolver"),
         }
     }
 
@@ -309,9 +368,22 @@ impl Length {
         basis: Option<Scalar>,
         resolver: &dyn CalcResolver,
     ) -> Option<Scalar> {
+        self.resolve_with_status(basis, resolver).value
+    }
+
+    #[must_use]
+    pub fn resolve_with_status(
+        self,
+        basis: Option<Scalar>,
+        resolver: &dyn CalcResolver,
+    ) -> CalcResolution {
         match self {
-            Self::Calc(id) => resolver.resolve_calc(id, basis).value,
-            _ => self.resolve_optional(basis),
+            Self::Normal => CalcResolution::definite(0.0, false),
+            Self::Px(value) => CalcResolution::definite(value, false),
+            Self::Percent(value) => basis.map_or(CalcResolution::unresolved(true), |basis| {
+                CalcResolution::definite(value * basis, true)
+            }),
+            Self::Calc(id) => resolver.resolve_calc(id, basis),
         }
     }
 }
@@ -368,11 +440,17 @@ impl LengthAuto {
     }
 
     #[must_use]
+    pub const fn requires_resolver(self) -> bool {
+        matches!(self, Self::Calc(_))
+    }
+
+    #[must_use]
     pub fn resolve(self, basis: Scalar) -> Option<Scalar> {
         match self {
             Self::Px(value) => Some(value),
             Self::Percent(value) => Some(value * basis),
-            Self::Calc(_) | Self::Auto => None,
+            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Auto => None,
         }
     }
 
@@ -386,7 +464,8 @@ impl LengthAuto {
         match self {
             Self::Px(value) => Some(value),
             Self::Percent(value) => basis.map(|basis| value * basis),
-            Self::Calc(_) | Self::Auto => None,
+            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Auto => None,
         }
     }
 
@@ -396,9 +475,22 @@ impl LengthAuto {
         basis: Option<Scalar>,
         resolver: &dyn CalcResolver,
     ) -> Option<Scalar> {
+        self.resolve_with_status(basis, resolver).value
+    }
+
+    #[must_use]
+    pub fn resolve_with_status(
+        self,
+        basis: Option<Scalar>,
+        resolver: &dyn CalcResolver,
+    ) -> CalcResolution {
         match self {
-            Self::Calc(id) => resolver.resolve_calc(id, basis).value,
-            _ => self.resolve_optional(basis),
+            Self::Px(value) => CalcResolution::definite(value, false),
+            Self::Percent(value) => basis.map_or(CalcResolution::unresolved(true), |basis| {
+                CalcResolution::definite(value * basis, true)
+            }),
+            Self::Calc(id) => resolver.resolve_calc(id, basis),
+            Self::Auto => CalcResolution::non_numeric(),
         }
     }
 
@@ -481,11 +573,17 @@ impl Dimension {
     }
 
     #[must_use]
+    pub const fn requires_resolver(self) -> bool {
+        matches!(self, Self::Calc(_))
+    }
+
+    #[must_use]
     pub fn resolve(self, basis: Scalar) -> Option<Scalar> {
         match self {
             Self::Px(value) => Some(value),
             Self::Percent(value) => Some(value * basis),
-            Self::Calc(_) | Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
+            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
 
@@ -494,7 +592,8 @@ impl Dimension {
         match self {
             Self::Px(value) => Some(value),
             Self::Percent(value) => basis.map(|basis| value * basis),
-            Self::Calc(_) | Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
+            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
 
@@ -504,9 +603,24 @@ impl Dimension {
         basis: Option<Scalar>,
         resolver: &dyn CalcResolver,
     ) -> Option<Scalar> {
+        self.resolve_with_status(basis, resolver).value
+    }
+
+    #[must_use]
+    pub fn resolve_with_status(
+        self,
+        basis: Option<Scalar>,
+        resolver: &dyn CalcResolver,
+    ) -> CalcResolution {
         match self {
-            Self::Calc(id) => resolver.resolve_calc(id, basis).value,
-            _ => self.resolve_optional(basis),
+            Self::Px(value) => CalcResolution::definite(value, false),
+            Self::Percent(value) => basis.map_or(CalcResolution::unresolved(true), |basis| {
+                CalcResolution::definite(value * basis, true)
+            }),
+            Self::Calc(id) => resolver.resolve_calc(id, basis),
+            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => {
+                CalcResolution::non_numeric()
+            }
         }
     }
 

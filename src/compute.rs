@@ -1,6 +1,7 @@
 use super::{
-    Available, BoxSizing, CacheAccess, Compute, ComputeInput, ComputeOutput, NodeInput, NodeOutput,
-    Position, Round, RunMode, Scalar, Size, SizingMode, Traverse,
+    Available, BoxSizing, CacheAccess, CalcResolution, CalcResolutionStatus, CalcResolver, Compute,
+    ComputeInput, ComputeOutput, NoCalcResolver, NodeInput, NodeOutput, Position, Round, RunMode,
+    Scalar, Size, SizingMode, Traverse,
 };
 
 pub fn compute_hidden<Tree>(tree: &mut Tree, node: <Tree as Traverse>::Node) -> ComputeOutput
@@ -26,7 +27,10 @@ pub fn compute_root<Tree>(
     Tree: Compute,
 {
     let style = tree.node_input(root).clone();
-    let known = Size::new(root_known_width(&style, available.width), None);
+    let known = Size::new(
+        root_known_width(&style, available.width, tree.calc_resolver()),
+        None,
+    );
     let output = tree.compute_child(
         root,
         ComputeInput {
@@ -40,6 +44,15 @@ pub fn compute_root<Tree>(
     );
     let parent_width = available.width.into_option();
     let inline_basis = Size::splat(parent_width);
+    let padding = style.padding.zip_size(inline_basis, |length, basis| {
+        resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+    });
+    let border = style.border.zip_size(inline_basis, |length, basis| {
+        resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+    });
+    let margin = style.margin.zip_size(inline_basis, |length, basis| {
+        resolve_auto_or_zero_with(length, basis, tree.calc_resolver())
+    });
     let scrollbar_size = Size::new(
         if style.overflow.y == super::Overflow::Scroll {
             style.scrollbar_width
@@ -69,14 +82,18 @@ pub fn compute_root<Tree>(
             size: output.size,
             content_size: output.content_size,
             scrollbar_size,
-            padding: style.padding.zip_size(inline_basis, resolve_length_or_zero),
-            border: style.border.zip_size(inline_basis, resolve_length_or_zero),
-            margin: style.margin.zip_size(inline_basis, resolve_auto_or_zero),
+            padding,
+            border,
+            margin,
         },
     );
 }
 
-fn root_known_width(style: &NodeInput, available_width: Available) -> Option<Scalar> {
+fn root_known_width(
+    style: &NodeInput,
+    available_width: Available,
+    resolver: &dyn CalcResolver,
+) -> Option<Scalar> {
     if style.display.is_inline_level()
         || !style.size.width.is_auto()
         || !style.min_size.width.is_auto()
@@ -86,10 +103,12 @@ fn root_known_width(style: &NodeInput, available_width: Available) -> Option<Sca
 
     let available_width = available_width.into_option()?;
     let parent = Size::splat(Some(available_width));
-    let padding = style
-        .padding
-        .zip_inline_size(parent, resolve_length_or_zero);
-    let border = style.border.zip_inline_size(parent, resolve_length_or_zero);
+    let padding = style.padding.zip_inline_size(parent, |length, basis| {
+        resolve_length_or_zero_with(length, basis, resolver)
+    });
+    let border = style.border.zip_inline_size(parent, |length, basis| {
+        resolve_length_or_zero_with(length, basis, resolver)
+    });
     let padding_border_size = (padding + border).sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border_size
@@ -98,7 +117,9 @@ fn root_known_width(style: &NodeInput, available_width: Available) -> Option<Sca
     };
     let max_size = style
         .max_size
-        .zip_map(parent, resolve_dimension)
+        .zip_map(parent, |dimension, basis| {
+            resolve_dimension_with(dimension, basis, resolver)
+        })
         .add_optional(box_sizing_adjustment);
 
     Some(available_width.clamp_optional(None, max_size.width))
@@ -165,15 +186,26 @@ pub fn compute_leaf(
     style: &NodeInput,
     measure: impl FnOnce(Size<Option<Scalar>>, Size<Available>) -> Size,
 ) -> ComputeOutput {
-    let margin = style
-        .margin
-        .zip_inline_size(input.parent, resolve_auto_or_zero);
+    compute_leaf_with_resolver(input, style, &NoCalcResolver, measure)
+}
+
+pub(crate) fn compute_leaf_with_resolver(
+    input: ComputeInput,
+    style: &NodeInput,
+    resolver: &dyn CalcResolver,
+    measure: impl FnOnce(Size<Option<Scalar>>, Size<Available>) -> Size,
+) -> ComputeOutput {
+    let margin = style.margin.zip_inline_size(input.parent, |length, basis| {
+        resolve_auto_or_zero_with(length, basis, resolver)
+    });
     let padding = style
         .padding
-        .zip_inline_size(input.parent, resolve_length_or_zero);
-    let border = style
-        .border
-        .zip_inline_size(input.parent, resolve_length_or_zero);
+        .zip_inline_size(input.parent, |length, basis| {
+            resolve_length_or_zero_with(length, basis, resolver)
+        });
+    let border = style.border.zip_inline_size(input.parent, |length, basis| {
+        resolve_length_or_zero_with(length, basis, resolver)
+    });
     let padding_border = padding + border;
     let padding_border_size = padding_border.sum_axes();
     let scrollbar_gutter = Size::new(
@@ -203,17 +235,23 @@ pub fn compute_leaf(
         SizingMode::InherentSize => {
             let style_size = style
                 .size
-                .zip_map(input.parent, resolve_dimension)
+                .zip_map(input.parent, |dimension, basis| {
+                    resolve_dimension_with(dimension, basis, resolver)
+                })
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
             let style_min_size = style
                 .min_size
-                .zip_map(input.parent, resolve_dimension)
+                .zip_map(input.parent, |dimension, basis| {
+                    resolve_dimension_with(dimension, basis, resolver)
+                })
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
             let style_max_size = style
                 .max_size
-                .zip_map(input.parent, resolve_dimension)
+                .zip_map(input.parent, |dimension, basis| {
+                    resolve_dimension_with(dimension, basis, resolver)
+                })
                 .add_optional(box_sizing_adjustment);
 
             (
@@ -310,16 +348,52 @@ pub fn compute_leaf(
     output
 }
 
-fn resolve_length_or_zero(length: super::Length, basis: Option<Scalar>) -> Scalar {
-    length.resolve_or_zero(basis)
+fn resolve_length_or_zero_with(
+    length: super::Length,
+    basis: Option<Scalar>,
+    resolver: &dyn CalcResolver,
+) -> Scalar {
+    resolution_or_zero(length.resolve_with_status(basis, resolver))
 }
 
-fn resolve_auto_or_zero(length: super::LengthAuto, basis: Option<Scalar>) -> Scalar {
-    length.resolve_or_zero(basis)
+fn resolve_auto_or_zero_with(
+    length: super::LengthAuto,
+    basis: Option<Scalar>,
+    resolver: &dyn CalcResolver,
+) -> Scalar {
+    resolution_optional(length.resolve_with_status(basis, resolver)).unwrap_or(0.0)
 }
 
-fn resolve_dimension(dimension: super::Dimension, basis: Option<Scalar>) -> Option<Scalar> {
-    dimension.resolve_optional(basis)
+fn resolve_dimension_with(
+    dimension: super::Dimension,
+    basis: Option<Scalar>,
+    resolver: &dyn CalcResolver,
+) -> Option<Scalar> {
+    resolution_optional(dimension.resolve_with_status(basis, resolver))
+}
+
+fn resolution_or_zero(resolution: CalcResolution) -> Scalar {
+    match resolution.status() {
+        CalcResolutionStatus::Resolved => resolution
+            .value
+            .expect("resolved calc resolution must carry a value"),
+        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => 0.0,
+        CalcResolutionStatus::MissingResolver => {
+            panic!("calc resolution requires an explicit resolver")
+        }
+        CalcResolutionStatus::MissingExpression => panic!("calc expression is missing"),
+    }
+}
+
+fn resolution_optional(resolution: CalcResolution) -> Option<Scalar> {
+    match resolution.status() {
+        CalcResolutionStatus::Resolved => resolution.value,
+        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => None,
+        CalcResolutionStatus::MissingResolver => {
+            panic!("calc resolution requires an explicit resolver")
+        }
+        CalcResolutionStatus::MissingExpression => panic!("calc expression is missing"),
+    }
 }
 
 trait SizeOptionExt {
@@ -415,5 +489,59 @@ impl AvailableExt for Available {
             Available::MinContent => Available::MinContent,
             Available::MaxContent => Available::MaxContent,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CalcExpression, CalcTerm, Dimension, LayoutCalcStore, RequestedAxis};
+
+    #[test]
+    fn leaf_calc_width_uses_tree_resolver() {
+        let mut store = LayoutCalcStore::new();
+        let width = store.push(CalcExpression::sum([
+            CalcTerm::percent(0.5),
+            CalcTerm::px(10.0),
+        ]));
+        let style = NodeInput {
+            size: Size::new(Dimension::calc(width), Dimension::AUTO),
+            ..NodeInput::default()
+        };
+        let input = ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(100.0), None),
+            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        };
+
+        let output = compute_leaf_with_resolver(input, &style, &store, |_known, _available| {
+            Size::new(12.0, 8.0)
+        });
+
+        assert_eq!(output.size.width, 60.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "calc resolution requires an explicit resolver")]
+    fn public_leaf_calc_width_requires_explicit_resolver() {
+        let mut store = LayoutCalcStore::new();
+        let width = store.push(CalcExpression::sum([CalcTerm::px(10.0)]));
+        let style = NodeInput {
+            size: Size::new(Dimension::calc(width), Dimension::AUTO),
+            ..NodeInput::default()
+        };
+        let input = ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(100.0), None),
+            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        };
+
+        let _ = compute_leaf(input, &style, |_known, _available| Size::new(12.0, 8.0));
     }
 }

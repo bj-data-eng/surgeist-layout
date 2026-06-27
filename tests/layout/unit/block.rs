@@ -1,6 +1,58 @@
 use super::*;
 use surgeist_layout::{CalcExpression, CalcResolver, CalcTerm, LayoutCalcStore};
 
+#[derive(Default)]
+struct CalcBlockTree {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInput>,
+    layouts: HashMap<u32, NodeOutput>,
+    inputs: HashMap<u32, Vec<ComputeInput>>,
+    calcs: LayoutCalcStore,
+}
+
+impl Traverse for CalcBlockTree {
+    type Node = u32;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map_or([].as_slice(), Vec::as_slice)
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map_or(0, Vec::len)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl Compute for CalcBlockTree {
+    fn node_input(&self, node: Self::Node) -> &NodeInput {
+        &self.styles[&node]
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+        self.layouts.insert(node, layout);
+    }
+
+    fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        self.inputs.entry(node).or_default().push(input);
+        ComputeOutput::from_outer_size(Size::new(
+            input.known.width.unwrap_or(0.0),
+            input.known.height.unwrap_or(10.0),
+        ))
+    }
+
+    fn calc_resolver(&self) -> &dyn CalcResolver {
+        &self.calcs
+    }
+}
+
 #[test]
 fn block_lays_out_atomic_inline_children_on_one_line() {
     let mut tree = support::oracle_tree::OracleTree::new()
@@ -1241,55 +1293,7 @@ fn block_layout_stacks_in_flow_children_vertically() {
 
 #[test]
 fn block_in_flow_calc_margin_resolves_against_containing_block_width() {
-    #[derive(Default)]
-    struct BlockTree {
-        children: HashMap<u32, Vec<u32>>,
-        styles: HashMap<u32, NodeInput>,
-        layouts: HashMap<u32, NodeOutput>,
-        inputs: HashMap<u32, Vec<ComputeInput>>,
-        calcs: LayoutCalcStore,
-    }
-
-    impl Traverse for BlockTree {
-        type Node = u32;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for BlockTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            &self.styles[&node]
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(10.0),
-            ))
-        }
-
-        fn calc_resolver(&self) -> &dyn CalcResolver {
-            &self.calcs
-        }
-    }
-
-    let mut tree = BlockTree::default();
+    let mut tree = CalcBlockTree::default();
     let margin_left = tree.calcs.push(CalcExpression::sum([
         CalcTerm::percent(0.1),
         CalcTerm::px(-4.0),
@@ -1340,6 +1344,40 @@ fn block_in_flow_calc_margin_resolves_against_containing_block_width() {
     assert_eq!(tree.layouts[&2].location, Point::new(16.0, 0.0));
     assert_eq!(tree.layouts[&2].margin.left, 16.0);
     assert_eq!(tree.layouts[&2].size, Size::new(120.0, 10.0));
+}
+
+#[test]
+fn block_container_calc_padding_uses_tree_resolver() {
+    let mut tree = CalcBlockTree::default();
+    let padding = tree.calcs.push(CalcExpression::sum([
+        CalcTerm::percent(0.1),
+        CalcTerm::px(2.0),
+    ]));
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            padding: Edges::all(Length::calc(padding)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(1, NodeInput::default());
+
+    let output = surgeist_layout::compute_block(
+        &mut tree,
+        0,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::new(Some(100.0), None),
+            parent: Size::new(Some(100.0), None),
+            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        },
+    );
+
+    assert_eq!(output.content_size.width, 76.0);
 }
 
 #[test]

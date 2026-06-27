@@ -1,7 +1,7 @@
 use super::{
-    Available, Baselines, CalcExpression, CalcResolver, CalcTerm, ComputeOutput, Dimension,
-    Display, Edges, LayoutCalcStore, Length, LengthAuto, MaxTrackSizing, MinTrackSizing,
-    NoCalcResolver, Point, Size, TrackSizing,
+    Available, Baselines, CalcExpression, CalcResolutionStatus, CalcResolver, CalcTerm,
+    ComputeOutput, Dimension, Display, Edges, LayoutCalcStore, Length, LengthAuto, MaxTrackSizing,
+    MinTrackSizing, NoCalcResolver, Point, Size, TrackSizing,
 };
 
 #[test]
@@ -103,7 +103,7 @@ fn layout_calc_store_reports_basis_dependency_and_unresolved_percent() {
         CalcTerm::px(12.0),
         CalcTerm::percent(0.25),
     ]));
-    let unknown = super::CalcId::new(99);
+    let unknown = super::CalcId::from_raw_for_tests(99);
 
     assert!(!store.calc_depends_on_basis(px_only));
     assert!(store.calc_depends_on_basis(with_percent));
@@ -118,6 +118,31 @@ fn layout_calc_store_reports_basis_dependency_and_unresolved_percent() {
     let unknown_resolution = store.resolve_calc(unknown, Some(80.0));
     assert_eq!(unknown_resolution.value, None);
     assert!(!unknown_resolution.depends_on_basis);
+}
+
+#[test]
+fn missing_calc_id_reports_missing_expression() {
+    let store = LayoutCalcStore::new();
+    let missing = super::CalcId::from_raw_for_tests(99);
+    let resolution = store.resolve_calc(missing, Some(80.0));
+
+    assert_eq!(resolution.value, None);
+    assert!(resolution.is_missing_expression());
+    assert_eq!(resolution.status(), CalcResolutionStatus::MissingExpression);
+}
+
+#[test]
+fn calc_values_require_an_explicit_resolver() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([CalcTerm::px(8.0)]));
+
+    assert!(Length::calc(id).requires_resolver());
+    assert_eq!(
+        Length::calc(id)
+            .resolve_with_status(Some(40.0), &NoCalcResolver)
+            .status(),
+        CalcResolutionStatus::MissingResolver
+    );
 }
 
 #[test]
@@ -165,15 +190,64 @@ fn length_calc_reports_basis_dependency_through_resolver_hook() {
 }
 
 #[test]
-fn calc_variants_preserve_optional_resolution_without_resolver() {
+#[should_panic(expected = "calc values require an explicit resolver")]
+fn length_calc_cannot_resolve_without_resolver() {
     let mut store = LayoutCalcStore::new();
     let id = store.push(CalcExpression::sum([CalcTerm::px(8.0)]));
 
-    assert_eq!(Length::calc(id).resolve_optional(Some(40.0)), None);
-    assert_eq!(Length::calc(id).resolve_or_zero(Some(40.0)), 0.0);
-    assert_eq!(LengthAuto::calc(id).resolve_optional(Some(40.0)), None);
-    assert_eq!(LengthAuto::calc(id).resolve_or_zero(Some(40.0)), 0.0);
-    assert_eq!(Dimension::calc(id).resolve_optional(Some(40.0)), None);
+    let _ = Length::calc(id).resolve_optional(Some(40.0));
+}
+
+#[test]
+#[should_panic(expected = "calc values require an explicit resolver")]
+fn length_auto_calc_cannot_resolve_without_resolver() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([CalcTerm::px(8.0)]));
+
+    let _ = LengthAuto::calc(id).resolve_or_zero(Some(40.0));
+}
+
+#[test]
+#[should_panic(expected = "calc values require an explicit resolver")]
+fn dimension_calc_cannot_resolve_without_resolver() {
+    let mut store = LayoutCalcStore::new();
+    let id = store.push(CalcExpression::sum([CalcTerm::px(8.0)]));
+
+    let _ = Dimension::calc(id).resolve_optional(Some(40.0));
+}
+
+#[test]
+fn non_numeric_values_report_non_numeric_status() {
+    assert_eq!(
+        LengthAuto::AUTO
+            .resolve_with_status(Some(40.0), &NoCalcResolver)
+            .status(),
+        CalcResolutionStatus::NonNumeric
+    );
+    assert_eq!(
+        Dimension::fr(1.0)
+            .resolve_with_status(Some(40.0), &NoCalcResolver)
+            .status(),
+        CalcResolutionStatus::NonNumeric
+    );
+    assert_eq!(
+        Dimension::AUTO
+            .resolve_with_status(Some(40.0), &NoCalcResolver)
+            .status(),
+        CalcResolutionStatus::NonNumeric
+    );
+    assert_eq!(
+        Dimension::MIN_CONTENT
+            .resolve_with_status(Some(40.0), &NoCalcResolver)
+            .status(),
+        CalcResolutionStatus::NonNumeric
+    );
+    assert_eq!(
+        Dimension::MAX_CONTENT
+            .resolve_with_status(Some(40.0), &NoCalcResolver)
+            .status(),
+        CalcResolutionStatus::NonNumeric
+    );
 }
 
 #[test]
