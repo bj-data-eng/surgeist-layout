@@ -47,12 +47,30 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
     impl CacheAccess for HiddenTree {
         type Node = u32;
 
-        fn cache_get(&self, node: Self::Node, input: &ComputeInput) -> Option<ComputeOutput> {
-            self.caches[&node].get(input)
+        fn cache_context(&self) -> surgeist_layout::CacheKeyContext {
+            surgeist_layout::CacheKeyContext::static_no_calc()
         }
 
-        fn cache_store(&mut self, node: Self::Node, input: &ComputeInput, output: ComputeOutput) {
-            self.caches.get_mut(&node).unwrap().store(input, output);
+        fn cache_get(
+            &self,
+            node: Self::Node,
+            input: &ComputeInput,
+            context: surgeist_layout::CacheKeyContext,
+        ) -> Option<ComputeOutput> {
+            self.caches[&node].get_with_context(input, context)
+        }
+
+        fn cache_store(
+            &mut self,
+            node: Self::Node,
+            input: &ComputeInput,
+            context: surgeist_layout::CacheKeyContext,
+            output: ComputeOutput,
+        ) {
+            self.caches
+                .get_mut(&node)
+                .unwrap()
+                .store_with_context(input, context, output);
         }
 
         fn cache_clear(&mut self, node: Self::Node) {
@@ -70,7 +88,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
     tree.caches.insert(1, Cache::new());
     tree.caches.insert(2, Cache::new());
     tree.caches.insert(3, Cache::new());
-    tree.caches.get_mut(&1).unwrap().store(
+    tree.caches.get_mut(&1).unwrap().store_with_context(
         &ComputeInput {
             run_mode: RunMode::PerformLayout,
             sizing_mode: SizingMode::InherentSize,
@@ -79,6 +97,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
+        surgeist_layout::CacheKeyContext::static_no_calc(),
         ComputeOutput::from_outer_size(Size::new(1.0, 1.0)),
     );
 

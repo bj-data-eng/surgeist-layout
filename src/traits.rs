@@ -1,4 +1,7 @@
-use super::{CalcResolver, ComputeInput, ComputeOutput, NoCalcResolver, NodeInput, NodeOutput};
+use super::{
+    CacheKeyContext, CalcResolver, ComputeInput, ComputeOutput, NoCalcResolver, NodeInput,
+    NodeOutput,
+};
 
 pub trait Traverse {
     type Node: Copy + Eq;
@@ -29,8 +32,20 @@ pub trait Round: Traverse {
 pub trait CacheAccess {
     type Node: Copy + Eq;
 
-    fn cache_get(&self, node: Self::Node, input: &ComputeInput) -> Option<ComputeOutput>;
-    fn cache_store(&mut self, node: Self::Node, input: &ComputeInput, output: ComputeOutput);
+    fn cache_context(&self) -> CacheKeyContext;
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInput,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutput>;
+    fn cache_store(
+        &mut self,
+        node: Self::Node,
+        input: &ComputeInput,
+        context: CacheKeyContext,
+        output: ComputeOutput,
+    );
     fn cache_clear(&mut self, node: Self::Node);
 }
 
@@ -44,11 +59,12 @@ where
     Tree: CacheAccess + ?Sized,
     ComputeFn: FnOnce(&mut Tree, Tree::Node, ComputeInput) -> ComputeOutput,
 {
-    if let Some(output) = tree.cache_get(node, &input) {
+    let context = tree.cache_context();
+    if let Some(output) = tree.cache_get(node, &input, context) {
         return output;
     }
 
     let output = compute(tree, node, input);
-    tree.cache_store(node, &input, output);
+    tree.cache_store(node, &input, context, output);
     output
 }

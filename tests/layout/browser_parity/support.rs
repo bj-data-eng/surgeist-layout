@@ -888,11 +888,12 @@ impl layout::Compute for TestTree {
         node: Self::Node,
         input: layout::ComputeInput,
     ) -> layout::ComputeOutput {
-        if let Some(output) = self.cache_get(node, &input) {
+        let context = self.cache_context();
+        if let Some(output) = self.cache_get(node, &input, context) {
             return output;
         }
         let output = self.compute_uncached(node, input);
-        self.cache_store(node, &input, output);
+        self.cache_store(node, &input, context, output);
         output
     }
 
@@ -913,6 +914,10 @@ impl layout::CalcResolver for TestTree {
     fn calc_percent_fraction(&self, id: layout::CalcId) -> Option<Scalar> {
         self.calc_store.calc_percent_fraction(id)
     }
+
+    fn calc_generation(&self) -> layout::CalcGeneration {
+        self.calc_store.calc_generation()
+    }
 }
 
 impl layout::Round for TestTree {
@@ -928,21 +933,29 @@ impl layout::Round for TestTree {
 impl layout::CacheAccess for TestTree {
     type Node = usize;
 
+    fn cache_context(&self) -> layout::CacheKeyContext {
+        layout::CacheKeyContext::new(self.calc_resolver().calc_generation())
+    }
+
     fn cache_get(
         &self,
         node: Self::Node,
         input: &layout::ComputeInput,
+        context: layout::CacheKeyContext,
     ) -> Option<layout::ComputeOutput> {
-        self.nodes[node].cache.get(input)
+        self.nodes[node].cache.get_with_context(input, context)
     }
 
     fn cache_store(
         &mut self,
         node: Self::Node,
         input: &layout::ComputeInput,
+        context: layout::CacheKeyContext,
         output: layout::ComputeOutput,
     ) {
-        self.nodes[node].cache.store(input, output);
+        self.nodes[node]
+            .cache
+            .store_with_context(input, context, output);
     }
 
     fn cache_clear(&mut self, node: Self::Node) {

@@ -127,8 +127,24 @@ impl CalcResolution {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CalcGeneration(u64);
+
+impl CalcGeneration {
+    #[must_use]
+    pub const fn new(value: u64) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn static_no_calc() -> Self {
+        Self(0)
+    }
+}
+
 pub trait CalcResolver {
     fn resolve_calc(&self, id: CalcId, basis: Option<Scalar>) -> CalcResolution;
+    fn calc_generation(&self) -> CalcGeneration;
     fn calc_depends_on_basis(&self, id: CalcId) -> bool;
     fn calc_percent_fraction(&self, id: CalcId) -> Option<Scalar> {
         Some(if self.calc_depends_on_basis(id) {
@@ -145,6 +161,10 @@ pub struct NoCalcResolver;
 impl CalcResolver for NoCalcResolver {
     fn resolve_calc(&self, _id: CalcId, _basis: Option<Scalar>) -> CalcResolution {
         CalcResolution::missing_resolver()
+    }
+
+    fn calc_generation(&self) -> CalcGeneration {
+        CalcGeneration::static_no_calc()
     }
 
     fn calc_depends_on_basis(&self, _id: CalcId) -> bool {
@@ -195,6 +215,10 @@ impl CalcResolver for LayoutCalcStore {
             .map_or(CalcResolution::missing_expression(), |expression| {
                 expression.resolve(basis)
             })
+    }
+
+    fn calc_generation(&self) -> CalcGeneration {
+        CalcGeneration::new(self.len() as u64)
     }
 
     fn calc_depends_on_basis(&self, id: CalcId) -> bool {

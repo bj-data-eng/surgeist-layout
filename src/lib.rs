@@ -19,7 +19,7 @@ mod value;
 pub type Scalar = f32;
 
 pub use block::compute_block;
-pub use cache::{Cache, ClearState};
+pub use cache::{Cache, CacheKeyContext, ClearState};
 pub use compute::{compute_hidden, compute_leaf, compute_root, round_layout};
 pub use flex::compute_flex;
 pub use geometry::{Axis, Edges, Point, Size};
@@ -41,8 +41,8 @@ pub use output::{
 };
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
-    Available, CalcExpression, CalcId, CalcResolution, CalcResolutionStatus, CalcResolver,
-    CalcTerm, Dimension, LayoutCalcStore, Length, LengthAuto, NoCalcResolver,
+    Available, CalcExpression, CalcGeneration, CalcId, CalcResolution, CalcResolutionStatus,
+    CalcResolver, CalcTerm, Dimension, LayoutCalcStore, Length, LengthAuto, NoCalcResolver,
 };
 pub use value::{
     GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,

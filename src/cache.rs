@@ -1,11 +1,55 @@
-use super::{Available, ComputeInput, ComputeOutput, RunMode, Scalar, Size};
+use super::{
+    Available, CalcGeneration, ComputeInput, ComputeOutput, RequestedAxis, RunMode, Scalar, Size,
+    SizingMode,
+};
 
 const CACHE_SIZE: usize = 9;
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CacheKeyContext {
+    calc_generation: CalcGeneration,
+}
+
+impl CacheKeyContext {
+    #[must_use]
+    pub const fn new(calc_generation: CalcGeneration) -> Self {
+        Self { calc_generation }
+    }
+
+    #[must_use]
+    pub const fn static_no_calc() -> Self {
+        Self::new(CalcGeneration::static_no_calc())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CacheKey {
+    run_mode: RunMode,
+    sizing_mode: SizingMode,
+    axis: RequestedAxis,
+    known: Size<Option<Scalar>>,
+    parent: Size<Option<Scalar>>,
+    available: Size<Available>,
+    context: CacheKeyContext,
+}
+
+impl CacheKey {
+    fn from_input(input: &ComputeInput, context: CacheKeyContext) -> Self {
+        Self {
+            run_mode: input.run_mode,
+            sizing_mode: input.sizing_mode,
+            axis: input.axis,
+            known: input.known,
+            parent: input.parent,
+            available: input.available,
+            context,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Entry<T> {
-    known: Size<Option<Scalar>>,
-    available: Size<Available>,
+    key: CacheKey,
     content: T,
 }
 
@@ -27,15 +71,19 @@ impl Cache {
     }
 
     #[must_use]
-    pub fn get(&self, input: &ComputeInput) -> Option<ComputeOutput> {
+    pub fn get_with_context(
+        &self,
+        input: &ComputeInput,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutput> {
         match input.run_mode {
             RunMode::PerformRootLayout | RunMode::PerformLayout => self
                 .final_layout
-                .filter(|entry| matches_output(input, entry, entry.content.size))
+                .filter(|entry| matches_output(input, context, entry, entry.content.size))
                 .map(|entry| entry.content),
             RunMode::ComputeSize => {
                 for entry in self.measures.iter().flatten() {
-                    if matches_output(input, entry, entry.content) {
+                    if matches_output(input, context, entry, entry.content) {
                         return Some(ComputeOutput::from_outer_size(entry.content));
                     }
                 }
@@ -45,13 +93,18 @@ impl Cache {
         }
     }
 
-    pub fn store(&mut self, input: &ComputeInput, output: ComputeOutput) {
+    pub fn store_with_context(
+        &mut self,
+        input: &ComputeInput,
+        context: CacheKeyContext,
+        output: ComputeOutput,
+    ) {
+        let key = CacheKey::from_input(input, context);
         match input.run_mode {
             RunMode::PerformRootLayout | RunMode::PerformLayout => {
                 self.empty = false;
                 self.final_layout = Some(Entry {
-                    known: input.known,
-                    available: input.available,
+                    key,
                     content: output,
                 });
             }
@@ -59,8 +112,7 @@ impl Cache {
                 self.empty = false;
                 let slot = cache_slot(input.known, input.available);
                 self.measures[slot] = Some(Entry {
-                    known: input.known,
-                    available: input.available,
+                    key,
                     content: output.size,
                 });
             }
@@ -123,11 +175,24 @@ fn cache_slot(known: Size<Option<Scalar>>, available: Size<Available>) -> usize 
     }
 }
 
-fn matches_output<T>(input: &ComputeInput, entry: &Entry<T>, cached_size: Size) -> bool {
-    (input.known.width == entry.known.width || input.known.width == Some(cached_size.width))
-        && (input.known.height == entry.known.height
+fn matches_output<T>(
+    input: &ComputeInput,
+    context: CacheKeyContext,
+    entry: &Entry<T>,
+    cached_size: Size,
+) -> bool {
+    let key = CacheKey::from_input(input, context);
+    input.run_mode == entry.key.run_mode
+        && input.sizing_mode == entry.key.sizing_mode
+        && input.axis == entry.key.axis
+        && input.parent == entry.key.parent
+        && context == entry.key.context
+        && (input.known.width == entry.key.known.width
+            || input.known.width == Some(cached_size.width))
+        && (input.known.height == entry.key.known.height
             || input.known.height == Some(cached_size.height))
-        && (input.known.width.is_some() || entry.available.width.roughly_eq(input.available.width))
+        && (input.known.width.is_some()
+            || entry.key.available.width.roughly_eq(key.available.width))
         && (input.known.height.is_some()
-            || entry.available.height.roughly_eq(input.available.height))
+            || entry.key.available.height.roughly_eq(key.available.height))
 }
