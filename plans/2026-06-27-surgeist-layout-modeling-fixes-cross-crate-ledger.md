@@ -78,3 +78,78 @@ cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
     `cargo check -p surgeist-layout --lib`, `cargo fmt --check`, and
     `git diff --check`.
   - Task 3 reviewers returned clean for the layout-side model.
+
+### LAYOUT-XCRATE-0002: Style Adapter Must Lower Validated Grid Placement
+
+- Status: `open`
+- Layout task: Task 5, `Validate Public Grid Placement`
+- Layout commit: `8a093643` (`Validate public grid placement values`)
+- Layout state: implemented locally, clean-context reviewed, and committed;
+  focused tests are pending because the style dev-dependency does not yet
+  compile against the new layout API.
+- Owning crate: `surgeist-style`
+- Owning issue: https://github.com/bj-data-eng/surgeist-style/issues/2
+- Required owning change: update
+  `surgeist-style/src/adapters/layout.rs` so `lower_grid_placement` constructs
+  `surgeist_layout::GridPlacement` through the validated layout API:
+  `GridPlacement::try_line`, `try_end_line`, `try_lines`, `try_line_span`,
+  `try_span_line`, and `try_span`, or through explicit `GridLine`/`GridSpan`
+  construction. The adapter must also stop reading or writing public
+  `GridPlacement` fields directly if any such usage remains after the style
+  change.
+- Observed failure:
+
+```text
+error[E0308]: mismatched types
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:660:79
+    |
+660 |         (GridLine::Line(line), GridLine::Auto) => layout::GridPlacement::line(isize::from(line)),
+    |                                                   --------------------------- ^^^^^^^^^^^^^^^^^ expected `GridLine`, found `isize`
+
+error[E0308]: mismatched types
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:662:45
+    |
+662 |             layout::GridPlacement::end_line(isize::from(line))
+    |             ------------------------------- ^^^^^^^^^^^^^^^^^ expected `GridLine`, found `isize`
+
+error[E0308]: arguments to this function are incorrect
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:665:13
+    |
+665 |             layout::GridPlacement::lines(isize::from(start), isize::from(end))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `GridLine`, found `isize`
+
+error[E0308]: arguments to this function are incorrect
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:668:13
+    |
+668 |             layout::GridPlacement::line_span(isize::from(line), usize::from(span))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `GridLine` and `GridSpan`
+
+error[E0308]: arguments to this function are incorrect
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:671:13
+    |
+671 |             layout::GridPlacement::span_line(usize::from(span), isize::from(line))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `GridSpan` and `GridLine`
+
+error[E0308]: mismatched types
+   --> /Users/codex/Development/surgeist-style/src/adapters/layout.rs:674:13
+    |
+674 |             layout::GridPlacement::span(usize::from(span))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `GridPlacement`, found `Option<GridSpan>`
+```
+
+- Pending layout verification:
+
+```sh
+cargo test -p surgeist-layout grid::tests::public_grid_placement_rejects_zero_line_and_span -- --nocapture
+cargo test -p surgeist-layout grid::tests::grid_placement_fields_are_constructed_through_validated_values -- --nocapture
+cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
+```
+
+- Notes:
+  - Layout-local checks passed before this entry was opened:
+    `cargo check -p surgeist-layout --lib`,
+    `cargo clippy -p surgeist-layout --lib -- -D warnings`,
+    `cargo fmt --check`, and `git diff --check`.
+  - `api/public-api.txt` and README refresh are still tracked by Task 11 of
+    the implementation plan unless the reviewer cycle requires an earlier
+    source-derived artifact update.
