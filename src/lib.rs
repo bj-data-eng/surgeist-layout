@@ -13,10 +13,12 @@ mod grid;
 mod inline;
 mod node_input;
 mod output;
+mod scalar;
 mod traits;
 mod value;
 
-pub type Scalar = f32;
+pub type DefaultScalar = f32;
+pub type Scalar = DefaultScalar;
 
 pub use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, ClearState};
@@ -40,6 +42,7 @@ pub use output::{
     Baselines, CollapsibleMargin, ComputeInput, ComputeOutput, NodeOutput, RequestedAxis, RunMode,
     SizingMode,
 };
+pub use scalar::LayoutScalar;
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
     AspectRatio, Available, CalcExpression, CalcGeneration, CalcId, CalcResolution,

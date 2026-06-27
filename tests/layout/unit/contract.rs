@@ -1,8 +1,34 @@
 use super::*;
+use surgeist_layout::DefaultScalar;
 
 #[test]
-fn layout_scalar_is_single_precision() {
+fn default_scalar_remains_single_precision() {
+    assert_eq!(
+        std::mem::size_of::<DefaultScalar>(),
+        std::mem::size_of::<f32>()
+    );
     assert_eq!(std::mem::size_of::<Scalar>(), std::mem::size_of::<f32>());
+}
+
+#[test]
+fn layout_scalar_supports_f32_and_f64() {
+    fn assert_scalar<S: surgeist_layout::LayoutScalar>() {
+        assert!(S::ONE.is_finite());
+        assert_eq!(S::ZERO + S::ONE, S::ONE);
+        assert_eq!(S::from_usize(3), S::ONE + S::ONE + S::ONE);
+        assert_eq!(S::from_f64(-2.5).abs(), S::from_f64(2.5));
+        assert_eq!(S::from_f64(4.75).floor_to_usize_saturating(), 4);
+        assert_eq!(S::NAN.floor_to_usize_saturating(), 0);
+        assert_eq!(S::from_f64(-1.0).floor_to_usize_saturating(), 0);
+        assert_eq!(S::INFINITY.floor_to_usize_saturating(), usize::MAX);
+        assert_eq!(
+            S::from_f64(usize::MAX as f64 * 2.0).floor_to_usize_saturating(),
+            usize::MAX
+        );
+    }
+
+    assert_scalar::<f32>();
+    assert_scalar::<f64>();
 }
 
 #[test]
