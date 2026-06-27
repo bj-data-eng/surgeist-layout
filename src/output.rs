@@ -1,4 +1,4 @@
-use super::{Available, Edges, Point, Scalar, Size};
+use super::{AvailableOf, DefaultScalar, Edges, LayoutScalar, Point, Size};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RunMode {
@@ -35,55 +35,59 @@ pub enum RequestedAxis {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ComputeInput {
+pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
     pub run_mode: RunMode,
     pub sizing_mode: SizingMode,
     pub axis: RequestedAxis,
-    pub known: Size<Option<Scalar>>,
-    pub parent: Size<Option<Scalar>>,
-    pub available: Size<Available>,
+    pub known: Size<Option<S>>,
+    pub parent: Size<Option<S>>,
+    pub available: Size<AvailableOf<S>>,
 }
 
-impl ComputeInput {
+pub type ComputeInput = ComputeInputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ComputeInputOf<S> {
     pub const HIDDEN: Self = Self {
         run_mode: RunMode::PerformHiddenLayout,
         sizing_mode: SizingMode::InherentSize,
         axis: RequestedAxis::Both,
         known: Size::NONE,
         parent: Size::NONE,
-        available: Size::splat(Available::MAX_CONTENT),
+        available: Size::splat(AvailableOf::MAX_CONTENT),
     };
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CollapsibleMargin {
-    positive: Scalar,
-    negative: Scalar,
+pub struct CollapsibleMarginOf<S: LayoutScalar = DefaultScalar> {
+    positive: S,
+    negative: S,
 }
 
-impl CollapsibleMargin {
+pub type CollapsibleMargin = CollapsibleMarginOf<DefaultScalar>;
+
+impl<S: LayoutScalar> CollapsibleMarginOf<S> {
     pub const ZERO: Self = Self {
-        positive: 0.0,
-        negative: 0.0,
+        positive: S::ZERO,
+        negative: S::ZERO,
     };
 
     #[must_use]
-    pub fn from_margin(margin: Scalar) -> Self {
-        if margin >= 0.0 {
+    pub fn from_margin(margin: S) -> Self {
+        if margin >= S::ZERO {
             Self {
                 positive: margin,
-                negative: 0.0,
+                negative: S::ZERO,
             }
         } else {
             Self {
-                positive: 0.0,
+                positive: S::ZERO,
                 negative: margin,
             }
         }
     }
 
     #[must_use]
-    pub fn collapse_with_margin(self, margin: Scalar) -> Self {
+    pub fn collapse_with_margin(self, margin: S) -> Self {
         self.collapse_with(Self::from_margin(margin))
     }
 
@@ -96,25 +100,27 @@ impl CollapsibleMargin {
     }
 
     #[must_use]
-    pub fn resolve(self) -> Scalar {
+    pub fn resolve(self) -> S {
         self.positive + self.negative
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Baselines {
-    pub first: Point<Option<Scalar>>,
-    pub last: Point<Option<Scalar>>,
+pub struct BaselinesOf<S: LayoutScalar = DefaultScalar> {
+    pub first: Point<Option<S>>,
+    pub last: Point<Option<S>>,
 }
 
-impl Baselines {
+pub type Baselines = BaselinesOf<DefaultScalar>;
+
+impl<S: LayoutScalar> BaselinesOf<S> {
     pub const NONE: Self = Self {
         first: Point::NONE,
         last: Point::NONE,
     };
 
     #[must_use]
-    pub const fn first(first: Point<Option<Scalar>>) -> Self {
+    pub const fn first(first: Point<Option<S>>) -> Self {
         Self {
             first,
             last: Point::NONE,
@@ -122,43 +128,45 @@ impl Baselines {
     }
 
     #[must_use]
-    pub const fn synthesized(size: Size) -> Self {
+    pub const fn synthesized(size: Size<S>) -> Self {
         Self {
             first: Point::new(Some(size.width), Some(size.height)),
-            last: Point::new(Some(0.0), Some(0.0)),
+            last: Point::new(Some(S::ZERO), Some(S::ZERO)),
         }
     }
 
     #[must_use]
-    pub fn first_or_synthesize_block(self, size: Size) -> Scalar {
+    pub fn first_or_synthesize_block(self, size: Size<S>) -> S {
         self.first.y.unwrap_or(size.height)
     }
 
     #[must_use]
-    pub fn last_or_synthesize_block(self, _size: Size) -> Scalar {
-        self.last.y.unwrap_or(0.0)
+    pub fn last_or_synthesize_block(self, _size: Size<S>) -> S {
+        self.last.y.unwrap_or(S::ZERO)
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ComputeOutput {
-    pub size: Size,
-    pub content_size: Size,
-    pub first_baselines: Point<Option<Scalar>>,
-    pub last_baselines: Point<Option<Scalar>>,
-    pub top_margin: CollapsibleMargin,
-    pub bottom_margin: CollapsibleMargin,
+pub struct ComputeOutputOf<S: LayoutScalar = DefaultScalar> {
+    pub size: Size<S>,
+    pub content_size: Size<S>,
+    pub first_baselines: Point<Option<S>>,
+    pub last_baselines: Point<Option<S>>,
+    pub top_margin: CollapsibleMarginOf<S>,
+    pub bottom_margin: CollapsibleMarginOf<S>,
     pub margins_can_collapse_through: bool,
 }
 
-impl ComputeOutput {
+pub type ComputeOutput = ComputeOutputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ComputeOutputOf<S> {
     pub const HIDDEN: Self = Self {
-        size: Size::ZERO,
-        content_size: Size::ZERO,
+        size: Size::<S>::ZERO,
+        content_size: Size::<S>::ZERO,
         first_baselines: Point::NONE,
         last_baselines: Point::NONE,
-        top_margin: CollapsibleMargin::ZERO,
-        bottom_margin: CollapsibleMargin::ZERO,
+        top_margin: CollapsibleMarginOf::ZERO,
+        bottom_margin: CollapsibleMarginOf::ZERO,
         margins_can_collapse_through: false,
     };
 
@@ -166,43 +174,43 @@ impl ComputeOutput {
 
     #[must_use]
     pub const fn from_sizes_and_baselines(
-        size: Size,
-        content_size: Size,
-        baselines: Baselines,
+        size: Size<S>,
+        content_size: Size<S>,
+        baselines: BaselinesOf<S>,
     ) -> Self {
         Self {
             size,
             content_size,
             first_baselines: baselines.first,
             last_baselines: baselines.last,
-            top_margin: CollapsibleMargin::ZERO,
-            bottom_margin: CollapsibleMargin::ZERO,
+            top_margin: CollapsibleMarginOf::ZERO,
+            bottom_margin: CollapsibleMarginOf::ZERO,
             margins_can_collapse_through: false,
         }
     }
 
     #[must_use]
     pub const fn from_sizes_and_first_baselines(
-        size: Size,
-        content_size: Size,
-        first_baselines: Point<Option<Scalar>>,
+        size: Size<S>,
+        content_size: Size<S>,
+        first_baselines: Point<Option<S>>,
     ) -> Self {
-        Self::from_sizes_and_baselines(size, content_size, Baselines::first(first_baselines))
+        Self::from_sizes_and_baselines(size, content_size, BaselinesOf::first(first_baselines))
     }
 
     #[must_use]
-    pub const fn from_sizes(size: Size, content_size: Size) -> Self {
-        Self::from_sizes_and_baselines(size, content_size, Baselines::NONE)
+    pub const fn from_sizes(size: Size<S>, content_size: Size<S>) -> Self {
+        Self::from_sizes_and_baselines(size, content_size, BaselinesOf::NONE)
     }
 
     #[must_use]
-    pub const fn from_outer_size(size: Size) -> Self {
-        Self::from_sizes(size, Size::ZERO)
+    pub const fn from_outer_size(size: Size<S>) -> Self {
+        Self::from_sizes(size, Size::<S>::ZERO)
     }
 
     #[must_use]
-    pub const fn baselines(&self) -> Baselines {
-        Baselines {
+    pub const fn baselines(&self) -> BaselinesOf<S> {
+        BaselinesOf {
             first: self.first_baselines,
             last: self.last_baselines,
         }
@@ -210,18 +218,20 @@ impl ComputeOutput {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct NodeOutput {
+pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {
     pub order: u32,
-    pub location: Point,
-    pub size: Size,
-    pub content_size: Size,
-    pub scrollbar_size: Size,
-    pub border: Edges,
-    pub padding: Edges,
-    pub margin: Edges,
+    pub location: Point<S>,
+    pub size: Size<S>,
+    pub content_size: Size<S>,
+    pub scrollbar_size: Size<S>,
+    pub border: Edges<S>,
+    pub padding: Edges<S>,
+    pub margin: Edges<S>,
 }
 
-impl NodeOutput {
+pub type NodeOutput = NodeOutputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> NodeOutputOf<S> {
     #[must_use]
     pub const fn new() -> Self {
         Self::with_order(0)
@@ -231,18 +241,18 @@ impl NodeOutput {
     pub const fn with_order(order: u32) -> Self {
         Self {
             order,
-            location: Point::ZERO,
-            size: Size::ZERO,
-            content_size: Size::ZERO,
-            scrollbar_size: Size::ZERO,
-            border: Edges::ZERO,
-            padding: Edges::ZERO,
-            margin: Edges::ZERO,
+            location: Point::<S>::ZERO,
+            size: Size::<S>::ZERO,
+            content_size: Size::<S>::ZERO,
+            scrollbar_size: Size::<S>::ZERO,
+            border: Edges::<S>::ZERO,
+            padding: Edges::<S>::ZERO,
+            margin: Edges::<S>::ZERO,
         }
     }
 
     #[must_use]
-    pub fn content_box_size(self) -> Size {
+    pub fn content_box_size(self) -> Size<S> {
         Size::new(
             self.size.width
                 - self.padding.left
@@ -258,7 +268,7 @@ impl NodeOutput {
     }
 }
 
-impl Default for NodeOutput {
+impl<S: LayoutScalar> Default for NodeOutputOf<S> {
     fn default() -> Self {
         Self::new()
     }

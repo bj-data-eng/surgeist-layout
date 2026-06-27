@@ -47,6 +47,34 @@ fn value_types_support_f64_scalar_lane() {
 }
 
 #[test]
+fn node_input_and_output_support_f64_scalar_lane() {
+    let input = surgeist_layout::NodeInputOf::<f64> {
+        size: surgeist_layout::Size::new(
+            surgeist_layout::DimensionOf::px(123.5),
+            surgeist_layout::DimensionOf::percent(0.25),
+        ),
+        margin: surgeist_layout::Edges::all(surgeist_layout::LengthAutoOf::px(2.5)),
+        flex_grow: 1.0,
+        ..surgeist_layout::NodeInputOf::<f64>::default()
+    };
+
+    assert_eq!(input.size.width.resolve(1000.0), Some(123.5));
+    assert_eq!(input.size.height.resolve(400.0), Some(100.0));
+
+    let precision_sentinel = 16_777_217.0_f64;
+    let output = surgeist_layout::NodeOutputOf::<f64> {
+        size: surgeist_layout::Size::new(precision_sentinel, 10.0),
+        ..surgeist_layout::NodeOutputOf::<f64>::default()
+    };
+    let compute_output = surgeist_layout::ComputeOutputOf::<f64>::from_outer_size(
+        surgeist_layout::Size::new(precision_sentinel, 4.0),
+    );
+
+    assert_eq!(output.size.width, precision_sentinel);
+    assert_eq!(compute_output.size.width, precision_sentinel);
+}
+
+#[test]
 fn f64_calc_resolution_preserves_large_coordinate_precision() {
     let mut store = surgeist_layout::LayoutCalcStoreOf::<f64>::new();
     let id = store.push(surgeist_layout::CalcExpressionOf::sum(vec![

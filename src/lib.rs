@@ -35,12 +35,12 @@ pub use grid::{
 };
 pub use node_input::{
     AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexWrap, Float,
-    GridAutoFlow, GridFlowTolerance, GridPlacement, NodeInput, Overflow, Position, RawGridLine,
-    RawGridPlacement, TextAlign, VerticalAlign, WritingMode,
+    GridAutoFlow, GridFlowTolerance, GridFlowToleranceOf, GridPlacement, NodeInput, NodeInputOf,
+    Overflow, Position, RawGridLine, RawGridPlacement, TextAlign, VerticalAlign, WritingMode,
 };
 pub use output::{
-    Baselines, CollapsibleMargin, ComputeInput, ComputeOutput, NodeOutput, RequestedAxis, RunMode,
-    SizingMode,
+    Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, ComputeInput, ComputeInputOf,
+    ComputeOutput, ComputeOutputOf, NodeOutput, NodeOutputOf, RequestedAxis, RunMode, SizingMode,
 };
 pub use scalar::LayoutScalar;
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
