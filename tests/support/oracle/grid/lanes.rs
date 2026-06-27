@@ -7,6 +7,7 @@ use super::contributions::{ContributionSize, ItemContributionFacts};
 use super::placement::{GridArea, GridAxis};
 use super::subgrid::{OracleGridError, TrackSpan};
 use super::tracks::{GridTrack, TrackMax, TrackMin, TrackSizingReport, TrackSizingSlice};
+use std::num::NonZeroUsize;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LaneAutoFlow {
@@ -101,8 +102,13 @@ pub struct LanePlacementReport {
     pub lane_axis: GridAxis,
     pub grid_axis: GridAxis,
     pub item_offsets: Vec<LaneItemOffset>,
-    pub running_positions_after_each_item: Vec<Vec<f32>>,
     pub content_size: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LanePlacementTrace {
+    pub report: LanePlacementReport,
+    pub running_positions_after_each_item: Vec<Vec<f32>>,
     pub final_cursor: usize,
 }
 
@@ -152,6 +158,10 @@ pub fn grid_lanes_container_baselines(
 }
 
 pub fn place_lanes(input: LanePlacementInput) -> Result<LanePlacementReport, OracleGridError> {
+    place_lanes_trace(input).map(|trace| trace.report)
+}
+
+pub fn place_lanes_trace(input: LanePlacementInput) -> Result<LanePlacementTrace, OracleGridError> {
     if input.grid_axis_tracks == 0 {
         return Err(OracleGridError::EmptyTrackList);
     }
@@ -206,12 +216,14 @@ pub fn place_lanes(input: LanePlacementInput) -> Result<LanePlacementReport, Ora
         cursor = (start_zero + span) % input.grid_axis_tracks;
     }
 
-    Ok(LanePlacementReport {
-        lane_axis: lane_axis(input.auto_flow),
-        grid_axis: grid_axis_for_lanes(input.auto_flow),
-        item_offsets,
+    Ok(LanePlacementTrace {
+        report: LanePlacementReport {
+            lane_axis: lane_axis(input.auto_flow),
+            grid_axis: grid_axis_for_lanes(input.auto_flow),
+            item_offsets,
+            content_size,
+        },
         running_positions_after_each_item,
-        content_size,
         final_cursor: cursor,
     })
 }
@@ -270,57 +282,91 @@ pub struct LaneIntrinsicSizingInput {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LaneIntrinsicItem {
-    pub id: &'static str,
-    pub span: usize,
-    pub definite_span: Option<TrackSpan>,
-    pub contribution: ItemContributionFacts,
-    pub nested_indefinite_subgrid: bool,
+    id: &'static str,
+    kind: LaneIntrinsicItemKind,
+    contribution: ItemContributionFacts,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LaneTrackSpanLength(NonZeroUsize);
+
+impl LaneTrackSpanLength {
+    #[must_use]
+    pub const fn new(span: usize) -> Option<Self> {
+        match NonZeroUsize::new(span) {
+            Some(span) => Some(Self(span)),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0.get()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LaneIntrinsicItemKind {
+    Definite { span: TrackSpan },
+    Indefinite { span: LaneTrackSpanLength },
+    NestedIndefiniteSubgrid { span: LaneTrackSpanLength },
 }
 
 impl LaneIntrinsicItem {
-    #[must_use]
-    pub const fn definite(
+    pub fn definite(
         id: &'static str,
         span: TrackSpan,
         contribution: ItemContributionFacts,
-    ) -> Self {
-        Self {
-            id,
-            span: 0,
-            definite_span: Some(span),
-            contribution,
-            nested_indefinite_subgrid: false,
+    ) -> Result<Self, OracleGridError> {
+        if span.checked_len().is_err() {
+            return Err(OracleGridError::SpanOutOfRange);
         }
+        Ok(Self {
+            id,
+            kind: LaneIntrinsicItemKind::Definite { span },
+            contribution,
+        })
     }
 
     #[must_use]
     pub const fn indefinite(
         id: &'static str,
-        span: usize,
+        span: LaneTrackSpanLength,
         contribution: ItemContributionFacts,
     ) -> Self {
         Self {
             id,
-            span,
-            definite_span: None,
+            kind: LaneIntrinsicItemKind::Indefinite { span },
             contribution,
-            nested_indefinite_subgrid: false,
         }
     }
 
     #[must_use]
     pub const fn nested_indefinite_subgrid(
         id: &'static str,
-        span: usize,
+        span: LaneTrackSpanLength,
         contribution: ItemContributionFacts,
     ) -> Self {
         Self {
             id,
-            span,
-            definite_span: None,
+            kind: LaneIntrinsicItemKind::NestedIndefiniteSubgrid { span },
             contribution,
-            nested_indefinite_subgrid: true,
         }
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> &'static str {
+        self.id
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> LaneIntrinsicItemKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn contribution(&self) -> ItemContributionFacts {
+        self.contribution
     }
 }
 
@@ -366,41 +412,44 @@ pub fn lane_intrinsic_sizing(
     let mut indefinite_groups: Vec<IndefiniteLaneContributionGroup> = Vec::new();
 
     for item in &input.items {
-        if item.nested_indefinite_subgrid {
-            return Err(OracleGridError::NestedGridLanesSubgridIndefiniteUnsupported);
-        }
-        if let Some(span) = item.definite_span {
-            span.checked_len()?;
-            if span.end > input.tracks.len() + 1 {
-                return Err(OracleGridError::SpanOutOfRange);
+        match item.kind() {
+            LaneIntrinsicItemKind::Definite { span } => {
+                span.checked_len()?;
+                if span.end > input.tracks.len() + 1 {
+                    return Err(OracleGridError::SpanOutOfRange);
+                }
+                let contribution =
+                    contribution_with_span_area(input.axis, span, item.contribution());
+                definite_items.push(DefiniteLaneIntrinsicItem {
+                    id: item.id(),
+                    span,
+                    contribution,
+                });
             }
-            let contribution = contribution_with_span_area(input.axis, span, item.contribution);
-            definite_items.push(DefiniteLaneIntrinsicItem {
-                id: item.id,
-                span,
-                contribution,
-            });
-            continue;
-        }
-
-        let span = item.span.max(1).min(input.tracks.len());
-        let contributions = item.contribution.contributions();
-        if let Some(group) = indefinite_groups
-            .iter_mut()
-            .find(|group| group.span == span)
-        {
-            group.max_min_content = group.max_min_content.max(contributions.min_content);
-            group.max_max_content = group.max_max_content.max(contributions.max_content);
-            group.max_min_size = group.max_min_size.max(contributions.minimum);
-            group.item_ids.push(item.id);
-        } else {
-            indefinite_groups.push(IndefiniteLaneContributionGroup {
-                span,
-                max_min_content: contributions.min_content,
-                max_max_content: contributions.max_content,
-                max_min_size: contributions.minimum,
-                item_ids: vec![item.id],
-            });
+            LaneIntrinsicItemKind::Indefinite { span } => {
+                let span = span.get().min(input.tracks.len());
+                let contributions = item.contribution().contributions();
+                if let Some(group) = indefinite_groups
+                    .iter_mut()
+                    .find(|group| group.span == span)
+                {
+                    group.max_min_content = group.max_min_content.max(contributions.min_content);
+                    group.max_max_content = group.max_max_content.max(contributions.max_content);
+                    group.max_min_size = group.max_min_size.max(contributions.minimum);
+                    group.item_ids.push(item.id());
+                } else {
+                    indefinite_groups.push(IndefiniteLaneContributionGroup {
+                        span,
+                        max_min_content: contributions.min_content,
+                        max_max_content: contributions.max_content,
+                        max_min_size: contributions.minimum,
+                        item_ids: vec![item.id()],
+                    });
+                }
+            }
+            LaneIntrinsicItemKind::NestedIndefiniteSubgrid { .. } => {
+                return Err(OracleGridError::NestedGridLanesSubgridIndefiniteUnsupported);
+            }
         }
     }
 

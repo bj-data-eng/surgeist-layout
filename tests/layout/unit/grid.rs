@@ -2,7 +2,9 @@ use super::support::oracle_tree::{OracleMeasurement, OracleTree};
 use super::*;
 use surgeist_layout::{
     CalcExpression, CalcResolver, CalcTerm, GridTemplateAreaRow, GridTemplateAreas,
-    LayoutCalcStore, NamedGridErrorReport, RawGridLine, RawGridPlacement,
+    LaneContributionFacts, LaneIntrinsicItem, LaneIntrinsicItemKind, LaneItem, LanePlacementError,
+    LanePlacementInput, LaneTrackSpan, LaneTrackSpanLength, LayoutCalcStore, NamedGridErrorReport,
+    RawGridLine, RawGridPlacement, place_lanes,
 };
 
 fn baseline_measure(
@@ -46,6 +48,63 @@ fn compute_oracle_grid_output(tree: &mut OracleTree) -> ComputeOutput {
             available: Size::new(Available::Definite(120.0), Available::Definite(120.0)),
         },
     )
+}
+
+#[test]
+fn lane_intrinsic_item_exposes_exactly_one_kind() {
+    let contribution = LaneContributionFacts {
+        min_content: 1.0,
+        max_content: 2.0,
+        min_size: 0.0,
+        automatic_minimum_applies: true,
+    };
+    let span = LaneTrackSpanLength::new(2).expect("span should be nonzero");
+    let item = LaneIntrinsicItem::indefinite("item", span, contribution);
+
+    assert!(matches!(
+        item.kind(),
+        LaneIntrinsicItemKind::Indefinite { span } if span.get() == 2
+    ));
+}
+
+#[test]
+fn lane_intrinsic_item_rejects_malformed_definite_span_without_track_context() {
+    let contribution = LaneContributionFacts {
+        min_content: 1.0,
+        max_content: 2.0,
+        min_size: 0.0,
+        automatic_minimum_applies: true,
+    };
+    let span = LaneTrackSpan::new(0, 1);
+    let err = LaneIntrinsicItem::definite("item", span, contribution)
+        .expect_err("malformed definite span should be rejected at construction");
+
+    assert_eq!(err, LanePlacementError::InvalidDefiniteLaneSpan { span });
+}
+
+#[test]
+fn lane_track_span_length_rejects_zero() {
+    assert!(LaneTrackSpanLength::new(0).is_none());
+}
+
+#[test]
+fn lane_errors_carry_context() {
+    let err = place_lanes(LanePlacementInput {
+        grid_axis_tracks: 2,
+        auto_flow: GridAutoFlow::Row,
+        lane_gap: 0.0,
+        tolerance: GridFlowTolerance::Infinite,
+        tolerance_basis: 0.0,
+        items: vec![LaneItem {
+            item: "item",
+            grid_axis_span: 1,
+            definite_grid_axis_start: Some(0),
+            lane_axis_margin_box: 1.0,
+        }],
+    })
+    .expect_err("zero grid axis start should be rejected with context");
+
+    assert_eq!(err, LanePlacementError::InvalidGridAxisStart { start: 0 });
 }
 
 fn final_y(tree: &OracleTree, node: u32) -> Scalar {

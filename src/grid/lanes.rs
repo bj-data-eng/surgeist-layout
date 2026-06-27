@@ -1,5 +1,6 @@
 use super::*;
 use crate::NoCalcResolver;
+use std::num::NonZeroUsize;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LanePlacementInput<Item> {
@@ -33,15 +34,47 @@ pub struct LanePlacementReport<Item> {
     pub lane_axis: GridAxisKind,
     pub grid_axis: GridAxisKind,
     pub item_offsets: Vec<LaneItemOffset<Item>>,
-    pub running_positions_after_each_item: Vec<Vec<Scalar>>,
     pub content_size: Scalar,
-    pub final_cursor: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct LanePlacementTrace<Item> {
+    pub(super) report: LanePlacementReport<Item>,
+    pub(super) running_positions_after_each_item: Vec<Vec<Scalar>>,
+    pub(super) final_cursor: usize,
+}
+
+impl<Item> LanePlacementTrace<Item> {
+    fn into_report(self) -> LanePlacementReport<Item> {
+        self.report
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LanePlacementError {
     EmptyTrackList,
-    SpanOutOfRange,
+    InvalidGridAxisStart {
+        start: usize,
+    },
+    InvalidGridAxisSpan {
+        span: usize,
+    },
+    GridAxisSpanOutOfRange {
+        start: usize,
+        span: usize,
+        tracks: usize,
+    },
+    ContentSizedTrackOutOfRange {
+        track_index: usize,
+        tracks: usize,
+    },
+    InvalidDefiniteLaneSpan {
+        span: LaneTrackSpan,
+    },
+    DefiniteLaneSpanOutOfRange {
+        span: LaneTrackSpan,
+        tracks: usize,
+    },
     NestedGridLanesSubgridIndefiniteUnsupported,
 }
 
@@ -87,11 +120,30 @@ impl LaneTrackSpan {
         Self { start, end }
     }
 
-    fn checked_len(self) -> Result<usize, LanePlacementError> {
+    fn len(self) -> Option<usize> {
         if self.start == 0 || self.end <= self.start {
-            return Err(LanePlacementError::SpanOutOfRange);
+            None
+        } else {
+            Some(self.end - self.start)
         }
-        Ok(self.end - self.start)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LaneTrackSpanLength(NonZeroUsize);
+
+impl LaneTrackSpanLength {
+    #[must_use]
+    pub const fn new(span: usize) -> Option<Self> {
+        match NonZeroUsize::new(span) {
+            Some(span) => Some(Self(span)),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0.get()
     }
 }
 
@@ -107,58 +159,73 @@ pub struct LaneIntrinsicSizingInput {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LaneIntrinsicItem {
-    pub id: &'static str,
-    pub span: usize,
-    pub definite_span: Option<LaneTrackSpan>,
-    pub contribution: LaneContributionFacts,
-    pub nested_indefinite_subgrid: bool,
+    id: &'static str,
+    kind: LaneIntrinsicItemKind,
+    contribution: LaneContributionFacts,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LaneIntrinsicItemKind {
+    Definite { span: LaneTrackSpan },
+    Indefinite { span: LaneTrackSpanLength },
+    NestedIndefiniteSubgrid { span: LaneTrackSpanLength },
 }
 
 impl LaneIntrinsicItem {
-    #[must_use]
-    pub const fn definite(
+    pub fn definite(
         id: &'static str,
-        start: usize,
-        end: usize,
+        span: LaneTrackSpan,
         contribution: LaneContributionFacts,
-    ) -> Self {
-        Self {
-            id,
-            span: 0,
-            definite_span: Some(LaneTrackSpan::new(start, end)),
-            contribution,
-            nested_indefinite_subgrid: false,
+    ) -> Result<Self, LanePlacementError> {
+        if span.len().is_none() {
+            return Err(LanePlacementError::InvalidDefiniteLaneSpan { span });
         }
+        Ok(Self {
+            id,
+            kind: LaneIntrinsicItemKind::Definite { span },
+            contribution,
+        })
     }
 
     #[must_use]
     pub const fn indefinite(
         id: &'static str,
-        span: usize,
+        span: LaneTrackSpanLength,
         contribution: LaneContributionFacts,
     ) -> Self {
         Self {
             id,
-            span,
-            definite_span: None,
+            kind: LaneIntrinsicItemKind::Indefinite { span },
             contribution,
-            nested_indefinite_subgrid: false,
         }
     }
 
     #[must_use]
     pub const fn nested_indefinite_subgrid(
         id: &'static str,
-        span: usize,
+        span: LaneTrackSpanLength,
         contribution: LaneContributionFacts,
     ) -> Self {
         Self {
             id,
-            span,
-            definite_span: None,
+            kind: LaneIntrinsicItemKind::NestedIndefiniteSubgrid { span },
             contribution,
-            nested_indefinite_subgrid: true,
         }
+    }
+
+    #[must_use]
+    pub const fn id(&self) -> &'static str {
+        self.id
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> LaneIntrinsicItemKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn contribution(&self) -> LaneContributionFacts {
+        self.contribution
     }
 }
 
@@ -227,6 +294,12 @@ pub(super) fn column_flow_for_grid_lanes(style: &NodeInput) -> bool {
 pub fn place_lanes<Item>(
     input: LanePlacementInput<Item>,
 ) -> Result<LanePlacementReport<Item>, LanePlacementError> {
+    place_lanes_with_trace(input).map(LanePlacementTrace::into_report)
+}
+
+fn place_lanes_with_trace<Item>(
+    input: LanePlacementInput<Item>,
+) -> Result<LanePlacementTrace<Item>, LanePlacementError> {
     if input.grid_axis_tracks == 0 {
         return Err(LanePlacementError::EmptyTrackList);
     }
@@ -241,12 +314,21 @@ pub fn place_lanes<Item>(
     for item in input.items {
         let (start_zero, span) = match item.definite_grid_axis_start {
             Some(start_line) => {
-                if start_line == 0 || item.grid_axis_span == 0 {
-                    return Err(LanePlacementError::SpanOutOfRange);
+                if start_line == 0 {
+                    return Err(LanePlacementError::InvalidGridAxisStart { start: start_line });
+                }
+                if item.grid_axis_span == 0 {
+                    return Err(LanePlacementError::InvalidGridAxisSpan {
+                        span: item.grid_axis_span,
+                    });
                 }
                 let start_zero = start_line - 1;
                 if start_zero + item.grid_axis_span > input.grid_axis_tracks {
-                    return Err(LanePlacementError::SpanOutOfRange);
+                    return Err(LanePlacementError::GridAxisSpanOutOfRange {
+                        start: start_line,
+                        span: item.grid_axis_span,
+                        tracks: input.grid_axis_tracks,
+                    });
                 }
                 (start_zero, item.grid_axis_span)
             }
@@ -282,12 +364,14 @@ pub fn place_lanes<Item>(
         cursor = (start_zero + span) % input.grid_axis_tracks;
     }
 
-    Ok(LanePlacementReport {
-        lane_axis: lane_axis(input.auto_flow),
-        grid_axis: grid_axis_for_lanes(input.auto_flow),
-        item_offsets,
+    Ok(LanePlacementTrace {
+        report: LanePlacementReport {
+            lane_axis: lane_axis(input.auto_flow),
+            grid_axis: grid_axis_for_lanes(input.auto_flow),
+            item_offsets,
+            content_size,
+        },
         running_positions_after_each_item,
-        content_size,
         final_cursor: cursor,
     })
 }
@@ -305,52 +389,60 @@ pub(super) fn lane_intrinsic_sizing_with(
     if input.content_sized_tracks.is_empty() || input.tracks.is_empty() {
         return Err(LanePlacementError::EmptyTrackList);
     }
-    if input
+    if let Some(track_index) = input
         .content_sized_tracks
         .iter()
-        .any(|track_index| *track_index >= input.tracks.len())
+        .copied()
+        .find(|track_index| *track_index >= input.tracks.len())
     {
-        return Err(LanePlacementError::SpanOutOfRange);
+        return Err(LanePlacementError::ContentSizedTrackOutOfRange {
+            track_index,
+            tracks: input.tracks.len(),
+        });
     }
 
     let mut definite_items = Vec::new();
     let mut indefinite_groups: Vec<IndefiniteLaneContributionGroup> = Vec::new();
 
     for item in &input.items {
-        if item.nested_indefinite_subgrid {
-            return Err(LanePlacementError::NestedGridLanesSubgridIndefiniteUnsupported);
-        }
-        if let Some(span) = item.definite_span {
-            span.checked_len()?;
-            if span.end > input.tracks.len() + 1 {
-                return Err(LanePlacementError::SpanOutOfRange);
+        match item.kind() {
+            LaneIntrinsicItemKind::Definite { span } => {
+                if span.len().is_none() || span.end > input.tracks.len() + 1 {
+                    return Err(LanePlacementError::DefiniteLaneSpanOutOfRange {
+                        span,
+                        tracks: input.tracks.len(),
+                    });
+                }
+                definite_items.push(DefiniteLaneIntrinsicItem {
+                    id: item.id(),
+                    span,
+                    contribution: item.contribution(),
+                });
             }
-            definite_items.push(DefiniteLaneIntrinsicItem {
-                id: item.id,
-                span,
-                contribution: item.contribution,
-            });
-            continue;
-        }
-
-        let span = item.span.max(1).min(input.tracks.len());
-        let contributions = item.contribution.contributions();
-        if let Some(group) = indefinite_groups
-            .iter_mut()
-            .find(|group| group.span == span)
-        {
-            group.max_min_content = group.max_min_content.max(contributions.min_content);
-            group.max_max_content = group.max_max_content.max(contributions.max_content);
-            group.max_min_size = group.max_min_size.max(contributions.minimum);
-            group.item_ids.push(item.id);
-        } else {
-            indefinite_groups.push(IndefiniteLaneContributionGroup {
-                span,
-                max_min_content: contributions.min_content,
-                max_max_content: contributions.max_content,
-                max_min_size: contributions.minimum,
-                item_ids: vec![item.id],
-            });
+            LaneIntrinsicItemKind::Indefinite { span } => {
+                let span = span.get().min(input.tracks.len());
+                let contributions = item.contribution().contributions();
+                if let Some(group) = indefinite_groups
+                    .iter_mut()
+                    .find(|group| group.span == span)
+                {
+                    group.max_min_content = group.max_min_content.max(contributions.min_content);
+                    group.max_max_content = group.max_max_content.max(contributions.max_content);
+                    group.max_min_size = group.max_min_size.max(contributions.minimum);
+                    group.item_ids.push(item.id());
+                } else {
+                    indefinite_groups.push(IndefiniteLaneContributionGroup {
+                        span,
+                        max_min_content: contributions.min_content,
+                        max_max_content: contributions.max_content,
+                        max_min_size: contributions.minimum,
+                        item_ids: vec![item.id()],
+                    });
+                }
+            }
+            LaneIntrinsicItemKind::NestedIndefiniteSubgrid { .. } => {
+                return Err(LanePlacementError::NestedGridLanesSubgridIndefiniteUnsupported);
+            }
         }
     }
 
@@ -379,7 +471,7 @@ pub(super) fn lane_intrinsic_sizing_with(
             );
             let content_track_count = content_spans
                 .iter()
-                .map(|span| span.checked_len().expect("span already validated"))
+                .map(|span| span.len().expect("span already validated"))
                 .sum::<usize>();
             for content_span in content_spans {
                 sizing_items.push(masonry_sizing_contribution(
@@ -508,7 +600,7 @@ fn masonry_sizing_contribution(
         .sum::<Scalar>()
         + gap
             * full_span
-                .checked_len()
+                .len()
                 .expect("span already validated")
                 .saturating_sub(1) as Scalar;
     let content_existing = tracks[start_index..end_index]
@@ -517,10 +609,10 @@ fn masonry_sizing_contribution(
         .sum::<Scalar>()
         + gap
             * span
-                .checked_len()
+                .len()
                 .expect("span already validated")
                 .saturating_sub(1) as Scalar;
-    let content_span_len = span.checked_len().expect("span already validated");
+    let content_span_len = span.len().expect("span already validated");
     let deficit_share = (full_target - full_existing).max(0.0) * content_span_len as Scalar
         / content_track_count.max(1) as Scalar;
     let size = content_existing + deficit_share;
@@ -707,12 +799,21 @@ where
         );
         let (start, span) = match definite_grid_axis_start {
             Some(start_line) => {
-                if start_line == 0 || grid_axis_span == 0 {
-                    return Err(LanePlacementError::SpanOutOfRange);
+                if start_line == 0 {
+                    return Err(LanePlacementError::InvalidGridAxisStart { start: start_line });
+                }
+                if grid_axis_span == 0 {
+                    return Err(LanePlacementError::InvalidGridAxisSpan {
+                        span: grid_axis_span,
+                    });
                 }
                 let start = start_line - 1;
                 if start + grid_axis_span > grid_axis_tracks.len() {
-                    return Err(LanePlacementError::SpanOutOfRange);
+                    return Err(LanePlacementError::GridAxisSpanOutOfRange {
+                        start: start_line,
+                        span: grid_axis_span,
+                        tracks: grid_axis_tracks.len(),
+                    });
                 }
                 (start, grid_axis_span)
             }
@@ -761,14 +862,18 @@ where
         cursor = (start + span) % grid_axis_tracks.len();
     }
 
-    Ok(LanePlacementReport {
-        lane_axis,
-        grid_axis,
-        item_offsets,
+    let trace = LanePlacementTrace {
+        report: LanePlacementReport {
+            lane_axis,
+            grid_axis,
+            item_offsets,
+            content_size,
+        },
         running_positions_after_each_item,
-        content_size,
         final_cursor: cursor,
-    })
+    };
+
+    Ok(trace.into_report())
 }
 
 pub(super) struct GridLanesLayoutInput<'a, Node> {
@@ -845,18 +950,23 @@ where
         {
             LaneIntrinsicItem::nested_indefinite_subgrid(
                 "nested-subgrid",
-                grid_axis_span,
+                LaneTrackSpanLength::new(grid_axis_span)
+                    .unwrap_or_else(|| LaneTrackSpanLength::new(1).expect("one is nonzero")),
                 contribution,
             )
         } else if let Some(start) = definite_grid_axis_start {
             LaneIntrinsicItem::definite(
                 "definite-item",
-                start,
-                start + grid_axis_span,
+                LaneTrackSpan::new(start, start + grid_axis_span),
+                contribution,
+            )?
+        } else {
+            LaneIntrinsicItem::indefinite(
+                "indefinite-item",
+                LaneTrackSpanLength::new(grid_axis_span)
+                    .unwrap_or_else(|| LaneTrackSpanLength::new(1).expect("one is nonzero")),
                 contribution,
             )
-        } else {
-            LaneIntrinsicItem::indefinite("indefinite-item", grid_axis_span, contribution)
         };
         items.push(item);
     }

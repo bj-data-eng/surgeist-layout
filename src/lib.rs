@@ -26,10 +26,10 @@ pub use geometry::{Axis, Edges, Point, Size};
 pub use grid::{
     DefiniteLaneIntrinsicItem, GridAxisKind, GridComputation, GridComputationReport,
     IndefiniteLaneContributionGroup, LaneContributionFacts, LaneIntrinsicItem,
-    LaneIntrinsicSizingInput, LaneIntrinsicSizingReport, LaneItem, LaneItemOffset,
-    LanePlacementError, LanePlacementInput, LanePlacementReport, LaneTrackSpan,
-    NamedGridErrorReport, NamedGridReport, compute_grid, compute_grid_with_report,
-    grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
+    LaneIntrinsicItemKind, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport, LaneItem,
+    LaneItemOffset, LanePlacementError, LanePlacementInput, LanePlacementReport, LaneTrackSpan,
+    LaneTrackSpanLength, NamedGridErrorReport, NamedGridReport, compute_grid,
+    compute_grid_with_report, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
 };
 pub use node_input::{
     AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexWrap, Float,

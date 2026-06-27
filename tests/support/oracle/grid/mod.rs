@@ -42,10 +42,10 @@ pub use contributions::{ContributionSize, ItemContributionFacts, ItemContributio
 pub use lanes::{
     DefiniteLaneIntrinsicItem, GridLanesBaselineInput, GridLanesBaselinePolicyReport,
     GridLanesBaselineReason, IndefiniteLaneContributionGroup, LaneAutoFlow, LaneFlowTolerance,
-    LaneIntrinsicItem, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport, LaneItemInput,
-    LaneItemOffset, LanePlacementInput, LanePlacementReport, grid_axis_for_lanes,
-    grid_lanes_baseline_policy, grid_lanes_container_baselines, lane_axis, lane_intrinsic_sizing,
-    place_lanes,
+    LaneIntrinsicItem, LaneIntrinsicItemKind, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport,
+    LaneItemInput, LaneItemOffset, LanePlacementInput, LanePlacementReport, LaneTrackSpanLength,
+    grid_axis_for_lanes, grid_lanes_baseline_policy, grid_lanes_container_baselines, lane_axis,
+    lane_intrinsic_sizing, place_lanes,
 };
 #[allow(unused_imports)]
 pub use named::{

@@ -23,9 +23,10 @@ use axis::{GridAxisMappingError, GridAxisMappingInput, GridAxisMappingReport, ma
 use child::*;
 pub use lanes::{
     DefiniteLaneIntrinsicItem, IndefiniteLaneContributionGroup, LaneContributionFacts,
-    LaneIntrinsicItem, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport, LaneItem,
-    LaneItemOffset, LanePlacementError, LanePlacementInput, LanePlacementReport, LaneTrackSpan,
-    grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
+    LaneIntrinsicItem, LaneIntrinsicItemKind, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport,
+    LaneItem, LaneItemOffset, LanePlacementError, LanePlacementInput, LanePlacementReport,
+    LaneTrackSpan, LaneTrackSpanLength, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing,
+    place_lanes,
 };
 use lanes::{
     GridLanesLayoutInput, LaneIntrinsicTrackSizeInput, column_flow_for_grid_lanes,
@@ -1458,7 +1459,15 @@ fn merge_lane_intrinsic_lower_bounds(
             // nested grid-lanes subgrid sizing unsupported. Keep that state
             // explicit instead of treating the child as an ordinary lane item.
         }
-        Err(error @ (LanePlacementError::EmptyTrackList | LanePlacementError::SpanOutOfRange)) => {
+        Err(
+            error @ (LanePlacementError::EmptyTrackList
+            | LanePlacementError::InvalidGridAxisStart { .. }
+            | LanePlacementError::InvalidGridAxisSpan { .. }
+            | LanePlacementError::GridAxisSpanOutOfRange { .. }
+            | LanePlacementError::ContentSizedTrackOutOfRange { .. }
+            | LanePlacementError::InvalidDefiniteLaneSpan { .. }
+            | LanePlacementError::DefiniteLaneSpanOutOfRange { .. }),
+        ) => {
             unreachable!("unexpected grid-lanes intrinsic sizing error: {error:?}");
         }
     }
