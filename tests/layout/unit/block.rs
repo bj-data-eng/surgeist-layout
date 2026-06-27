@@ -12,6 +12,8 @@ struct CalcBlockTree {
 
 impl Traverse for CalcBlockTree {
     type Node = u32;
+
+    type Scalar = Scalar;
     type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
     fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -1183,6 +1185,8 @@ fn block_layout_stacks_in_flow_children_vertically() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -1392,6 +1396,8 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -1481,6 +1487,8 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2054,6 +2062,8 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2157,6 +2167,8 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2244,6 +2256,8 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2333,6 +2347,8 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2416,6 +2432,8 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2502,6 +2520,8 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2584,6 +2604,8 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2691,6 +2713,8 @@ fn block_empty_auto_height_can_collapse_through() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2756,6 +2780,8 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2835,6 +2861,8 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -2932,6 +2960,8 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3023,6 +3053,8 @@ fn block_content_size_includes_visible_child_overflow_content() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3106,6 +3138,8 @@ fn block_relative_child_inset_offsets_final_layout_location() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3199,6 +3233,8 @@ fn block_layout_stretches_auto_width_in_flow_children() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3294,6 +3330,8 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3388,6 +3426,8 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3456,6 +3496,8 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3536,6 +3578,8 @@ fn block_auto_height_clamps_to_max_size() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3618,6 +3662,8 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3696,6 +3742,8 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3792,6 +3840,8 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3912,6 +3962,8 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -4010,6 +4062,8 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -4093,6 +4147,8 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -4182,6 +4238,8 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -4271,6 +4329,8 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -4366,6 +4426,8 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -4461,6 +4523,8 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
 
     impl Traverse for BlockTree {
         type Node = u32;
+
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {

@@ -860,6 +860,8 @@ impl FontFamily {
 
 impl layout::Traverse for TestTree {
     type Node = usize;
+
+    type Scalar = Scalar;
     type Children<'a> = std::iter::Copied<std::slice::Iter<'a, usize>>;
 
     fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -933,6 +935,8 @@ impl layout::Round for TestTree {
 
 impl layout::CacheAccess for TestTree {
     type Node = usize;
+
+    type Scalar = Scalar;
 
     fn cache_context(&self) -> layout::CacheKeyContext {
         layout::CacheKeyContext::new(self.calc_resolver().calc_generation())

@@ -669,7 +669,7 @@ pub(super) fn collect_subgrid_report<Tree>(
     parent_style: &NodeInput,
 ) -> GridSubgridReport<<Tree as Traverse>::Node>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let items = tree
         .children(node)
@@ -706,7 +706,7 @@ pub(super) fn collect_grid_subgrid_intrinsic_traversal<Tree>(
     input: GridSubgridIntrinsicTraversalInput<'_, <Tree as Traverse>::Node>,
 ) -> Result<SubgridTraversalReport<<Tree as Traverse>::Node>, SubgridTraversalError>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let root_children = input
         .children
@@ -772,7 +772,7 @@ fn subgrid_traversal_child<Tree>(
     parent_area_facts: Option<&GridAreaNameFacts>,
 ) -> Option<SubgridTraversalChild<<Tree as Traverse>::Node>>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let axis_report = match queried_axis {
         GridAxisKind::Column => item_report.column,
@@ -900,7 +900,7 @@ fn subgrid_traversal_children<Tree>(
     resolver: &dyn CalcResolver,
 ) -> (Vec<SubgridTraversalChild<<Tree as Traverse>::Node>>, bool)
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let parent_context = GridParentContext {
         columns: intrinsic_subgrid_axis_parent_context(

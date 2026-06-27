@@ -75,6 +75,26 @@ fn node_input_and_output_support_f64_scalar_lane() {
 }
 
 #[test]
+fn f32_default_keeps_representative_layout_types_smaller_than_f64_lane() {
+    assert!(
+        std::mem::size_of::<surgeist_layout::ComputeOutput>()
+            < std::mem::size_of::<surgeist_layout::ComputeOutputOf<f64>>()
+    );
+    assert!(
+        std::mem::size_of::<surgeist_layout::NodeOutput>()
+            < std::mem::size_of::<surgeist_layout::NodeOutputOf<f64>>()
+    );
+    assert!(
+        std::mem::size_of::<surgeist_layout::CollapsibleMargin>()
+            < std::mem::size_of::<surgeist_layout::CollapsibleMarginOf<f64>>()
+    );
+    assert!(
+        std::mem::size_of::<surgeist_layout::Cache>()
+            < std::mem::size_of::<surgeist_layout::CacheOf<f64>>()
+    );
+}
+
+#[test]
 fn f64_calc_resolution_preserves_large_coordinate_precision() {
     let mut store = surgeist_layout::LayoutCalcStoreOf::<f64>::new();
     let id = store.push(surgeist_layout::CalcExpressionOf::sum(vec![

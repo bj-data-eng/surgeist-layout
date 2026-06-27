@@ -756,7 +756,7 @@ pub(super) fn resolve_grid_lanes_placement_with_resolved_tracks<Tree>(
     grid_axis_gap: Scalar,
 ) -> Result<LanePlacementReport<<Tree as Traverse>::Node>, LanePlacementError>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let grid_axis = grid_axis_for_grid_lanes(style);
     let lane_axis = lane_axis_for_grid_lanes(style);
@@ -909,7 +909,7 @@ pub(super) fn lane_intrinsic_track_sizes<Tree>(
     input: LaneIntrinsicTrackSizeInput<'_, <Tree as Traverse>::Node>,
 ) -> Result<Vec<Scalar>, LanePlacementError>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let LaneIntrinsicTrackSizeInput {
         constants,
@@ -1005,7 +1005,7 @@ fn lane_child_contribution_facts<Tree>(
     available: Available,
 ) -> LaneContributionFacts
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let min_available = lane_child_intrinsic_available(axis, child_style, available);
     let max_available = lane_child_intrinsic_available(axis, child_style, Available::MAX_CONTENT);
@@ -1085,7 +1085,7 @@ pub(super) fn layout_grid_lanes_children<Tree>(
     input: GridLanesLayoutInput<'_, <Tree as Traverse>::Node>,
 ) -> GridChildrenLayout
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let GridLanesLayoutInput {
         style,
@@ -1517,7 +1517,7 @@ fn measure_lane_axis_margin_box_with_grid_axis<Tree>(
     input: LaneAxisMarginBoxMeasureInput<'_>,
 ) -> Scalar
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let LaneAxisMarginBoxMeasureInput {
         child_style,
@@ -1799,6 +1799,7 @@ mod tests {
 
     impl Traverse for LaneMarginMeasureTree {
         type Node = usize;
+        type Scalar = Scalar;
         type Children<'a> = std::vec::IntoIter<Self::Node>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {

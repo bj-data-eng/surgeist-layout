@@ -16,7 +16,7 @@ pub fn compute_block<Tree>(
     input: ComputeInput,
 ) -> ComputeOutput
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let style = tree.node_input(node).clone();
     let constants = Constants::new(&style, input, tree.calc_resolver());
@@ -128,7 +128,7 @@ fn normal_flow_children_can_establish_baseline<Tree>(
     children: &[<Tree as Traverse>::Node],
 ) -> bool
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     children.iter().copied().any(|child| {
         let style = tree.node_input(child);
@@ -346,7 +346,7 @@ fn layout_in_flow_children<Tree>(
     set_layout: bool,
 ) -> InFlowResult<<Tree as Traverse>::Node>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let node_inner_size = Size::new(inner_width, constants.node_inner_size.height);
     let mut cursor_y = constants.content_box_inset.top;
@@ -684,7 +684,7 @@ fn layout_atomic_inline_run<Tree>(
     context: AtomicInlineRunContext<'_>,
 ) -> InlineRunPlacement<<Tree as Traverse>::Node>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let AtomicInlineRunContext {
         order_start,
@@ -889,7 +889,7 @@ fn layout_floats<Tree>(
     container_size: Size,
     constants: &Constants,
 ) where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let mut float_exclusions = FloatExclusions::new(
         (container_size.width - constants.content_box_inset.horizontal_sum()).max(0.0),
@@ -1190,7 +1190,7 @@ fn layout_absolute_children<Tree>(
     constants: &Constants,
 ) -> Size
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let area_start_x = constants.border.left + constants.scrollbar_gutter.left;
     let max_area_start_x = (container.width - constants.border.right).max(constants.border.left);
@@ -1852,6 +1852,7 @@ mod tests {
 
     impl Traverse for CalcLeafTree {
         type Node = u32;
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {

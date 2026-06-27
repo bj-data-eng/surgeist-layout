@@ -1,4 +1,5 @@
 use super::*;
+use crate::support::oracle_tree::OracleTreeOf;
 
 #[test]
 fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
@@ -13,6 +14,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
 
     impl Traverse for HiddenTree {
         type Node = u32;
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -46,6 +48,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
 
     impl CacheAccess for HiddenTree {
         type Node = u32;
+        type Scalar = Scalar;
 
         fn cache_context(&self) -> surgeist_layout::CacheKeyContext {
             surgeist_layout::CacheKeyContext::static_no_calc()
@@ -108,6 +111,47 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
 }
 
 #[test]
+fn f64_tree_can_run_root_layout_smoke_test() {
+    let mut tree = crate::support::oracle_tree::OracleTreeOf::<f64>::new().style(
+        0,
+        NodeInputOf::<f64> {
+            display: Display::Block,
+            size: Size::new(DimensionOf::px(100.0), DimensionOf::px(50.0)),
+            ..NodeInputOf::<f64>::default()
+        },
+    );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(AvailableOf::definite(100.0), AvailableOf::definite(50.0)),
+    );
+
+    assert_eq!(tree.output(0).size, Size::new(100.0, 50.0));
+}
+
+#[test]
+fn f64_round_layout_preserves_large_coordinates() {
+    let large = 16_777_217.25_f64;
+    let mut tree = OracleTreeOf::<f64>::new()
+        .style(0, NodeInputOf::<f64>::default())
+        .unrounded(
+            0,
+            NodeOutputOf::<f64> {
+                location: Point::new(large, large + 0.5),
+                size: Size::new(10.5, 20.25),
+                ..NodeOutputOf::<f64>::default()
+            },
+        );
+
+    round_layout(&mut tree, 0);
+
+    let final_layout = tree.output(0);
+    assert_eq!(final_layout.location.x, large.round());
+    assert_eq!(final_layout.location.y, (large + 0.5).round());
+}
+
+#[test]
 fn root_layout_stores_child_output_as_root_layout() {
     #[derive(Default)]
     struct RootTree {
@@ -118,6 +162,7 @@ fn root_layout_stores_child_output_as_root_layout() {
 
     impl Traverse for RootTree {
         type Node = u32;
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Empty<u32>;
 
         fn children(&self, _node: Self::Node) -> Self::Children<'_> {
@@ -193,6 +238,7 @@ fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
 
     impl Traverse for RootTree {
         type Node = u32;
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Empty<u32>;
 
         fn children(&self, _node: Self::Node) -> Self::Children<'_> {
@@ -258,6 +304,7 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
 
     impl Traverse for RootTree {
         type Node = u32;
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Empty<u32>;
 
         fn children(&self, _node: Self::Node) -> Self::Children<'_> {
@@ -325,6 +372,7 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
 
     impl Traverse for RootTree {
         type Node = u32;
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Empty<u32>;
 
         fn children(&self, _node: Self::Node) -> Self::Children<'_> {
@@ -405,6 +453,7 @@ fn round_layout_uses_cumulative_viewport_edges() {
 
     impl Traverse for RoundTree {
         type Node = u32;
+        type Scalar = Scalar;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {

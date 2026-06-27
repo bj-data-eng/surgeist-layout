@@ -1,35 +1,41 @@
 use std::collections::HashMap;
 
 use surgeist_layout::{
-    Available, Compute, ComputeInput, ComputeOutput, Display, NodeInput, NodeOutput, RequestedAxis,
-    Round, RunMode, Size, SizingMode, Traverse, compute_block, compute_flex, compute_grid,
+    AvailableOf, CalcResolutionStatus, CalcResolver, Compute, ComputeInputOf, ComputeOutputOf,
+    DefaultScalar, DimensionOf, Display, LayoutCalcStoreOf, LayoutScalar, NodeInput, NodeInputOf,
+    NodeOutput, NodeOutputOf, RequestedAxis, Round, RunMode, Size, SizingMode, Traverse,
+    compute_block, compute_flex, compute_grid,
 };
 
 static DEFAULT_NODE_INPUT: NodeInput = NodeInput::DEFAULT;
 
+pub type OracleTree = OracleTreeOf<DefaultScalar>;
+pub type OracleMeasurement = OracleMeasurementOf<DefaultScalar>;
+
 #[derive(Clone, Debug, Default)]
-pub struct OracleTree {
+pub struct OracleTreeOf<S: LayoutScalar = DefaultScalar> {
     children: HashMap<u32, Vec<u32>>,
-    styles: HashMap<u32, NodeInput>,
-    measurements: HashMap<u32, Vec<OracleMeasurement>>,
-    inputs: HashMap<u32, Vec<ComputeInput>>,
-    layouts: HashMap<u32, NodeOutput>,
-    final_layouts: HashMap<u32, NodeOutput>,
+    styles: HashMap<u32, NodeInputOf<S>>,
+    measurements: HashMap<u32, Vec<OracleMeasurementOf<S>>>,
+    inputs: HashMap<u32, Vec<ComputeInputOf<S>>>,
+    layouts: HashMap<u32, NodeOutputOf<S>>,
+    final_layouts: HashMap<u32, NodeOutputOf<S>>,
+    calcs: LayoutCalcStoreOf<S>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct OracleMeasurement {
+pub struct OracleMeasurementOf<S: LayoutScalar = DefaultScalar> {
     run_mode: Option<RunMode>,
     sizing_mode: Option<SizingMode>,
     axis: Option<RequestedAxis>,
-    known: Option<Size<Option<f32>>>,
-    parent: Option<Size<Option<f32>>>,
-    available: Option<Size<Available>>,
-    output: ComputeOutput,
+    known: Option<Size<Option<S>>>,
+    parent: Option<Size<Option<S>>>,
+    available: Option<Size<AvailableOf<S>>>,
+    output: ComputeOutputOf<S>,
 }
 
-impl OracleMeasurement {
-    pub const fn new(output: ComputeOutput) -> Self {
+impl<S: LayoutScalar> OracleMeasurementOf<S> {
+    pub const fn new(output: ComputeOutputOf<S>) -> Self {
         Self {
             run_mode: None,
             sizing_mode: None,
@@ -56,22 +62,22 @@ impl OracleMeasurement {
         self
     }
 
-    pub const fn known(mut self, known: Size<Option<f32>>) -> Self {
+    pub const fn known(mut self, known: Size<Option<S>>) -> Self {
         self.known = Some(known);
         self
     }
 
-    pub const fn parent(mut self, parent: Size<Option<f32>>) -> Self {
+    pub const fn parent(mut self, parent: Size<Option<S>>) -> Self {
         self.parent = Some(parent);
         self
     }
 
-    pub const fn available(mut self, available: Size<Available>) -> Self {
+    pub const fn available(mut self, available: Size<AvailableOf<S>>) -> Self {
         self.available = Some(available);
         self
     }
 
-    fn matches(self, input: ComputeInput) -> bool {
+    fn matches(self, input: ComputeInputOf<S>) -> bool {
         matches_or_any(self.run_mode, input.run_mode)
             && matches_or_any(self.sizing_mode, input.sizing_mode)
             && matches_or_any(self.axis, input.axis)
@@ -88,7 +94,7 @@ fn matches_or_any<T: Copy + PartialEq>(expected: Option<T>, actual: T) -> bool {
     }
 }
 
-impl OracleTree {
+impl<S: LayoutScalar> OracleTreeOf<S> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -98,40 +104,76 @@ impl OracleTree {
         self
     }
 
-    pub fn style(mut self, node: u32, style: NodeInput) -> Self {
+    pub fn style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
         self.styles.insert(node, style);
         self
     }
 
-    pub fn measure(mut self, node: u32, output: ComputeOutput) -> Self {
+    pub fn measure(mut self, node: u32, output: ComputeOutputOf<S>) -> Self {
         self.measurements
             .entry(node)
             .or_default()
-            .push(OracleMeasurement::new(output));
+            .push(OracleMeasurementOf::new(output));
         self
     }
 
-    pub fn measure_when(mut self, node: u32, measurement: OracleMeasurement) -> Self {
+    pub fn measure_when(mut self, node: u32, measurement: OracleMeasurementOf<S>) -> Self {
         self.measurements.entry(node).or_default().push(measurement);
         self
     }
 
-    pub fn inputs(&self, node: u32) -> &[ComputeInput] {
+    pub fn unrounded(mut self, node: u32, layout: NodeOutputOf<S>) -> Self {
+        self.layouts.insert(node, layout);
+        self
+    }
+
+    pub fn calcs(mut self, calcs: LayoutCalcStoreOf<S>) -> Self {
+        self.calcs = calcs;
+        self
+    }
+
+    pub fn inputs(&self, node: u32) -> &[ComputeInputOf<S>] {
         self.inputs.get(&node).map(Vec::as_slice).unwrap_or(&[])
     }
 
-    pub fn layout(&self, node: u32) -> Option<NodeOutput> {
+    pub fn layout(&self, node: u32) -> Option<NodeOutputOf<S>> {
         self.layouts.get(&node).copied()
     }
 
-    pub fn final_layout(&self, node: u32) -> Option<NodeOutput> {
+    pub fn final_layout(&self, node: u32) -> Option<NodeOutputOf<S>> {
         self.final_layouts.get(&node).copied()
+    }
+
+    pub fn output(&self, node: u32) -> NodeOutputOf<S> {
+        self.final_layout(node)
+            .or_else(|| self.layout(node))
+            .unwrap_or_else(NodeOutputOf::new)
+    }
+
+    fn recorded_measurement(
+        &self,
+        node: u32,
+        input: ComputeInputOf<S>,
+    ) -> Option<ComputeOutputOf<S>> {
+        self.measurements.get(&node).map(|measurements| {
+            for measurement in measurements {
+                if measurement.matches(input) {
+                    return measurement.output;
+                }
+            }
+
+            panic!("no oracle measurement matched node {node} input {input:?}");
+        })
     }
 }
 
-impl Traverse for OracleTree {
+impl<S: LayoutScalar> Traverse for OracleTreeOf<S> {
     type Node = u32;
-    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
 
     fn children(&self, node: Self::Node) -> Self::Children<'_> {
         self.children
@@ -160,17 +202,15 @@ impl Compute for OracleTree {
         self.layouts.insert(node, layout);
     }
 
-    fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<DefaultScalar>,
+    ) -> ComputeOutputOf<DefaultScalar> {
         self.inputs.entry(node).or_default().push(input);
 
-        if let Some(measurements) = self.measurements.get(&node) {
-            for measurement in measurements {
-                if measurement.matches(input) {
-                    return measurement.output;
-                }
-            }
-
-            panic!("no oracle measurement matched node {node} input {input:?}");
+        if let Some(output) = self.recorded_measurement(node, input) {
+            return output;
         }
 
         match self.node_input(node).display.inner_display() {
@@ -179,24 +219,99 @@ impl Compute for OracleTree {
             Display::Grid | Display::GridLanes => compute_grid(self, node, input),
             Display::None => {
                 self.set_unrounded(node, NodeOutput::with_order(0));
-                ComputeOutput::HIDDEN
+                ComputeOutputOf::HIDDEN
             }
             Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                 unreachable!("inner_display removes inline display variants")
             }
         }
     }
+
+    fn calc_resolver(&self) -> &dyn CalcResolver<DefaultScalar> {
+        &self.calcs
+    }
 }
 
-impl Round for OracleTree {
-    fn unrounded(&self, node: Self::Node) -> NodeOutput {
+impl Compute for OracleTreeOf<f64> {
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
+        self.styles
+            .get(&node)
+            .expect("f64 oracle nodes must define a style")
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
+        self.layouts.insert(node, layout);
+    }
+
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<f64>,
+    ) -> ComputeOutputOf<f64> {
+        self.inputs.entry(node).or_default().push(input);
+
+        if let Some(output) = self.recorded_measurement(node, input) {
+            return output;
+        }
+
+        let style = self.node_input(node);
+        if style.display == Display::None {
+            self.set_unrounded(node, NodeOutputOf::with_order(0));
+            return ComputeOutputOf::HIDDEN;
+        }
+
+        if self.child_count(node) != 0 {
+            panic!(
+                "f64 oracle layout support is limited to measured or leaf nodes before algorithm genericization"
+            );
+        }
+
+        let width = input
+            .known
+            .width
+            .or_else(|| resolve_dimension(style.size.width, input.parent.width, &self.calcs));
+        let height = input
+            .known
+            .height
+            .or_else(|| resolve_dimension(style.size.height, input.parent.height, &self.calcs));
+        let size = Size::new(
+            width.unwrap_or_else(|| input.available.width.into_option().unwrap_or(0.0)),
+            height.unwrap_or_else(|| input.available.height.into_option().unwrap_or(0.0)),
+        );
+
+        ComputeOutputOf::from_sizes(size, size)
+    }
+
+    fn calc_resolver(&self) -> &dyn CalcResolver<f64> {
+        &self.calcs
+    }
+}
+
+impl<S: LayoutScalar> Round for OracleTreeOf<S> {
+    fn unrounded(&self, node: Self::Node) -> NodeOutputOf<S> {
         self.layouts
             .get(&node)
             .copied()
-            .unwrap_or_else(NodeOutput::new)
+            .unwrap_or_else(NodeOutputOf::new)
     }
 
-    fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
+    fn set_final(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
         self.final_layouts.insert(node, layout);
+    }
+}
+
+fn resolve_dimension<S: LayoutScalar>(
+    dimension: DimensionOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> Option<S> {
+    let resolution = dimension.resolve_with_status(basis, resolver);
+    match resolution.status() {
+        CalcResolutionStatus::Resolved => resolution.value,
+        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => None,
+        CalcResolutionStatus::MissingResolver => {
+            panic!("calc resolution requires an explicit resolver")
+        }
+        CalcResolutionStatus::MissingExpression => panic!("calc expression is missing"),
     }
 }

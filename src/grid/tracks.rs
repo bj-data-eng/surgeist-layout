@@ -40,7 +40,7 @@ pub(super) fn intrinsic_track_sizes<Tree>(
     lower_bounds: IntrinsicGridLowerBounds<'_>,
 ) -> (Vec<Scalar>, Vec<Scalar>)
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let style = grid.style;
     let constants = grid.constants;
@@ -412,7 +412,7 @@ fn compute_intrinsic_grid_child<Tree>(
     args: IntrinsicGridChildInput<'_, <Tree as Traverse>::Node>,
 ) -> ComputeOutput
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let IntrinsicGridChildInput {
         child_style,
@@ -603,7 +603,7 @@ fn apply_subgrid_intrinsic_contributions<Tree>(
     input: SubgridIntrinsicContributionInput<'_, <Tree as Traverse>::Node>,
 ) -> Vec<<Tree as Traverse>::Node>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     if input.tracks.is_empty() || input.subgrid_report.items.is_empty() {
         return Vec::new();
@@ -848,7 +848,7 @@ pub(super) fn constrained_row_intrinsic_sizes<Tree>(
     gap: Size,
 ) -> Vec<Scalar>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let row_count = grid.row_tracks.len();
     let mut rows: Vec<Scalar> = vec![0.0; row_count];
@@ -1041,7 +1041,7 @@ pub(super) fn constrained_column_intrinsic_sizes<Tree>(
     gap: Size,
 ) -> Vec<Scalar>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let column_count = grid.column_tracks.len();
     let mut column_sizes: Vec<Scalar> = vec![0.0; column_count];
@@ -1131,7 +1131,7 @@ pub(super) fn cyclic_percent_track_content_size<Tree>(
     input: PercentTrackContent<'_, <Tree as Traverse>::Node>,
 ) -> Size
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let PercentTrackContent {
         style,

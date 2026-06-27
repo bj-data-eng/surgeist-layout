@@ -21,7 +21,7 @@ pub type DefaultScalar = f32;
 pub type Scalar = DefaultScalar;
 
 pub use block::compute_block;
-pub use cache::{Cache, CacheKeyContext, ClearState};
+pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
 pub use compute::{compute_hidden, compute_leaf, compute_root, round_layout};
 pub use flex::compute_flex;
 pub use geometry::{Axis, Edges, Point, Size};

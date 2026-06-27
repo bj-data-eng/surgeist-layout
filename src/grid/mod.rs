@@ -91,7 +91,7 @@ pub fn compute_grid<Tree>(
     input: ComputeInput,
 ) -> ComputeOutput
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     compute_grid_with_report(tree, node, input).into_parts().0
 }
@@ -102,7 +102,7 @@ pub fn compute_grid_with_report<Tree>(
     input: ComputeInput,
 ) -> GridComputation
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let result = compute_grid_with_context_result(tree, node, input, GridParentContext::none());
     GridComputation {
@@ -189,7 +189,7 @@ fn compute_grid_with_context<Tree>(
     parent_context: GridParentContext,
 ) -> ComputeOutput
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     compute_grid_with_context_result(tree, node, input, parent_context).output
 }
@@ -201,7 +201,7 @@ fn compute_grid_with_context_result<Tree>(
     parent_context: GridParentContext,
 ) -> GridComputeResult
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let style = tree.node_input(node).clone();
     let constants = Constants::new(&style, input, tree.calc_resolver());
@@ -444,7 +444,7 @@ fn compute_grid_lanes_with_context_result<Tree>(
     constants: Constants,
 ) -> GridComputeResult
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let initialized_tracks = initialize_grid_tracks(
         tree,
@@ -733,7 +733,7 @@ fn initialize_grid_tracks<Tree>(
     _available: Size<Available>,
 ) -> InitializedGridTracks<<Tree as Traverse>::Node>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let resolver = tree.calc_resolver();
     let mut gap = Size::new(
@@ -987,7 +987,7 @@ fn resolve_grid_child_placements<Tree>(
     NamedGridReport,
 )
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let mut report = NamedGridReport::default();
     let mut items = Vec::with_capacity(children.len());
@@ -1154,7 +1154,7 @@ fn resolve_grid_track_sizes<Tree>(
     input: GridTrackResolutionInput<'_, <Tree as Traverse>::Node>,
 ) -> GridTrackResolution
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let GridTrackResolutionInput {
         style,
@@ -1496,7 +1496,7 @@ fn layout_grid_container_children<Tree>(
     input: GridChildLayoutInput<'_, <Tree as Traverse>::Node>,
 ) -> GridChildrenLayout
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let GridChildLayoutInput {
         style,

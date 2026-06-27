@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use crate::support;
 
 use surgeist_layout::{
-    AlignContent, AlignItems, AspectRatio, Available, Axis, BoxSizing, Cache, CacheAccess,
-    ClearState, CollapsibleMargin, Compute, ComputeInput, ComputeOutput, Dimension, Direction,
-    Display, Edges, FlexDirection, FlexWrap, Float, GridAutoFlow, GridFlowTolerance, GridPlacement,
-    Length, LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput, NodeOutput, Overflow, Point,
-    Position, RequestedAxis, Round, RunMode, Scalar, Size, SizingMode, TextAlign, TrackComponent,
-    Traverse, WritingMode, compute_cached, compute_flex, compute_hidden, compute_leaf,
-    compute_root, round_layout,
+    AlignContent, AlignItems, AspectRatio, Available, AvailableOf, Axis, BoxSizing, Cache,
+    CacheAccess, CacheOf, ClearState, CollapsibleMargin, Compute, ComputeInput, ComputeInputOf,
+    ComputeOutput, ComputeOutputOf, Dimension, DimensionOf, Direction, Display, Edges,
+    FlexDirection, FlexWrap, Float, GridAutoFlow, GridFlowTolerance, GridPlacement, Length,
+    LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput, NodeInputOf, NodeOutput, NodeOutputOf,
+    Overflow, Point, Position, RequestedAxis, Round, RunMode, Scalar, Size, SizingMode, TextAlign,
+    TrackComponent, Traverse, WritingMode, compute_cached, compute_flex, compute_hidden,
+    compute_leaf, compute_root, round_layout,
 };
 
 use support::oracle::grid::{

@@ -11,7 +11,7 @@ pub fn compute_flex<Tree>(
     input: ComputeInput,
 ) -> ComputeOutput
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let style = tree.node_input(node).clone();
     let constants = Constants::new(&style, input, tree.calc_resolver());
@@ -318,7 +318,7 @@ fn collect_items<Tree>(
     run_mode: RunMode,
 ) -> Vec<CollectedFlexItem<<Tree as Traverse>::Node>>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let children = tree.children(node).collect::<Vec<_>>();
     let mut items = Vec::with_capacity(children.len());
@@ -344,7 +344,7 @@ fn build_item<Tree>(
     run_mode: RunMode,
 ) -> CollectedFlexItem<<Tree as Traverse>::Node>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let resolver = tree.calc_resolver();
     let padding = style
@@ -620,7 +620,7 @@ fn automatic_min_main_size<Tree>(
     child_known: Size<Option<Scalar>>,
 ) -> Option<Scalar>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let direction = constants.direction;
     if !style.min_size.main(direction).is_auto() || flex_automatic_minimum_is_zero(style.overflow) {
@@ -824,7 +824,7 @@ fn resolve_lines<Tree>(
     constants: &Constants,
 ) -> Vec<ResolvedFlexItem<<Tree as Traverse>::Node>>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let mut resolved_items = items
         .iter()
@@ -966,7 +966,7 @@ fn determine_hypothetical_cross_size<Tree>(
     item: &mut ResolvedFlexItem<<Tree as Traverse>::Node>,
     constants: &Constants,
 ) where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let direction = constants.direction;
     let padding_border_cross = (item.padding + item.border).sum_axes().cross(direction);
@@ -2029,7 +2029,7 @@ fn resolved_layout_constants<Tree>(
     lines: &[FlexLine],
 ) -> Constants
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let original_inner_size = constants.node_inner_size;
     let mut constants = *constants;
@@ -2056,7 +2056,7 @@ fn determine_container_main_size<Tree>(
     items: &mut [CollectedFlexItem<<Tree as Traverse>::Node>],
     lines: &[FlexLine],
 ) where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let direction = constants.direction;
     let Some(outer_main_size) = constants.node_outer_size.main(direction).or_else(|| {
@@ -2138,7 +2138,7 @@ fn intrinsic_container_main_size<Tree>(
     lines: &[FlexLine],
 ) -> Scalar
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     lines
         .iter()
@@ -2164,7 +2164,7 @@ fn intrinsic_item_main_contribution<Tree>(
     item: &CollectedFlexItem<<Tree as Traverse>::Node>,
 ) -> Scalar
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let direction = constants.direction;
     let style_min = item.min_size.main(direction);
@@ -2386,7 +2386,7 @@ fn final_layout<Tree>(
     constants: &Constants,
 ) -> Vec<FinalFlexItem<<Tree as Traverse>::Node>>
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let direction = constants.direction;
     let mut final_items = Vec::with_capacity(items.len());
@@ -2543,7 +2543,7 @@ fn layout_absolute_children<Tree>(
     constants: &Constants,
 ) -> Size
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let children = tree.children(node).collect::<Vec<_>>();
     let mut content_size: Size<Scalar> = Size::ZERO;
@@ -2702,7 +2702,7 @@ where
 
 fn layout_hidden_children<Tree>(tree: &mut Tree, node: <Tree as Traverse>::Node)
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let children = tree.children(node).collect::<Vec<_>>();
     for (order, child) in children.into_iter().enumerate() {

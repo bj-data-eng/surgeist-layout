@@ -161,7 +161,7 @@ pub(super) fn layout_grid_children<Tree>(
     context: GridLayoutContext<'_, <Tree as Traverse>::Node>,
 ) -> GridChildrenLayout
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let GridLayoutContext {
         style,
@@ -563,7 +563,7 @@ fn refresh_subgrid_items_with_baselines<Tree>(
     input: SubgridBaselineRefreshInput<'_, <Tree as Traverse>::Node>,
     pending_items: &mut [PendingGridItem<<Tree as Traverse>::Node>],
 ) where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     for item in pending_items.iter_mut() {
         let Some(subgrid_item) = input.subgrid_report.items.get(item.order as usize).copied()
@@ -1811,7 +1811,7 @@ pub(super) fn layout_absolute_grid_child<Tree>(
     context: AbsoluteGridContext<'_>,
 ) -> Size
 where
-    Tree: Compute,
+    Tree: Compute<Scalar = Scalar>,
 {
     let AbsoluteGridContext {
         container_style,
