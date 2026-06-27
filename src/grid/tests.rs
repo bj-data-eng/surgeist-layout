@@ -52,6 +52,14 @@ fn lane_intrinsic_public_inputs_accept_non_default_scalar() {
 }
 
 #[test]
+fn grid_alignment_accepts_f64_and_preserves_fractional_distribution() {
+    let alignment = grid_alignment::<f64>(9_000_000.75_f64, 3, 0.25_f64, AlignContent::SpaceAround);
+
+    assert_eq!(alignment.start, 1_500_000.125_f64);
+    assert_eq!(alignment.gap, 3_000_000.5_f64);
+}
+
+#[test]
 fn public_grid_placement_rejects_zero_line_and_span() {
     assert_eq!(GridLine::new(0), None);
     assert_eq!(GridSpan::new(0), None);

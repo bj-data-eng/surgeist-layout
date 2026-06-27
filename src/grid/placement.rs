@@ -1,16 +1,16 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct GridArea {
+pub(super) struct GridArea<S: LayoutScalar = Scalar> {
     pub(super) column: usize,
     pub(super) row: usize,
     pub(super) column_end: usize,
     pub(super) row_end: usize,
-    pub(super) size: Size,
+    pub(super) size: Size<S>,
 }
 
-impl GridArea {
-    fn single(column: usize, row: usize, width: Scalar, height: Scalar) -> Self {
+impl<S: LayoutScalar> GridArea<S> {
+    fn single(column: usize, row: usize, width: S, height: S) -> Self {
         Self {
             column,
             row,
@@ -364,20 +364,20 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
     }
 }
 
-pub(super) fn grid_line_offset(
+pub(super) fn grid_line_offset<S: LayoutScalar>(
     line: isize,
-    tracks: &[Scalar],
-    offsets: &[Scalar],
+    tracks: &[S],
+    offsets: &[S],
     is_reverse: bool,
     explicit_start: usize,
     explicit_count: usize,
-    reverse_positive_line_offset_adjustment: Scalar,
-) -> Option<Scalar> {
+    reverse_positive_line_offset_adjustment: S,
+) -> Option<S> {
     let index = grid_line_to_index(line, tracks.len(), explicit_start, explicit_count)?;
     let adjustment = if is_reverse && line > 0 && index > 0 {
         reverse_positive_line_offset_adjustment
     } else {
-        0.0
+        S::ZERO
     };
     if is_reverse {
         if index == 0 && !tracks.is_empty() {
@@ -496,9 +496,11 @@ pub(super) fn grid_line_to_index(
     (index >= 0 && index <= track_count as isize).then_some(index as usize)
 }
 
-pub(super) fn track_span_sum(sizes: &[Scalar], start: usize, end: usize, gap: Scalar) -> Scalar {
+pub(super) fn track_span_sum<S: LayoutScalar>(sizes: &[S], start: usize, end: usize, gap: S) -> S {
     let end = end.clamp(start + 1, sizes.len());
-    track_sum(&sizes[start..end], gap)
+    let tracks = &sizes[start..end];
+    tracks.iter().copied().fold(S::ZERO, |sum, size| sum + size)
+        + gap * S::from_usize(tracks.len().saturating_sub(1))
 }
 
 pub(super) fn next_auto_area(

@@ -16,10 +16,10 @@ pub(super) enum GridAxisMappingError {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct GridAxisMappingInput<'a> {
+pub(super) struct GridAxisMappingInput<'a, S: LayoutScalar = Scalar> {
     pub(super) queried_axis: GridAxisKind,
-    pub(super) parent_style: &'a NodeInput,
-    pub(super) child_style: &'a NodeInput,
+    pub(super) parent_style: &'a NodeInputOf<S>,
+    pub(super) child_style: &'a NodeInputOf<S>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -30,8 +30,8 @@ pub(super) struct GridAxisMappingReport {
     pub(super) reversed: bool,
 }
 
-pub(super) fn map_grid_axis(
-    input: GridAxisMappingInput<'_>,
+pub(super) fn map_grid_axis<S: LayoutScalar>(
+    input: GridAxisMappingInput<'_, S>,
 ) -> Result<GridAxisMappingReport, GridAxisMappingError> {
     let parent_axis = if input.parent_style.writing_mode.is_vertical()
         != input.child_style.writing_mode.is_vertical()
@@ -53,7 +53,7 @@ pub(super) fn map_grid_axis(
     })
 }
 
-const fn axis_flipped(style: &NodeInput, axis: GridAxisKind) -> bool {
+const fn axis_flipped<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> bool {
     match (style.writing_mode, axis) {
         (crate::WritingMode::HorizontalTb, GridAxisKind::Column) => style.direction.is_rtl(),
         (crate::WritingMode::VerticalLr, GridAxisKind::Column)
