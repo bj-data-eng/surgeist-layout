@@ -1,6 +1,21 @@
 use super::Scalar;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AspectRatio(Scalar);
+
+impl AspectRatio {
+    #[must_use]
+    pub fn new(value: Scalar) -> Option<Self> {
+        (value.is_finite() && value > 0.0).then_some(Self(value))
+    }
+
+    #[must_use]
+    pub const fn get(self) -> Scalar {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Available {
     Definite(Scalar),
     MinContent,

@@ -3745,7 +3745,7 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
         NodeInput {
             position: Position::Absolute,
             size: Size::new(Dimension::px(30.0), Dimension::AUTO),
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
     );
@@ -4094,7 +4094,7 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
                 top: LengthAuto::AUTO,
                 bottom: LengthAuto::AUTO,
             },
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
     );
@@ -4434,7 +4434,7 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
             display: Display::Grid,
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
             max_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
     );
@@ -4824,7 +4824,7 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
     tree.styles.insert(
         2,
         NodeInput {
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
     );

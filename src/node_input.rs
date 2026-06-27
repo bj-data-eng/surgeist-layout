@@ -1,5 +1,6 @@
 use super::{
-    Dimension, Edges, GridTemplateAreas, Length, LengthAuto, Point, Scalar, Size, TrackComponent,
+    AspectRatio, Dimension, Edges, GridTemplateAreas, Length, LengthAuto, Point, Scalar, Size,
+    TrackComponent,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -484,7 +485,7 @@ pub struct NodeInput {
     pub size: Size<Dimension>,
     pub min_size: Size<Dimension>,
     pub max_size: Size<Dimension>,
-    pub aspect_ratio: Option<Scalar>,
+    pub aspect_ratio: Option<AspectRatio>,
     pub margin: Edges<LengthAuto>,
     pub padding: Edges<Length>,
     pub border: Edges<Length>,

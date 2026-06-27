@@ -731,7 +731,7 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             flex_basis: Dimension::px(0.0),
             flex_grow: 1.0,
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
-            aspect_ratio: Some(1.0),
+            aspect_ratio: AspectRatio::new(1.0),
             ..NodeInput::default()
         },
     );
@@ -824,7 +824,7 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             flex_basis: Dimension::px(0.0),
             flex_grow: 1.0,
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
-            aspect_ratio: Some(1.0),
+            aspect_ratio: AspectRatio::new(1.0),
             ..NodeInput::default()
         },
     );
@@ -1408,7 +1408,7 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
         NodeInput {
             position: Position::Absolute,
             inset: Edges::all(LengthAuto::percent(0.05)),
-            aspect_ratio: Some(3.0),
+            aspect_ratio: AspectRatio::new(3.0),
             ..NodeInput::default()
         },
     );
@@ -1498,7 +1498,7 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
                 bottom: LengthAuto::AUTO,
             },
             size: Size::new(Dimension::percent(0.4), Dimension::AUTO),
-            aspect_ratio: Some(3.0),
+            aspect_ratio: AspectRatio::new(3.0),
             ..NodeInput::default()
         },
     );
@@ -3564,7 +3564,7 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
         2,
         NodeInput {
             size: Size::new(Dimension::AUTO, Dimension::AUTO),
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             flex_grow: 0.0,
             flex_shrink: 0.0,
             ..NodeInput::default()
@@ -3648,7 +3648,7 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
         NodeInput {
             size: Size::new(Dimension::AUTO, Dimension::AUTO),
             min_size: Size::new(Dimension::AUTO, Dimension::px(40.0)),
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
     );
@@ -3725,7 +3725,7 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
         2,
         NodeInput {
             size: Size::new(Dimension::px(50.0), Dimension::px(100.0)),
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             flex_grow: 0.0,
             flex_shrink: 0.0,
             ..NodeInput::default()

@@ -2,10 +2,11 @@ use super::inline::{
     AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem, layout_atomic_inline_items,
 };
 use super::{
-    Available, Baselines, BoxSizing, CalcResolution, CalcResolutionStatus, CalcResolver, Clear,
-    CollapsibleMargin, Compute, ComputeInput, ComputeOutput, Dimension, Direction, Edges, Float,
-    Length, LengthAuto, NodeInput, NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode,
-    Scalar, Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    AspectRatio, Available, Baselines, BoxSizing, CalcResolution, CalcResolutionStatus,
+    CalcResolver, Clear, CollapsibleMargin, Compute, ComputeInput, ComputeOutput, Dimension,
+    Direction, Edges, Float, Length, LengthAuto, NodeInput, NodeOutput, Overflow, Point, Position,
+    RequestedAxis, RunMode, Scalar, Size, SizingMode, TextAlign, Traverse, VerticalAlign,
+    WritingMode,
 };
 
 pub fn compute_block<Tree>(
@@ -970,7 +971,7 @@ fn in_flow_child_known_size(
     let aspect_height_limit = style
         .aspect_ratio
         .zip(max_size.height)
-        .and_then(|(ratio, height)| max_size.width.is_none().then_some(height * ratio));
+        .and_then(|(ratio, height)| max_size.width.is_none().then_some(height * ratio.get()));
     if let Some(width) = aspect_height_limit {
         max_size.width = Some(width);
     }
@@ -1712,7 +1713,7 @@ trait SizeOptionExt {
     fn unwrap_or(self, fallback: Size) -> Size;
     fn add_optional(self, amount: Size) -> Self;
     fn sub_optional(self, amount: Size) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self;
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self;
     fn clamp_optional(self, min: Self, max: Self) -> Self;
     fn max_optional(self, min: Self) -> Self;
 }
@@ -1743,10 +1744,11 @@ impl SizeOptionExt for Size<Option<Scalar>> {
         )
     }
 
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self {
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self {
         let Some(ratio) = aspect_ratio else {
             return self;
         };
+        let ratio = ratio.get();
         match (self.width, self.height) {
             (Some(width), None) => Size::new(Some(width), Some(width / ratio)),
             (None, Some(height)) => Size::new(Some(height * ratio), Some(height)),

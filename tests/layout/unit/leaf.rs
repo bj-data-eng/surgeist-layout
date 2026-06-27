@@ -90,3 +90,24 @@ fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
     assert_eq!(output.size, Size::new(61.0, 18.0));
     assert_eq!(output.content_size, Size::new(44.0, 16.0));
 }
+
+#[test]
+fn leaf_uses_validated_aspect_ratio() {
+    let input = ComputeInput {
+        run_mode: RunMode::PerformLayout,
+        sizing_mode: SizingMode::InherentSize,
+        axis: RequestedAxis::Both,
+        known: Size::NONE,
+        parent: Size::new(Some(120.0), Some(80.0)),
+        available: Size::new(Available::definite(120.0), Available::MAX_CONTENT),
+    };
+    let style = NodeInput {
+        size: Size::new(Dimension::px(60.0), Dimension::AUTO),
+        aspect_ratio: AspectRatio::new(2.0),
+        ..NodeInput::default()
+    };
+
+    let output = compute_leaf(input, &style, |_known, _available| Size::new(10.0, 10.0));
+
+    assert_eq!(output.size, Size::new(60.0, 30.0));
+}

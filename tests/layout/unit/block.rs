@@ -3652,7 +3652,7 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
         1,
         NodeInput {
             display: Display::Block,
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             max_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
             ..NodeInput::default()
         },
@@ -4055,7 +4055,7 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
         NodeInput {
             display: Display::Block,
             position: Position::Absolute,
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             max_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
             ..NodeInput::default()
         },
@@ -4237,7 +4237,7 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
                 top: LengthAuto::AUTO,
                 bottom: LengthAuto::AUTO,
             },
-            aspect_ratio: Some(2.0),
+            aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
     );

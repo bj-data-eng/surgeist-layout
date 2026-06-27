@@ -1,7 +1,7 @@
 use super::{
     Available, Baselines, CalcExpression, CalcResolutionStatus, CalcResolver, CalcTerm,
     ComputeOutput, Dimension, Display, Edges, LayoutCalcStore, Length, LengthAuto, MaxTrackSizing,
-    MinTrackSizing, NoCalcResolver, Point, Size, TrackSizing,
+    MinTrackSizing, NoCalcResolver, Point, Scalar, Size, TrackSizing,
 };
 
 #[test]
@@ -248,6 +248,15 @@ fn non_numeric_values_report_non_numeric_status() {
             .status(),
         CalcResolutionStatus::NonNumeric
     );
+}
+
+#[test]
+fn aspect_ratio_rejects_non_positive_or_non_finite_values() {
+    assert!(super::AspectRatio::new(1.5).is_some());
+    assert_eq!(super::AspectRatio::new(0.0), None);
+    assert_eq!(super::AspectRatio::new(-1.0), None);
+    assert_eq!(super::AspectRatio::new(Scalar::NAN), None);
+    assert_eq!(super::AspectRatio::new(Scalar::INFINITY), None);
 }
 
 #[test]

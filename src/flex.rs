@@ -1,8 +1,8 @@
 use super::{
-    AlignContent, AlignItems, Available, Baselines, BoxSizing, CalcResolver, Compute, ComputeInput,
-    ComputeOutput, Dimension, Direction, Edges, FlexDirection, Length, LengthAuto, NodeInput,
-    NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size, SizingMode,
-    Traverse,
+    AlignContent, AlignItems, AspectRatio, Available, Baselines, BoxSizing, CalcResolver, Compute,
+    ComputeInput, ComputeOutput, Dimension, Direction, Edges, FlexDirection, Length, LengthAuto,
+    NodeInput, NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size,
+    SizingMode, Traverse,
 };
 
 pub fn compute_flex<Tree>(
@@ -480,6 +480,7 @@ where
         && cross_size_is_auto
         && let Some(ratio) = style.aspect_ratio
     {
+        let ratio = ratio.get();
         let transferred_cross = if direction.is_row() {
             hypothetical_main_size / ratio
         } else {
@@ -1727,8 +1728,9 @@ fn clamp_cross_size<Node>(item: &FlexItem<Node>, value: Scalar) -> Scalar {
 fn main_size_from_cross_aspect(
     direction: FlexDirection,
     cross_size: Scalar,
-    aspect_ratio: Scalar,
+    aspect_ratio: AspectRatio,
 ) -> Scalar {
+    let aspect_ratio = aspect_ratio.get();
     if direction.is_row() {
         cross_size * aspect_ratio
     } else {
@@ -2861,7 +2863,7 @@ trait SizeOptionExt {
     fn unwrap_or(self, fallback: Size) -> Size;
     fn add_optional(self, amount: Size) -> Self;
     fn sub_optional(self, amount: Size) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self;
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self;
     fn clamp_optional(self, min: Self, max: Self) -> Self;
     fn max_optional(self, min: Self) -> Self;
 }
@@ -2892,10 +2894,11 @@ impl SizeOptionExt for Size<Option<Scalar>> {
         )
     }
 
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self {
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self {
         let Some(ratio) = aspect_ratio else {
             return self;
         };
+        let ratio = ratio.get();
         match (self.width, self.height) {
             (Some(width), None) => Size::new(Some(width), Some(width / ratio)),
             (None, Some(height)) => Size::new(Some(height * ratio), Some(height)),

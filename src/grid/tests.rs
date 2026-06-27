@@ -1897,7 +1897,7 @@ fn absolute_grid_axis_area_uses_left_edge_for_definite_rtl_range() {
 fn grid_item_sizing_transfers_min_block_through_aspect_ratio_to_inline_size() {
     let child_style = NodeInput {
         min_size: Size::new(Dimension::AUTO, Dimension::px(50.0)),
-        aspect_ratio: Some(2.0),
+        aspect_ratio: AspectRatio::new(2.0),
         ..NodeInput::default()
     };
 
@@ -1916,7 +1916,7 @@ fn grid_item_sizing_transfers_min_block_through_aspect_ratio_to_inline_size() {
 fn grid_item_sizing_keeps_inline_stretch_when_min_inline_defines_aspect_ratio() {
     let child_style = NodeInput {
         min_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
-        aspect_ratio: Some(2.0),
+        aspect_ratio: AspectRatio::new(2.0),
         ..NodeInput::default()
     };
 

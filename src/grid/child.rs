@@ -1627,7 +1627,7 @@ pub(super) fn grid_item_sizing(
         && height_stretches
         && !child_style.min_size.height.is_auto()
     {
-        Size::new(Some(height * ratio), Some(height))
+        Size::new(Some(height * ratio.get()), Some(height))
     } else {
         Size { width, height }.apply_aspect_ratio(child_style.aspect_ratio)
     }
@@ -1931,11 +1931,11 @@ where
     if let (Some(ratio), Some(width)) = (child_style.aspect_ratio, known.width)
         && child_style.size.height.is_auto()
     {
-        known.height = Some(width / ratio);
+        known.height = Some(width / ratio.get());
     } else if let (Some(ratio), Some(height)) = (child_style.aspect_ratio, known.height)
         && child_style.size.width.is_auto()
     {
-        known.width = Some(height * ratio);
+        known.width = Some(height * ratio.get());
     }
     let known = known
         .apply_aspect_ratio(child_style.aspect_ratio)

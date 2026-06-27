@@ -1,7 +1,7 @@
 use super::{
-    Available, BoxSizing, CacheAccess, CalcResolution, CalcResolutionStatus, CalcResolver, Compute,
-    ComputeInput, ComputeOutput, NoCalcResolver, NodeInput, NodeOutput, Position, Round, RunMode,
-    Scalar, Size, SizingMode, Traverse,
+    AspectRatio, Available, BoxSizing, CacheAccess, CalcResolution, CalcResolutionStatus,
+    CalcResolver, Compute, ComputeInput, ComputeOutput, NoCalcResolver, NodeInput, NodeOutput,
+    Position, Round, RunMode, Scalar, Size, SizingMode, Traverse,
 };
 
 pub fn compute_hidden<Tree>(tree: &mut Tree, node: <Tree as Traverse>::Node) -> ComputeOutput
@@ -334,7 +334,7 @@ pub(crate) fn compute_leaf_with_resolver(
     } else {
         unclamped.height.max(
             aspect_ratio
-                .map(|ratio| unclamped.width / ratio)
+                .map(|ratio| unclamped.width / ratio.get())
                 .unwrap_or(0.0),
         )
     };
@@ -400,7 +400,7 @@ trait SizeOptionExt {
     fn or(self, other: Self) -> Self;
     fn unwrap_or(self, fallback: Size) -> Size;
     fn add_optional(self, amount: Size) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self;
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self;
 }
 
 impl SizeOptionExt for Size<Option<Scalar>> {
@@ -422,10 +422,11 @@ impl SizeOptionExt for Size<Option<Scalar>> {
         )
     }
 
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self {
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self {
         let Some(ratio) = aspect_ratio else {
             return self;
         };
+        let ratio = ratio.get();
         match (self.width, self.height) {
             (Some(width), None) => Size::new(Some(width), Some(width / ratio)),
             (None, Some(height)) => Size::new(Some(height * ratio), Some(height)),

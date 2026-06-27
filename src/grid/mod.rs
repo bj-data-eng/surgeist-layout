@@ -1,9 +1,9 @@
 use super::{
-    AlignContent, AlignItems, Available, Baselines, BoxSizing, CalcResolver, Compute, ComputeInput,
-    ComputeOutput, Dimension, Direction, Display, Edges, GridAutoFlow, GridFlowTolerance,
-    GridPlacement, Length, LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput, NodeOutput,
-    Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size, SizingMode, TrackComponent,
-    TrackRepeat, TrackSizing, Traverse,
+    AlignContent, AlignItems, AspectRatio, Available, Baselines, BoxSizing, CalcResolver, Compute,
+    ComputeInput, ComputeOutput, Dimension, Direction, Display, Edges, GridAutoFlow,
+    GridFlowTolerance, GridPlacement, Length, LengthAuto, MaxTrackSizing, MinTrackSizing,
+    NodeInput, NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size,
+    SizingMode, TrackComponent, TrackRepeat, TrackSizing, Traverse,
 };
 
 mod alignment;
@@ -1846,7 +1846,7 @@ trait SizeOptionExt {
     fn unwrap_or(self, fallback: Size) -> Size;
     fn add_optional(self, amount: Size) -> Self;
     fn sub_optional(self, amount: Size) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self;
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self;
     fn clamp_optional(self, min: Self, max: Self) -> Self;
     fn max_optional(self, other: Self) -> Self;
 }
@@ -1889,10 +1889,12 @@ impl SizeOptionExt for Size<Option<Scalar>> {
         self.zip_map(amount, |value, amount| value.map(|value| value - amount))
     }
 
-    fn apply_aspect_ratio(self, aspect_ratio: Option<Scalar>) -> Self {
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self {
         match (self.width, self.height, aspect_ratio) {
-            (Some(width), None, Some(ratio)) => Size::new(Some(width), Some(width / ratio)),
-            (None, Some(height), Some(ratio)) => Size::new(Some(height * ratio), Some(height)),
+            (Some(width), None, Some(ratio)) => Size::new(Some(width), Some(width / ratio.get())),
+            (None, Some(height), Some(ratio)) => {
+                Size::new(Some(height * ratio.get()), Some(height))
+            }
             _ => self,
         }
     }
