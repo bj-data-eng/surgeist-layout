@@ -201,6 +201,89 @@ fn flex_content_size_includes_visible_child_overflow_content() {
 }
 
 #[test]
+fn flex_final_content_size_uses_rerun_output() {
+    #[derive(Default)]
+    struct FlexTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+        inputs: HashMap<u32, Vec<ComputeInput>>,
+    }
+
+    impl Traverse for FlexTree {
+        type Node = u32;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
+
+    impl Compute for FlexTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            self.inputs.entry(node).or_default().push(input);
+            let size =
+                if input.run_mode == RunMode::PerformLayout && input.known.width == Some(80.0) {
+                    Size::new(80.0, 40.0)
+                } else {
+                    Size::new(20.0, 10.0)
+                };
+            ComputeOutput::from_sizes(size, size)
+        }
+    }
+
+    let mut tree = FlexTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Flex,
+            size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(1, NodeInput::default());
+
+    let output = compute_flex(
+        &mut tree,
+        0,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(80.0), None),
+            available: Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+        },
+    );
+
+    assert!(tree.inputs[&1].iter().any(|input| {
+        input.run_mode == RunMode::ComputeSize && input.known.width == Some(80.0)
+    }));
+    assert!(tree.inputs[&1].iter().any(|input| {
+        input.run_mode == RunMode::PerformLayout && input.known.width == Some(80.0)
+    }));
+    assert_eq!(output.content_size.height, 40.0);
+}
+
+#[test]
 fn flex_relative_child_inset_offsets_final_layout_location() {
     #[derive(Default)]
     struct FlexTree {
