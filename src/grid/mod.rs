@@ -1,9 +1,10 @@
 use super::{
     AlignContent, AlignItems, AspectRatio, Available, Baselines, BoxSizing, CalcResolver, Compute,
-    ComputeInput, ComputeOutput, Dimension, Direction, Display, Edges, GridAutoFlow,
-    GridFlowTolerance, GridPlacement, Length, LengthAuto, MaxTrackSizing, MinTrackSizing,
-    NodeInput, NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size,
-    SizingMode, TrackComponent, TrackRepeat, TrackSizing, Traverse,
+    ComputeInput, ComputeOutput, ComputeOutputOf, DefaultScalar, Dimension, Direction, Display,
+    Edges, GridAutoFlow, GridFlowTolerance, GridPlacement, LayoutScalar, Length, LengthAuto,
+    MaxTrackSizing, MinTrackSizing, NodeInput, NodeOutput, Overflow, Point, Position,
+    RequestedAxis, RunMode, Scalar, Size, SizingMode, TrackComponent, TrackRepeat, TrackSizing,
+    TrackSizingOf, Traverse,
 };
 
 mod alignment;
@@ -22,11 +23,13 @@ pub use axis::GridAxisKind;
 use axis::{GridAxisMappingError, GridAxisMappingInput, GridAxisMappingReport, map_grid_axis};
 use child::*;
 pub use lanes::{
-    DefiniteLaneIntrinsicItem, IndefiniteLaneContributionGroup, LaneContributionFacts,
-    LaneIntrinsicItem, LaneIntrinsicItemKind, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport,
-    LaneItem, LaneItemOffset, LanePlacementError, LanePlacementInput, LanePlacementReport,
-    LaneTrackSpan, LaneTrackSpanLength, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing,
-    place_lanes,
+    DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, IndefiniteLaneContributionGroup,
+    IndefiniteLaneContributionGroupOf, LaneContributionFacts, LaneContributionFactsOf,
+    LaneIntrinsicItem, LaneIntrinsicItemKind, LaneIntrinsicItemOf, LaneIntrinsicSizingInput,
+    LaneIntrinsicSizingInputOf, LaneIntrinsicSizingReport, LaneIntrinsicSizingReportOf, LaneItem,
+    LaneItemOf, LaneItemOffset, LaneItemOffsetOf, LanePlacementError, LanePlacementInput,
+    LanePlacementInputOf, LanePlacementReport, LanePlacementReportOf, LaneTrackSpan,
+    LaneTrackSpanLength, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
 };
 use lanes::{
     GridLanesLayoutInput, LaneIntrinsicTrackSizeInput, column_flow_for_grid_lanes,
@@ -43,13 +46,15 @@ use placement::*;
 use subgrid::*;
 use tracks::*;
 
-pub struct GridComputation {
-    output: ComputeOutput,
+pub struct GridComputationOf<S: LayoutScalar = DefaultScalar> {
+    output: ComputeOutputOf<S>,
     report: GridComputationReport,
 }
 
-impl GridComputation {
-    pub fn output(&self) -> &ComputeOutput {
+pub type GridComputation = GridComputationOf<DefaultScalar>;
+
+impl<S: LayoutScalar> GridComputationOf<S> {
+    pub fn output(&self) -> &ComputeOutputOf<S> {
         &self.output
     }
 
@@ -57,7 +62,7 @@ impl GridComputation {
         &self.report
     }
 
-    pub fn into_parts(self) -> (ComputeOutput, GridComputationReport) {
+    pub fn into_parts(self) -> (ComputeOutputOf<S>, GridComputationReport) {
         (self.output, self.report)
     }
 }

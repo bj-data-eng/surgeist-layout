@@ -26,10 +26,13 @@ pub use compute::{compute_hidden, compute_leaf, compute_root, round_layout};
 pub use flex::compute_flex;
 pub use geometry::{Axis, Edges, Point, Size};
 pub use grid::{
-    DefiniteLaneIntrinsicItem, GridAxisKind, GridComputation, GridComputationReport,
-    IndefiniteLaneContributionGroup, LaneContributionFacts, LaneIntrinsicItem,
-    LaneIntrinsicItemKind, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport, LaneItem,
-    LaneItemOffset, LanePlacementError, LanePlacementInput, LanePlacementReport, LaneTrackSpan,
+    DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, GridAxisKind, GridComputation,
+    GridComputationOf, GridComputationReport, IndefiniteLaneContributionGroup,
+    IndefiniteLaneContributionGroupOf, LaneContributionFacts, LaneContributionFactsOf,
+    LaneIntrinsicItem, LaneIntrinsicItemKind, LaneIntrinsicItemOf, LaneIntrinsicSizingInput,
+    LaneIntrinsicSizingInputOf, LaneIntrinsicSizingReport, LaneIntrinsicSizingReportOf, LaneItem,
+    LaneItemOf, LaneItemOffset, LaneItemOffsetOf, LanePlacementError, LanePlacementInput,
+    LanePlacementInputOf, LanePlacementReport, LanePlacementReportOf, LaneTrackSpan,
     LaneTrackSpanLength, NamedGridErrorReport, NamedGridReport, compute_grid,
     compute_grid_with_report, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
 };

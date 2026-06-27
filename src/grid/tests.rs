@@ -1,14 +1,54 @@
 use super::*;
 use crate::{
-    Baselines, CalcExpression, CalcTerm, GridLine, GridSpan, LayoutCalcStore, NoCalcResolver,
-    RawGridLine, RawGridPlacement, SubgridLineNameComponent, SubgridLineNameRepeatCount,
-    SubgridTrack, TrackRepetition, WritingMode,
+    Baselines, CalcExpression, CalcTerm, GridFlowToleranceOf, GridLine, GridSpan, LayoutCalcStore,
+    NoCalcResolver, RawGridLine, RawGridPlacement, SubgridLineNameComponent,
+    SubgridLineNameRepeatCount, SubgridTrack, TrackRepetition, TrackSizingOf, WritingMode,
 };
 
 fn subgrid_track() -> Vec<TrackComponent> {
     vec![TrackComponent::Subgrid(SubgridTrack {
         name_components: Vec::new(),
     })]
+}
+
+#[test]
+fn lane_intrinsic_public_inputs_accept_non_default_scalar() {
+    let facts = LaneContributionFactsOf::<f64> {
+        min_content: 1.25_f64,
+        max_content: 2.5_f64,
+        min_size: 0.75_f64,
+        automatic_minimum_applies: true,
+    };
+    let item = LaneIntrinsicItemOf::<f64>::indefinite(
+        "wide",
+        LaneTrackSpanLength::new(2).expect("span should be nonzero"),
+        facts,
+    );
+    let input = LaneIntrinsicSizingInputOf::<f64> {
+        axis: GridAxisKind::Column,
+        available: Some(10.5_f64),
+        gap: 1.5_f64,
+        tracks: vec![TrackSizingOf::<f64>::AUTO],
+        content_sized_tracks: vec![0],
+        items: vec![item],
+    };
+
+    assert_eq!(input.gap, 1.5_f64);
+    assert_eq!(input.items[0].contribution().max_content, 2.5_f64);
+
+    let placement_input = LanePlacementInputOf::<_, f64> {
+        grid_axis_tracks: 1,
+        auto_flow: GridAutoFlow::Row,
+        lane_gap: 1.5_f64,
+        tolerance: GridFlowToleranceOf::Percent(0.25_f64),
+        tolerance_basis: 10.5_f64,
+        items: Vec::<LaneItemOf<&str, f64>>::new(),
+    };
+
+    assert_eq!(
+        placement_input.tolerance,
+        GridFlowToleranceOf::Percent(0.25_f64)
+    );
 }
 
 #[test]

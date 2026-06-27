@@ -1,51 +1,61 @@
 use super::*;
-use crate::NoCalcResolver;
+use crate::{GridFlowToleranceOf, NoCalcResolver};
 use std::num::NonZeroUsize;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct LanePlacementInput<Item> {
+pub struct LanePlacementInputOf<Item, S: LayoutScalar = DefaultScalar> {
     pub grid_axis_tracks: usize,
     pub auto_flow: GridAutoFlow,
-    pub lane_gap: Scalar,
-    pub tolerance: GridFlowTolerance,
-    pub tolerance_basis: Scalar,
-    pub items: Vec<LaneItem<Item>>,
+    pub lane_gap: S,
+    pub tolerance: GridFlowToleranceOf<S>,
+    pub tolerance_basis: S,
+    pub items: Vec<LaneItemOf<Item, S>>,
 }
 
+pub type LanePlacementInput<Item> = LanePlacementInputOf<Item, DefaultScalar>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub struct LaneItem<Item> {
+pub struct LaneItemOf<Item, S: LayoutScalar = DefaultScalar> {
     pub item: Item,
     pub grid_axis_span: usize,
     pub definite_grid_axis_start: Option<usize>,
-    pub lane_axis_margin_box: Scalar,
+    pub lane_axis_margin_box: S,
 }
 
+pub type LaneItem<Item> = LaneItemOf<Item, DefaultScalar>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub struct LaneItemOffset<Item> {
+pub struct LaneItemOffsetOf<Item, S: LayoutScalar = DefaultScalar> {
     pub item: Item,
     pub grid_axis_start: usize,
     pub grid_axis_span: usize,
-    pub offset: Scalar,
-    pub lane_axis_margin_box: Scalar,
+    pub offset: S,
+    pub lane_axis_margin_box: S,
 }
 
+pub type LaneItemOffset<Item> = LaneItemOffsetOf<Item, DefaultScalar>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub struct LanePlacementReport<Item> {
+pub struct LanePlacementReportOf<Item, S: LayoutScalar = DefaultScalar> {
     pub lane_axis: GridAxisKind,
     pub grid_axis: GridAxisKind,
-    pub item_offsets: Vec<LaneItemOffset<Item>>,
-    pub content_size: Scalar,
+    pub item_offsets: Vec<LaneItemOffsetOf<Item, S>>,
+    pub content_size: S,
 }
 
+pub type LanePlacementReport<Item> = LanePlacementReportOf<Item, DefaultScalar>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct LanePlacementTrace<Item> {
-    pub(super) report: LanePlacementReport<Item>,
-    pub(super) running_positions_after_each_item: Vec<Vec<Scalar>>,
+pub(super) struct LanePlacementTraceOf<Item, S: LayoutScalar = DefaultScalar> {
+    pub(super) report: LanePlacementReportOf<Item, S>,
+    pub(super) running_positions_after_each_item: Vec<Vec<S>>,
     pub(super) final_cursor: usize,
 }
 
-impl<Item> LanePlacementTrace<Item> {
-    fn into_report(self) -> LanePlacementReport<Item> {
+pub(super) type LanePlacementTrace<Item> = LanePlacementTraceOf<Item, DefaultScalar>;
+
+impl<Item, S: LayoutScalar> LanePlacementTraceOf<Item, S> {
+    fn into_report(self) -> LanePlacementReportOf<Item, S> {
         self.report
     }
 }
@@ -79,21 +89,23 @@ pub enum LanePlacementError {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LaneContributionFacts {
-    pub min_content: Scalar,
-    pub max_content: Scalar,
-    pub min_size: Scalar,
+pub struct LaneContributionFactsOf<S: LayoutScalar = DefaultScalar> {
+    pub min_content: S,
+    pub max_content: S,
+    pub min_size: S,
     pub automatic_minimum_applies: bool,
 }
 
-impl LaneContributionFacts {
-    fn contributions(self) -> LaneContributions {
+pub type LaneContributionFacts = LaneContributionFactsOf<DefaultScalar>;
+
+impl<S: LayoutScalar> LaneContributionFactsOf<S> {
+    fn contributions(self) -> LaneContributionsOf<S> {
         let minimum = if self.automatic_minimum_applies {
             self.min_content
         } else {
             self.min_size
         };
-        LaneContributions {
+        LaneContributionsOf {
             minimum,
             min_content: self.min_content,
             max_content: self.max_content,
@@ -102,11 +114,13 @@ impl LaneContributionFacts {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct LaneContributions {
-    minimum: Scalar,
-    min_content: Scalar,
-    max_content: Scalar,
+struct LaneContributionsOf<S: LayoutScalar = DefaultScalar> {
+    minimum: S,
+    min_content: S,
+    max_content: S,
 }
+
+type LaneContributions = LaneContributionsOf<DefaultScalar>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LaneTrackSpan {
@@ -148,21 +162,25 @@ impl LaneTrackSpanLength {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct LaneIntrinsicSizingInput {
+pub struct LaneIntrinsicSizingInputOf<S: LayoutScalar = DefaultScalar> {
     pub axis: GridAxisKind,
-    pub available: Option<Scalar>,
-    pub gap: Scalar,
-    pub tracks: Vec<TrackSizing>,
+    pub available: Option<S>,
+    pub gap: S,
+    pub tracks: Vec<TrackSizingOf<S>>,
     pub content_sized_tracks: Vec<usize>,
-    pub items: Vec<LaneIntrinsicItem>,
+    pub items: Vec<LaneIntrinsicItemOf<S>>,
 }
 
+pub type LaneIntrinsicSizingInput = LaneIntrinsicSizingInputOf<DefaultScalar>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub struct LaneIntrinsicItem {
+pub struct LaneIntrinsicItemOf<S: LayoutScalar = DefaultScalar> {
     id: &'static str,
     kind: LaneIntrinsicItemKind,
-    contribution: LaneContributionFacts,
+    contribution: LaneContributionFactsOf<S>,
 }
+
+pub type LaneIntrinsicItem = LaneIntrinsicItemOf<DefaultScalar>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LaneIntrinsicItemKind {
@@ -171,11 +189,11 @@ pub enum LaneIntrinsicItemKind {
     NestedIndefiniteSubgrid { span: LaneTrackSpanLength },
 }
 
-impl LaneIntrinsicItem {
+impl<S: LayoutScalar> LaneIntrinsicItemOf<S> {
     pub fn definite(
         id: &'static str,
         span: LaneTrackSpan,
-        contribution: LaneContributionFacts,
+        contribution: LaneContributionFactsOf<S>,
     ) -> Result<Self, LanePlacementError> {
         if span.len().is_none() {
             return Err(LanePlacementError::InvalidDefiniteLaneSpan { span });
@@ -191,7 +209,7 @@ impl LaneIntrinsicItem {
     pub const fn indefinite(
         id: &'static str,
         span: LaneTrackSpanLength,
-        contribution: LaneContributionFacts,
+        contribution: LaneContributionFactsOf<S>,
     ) -> Self {
         Self {
             id,
@@ -204,7 +222,7 @@ impl LaneIntrinsicItem {
     pub const fn nested_indefinite_subgrid(
         id: &'static str,
         span: LaneTrackSpanLength,
-        contribution: LaneContributionFacts,
+        contribution: LaneContributionFactsOf<S>,
     ) -> Self {
         Self {
             id,
@@ -224,34 +242,40 @@ impl LaneIntrinsicItem {
     }
 
     #[must_use]
-    pub const fn contribution(&self) -> LaneContributionFacts {
+    pub const fn contribution(&self) -> LaneContributionFactsOf<S> {
         self.contribution
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DefiniteLaneIntrinsicItem {
+pub struct DefiniteLaneIntrinsicItemOf<S: LayoutScalar = DefaultScalar> {
     pub id: &'static str,
     pub span: LaneTrackSpan,
-    pub contribution: LaneContributionFacts,
+    pub contribution: LaneContributionFactsOf<S>,
 }
 
+pub type DefiniteLaneIntrinsicItem = DefiniteLaneIntrinsicItemOf<DefaultScalar>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub struct IndefiniteLaneContributionGroup {
+pub struct IndefiniteLaneContributionGroupOf<S: LayoutScalar = DefaultScalar> {
     pub span: usize,
-    pub max_min_content: Scalar,
-    pub max_max_content: Scalar,
-    pub max_min_size: Scalar,
+    pub max_min_content: S,
+    pub max_max_content: S,
+    pub max_min_size: S,
     pub item_ids: Vec<&'static str>,
 }
 
+pub type IndefiniteLaneContributionGroup = IndefiniteLaneContributionGroupOf<DefaultScalar>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub struct LaneIntrinsicSizingReport {
-    pub definite_items: Vec<DefiniteLaneIntrinsicItem>,
-    pub indefinite_groups: Vec<IndefiniteLaneContributionGroup>,
-    pub converted_indefinite_items: Vec<DefiniteLaneIntrinsicItem>,
-    pub final_track_sizes: Vec<Scalar>,
+pub struct LaneIntrinsicSizingReportOf<S: LayoutScalar = DefaultScalar> {
+    pub definite_items: Vec<DefiniteLaneIntrinsicItemOf<S>>,
+    pub indefinite_groups: Vec<IndefiniteLaneContributionGroupOf<S>>,
+    pub converted_indefinite_items: Vec<DefiniteLaneIntrinsicItemOf<S>>,
+    pub final_track_sizes: Vec<S>,
 }
+
+pub type LaneIntrinsicSizingReport = LaneIntrinsicSizingReportOf<DefaultScalar>;
 
 #[must_use]
 pub const fn lane_axis(auto_flow: GridAutoFlow) -> GridAxisKind {
