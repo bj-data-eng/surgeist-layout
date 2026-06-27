@@ -6,9 +6,12 @@ pub enum GridAxisKind {
     Row,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum GridAxisMappingError {
+    #[expect(
+        dead_code,
+        reason = "reserved for staged vertical writing-mode grid axis validation parity"
+    )]
     VerticalWritingModeUnsupported,
 }
 

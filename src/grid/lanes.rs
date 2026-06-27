@@ -740,7 +740,10 @@ fn lane_track_minimum_size(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "lane placement resolution keeps explicit grid layout phase inputs separate"
+)]
 pub(super) fn resolve_grid_lanes_placement_with_resolved_tracks<Tree>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,

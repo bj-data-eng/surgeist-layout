@@ -48,14 +48,12 @@ pub(super) enum SubgridIneligibleReason {
     ParentIsLanesInResolvedAxis,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct GridTrackSpan {
     pub(super) start: usize,
     pub(super) end: usize,
 }
 
-#[allow(dead_code)]
 impl GridTrackSpan {
     pub(super) const fn new(start: usize, end: usize) -> Self {
         Self { start, end }
@@ -68,10 +66,16 @@ impl GridTrackSpan {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum IntrinsicMinTrackFacts<'a> {
     Known(&'a [bool]),
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "retained missing-facts state for subgrid traversal error parity"
+        )
+    )]
     Unknown,
 }
 
@@ -410,14 +414,12 @@ where
     context.line_offset + context.line_direction * line as isize
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum ResolvedSubgridGap {
     Normal,
     Length(Scalar),
 }
 
-#[allow(dead_code)]
 impl ResolvedSubgridGap {
     const fn resolve(self, parent_gap: Scalar) -> Scalar {
         match self {
@@ -427,7 +429,6 @@ impl ResolvedSubgridGap {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub(super) struct SubgridTrackInheritanceInput<'a> {
     pub(super) parent_tracks: &'a [Scalar],
@@ -439,7 +440,6 @@ pub(super) struct SubgridTrackInheritanceInput<'a> {
     pub(super) subgrid_gap: ResolvedSubgridGap,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct SubgridTrackInheritanceReport {
     pub(super) parent_span: GridTrackSpan,
@@ -455,7 +455,6 @@ pub(super) struct SubgridTrackInheritanceReport {
     pub(super) final_tracks: Vec<Scalar>,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub(super) struct SubgridBaselineInheritanceInput<'a> {
     pub(super) parent_major: &'a [Option<Scalar>],
@@ -468,7 +467,6 @@ pub(super) struct SubgridBaselineInheritanceInput<'a> {
     pub(super) subgrid_gap: Scalar,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct SubgridBaselineInheritanceReport {
     pub(super) parent_span: GridTrackSpan,
@@ -488,14 +486,12 @@ pub(super) struct SubgridBaselineInheritanceReport {
     pub(super) final_minor: Vec<Option<Scalar>>,
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum SubgridTrackInheritanceError {
     EmptyTrackList,
     SpanOutOfRange,
 }
 
-#[allow(dead_code)]
 pub(super) fn inherit_subgrid_baselines(
     input: SubgridBaselineInheritanceInput<'_>,
 ) -> Result<SubgridBaselineInheritanceReport, SubgridTrackInheritanceError> {
@@ -561,7 +557,6 @@ pub(super) fn inherit_subgrid_baselines(
     })
 }
 
-#[allow(dead_code)]
 pub(super) fn inherit_subgrid_tracks(
     input: SubgridTrackInheritanceInput<'_>,
 ) -> Result<SubgridTrackInheritanceReport, SubgridTrackInheritanceError> {
@@ -622,7 +617,6 @@ pub(super) fn inherit_subgrid_tracks(
     })
 }
 
-#[allow(dead_code)]
 fn subtract_internal_gap_difference(groups: &mut [Option<Scalar>], gap_difference: Scalar) {
     if groups.len() < 2 {
         return;
@@ -638,14 +632,12 @@ fn subtract_internal_gap_difference(groups: &mut [Option<Scalar>], gap_differenc
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy)]
 enum TrackSpaceEdge {
     Start,
     End,
 }
 
-#[allow(dead_code)]
 fn consume_track_space(tracks: &mut [Scalar], mut amount: Scalar, edge: TrackSpaceEdge) {
     match edge {
         TrackSpaceEdge::Start => {
@@ -762,7 +754,10 @@ where
     })
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "subgrid traversal child creation carries explicit grid layout phase inputs"
+)]
 fn subgrid_traversal_child<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
@@ -886,7 +881,10 @@ where
     }))
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "subgrid traversal recursion preserves retained report and oracle parity inputs"
+)]
 fn subgrid_traversal_children<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,

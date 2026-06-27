@@ -113,7 +113,6 @@ pub(super) fn baseline_shim_for_intrinsic_contribution(
     }
 }
 
-#[allow(dead_code)]
 pub(super) fn baseline_offset(
     group_kind: BaselineGroupKind,
     shared_baseline: Scalar,

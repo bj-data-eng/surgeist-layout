@@ -84,7 +84,6 @@ pub(super) struct LineNameEntry {
 pub(super) enum LineNameOrigin {
     Explicit,
     AreaGenerated,
-    #[allow(dead_code)]
     LocalSubgrid,
 }
 
@@ -941,14 +940,19 @@ struct AreaAccumulator {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-#[allow(dead_code)]
 pub(super) struct GridNamedContext {
     pub(super) columns: NamedGridLines,
     pub(super) rows: NamedGridLines,
     pub(super) area_facts: Option<GridAreaNameFacts>,
 }
 
-#[allow(dead_code)]
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "retained unit-test entry point for named-grid report parity scaffolding"
+    )
+)]
 pub(super) fn build_grid_named_context(
     style: &NodeInput,
     explicit_columns: usize,
