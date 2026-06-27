@@ -254,16 +254,22 @@ impl Compute for OracleTreeOf<f64> {
             return output;
         }
 
+        match self.node_input(node).display.inner_display() {
+            Display::Block => return compute_block(self, node, input),
+            Display::Flex => return compute_flex(self, node, input),
+            Display::Grid | Display::GridLanes => {
+                panic!("f64 oracle grid support is reserved for Task 7")
+            }
+            Display::None => {}
+            Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
+                unreachable!("inner_display removes inline display variants")
+            }
+        }
+
         let style = self.node_input(node);
         if style.display == Display::None {
             self.set_unrounded(node, NodeOutputOf::with_order(0));
             return ComputeOutputOf::HIDDEN;
-        }
-
-        if self.child_count(node) != 0 {
-            panic!(
-                "f64 oracle layout support is limited to measured or leaf nodes before algorithm genericization"
-            );
         }
 
         let width = input

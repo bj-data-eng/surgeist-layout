@@ -122,6 +122,60 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
 }
 
 #[test]
+fn f64_flex_layout_preserves_fractional_growth() {
+    let container_width = 16_777_217.75;
+    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+        .children(0, [1, 2])
+        .style(
+            0,
+            NodeInputOf::<f64> {
+                display: Display::Flex,
+                size: Size::new(DimensionOf::px(container_width), DimensionOf::AUTO),
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                flex_grow: 1.0,
+                size: Size::new(DimensionOf::px(20.125), DimensionOf::px(10.0)),
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                flex_grow: 3.0,
+                size: Size::new(DimensionOf::px(20.125), DimensionOf::px(10.0)),
+                ..NodeInputOf::<f64>::default()
+            },
+        );
+
+    let output = compute_flex(
+        &mut tree,
+        0,
+        ComputeInputOf::<f64> {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(container_width), None),
+            available: Size::new(
+                AvailableOf::definite(container_width),
+                AvailableOf::MAX_CONTENT,
+            ),
+        },
+    );
+
+    assert_eq!(output.size, Size::new(container_width, 10.0));
+    assert_eq!(tree.output(1).size.width, 4_194_314.5);
+    assert_eq!(tree.output(2).size.width, 12_582_903.25);
+    assert_eq!(tree.output(2).location.x, 4_194_314.5);
+}
+
+#[test]
 fn flex_content_size_includes_visible_child_overflow_content() {
     #[derive(Default)]
     struct FlexTree {

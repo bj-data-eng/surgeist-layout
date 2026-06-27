@@ -1,22 +1,34 @@
 use super::inline::{
     AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem, layout_atomic_inline_items,
 };
-use super::value::{CalcUnresolvedReason, ResolvedLengthAuto};
+use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
-    AspectRatio, Available, Baselines, BoxSizing, CalcResolution, CalcResolutionStatus,
-    CalcResolver, Clear, CollapsibleMargin, Compute, ComputeInput, ComputeOutput, Dimension,
-    Direction, Edges, Float, Length, LengthAuto, NodeInput, NodeOutput, Overflow, Point, Position,
-    RequestedAxis, RunMode, Scalar, Size, SizingMode, TextAlign, Traverse, VerticalAlign,
-    WritingMode,
+    AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, CalcResolutionOf, CalcResolutionStatus,
+    CalcResolver, Clear, CollapsibleMarginOf, Compute, ComputeInputOf, ComputeOutputOf,
+    DimensionOf, Direction, Edges, Float, LayoutScalar, LengthAutoOf, LengthOf, NodeInputOf,
+    NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, TextAlign,
+    Traverse, VerticalAlign, WritingMode,
 };
 
 pub fn compute_block<Tree>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    input: ComputeInput,
-) -> ComputeOutput
+    input: ComputeInputOf<Tree::Scalar>,
+) -> ComputeOutputOf<Tree::Scalar>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
+{
+    compute_block_inner::<Tree, Tree::Scalar>(tree, node, input)
+}
+
+fn compute_block_inner<Tree, S>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<S>,
+) -> ComputeOutputOf<S>
+where
+    Tree: Compute<Scalar = S>,
+    S: LayoutScalar,
 {
     let style = tree.node_input(node).clone();
     let constants = Constants::new(&style, input, tree.calc_resolver());
@@ -29,7 +41,7 @@ where
             height: Some(height),
         } = constants.node_outer_size
     {
-        return ComputeOutput::from_outer_size(Size::new(width, height));
+        return ComputeOutputOf::<S>::from_outer_size(Size::new(width, height));
     }
     if input.run_mode == RunMode::ComputeSize
         && let Size {
@@ -38,7 +50,7 @@ where
         } = constants.node_outer_size
         && !normal_flow_children_can_establish_baseline(tree, &children)
     {
-        return ComputeOutput::from_outer_size(Size::new(width, height));
+        return ComputeOutputOf::<S>::from_outer_size(Size::new(width, height));
     }
 
     let intrinsic_pass = layout_in_flow_children(
@@ -68,7 +80,7 @@ where
     let final_pass =
         if input.run_mode.is_perform_layout() && constants.node_inner_size.width.is_none() {
             let inner_width =
-                (output_size.width - constants.content_box_inset.horizontal_sum()).max(0.0);
+                (output_size.width - constants.content_box_inset.horizontal_sum()).max(S::ZERO);
             layout_in_flow_children(tree, &children, &constants, input, Some(inner_width), true)
         } else {
             intrinsic_pass
@@ -93,8 +105,11 @@ where
         constants.can_collapse_through && final_pass.all_in_flow_children_can_collapse_through;
 
     if input.run_mode == RunMode::ComputeSize {
-        let mut output =
-            ComputeOutput::from_sizes_and_baselines(output_size, Size::ZERO, final_pass.baselines);
+        let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
+            output_size,
+            Size::ZERO,
+            final_pass.baselines,
+        );
         output.top_margin = top_margin;
         output.bottom_margin = bottom_margin;
         output.margins_can_collapse_through = margins_can_collapse_through;
@@ -111,7 +126,7 @@ where
                 &constants,
             ),
         );
-        let mut output = ComputeOutput::from_sizes_and_baselines(
+        let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
             output_size,
             content_size,
             final_pass.baselines,
@@ -128,7 +143,7 @@ fn normal_flow_children_can_establish_baseline<Tree>(
     children: &[<Tree as Traverse>::Node],
 ) -> bool
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     children.iter().copied().any(|child| {
         let style = tree.node_input(child);
@@ -145,48 +160,48 @@ where
     })
 }
 
-struct PendingFloat<Node> {
+struct PendingFloat<Node, S: LayoutScalar> {
     node: Node,
     order: u32,
     side: Float,
     clear: Clear,
-    y: Scalar,
-    size: Size,
-    content_size: Size,
-    scrollbar_size: Size,
-    border: Edges,
-    padding: Edges,
-    margin: Edges,
+    y: S,
+    size: Size<S>,
+    content_size: Size<S>,
+    scrollbar_size: Size<S>,
+    border: Edges<S>,
+    padding: Edges<S>,
+    margin: Edges<S>,
 }
 
 #[derive(Clone, Copy, Debug)]
-struct ActiveFloat {
+struct ActiveFloat<S: LayoutScalar> {
     side: Float,
-    x: Scalar,
-    y: Scalar,
-    width: Scalar,
-    height: Scalar,
+    x: S,
+    y: S,
+    width: S,
+    height: S,
 }
 
-impl ActiveFloat {
-    fn bottom(self) -> Scalar {
+impl<S: LayoutScalar> ActiveFloat<S> {
+    fn bottom(self) -> S {
         self.y + self.height
     }
 
-    fn overlaps_y(self, y: Scalar) -> bool {
+    fn overlaps_y(self, y: S) -> bool {
         y >= self.y && y < self.bottom()
     }
 }
 
 #[derive(Clone, Debug)]
-struct FloatExclusions {
-    content_width: Scalar,
-    inset: Edges,
-    active: Vec<ActiveFloat>,
+struct FloatExclusions<S: LayoutScalar> {
+    content_width: S,
+    inset: Edges<S>,
+    active: Vec<ActiveFloat<S>>,
 }
 
-impl FloatExclusions {
-    fn new(content_width: Scalar, inset: Edges) -> Self {
+impl<S: LayoutScalar> FloatExclusions<S> {
+    fn new(content_width: S, inset: Edges<S>) -> Self {
         Self {
             content_width,
             inset,
@@ -194,13 +209,13 @@ impl FloatExclusions {
         }
     }
 
-    fn place_float<Node>(&mut self, float: &PendingFloat<Node>, y: Scalar) -> Point {
+    fn place_float<Node>(&mut self, float: &PendingFloat<Node, S>, y: S) -> Point<S> {
         let margin_box = float.size + float.margin.sum_axes();
         let mut candidate_y = self.clearance_y(y, float.clear);
 
         loop {
             let (left_edge, right_edge, next_y) = self.available_band(candidate_y);
-            let available_width = (right_edge - left_edge).max(0.0);
+            let available_width = (right_edge - left_edge).max(S::ZERO);
             if margin_box.width <= available_width || next_y.is_none() {
                 let location = match float.side {
                     Float::Left | Float::None => Point::new(
@@ -227,19 +242,19 @@ impl FloatExclusions {
 
     fn place_bfc_block(
         &self,
-        y: Scalar,
-        size: Size,
-        margin: Edges,
+        y: S,
+        size: Size<S>,
+        margin: Edges<S>,
         clear: Clear,
-        fallback_x: Scalar,
-    ) -> Point {
+        fallback_x: S,
+    ) -> Point<S> {
         let mut candidate_y = self.clearance_y(y, clear);
         loop {
             let (left_edge, right_edge, next_y) = self.available_band(candidate_y);
             let margin_box_width = size.width + margin.horizontal_sum();
             let fallback_left = fallback_x - margin.left;
             let fallback_right = fallback_x + size.width + margin.right;
-            if margin_box_width <= (right_edge - left_edge).max(0.0) {
+            if margin_box_width <= (right_edge - left_edge).max(S::ZERO) {
                 if fallback_left >= left_edge && fallback_right <= right_edge {
                     return Point::new(fallback_x, candidate_y);
                 }
@@ -253,7 +268,7 @@ impl FloatExclusions {
         }
     }
 
-    fn clearance_y(&self, y: Scalar, clear: Clear) -> Scalar {
+    fn clearance_y(&self, y: S, clear: Clear) -> S {
         let clears_left = matches!(clear, Clear::Left | Clear::Both);
         let clears_right = matches!(clear, Clear::Right | Clear::Both);
         if !clears_left && !clears_right {
@@ -268,10 +283,10 @@ impl FloatExclusions {
                     || (clears_right && float.side == Float::Right)
             })
             .map(ActiveFloat::bottom)
-            .fold(y, Scalar::max)
+            .fold(y, S::max)
     }
 
-    fn available_band(&self, y: Scalar) -> (Scalar, Scalar, Option<Scalar>) {
+    fn available_band(&self, y: S) -> (S, S, Option<S>) {
         let mut left_edge = self.inset.left;
         let mut right_edge = self.inset.left + self.content_width;
         let mut next_y = None;
@@ -287,29 +302,27 @@ impl FloatExclusions {
                 Float::Right => right_edge = right_edge.min(float.x),
                 Float::None => {}
             }
-            next_y = Some(next_y.map_or(float.bottom(), |current: Scalar| {
-                current.min(float.bottom())
-            }));
+            next_y = Some(next_y.map_or(float.bottom(), |current: S| current.min(float.bottom())));
         }
 
         (left_edge, right_edge, next_y)
     }
 }
 
-struct InFlowResult<Node> {
-    content_size: Size,
-    baselines: Baselines,
-    static_positions: Vec<(Node, Point)>,
-    pending_floats: Vec<PendingFloat<Node>>,
-    cursor_y: Scalar,
-    top_margin: CollapsibleMargin,
-    active_margin: CollapsibleMargin,
+struct InFlowResult<Node, S: LayoutScalar> {
+    content_size: Size<S>,
+    baselines: BaselinesOf<S>,
+    static_positions: Vec<(Node, Point<S>)>,
+    pending_floats: Vec<PendingFloat<Node, S>>,
+    cursor_y: S,
+    top_margin: CollapsibleMarginOf<S>,
+    active_margin: CollapsibleMarginOf<S>,
     active_margin_can_collapse_with_parent: bool,
     all_in_flow_children_can_collapse_through: bool,
 }
 
-impl<Node> InFlowResult<Node> {
-    fn top_margin(&self, constants: &Constants) -> CollapsibleMargin {
+impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
+    fn top_margin(&self, constants: &Constants<S>) -> CollapsibleMarginOf<S> {
         if constants.collapse_top_margin {
             self.top_margin
         } else {
@@ -317,7 +330,7 @@ impl<Node> InFlowResult<Node> {
         }
     }
 
-    fn bottom_margin(&self, constants: &Constants) -> CollapsibleMargin {
+    fn bottom_margin(&self, constants: &Constants<S>) -> CollapsibleMarginOf<S> {
         if constants.collapse_bottom_margin && self.active_margin_can_collapse_with_parent {
             self.active_margin
         } else {
@@ -325,10 +338,10 @@ impl<Node> InFlowResult<Node> {
         }
     }
 
-    fn auto_height(&self, constants: &Constants) -> Scalar {
+    fn auto_height(&self, constants: &Constants<S>) -> S {
         let bottom_margin_offset =
             if constants.collapse_bottom_margin && self.active_margin_can_collapse_with_parent {
-                0.0
+                S::ZERO
             } else {
                 self.active_margin.resolve()
             };
@@ -337,37 +350,38 @@ impl<Node> InFlowResult<Node> {
     }
 }
 
-fn layout_in_flow_children<Tree>(
+fn layout_in_flow_children<Tree, S>(
     tree: &mut Tree,
     children: &[<Tree as Traverse>::Node],
-    constants: &Constants,
-    input: ComputeInput,
-    inner_width: Option<Scalar>,
+    constants: &Constants<S>,
+    input: ComputeInputOf<S>,
+    inner_width: Option<S>,
     set_layout: bool,
-) -> InFlowResult<<Tree as Traverse>::Node>
+) -> InFlowResult<<Tree as Traverse>::Node, S>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute<Scalar = S>,
+    S: LayoutScalar,
 {
     let node_inner_size = Size::new(inner_width, constants.node_inner_size.height);
     let mut cursor_y = constants.content_box_inset.top;
-    let mut content_size: Size<Scalar> = Size::ZERO;
+    let mut content_size: Size<S> = Size::ZERO;
     let mut first_baseline = None;
     let mut last_baseline = None;
     let mut static_positions = Vec::new();
-    let mut active_margin = CollapsibleMargin::ZERO;
-    let mut top_margin = CollapsibleMargin::ZERO;
+    let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
+    let mut top_margin = CollapsibleMarginOf::<S>::ZERO;
     let mut is_collapsing_first_margin = constants.collapse_top_margin;
     let mut all_in_flow_children_can_collapse_through = true;
     let mut active_margin_can_collapse_with_parent = constants.collapse_top_margin;
     let mut pending_floats = Vec::new();
     let mut float_intrinsics = FloatIntrinsics::new(
         inner_width
-            .map(Available::definite)
+            .map(AvailableOf::<S>::definite)
             .unwrap_or(input.available.width),
     );
     let content_width = inner_width
         .or(input.available.width.into_option())
-        .unwrap_or(0.0);
+        .unwrap_or(S::ZERO);
     let mut float_exclusions = FloatExclusions::new(content_width, constants.content_box_inset);
 
     let mut index = 0;
@@ -377,8 +391,8 @@ where
         let child_style = tree.node_input(child).clone();
         if child_style.display == super::Display::None {
             if set_layout {
-                tree.set_unrounded(child, NodeOutput::with_order(order as u32));
-                tree.compute_child(child, ComputeInput::HIDDEN);
+                tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order as u32));
+                tree.compute_child(child, ComputeInputOf::<S>::HIDDEN);
             }
             index += 1;
             continue;
@@ -413,7 +427,7 @@ where
             }
 
             let collapsed_margin = active_margin.resolve();
-            cursor_y += collapsed_margin;
+            cursor_y = cursor_y + collapsed_margin;
             if is_collapsing_first_margin {
                 is_collapsing_first_margin = false;
             }
@@ -440,8 +454,8 @@ where
             if let Some(baseline) = placement.last_baseline {
                 last_baseline = Some(cursor_y + baseline);
             }
-            cursor_y += placement.size.height;
-            active_margin = CollapsibleMargin::ZERO;
+            cursor_y = cursor_y + placement.size.height;
+            active_margin = CollapsibleMarginOf::<S>::ZERO;
             active_margin_can_collapse_with_parent = false;
             all_in_flow_children_can_collapse_through = false;
             continue;
@@ -466,7 +480,7 @@ where
         let available_child_width = node_inner_size
             .width
             .or(input.available.width.into_option())
-            .map(|width| (width - child_non_auto_margin.horizontal_sum()).max(0.0));
+            .map(|width| (width - child_non_auto_margin.horizontal_sum()).max(S::ZERO));
         let child_known = in_flow_child_known_size(
             &child_style,
             child_padding + child_border,
@@ -476,7 +490,7 @@ where
         );
         let output = tree.compute_child(
             child,
-            ComputeInput {
+            ComputeInputOf::<S> {
                 run_mode: input.run_mode.for_child(),
                 sizing_mode: SizingMode::InherentSize,
                 axis: RequestedAxis::Both,
@@ -488,7 +502,7 @@ where
                         available_child_width,
                         input.available.width,
                     ),
-                    Available::MAX_CONTENT,
+                    AvailableOf::<S>::MAX_CONTENT,
                 ),
             },
         );
@@ -531,7 +545,7 @@ where
         }
         let inset_offset = relative_inset_offset(
             child_style.inset.zip_size(
-                Size::new(node_inner_size.width, Some(0.0)),
+                Size::new(node_inner_size.width, Some(S::ZERO)),
                 |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
             ),
             constants.direction,
@@ -556,7 +570,7 @@ where
         } else {
             active_margin.collapse_with(top_margin_set).resolve()
         };
-        cursor_y += collapsed_margin;
+        cursor_y = cursor_y + collapsed_margin;
         let layout_constants = if inner_width.is_some() {
             constants.with_inner_width(inner_width)
         } else {
@@ -588,7 +602,7 @@ where
         if set_layout {
             tree.set_unrounded(
                 child,
-                NodeOutput {
+                NodeOutputOf::<S> {
                     order: order as u32,
                     location,
                     size: output.size,
@@ -647,7 +661,7 @@ where
 
     InFlowResult {
         content_size,
-        baselines: Baselines {
+        baselines: BaselinesOf::<S> {
             first: Point::new(None, first_baseline),
             last: Point::new(None, last_baseline),
         },
@@ -661,30 +675,31 @@ where
     }
 }
 
-struct InlineRunPlacement<Node> {
-    size: Size,
-    content_size: Size,
-    static_positions: Vec<(Node, Point)>,
-    first_baseline: Option<Scalar>,
-    last_baseline: Option<Scalar>,
+struct InlineRunPlacement<Node, S: LayoutScalar> {
+    size: Size<S>,
+    content_size: Size<S>,
+    static_positions: Vec<(Node, Point<S>)>,
+    first_baseline: Option<S>,
+    last_baseline: Option<S>,
 }
 
-struct AtomicInlineRunContext<'a> {
+struct AtomicInlineRunContext<'a, S: LayoutScalar> {
     order_start: u32,
-    cursor_y: Scalar,
-    constants: &'a Constants,
-    input: ComputeInput,
-    node_inner_size: Size<Option<Scalar>>,
+    cursor_y: S,
+    constants: &'a Constants<S>,
+    input: ComputeInputOf<S>,
+    node_inner_size: Size<Option<S>>,
     set_layout: bool,
 }
 
-fn layout_atomic_inline_run<Tree>(
+fn layout_atomic_inline_run<Tree, S>(
     tree: &mut Tree,
     run: &[<Tree as Traverse>::Node],
-    context: AtomicInlineRunContext<'_>,
-) -> InlineRunPlacement<<Tree as Traverse>::Node>
+    context: AtomicInlineRunContext<'_, S>,
+) -> InlineRunPlacement<<Tree as Traverse>::Node, S>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute<Scalar = S>,
+    S: LayoutScalar,
 {
     let AtomicInlineRunContext {
         order_start,
@@ -701,8 +716,11 @@ where
         let child_style = tree.node_input(child).clone();
         if child_style.display == super::Display::None {
             if set_layout {
-                tree.set_unrounded(child, NodeOutput::with_order(order_start + offset as u32));
-                tree.compute_child(child, ComputeInput::HIDDEN);
+                tree.set_unrounded(
+                    child,
+                    NodeOutputOf::<S>::with_order(order_start + offset as u32),
+                );
+                tree.compute_child(child, ComputeInputOf::<S>::HIDDEN);
             }
             continue;
         }
@@ -722,7 +740,7 @@ where
             });
         let output = tree.compute_child(
             child,
-            ComputeInput {
+            ComputeInputOf::<S> {
                 run_mode: input.run_mode.for_child(),
                 sizing_mode: SizingMode::InherentSize,
                 axis: RequestedAxis::Both,
@@ -731,9 +749,9 @@ where
                 available: Size::new(
                     node_inner_size
                         .width
-                        .map(Available::definite)
+                        .map(AvailableOf::<S>::definite)
                         .unwrap_or(input.available.width),
-                    Available::MAX_CONTENT,
+                    AvailableOf::<S>::MAX_CONTENT,
                 ),
             },
         );
@@ -753,7 +771,7 @@ where
             border: child_border,
             scrollbar_size: child_scrollbar_size(&child_style),
             first_baseline: if child_style.vertical_align == VerticalAlign::Top {
-                Some(0.0)
+                Some(S::ZERO)
             } else {
                 output.last_baselines.y.or(output.first_baselines.y)
             },
@@ -765,7 +783,7 @@ where
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: node_inner_size
             .width
-            .map(Available::definite)
+            .map(AvailableOf::<S>::definite)
             .unwrap_or(input.available.width),
         writing_mode: constants.writing_mode,
         items,
@@ -782,7 +800,7 @@ where
     {
         let inset_offset = relative_inset_offset(
             child_style.inset.zip_size(
-                Size::new(node_inner_size.width, Some(0.0)),
+                Size::new(node_inner_size.width, Some(S::ZERO)),
                 |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
             ),
             constants.direction,
@@ -808,7 +826,7 @@ where
         if set_layout {
             let inset_offset = relative_inset_offset(
                 child_style.inset.zip_size(
-                    Size::new(node_inner_size.width, Some(0.0)),
+                    Size::new(node_inner_size.width, Some(S::ZERO)),
                     |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
                 ),
                 constants.direction,
@@ -816,7 +834,7 @@ where
 
             tree.set_unrounded(
                 *child,
-                NodeOutput {
+                NodeOutputOf::<S> {
                     order: item.order,
                     location: Point::new(
                         constants.content_box_inset.left + run_offset + item_x + inset_offset.x,
@@ -842,11 +860,11 @@ where
     }
 }
 
-fn inline_run_offset(
-    run_width: Scalar,
-    constants: &Constants,
-    resolved_inner_width: Option<Scalar>,
-) -> Scalar {
+fn inline_run_offset<S: LayoutScalar>(
+    run_width: S,
+    constants: &Constants<S>,
+    resolved_inner_width: Option<S>,
+) -> S {
     let container_inner_width = constants
         .node_inner_size
         .width
@@ -858,24 +876,24 @@ fn inline_run_offset(
                 .map(|width| width - constants.content_box_inset.horizontal_sum())
         })
         .unwrap_or(run_width);
-    let free_space = (container_inner_width - run_width).max(0.0);
+    let free_space = (container_inner_width - run_width).max(S::ZERO);
     match (constants.text_align, constants.direction) {
         (TextAlign::Auto, Direction::Ltr)
         | (TextAlign::LegacyLeft, Direction::Ltr)
-        | (TextAlign::LegacyLeft, Direction::Rtl) => 0.0,
+        | (TextAlign::LegacyLeft, Direction::Rtl) => S::ZERO,
         (TextAlign::Auto, Direction::Rtl)
         | (TextAlign::LegacyRight, Direction::Ltr)
         | (TextAlign::LegacyRight, Direction::Rtl) => free_space,
-        (TextAlign::LegacyCenter, _) => free_space / 2.0,
+        (TextAlign::LegacyCenter, _) => free_space / S::from_f64(2.0),
     }
 }
 
-fn inline_item_x(
-    item: AtomicInlineLayoutItem,
-    run_width: Scalar,
+fn inline_item_x<S: LayoutScalar>(
+    item: AtomicInlineLayoutItem<S>,
+    run_width: S,
     direction: Direction,
     writing_mode: WritingMode,
-) -> Scalar {
+) -> S {
     if direction == Direction::Rtl && writing_mode == WritingMode::HorizontalTb {
         run_width - item.location.x - item.size.width
     } else {
@@ -883,16 +901,17 @@ fn inline_item_x(
     }
 }
 
-fn layout_floats<Tree>(
+fn layout_floats<Tree, S>(
     tree: &mut Tree,
-    floats: &[PendingFloat<<Tree as Traverse>::Node>],
-    container_size: Size,
-    constants: &Constants,
+    floats: &[PendingFloat<<Tree as Traverse>::Node, S>],
+    container_size: Size<S>,
+    constants: &Constants<S>,
 ) where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute<Scalar = S>,
+    S: LayoutScalar,
 {
     let mut float_exclusions = FloatExclusions::new(
-        (container_size.width - constants.content_box_inset.horizontal_sum()).max(0.0),
+        (container_size.width - constants.content_box_inset.horizontal_sum()).max(S::ZERO),
         constants.content_box_inset,
     );
 
@@ -900,7 +919,7 @@ fn layout_floats<Tree>(
         let location = float_exclusions.place_float(float, float.y);
         tree.set_unrounded(
             float.node,
-            NodeOutput {
+            NodeOutputOf::<S> {
                 order: float.order,
                 location,
                 size: float.size,
@@ -914,43 +933,43 @@ fn layout_floats<Tree>(
     }
 }
 
-struct FloatIntrinsics {
-    available_width: Available,
-    contribution: Scalar,
+struct FloatIntrinsics<S: LayoutScalar> {
+    available_width: AvailableOf<S>,
+    contribution: S,
 }
 
-impl FloatIntrinsics {
-    const fn new(available_width: Available) -> Self {
+impl<S: LayoutScalar> FloatIntrinsics<S> {
+    const fn new(available_width: AvailableOf<S>) -> Self {
         Self {
             available_width,
-            contribution: 0.0,
+            contribution: S::ZERO,
         }
     }
 
-    fn add(&mut self, width: Scalar, _float: Float, _clear: Clear) {
+    fn add(&mut self, width: S, _float: Float, _clear: Clear) {
         match self.available_width {
-            Available::Definite(_) => {}
-            Available::MinContent => self.contribution = self.contribution.max(width),
-            Available::MaxContent => self.contribution += width,
+            AvailableOf::<S>::Definite(_) => {}
+            AvailableOf::<S>::MinContent => self.contribution = self.contribution.max(width),
+            AvailableOf::<S>::MaxContent => self.contribution = self.contribution + width,
         }
     }
 
-    const fn result(&self) -> Scalar {
+    const fn result(&self) -> S {
         self.contribution
     }
 }
 
-fn child_margin_can_collapse_with_parent(style: &NodeInput) -> bool {
+fn child_margin_can_collapse_with_parent<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
     style.display == super::Display::Block && style.position == Position::Relative
 }
 
-fn in_flow_child_known_size(
-    style: &NodeInput,
-    padding_border: Edges,
-    parent: Size<Option<Scalar>>,
-    available_width: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Size<Option<Scalar>> {
+fn in_flow_child_known_size<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    padding_border: Edges<S>,
+    parent: Size<Option<S>>,
+    available_width: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> Size<Option<S>> {
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border.sum_axes()
     } else {
@@ -1002,57 +1021,62 @@ fn in_flow_child_known_size(
     known
 }
 
-fn in_flow_child_available_width(
-    style: &NodeInput,
-    available_width: Option<Scalar>,
-    fallback: Available,
-) -> Available {
+fn in_flow_child_available_width<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    available_width: Option<S>,
+    fallback: AvailableOf<S>,
+) -> AvailableOf<S> {
     if style.size.width.is_min_content() {
-        Available::MIN_CONTENT
+        AvailableOf::<S>::MIN_CONTENT
     } else if style.size.width.is_max_content() {
-        Available::MAX_CONTENT
+        AvailableOf::<S>::MAX_CONTENT
     } else {
-        available_width.map(Available::definite).unwrap_or(fallback)
+        available_width
+            .map(AvailableOf::<S>::definite)
+            .unwrap_or(fallback)
     }
 }
 
-fn relative_inset_offset(inset: Edges<Option<Scalar>>, direction: Direction) -> Point {
+fn relative_inset_offset<S: LayoutScalar>(
+    inset: Edges<Option<S>>,
+    direction: Direction,
+) -> Point<S> {
     Point::new(
         if direction == Direction::Rtl {
             inset
                 .right
                 .map(|right| -right)
                 .or(inset.left)
-                .unwrap_or(0.0)
+                .unwrap_or(S::ZERO)
         } else {
             inset
                 .left
                 .or_else(|| inset.right.map(|right| -right))
-                .unwrap_or(0.0)
+                .unwrap_or(S::ZERO)
         },
         inset
             .top
             .or_else(|| inset.bottom.map(|bottom| -bottom))
-            .unwrap_or(0.0),
+            .unwrap_or(S::ZERO),
     )
 }
 
-fn resolve_in_flow_margin(
-    margin: Edges<ResolvedLengthAuto>,
-    child_size: Size,
-    container_width: Option<Scalar>,
-) -> Edges {
+fn resolve_in_flow_margin<S: LayoutScalar>(
+    margin: Edges<ResolvedLengthAutoOf<S>>,
+    child_size: Size<S>,
+    container_width: Option<S>,
+) -> Edges<S> {
     let non_auto_horizontal = resolved_length_auto_fallback_zero(margin.left)
         + resolved_length_auto_fallback_zero(margin.right);
-    let auto_count = usize::from(matches!(margin.left, ResolvedLengthAuto::Auto))
-        + usize::from(matches!(margin.right, ResolvedLengthAuto::Auto));
+    let auto_count = usize::from(matches!(margin.left, ResolvedLengthAutoOf::Auto))
+        + usize::from(matches!(margin.right, ResolvedLengthAutoOf::Auto));
     let auto_horizontal = if auto_count == 0 {
-        0.0
+        S::ZERO
     } else {
         container_width
-            .map(|width| (width - child_size.width - non_auto_horizontal).max(0.0))
-            .unwrap_or(0.0)
-            / auto_count as Scalar
+            .map(|width| (width - child_size.width - non_auto_horizontal).max(S::ZERO))
+            .unwrap_or(S::ZERO)
+            / S::from_usize(auto_count)
     };
 
     Edges {
@@ -1063,31 +1087,35 @@ fn resolve_in_flow_margin(
     }
 }
 
-fn resolved_length_auto_or(value: ResolvedLengthAuto, auto_fallback: Scalar) -> Scalar {
+fn resolved_length_auto_or<S: LayoutScalar>(value: ResolvedLengthAutoOf<S>, auto_fallback: S) -> S {
     match value {
-        ResolvedLengthAuto::Auto => auto_fallback,
-        ResolvedLengthAuto::Resolved(value) => value,
+        ResolvedLengthAutoOf::Auto => auto_fallback,
+        ResolvedLengthAutoOf::Resolved(value) => value,
         // Missing-basis symbolic margins keep the algorithm's historical
         // unresolved-as-zero fallback and do not participate in auto distribution.
-        ResolvedLengthAuto::Unresolved(CalcUnresolvedReason::Basis) => 0.0,
-        ResolvedLengthAuto::Unresolved(CalcUnresolvedReason::Resolver) => {
+        ResolvedLengthAutoOf::Unresolved(CalcUnresolvedReason::Basis) => S::ZERO,
+        ResolvedLengthAutoOf::Unresolved(CalcUnresolvedReason::Resolver) => {
             panic!("calc resolution requires an explicit resolver")
         }
-        ResolvedLengthAuto::Unresolved(CalcUnresolvedReason::Expression) => {
+        ResolvedLengthAutoOf::Unresolved(CalcUnresolvedReason::Expression) => {
             panic!("calc expression is missing")
         }
     }
 }
 
-fn resolved_length_auto_fallback_zero(value: ResolvedLengthAuto) -> Scalar {
-    resolved_length_auto_or(value, 0.0)
+fn resolved_length_auto_fallback_zero<S: LayoutScalar>(value: ResolvedLengthAutoOf<S>) -> S {
+    resolved_length_auto_or(value, S::ZERO)
 }
 
-fn resolve_atomic_inline_margin(margin: Edges<Option<Scalar>>) -> Edges {
-    margin.map(|value| value.unwrap_or(0.0))
+fn resolve_atomic_inline_margin<S: LayoutScalar>(margin: Edges<Option<S>>) -> Edges<S> {
+    margin.map(|value| value.unwrap_or(S::ZERO))
 }
 
-fn in_flow_child_x(size: Size, margin: Edges, constants: &Constants) -> Scalar {
+fn in_flow_child_x<S: LayoutScalar>(
+    size: Size<S>,
+    margin: Edges<S>,
+    constants: &Constants<S>,
+) -> S {
     let mut x = if constants.direction == Direction::Rtl {
         let container = constants.node_outer_size.unwrap_or(
             constants
@@ -1117,16 +1145,16 @@ fn in_flow_child_x(size: Size, margin: Edges, constants: &Constants) -> Scalar {
             | (TextAlign::LegacyLeft, Direction::Ltr)
             | (TextAlign::LegacyRight, Direction::Rtl) => {}
             (TextAlign::LegacyLeft, Direction::Rtl) | (TextAlign::LegacyCenter, Direction::Rtl) => {
-                x -= if constants.text_align == TextAlign::LegacyCenter {
-                    free_space / 2.0
+                x = x - if constants.text_align == TextAlign::LegacyCenter {
+                    free_space / S::from_f64(2.0)
                 } else {
                     free_space
                 };
             }
             (TextAlign::LegacyRight, Direction::Ltr)
             | (TextAlign::LegacyCenter, Direction::Ltr) => {
-                x += if constants.text_align == TextAlign::LegacyCenter {
-                    free_space / 2.0
+                x = x + if constants.text_align == TextAlign::LegacyCenter {
+                    free_space / S::from_f64(2.0)
                 } else {
                     free_space
                 };
@@ -1137,7 +1165,7 @@ fn in_flow_child_x(size: Size, margin: Edges, constants: &Constants) -> Scalar {
     x
 }
 
-fn absolute_static_position(cursor_y: Scalar, constants: &Constants) -> Point {
+fn absolute_static_position<S: LayoutScalar>(cursor_y: S, constants: &Constants<S>) -> Point<S> {
     let container = constants
         .node_outer_size
         .unwrap_or(constants.node_inner_size.unwrap_or(Size::ZERO));
@@ -1149,12 +1177,12 @@ fn absolute_static_position(cursor_y: Scalar, constants: &Constants) -> Point {
     Point::new(x, cursor_y)
 }
 
-fn content_size_contribution(
-    location: Point,
-    size: Size,
-    content_size: Size,
+fn content_size_contribution<S: LayoutScalar>(
+    location: Point<S>,
+    size: Size<S>,
+    content_size: Size<S>,
     overflow: Point<Overflow>,
-) -> Size {
+) -> Size<S> {
     let contribution_size = Size::new(
         if overflow.x == Overflow::Visible {
             size.width.max(content_size.width)
@@ -1167,30 +1195,31 @@ fn content_size_contribution(
             size.height
         },
     );
-    if contribution_size.width <= 0.0 || contribution_size.height <= 0.0 {
+    if contribution_size.width <= S::ZERO || contribution_size.height <= S::ZERO {
         return Size::ZERO;
     }
 
-    let max_x = (location.x + contribution_size.width).max(0.0);
-    let min_x = location.x.min(0.0);
-    let max_y = (location.y + contribution_size.height).max(0.0);
-    let min_y = location.y.min(0.0);
+    let max_x = (location.x + contribution_size.width).max(S::ZERO);
+    let min_x = location.x.min(S::ZERO);
+    let max_y = (location.y + contribution_size.height).max(S::ZERO);
+    let min_y = location.y.min(S::ZERO);
     Size::new(max_x - min_x, max_y - min_y)
 }
 
-fn max_content_size(a: Size, b: Size) -> Size {
+fn max_content_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
     Size::new(a.width.max(b.width), a.height.max(b.height))
 }
 
-fn layout_absolute_children<Tree>(
+fn layout_absolute_children<Tree, S>(
     tree: &mut Tree,
     children: &[<Tree as Traverse>::Node],
-    static_positions: &[(<Tree as Traverse>::Node, Point)],
-    container: Size,
-    constants: &Constants,
-) -> Size
+    static_positions: &[(<Tree as Traverse>::Node, Point<S>)],
+    container: Size<S>,
+    constants: &Constants<S>,
+) -> Size<S>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute<Scalar = S>,
+    S: LayoutScalar,
 {
     let area_start_x = constants.border.left + constants.scrollbar_gutter.left;
     let max_area_start_x = (container.width - constants.border.right).max(constants.border.left);
@@ -1199,15 +1228,15 @@ where
         (container.width
             - constants.border.horizontal_sum()
             - constants.scrollbar_gutter.horizontal_sum())
-        .max(0.0),
+        .max(S::ZERO),
         (container.height
             - constants.border.vertical_sum()
             - constants.scrollbar_gutter.vertical_sum())
-        .max(0.0),
+        .max(S::ZERO),
     );
     let available = Size::new(
-        Available::definite(area_size.width),
-        Available::definite(area_size.height),
+        AvailableOf::<S>::definite(area_size.width),
+        AvailableOf::<S>::definite(area_size.height),
     );
 
     let mut absolute_content_size = Size::ZERO;
@@ -1232,7 +1261,7 @@ where
             .zip_inline_size(area_size.map(Some), |length, basis| {
                 resolve_auto_optional_with(length, basis, tree.calc_resolver())
             });
-        let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+        let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
         let padding_border = padding + border;
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
             padding_border.sum_axes()
@@ -1283,7 +1312,7 @@ where
         {
             known_size.width = Some(
                 (area_size.width - non_auto_margin.horizontal_sum() - left - right)
-                    .max(0.0)
+                    .max(S::ZERO)
                     .clamp_optional(min_size.width, max_size.width),
             );
             known_size = known_size
@@ -1295,7 +1324,7 @@ where
         {
             known_size.height = Some(
                 (area_size.height - non_auto_margin.vertical_sum() - top - bottom)
-                    .max(0.0)
+                    .max(S::ZERO)
                     .clamp_optional(min_size.height, max_size.height),
             );
             known_size = known_size
@@ -1305,7 +1334,7 @@ where
 
         let output = tree.compute_child(
             child,
-            ComputeInput {
+            ComputeInputOf::<S> {
                 run_mode: RunMode::PerformLayout,
                 sizing_mode: SizingMode::ContentSize,
                 axis: RequestedAxis::Both,
@@ -1366,7 +1395,7 @@ where
 
         tree.set_unrounded(
             child,
-            NodeOutput {
+            NodeOutputOf::<S> {
                 order: order as u32,
                 location,
                 size: final_size,
@@ -1382,20 +1411,20 @@ where
     absolute_content_size
 }
 
-struct AbsoluteAxis {
-    start: Option<Scalar>,
-    end: Option<Scalar>,
+struct AbsoluteAxis<S: LayoutScalar> {
+    start: Option<S>,
+    end: Option<S>,
     direction: Direction,
-    area_start: Scalar,
-    area_size: Scalar,
-    size: Scalar,
-    margin_start: Scalar,
-    margin_end: Scalar,
-    static_position: Scalar,
+    area_start: S,
+    area_size: S,
+    size: S,
+    margin_start: S,
+    margin_end: S,
+    static_position: S,
 }
 
-impl AbsoluteAxis {
-    fn location(self) -> Scalar {
+impl<S: LayoutScalar> AbsoluteAxis<S> {
+    fn location(self) -> S {
         if self.direction == Direction::Rtl
             && let (Some(_), Some(end)) = (self.start, self.end)
         {
@@ -1414,33 +1443,33 @@ impl AbsoluteAxis {
     }
 }
 
-fn resolve_absolute_margin(
-    margin: Edges<Option<Scalar>>,
-    inset: Edges<Option<Scalar>>,
-    style_size: Size<Option<Scalar>>,
-    final_size: Size,
-    area_size: Size,
-) -> Edges {
+fn resolve_absolute_margin<S: LayoutScalar>(
+    margin: Edges<Option<S>>,
+    inset: Edges<Option<S>>,
+    style_size: Size<Option<S>>,
+    final_size: Size<S>,
+    area_size: Size<S>,
+) -> Edges<S> {
     let non_auto = Edges {
         left: if inset.left.is_some() {
-            margin.left.unwrap_or(0.0)
+            margin.left.unwrap_or(S::ZERO)
         } else {
-            0.0
+            S::ZERO
         },
         right: if inset.right.is_some() {
-            margin.right.unwrap_or(0.0)
+            margin.right.unwrap_or(S::ZERO)
         } else {
-            0.0
+            S::ZERO
         },
         top: if inset.top.is_some() {
-            margin.top.unwrap_or(0.0)
+            margin.top.unwrap_or(S::ZERO)
         } else {
-            0.0
+            S::ZERO
         },
         bottom: if inset.bottom.is_some() {
-            margin.bottom.unwrap_or(0.0)
+            margin.bottom.unwrap_or(S::ZERO)
         } else {
-            0.0
+            S::ZERO
         },
     };
     let auto_width = auto_margin_size(AutoMarginAxis {
@@ -1473,26 +1502,26 @@ fn resolve_absolute_margin(
 }
 
 #[derive(Clone, Copy)]
-struct AutoMarginAxis {
+struct AutoMarginAxis<S: LayoutScalar> {
     start_is_auto: bool,
     end_is_auto: bool,
-    start: Option<Scalar>,
-    end: Option<Scalar>,
-    area_size: Scalar,
-    style_size: Option<Scalar>,
-    item_size: Scalar,
-    non_auto_margin_sum: Scalar,
+    start: Option<S>,
+    end: Option<S>,
+    area_size: S,
+    style_size: Option<S>,
+    item_size: S,
+    non_auto_margin_sum: S,
 }
 
-fn auto_margin_size(axis: AutoMarginAxis) -> Scalar {
+fn auto_margin_size<S: LayoutScalar>(axis: AutoMarginAxis<S>) -> S {
     let auto_count = usize::from(axis.start_is_auto) + usize::from(axis.end_is_auto);
     if auto_count == 0 || axis.start.is_none() && axis.end.is_none() {
-        return 0.0;
+        return S::ZERO;
     }
 
     let available = axis
         .end
-        .map(|end| axis.area_size - end - axis.start.unwrap_or(0.0))
+        .map(|end| axis.area_size - end - axis.start.unwrap_or(S::ZERO))
         .unwrap_or(axis.item_size);
     let free_space = available - axis.item_size - axis.non_auto_margin_sum;
     if auto_count == 2
@@ -1500,34 +1529,34 @@ fn auto_margin_size(axis: AutoMarginAxis) -> Scalar {
             .style_size
             .is_none_or(|style_size| style_size >= free_space)
     {
-        0.0
+        S::ZERO
     } else {
-        free_space / auto_count as Scalar
+        free_space / S::from_usize(auto_count)
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Constants {
-    node_outer_size: Size<Option<Scalar>>,
-    node_inner_size: Size<Option<Scalar>>,
-    node_min_size: Size<Option<Scalar>>,
-    node_max_size: Size<Option<Scalar>>,
+struct Constants<S: LayoutScalar> {
+    node_outer_size: Size<Option<S>>,
+    node_inner_size: Size<Option<S>>,
+    node_min_size: Size<Option<S>>,
+    node_max_size: Size<Option<S>>,
     direction: Direction,
     writing_mode: WritingMode,
     text_align: TextAlign,
-    border: Edges,
-    padding_border_size: Size,
-    scrollbar_gutter: Edges,
-    content_box_inset: Edges,
-    own_top_margin: CollapsibleMargin,
-    own_bottom_margin: CollapsibleMargin,
+    border: Edges<S>,
+    padding_border_size: Size<S>,
+    scrollbar_gutter: Edges<S>,
+    content_box_inset: Edges<S>,
+    own_top_margin: CollapsibleMarginOf<S>,
+    own_bottom_margin: CollapsibleMarginOf<S>,
     collapse_top_margin: bool,
     collapse_bottom_margin: bool,
     can_collapse_through: bool,
 }
 
-impl Constants {
-    fn with_inner_width(mut self, width: Option<Scalar>) -> Self {
+impl<S: LayoutScalar> Constants<S> {
+    fn with_inner_width(mut self, width: Option<S>) -> Self {
         self.node_inner_size.width = width;
         if let Some(width) = width {
             self.node_outer_size.width = Some(width + self.content_box_inset.horizontal_sum());
@@ -1535,7 +1564,11 @@ impl Constants {
         self
     }
 
-    fn new(style: &NodeInput, input: ComputeInput, resolver: &dyn CalcResolver) -> Self {
+    fn new(
+        style: &NodeInputOf<S>,
+        input: ComputeInputOf<S>,
+        resolver: &dyn CalcResolver<S>,
+    ) -> Self {
         let padding = style
             .padding
             .zip_inline_size(input.parent, |length, basis| {
@@ -1548,24 +1581,24 @@ impl Constants {
             if style.overflow.y == Overflow::Scroll {
                 style.scrollbar_width
             } else {
-                0.0
+                S::ZERO
             },
             if style.overflow.x == Overflow::Scroll {
                 style.scrollbar_width
             } else {
-                0.0
+                S::ZERO
             },
         );
         let scrollbar_gutter = match style.direction {
             Direction::Ltr => Edges {
                 right: scrollbar_gutter.width,
                 bottom: scrollbar_gutter.height,
-                ..Edges::ZERO
+                ..Edges::<S>::ZERO
             },
             Direction::Rtl => Edges {
                 left: scrollbar_gutter.width,
                 bottom: scrollbar_gutter.height,
-                ..Edges::ZERO
+                ..Edges::<S>::ZERO
             },
         };
         let padding_border_size = (padding + border).sum_axes();
@@ -1615,12 +1648,12 @@ impl Constants {
             && !is_root
             && !blocks_margin_collapse
             && style.position == Position::Relative
-            && padding.top == 0.0
-            && padding.bottom == 0.0
-            && border.top == 0.0
-            && border.bottom == 0.0
-            && !matches!(style_size.height, Some(height) if height > 0.0)
-            && !matches!(min_size.height, Some(height) if height > 0.0);
+            && padding.top == S::ZERO
+            && padding.bottom == S::ZERO
+            && border.top == S::ZERO
+            && border.bottom == S::ZERO
+            && !matches!(style_size.height, Some(height) if height > S::ZERO)
+            && !matches!(min_size.height, Some(height) if height > S::ZERO);
         let node_outer_size = input
             .known
             .or(min_max_definite_size)
@@ -1640,77 +1673,77 @@ impl Constants {
             padding_border_size,
             scrollbar_gutter,
             content_box_inset,
-            own_top_margin: CollapsibleMargin::from_margin(
+            own_top_margin: CollapsibleMarginOf::<S>::from_margin(
                 resolve_auto_optional_with(style.margin.top, input.parent.width, resolver)
-                    .unwrap_or(0.0),
+                    .unwrap_or(S::ZERO),
             ),
-            own_bottom_margin: CollapsibleMargin::from_margin(
+            own_bottom_margin: CollapsibleMarginOf::<S>::from_margin(
                 resolve_auto_optional_with(style.margin.bottom, input.parent.width, resolver)
-                    .unwrap_or(0.0),
+                    .unwrap_or(S::ZERO),
             ),
             collapse_top_margin: is_margin_collapsing_block
                 && !is_root
                 && style.position == Position::Relative
                 && !blocks_margin_collapse
-                && padding.top == 0.0
-                && border.top == 0.0,
+                && padding.top == S::ZERO
+                && border.top == S::ZERO,
             collapse_bottom_margin: is_margin_collapsing_block
                 && !is_root
                 && style.position == Position::Relative
                 && !blocks_margin_collapse
-                && padding.bottom == 0.0
-                && border.bottom == 0.0
+                && padding.bottom == S::ZERO
+                && border.bottom == S::ZERO
                 && style_size.height.is_none(),
             can_collapse_through,
         }
     }
 }
 
-fn child_scrollbar_size(style: &NodeInput) -> Size {
+fn child_scrollbar_size<S: LayoutScalar>(style: &NodeInputOf<S>) -> Size<S> {
     Size::new(
         if style.overflow.y == Overflow::Scroll {
             style.scrollbar_width
         } else {
-            0.0
+            S::ZERO
         },
         if style.overflow.x == Overflow::Scroll {
             style.scrollbar_width
         } else {
-            0.0
+            S::ZERO
         },
     )
 }
 
-fn resolve_auto_optional_with(
-    length: LengthAuto,
-    basis: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Option<Scalar> {
+fn resolve_auto_optional_with<S: LayoutScalar>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> Option<S> {
     resolution_optional(length.resolve_with_status(basis, resolver))
 }
 
-fn resolve_dimension_with(
-    dimension: Dimension,
-    basis: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Option<Scalar> {
+fn resolve_dimension_with<S: LayoutScalar>(
+    dimension: DimensionOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> Option<S> {
     resolution_optional(dimension.resolve_with_status(basis, resolver))
 }
 
-fn resolve_length_or_zero_with(
-    length: Length,
-    basis: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Scalar {
+fn resolve_length_or_zero_with<S: LayoutScalar>(
+    length: LengthOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> S {
     resolution_or_zero(length.resolve_with_status(basis, resolver))
 }
 
-fn resolution_or_zero(resolution: CalcResolution) -> Scalar {
+fn resolution_or_zero<S: LayoutScalar>(resolution: CalcResolutionOf<S>) -> S {
     match resolution.status() {
         CalcResolutionStatus::Resolved => resolution
             .value
             .expect("resolved calc resolution must carry a value"),
-        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => 0.0,
+        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => S::ZERO,
         CalcResolutionStatus::MissingResolver => {
             panic!("calc resolution requires an explicit resolver")
         }
@@ -1718,7 +1751,7 @@ fn resolution_or_zero(resolution: CalcResolution) -> Scalar {
     }
 }
 
-fn resolution_optional(resolution: CalcResolution) -> Option<Scalar> {
+fn resolution_optional<S: LayoutScalar>(resolution: CalcResolutionOf<S>) -> Option<S> {
     match resolution.status() {
         CalcResolutionStatus::Resolved => resolution.value,
         CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => None,
@@ -1729,43 +1762,43 @@ fn resolution_optional(resolution: CalcResolution) -> Option<Scalar> {
     }
 }
 
-trait SizeOptionExt {
+trait SizeOptionExt<S: LayoutScalar> {
     fn or(self, other: Self) -> Self;
-    fn unwrap_or(self, fallback: Size) -> Size;
-    fn add_optional(self, amount: Size) -> Self;
-    fn sub_optional(self, amount: Size) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self;
+    fn unwrap_or(self, fallback: Size<S>) -> Size<S>;
+    fn add_optional(self, amount: Size<S>) -> Self;
+    fn sub_optional(self, amount: Size<S>) -> Self;
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<S>>) -> Self;
     fn clamp_optional(self, min: Self, max: Self) -> Self;
     fn max_optional(self, min: Self) -> Self;
 }
 
-impl SizeOptionExt for Size<Option<Scalar>> {
+impl<S: LayoutScalar> SizeOptionExt<S> for Size<Option<S>> {
     fn or(self, other: Self) -> Self {
         Size::new(self.width.or(other.width), self.height.or(other.height))
     }
 
-    fn unwrap_or(self, fallback: Size) -> Size {
+    fn unwrap_or(self, fallback: Size<S>) -> Size<S> {
         Size::new(
             self.width.unwrap_or(fallback.width),
             self.height.unwrap_or(fallback.height),
         )
     }
 
-    fn add_optional(self, amount: Size) -> Self {
+    fn add_optional(self, amount: Size<S>) -> Self {
         Size::new(
             self.width.map(|width| width + amount.width),
             self.height.map(|height| height + amount.height),
         )
     }
 
-    fn sub_optional(self, amount: Size) -> Self {
+    fn sub_optional(self, amount: Size<S>) -> Self {
         Size::new(
             self.width.map(|width| width - amount.width),
             self.height.map(|height| height - amount.height),
         )
     }
 
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self {
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<S>>) -> Self {
         let Some(ratio) = aspect_ratio else {
             return self;
         };
@@ -1800,20 +1833,20 @@ impl SizeOptionExt for Size<Option<Scalar>> {
     }
 }
 
-trait SizeConcreteExt {
-    fn clamp_optional(self, min: Size<Option<Scalar>>, max: Size<Option<Scalar>>) -> Self;
-    fn max_optional(self, min: Size<Option<Scalar>>) -> Self;
+trait SizeConcreteExt<S: LayoutScalar> {
+    fn clamp_optional(self, min: Size<Option<S>>, max: Size<Option<S>>) -> Self;
+    fn max_optional(self, min: Size<Option<S>>) -> Self;
 }
 
-impl SizeConcreteExt for Size {
-    fn clamp_optional(self, min: Size<Option<Scalar>>, max: Size<Option<Scalar>>) -> Self {
+impl<S: LayoutScalar> SizeConcreteExt<S> for Size<S> {
+    fn clamp_optional(self, min: Size<Option<S>>, max: Size<Option<S>>) -> Self {
         Size::new(
             self.width.clamp_optional(min.width, max.width),
             self.height.clamp_optional(min.height, max.height),
         )
     }
 
-    fn max_optional(self, min: Size<Option<Scalar>>) -> Self {
+    fn max_optional(self, min: Size<Option<S>>) -> Self {
         Size::new(
             min.width.map_or(self.width, |min| self.width.max(min)),
             min.height.map_or(self.height, |min| self.height.max(min)),
@@ -1827,7 +1860,7 @@ trait ScalarExt {
         Self: Sized;
 }
 
-impl ScalarExt for Scalar {
+impl<S: LayoutScalar> ScalarExt for S {
     fn clamp_optional(self, min: Option<Self>, max: Option<Self>) -> Self {
         let value = max.map_or(self, |max| self.min(max));
         min.map_or(value, |min| value.max(min))
@@ -1840,7 +1873,11 @@ mod tests {
 
     use super::*;
     use crate::compute::compute_leaf_with_resolver;
-    use crate::{CalcExpression, CalcId, CalcTerm, LayoutCalcStore, NoCalcResolver};
+    use crate::{
+        Available, CalcExpression, CalcId, CalcTerm, ComputeInput, ComputeOutput, Dimension,
+        LayoutCalcStore, LengthAuto, NoCalcResolver, NodeInput, NodeOutput, ResolvedLengthAuto,
+        Scalar,
+    };
 
     #[derive(Default)]
     struct CalcLeafTree {

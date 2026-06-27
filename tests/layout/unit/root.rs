@@ -111,6 +111,116 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
 }
 
 #[test]
+fn f64_compute_hidden_clears_layout_with_f64_output_type() {
+    #[derive(Default)]
+    struct HiddenTree {
+        children: HashMap<u32, Vec<u32>>,
+        layouts: HashMap<u32, NodeOutputOf<f64>>,
+        caches: HashMap<u32, CacheOf<f64>>,
+        styles: HashMap<u32, NodeInputOf<f64>>,
+        hidden_children: Vec<u32>,
+    }
+
+    impl Traverse for HiddenTree {
+        type Node = u32;
+        type Scalar = f64;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
+
+    impl Compute for HiddenTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
+            &self.styles[&node]
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInputOf<f64>,
+        ) -> ComputeOutputOf<f64> {
+            assert_eq!(input, ComputeInputOf::HIDDEN);
+            self.hidden_children.push(node);
+            ComputeOutputOf::HIDDEN
+        }
+    }
+
+    impl CacheAccess for HiddenTree {
+        type Node = u32;
+        type Scalar = f64;
+
+        fn cache_context(&self) -> surgeist_layout::CacheKeyContext {
+            surgeist_layout::CacheKeyContext::static_no_calc()
+        }
+
+        fn cache_get(
+            &self,
+            node: Self::Node,
+            input: &ComputeInputOf<f64>,
+            context: surgeist_layout::CacheKeyContext,
+        ) -> Option<ComputeOutputOf<f64>> {
+            self.caches[&node].get_with_context(input, context)
+        }
+
+        fn cache_store(
+            &mut self,
+            node: Self::Node,
+            input: &ComputeInputOf<f64>,
+            context: surgeist_layout::CacheKeyContext,
+            output: ComputeOutputOf<f64>,
+        ) {
+            self.caches
+                .get_mut(&node)
+                .unwrap()
+                .store_with_context(input, context, output);
+        }
+
+        fn cache_clear(&mut self, node: Self::Node) {
+            self.caches.get_mut(&node).unwrap().clear();
+        }
+    }
+
+    let mut tree = HiddenTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(1, NodeInputOf::<f64>::default());
+    tree.styles.insert(2, NodeInputOf::<f64>::default());
+    tree.caches.insert(1, CacheOf::<f64>::new());
+    tree.caches.insert(2, CacheOf::<f64>::new());
+    tree.caches.get_mut(&1).unwrap().store_with_context(
+        &ComputeInputOf::<f64> {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::new(Some(1.25), Some(1.5)),
+            parent: Size::NONE,
+            available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+        },
+        surgeist_layout::CacheKeyContext::static_no_calc(),
+        ComputeOutputOf::from_outer_size(Size::new(1.25, 1.5)),
+    );
+
+    assert_eq!(compute_hidden(&mut tree, 1), ComputeOutputOf::HIDDEN);
+    assert_eq!(tree.layouts[&1], NodeOutputOf::with_order(0));
+    assert_eq!(tree.hidden_children, vec![2]);
+    assert!(tree.caches[&1].is_empty());
+}
+
+#[test]
 fn f64_tree_can_run_root_layout_smoke_test() {
     let mut tree = crate::support::oracle_tree::OracleTreeOf::<f64>::new().style(
         0,

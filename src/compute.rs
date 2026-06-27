@@ -1,8 +1,7 @@
 use super::{
-    AspectRatioOf, Available, AvailableOf, BoxSizing, CacheAccess, CalcResolutionOf,
-    CalcResolutionStatus, CalcResolver, Compute, ComputeInput, ComputeInputOf, ComputeOutput,
-    ComputeOutputOf, LayoutScalar, NoCalcResolver, NodeInput, NodeInputOf, NodeOutputOf, Position,
-    Round, RunMode, Scalar, Size, SizingMode, Traverse,
+    AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CalcResolutionOf, CalcResolutionStatus,
+    CalcResolver, Compute, ComputeInputOf, ComputeOutputOf, LayoutScalar, NoCalcResolver,
+    NodeInputOf, NodeOutputOf, Position, Round, RunMode, Size, SizingMode, Traverse,
 };
 
 pub fn compute_hidden<Tree>(
@@ -191,20 +190,26 @@ fn round<S: LayoutScalar>(value: S) -> S {
     (value + S::from_f64(0.5)).floor()
 }
 
-pub fn compute_leaf(
-    input: ComputeInput,
-    style: &NodeInput,
-    measure: impl FnOnce(Size<Option<Scalar>>, Size<Available>) -> Size,
-) -> ComputeOutput {
+pub fn compute_leaf<S>(
+    input: ComputeInputOf<S>,
+    style: &NodeInputOf<S>,
+    measure: impl FnOnce(Size<Option<S>>, Size<AvailableOf<S>>) -> Size<S>,
+) -> ComputeOutputOf<S>
+where
+    S: LayoutScalar,
+{
     compute_leaf_with_resolver(input, style, &NoCalcResolver, measure)
 }
 
-pub(crate) fn compute_leaf_with_resolver(
-    input: ComputeInput,
-    style: &NodeInput,
-    resolver: &dyn CalcResolver,
-    measure: impl FnOnce(Size<Option<Scalar>>, Size<Available>) -> Size,
-) -> ComputeOutput {
+pub(crate) fn compute_leaf_with_resolver<S>(
+    input: ComputeInputOf<S>,
+    style: &NodeInputOf<S>,
+    resolver: &dyn CalcResolver<S>,
+    measure: impl FnOnce(Size<Option<S>>, Size<AvailableOf<S>>) -> Size<S>,
+) -> ComputeOutputOf<S>
+where
+    S: LayoutScalar,
+{
     let margin = style.margin.zip_inline_size(input.parent, |length, basis| {
         resolve_auto_or_zero_with(length, basis, resolver)
     });
@@ -222,17 +227,17 @@ pub(crate) fn compute_leaf_with_resolver(
         if style.overflow.y == super::Overflow::Scroll {
             style.scrollbar_width
         } else {
-            0.0
+            S::ZERO
         },
         if style.overflow.x == super::Overflow::Scroll {
             style.scrollbar_width
         } else {
-            0.0
+            S::ZERO
         },
     );
     let mut content_box_inset = padding_border;
-    content_box_inset.right += scrollbar_gutter.width;
-    content_box_inset.bottom += scrollbar_gutter.height;
+    content_box_inset.right = content_box_inset.right + scrollbar_gutter.width;
+    content_box_inset.bottom = content_box_inset.bottom + scrollbar_gutter.height;
     let content_box_inset_size = content_box_inset.sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border_size
@@ -277,12 +282,12 @@ pub(crate) fn compute_leaf_with_resolver(
         || style.overflow.x.blocks_margin_collapse()
         || style.overflow.y.blocks_margin_collapse()
         || style.position == Position::Absolute
-        || padding.top > 0.0
-        || padding.bottom > 0.0
-        || border.top > 0.0
-        || border.bottom > 0.0
-        || matches!(node_size.height, Some(height) if height > 0.0)
-        || matches!(node_min_size.height, Some(height) if height > 0.0);
+        || padding.top > S::ZERO
+        || padding.bottom > S::ZERO
+        || border.top > S::ZERO
+        || border.bottom > S::ZERO
+        || matches!(node_size.height, Some(height) if height > S::ZERO)
+        || matches!(node_min_size.height, Some(height) if height > S::ZERO);
 
     if input.run_mode == RunMode::ComputeSize
         && prevents_margin_collapse
@@ -294,14 +299,14 @@ pub(crate) fn compute_leaf_with_resolver(
         let size = Size::new(width, height)
             .clamp_optional(node_min_size, node_max_size)
             .max_optional(padding_border_size.map(Some));
-        return ComputeOutput::from_outer_size(size);
+        return ComputeOutputOf::from_outer_size(size);
     }
 
     let available = Size::new(
         input
             .known
             .width
-            .map(Available::definite)
+            .map(AvailableOf::definite)
             .unwrap_or(input.available.width)
             .sub_margin(margin.horizontal_sum())
             .set_optional(input.known.width)
@@ -313,7 +318,7 @@ pub(crate) fn compute_leaf_with_resolver(
         input
             .known
             .height
-            .map(Available::definite)
+            .map(AvailableOf::definite)
             .unwrap_or(input.available.height)
             .sub_margin(margin.vertical_sum())
             .set_optional(input.known.height)
@@ -345,16 +350,16 @@ pub(crate) fn compute_leaf_with_resolver(
         unclamped.height.max(
             aspect_ratio
                 .map(|ratio| unclamped.width / ratio.get())
-                .unwrap_or(0.0),
+                .unwrap_or(S::ZERO),
         )
     };
     let aspect_size = Size::new(unclamped.width, aspect_height)
         .clamp_optional(node_min_size, node_max_size)
         .max_optional(padding_border_size.map(Some));
 
-    let mut output = ComputeOutput::from_sizes(aspect_size, measured + padding.sum_axes());
+    let mut output = ComputeOutputOf::from_sizes(aspect_size, measured + padding.sum_axes());
     output.margins_can_collapse_through =
-        !prevents_margin_collapse && aspect_size.height == 0.0 && measured.height == 0.0;
+        !prevents_margin_collapse && aspect_size.height == S::ZERO && measured.height == S::ZERO;
     output
 }
 
@@ -501,25 +506,29 @@ impl<S: LayoutScalar> ScalarExt for S {
 }
 
 trait AvailableExt {
-    fn sub_margin(self, margin: Scalar) -> Self;
-    fn set_optional(self, value: Option<Scalar>) -> Self;
-    fn map_definite(self, f: impl FnOnce(Scalar) -> Scalar) -> Self;
+    type Scalar: LayoutScalar;
+
+    fn sub_margin(self, margin: Self::Scalar) -> Self;
+    fn set_optional(self, value: Option<Self::Scalar>) -> Self;
+    fn map_definite(self, f: impl FnOnce(Self::Scalar) -> Self::Scalar) -> Self;
 }
 
-impl AvailableExt for Available {
-    fn sub_margin(self, margin: Scalar) -> Self {
+impl<S: LayoutScalar> AvailableExt for AvailableOf<S> {
+    type Scalar = S;
+
+    fn sub_margin(self, margin: S) -> Self {
         self.map_definite(|value| value - margin)
     }
 
-    fn set_optional(self, value: Option<Scalar>) -> Self {
-        value.map_or(self, Available::definite)
+    fn set_optional(self, value: Option<S>) -> Self {
+        value.map_or(self, AvailableOf::definite)
     }
 
-    fn map_definite(self, f: impl FnOnce(Scalar) -> Scalar) -> Self {
+    fn map_definite(self, f: impl FnOnce(S) -> S) -> Self {
         match self {
-            Available::Definite(value) => Available::Definite(f(value)),
-            Available::MinContent => Available::MinContent,
-            Available::MaxContent => Available::MaxContent,
+            AvailableOf::Definite(value) => AvailableOf::Definite(f(value)),
+            AvailableOf::MinContent => AvailableOf::MinContent,
+            AvailableOf::MaxContent => AvailableOf::MaxContent,
         }
     }
 }
@@ -527,7 +536,10 @@ impl AvailableExt for Available {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CalcExpression, CalcTerm, Dimension, LayoutCalcStore, RequestedAxis};
+    use crate::{
+        Available, CalcExpression, CalcTerm, ComputeInput, Dimension, LayoutCalcStore, NodeInput,
+        RequestedAxis,
+    };
 
     #[test]
     fn leaf_calc_width_uses_tree_resolver() {

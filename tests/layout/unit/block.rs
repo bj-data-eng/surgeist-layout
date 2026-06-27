@@ -1,5 +1,8 @@
 use super::*;
-use surgeist_layout::{CalcExpression, CalcResolver, CalcTerm, LayoutCalcStore};
+use surgeist_layout::{
+    CalcExpression, CalcExpressionOf, CalcResolver, CalcTerm, CalcTermOf, LayoutCalcStore,
+    LayoutCalcStoreOf,
+};
 
 #[derive(Default)]
 struct CalcBlockTree {
@@ -96,6 +99,150 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
         Point::new(20.0, 0.0)
     );
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 20.0));
+}
+
+#[test]
+fn f64_block_layout_preserves_fractional_child_offsets() {
+    let large = 16_777_217.25_f64;
+    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+        .children(0, [1, 2])
+        .style(
+            0,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(100.0), DimensionOf::AUTO),
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(40.0), DimensionOf::px(5.25)),
+                margin: Edges {
+                    top: LengthAutoOf::px(large),
+                    bottom: LengthAutoOf::px(0.25),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(40.0), DimensionOf::px(7.5)),
+                margin: Edges {
+                    top: LengthAutoOf::px(0.375),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..NodeInputOf::<f64>::default()
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(AvailableOf::definite(100.0), AvailableOf::MAX_CONTENT),
+    );
+
+    assert_eq!(tree.output(1).location, Point::new(0.0, large));
+    assert_eq!(tree.output(2).location, Point::new(0.0, 16_777_223.125));
+    assert_eq!(tree.output(0).size, Size::new(100.0, 16_777_230.625));
+}
+
+#[test]
+fn f64_block_layout_resolves_calc_through_tree_resolver_without_narrowing() {
+    let large = 16_777_217.25_f64;
+    let container_width = 16_777_220.5_f64;
+    let mut calcs = LayoutCalcStoreOf::<f64>::new();
+    let margin_left = calcs.push(CalcExpressionOf::sum([
+        CalcTermOf::percent(0.10),
+        CalcTermOf::px(large),
+    ]));
+    let width = calcs.push(CalcExpressionOf::sum([
+        CalcTermOf::percent(0.50),
+        CalcTermOf::px(large + 0.25),
+    ]));
+    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+        .children(0, [1])
+        .style(
+            0,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(container_width), DimensionOf::AUTO),
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::calc(width), DimensionOf::px(4.5)),
+                margin: Edges {
+                    left: LengthAutoOf::calc(margin_left),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .calcs(calcs);
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(
+            AvailableOf::definite(container_width),
+            AvailableOf::MAX_CONTENT,
+        ),
+    );
+
+    assert_eq!(tree.output(1).location, Point::new(18_454_939.3, 0.0));
+    assert_eq!(tree.output(1).size, Size::new(25_165_827.75, 4.5));
+}
+
+#[test]
+fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
+    let large = 16_777_217.25_f64;
+    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+        .children(0, [1, 2])
+        .style(
+            0,
+            NodeInputOf::<f64> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(large + 20.0), DimensionOf::AUTO),
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf::<f64> {
+                display: Display::InlineBlock,
+                size: Size::new(DimensionOf::px(large), DimensionOf::px(10.5)),
+                ..NodeInputOf::<f64>::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<f64> {
+                display: Display::InlineBlock,
+                size: Size::new(DimensionOf::px(9.75), DimensionOf::px(20.25)),
+                ..NodeInputOf::<f64>::default()
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(
+            AvailableOf::definite(large + 20.0),
+            AvailableOf::MAX_CONTENT,
+        ),
+    );
+
+    assert_eq!(tree.output(1).location, Point::new(0.0, 9.75));
+    assert_eq!(tree.output(2).location, Point::new(large, 0.0));
+    assert_eq!(tree.output(0).size, Size::new(large + 20.0, 20.25));
 }
 
 #[test]
