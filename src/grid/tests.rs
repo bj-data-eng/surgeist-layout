@@ -617,6 +617,69 @@ fn named_grid_invalid_raw_placement_falls_back_to_auto() {
 }
 
 #[test]
+fn named_grid_placement_fallback_is_reported() {
+    let lines = named::NamedGridLines::new(GridAxisKind::Column, 2);
+    let (placement, report) = named::resolve_grid_placement_or_auto_with_report(
+        &lines,
+        &RawGridPlacement::new(
+            RawGridLine::NamedLine {
+                name: "a".to_string(),
+                index: 0,
+            },
+            RawGridLine::Auto,
+        ),
+        None,
+    );
+
+    assert_eq!(placement, GridPlacement::AUTO);
+    assert!(report.errors().contains(&NamedGridErrorReport::ZeroLine));
+}
+
+#[test]
+fn named_grid_implicit_named_line_is_not_reported_as_fallback() {
+    let lines = named::NamedGridLines::new(GridAxisKind::Column, 2);
+    let (placement, report) = named::resolve_grid_placement_or_auto_with_report(
+        &lines,
+        &RawGridPlacement::new(
+            RawGridLine::NamedLine {
+                name: "implicit".to_string(),
+                index: 1,
+            },
+            RawGridLine::Auto,
+        ),
+        None,
+    );
+
+    assert_eq!(
+        placement,
+        GridPlacement::try_line(4).expect("valid implicit grid line")
+    );
+    assert!(report.is_empty());
+}
+
+#[test]
+fn subgrid_axis_placement_reports_one_authored_fallback_once() {
+    let lines = named::NamedGridLines::new(GridAxisKind::Column, 2);
+    let (placement, absolute, report) = resolve_grid_item_axis_placements_with_report(
+        &lines,
+        &RawGridPlacement::new(RawGridLine::Line(0), RawGridLine::Auto),
+        GridPlacement::AUTO,
+        true,
+    );
+
+    assert_eq!(placement, GridPlacement::AUTO);
+    assert_eq!(absolute, GridPlacement::AUTO);
+    assert_eq!(
+        report
+            .errors()
+            .iter()
+            .filter(|error| **error == NamedGridErrorReport::ZeroLine)
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn named_lines_reject_non_rectangular_template_areas() {
     let areas = crate::GridTemplateAreas {
         rows: vec![

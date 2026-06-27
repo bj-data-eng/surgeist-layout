@@ -120,6 +120,107 @@ pub(super) enum NamedGridError {
     },
 }
 
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct NamedGridReport {
+    errors: Vec<NamedGridErrorReport>,
+}
+
+impl NamedGridReport {
+    pub fn errors(&self) -> &[NamedGridErrorReport] {
+        &self.errors
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.errors.is_empty()
+    }
+
+    pub(super) fn from_error(error: NamedGridError) -> Self {
+        let mut report = Self::default();
+        report.push_error(error);
+        report
+    }
+
+    pub(super) fn push_error(&mut self, error: NamedGridError) {
+        self.errors.push(error.into());
+    }
+
+    pub(super) fn extend(&mut self, other: NamedGridReport) {
+        self.errors.extend(other.errors);
+    }
+
+    pub(super) fn extend_unique(&mut self, other: NamedGridReport) {
+        for error in other.errors {
+            if !self.errors.contains(&error) {
+                self.errors.push(error);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NamedGridErrorReport {
+    ReservedLineName {
+        name: String,
+    },
+    UnresolvedAutoRepeatNames {
+        axis: GridAxisKind,
+    },
+    EmptyTemplateAreas,
+    TemplateAreaRowLengthMismatch {
+        row: usize,
+        expected: usize,
+        actual: usize,
+    },
+    NonRectangularTemplateArea {
+        name: String,
+    },
+    ZeroRepeat {
+        axis: GridAxisKind,
+    },
+    MultipleAutoFillRepeats {
+        axis: GridAxisKind,
+    },
+    ZeroLine,
+    ZeroSpan,
+    AutoWithoutCursor,
+    LineBeforeFirst {
+        axis: GridAxisKind,
+        line: isize,
+    },
+}
+
+impl From<NamedGridError> for NamedGridErrorReport {
+    fn from(error: NamedGridError) -> Self {
+        match error {
+            NamedGridError::ReservedLineName { name } => Self::ReservedLineName { name },
+            NamedGridError::UnresolvedAutoRepeatNames { axis } => {
+                Self::UnresolvedAutoRepeatNames { axis }
+            }
+            NamedGridError::EmptyTemplateAreas => Self::EmptyTemplateAreas,
+            NamedGridError::TemplateAreaRowLengthMismatch {
+                row,
+                expected,
+                actual,
+            } => Self::TemplateAreaRowLengthMismatch {
+                row,
+                expected,
+                actual,
+            },
+            NamedGridError::NonRectangularTemplateArea { name } => {
+                Self::NonRectangularTemplateArea { name }
+            }
+            NamedGridError::ZeroRepeat { axis } => Self::ZeroRepeat { axis },
+            NamedGridError::MultipleAutoFillRepeats { axis } => {
+                Self::MultipleAutoFillRepeats { axis }
+            }
+            NamedGridError::ZeroLine => Self::ZeroLine,
+            NamedGridError::ZeroSpan => Self::ZeroSpan,
+            NamedGridError::AutoWithoutCursor => Self::AutoWithoutCursor,
+            NamedGridError::LineBeforeFirst { axis, line } => Self::LineBeforeFirst { axis, line },
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum PlacementSide {
     Start,
@@ -241,14 +342,23 @@ pub(super) fn resolve_grid_placement(
     }
 }
 
+#[cfg(test)]
 pub(super) fn resolve_grid_placement_or_auto(
     lines: &NamedGridLines,
     placement: &RawGridPlacement,
     auto_cursor_line: Option<isize>,
 ) -> GridPlacement {
+    resolve_grid_placement_or_auto_with_report(lines, placement, auto_cursor_line).0
+}
+
+pub(super) fn resolve_grid_placement_or_auto_with_report(
+    lines: &NamedGridLines,
+    placement: &RawGridPlacement,
+    auto_cursor_line: Option<isize>,
+) -> (GridPlacement, NamedGridReport) {
     match resolve_grid_placement(lines, placement, auto_cursor_line) {
-        Ok(placement) => placement,
-        Err(_error) => GridPlacement::AUTO,
+        Ok(placement) => (placement, NamedGridReport::default()),
+        Err(error) => (GridPlacement::AUTO, NamedGridReport::from_error(error)),
     }
 }
 
@@ -845,10 +955,27 @@ pub(super) fn build_grid_named_context(
     explicit_rows: usize,
     parent_context: &GridParentContext,
 ) -> Result<GridNamedContext, NamedGridError> {
+    build_grid_named_context_with_report(style, explicit_columns, explicit_rows, parent_context)
+        .map(|(context, _report)| context)
+}
+
+pub(super) fn build_grid_named_context_with_report(
+    style: &NodeInput,
+    explicit_columns: usize,
+    explicit_rows: usize,
+    parent_context: &GridParentContext,
+) -> Result<(GridNamedContext, NamedGridReport), NamedGridError> {
+    let mut report = NamedGridReport::default();
     let style_area_facts = if style.grid_template_areas.rows.is_empty() {
         None
     } else {
-        GridAreaNameFacts::from_specified_areas(&style.grid_template_areas).ok()
+        match GridAreaNameFacts::from_specified_areas(&style.grid_template_areas) {
+            Ok(facts) => Some(facts),
+            Err(error) => {
+                report.push_error(error);
+                None
+            }
+        }
     };
 
     let inherited_area_facts = inherited_subgrid_area_facts(parent_context);
@@ -906,11 +1033,14 @@ pub(super) fn build_grid_named_context(
         rows
     };
 
-    Ok(GridNamedContext {
-        columns,
-        rows,
-        area_facts: merged_area_facts,
-    })
+    Ok((
+        GridNamedContext {
+            columns,
+            rows,
+            area_facts: merged_area_facts,
+        },
+        report,
+    ))
 }
 
 pub(super) fn empty_grid_named_context(

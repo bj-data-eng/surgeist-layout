@@ -33,12 +33,56 @@ use lanes::{
     resolve_grid_lanes_placement_with_resolved_tracks,
 };
 use named::{
-    GridAreaNameFacts, GridNamedContext, NamedGridError, NamedGridLines, build_grid_named_context,
-    empty_grid_named_context, resolve_grid_placement_or_auto, resolve_subgrid_placement,
+    GridAreaNameFacts, GridNamedContext, NamedGridError, NamedGridLines,
+    build_grid_named_context_with_report, empty_grid_named_context,
+    resolve_grid_placement_or_auto_with_report, resolve_subgrid_placement,
 };
+pub use named::{NamedGridErrorReport, NamedGridReport};
 use placement::*;
 use subgrid::*;
 use tracks::*;
+
+pub struct GridComputation {
+    output: ComputeOutput,
+    report: GridComputationReport,
+}
+
+impl GridComputation {
+    pub fn output(&self) -> &ComputeOutput {
+        &self.output
+    }
+
+    pub fn report(&self) -> &GridComputationReport {
+        &self.report
+    }
+
+    pub fn into_parts(self) -> (ComputeOutput, GridComputationReport) {
+        (self.output, self.report)
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct GridComputationReport {
+    named_grid: NamedGridReport,
+}
+
+impl GridComputationReport {
+    pub fn named_grid(&self) -> &NamedGridReport {
+        &self.named_grid
+    }
+
+    pub fn named_grid_errors(&self) -> &[NamedGridErrorReport] {
+        self.named_grid.errors()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.named_grid.is_empty()
+    }
+
+    fn merge_named_grid(&mut self, report: NamedGridReport) {
+        self.named_grid.extend(report);
+    }
+}
 
 pub fn compute_grid<Tree>(
     tree: &mut Tree,
@@ -48,11 +92,27 @@ pub fn compute_grid<Tree>(
 where
     Tree: Compute,
 {
-    compute_grid_with_context(tree, node, input, GridParentContext::none())
+    compute_grid_with_report(tree, node, input).into_parts().0
+}
+
+pub fn compute_grid_with_report<Tree>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInput,
+) -> GridComputation
+where
+    Tree: Compute,
+{
+    let result = compute_grid_with_context_result(tree, node, input, GridParentContext::none());
+    GridComputation {
+        output: result.output,
+        report: result.report,
+    }
 }
 
 struct GridComputeResult {
     output: ComputeOutput,
+    report: GridComputationReport,
     baseline_groups: GridBaselineGroups,
 }
 
@@ -60,6 +120,7 @@ impl GridComputeResult {
     fn from_output(output: ComputeOutput) -> Self {
         Self {
             output,
+            report: GridComputationReport::default(),
             baseline_groups: GridBaselineGroups {
                 rows: Vec::new(),
                 columns: Vec::new(),
@@ -180,6 +241,7 @@ where
         context,
         placements,
         subgrid_report,
+        report,
     } = initialized_tracks;
     debug_assert_eq!(subgrid_report.items.len(), tree.child_count(node));
     debug_assert!(
@@ -320,6 +382,7 @@ where
     };
     GridComputeResult {
         output,
+        report,
         baseline_groups,
     }
 }
@@ -396,6 +459,7 @@ where
         context,
         placements,
         subgrid_report,
+        report,
     } = initialized_tracks;
     let GridContainerContext { gap, lines, .. } = context.clone();
     let track_available = intrinsic_container_available(&style, &constants, input.available);
@@ -548,6 +612,7 @@ where
     };
     GridComputeResult {
         output,
+        report,
         baseline_groups,
     }
 }
@@ -611,6 +676,7 @@ struct InitializedGridTracks<Node> {
     context: GridContainerContext,
     placements: GridPlacementContext<Node>,
     subgrid_report: GridSubgridReport<Node>,
+    report: GridComputationReport,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -732,19 +798,31 @@ where
     }
     let explicit_columns = column_tracks.len();
     let explicit_rows = row_tracks.len();
-    let named_context =
-        build_grid_named_context(style, explicit_columns, explicit_rows, parent_context)
-            .unwrap_or_else(|error| {
-                debug_invalid_named_grid_context(&error);
-                empty_grid_named_context(explicit_columns, explicit_rows)
-            });
-    let placements = resolve_grid_child_placements(
+    let mut report = GridComputationReport::default();
+    let named_context = match build_grid_named_context_with_report(
+        style,
+        explicit_columns,
+        explicit_rows,
+        parent_context,
+    ) {
+        Ok((context, named_report)) => {
+            report.merge_named_grid(named_report);
+            context
+        }
+        Err(error) => {
+            debug_invalid_named_grid_context(&error);
+            report.merge_named_grid(NamedGridReport::from_error(error));
+            empty_grid_named_context(explicit_columns, explicit_rows)
+        }
+    };
+    let (placements, placement_report) = resolve_grid_child_placements(
         &children,
         tree,
         &named_context,
         parent_context.columns.is_some(),
         parent_context.rows.is_some(),
     );
+    report.merge_named_grid(placement_report);
     let visible_cell_count = placements
         .checked_child_placements(&children)
         .filter(|(child, _)| is_in_flow_grid_child(tree.node_input(*child)))
@@ -891,6 +969,7 @@ where
         },
         placements,
         subgrid_report,
+        report,
     }
 }
 
@@ -902,107 +981,139 @@ fn resolve_grid_child_placements<Tree>(
     named_context: &GridNamedContext,
     subgrid_columns: bool,
     subgrid_rows: bool,
-) -> GridPlacementContext<<Tree as Traverse>::Node>
+) -> (
+    GridPlacementContext<<Tree as Traverse>::Node>,
+    NamedGridReport,
+)
 where
     Tree: Compute,
 {
-    let items = children
-        .iter()
-        .copied()
-        .map(|child| {
-            let style = tree.node_input(child);
-            if style.display == Display::None {
-                ResolvedGridItemPlacement {
-                    column: style.grid_column,
-                    row: style.grid_row,
-                    absolute_column: style.grid_column,
-                    absolute_row: style.grid_row,
-                    in_flow: false,
-                }
-            } else {
-                let absolute_column = resolve_absolute_grid_item_axis_placement(
-                    &named_context.columns,
-                    &style.raw_grid_column,
-                    style.grid_column,
-                );
-                let absolute_row = resolve_absolute_grid_item_axis_placement(
-                    &named_context.rows,
-                    &style.raw_grid_row,
-                    style.grid_row,
-                );
-                ResolvedGridItemPlacement {
-                    column: if subgrid_columns {
-                        resolve_subgrid_item_axis_placement(
-                            &named_context.columns,
-                            &style.raw_grid_column,
-                            style.grid_column,
-                        )
-                    } else {
-                        resolve_grid_item_axis_placement(
-                            &named_context.columns,
-                            &style.raw_grid_column,
-                            style.grid_column,
-                        )
-                    },
-                    row: if subgrid_rows {
-                        resolve_subgrid_item_axis_placement(
-                            &named_context.rows,
-                            &style.raw_grid_row,
-                            style.grid_row,
-                        )
-                    } else {
-                        resolve_grid_item_axis_placement(
-                            &named_context.rows,
-                            &style.raw_grid_row,
-                            style.grid_row,
-                        )
-                    },
-                    absolute_column,
-                    absolute_row,
-                    in_flow: style.position != Position::Absolute,
-                }
-            }
-        })
-        .collect();
-    GridPlacementContext::new(children.to_vec(), items)
+    let mut report = NamedGridReport::default();
+    let mut items = Vec::with_capacity(children.len());
+    for child in children.iter().copied() {
+        let style = tree.node_input(child);
+        if style.display == Display::None {
+            items.push(ResolvedGridItemPlacement {
+                column: style.grid_column,
+                row: style.grid_row,
+                absolute_column: style.grid_column,
+                absolute_row: style.grid_row,
+                in_flow: false,
+            });
+            continue;
+        }
+
+        let (column, absolute_column, column_report) =
+            resolve_grid_item_axis_placements_with_report(
+                &named_context.columns,
+                &style.raw_grid_column,
+                style.grid_column,
+                subgrid_columns,
+            );
+        report.extend(column_report);
+        let (row, absolute_row, row_report) = resolve_grid_item_axis_placements_with_report(
+            &named_context.rows,
+            &style.raw_grid_row,
+            style.grid_row,
+            subgrid_rows,
+        );
+        report.extend(row_report);
+        items.push(ResolvedGridItemPlacement {
+            column,
+            row,
+            absolute_column,
+            absolute_row,
+            in_flow: style.position != Position::Absolute,
+        });
+    }
+    (GridPlacementContext::new(children.to_vec(), items), report)
 }
 
+fn resolve_grid_item_axis_placements_with_report(
+    lines: &named::NamedGridLines,
+    raw: &super::RawGridPlacement,
+    legacy: GridPlacement,
+    subgrid_axis: bool,
+) -> (GridPlacement, GridPlacement, NamedGridReport) {
+    if subgrid_axis {
+        let (absolute, mut report) =
+            resolve_absolute_grid_item_axis_placement_with_report(lines, raw, legacy);
+        let (placement, placement_report) =
+            resolve_subgrid_item_axis_placement_with_report(lines, raw, legacy);
+        report.extend_unique(placement_report);
+        return (placement, absolute, report);
+    }
+
+    if legacy.is_auto() || raw == &super::RawGridPlacement::AUTO {
+        let (placement, report) = resolve_grid_item_axis_placement_with_report(lines, raw, legacy);
+        return (placement, placement, report);
+    }
+
+    let (absolute, mut report) =
+        resolve_absolute_grid_item_axis_placement_with_report(lines, raw, legacy);
+    let (placement, placement_report) =
+        resolve_grid_item_axis_placement_with_report(lines, raw, legacy);
+    report.extend(placement_report);
+    (placement, absolute, report)
+}
+
+#[cfg(test)]
 fn resolve_grid_item_axis_placement(
     lines: &named::NamedGridLines,
     raw: &super::RawGridPlacement,
     legacy: GridPlacement,
 ) -> GridPlacement {
+    resolve_grid_item_axis_placement_with_report(lines, raw, legacy).0
+}
+
+fn resolve_grid_item_axis_placement_with_report(
+    lines: &named::NamedGridLines,
+    raw: &super::RawGridPlacement,
+    legacy: GridPlacement,
+) -> (GridPlacement, NamedGridReport) {
     if raw == &super::RawGridPlacement::AUTO && !legacy.is_auto() {
-        return legacy;
+        return (legacy, NamedGridReport::default());
     }
-    let resolved = resolve_grid_placement_or_auto(lines, raw, None);
+    let (resolved, report) = resolve_grid_placement_or_auto_with_report(lines, raw, None);
     if resolved.is_auto() && raw_uses_only_numeric_grid_lines(raw) && !legacy.is_auto() {
-        legacy
+        (legacy, report)
     } else {
-        resolved
+        (resolved, report)
     }
 }
 
+#[cfg(test)]
 fn resolve_absolute_grid_item_axis_placement(
     lines: &named::NamedGridLines,
     raw: &super::RawGridPlacement,
     legacy: GridPlacement,
 ) -> GridPlacement {
-    if !legacy.is_auto() {
-        return legacy;
-    }
-    resolve_grid_placement_or_auto(lines, raw, None)
+    resolve_absolute_grid_item_axis_placement_with_report(lines, raw, legacy).0
 }
 
-fn resolve_subgrid_item_axis_placement(
+fn resolve_absolute_grid_item_axis_placement_with_report(
     lines: &named::NamedGridLines,
     raw: &super::RawGridPlacement,
     legacy: GridPlacement,
-) -> GridPlacement {
-    if raw == &super::RawGridPlacement::AUTO && !legacy.is_auto() {
-        return legacy;
+) -> (GridPlacement, NamedGridReport) {
+    if !legacy.is_auto() {
+        return (legacy, NamedGridReport::default());
     }
-    resolve_subgrid_placement(lines, raw, None).unwrap_or(GridPlacement::AUTO)
+    resolve_grid_placement_or_auto_with_report(lines, raw, None)
+}
+
+fn resolve_subgrid_item_axis_placement_with_report(
+    lines: &named::NamedGridLines,
+    raw: &super::RawGridPlacement,
+    legacy: GridPlacement,
+) -> (GridPlacement, NamedGridReport) {
+    if raw == &super::RawGridPlacement::AUTO && !legacy.is_auto() {
+        return (legacy, NamedGridReport::default());
+    }
+    match resolve_subgrid_placement(lines, raw, None) {
+        Ok(placement) => (placement, NamedGridReport::default()),
+        Err(error) => (GridPlacement::AUTO, NamedGridReport::from_error(error)),
+    }
 }
 
 fn raw_uses_only_numeric_grid_lines(raw: &super::RawGridPlacement) -> bool {

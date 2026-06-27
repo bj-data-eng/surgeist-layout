@@ -24,11 +24,12 @@ pub use compute::{compute_hidden, compute_leaf, compute_root, round_layout};
 pub use flex::compute_flex;
 pub use geometry::{Axis, Edges, Point, Size};
 pub use grid::{
-    DefiniteLaneIntrinsicItem, GridAxisKind, IndefiniteLaneContributionGroup,
-    LaneContributionFacts, LaneIntrinsicItem, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport,
-    LaneItem, LaneItemOffset, LanePlacementError, LanePlacementInput, LanePlacementReport,
-    LaneTrackSpan, compute_grid, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing,
-    place_lanes,
+    DefiniteLaneIntrinsicItem, GridAxisKind, GridComputation, GridComputationReport,
+    IndefiniteLaneContributionGroup, LaneContributionFacts, LaneIntrinsicItem,
+    LaneIntrinsicSizingInput, LaneIntrinsicSizingReport, LaneItem, LaneItemOffset,
+    LanePlacementError, LanePlacementInput, LanePlacementReport, LaneTrackSpan,
+    NamedGridErrorReport, NamedGridReport, compute_grid, compute_grid_with_report,
+    grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
 };
 pub use node_input::{
     AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexWrap, Float,

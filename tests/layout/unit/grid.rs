@@ -2,7 +2,7 @@ use super::support::oracle_tree::{OracleMeasurement, OracleTree};
 use super::*;
 use surgeist_layout::{
     CalcExpression, CalcResolver, CalcTerm, GridTemplateAreaRow, GridTemplateAreas,
-    LayoutCalcStore, RawGridLine, RawGridPlacement,
+    LayoutCalcStore, NamedGridErrorReport, RawGridLine, RawGridPlacement,
 };
 
 fn baseline_measure(
@@ -11556,6 +11556,132 @@ fn named_grid_invalid_template_areas_keep_explicit_line_names() {
 
     assert_eq!(child.location.x, 40.0);
     assert_eq!(child.size.width, 40.0);
+}
+
+#[test]
+fn invalid_named_grid_context_is_reported() {
+    let mut tree = OracleTree::new().children(1, []).style(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+            grid_template_columns: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
+            grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(20.0)],
+            grid_template_areas: GridTemplateAreas {
+                rows: vec![
+                    GridTemplateAreaRow {
+                        cells: vec![Some("bad".to_string()), Some("bad".to_string())],
+                    },
+                    GridTemplateAreaRow {
+                        cells: vec![Some("bad".to_string())],
+                    },
+                ],
+            },
+            ..NodeInput::DEFAULT
+        },
+    );
+
+    let result = surgeist_layout::compute_grid_with_report(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(120.0), Some(20.0)),
+            available: Size::new(Available::Definite(120.0), Available::Definite(20.0)),
+        },
+    );
+
+    assert!(result.report().named_grid_errors().contains(
+        &NamedGridErrorReport::TemplateAreaRowLengthMismatch {
+            row: 2,
+            expected: 2,
+            actual: 1,
+        },
+    ));
+}
+
+#[test]
+fn invalid_named_grid_context_fallback_is_reported() {
+    let mut tree = OracleTree::new().children(1, []).style(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+            grid_template_columns: vec![
+                TrackComponent::line_names(["auto"]),
+                TrackComponent::px(40.0),
+            ],
+            grid_template_rows: vec![TrackComponent::px(20.0)],
+            ..NodeInput::DEFAULT
+        },
+    );
+
+    let result = surgeist_layout::compute_grid_with_report(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(40.0), Some(20.0)),
+            available: Size::new(Available::Definite(40.0), Available::Definite(20.0)),
+        },
+    );
+
+    assert!(result.report().named_grid_errors().contains(
+        &NamedGridErrorReport::ReservedLineName {
+            name: "auto".to_string(),
+        },
+    ));
+}
+
+#[test]
+fn invalid_grid_item_placement_reports_one_authored_fallback_once() {
+    let mut tree = OracleTree::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+                grid_template_columns: vec![TrackComponent::px(40.0)],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                raw_grid_column: RawGridPlacement::new(RawGridLine::Line(0), RawGridLine::Auto),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    let result = surgeist_layout::compute_grid_with_report(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(40.0), Some(20.0)),
+            available: Size::new(Available::Definite(40.0), Available::Definite(20.0)),
+        },
+    );
+
+    let zero_line_count = result
+        .report()
+        .named_grid_errors()
+        .iter()
+        .filter(|error| **error == NamedGridErrorReport::ZeroLine)
+        .count();
+
+    assert_eq!(zero_line_count, 1);
 }
 
 #[test]
