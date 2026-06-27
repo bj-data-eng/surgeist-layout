@@ -35,3 +35,30 @@ for the owning crate coordinator to plan and implement the change.
   insertion/builder path for declaration block construction or coordinate the
   replacement API with layout test support. Then rerun the layout integration
   test target from this crate.
+
+### `surgeist-style` grid and calc value API changes block browser parity support compile
+
+- Status: `open`
+- Owning crate: `surgeist-style`
+- Affected APIs: grid line/name value constructors, subgrid/track repeat value
+  constructors, and `CalcLength::sum`
+- Observed commands:
+  `cargo test -p surgeist-layout --test layout layout::contract::node_input_and_output_support_f64_scalar_lane -- --nocapture`
+  and other focused `--test layout layout::contract::*` checks during generic
+  scalar implementation.
+- Observed behavior: after the layout-local scalar types compile, the
+  `surgeist-layout` integration test target still fails in
+  `tests/layout/browser_parity/support.rs` because the support code is written
+  against older `surgeist-style` construction shapes. Repeated observed errors
+  include `GridLineNameSet` versus `Vec<String>` mismatches,
+  `SubgridTrack`/`TrackRepeat` result handling mismatches, grid line newtype
+  construction mismatches, and `CalcLength::sum` now requiring separate
+  `(first, rest)` arguments rather than a single iterable.
+- Expected behavior: browser parity support should compile against the current
+  intentional `surgeist-style` public value construction APIs before layout
+  contract tests are blocked by adapter support code.
+- Required owning change: in `surgeist-style` or in a coordinated layout
+  support update after style publishes the intended APIs, provide a stable
+  construction path for the browser parity lowering support and update the
+  layout test-support call sites. Then rerun the layout integration test target
+  from this crate.
