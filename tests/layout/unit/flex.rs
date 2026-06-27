@@ -259,7 +259,13 @@ fn flex_final_content_size_uses_rerun_output() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(1, NodeInput::default());
+    tree.styles.insert(
+        1,
+        NodeInput {
+            flex_grow: 1.0,
+            ..NodeInput::default()
+        },
+    );
 
     let output = compute_flex(
         &mut tree,
