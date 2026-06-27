@@ -1,11 +1,11 @@
 use super::*;
 use crate::Baselines;
 
-pub(super) struct GridChildrenLayout {
-    pub(super) visible_content_size: Size,
-    pub(super) first_baseline: Option<Scalar>,
-    pub(super) last_baseline: Option<Scalar>,
-    pub(super) baseline_groups: GridBaselineGroups,
+pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
+    pub(super) visible_content_size: Size<S>,
+    pub(super) first_baseline: Option<S>,
+    pub(super) last_baseline: Option<S>,
+    pub(super) baseline_groups: GridBaselineGroups<S>,
 }
 
 #[derive(Clone, Copy)]
@@ -31,49 +31,49 @@ pub(super) struct BaselineParticipation {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct BaselineGeometry {
-    pub(super) available_span_size: Scalar,
-    pub(super) margin_box_size: Scalar,
+pub(super) struct BaselineGeometry<S: LayoutScalar = Scalar> {
+    pub(super) available_span_size: S,
+    pub(super) margin_box_size: S,
     // Border-box baselines are stored separately on PendingGridItem. These
     // fields are the margin-box contributions used by shared baseline groups:
     // block-start margin plus first baseline for major groups, and block-end
     // margin plus distance from last baseline to block-end for minor groups.
-    pub(super) major_baseline: Scalar,
-    pub(super) minor_baseline: Scalar,
+    pub(super) major_baseline: S,
+    pub(super) minor_baseline: S,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct TrackBaselineGroup {
-    pub(super) first: Option<Scalar>,
-    pub(super) last: Option<Scalar>,
+pub(super) struct TrackBaselineGroup<S: LayoutScalar = Scalar> {
+    pub(super) first: Option<S>,
+    pub(super) last: Option<S>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct GridBaselineGroups {
-    pub(super) rows: Vec<TrackBaselineGroup>,
-    pub(super) columns: Vec<TrackBaselineGroup>,
+pub(super) struct GridBaselineGroups<S: LayoutScalar = Scalar> {
+    pub(super) rows: Vec<TrackBaselineGroup<S>>,
+    pub(super) columns: Vec<TrackBaselineGroup<S>>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct GridContainerBaselines {
-    pub(super) first: Option<Scalar>,
-    pub(super) last: Option<Scalar>,
+pub(super) struct GridContainerBaselines<S: LayoutScalar = Scalar> {
+    pub(super) first: Option<S>,
+    pub(super) last: Option<S>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct PublishedTrackBaselineGroup {
+pub(super) struct PublishedTrackBaselineGroup<S: LayoutScalar = Scalar> {
     pub(super) parent_index: usize,
-    pub(super) group: TrackBaselineGroup,
+    pub(super) group: TrackBaselineGroup<S>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct BaselineShim {
-    pub(super) before: Scalar,
-    pub(super) after: Scalar,
+pub(super) struct BaselineShim<S: LayoutScalar = Scalar> {
+    pub(super) before: S,
+    pub(super) after: S,
 }
 
-impl GridBaselineGroups {
-    fn shared_baseline(&self, group_kind: BaselineGroupKind, area: GridArea) -> Option<Scalar> {
+impl<S: LayoutScalar> GridBaselineGroups<S> {
+    fn shared_baseline(&self, group_kind: BaselineGroupKind, area: GridArea<S>) -> Option<S> {
         match group_kind {
             BaselineGroupKind::Major => self.rows.get(area.row)?.first,
             BaselineGroupKind::Minor => {
@@ -87,37 +87,37 @@ impl GridBaselineGroups {
 // Surgeist currently lays out horizontal writing mode only. Column-axis
 // baseline groups use the same data model but are not applied until vertical
 // writing-mode grid tests are introduced.
-pub(super) fn baseline_shim_for_intrinsic_contribution(
+pub(super) fn baseline_shim_for_intrinsic_contribution<S: LayoutScalar>(
     participation: BaselineParticipation,
-    geometry: BaselineGeometry,
-    shared: TrackBaselineGroup,
-) -> BaselineShim {
+    geometry: BaselineGeometry<S>,
+    shared: TrackBaselineGroup<S>,
+) -> BaselineShim<S> {
     if !participation.participates {
         return BaselineShim::default();
     }
 
     match participation.group {
         Some(BaselineGroupKind::Major) => BaselineShim {
-            before: shared.first.map_or(0.0, |baseline| {
-                (baseline - geometry.major_baseline).max(0.0)
+            before: shared.first.map_or(S::ZERO, |baseline| {
+                (baseline - geometry.major_baseline).max(S::ZERO)
             }),
-            after: 0.0,
+            after: S::ZERO,
         },
         Some(BaselineGroupKind::Minor) => BaselineShim {
-            before: 0.0,
-            after: shared.last.map_or(0.0, |baseline| {
-                (baseline - geometry.minor_baseline).max(0.0)
+            before: S::ZERO,
+            after: shared.last.map_or(S::ZERO, |baseline| {
+                (baseline - geometry.minor_baseline).max(S::ZERO)
             }),
         },
         None => BaselineShim::default(),
     }
 }
 
-pub(super) fn baseline_offset(
+pub(super) fn baseline_offset<S: LayoutScalar>(
     group_kind: BaselineGroupKind,
-    shared_baseline: Scalar,
-    geometry: BaselineGeometry,
-) -> Scalar {
+    shared_baseline: S,
+    geometry: BaselineGeometry<S>,
+) -> S {
     match group_kind {
         BaselineGroupKind::Major => shared_baseline - geometry.major_baseline,
         BaselineGroupKind::Minor => {
@@ -127,14 +127,17 @@ pub(super) fn baseline_offset(
     }
 }
 
-pub(super) fn spanned_track_size(
-    tracks: &[Scalar],
+pub(super) fn spanned_track_size<S: LayoutScalar>(
+    tracks: &[S],
     start: usize,
     end: usize,
-    gap: Scalar,
-) -> Scalar {
-    let track_sum = tracks[start..end].iter().copied().sum::<Scalar>();
-    let gap_sum = gap * end.saturating_sub(start + 1) as Scalar;
+    gap: S,
+) -> S {
+    let track_sum = tracks[start..end]
+        .iter()
+        .copied()
+        .fold(S::ZERO, |sum, track| sum + track);
+    let gap_sum = gap * S::from_usize(end.saturating_sub(start + 1));
     track_sum + gap_sum
 }
 
@@ -1668,21 +1671,21 @@ fn stretch_subgridded_axis(sizing: &mut GridItemSizing, report: SubgridAxisRepor
     }
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct GridItemAxis {
-    pub(super) area_size: Scalar,
-    pub(super) size: Scalar,
-    pub(super) margin_start: Option<Scalar>,
-    pub(super) margin_end: Option<Scalar>,
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct GridItemAxis<S: LayoutScalar = Scalar> {
+    pub(super) area_size: S,
+    pub(super) size: S,
+    pub(super) margin_start: Option<S>,
+    pub(super) margin_end: Option<S>,
     pub(super) alignment: AlignItems,
     pub(super) direction: Direction,
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct ResolvedGridItemAxis {
-    pub(super) offset: Scalar,
-    pub(super) margin_start: Scalar,
-    pub(super) margin_end: Scalar,
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ResolvedGridItemAxis<S: LayoutScalar = Scalar> {
+    pub(super) offset: S,
+    pub(super) margin_start: S,
+    pub(super) margin_end: S,
 }
 
 #[derive(Clone, Copy)]
@@ -1709,7 +1712,7 @@ fn grid_item_physical_alignment(
     }
 }
 
-pub(super) fn grid_item_axis(axis: GridItemAxis) -> ResolvedGridItemAxis {
+pub(super) fn grid_item_axis<S: LayoutScalar>(axis: GridItemAxis<S>) -> ResolvedGridItemAxis<S> {
     let GridItemAxis {
         area_size,
         size,
@@ -1718,15 +1721,15 @@ pub(super) fn grid_item_axis(axis: GridItemAxis) -> ResolvedGridItemAxis {
         alignment,
         direction,
     } = axis;
-    let non_auto_start = margin_start.unwrap_or(0.0);
-    let non_auto_end = margin_end.unwrap_or(0.0);
+    let non_auto_start = margin_start.unwrap_or(S::ZERO);
+    let non_auto_end = margin_end.unwrap_or(S::ZERO);
     let raw_free_space = area_size - size - non_auto_start - non_auto_end;
-    let free_space = raw_free_space.max(0.0);
+    let free_space = raw_free_space.max(S::ZERO);
     let auto_margin_count = usize::from(margin_start.is_none()) + usize::from(margin_end.is_none());
     let auto_margin = if auto_margin_count > 0 {
-        free_space / auto_margin_count as Scalar
+        free_space / S::from_usize(auto_margin_count)
     } else {
-        0.0
+        S::ZERO
     };
     let resolved_start = margin_start.unwrap_or(auto_margin);
     let resolved_end = margin_end.unwrap_or(auto_margin);
@@ -1746,7 +1749,7 @@ pub(super) fn grid_item_axis(axis: GridItemAxis) -> ResolvedGridItemAxis {
                 area_size - size - resolved_end
             }
         }
-        AlignItems::Center => (area_size - size + resolved_start - resolved_end) / 2.0,
+        AlignItems::Center => (area_size - size + resolved_start - resolved_end) / S::from_f64(2.0),
         AlignItems::SafeEnd | AlignItems::SafeFlexEnd | AlignItems::SafeCenter => {
             unreachable!("safe_fallback returns unsafe item alignment")
         }
@@ -2053,29 +2056,31 @@ pub(super) struct AbsoluteGridAxisArea {
     pub(super) size: Scalar,
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridAxis {
-    pub(super) area_location: Scalar,
-    pub(super) static_area_location: Scalar,
-    pub(super) area_size: Scalar,
-    pub(super) static_area_size: Scalar,
-    pub(super) size: Scalar,
-    pub(super) margin_start: Option<Scalar>,
-    pub(super) margin_end: Option<Scalar>,
-    pub(super) inset_start: Option<Scalar>,
-    pub(super) inset_end: Option<Scalar>,
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct AbsoluteGridAxis<S: LayoutScalar = Scalar> {
+    pub(super) area_location: S,
+    pub(super) static_area_location: S,
+    pub(super) area_size: S,
+    pub(super) static_area_size: S,
+    pub(super) size: S,
+    pub(super) margin_start: Option<S>,
+    pub(super) margin_end: Option<S>,
+    pub(super) inset_start: Option<S>,
+    pub(super) inset_end: Option<S>,
     pub(super) alignment: AlignItems,
     pub(super) direction: Direction,
 }
 
-#[derive(Clone, Copy)]
-pub(super) struct ResolvedAbsoluteGridAxis {
-    pub(super) location: Scalar,
-    pub(super) margin_start: Scalar,
-    pub(super) margin_end: Scalar,
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ResolvedAbsoluteGridAxis<S: LayoutScalar = Scalar> {
+    pub(super) location: S,
+    pub(super) margin_start: S,
+    pub(super) margin_end: S,
 }
 
-pub(super) fn absolute_grid_axis(axis: AbsoluteGridAxis) -> ResolvedAbsoluteGridAxis {
+pub(super) fn absolute_grid_axis<S: LayoutScalar>(
+    axis: AbsoluteGridAxis<S>,
+) -> ResolvedAbsoluteGridAxis<S> {
     let AbsoluteGridAxis {
         area_location,
         static_area_location,
@@ -2089,15 +2094,15 @@ pub(super) fn absolute_grid_axis(axis: AbsoluteGridAxis) -> ResolvedAbsoluteGrid
         alignment,
         direction,
     } = axis;
-    let non_auto_start = margin_start.unwrap_or(0.0);
-    let non_auto_end = margin_end.unwrap_or(0.0);
+    let non_auto_start = margin_start.unwrap_or(S::ZERO);
+    let non_auto_end = margin_end.unwrap_or(S::ZERO);
     let raw_free_space = area_size - size - non_auto_start - non_auto_end;
-    let free_space = raw_free_space.max(0.0);
+    let free_space = raw_free_space.max(S::ZERO);
     let auto_margin_count = usize::from(margin_start.is_none()) + usize::from(margin_end.is_none());
     let auto_margin = if auto_margin_count > 0 {
-        free_space / auto_margin_count as Scalar
+        free_space / S::from_usize(auto_margin_count)
     } else {
-        0.0
+        S::ZERO
     };
     let resolved_start = margin_start.unwrap_or(auto_margin);
     let resolved_end = margin_end.unwrap_or(auto_margin);
@@ -2123,7 +2128,9 @@ pub(super) fn absolute_grid_axis(axis: AbsoluteGridAxis) -> ResolvedAbsoluteGrid
             AlignItems::End | AlignItems::FlexEnd | AlignItems::LastBaseline => {
                 static_area_size - size - resolved_end
             }
-            AlignItems::Center => (static_area_size - size + resolved_start - resolved_end) / 2.0,
+            AlignItems::Center => {
+                (static_area_size - size + resolved_start - resolved_end) / S::from_f64(2.0)
+            }
             AlignItems::Start
             | AlignItems::FlexStart
             | AlignItems::Baseline

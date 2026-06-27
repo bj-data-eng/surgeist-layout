@@ -174,6 +174,79 @@ fn shared_grid_contexts_accept_non_default_scalar() {
 }
 
 #[test]
+fn grid_child_pure_helpers_accept_non_default_scalar() {
+    let geometry = BaselineGeometry::<f64> {
+        available_span_size: 80.0,
+        margin_box_size: 30.0,
+        major_baseline: 12.5,
+        minor_baseline: 7.25,
+    };
+    let shared = TrackBaselineGroup::<f64> {
+        first: Some(20.0),
+        last: Some(10.0),
+    };
+
+    assert_eq!(
+        baseline_shim_for_intrinsic_contribution(
+            BaselineParticipation {
+                participates: true,
+                group: Some(BaselineGroupKind::Major),
+                synthesized: false,
+                fallback_alignment: None,
+            },
+            geometry,
+            shared,
+        ),
+        BaselineShim::<f64> {
+            before: 7.5,
+            after: 0.0,
+        }
+    );
+    assert_eq!(
+        baseline_offset(BaselineGroupKind::Minor, 10.0_f64, geometry),
+        47.25
+    );
+    assert_eq!(spanned_track_size(&[10.0_f64, 20.0, 30.0], 0, 3, 2.5), 65.0);
+
+    assert_eq!(
+        grid_item_axis(GridItemAxis::<f64> {
+            area_size: 100.0,
+            size: 20.0,
+            margin_start: None,
+            margin_end: None,
+            alignment: AlignItems::Center,
+            direction: Direction::Ltr,
+        }),
+        ResolvedGridItemAxis::<f64> {
+            offset: 40.0,
+            margin_start: 40.0,
+            margin_end: 40.0,
+        }
+    );
+
+    assert_eq!(
+        absolute_grid_axis(AbsoluteGridAxis::<f64> {
+            area_location: 5.0,
+            static_area_location: 10.0,
+            area_size: 100.0,
+            static_area_size: 80.0,
+            size: 20.0,
+            margin_start: Some(2.5),
+            margin_end: Some(7.5),
+            inset_start: None,
+            inset_end: None,
+            alignment: AlignItems::End,
+            direction: Direction::Ltr,
+        }),
+        ResolvedAbsoluteGridAxis::<f64> {
+            location: 62.5,
+            margin_start: 2.5,
+            margin_end: 7.5,
+        }
+    );
+}
+
+#[test]
 fn grid_alignment_accepts_f64_and_preserves_fractional_distribution() {
     let alignment = grid_alignment::<f64>(9_000_000.75_f64, 3, 0.25_f64, AlignContent::SpaceAround);
 
