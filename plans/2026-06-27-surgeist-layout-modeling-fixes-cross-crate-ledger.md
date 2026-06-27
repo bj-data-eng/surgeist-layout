@@ -31,9 +31,10 @@ Do not edit sibling crates from this repo. When a dependency is discovered:
 
 - Status: `open`
 - Layout task: Task 3, `Model Aspect Ratio As A Validated Semantic Type`
-- Layout state: implemented locally and clean-context reviewed; focused tests
-  are pending because the style dev-dependency does not yet compile against the
-  new layout API.
+- Layout commit: `fb04e1e0` (`Model aspect ratio as a validated value`)
+- Layout state: implemented locally, clean-context reviewed, and committed;
+  focused tests are pending because the style dev-dependency does not yet
+  compile against the new layout API.
 - Owning crate: `surgeist-style`
 - Owning issue: https://github.com/bj-data-eng/surgeist-style/issues/2
 - Required owning change: update
