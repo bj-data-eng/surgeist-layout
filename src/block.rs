@@ -1,6 +1,7 @@
 use super::inline::{
     AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem, layout_atomic_inline_items,
 };
+use super::value::{CalcUnresolvedReason, ResolvedLengthAuto};
 use super::{
     AspectRatio, Available, Baselines, BoxSizing, CalcResolution, CalcResolutionStatus,
     CalcResolver, Clear, CollapsibleMargin, Compute, ComputeInput, ComputeOutput, Dimension,
@@ -449,7 +450,7 @@ where
         let unresolved_margin = child_style
             .margin
             .zip_inline_size(node_inner_size, |length, basis| {
-                resolve_auto_optional_with(length, basis, tree.calc_resolver())
+                length.resolve_auto_with_status(basis, tree.calc_resolver())
             });
         let child_padding = child_style
             .padding
@@ -461,7 +462,7 @@ where
             .zip_inline_size(node_inner_size, |length, basis| {
                 resolve_length_or_zero_with(length, basis, tree.calc_resolver())
             });
-        let child_non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+        let child_non_auto_margin = unresolved_margin.map(resolved_length_auto_fallback_zero);
         let available_child_width = node_inner_size
             .width
             .or(input.available.width.into_option())
@@ -1006,14 +1007,12 @@ fn in_flow_child_available_width(
     available_width: Option<Scalar>,
     fallback: Available,
 ) -> Available {
-    match style.size.width {
-        Dimension::MinContent => Available::MIN_CONTENT,
-        Dimension::MaxContent => Available::MAX_CONTENT,
-        Dimension::Px(_)
-        | Dimension::Percent(_)
-        | Dimension::Calc(_)
-        | Dimension::Fr(_)
-        | Dimension::Auto => available_width.map(Available::definite).unwrap_or(fallback),
+    if style.size.width.is_min_content() {
+        Available::MIN_CONTENT
+    } else if style.size.width.is_max_content() {
+        Available::MAX_CONTENT
+    } else {
+        available_width.map(Available::definite).unwrap_or(fallback)
     }
 }
 
@@ -1039,12 +1038,14 @@ fn relative_inset_offset(inset: Edges<Option<Scalar>>, direction: Direction) -> 
 }
 
 fn resolve_in_flow_margin(
-    margin: Edges<Option<Scalar>>,
+    margin: Edges<ResolvedLengthAuto>,
     child_size: Size,
     container_width: Option<Scalar>,
 ) -> Edges {
-    let non_auto_horizontal = margin.left.unwrap_or(0.0) + margin.right.unwrap_or(0.0);
-    let auto_count = usize::from(margin.left.is_none()) + usize::from(margin.right.is_none());
+    let non_auto_horizontal = resolved_length_auto_fallback_zero(margin.left)
+        + resolved_length_auto_fallback_zero(margin.right);
+    let auto_count = usize::from(matches!(margin.left, ResolvedLengthAuto::Auto))
+        + usize::from(matches!(margin.right, ResolvedLengthAuto::Auto));
     let auto_horizontal = if auto_count == 0 {
         0.0
     } else {
@@ -1055,11 +1056,31 @@ fn resolve_in_flow_margin(
     };
 
     Edges {
-        left: margin.left.unwrap_or(auto_horizontal),
-        right: margin.right.unwrap_or(auto_horizontal),
-        top: margin.top.unwrap_or(0.0),
-        bottom: margin.bottom.unwrap_or(0.0),
+        left: resolved_length_auto_or(margin.left, auto_horizontal),
+        right: resolved_length_auto_or(margin.right, auto_horizontal),
+        top: resolved_length_auto_fallback_zero(margin.top),
+        bottom: resolved_length_auto_fallback_zero(margin.bottom),
     }
+}
+
+fn resolved_length_auto_or(value: ResolvedLengthAuto, auto_fallback: Scalar) -> Scalar {
+    match value {
+        ResolvedLengthAuto::Auto => auto_fallback,
+        ResolvedLengthAuto::Resolved(value) => value,
+        // Missing-basis symbolic margins keep the algorithm's historical
+        // unresolved-as-zero fallback and do not participate in auto distribution.
+        ResolvedLengthAuto::Unresolved(CalcUnresolvedReason::Basis) => 0.0,
+        ResolvedLengthAuto::Unresolved(CalcUnresolvedReason::Resolver) => {
+            panic!("calc resolution requires an explicit resolver")
+        }
+        ResolvedLengthAuto::Unresolved(CalcUnresolvedReason::Expression) => {
+            panic!("calc expression is missing")
+        }
+    }
+}
+
+fn resolved_length_auto_fallback_zero(value: ResolvedLengthAuto) -> Scalar {
+    resolved_length_auto_or(value, 0.0)
 }
 
 fn resolve_atomic_inline_margin(margin: Edges<Option<Scalar>>) -> Edges {
@@ -1819,7 +1840,7 @@ mod tests {
 
     use super::*;
     use crate::compute::compute_leaf_with_resolver;
-    use crate::{CalcExpression, CalcTerm, LayoutCalcStore};
+    use crate::{CalcExpression, CalcId, CalcTerm, LayoutCalcStore, NoCalcResolver};
 
     #[derive(Default)]
     struct CalcLeafTree {
@@ -1921,5 +1942,65 @@ mod tests {
 
         assert_eq!(tree.layouts[&1].size.width, 60.0);
         assert_eq!(output.content_size.width, 60.0);
+    }
+
+    #[test]
+    fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
+        let mut tree = CalcLeafTree::default();
+        let margin = tree
+            .calcs
+            .push(CalcExpression::sum([CalcTerm::percent(0.25)]));
+        tree.styles.insert(
+            1,
+            NodeInput {
+                margin: Edges {
+                    top: LengthAuto::calc(margin),
+                    ..Edges::ZERO.map(|_| LengthAuto::px(0.0))
+                },
+                ..NodeInput::default()
+            },
+        );
+
+        let resolved = tree.styles[&1]
+            .margin
+            .zip_inline_size(Size::new(None, None), |length, basis| {
+                length.resolve_auto_with_status(basis, &tree.calcs)
+            });
+        let resolved = resolve_in_flow_margin(resolved, Size::new(10.0, 10.0), None);
+
+        assert_eq!(resolved.top, 0.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "calc resolution requires an explicit resolver")]
+    fn missing_resolver_margin_keeps_explicit_failure() {
+        let margin = LengthAuto::calc(CalcId::from_raw_for_tests(0))
+            .resolve_auto_with_status(Some(10.0), &NoCalcResolver);
+
+        let _ = resolve_in_flow_margin(
+            Edges {
+                top: margin,
+                ..Edges::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
+            },
+            Size::new(10.0, 10.0),
+            Some(10.0),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "calc expression is missing")]
+    fn missing_expression_margin_keeps_explicit_failure() {
+        let store = LayoutCalcStore::new();
+        let margin = LengthAuto::calc(CalcId::from_raw_for_tests(99))
+            .resolve_auto_with_status(Some(10.0), &store);
+
+        let _ = resolve_in_flow_margin(
+            Edges {
+                top: margin,
+                ..Edges::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
+            },
+            Size::new(10.0, 10.0),
+            Some(10.0),
+        );
     }
 }

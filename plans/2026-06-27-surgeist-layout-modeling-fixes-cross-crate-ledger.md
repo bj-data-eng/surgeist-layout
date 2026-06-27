@@ -62,6 +62,17 @@ cargo test -p surgeist-layout --test layout layout::flex -- --nocapture
 cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
 ```
 
+- Additional dependent layout tasks:
+  - Task 4, `Replace Resolver-Free Algorithm Helpers`, is implemented locally
+    and clean-context reviewed. Its focused block/flex/grid integration tests
+    are pending on the same style adapter fix:
+
+```sh
+cargo test -p surgeist-layout --test layout layout::block -- --nocapture
+cargo test -p surgeist-layout --test layout layout::flex -- --nocapture
+cargo test -p surgeist-layout --test layout layout::grid -- --nocapture
+```
+
 - Notes:
   - Layout-local checks passed before this entry was opened:
     `cargo check -p surgeist-layout --lib`, `cargo fmt --check`, and

@@ -79,6 +79,20 @@ pub enum CalcResolutionStatus {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CalcUnresolvedReason {
+    Basis,
+    Resolver,
+    Expression,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ResolvedLengthAuto {
+    Auto,
+    Resolved(Scalar),
+    Unresolved(CalcUnresolvedReason),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CalcResolution {
     pub value: Option<Scalar>,
     pub depends_on_basis: bool,
@@ -139,6 +153,16 @@ impl CalcResolution {
     #[must_use]
     pub const fn is_missing_expression(self) -> bool {
         matches!(self.status, CalcResolutionStatus::MissingExpression)
+    }
+
+    #[must_use]
+    pub const fn unresolved_reason(self) -> Option<CalcUnresolvedReason> {
+        match self.status {
+            CalcResolutionStatus::Resolved | CalcResolutionStatus::NonNumeric => None,
+            CalcResolutionStatus::MissingBasis => Some(CalcUnresolvedReason::Basis),
+            CalcResolutionStatus::MissingResolver => Some(CalcUnresolvedReason::Resolver),
+            CalcResolutionStatus::MissingExpression => Some(CalcUnresolvedReason::Expression),
+        }
     }
 }
 
@@ -531,6 +555,27 @@ impl LengthAuto {
             Self::Calc(id) => resolver.resolve_calc(id, basis),
             Self::Auto => CalcResolution::non_numeric(),
         }
+    }
+
+    #[must_use]
+    pub fn resolve_auto_with_status(
+        self,
+        basis: Option<Scalar>,
+        resolver: &dyn CalcResolver,
+    ) -> ResolvedLengthAuto {
+        if self.is_auto() {
+            return ResolvedLengthAuto::Auto;
+        }
+
+        let resolution = self.resolve_with_status(basis, resolver);
+        if let Some(value) = resolution.value {
+            return ResolvedLengthAuto::Resolved(value);
+        }
+        if let Some(reason) = resolution.unresolved_reason() {
+            return ResolvedLengthAuto::Unresolved(reason);
+        }
+
+        panic!("non-auto length resolution produced non-numeric status")
     }
 
     #[must_use]

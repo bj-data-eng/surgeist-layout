@@ -2125,9 +2125,16 @@ pub(super) fn track_base_size_for_intrinsics(
             length
                 .resolve_with(basis, resolver)
                 .unwrap_or_else(|| match length {
-                    Length::Percent(_) | Length::Calc(_) => max_intrinsic,
+                    length
+                        if length.depends_on_basis_with(resolver) || length.requires_resolver() =>
+                    {
+                        max_intrinsic
+                    }
                     Length::Normal => 0.0,
                     Length::Px(_) => length.resolve_with(None, resolver).unwrap_or(0.0),
+                    _ => unreachable!(
+                        "basis-dependent and resolver-required lengths are handled above"
+                    ),
                 })
         }
         MaxTrackSizing::Flex(_) => 0.0,
@@ -2178,9 +2185,14 @@ pub(super) fn track_growth_limit_for_intrinsics(
     match track.max {
         MaxTrackSizing::Length(length) | MaxTrackSizing::FitContent(length) => {
             length.resolve_with(basis, resolver).or(match length {
-                Length::Percent(_) | Length::Calc(_) => Some(max_intrinsic),
+                length if length.depends_on_basis_with(resolver) || length.requires_resolver() => {
+                    Some(max_intrinsic)
+                }
                 Length::Normal => Some(0.0),
                 Length::Px(_) => None,
+                _ => {
+                    unreachable!("basis-dependent and resolver-required lengths are handled above")
+                }
             })
         }
         MaxTrackSizing::MinContent => Some(min_intrinsic),
@@ -2461,19 +2473,20 @@ pub(super) fn track_resolution_intrinsic_sizes(
     tracks: &[TrackSizing],
     min_intrinsic_sizes: &[Scalar],
     max_intrinsic_sizes: &[Scalar],
+    resolver: &dyn CalcResolver,
 ) -> Vec<Scalar> {
     tracks
         .iter()
         .enumerate()
         .map(|(index, track)| {
             if track.min == MinTrackSizing::MaxContent
-                || matches!(
-                    track.max,
-                    MaxTrackSizing::Auto
-                        | MaxTrackSizing::Flex(_)
-                        | MaxTrackSizing::MaxContent
-                        | MaxTrackSizing::Length(Length::Percent(_))
-                )
+                || match track.max {
+                    MaxTrackSizing::Auto | MaxTrackSizing::Flex(_) | MaxTrackSizing::MaxContent => {
+                        true
+                    }
+                    MaxTrackSizing::Length(length) => length.depends_on_basis_with(resolver),
+                    MaxTrackSizing::FitContent(_) | MaxTrackSizing::MinContent => false,
+                }
             {
                 intrinsic_at(max_intrinsic_sizes, index)
             } else if track.min == MinTrackSizing::MinContent
@@ -2618,4 +2631,38 @@ pub(super) fn rtl_offsets(
             offset
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{CalcExpression, CalcTerm, LayoutCalcStore};
+
+    #[test]
+    fn px_only_calc_max_track_does_not_force_max_intrinsic_resolution() {
+        let mut resolver = LayoutCalcStore::new();
+        let calc = resolver.push(CalcExpression::sum([CalcTerm::px(24.0)]));
+        let tracks = [TrackSizing::new(
+            MinTrackSizing::MinContent,
+            MaxTrackSizing::Length(Length::calc(calc)),
+        )];
+
+        let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0], &resolver);
+
+        assert_eq!(sizes, vec![11.0]);
+    }
+
+    #[test]
+    fn basis_dependent_calc_max_track_uses_max_intrinsic_resolution() {
+        let mut resolver = LayoutCalcStore::new();
+        let calc = resolver.push(CalcExpression::sum([CalcTerm::percent(0.5)]));
+        let tracks = [TrackSizing::new(
+            MinTrackSizing::MinContent,
+            MaxTrackSizing::Length(Length::calc(calc)),
+        )];
+
+        let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0], &resolver);
+
+        assert_eq!(sizes, vec![99.0]);
+    }
 }

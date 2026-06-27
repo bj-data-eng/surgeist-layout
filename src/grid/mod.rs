@@ -86,14 +86,12 @@ fn intrinsic_container_available(
 }
 
 fn intrinsic_available_for_dimension(dimension: Dimension) -> Option<Available> {
-    match dimension {
-        Dimension::MinContent => Some(Available::MIN_CONTENT),
-        Dimension::MaxContent => Some(Available::MAX_CONTENT),
-        Dimension::Px(_)
-        | Dimension::Percent(_)
-        | Dimension::Calc(_)
-        | Dimension::Fr(_)
-        | Dimension::Auto => None,
+    if dimension.is_min_content() {
+        Some(Available::MIN_CONTENT)
+    } else if dimension.is_max_content() {
+        Some(Available::MAX_CONTENT)
+    } else {
+        None
     }
 }
 
@@ -1166,6 +1164,7 @@ where
         column_tracks,
         &column_min_intrinsic_sizes,
         &column_max_intrinsic_sizes,
+        tree.calc_resolver(),
     );
     let column_resolution_intrinsic_sizes = if available.width == Available::MIN_CONTENT {
         column_min_intrinsic_sizes.as_slice()
@@ -1277,6 +1276,7 @@ where
             column_tracks,
             &column_min_intrinsic_sizes,
             &column_max_intrinsic_sizes,
+            tree.calc_resolver(),
         );
         let column_resolution_intrinsic_sizes = if available.width == Available::MIN_CONTENT {
             column_min_intrinsic_sizes.as_slice()
