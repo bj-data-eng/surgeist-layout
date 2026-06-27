@@ -82,6 +82,7 @@ const GRID_TEMPLATE_AREA_CAPTURE_SCRIPT: &str = r#"(() => {
 pub async fn run_from_env() -> Result<(), String> {
     let config = Config::from_env()?;
     match env::args().nth(1).as_deref() {
+        Some("generate") => generate(config).await,
         Some("check-corpus") => check_corpus(&config),
         Some("check-taffy-corpus") => check_taffy_corpus(&config),
         Some("import-taffy") => import_taffy(&config),
@@ -131,14 +132,53 @@ struct CorpusTaffyImport {
 #[derive(Clone, Debug, Deserialize)]
 struct CorpusCase {
     id: String,
-    source_root: String,
+    source_root: CorpusSourceRoot,
     source: String,
-    generator: String,
-    status: String,
+    generator: CorpusGenerator,
+    status: CorpusStatus,
     #[serde(default)]
     reason: Option<String>,
     #[serde(flatten)]
     _extra: BTreeMap<String, toml::Value>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+enum CorpusStatus {
+    Active,
+    ExpectedFail,
+    Unsupported,
+    Quarantined,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+enum CorpusGenerator {
+    ConstrainedHtml,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CorpusSourceRoot {
+    Html,
+    Surgeist,
+    Taffy,
+}
+
+impl<'de> Deserialize<'de> for CorpusSourceRoot {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = String::deserialize(deserializer)?;
+        match raw.as_str() {
+            "html" => Ok(Self::Html),
+            "surgeist" => Ok(Self::Surgeist),
+            "taffy" => Ok(Self::Taffy),
+            other => Err(serde::de::Error::custom(format!(
+                "unsupported source_root `{other}`"
+            ))),
+        }
+    }
 }
 
 impl Config {
@@ -442,7 +482,7 @@ fn manifest_surgeist_constrained_paths(config: &Config) -> Result<BTreeSet<PathB
     let manifest = read_corpus_manifest(config)?;
     let mut paths = BTreeSet::new();
     for case in manifest.cases {
-        if case.source_root != "surgeist" {
+        if case.source_root != CorpusSourceRoot::Surgeist {
             continue;
         }
         validate_surgeist_constrained_case(&case)?;
@@ -517,11 +557,11 @@ fn validate_root_cases(cases: &[CorpusCase]) -> Result<(), String> {
     let mut ids = BTreeSet::new();
     let mut sources = BTreeSet::new();
     for case in cases {
-        match case.source_root.as_str() {
-            "taffy" | "surgeist" => {}
-            other => {
+        match case.source_root {
+            CorpusSourceRoot::Taffy | CorpusSourceRoot::Surgeist => {}
+            CorpusSourceRoot::Html => {
                 return Err(format!(
-                    "root case {} uses unsupported source_root `{other}`",
+                    "root case {} uses unsupported source_root `html`",
                     case.id
                 ));
             }
@@ -534,7 +574,7 @@ fn validate_root_cases(cases: &[CorpusCase]) -> Result<(), String> {
         if !sources.insert(source_key.clone()) {
             return Err(format!("duplicate root case source `{source_key}`"));
         }
-        if case.source_root == "surgeist" {
+        if case.source_root == CorpusSourceRoot::Surgeist {
             validate_surgeist_constrained_case(case)?;
         }
     }
@@ -545,20 +585,11 @@ fn validate_surgeist_constrained_case(case: &CorpusCase) -> Result<(), String> {
     if case.id.trim().is_empty() {
         return Err("Surgeist constrained case id must not be empty".to_string());
     }
-    if case.generator != "constrained-html" {
+    if case.generator != CorpusGenerator::ConstrainedHtml {
         return Err(format!(
-            "Surgeist constrained case {} uses generator `{}`, expected `constrained-html`",
-            case.id, case.generator
+            "Surgeist constrained case {} uses unsupported generator; expected `constrained-html`",
+            case.id
         ));
-    }
-    match case.status.as_str() {
-        "active" | "expected-fail" | "unsupported" | "quarantined" => {}
-        other => {
-            return Err(format!(
-                "Surgeist constrained case {} uses unsupported status `{other}`",
-                case.id
-            ));
-        }
     }
     let source = validate_relative_path("Surgeist constrained case source", &case.source)?;
     if source.extension().and_then(|extension| extension.to_str()) != Some("html") {
@@ -576,7 +607,7 @@ fn validate_surgeist_constrained_case_files(config: &Config) -> Result<(), Strin
     for case in manifest
         .cases
         .iter()
-        .filter(|case| case.source_root == "surgeist")
+        .filter(|case| case.source_root == CorpusSourceRoot::Surgeist)
     {
         validate_surgeist_constrained_case(case)?;
         let source = validate_relative_path("Surgeist constrained case source", &case.source)?;
@@ -1269,7 +1300,7 @@ fn collect_constrained_fixtures_for_generation(
     for case in manifest
         .cases
         .iter()
-        .filter(|case| case.source_root == "surgeist")
+        .filter(|case| case.source_root == CorpusSourceRoot::Surgeist)
     {
         validate_surgeist_constrained_case(case)?;
         let source = validate_relative_path("Surgeist constrained case source", &case.source)?;
@@ -1282,9 +1313,9 @@ fn collect_constrained_fixtures_for_generation(
             continue;
         }
         let report_source = format!("html/{}", source.to_string_lossy().replace('\\', "/"));
-        match case.status.as_str() {
-            "active" => {}
-            "expected-fail" => {
+        match case.status {
+            CorpusStatus::Active => {}
+            CorpusStatus::ExpectedFail => {
                 report.record_expected_fail(
                     case.id.clone(),
                     report_source,
@@ -1293,7 +1324,7 @@ fn collect_constrained_fixtures_for_generation(
                         .unwrap_or_else(|| "manifest marks case expected-fail".to_string()),
                 );
             }
-            "unsupported" => {
+            CorpusStatus::Unsupported => {
                 report.record_unsupported(
                     case.id.clone(),
                     report_source,
@@ -1305,7 +1336,7 @@ fn collect_constrained_fixtures_for_generation(
                 prune_constrained_status_case_outputs(config, &fixture)?;
                 excluded.insert(fixture);
             }
-            "quarantined" => {
+            CorpusStatus::Quarantined => {
                 report.record_quarantined(
                     case.id.clone(),
                     report_source,
@@ -1315,12 +1346,6 @@ fn collect_constrained_fixtures_for_generation(
                 );
                 prune_constrained_status_case_outputs(config, &fixture)?;
                 excluded.insert(fixture);
-            }
-            other => {
-                return Err(format!(
-                    "Surgeist constrained case {} uses unsupported status `{other}`",
-                    case.id
-                ));
             }
         }
     }
@@ -1389,6 +1414,11 @@ fn write_fixture_goldens(
     let source = rel.to_string_lossy().replace('\\', "/");
     let source_sha256 = sha256_file(fixture)?;
     let helper_sha256 = sha256_bytes(TEST_HELPER_SOURCE.as_bytes());
+    let base_style_sha256 = if source_references_base_style(fixture)? {
+        Some(sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()))
+    } else {
+        None
+    };
     let browser = browser_provenance(config, browser_path);
     let output_dir = config.xml_root.join(group);
     fs::create_dir_all(&output_dir)
@@ -1418,6 +1448,7 @@ fn write_fixture_goldens(
             linked_resources: Vec::new(),
             linked_resources_recorded: false,
             helper_sha256: helper_sha256.clone(),
+            base_style_sha256: base_style_sha256.clone(),
             browser: browser.clone(),
         };
         planned.push(PlannedGoldenOutput::Generated {
@@ -1764,6 +1795,7 @@ struct GenerationReportMetadata {
     browser_source: &'static str,
     browser_version: Option<String>,
     helper_sha256: String,
+    base_style_sha256: String,
     corpus_manifest_sha256: String,
     taffy_commit: &'static str,
 }
@@ -1981,9 +2013,24 @@ fn generation_report_metadata(config: &Config) -> Result<GenerationReportMetadat
         browser_source: generation_report_browser_source(config),
         browser_version: generation_report_browser_version(config),
         helper_sha256: sha256_bytes(TEST_HELPER_SOURCE.as_bytes()),
+        base_style_sha256: sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
         corpus_manifest_sha256: sha256_file(&config.root.join("corpus.toml"))?,
         taffy_commit: TAFFY_COMMIT,
     })
+}
+
+#[cfg(test)]
+fn generation_report_metadata_for_tests() -> GenerationReportMetadata {
+    GenerationReportMetadata {
+        schema_version: 1,
+        generator: "surgeist-layout-generate",
+        browser_source: "chrome-for-testing",
+        browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
+        helper_sha256: sha256_bytes(TEST_HELPER_SOURCE.as_bytes()),
+        base_style_sha256: sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
+        corpus_manifest_sha256: String::new(),
+        taffy_commit: TAFFY_COMMIT,
+    }
 }
 
 fn generation_report_browser_source(config: &Config) -> &'static str {
@@ -2018,13 +2065,30 @@ fn validate_generation_report_freshness(config: &Config) -> Result<(), String> {
             path.display()
         ));
     }
-    validate_generation_report_metadata(&path, None, &expected)?;
+    for rel in collect_relative_files(&report_dir)? {
+        if rel.extension().and_then(|extension| extension.to_str()) != Some("json") {
+            continue;
+        }
+        let path = report_dir.join(rel);
+        let filter = if path.file_name().and_then(|name| name.to_str()) == Some("all.json") {
+            GenerationReportFilterExpectation::FullCorpus
+        } else {
+            GenerationReportFilterExpectation::ScopedReportFileName
+        };
+        validate_generation_report_metadata(&path, filter, &expected)?;
+    }
     Ok(())
+}
+
+#[derive(Clone, Copy, Debug)]
+enum GenerationReportFilterExpectation {
+    FullCorpus,
+    ScopedReportFileName,
 }
 
 fn validate_generation_report_metadata(
     path: &Path,
-    expected_filter: Option<&str>,
+    expected_filter: GenerationReportFilterExpectation,
     expected: &GenerationReportMetadata,
 ) -> Result<(), String> {
     let raw = fs::read_to_string(path).map_err(|error| {
@@ -2040,22 +2104,36 @@ fn validate_generation_report_metadata(
         )
     })?;
     match expected_filter {
-        Some(filter) => {
-            if json["filter"].as_str() != Some(filter) {
-                return Err(format!(
-                    "{} report filter is {:?}, expected {:?}",
-                    path.display(),
-                    json["filter"].as_str(),
-                    filter
-                ));
-            }
-        }
-        None => {
+        GenerationReportFilterExpectation::FullCorpus => {
             if !json["filter"].is_null() {
                 return Err(format!(
                     "{} report filter is {:?}, expected full-corpus null",
                     path.display(),
                     json["filter"]
+                ));
+            }
+        }
+        GenerationReportFilterExpectation::ScopedReportFileName => {
+            let filter = json["filter"].as_str().ok_or_else(|| {
+                format!(
+                    "{} scoped report filter must be a non-empty string",
+                    path.display()
+                )
+            })?;
+            if filter.trim_matches('/').is_empty() {
+                return Err(format!(
+                    "{} scoped report filter must be a non-empty string",
+                    path.display()
+                ));
+            }
+            let expected_name = format!("{}.json", generation_report_scope(filter));
+            let actual_name = path.file_name().and_then(|name| name.to_str());
+            if actual_name != Some(expected_name.as_str()) {
+                return Err(format!(
+                    "{} report filter is {:?}, expected file name {:?}",
+                    path.display(),
+                    filter,
+                    expected_name
                 ));
             }
         }
@@ -2090,6 +2168,11 @@ fn validate_generation_report_metadata(
             "helper_sha256",
             metadata["helper_sha256"].as_str().map(str::to_string),
             Some(expected.helper_sha256.clone()),
+        ),
+        (
+            "base_style_sha256",
+            metadata["base_style_sha256"].as_str().map(str::to_string),
+            Some(expected.base_style_sha256.clone()),
         ),
         (
             "corpus_manifest_sha256",
@@ -2212,9 +2295,34 @@ fn validate_xml_provenance_freshness(config: &Config) -> Result<(), String> {
                 expected_helper_sha256
             ));
         }
+        validate_xml_base_style_provenance(&path, &source_path, &provenance)?;
         validate_xml_browser_provenance(&path, &provenance.browser, expected_browser.as_ref())?;
     }
     Ok(())
+}
+
+fn validate_xml_base_style_provenance(
+    path: &Path,
+    source_path: &Path,
+    provenance: &GeneratedProvenance,
+) -> Result<(), String> {
+    if !source_references_base_style(source_path)? {
+        return Ok(());
+    }
+    let expected = sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes());
+    match provenance.base_style_sha256.as_deref() {
+        Some(actual) if actual == expected => Ok(()),
+        Some(actual) => Err(format!(
+            "{} generated XML base-style-sha256 is {}, expected {}; regenerate browser parity XML",
+            path.display(),
+            actual,
+            expected
+        )),
+        None => Err(format!(
+            "{} generated XML is missing base-style-sha256 for source referencing test_base_style.css; regenerate browser parity XML",
+            path.display()
+        )),
+    }
 }
 
 fn expected_xml_browser_provenance(config: &Config) -> Option<XmlBrowserProvenanceExpectation> {
@@ -2278,6 +2386,7 @@ fn parse_generated_provenance_comment(raw: &str) -> Result<GeneratedProvenance, 
         linked_resources: parse_linked_resource_provenance(&linked_resource_attr)?,
         linked_resources_recorded,
         helper_sha256: provenance_attr(comment, "helper-sha256")?,
+        base_style_sha256: provenance_attr_optional(comment, "base-style-sha256")?,
         browser: provenance_attr(comment, "browser")?,
     })
 }
@@ -2383,6 +2492,7 @@ struct GeneratedProvenance {
     linked_resources: Vec<GeneratedLinkedResourceProvenance>,
     linked_resources_recorded: bool,
     helper_sha256: String,
+    base_style_sha256: Option<String>,
     browser: String,
 }
 
@@ -2491,6 +2601,12 @@ fn sha256_file(path: &Path) -> Result<String, String> {
     Ok(sha256_bytes(&raw))
 }
 
+fn source_references_base_style(path: &Path) -> Result<bool, String> {
+    let raw = fs::read_to_string(path)
+        .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
+    Ok(raw.contains("test_base_style.css"))
+}
+
 fn sha256_bytes(raw: &[u8]) -> String {
     let digest = Sha256::digest(raw);
     hex_digest(&digest)
@@ -2545,12 +2661,18 @@ fn generate_xml_with_provenance(
                 escape_attr(render_linked_resource_provenance(linked_resources))
             )
         };
+        let base_style = provenance
+            .base_style_sha256
+            .as_ref()
+            .map(|hash| format!(" base-style-sha256=\"{}\"", escape_attr(hash)))
+            .unwrap_or_default();
         lines.push(format!(
-            "<!-- generated-by: surgeist-layout-generate schema=1 source=\"{}\" source-sha256=\"{}\"{} helper-sha256=\"{}\" browser=\"{}\" -->",
+            "<!-- generated-by: surgeist-layout-generate schema=1 source=\"{}\" source-sha256=\"{}\"{} helper-sha256=\"{}\"{} browser=\"{}\" -->",
             escape_attr(&provenance.source),
             escape_attr(&provenance.source_sha256),
             linked_resources,
             escape_attr(&provenance.helper_sha256),
+            base_style,
             escape_attr(&provenance.browser),
         ));
     }
@@ -5838,6 +5960,7 @@ status = "active"
             linked_resources: Vec::new(),
             linked_resources_recorded: false,
             helper_sha256: "def456".to_string(),
+            base_style_sha256: Some("base789".to_string()),
             browser: "chrome-for-testing/149".to_string(),
         };
 
@@ -5847,6 +5970,7 @@ status = "active"
         assert!(xml.contains("source=\"grid/basic.html\""));
         assert!(xml.contains("source-sha256=\"abc123\""));
         assert!(xml.contains("helper-sha256=\"def456\""));
+        assert!(xml.contains("base-style-sha256=\"base789\""));
         assert!(xml.contains("browser=\"chrome-for-testing/149\""));
     }
 
@@ -5913,6 +6037,33 @@ status = "active"
         assert_eq!(report.failed_to_generate[0].name, "case");
         assert_eq!(report.failed_to_generate[0].source, "html/grid/case.html");
         assert_eq!(report.failed_to_generate[0].reason, "browser page crashed");
+    }
+
+    #[test]
+    fn corpus_case_status_deserializes_to_closed_domain() {
+        let case: CorpusCase = toml::from_str(
+            r#"
+id = "case"
+source_root = "html"
+source = "block/example.html"
+generator = "constrained-html"
+status = "active"
+"#,
+        )
+        .expect("valid case");
+
+        assert_eq!(case.status, CorpusStatus::Active);
+        assert_eq!(case.generator, CorpusGenerator::ConstrainedHtml);
+    }
+
+    #[test]
+    fn generation_metadata_hashes_base_style_source() {
+        let metadata = generation_report_metadata_for_tests();
+
+        assert_eq!(
+            metadata.base_style_sha256,
+            sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes())
+        );
     }
 
     #[test]
@@ -6100,6 +6251,93 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
             validate_generation_report_freshness(&config).expect_err("stale metadata should fail");
 
         assert!(error.contains("corpus_manifest_sha256"));
+        assert!(error.contains("regenerate browser parity XML"));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn generation_report_metadata_validation_rejects_stale_scoped_reports() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-report-scoped-metadata-drift-{}",
+            std::process::id()
+        ));
+        let report_dir = root.join("xml/generation-reports");
+        fs::create_dir_all(&report_dir).expect("report dir");
+        fs::write(
+            root.join("corpus.toml"),
+            format!(
+                r#"
+[imports.taffy]
+repo = "{TAFFY_REPO}"
+commit = "{TAFFY_COMMIT}"
+source_dir = "{TAFFY_SOURCE_DIR}"
+destination = "html"
+expected_count = {TAFFY_EXPECTED_COUNT}
+excluded_destination_dirs = ["subgrid", "grid-lanes"]
+"#
+            ),
+        )
+        .expect("corpus manifest");
+        let config = Config {
+            root: root.clone(),
+            html_root: root.join("html"),
+            xml_root: root.join("xml"),
+            filter: None,
+            browser_cache: PathBuf::from("target/surgeist-browser"),
+            browser_path: None,
+            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
+        };
+        let metadata = generation_report_metadata(&config).expect("metadata");
+        let fresh_raw = serde_json::json!({
+            "metadata": metadata.clone(),
+            "filter": null,
+            "summary": {
+                "generated": 0,
+                "unsupported": 0,
+                "expected_fail": 0,
+                "quarantined": 0,
+                "failed_to_generate": 0
+            },
+            "generated": [],
+            "unsupported": [],
+            "expected_fail": [],
+            "quarantined": [],
+            "failed_to_generate": []
+        });
+        fs::write(
+            report_dir.join("all.json"),
+            serde_json::to_string_pretty(&fresh_raw).expect("json"),
+        )
+        .expect("full report");
+        let mut stale_metadata = metadata;
+        stale_metadata.base_style_sha256 = "stale".to_string();
+        let stale_raw = serde_json::json!({
+            "metadata": stale_metadata,
+            "filter": "grid/named",
+            "summary": {
+                "generated": 0,
+                "unsupported": 0,
+                "expected_fail": 0,
+                "quarantined": 0,
+                "failed_to_generate": 0
+            },
+            "generated": [],
+            "unsupported": [],
+            "expected_fail": [],
+            "quarantined": [],
+            "failed_to_generate": []
+        });
+        fs::write(
+            report_dir.join("grid_named.json"),
+            serde_json::to_string_pretty(&stale_raw).expect("json"),
+        )
+        .expect("scoped report");
+
+        let error = validate_generation_report_freshness(&config)
+            .expect_err("stale scoped metadata should fail");
+
+        assert!(error.contains("grid_named.json"));
+        assert!(error.contains("base_style_sha256"));
         assert!(error.contains("regenerate browser parity XML"));
         fs::remove_dir_all(root).ok();
     }
@@ -6471,6 +6709,48 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
             validate_xml_provenance_freshness(&config).expect_err("stale source hash should fail");
 
         assert!(error.contains("source-sha256"));
+        assert!(error.contains("regenerate browser parity XML"));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn xml_provenance_freshness_rejects_stale_base_style_hash() {
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-xml-provenance-base-style-{}",
+            std::process::id()
+        ));
+        let source = root.join("html/grid/basic.html");
+        let xml = root.join("xml/grid/basic__border_box_ltr.xml");
+        fs::create_dir_all(source.parent().unwrap()).expect("source dir");
+        fs::create_dir_all(xml.parent().unwrap()).expect("xml dir");
+        fs::write(
+            &source,
+            r#"<!doctype html><link rel="stylesheet" href="../../scripts/gentest/test_base_style.css"><div id="test-root"></div>"#,
+        )
+        .expect("source");
+        fs::write(
+            &xml,
+            format!(
+                "<!-- generated-by: surgeist-layout-generate schema=1 source=\"html/grid/basic.html\" source-sha256=\"{}\" helper-sha256=\"{}\" base-style-sha256=\"stale\" browser=\"Chrome/149\" -->\n<test name=\"basic\"/>",
+                sha256_file(&source).expect("source hash"),
+                sha256_bytes(TEST_HELPER_SOURCE.as_bytes())
+            ),
+        )
+        .expect("xml");
+        let config = Config {
+            root: root.clone(),
+            html_root: root.join("html"),
+            xml_root: root.join("xml"),
+            filter: None,
+            browser_cache: PathBuf::from("target/surgeist-browser"),
+            browser_path: None,
+            browser_version: None,
+        };
+
+        let error = validate_xml_provenance_freshness(&config)
+            .expect_err("stale base style hash should fail");
+
+        assert!(error.contains("base-style-sha256"));
         assert!(error.contains("regenerate browser parity XML"));
         fs::remove_dir_all(root).ok();
     }

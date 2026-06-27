@@ -11,6 +11,27 @@ use surgeist_layout::{
     TrackComponent, WritingMode, compute_grid, round_layout,
 };
 
+type Scalar = f32;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ComparisonTolerance {
+    value: Scalar,
+}
+
+impl ComparisonTolerance {
+    pub const fn browser_parity() -> Self {
+        Self { value: 0.1 }
+    }
+
+    pub const fn oracle_grid() -> Self {
+        Self { value: 0.000_1 }
+    }
+
+    pub fn contains(self, delta: Scalar) -> bool {
+        delta.abs() <= self.value
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct GridLayoutComparison {
     root_display: Display,
@@ -750,8 +771,9 @@ fn assert_size_close(actual: Size<f32>, expected: Size<f32>) {
 }
 
 fn assert_close(actual: f32, expected: f32, label: &str) {
+    let tolerance = ComparisonTolerance::oracle_grid();
     assert!(
-        (actual - expected).abs() <= 0.000_1,
+        tolerance.contains(actual - expected),
         "{label}: expected {expected}, got {actual}"
     );
 }

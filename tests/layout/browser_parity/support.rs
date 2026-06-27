@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use crate::support::grid_layout_comparison::ComparisonTolerance;
 use surgeist_layout as layout;
 use surgeist_layout::{CacheAccess as _, Compute as _, GridSpan};
 use surgeist_retained as retained;
@@ -1001,8 +1002,7 @@ fn compare_expectation(
 }
 
 fn compare_number(path: &str, field: &str, actual: Scalar, expected: Scalar) -> Result<(), Error> {
-    const TOLERANCE: Scalar = 0.1;
-    if (actual - expected).abs() < TOLERANCE {
+    if ComparisonTolerance::browser_parity().contains(actual - expected) {
         Ok(())
     } else {
         Err(Error::new(format!(
@@ -3329,6 +3329,14 @@ mod tests {
         assert!(parse_style_grid_line("1 auto").is_err());
         assert!(parse_style_grid_line("span auto").is_err());
         assert!(parse_style_grid_line("span 1 auto").is_err());
+    }
+
+    #[test]
+    fn comparison_tolerance_is_named_policy() {
+        let tolerance = ComparisonTolerance::browser_parity();
+
+        assert!(tolerance.contains(0.05));
+        assert!(!tolerance.contains(0.2));
     }
 
     #[test]

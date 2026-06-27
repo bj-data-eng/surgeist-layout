@@ -1,4 +1,4 @@
-<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_justify_items_sized_center.html" source-sha256="ece30c6f64f6e3c2e8f8ddd0ea1f0c3ea6e08a9a5917cd9432719b0295bb33c8" helper-sha256="98a38953da70c20585341157247d181f9ac9f70302a1414f1d10ff35b3354597" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/grid/grid_justify_items_sized_center.html" source-sha256="ece30c6f64f6e3c2e8f8ddd0ea1f0c3ea6e08a9a5917cd9432719b0295bb33c8" helper-sha256="98a38953da70c20585341157247d181f9ac9f70302a1414f1d10ff35b3354597" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
 <test name="grid_justify_items_sized_center__border_box_ltr" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
