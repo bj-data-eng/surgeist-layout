@@ -2546,7 +2546,7 @@ where
     Tree: Compute,
 {
     let children = tree.children(node).collect::<Vec<_>>();
-    let mut content_size = Size::ZERO;
+    let mut content_size: Size<Scalar> = Size::ZERO;
     let inset_relative_size = constants
         .node_outer_size
         .sub_optional(constants.border.sum_axes())

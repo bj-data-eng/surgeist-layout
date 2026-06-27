@@ -350,7 +350,7 @@ where
 {
     let node_inner_size = Size::new(inner_width, constants.node_inner_size.height);
     let mut cursor_y = constants.content_box_inset.top;
-    let mut content_size = Size::ZERO;
+    let mut content_size: Size<Scalar> = Size::ZERO;
     let mut first_baseline = None;
     let mut last_baseline = None;
     let mut static_positions = Vec::new();
@@ -1955,7 +1955,7 @@ mod tests {
             NodeInput {
                 margin: Edges {
                     top: LengthAuto::calc(margin),
-                    ..Edges::ZERO.map(|_| LengthAuto::px(0.0))
+                    ..Edges::<Scalar>::ZERO.map(|_| LengthAuto::px(0.0))
                 },
                 ..NodeInput::default()
             },
@@ -1980,7 +1980,7 @@ mod tests {
         let _ = resolve_in_flow_margin(
             Edges {
                 top: margin,
-                ..Edges::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
+                ..Edges::<Scalar>::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
             },
             Size::new(10.0, 10.0),
             Some(10.0),
@@ -1997,7 +1997,7 @@ mod tests {
         let _ = resolve_in_flow_margin(
             Edges {
                 top: margin,
-                ..Edges::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
+                ..Edges::<Scalar>::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
             },
             Size::new(10.0, 10.0),
             Some(10.0),

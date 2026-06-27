@@ -1,6 +1,6 @@
 use core::ops::{Add, Sub};
 
-use super::{FlexDirection, Scalar};
+use super::{FlexDirection, LayoutScalar, Scalar};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Axis {
@@ -61,8 +61,8 @@ impl<T> Point<Option<T>> {
     pub const NONE: Self = Self { x: None, y: None };
 }
 
-impl Point<Scalar> {
-    pub const ZERO: Self = Self::new(0.0, 0.0);
+impl<S: LayoutScalar> Point<S> {
+    pub const ZERO: Self = Self::new(S::ZERO, S::ZERO);
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -136,8 +136,8 @@ impl<T> Size<Option<T>> {
     }
 }
 
-impl Size<Scalar> {
-    pub const ZERO: Self = Self::new(0.0, 0.0);
+impl<S: LayoutScalar> Size<S> {
+    pub const ZERO: Self = Self::new(S::ZERO, S::ZERO);
 }
 
 impl<T: Copy> Size<T> {
@@ -290,6 +290,6 @@ where
     }
 }
 
-impl Edges<Scalar> {
-    pub const ZERO: Self = Self::all(0.0);
+impl<S: LayoutScalar> Edges<S> {
+    pub const ZERO: Self = Self::all(S::ZERO);
 }

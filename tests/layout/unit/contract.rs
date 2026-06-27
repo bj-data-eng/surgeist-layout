@@ -32,6 +32,27 @@ fn layout_scalar_supports_f32_and_f64() {
 }
 
 #[test]
+fn geometry_supports_default_and_f64_scalars() {
+    let default_size = surgeist_layout::Size::new(2.0, 3.0);
+    assert_eq!(default_size.width, 2.0);
+
+    assert_eq!(surgeist_layout::Point::<f64>::ZERO, Point::new(0.0, 0.0));
+    assert_eq!(surgeist_layout::Size::<f64>::ZERO, Size::new(0.0, 0.0));
+    assert_eq!(
+        surgeist_layout::Edges::<f64>::ZERO,
+        Edges::new(0.0, 0.0, 0.0, 0.0)
+    );
+
+    let f64_size = surgeist_layout::Size::<f64>::new(2.0_f64, 3.0_f64);
+    assert_eq!(f64_size.height, 3.0_f64);
+
+    let f64_edges = surgeist_layout::Edges::<f64>::new(1.0, 2.0, 3.0, 4.0);
+    assert_eq!(f64_edges.horizontal_sum(), 6.0_f64);
+    assert_eq!(f64_edges.vertical_sum(), 4.0_f64);
+    assert_eq!(f64_edges.sum_axes(), Size::new(6.0_f64, 4.0_f64));
+}
+
+#[test]
 fn length_values_resolve_against_a_containing_size() {
     assert_eq!(Length::px(24.0).resolve(320.0), 24.0);
     assert_eq!(Length::percent(0.25).resolve(320.0), 80.0);
