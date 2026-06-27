@@ -46,7 +46,7 @@ pub use value::{
     NoCalcResolver,
 };
 pub use value::{
-    GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,
+    GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,
     SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackComponent,
     TrackRepeat, TrackRepetition, TrackSizing, track_sizing_components,
 };

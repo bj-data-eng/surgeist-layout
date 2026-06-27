@@ -547,8 +547,13 @@ impl GridLayoutNode {
     fn grid_placement(&self) -> (GridPlacement, GridPlacement) {
         match self.placement {
             ChildPlacement::Explicit => (
-                GridPlacement::line_span(self.area.column_start as isize, self.area.column_span),
-                GridPlacement::line_span(self.area.row_start as isize, self.area.row_span),
+                GridPlacement::try_line_span(
+                    self.area.column_start as isize,
+                    self.area.column_span,
+                )
+                .expect("generated grid column line/span must be valid"),
+                GridPlacement::try_line_span(self.area.row_start as isize, self.area.row_span)
+                    .expect("generated grid row line/span must be valid"),
             ),
             ChildPlacement::Auto => (GridPlacement::AUTO, GridPlacement::AUTO),
             ChildPlacement::AutoSpan {
@@ -688,7 +693,7 @@ fn auto_span_placement(span: usize) -> GridPlacement {
     if span == 1 {
         GridPlacement::AUTO
     } else {
-        GridPlacement::span(span)
+        GridPlacement::try_span(span).expect("generated grid span must be valid")
     }
 }
 

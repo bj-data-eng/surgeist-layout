@@ -62,9 +62,10 @@ pub(super) fn leading_implicit_tracks_for_placement(
     placement: super::GridPlacement,
     explicit_count: usize,
 ) -> Option<usize> {
-    [placement.start, placement.end]
+    [placement.start(), placement.end()]
         .into_iter()
         .flatten()
+        .map(|line| line.get())
         .filter(|line| *line < 0)
         .filter_map(|line| {
             let index = explicit_count as isize + line + 1;
@@ -79,14 +80,16 @@ pub(super) fn is_in_flow_grid_child(style: &NodeInput) -> bool {
 
 pub(super) fn placement_track_requirement(placement: super::GridPlacement) -> usize {
     let start = placement
-        .start
+        .start()
+        .map(|line| line.get())
         .filter(|line| *line > 0)
         .map(|line| (line - 1) as usize);
     let end = placement
-        .end
+        .end()
+        .map(|line| line.get())
         .filter(|line| *line > 0)
         .map(|line| (line - 1) as usize);
-    let span = placement.span.map(|span| span.max(1));
+    let span = placement.span().map(|span| span.get());
     match (start, end, span) {
         (Some(start), Some(end), _) if start == end => start + 1,
         (Some(start), Some(end), _) => start.max(end),
@@ -102,15 +105,15 @@ pub(super) fn placement_cell_span(
     placement: super::GridPlacement,
     explicit_track_count: usize,
 ) -> usize {
-    if let Some(span) = placement.span {
-        return span.max(1);
+    if let Some(span) = placement.span() {
+        return span.get();
     }
 
-    match (placement.start, placement.end) {
+    match (placement.start(), placement.end()) {
         (Some(start), Some(end)) if start == end => 1,
         (Some(start), Some(end)) => {
-            let start = explicit_grid_line_to_absolute(start, explicit_track_count);
-            let end = explicit_grid_line_to_absolute(end, explicit_track_count);
+            let start = explicit_grid_line_to_absolute(start.get(), explicit_track_count);
+            let end = explicit_grid_line_to_absolute(end.get(), explicit_track_count);
             start.abs_diff(end).max(1)
         }
         _ => 1,
@@ -260,9 +263,9 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
         reverse_positive_line_offset_adjustment,
     } = input;
     let padding_box_end = padding_box_location + padding_box_size;
-    if let (Some(start), None, None) = (placement.start, placement.end, placement.span)
+    if let (Some(start), None, None) = (placement.start(), placement.end(), placement.span())
         && let Some(line) = grid_line_offset(
-            start,
+            start.get(),
             tracks,
             offsets,
             is_reverse,
@@ -283,9 +286,9 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
         };
     }
 
-    if let (None, Some(end), None) = (placement.start, placement.end, placement.span)
+    if let (None, Some(end), None) = (placement.start(), placement.end(), placement.span())
         && let Some(line) = grid_line_offset(
-            end,
+            end.get(),
             tracks,
             offsets,
             is_reverse,
@@ -307,10 +310,10 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
     }
 
     if let (Some(start_line), Some(end_line), None) =
-        (placement.start, placement.end, placement.span)
+        (placement.start(), placement.end(), placement.span())
         && let (Some(start), Some(end)) = (
             grid_line_offset(
-                start_line,
+                start_line.get(),
                 tracks,
                 offsets,
                 is_reverse,
@@ -319,7 +322,7 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
                 reverse_positive_line_offset_adjustment,
             ),
             grid_line_offset(
-                end_line,
+                end_line.get(),
                 tracks,
                 offsets,
                 is_reverse,
@@ -430,7 +433,7 @@ pub(super) fn definite_area(
 }
 
 pub(super) fn has_definite_line(placement: super::GridPlacement) -> bool {
-    placement.start.is_some() || placement.end.is_some()
+    placement.start().is_some() || placement.end().is_some()
 }
 
 pub(super) fn definite_axis_start_and_span(
@@ -453,13 +456,13 @@ pub(super) fn placement_range(
     explicit_start: usize,
     explicit_count: usize,
 ) -> Option<(usize, usize)> {
-    let start = placement
-        .start
-        .and_then(|line| grid_line_to_index(line, track_count, explicit_start, explicit_count));
-    let end = placement
-        .end
-        .and_then(|line| grid_line_to_index(line, track_count, explicit_start, explicit_count));
-    let span = placement.span.map(|span| span.max(1));
+    let start = placement.start().and_then(|line| {
+        grid_line_to_index(line.get(), track_count, explicit_start, explicit_count)
+    });
+    let end = placement.end().and_then(|line| {
+        grid_line_to_index(line.get(), track_count, explicit_start, explicit_count)
+    });
+    let span = placement.span().map(|span| span.get());
     let (start, end) = match (start, end, span) {
         (Some(start), Some(end), _) if start == end => (start, start + 1),
         (Some(start), Some(end), _) => (start.min(end), start.max(end)),
@@ -724,12 +727,12 @@ pub(super) fn resolve_grid_area(
     };
     let (area, advance_cursor) = if has_definite_line(column) && !has_definite_line(row) {
         (
-            next_area_with_fixed_column(search_index, &grid, column, row.span.unwrap_or(1)),
+            next_area_with_fixed_column(search_index, &grid, column, placement_span_or_one(row)),
             false,
         )
     } else if has_definite_line(row) && !has_definite_line(column) {
         (
-            next_area_with_fixed_row(search_index, &grid, row, column.span.unwrap_or(1)),
+            next_area_with_fixed_row(search_index, &grid, row, placement_span_or_one(column)),
             false,
         )
     } else {
@@ -740,7 +743,10 @@ pub(super) fn resolve_grid_area(
                 grid.columns,
                 grid.rows,
                 grid.gap,
-                Size::new(column.span.unwrap_or(1), row.span.unwrap_or(1)),
+                Size::new(
+                    placement_span_or_one(column).get(),
+                    placement_span_or_one(row).get(),
+                ),
                 grid.column_flow,
             ),
             true,
@@ -757,11 +763,17 @@ pub(super) fn resolve_grid_area(
     area
 }
 
+fn placement_span_or_one(placement: super::GridPlacement) -> crate::GridSpan {
+    placement
+        .span()
+        .unwrap_or_else(|| crate::GridSpan::new(1).expect("one is a valid grid span"))
+}
+
 pub(super) fn next_area_with_fixed_column(
     search_index: usize,
     grid: &PlacementGrid<'_>,
     column: super::GridPlacement,
-    row_span: usize,
+    row_span: crate::GridSpan,
 ) -> GridArea {
     let Some((column_start, column_end)) = placement_range(
         column,
@@ -786,7 +798,7 @@ pub(super) fn next_area_with_fixed_column(
     if column_start < current_column {
         row += 1;
     }
-    let row_span = row_span.max(1);
+    let row_span = row_span.get();
     while row < grid.rows.len() {
         if area_is_free(
             grid.occupancy,
@@ -818,7 +830,7 @@ pub(super) fn next_area_with_fixed_row(
     search_index: usize,
     grid: &PlacementGrid<'_>,
     row: super::GridPlacement,
-    column_span: usize,
+    column_span: crate::GridSpan,
 ) -> GridArea {
     let Some((row_start, row_end)) = placement_range(
         row,
@@ -843,7 +855,7 @@ pub(super) fn next_area_with_fixed_row(
     if row_start < current_row {
         column += 1;
     }
-    let column_span = column_span.max(1);
+    let column_span = column_span.get();
     while column < grid.columns.len() {
         if area_is_free(
             grid.occupancy,

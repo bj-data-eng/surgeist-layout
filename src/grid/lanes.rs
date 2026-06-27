@@ -1535,7 +1535,7 @@ fn lane_grid_axis_facts(
         return (Some(start + 1), span);
     }
 
-    (None, placement.span.unwrap_or(1).max(1))
+    (None, placement.span().map(|span| span.get()).unwrap_or(1))
 }
 
 #[derive(Clone, Copy)]

@@ -237,8 +237,8 @@ fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
         tree.styles.insert(
             child,
             NodeInput {
-                grid_column: GridPlacement::line(1),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::default()
             },
         );
@@ -474,7 +474,7 @@ fn grid_lanes_with_rows_template_uses_columns_as_lane_axis_for_intrinsic_width()
         .style(
             5,
             NodeInput {
-                grid_row: GridPlacement::span(2),
+                grid_row: GridPlacement::try_span(2).expect("valid grid span"),
                 ..NodeInput::default()
             },
         )
@@ -884,8 +884,8 @@ fn named_grid_lanes_subgrid_axis_uses_inherited_line_names() {
             2,
             NodeInput {
                 display: Display::GridLanes,
-                grid_column: GridPlacement::lines(2, 5),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_lines(2, 5).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 grid_flow_tolerance: GridFlowTolerance::Length(Length::ZERO),
@@ -966,16 +966,16 @@ fn grid_lanes_does_not_apply_lane_axis_baseline_offsets() {
         .style(
             2,
             NodeInput {
-                grid_column: GridPlacement::line(1),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
         .style(
             3,
             NodeInput {
-                grid_column: GridPlacement::line(1),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
@@ -1007,15 +1007,15 @@ fn grid_lanes_reports_last_baseline_from_spanning_item_end_edge() {
         .style(
             2,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
         .style(
             3,
             NodeInput {
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
@@ -1145,8 +1145,8 @@ fn both_axis_subgrid_zero_gap_auto_placement_advances_fully_auto_children() {
                 display: Display::Grid,
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![empty_subgrid_track()],
-                grid_column: GridPlacement::lines(1, -1),
-                grid_row: GridPlacement::lines(1, -1),
+                grid_column: GridPlacement::try_lines(1, -1).expect("valid grid lines"),
+                grid_row: GridPlacement::try_lines(1, -1).expect("valid grid lines"),
                 ..NodeInput::DEFAULT
             },
         );
@@ -1193,7 +1193,7 @@ fn row_subgrid_intrinsic_width_uses_inherited_rows_for_column_auto_flow() {
                 min_size: Size::new(Dimension::MinContent, Dimension::AUTO),
                 grid_auto_flow: GridAutoFlow::Column,
                 grid_template_rows: vec![empty_subgrid_track()],
-                grid_row: GridPlacement::span(2),
+                grid_row: GridPlacement::try_span(2).expect("valid grid span"),
                 ..NodeInput::DEFAULT
             },
         )
@@ -1253,7 +1253,7 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
                 display: Display::Grid,
                 grid_template_columns: vec![TrackComponent::px(100.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
-                grid_row: GridPlacement::lines(1, -1),
+                grid_row: GridPlacement::try_lines(1, -1).expect("valid grid lines"),
                 ..NodeInput::DEFAULT
             },
         )
@@ -1261,7 +1261,7 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
             3,
             NodeInput {
                 size: Size::new(Dimension::px(100.0), Dimension::px(30.0)),
-                grid_row: GridPlacement::line(1),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
         )
@@ -1269,7 +1269,7 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
             4,
             NodeInput {
                 size: Size::new(Dimension::px(100.0), Dimension::percent(0.5)),
-                grid_row: GridPlacement::line(1),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
         );
@@ -1359,7 +1359,7 @@ fn row_subgrid_auto_track_sizing_tree(
 fn row_subgrid_auto_track_sizing_fixed_then_auto_uses_descendant_contribution_once() {
     let mut tree = row_subgrid_auto_track_sizing_tree(
         vec![TrackComponent::px(100.0), TrackComponent::AUTO],
-        GridPlacement::line(1),
+        GridPlacement::try_line(1).expect("valid grid line"),
     );
 
     let output = surgeist_layout::compute_grid(
@@ -1383,7 +1383,7 @@ fn row_subgrid_auto_track_sizing_fixed_then_auto_uses_descendant_contribution_on
 fn row_subgrid_auto_track_sizing_auto_then_fixed_uses_descendant_contribution_once() {
     let mut tree = row_subgrid_auto_track_sizing_tree(
         vec![TrackComponent::AUTO, TrackComponent::px(100.0)],
-        GridPlacement::line(2),
+        GridPlacement::try_line(2).expect("valid grid line"),
     );
 
     let output = surgeist_layout::compute_grid(
@@ -1493,8 +1493,8 @@ fn subgrid_line_names_place_child_with_inherited_parent_names() {
             2,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::lines(2, 5),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_lines(2, 5).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -1550,8 +1550,8 @@ fn subgrid_line_names_merge_local_names_at_corresponding_lines() {
             2,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::lines(1, 4),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_lines(1, 4).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 grid_template_columns: vec![TrackComponent::Subgrid(
                     surgeist_layout::SubgridTrack::new(vec![
                         vec!["local-start".to_string()],
@@ -1625,8 +1625,8 @@ fn subgrid_line_names_clip_parent_area_generated_names_to_span() {
             2,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::lines(2, 4),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_lines(2, 4).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -1688,8 +1688,8 @@ fn subgrid_line_names_nested_subgrid_inherits_area_generated_names() {
             2,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::lines(2, 4),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_lines(2, 4).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -1699,8 +1699,8 @@ fn subgrid_line_names_nested_subgrid_inherits_area_generated_names() {
             3,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::lines(1, 3),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -1746,8 +1746,8 @@ fn subgrid_line_names_named_placement_beyond_span_clamps_to_edge_track() {
             2,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::lines(1, 2),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_lines(1, 2).expect("valid grid lines"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -2061,8 +2061,8 @@ fn row_subgrid_child_inherits_parent_baseline_group() {
             3,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 grid_template_columns: vec![TrackComponent::px(60.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
                 ..NodeInput::default()
@@ -2104,8 +2104,8 @@ fn row_subgrid_inherited_baseline_accounts_for_margin_border_padding() {
             3,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 grid_template_columns: vec![TrackComponent::px(60.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
                 margin: Edges {
@@ -2158,7 +2158,7 @@ fn row_subgrid_publishes_descendant_baseline_to_parent_row() {
         .style(
             2,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
@@ -2166,8 +2166,8 @@ fn row_subgrid_publishes_descendant_baseline_to_parent_row() {
             3,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 grid_template_columns: vec![TrackComponent::px(60.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
                 ..NodeInput::default()
@@ -2176,7 +2176,7 @@ fn row_subgrid_publishes_descendant_baseline_to_parent_row() {
         .style(
             4,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 align_self: Some(AlignItems::Baseline),
                 ..NodeInput::default()
             },
@@ -2210,8 +2210,8 @@ fn row_subgrid_without_descendant_publication_uses_container_baseline() {
             3,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 grid_template_columns: vec![TrackComponent::px(60.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
                 ..NodeInput::default()
@@ -2248,7 +2248,7 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
             2,
             NodeInput {
                 display: Display::Grid,
-                grid_row: GridPlacement::lines(1, 3),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 grid_template_columns: vec![TrackComponent::px(60.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
                 ..NodeInput::default()
@@ -2258,8 +2258,8 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
             3,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 grid_template_columns: vec![TrackComponent::px(60.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
                 ..NodeInput::default()
@@ -2268,7 +2268,7 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
         .style(
             4,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 align_self: Some(AlignItems::Baseline),
                 ..NodeInput::default()
             },
@@ -2276,7 +2276,7 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
         .style(
             5,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 align_self: Some(AlignItems::Baseline),
                 ..NodeInput::default()
             },
@@ -2310,7 +2310,7 @@ fn column_subgrid_baseline_alignment_does_not_grow_auto_parent_row_twice() {
             2,
             NodeInput {
                 display: Display::Grid,
-                grid_column: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 grid_template_columns: vec![empty_subgrid_track()],
                 align_items: Some(AlignItems::Baseline),
                 ..NodeInput::default()
@@ -2779,10 +2779,7 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
         2,
         NodeInput {
             position: Position::Absolute,
-            grid_column: GridPlacement {
-                start: Some(2),
-                ..GridPlacement::AUTO
-            },
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             size: Size::new(Dimension::px(30.0), Dimension::px(12.0)),
             ..NodeInput::default()
         },
@@ -2889,8 +2886,8 @@ fn vertical_grid_absolute_child_maps_rows_to_physical_x_and_columns_to_y() {
             2,
             NodeInput {
                 position: Position::Absolute,
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::line(2),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 inset: Edges::all(LengthAuto::ZERO),
                 ..NodeInput::DEFAULT
             },
@@ -3566,10 +3563,7 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
         2,
         NodeInput {
             position: Position::Absolute,
-            grid_column: GridPlacement {
-                start: Some(2),
-                ..GridPlacement::AUTO
-            },
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             size: Size::new(Dimension::percent(0.5), Dimension::percent(0.5)),
             ..NodeInput::default()
         },
@@ -3653,10 +3647,7 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
         2,
         NodeInput {
             position: Position::Absolute,
-            grid_column: GridPlacement {
-                start: Some(2),
-                ..GridPlacement::AUTO
-            },
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             size: Size::new(Dimension::px(30.0), Dimension::px(12.0)),
             padding: Edges::all(Length::percent(0.1)),
             border: Edges::all(Length::percent(0.05)),
@@ -5096,7 +5087,7 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::lines(2, 3),
+            grid_column: GridPlacement::try_lines(2, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
@@ -5203,7 +5194,7 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_row: GridPlacement::lines(2, 3),
+            grid_row: GridPlacement::try_lines(2, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
@@ -5291,7 +5282,7 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::lines(1, 3),
+            grid_column: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
@@ -5376,7 +5367,7 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_row: GridPlacement::lines(1, 3),
+            grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
@@ -5465,7 +5456,7 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::span(2),
+            grid_column: GridPlacement::try_span(2).expect("valid grid span"),
             ..NodeInput::default()
         },
     );
@@ -5588,14 +5579,14 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line(2),
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            grid_column: GridPlacement::span(2),
+            grid_column: GridPlacement::try_span(2).expect("valid grid span"),
             ..NodeInput::default()
         },
     );
@@ -5739,7 +5730,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
     tree.styles.insert(
         4,
         NodeInput {
-            grid_column: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
             size: Size::new(Dimension::px(35.0), Dimension::px(35.0)),
             ..NodeInput::default()
         },
@@ -5747,8 +5738,8 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
     tree.styles.insert(
         7,
         NodeInput {
-            grid_column: GridPlacement::line(1),
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
             ..NodeInput::default()
         },
@@ -5756,7 +5747,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
     tree.styles.insert(
         9,
         NodeInput {
-            grid_row: GridPlacement::line(1),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
             ..NodeInput::default()
         },
@@ -5846,7 +5837,7 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
     tree.styles.insert(
         3,
         NodeInput {
-            grid_column: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -5935,7 +5926,7 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line_span(2, 2),
+            grid_column: GridPlacement::try_line_span(2, 2).expect("valid grid line span"),
             ..NodeInput::default()
         },
     );
@@ -6043,7 +6034,7 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::span_line(2, 4),
+            grid_column: GridPlacement::try_span_line(2, 4).expect("valid grid span line"),
             ..NodeInput::default()
         },
     );
@@ -6106,7 +6097,7 @@ fn grid_mixed_positive_negative_line_span_counts_actual_tracks_for_auto_growth()
         .style(
             2,
             NodeInput {
-                grid_column: GridPlacement::lines(2, -1),
+                grid_column: GridPlacement::try_lines(2, -1).expect("valid grid lines"),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6192,7 +6183,7 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_row: GridPlacement::span(3),
+            grid_row: GridPlacement::try_span(3).expect("valid grid span"),
             ..NodeInput::default()
         },
     );
@@ -6278,7 +6269,7 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::lines(3, 4),
+            grid_column: GridPlacement::try_lines(3, 4).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
@@ -6367,7 +6358,7 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::end_line(3),
+            grid_column: GridPlacement::try_end_line(3).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -6456,7 +6447,7 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_row: GridPlacement::end_line(3),
+            grid_row: GridPlacement::try_end_line(3).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -7245,7 +7236,7 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line(2),
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -7652,7 +7643,7 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line(2),
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -7972,7 +7963,7 @@ fn row_subgrid_percent_column_leaf_uses_spanned_inline_size_for_row_contribution
         .style(
             3,
             NodeInput {
-                grid_column: GridPlacement::line(1),
+                grid_column: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
         )
@@ -8049,8 +8040,8 @@ fn orthogonal_nested_subgrid_width_includes_full_horizontal_leaf_contribution() 
                 gap: Size::new(Length::px(100.0), Length::px(100.0)),
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![empty_subgrid_track()],
-                grid_column: GridPlacement::span(2),
-                grid_row: GridPlacement::span(2),
+                grid_column: GridPlacement::try_span(2).expect("valid grid span"),
+                grid_row: GridPlacement::try_span(2).expect("valid grid span"),
                 ..NodeInput::DEFAULT
             },
         )
@@ -8062,7 +8053,7 @@ fn orthogonal_nested_subgrid_width_includes_full_horizontal_leaf_contribution() 
                 gap: Size::new(Length::px(100.0), Length::px(100.0)),
                 grid_template_columns: vec![TrackComponent::px(100.0)],
                 grid_template_rows: vec![empty_subgrid_track()],
-                grid_column: GridPlacement::span(2),
+                grid_column: GridPlacement::try_span(2).expect("valid grid span"),
                 ..NodeInput::DEFAULT
             },
         )
@@ -8070,15 +8061,15 @@ fn orthogonal_nested_subgrid_width_includes_full_horizontal_leaf_contribution() 
         .style(
             5,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
         )
         .style(
             6,
             NodeInput {
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
         )
@@ -8122,8 +8113,8 @@ fn vertical_rl_grid_places_distinct_rows_on_physical_x_axis() {
         .style(
             3,
             NodeInput {
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::line(2),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
         );
@@ -8902,28 +8893,24 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line(1),
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            grid_column: GridPlacement::line(2),
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         4,
         NodeInput {
-            grid_column: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(2),
-            },
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -9016,11 +9003,7 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
     tree.styles.insert(
         4,
         NodeInput {
-            grid_column: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(2),
-            },
+            grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
         },
     );
@@ -9115,11 +9098,7 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
         4,
         NodeInput {
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            grid_column: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(2),
-            },
+            grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
         },
     );
@@ -9214,12 +9193,8 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
         2,
         NodeInput {
             size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
-            grid_column: GridPlacement::line(1),
-            grid_row: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(2),
-            },
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+            grid_row: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
         },
     );
@@ -9227,16 +9202,8 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
         3,
         NodeInput {
             size: Size::new(Dimension::px(40.0), Dimension::px(30.0)),
-            grid_column: GridPlacement {
-                start: Some(2),
-                end: None,
-                span: Some(2),
-            },
-            grid_row: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(2),
-            },
+            grid_column: GridPlacement::try_line_span(2, 2).expect("valid grid line span"),
+            grid_row: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
         },
     );
@@ -9244,12 +9211,8 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
         4,
         NodeInput {
             size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
-            grid_column: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(2),
-            },
-            grid_row: GridPlacement::line(3),
+            grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
+            grid_row: GridPlacement::try_line(3).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -9360,11 +9323,7 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(6),
-            },
+            grid_column: GridPlacement::try_line_span(1, 6).expect("valid grid line span"),
             ..NodeInput::default()
         },
     );
@@ -9495,11 +9454,7 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement {
-                start: Some(1),
-                end: None,
-                span: Some(13),
-            },
+            grid_column: GridPlacement::try_line_span(1, 13).expect("valid grid line span"),
             ..NodeInput::default()
         },
     );
@@ -9682,7 +9637,7 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line(2),
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
             overflow: Point::new(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
@@ -9775,8 +9730,8 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line(1),
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
             ..NodeInput::default()
         },
@@ -9784,16 +9739,16 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
     tree.styles.insert(
         3,
         NodeInput {
-            grid_column: GridPlacement::line(2),
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         4,
         NodeInput {
-            grid_column: GridPlacement::line(3),
-            grid_row: GridPlacement::line(2),
+            grid_column: GridPlacement::try_line(3).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(2).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -9876,16 +9831,16 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::line(1),
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(1).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            grid_column: GridPlacement::line(2),
-            grid_row: GridPlacement::line(1),
+            grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+            grid_row: GridPlacement::try_line(1).expect("valid grid line"),
             ..NodeInput::default()
         },
     );
@@ -10141,7 +10096,7 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
     tree.styles.insert(
         2,
         NodeInput {
-            grid_column: GridPlacement::lines(1, 3),
+            grid_column: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
             ..NodeInput::default()
         },
     );
@@ -10520,7 +10475,7 @@ fn grid_reports_first_baseline_from_first_row_grid_order() {
         .style(
             3,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
@@ -10551,7 +10506,7 @@ fn grid_reports_last_baseline_from_last_row_grid_order() {
         .style(
             3,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
@@ -10606,14 +10561,14 @@ fn grid_reports_last_baseline_from_shared_minor_group_before_fallback_item() {
         .style(
             2,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
         .style(
             3,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
@@ -10644,15 +10599,15 @@ fn grid_reports_last_baseline_from_spanning_item_that_occupies_last_row() {
         .style(
             2,
             NodeInput {
-                grid_row: GridPlacement::line(2),
+                grid_row: GridPlacement::try_line(2).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
         .style(
             3,
             NodeInput {
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
@@ -10759,14 +10714,14 @@ fn grid_aligns_first_baseline_for_item_spanning_rows_with_gap() {
         .style(
             2,
             NodeInput {
-                grid_row: GridPlacement::lines(1, 3),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
         .style(
             3,
             NodeInput {
-                grid_row: GridPlacement::lines(1, 3),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
@@ -10800,14 +10755,14 @@ fn grid_aligns_last_baseline_for_item_spanning_rows_with_gap() {
         .style(
             2,
             NodeInput {
-                grid_row: GridPlacement::lines(1, 3),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
         .style(
             3,
             NodeInput {
-                grid_row: GridPlacement::lines(1, 3),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
@@ -10890,8 +10845,8 @@ fn grid_absolute_baseline_child_does_not_affect_row_baseline_shim() {
             3,
             NodeInput {
                 position: Position::Absolute,
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::line(1),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::default()
             },
         )
@@ -10956,8 +10911,8 @@ fn grid_baseline_less_child_spanning_intrinsic_row_uses_fallback_without_shim() 
         .style(
             3,
             NodeInput {
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
@@ -10989,8 +10944,8 @@ fn grid_fixed_row_baseline_seeds_spanning_auto_row_shim() {
         .style(
             3,
             NodeInput {
-                grid_column: GridPlacement::line(2),
-                grid_row: GridPlacement::lines(1, 3),
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid grid lines"),
                 ..NodeInput::default()
             },
         )
@@ -11837,8 +11792,8 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
                 display: Display::Grid,
                 grid_template_columns: vec![empty_subgrid_track()],
                 grid_template_rows: vec![empty_subgrid_track()],
-                grid_column: GridPlacement::lines(1, -1),
-                grid_row: GridPlacement::lines(1, -1),
+                grid_column: GridPlacement::try_lines(1, -1).expect("valid grid lines"),
+                grid_row: GridPlacement::try_lines(1, -1).expect("valid grid lines"),
                 ..NodeInput::DEFAULT
             },
         )

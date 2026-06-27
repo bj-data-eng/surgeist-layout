@@ -1,14 +1,41 @@
 use super::*;
 use crate::{
-    Baselines, CalcExpression, CalcTerm, LayoutCalcStore, NoCalcResolver, RawGridLine,
-    RawGridPlacement, SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack,
-    TrackRepetition, WritingMode,
+    Baselines, CalcExpression, CalcTerm, GridLine, GridSpan, LayoutCalcStore, NoCalcResolver,
+    RawGridLine, RawGridPlacement, SubgridLineNameComponent, SubgridLineNameRepeatCount,
+    SubgridTrack, TrackRepetition, WritingMode,
 };
 
 fn subgrid_track() -> Vec<TrackComponent> {
     vec![TrackComponent::Subgrid(SubgridTrack {
         name_components: Vec::new(),
     })]
+}
+
+#[test]
+fn public_grid_placement_rejects_zero_line_and_span() {
+    assert_eq!(GridLine::new(0), None);
+    assert_eq!(GridSpan::new(0), None);
+    assert!(GridLine::new(1).is_some());
+    assert!(GridSpan::new(1).is_some());
+    assert_eq!(GridPlacement::try_line(0), None);
+    assert_eq!(GridPlacement::try_lines(0, 1), None);
+    assert_eq!(GridPlacement::try_lines(1, 0), None);
+    assert_eq!(GridPlacement::try_line_span(0, 1), None);
+    assert_eq!(GridPlacement::try_line_span(1, 0), None);
+    assert_eq!(GridPlacement::try_span_line(0, 1), None);
+    assert_eq!(GridPlacement::try_span_line(1, 0), None);
+    assert_eq!(GridPlacement::try_span(0), None);
+}
+
+#[test]
+fn grid_placement_fields_are_constructed_through_validated_values() {
+    let placement = GridPlacement::line_span(
+        GridLine::new(2).expect("valid line"),
+        GridSpan::new(3).expect("valid span"),
+    );
+
+    assert_eq!(placement.start(), Some(GridLine::new(2).unwrap()));
+    assert_eq!(placement.span(), Some(GridSpan::new(3).unwrap()));
 }
 
 #[test]
@@ -310,7 +337,10 @@ fn named_grid_resolver_places_between_repeated_line_and_named_span() {
     )
     .unwrap();
 
-    assert_eq!(placement, GridPlacement::lines(2, 3));
+    assert_eq!(
+        placement,
+        GridPlacement::try_lines(2, 3).expect("valid grid lines")
+    );
 }
 
 #[test]
@@ -342,8 +372,14 @@ fn named_grid_resolver_uses_side_aware_bare_ident_before_plain_name() {
     )
     .unwrap();
 
-    assert_eq!(bare, GridPlacement::lines(1, 2));
-    assert_eq!(explicit, GridPlacement::line_span(2, 1));
+    assert_eq!(
+        bare,
+        GridPlacement::try_lines(1, 2).expect("valid grid lines")
+    );
+    assert_eq!(
+        explicit,
+        GridPlacement::try_line_span(2, 1).expect("valid grid line span")
+    );
 }
 
 #[test]
@@ -375,8 +411,14 @@ fn named_grid_resolver_handles_negative_and_missing_occurrences() {
     )
     .unwrap();
 
-    assert_eq!(negative, GridPlacement::line(3));
-    assert_eq!(missing_after, GridPlacement::line(4));
+    assert_eq!(
+        negative,
+        GridPlacement::try_line(3).expect("valid grid line")
+    );
+    assert_eq!(
+        missing_after,
+        GridPlacement::try_line(4).expect("valid grid line")
+    );
 }
 
 #[test]
@@ -430,36 +472,54 @@ fn named_grid_resolver_normalizes_spans_and_conflicts() {
     let equal_lines =
         named::resolve_grid_placement(&lines, &RawGridPlacement::lines(2, 2), None).unwrap();
 
-    assert_eq!(lone_named_span, GridPlacement::line_span(2, 1));
-    assert_eq!(both_spans, GridPlacement::line_span(1, 2));
-    assert_eq!(mixed_named_span, GridPlacement::line_span(1, 1));
-    assert_eq!(mixed_anonymous_span_first, GridPlacement::line_span(1, 3));
-    assert_eq!(start_after_end, GridPlacement::lines(1, 3));
-    assert_eq!(equal_lines, GridPlacement::line_span(2, 1));
+    assert_eq!(
+        lone_named_span,
+        GridPlacement::try_line_span(2, 1).expect("valid grid line span")
+    );
+    assert_eq!(
+        both_spans,
+        GridPlacement::try_line_span(1, 2).expect("valid grid line span")
+    );
+    assert_eq!(
+        mixed_named_span,
+        GridPlacement::try_line_span(1, 1).expect("valid grid line span")
+    );
+    assert_eq!(
+        mixed_anonymous_span_first,
+        GridPlacement::try_line_span(1, 3).expect("valid grid line span")
+    );
+    assert_eq!(
+        start_after_end,
+        GridPlacement::try_lines(1, 3).expect("valid grid lines")
+    );
+    assert_eq!(
+        equal_lines,
+        GridPlacement::try_line_span(2, 1).expect("valid grid line span")
+    );
 }
 
 #[test]
 fn named_grid_placement_context_ignores_non_in_flow_track_requirements() {
     let placements = vec![
         ResolvedGridItemPlacement {
-            column: GridPlacement::line(100),
-            row: GridPlacement::line(100),
-            absolute_column: GridPlacement::line(100),
-            absolute_row: GridPlacement::line(100),
+            column: GridPlacement::try_line(100).expect("valid grid line"),
+            row: GridPlacement::try_line(100).expect("valid grid line"),
+            absolute_column: GridPlacement::try_line(100).expect("valid grid line"),
+            absolute_row: GridPlacement::try_line(100).expect("valid grid line"),
             in_flow: false,
         },
         ResolvedGridItemPlacement {
-            column: GridPlacement::line(-10),
+            column: GridPlacement::try_line(-10).expect("valid grid line"),
             row: GridPlacement::AUTO,
-            absolute_column: GridPlacement::line(-10),
+            absolute_column: GridPlacement::try_line(-10).expect("valid grid line"),
             absolute_row: GridPlacement::AUTO,
             in_flow: false,
         },
         ResolvedGridItemPlacement {
-            column: GridPlacement::line(2),
-            row: GridPlacement::line(3),
-            absolute_column: GridPlacement::line(2),
-            absolute_row: GridPlacement::line(3),
+            column: GridPlacement::try_line(2).expect("valid grid line"),
+            row: GridPlacement::try_line(3).expect("valid grid line"),
+            absolute_column: GridPlacement::try_line(2).expect("valid grid line"),
+            absolute_row: GridPlacement::try_line(3).expect("valid grid line"),
             in_flow: true,
         },
     ];
@@ -482,17 +542,17 @@ fn grid_axis_placement_preserves_out_of_range_numeric_lines() {
         resolve_grid_item_axis_placement(
             &lines,
             &RawGridPlacement::line(-5),
-            GridPlacement::line(-5),
+            GridPlacement::try_line(-5).expect("valid grid line"),
         ),
-        GridPlacement::line(-5)
+        GridPlacement::try_line(-5).expect("valid grid line")
     );
     assert_eq!(
         resolve_grid_item_axis_placement(
             &lines,
             &RawGridPlacement::line(5),
-            GridPlacement::line(5),
+            GridPlacement::try_line(5).expect("valid grid line"),
         ),
-        GridPlacement::line(5)
+        GridPlacement::try_line(5).expect("valid grid line")
     );
 }
 
@@ -909,7 +969,10 @@ fn subgrid_named_placement_clamps_beyond_explicit_span() {
     )
     .unwrap();
 
-    assert_eq!(placement, GridPlacement::lines(1, 3));
+    assert_eq!(
+        placement,
+        GridPlacement::try_lines(1, 3).expect("valid grid lines")
+    );
 }
 
 #[test]
@@ -932,7 +995,7 @@ fn subgrid_named_placement_resolves_wpt_line_names_before_clamping_to_span() {
                     index: 2,
                 },
             ),
-            GridPlacement::lines(2, 4),
+            GridPlacement::try_lines(2, 4).expect("valid grid lines"),
         ),
         (
             RawGridPlacement::new(
@@ -945,7 +1008,7 @@ fn subgrid_named_placement_resolves_wpt_line_names_before_clamping_to_span() {
                     index: -2,
                 },
             ),
-            GridPlacement::lines(2, 4),
+            GridPlacement::try_lines(2, 4).expect("valid grid lines"),
         ),
         (
             RawGridPlacement::new(
@@ -958,7 +1021,7 @@ fn subgrid_named_placement_resolves_wpt_line_names_before_clamping_to_span() {
                     index: 1,
                 },
             ),
-            GridPlacement::lines(2, 4),
+            GridPlacement::try_lines(2, 4).expect("valid grid lines"),
         ),
         (
             RawGridPlacement::new(
@@ -971,7 +1034,7 @@ fn subgrid_named_placement_resolves_wpt_line_names_before_clamping_to_span() {
                     index: 2,
                 },
             ),
-            GridPlacement::lines(4, 5),
+            GridPlacement::try_lines(4, 5).expect("valid grid lines"),
         ),
     ];
 
@@ -999,7 +1062,7 @@ fn subgrid_named_placement_resolves_wpt_named_spans_before_clamping_to_span() {
                     index: 1,
                 },
             ),
-            GridPlacement::lines(2, 4),
+            GridPlacement::try_lines(2, 4).expect("valid grid lines"),
         ),
         (
             RawGridPlacement::new(
@@ -1012,7 +1075,7 @@ fn subgrid_named_placement_resolves_wpt_named_spans_before_clamping_to_span() {
                     index: 2,
                 },
             ),
-            GridPlacement::lines(2, 4),
+            GridPlacement::try_lines(2, 4).expect("valid grid lines"),
         ),
         (
             RawGridPlacement::new(
@@ -1025,7 +1088,7 @@ fn subgrid_named_placement_resolves_wpt_named_spans_before_clamping_to_span() {
                     index: 2,
                 },
             ),
-            GridPlacement::lines(1, 4),
+            GridPlacement::try_lines(1, 4).expect("valid grid lines"),
         ),
         (
             RawGridPlacement::new(
@@ -1038,7 +1101,7 @@ fn subgrid_named_placement_resolves_wpt_named_spans_before_clamping_to_span() {
                     index: -2,
                 },
             ),
-            GridPlacement::lines(2, 4),
+            GridPlacement::try_lines(2, 4).expect("valid grid lines"),
         ),
     ];
 
@@ -1059,7 +1122,10 @@ fn subgrid_named_placement_expands_collapsed_clamp_to_edge_track() {
     )
     .unwrap();
 
-    assert_eq!(placement, GridPlacement::lines(1, 2));
+    assert_eq!(
+        placement,
+        GridPlacement::try_lines(1, 2).expect("valid grid lines")
+    );
 }
 
 #[test]
@@ -1082,7 +1148,10 @@ fn subgrid_named_span_counts_implicit_names_beyond_end_before_clamping() {
     )
     .unwrap();
 
-    assert_eq!(placement, GridPlacement::lines(10, 11));
+    assert_eq!(
+        placement,
+        GridPlacement::try_lines(10, 11).expect("valid grid lines")
+    );
 }
 
 fn baseline_test_item(
@@ -1865,10 +1934,13 @@ fn absolute_grid_item_axis_placement_preserves_end_only_first_line() {
     let placement = resolve_absolute_grid_item_axis_placement(
         &lines,
         &RawGridPlacement::new(RawGridLine::Auto, RawGridLine::Line(1)),
-        GridPlacement::end_line(1),
+        GridPlacement::try_end_line(1).expect("valid grid line"),
     );
 
-    assert_eq!(placement, GridPlacement::end_line(1));
+    assert_eq!(
+        placement,
+        GridPlacement::try_end_line(1).expect("valid grid line")
+    );
 }
 
 #[test]
@@ -1877,7 +1949,7 @@ fn absolute_grid_axis_area_uses_left_edge_for_definite_rtl_range() {
     let offsets = rtl_offsets(&tracks, 0.0, 240.0, 0.0, 0.0);
 
     let area = absolute_grid_axis_area(AbsoluteGridAxisInput {
-        placement: GridPlacement::lines(3, 5),
+        placement: GridPlacement::try_lines(3, 5).expect("valid grid lines"),
         tracks: &tracks,
         offsets: &offsets,
         gap: 0.0,

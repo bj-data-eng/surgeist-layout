@@ -164,28 +164,32 @@ pub(super) fn resolve_grid_placement(
         (RawGridLine::Auto, span) if is_span(span) => {
             let span = resolve_span_count(span)?;
             if let Some(cursor) = auto_cursor_line {
-                Ok(GridPlacement::line_span(cursor, span))
+                Ok(GridPlacement::try_line_span(cursor, span)
+                    .expect("resolved cursor line/span must be valid"))
             } else {
-                Ok(GridPlacement::span(span))
+                Ok(GridPlacement::try_span(span).expect("resolved grid span must be valid"))
             }
         }
         (span, RawGridLine::Auto) if is_span(span) => {
             let span = resolve_span_count(span)?;
             if let Some(cursor) = auto_cursor_line {
-                Ok(GridPlacement::line_span(cursor, span))
+                Ok(GridPlacement::try_line_span(cursor, span)
+                    .expect("resolved cursor line/span must be valid"))
             } else {
-                Ok(GridPlacement::span(span))
+                Ok(GridPlacement::try_span(span).expect("resolved grid span must be valid"))
             }
         }
         (RawGridLine::Auto, end) if is_definite_line(end) => {
             let end = resolve_line(lines, end, PlacementSide::End)?;
             validate_resolved_range(lines, end.absolute_line - 1, end.absolute_line)?;
-            Ok(GridPlacement::end_line(end.css_line))
+            Ok(GridPlacement::try_end_line(end.css_line)
+                .expect("resolved grid end line must be valid"))
         }
         (start, RawGridLine::Auto) if is_definite_line(start) => {
             let start = resolve_line(lines, start, PlacementSide::Start)?;
             validate_resolved_range(lines, start.absolute_line, start.absolute_line + 1)?;
-            Ok(GridPlacement::line(start.css_line))
+            Ok(GridPlacement::try_line(start.css_line)
+                .expect("resolved grid start line must be valid"))
         }
         (start, span) if is_definite_line(start) && is_span(span) => {
             let start = resolve_line(lines, start, PlacementSide::Start)?;
@@ -202,7 +206,8 @@ pub(super) fn resolve_grid_placement(
                         start.absolute_line,
                         start.absolute_line + span as isize,
                     )?;
-                    Ok(GridPlacement::line_span(start.css_line, span))
+                    Ok(GridPlacement::try_line_span(start.css_line, span)
+                        .expect("resolved grid line/span must be valid"))
                 }
             }
         }
@@ -221,7 +226,8 @@ pub(super) fn resolve_grid_placement(
                         end.absolute_line - span as isize,
                         end.absolute_line,
                     )?;
-                    Ok(GridPlacement::span_line(span, end.css_line))
+                    Ok(GridPlacement::try_span_line(span, end.css_line)
+                        .expect("resolved grid span/end line must be valid"))
                 }
             }
         }
@@ -259,7 +265,8 @@ pub(super) fn resolve_subgrid_placement(
 
     let (start_line, end_line) =
         clamp_subgrid_resolved_lines(start_line, end_line, lines.explicit_track_count);
-    Ok(GridPlacement::lines(start_line, end_line))
+    Ok(GridPlacement::try_lines(start_line, end_line)
+        .expect("clamped subgrid placement lines must be valid"))
 }
 
 fn resolve_subgrid_placement_lines(
@@ -426,11 +433,13 @@ fn normalize_resolved_lines(
     }
     if start.absolute_line == end.absolute_line {
         validate_resolved_range(lines, start.absolute_line, start.absolute_line + 1)?;
-        return Ok(GridPlacement::line_span(start.css_line, 1));
+        return Ok(GridPlacement::try_line_span(start.css_line, 1)
+            .expect("normalized equal grid lines must produce a valid span"));
     }
 
     validate_resolved_range(lines, start.absolute_line, end.absolute_line)?;
-    Ok(GridPlacement::lines(start.css_line, end.css_line))
+    Ok(GridPlacement::try_lines(start.css_line, end.css_line)
+        .expect("normalized grid lines must be valid"))
 }
 
 fn validate_resolved_range(

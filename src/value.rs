@@ -1,4 +1,5 @@
 use super::Scalar;
+use core::num::NonZeroUsize;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AspectRatio(Scalar);
@@ -12,6 +13,55 @@ impl AspectRatio {
     #[must_use]
     pub const fn get(self) -> Scalar {
         self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GridLine(isize);
+
+impl GridLine {
+    #[must_use]
+    pub const fn new(value: isize) -> Option<Self> {
+        if value == 0 { None } else { Some(Self(value)) }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> isize {
+        self.0
+    }
+}
+
+impl TryFrom<isize> for GridLine {
+    type Error = ();
+
+    fn try_from(value: isize) -> Result<Self, Self::Error> {
+        Self::new(value).ok_or(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GridSpan(NonZeroUsize);
+
+impl GridSpan {
+    #[must_use]
+    pub const fn new(value: usize) -> Option<Self> {
+        match NonZeroUsize::new(value) {
+            Some(value) => Some(Self(value)),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0.get()
+    }
+}
+
+impl TryFrom<usize> for GridSpan {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        Self::new(value).ok_or(())
     }
 }
 

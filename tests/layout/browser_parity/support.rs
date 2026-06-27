@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use surgeist_layout as layout;
-use surgeist_layout::{CacheAccess as _, Compute as _};
+use surgeist_layout::{CacheAccess as _, Compute as _, GridSpan};
 use surgeist_retained as retained;
 use surgeist_style as s;
 
@@ -3191,7 +3191,10 @@ mod tests {
         })
         .expect("end-only grid placement should parse");
 
-        assert_eq!(node_input.grid_column, layout::GridPlacement::end_line(1));
+        assert_eq!(
+            node_input.grid_column,
+            layout::GridPlacement::try_end_line(1).expect("valid grid line")
+        );
         assert_eq!(
             node_input.raw_grid_column,
             layout::RawGridPlacement::new(layout::RawGridLine::Auto, layout::RawGridLine::Line(1))
@@ -3326,15 +3329,15 @@ mod tests {
         })
         .expect("span start should parse");
 
-        assert_eq!(node_input.grid_column.start, None);
-        assert_eq!(node_input.grid_column.span, Some(2));
+        assert_eq!(node_input.grid_column.start(), None);
+        assert_eq!(node_input.grid_column.span(), GridSpan::new(2));
 
         node_input = test_node_input(StyleAttrs {
             attrs: BTreeMap::from([("grid-row-start".to_string(), "span 3".to_string())]),
         })
         .expect("row span start should parse");
 
-        assert_eq!(node_input.grid_row.start, None);
-        assert_eq!(node_input.grid_row.span, Some(3));
+        assert_eq!(node_input.grid_row.start(), None);
+        assert_eq!(node_input.grid_row.span(), GridSpan::new(3));
     }
 }
