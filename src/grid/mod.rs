@@ -1690,7 +1690,7 @@ where
 
 #[derive(Clone, Copy)]
 struct InlineTrackInput<'a, S: LayoutScalar = Scalar> {
-    resolver: &'a dyn CalcResolver,
+    resolver: &'a dyn CalcResolver<S>,
     tracks: &'a [TrackSizingOf<S>],
     basis: Option<S>,
     definite_size: Option<S>,
