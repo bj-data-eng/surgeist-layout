@@ -1,7 +1,8 @@
 use super::{
     Available, Baselines, CalcExpression, CalcResolutionStatus, CalcResolver, CalcTerm,
     ComputeOutput, Dimension, Display, Edges, LayoutCalcStore, Length, LengthAuto, MaxTrackSizing,
-    MinTrackSizing, NoCalcResolver, Point, Scalar, Size, TrackSizing,
+    MinTrackSizing, NoCalcResolver, Point, Scalar, Size, TrackComponent, TrackComponentList,
+    TrackRepeatCount, TrackSizing,
 };
 
 #[test]
@@ -257,6 +258,13 @@ fn aspect_ratio_rejects_non_positive_or_non_finite_values() {
     assert_eq!(super::AspectRatio::new(-1.0), None);
     assert_eq!(super::AspectRatio::new(Scalar::NAN), None);
     assert_eq!(super::AspectRatio::new(Scalar::INFINITY), None);
+}
+
+#[test]
+fn track_repetition_rejects_zero_count_and_empty_components() {
+    assert!(TrackRepeatCount::new(0).is_none());
+    assert!(TrackRepeatCount::new(2).is_some());
+    assert!(TrackComponentList::try_from(Vec::<TrackComponent>::new()).is_err());
 }
 
 #[test]

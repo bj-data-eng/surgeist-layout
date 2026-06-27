@@ -46,14 +46,17 @@ fn named_lines_preserve_explicit_names_and_fixed_repeats() {
             TrackComponent::line_names(["a"]),
             TrackComponent::px(20.0),
             TrackComponent::line_names(["b", "a"]),
-            TrackComponent::Repeat(TrackRepetition::count_components(
-                2,
-                vec![
-                    TrackComponent::line_names(["c"]),
-                    TrackComponent::px(10.0),
-                    TrackComponent::line_names(["d"]),
-                ],
-            )),
+            TrackComponent::Repeat(
+                TrackRepetition::count_components(
+                    2,
+                    vec![
+                        TrackComponent::line_names(["c"]),
+                        TrackComponent::px(10.0),
+                        TrackComponent::line_names(["d"]),
+                    ],
+                )
+                .expect("valid track repetition"),
+            ),
         ],
         3,
     )
@@ -109,13 +112,16 @@ fn named_lines_reject_reserved_explicit_line_names() {
 
     let repeat_error = named::named_lines_from_track_components(
         GridAxisKind::Row,
-        &[TrackComponent::Repeat(TrackRepetition::count_components(
-            2,
-            vec![
-                TrackComponent::line_names(["span"]),
-                TrackComponent::px(10.0),
-            ],
-        ))],
+        &[TrackComponent::Repeat(
+            TrackRepetition::count_components(
+                2,
+                vec![
+                    TrackComponent::line_names(["span"]),
+                    TrackComponent::px(10.0),
+                ],
+            )
+            .expect("valid track repetition"),
+        )],
         2,
     )
     .unwrap_err();
@@ -134,11 +140,14 @@ fn named_lines_classify_unresolved_auto_repeat_names() {
         GridAxisKind::Column,
         &[
             TrackComponent::line_names(["before"]),
-            TrackComponent::Repeat(TrackRepetition::auto_fit_components(vec![
-                TrackComponent::line_names(["inside"]),
-                TrackComponent::px(10.0),
-                TrackComponent::px(10.0),
-            ])),
+            TrackComponent::Repeat(
+                TrackRepetition::auto_fit_components(vec![
+                    TrackComponent::line_names(["inside"]),
+                    TrackComponent::px(10.0),
+                    TrackComponent::px(10.0),
+                ])
+                .expect("valid track repetition"),
+            ),
             TrackComponent::line_names(["after"]),
         ],
         3,
@@ -162,7 +171,8 @@ fn named_lines_validate_auto_repeat_names_before_unresolved_classification() {
                 TrackComponent::line_names(["auto"]),
                 TrackComponent::px(10.0),
                 TrackComponent::px(10.0),
-            ]),
+            ])
+            .expect("valid track repetition"),
         )],
         3,
     )

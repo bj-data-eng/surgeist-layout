@@ -48,7 +48,8 @@ pub use value::{
 pub use value::{
     GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,
     SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackComponent,
-    TrackRepeat, TrackRepetition, TrackSizing, track_sizing_components,
+    TrackComponentList, TrackRepeat, TrackRepeatCount, TrackRepetition, TrackRepetitionError,
+    TrackSizing, track_sizing_components,
 };
 
 #[cfg(test)]

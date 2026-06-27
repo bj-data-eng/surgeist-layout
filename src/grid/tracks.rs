@@ -543,7 +543,7 @@ fn track_component_has_percent_sizing(
     match component {
         TrackComponent::Track(track) => track_has_percent_sizing(track, resolver),
         TrackComponent::Repeat(repeat) => repeat
-            .components
+            .components()
             .iter()
             .any(|component| track_component_has_percent_sizing(component, resolver)),
         _ => false,
@@ -2333,8 +2333,8 @@ pub(super) fn expand_track_components(
             TrackComponent::Track(track) => tracks.push(*track),
             TrackComponent::Repeat(repetition) => {
                 let repeated_tracks = repetition.sizing_tracks();
-                let count = match repetition.repeat {
-                    TrackRepeat::Count(count) => count,
+                let count = match repetition.repeat() {
+                    TrackRepeat::Count(count) => count.get(),
                     TrackRepeat::AutoFill => {
                         auto_repeat_count(&repeated_tracks, basis, gap, reserved, resolver)
                     }
@@ -2382,7 +2382,7 @@ pub(super) fn auto_repeat_components(components: &[TrackComponent]) -> bool {
         matches!(
             component,
             TrackComponent::Repeat(repetition)
-                if matches!(repetition.repeat, TrackRepeat::AutoFill | TrackRepeat::AutoFit)
+                if matches!(repetition.repeat(), TrackRepeat::AutoFill | TrackRepeat::AutoFit)
         )
     })
 }
@@ -2414,10 +2414,10 @@ pub(super) fn reserved_track_space(
                 size += track_base_size(*track, basis, 0.0, resolver);
             }
             TrackComponent::Repeat(repetition) => {
-                if let TrackRepeat::Count(repeat_count) = repetition.repeat {
+                if let TrackRepeat::Count(repeat_count) = repetition.repeat() {
                     let repeated_tracks = repetition.sizing_tracks();
-                    count += repeat_count * repeated_tracks.len();
-                    size += repeat_count as Scalar
+                    count += repeat_count.get() * repeated_tracks.len();
+                    size += repeat_count.get() as Scalar
                         * repeated_tracks
                             .iter()
                             .map(|track| track_base_size(*track, basis, 0.0, resolver))

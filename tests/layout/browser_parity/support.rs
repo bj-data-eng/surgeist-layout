@@ -1631,14 +1631,16 @@ fn to_style_track_component(
 }
 
 fn to_style_track_repeat(repeat: layout::TrackRepetition) -> Result<s::TrackRepeat, Error> {
+    let repeat_kind = repeat.repeat();
     let components = repeat
-        .components
+        .into_components()
         .into_iter()
         .map(to_style_track_component)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(match repeat.repeat {
+    Ok(match repeat_kind {
         layout::TrackRepeat::Count(count) => s::TrackRepeat::count(
             count
+                .get()
                 .try_into()
                 .map_err(|_| Error::new("repeat count does not fit style track repeat"))?,
             components,
@@ -2202,6 +2204,8 @@ fn parse_track_component(raw: &str) -> Result<layout::TrackComponent, Error> {
                 parse_track_component_list(tracks)?,
             ),
         };
+        let repeat =
+            repeat.map_err(|error| Error::new(format!("invalid track repeat: {error}")))?;
         return Ok(layout::TrackComponent::Repeat(repeat));
     }
     if raw.starts_with('[') {
@@ -2613,10 +2617,13 @@ mod tests {
         );
         assert_eq!(
             tracks[3],
-            layout::TrackComponent::Repeat(layout::TrackRepetition::count(
-                2,
-                vec![layout::TrackSizing::fr(1.0), layout::TrackSizing::AUTO]
-            ))
+            layout::TrackComponent::Repeat(
+                layout::TrackRepetition::count(
+                    2,
+                    vec![layout::TrackSizing::fr(1.0), layout::TrackSizing::AUTO]
+                )
+                .expect("valid track repetition")
+            )
         );
     }
 
@@ -2625,18 +2632,20 @@ mod tests {
         assert_eq!(
             parse_track_component("repeat(auto-fill, minmax(150px,1fr))")
                 .expect("auto-fill should parse"),
-            layout::TrackComponent::Repeat(layout::TrackRepetition::auto_fill(vec![
-                layout::TrackSizing::minmax(
+            layout::TrackComponent::Repeat(
+                layout::TrackRepetition::auto_fill(vec![layout::TrackSizing::minmax(
                     layout::MinTrackSizing::px(150.0),
                     layout::MaxTrackSizing::fr(1.0)
-                )
-            ]))
+                )])
+                .expect("valid track repetition")
+            )
         );
         assert_eq!(
             parse_track_component("repeat(auto-fit, 40px)").expect("auto-fit should parse"),
-            layout::TrackComponent::Repeat(layout::TrackRepetition::auto_fit(vec![
-                layout::TrackSizing::px(40.0)
-            ]))
+            layout::TrackComponent::Repeat(
+                layout::TrackRepetition::auto_fit(vec![layout::TrackSizing::px(40.0)])
+                    .expect("valid track repetition")
+            )
         );
     }
 

@@ -1083,9 +1083,12 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
                         vec!["main".to_string()],
                     )],
                 }),
-                TrackComponent::Repeat(surgeist_layout::TrackRepetition::auto_fit(vec![
-                    surgeist_layout::TrackSizing::px(10.0),
-                ])),
+                TrackComponent::Repeat(
+                    surgeist_layout::TrackRepetition::auto_fit(vec![
+                        surgeist_layout::TrackSizing::px(10.0),
+                    ])
+                    .expect("valid track repetition"),
+                ),
             ],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             grid_auto_columns: vec![TrackComponent::px(10.0)],

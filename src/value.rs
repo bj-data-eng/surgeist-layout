@@ -1096,60 +1096,137 @@ impl From<Length> for TrackSizing {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TrackRepeat {
-    Count(usize),
+    Count(TrackRepeatCount),
     AutoFill,
     AutoFit,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TrackRepeatCount(NonZeroUsize);
+
+impl TrackRepeatCount {
+    #[must_use]
+    pub const fn new(value: usize) -> Option<Self> {
+        match NonZeroUsize::new(value) {
+            Some(value) => Some(Self(value)),
+            None => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0.get()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TrackComponentList(Vec<TrackComponent>);
+
+impl TrackComponentList {
+    #[must_use]
+    pub fn as_slice(&self) -> &[TrackComponent] {
+        &self.0
+    }
+
+    fn into_vec(self) -> Vec<TrackComponent> {
+        self.0
+    }
+}
+
+impl TryFrom<Vec<TrackComponent>> for TrackComponentList {
+    type Error = TrackRepetitionError;
+
+    fn try_from(value: Vec<TrackComponent>) -> Result<Self, Self::Error> {
+        if value.is_empty() {
+            Err(TrackRepetitionError::EmptyComponents)
+        } else {
+            Ok(Self(value))
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TrackRepetitionError {
+    ZeroCount,
+    EmptyComponents,
+}
+
+impl core::fmt::Display for TrackRepetitionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::ZeroCount => f.write_str("track repeat count must be greater than zero"),
+            Self::EmptyComponents => f.write_str("track repeat components must not be empty"),
+        }
+    }
+}
+
+impl std::error::Error for TrackRepetitionError {}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrackRepetition {
-    pub repeat: TrackRepeat,
-    pub components: Vec<TrackComponent>,
+    repeat: TrackRepeat,
+    components: TrackComponentList,
 }
 
 impl TrackRepetition {
-    #[must_use]
-    pub fn count(count: usize, tracks: Vec<TrackSizing>) -> Self {
+    pub fn count(count: usize, tracks: Vec<TrackSizing>) -> Result<Self, TrackRepetitionError> {
         Self::count_components(count, track_sizing_components_from_tracks(tracks))
     }
 
-    #[must_use]
-    pub fn auto_fill(tracks: Vec<TrackSizing>) -> Self {
+    pub fn auto_fill(tracks: Vec<TrackSizing>) -> Result<Self, TrackRepetitionError> {
         Self::auto_fill_components(track_sizing_components_from_tracks(tracks))
     }
 
-    #[must_use]
-    pub fn auto_fit(tracks: Vec<TrackSizing>) -> Self {
+    pub fn auto_fit(tracks: Vec<TrackSizing>) -> Result<Self, TrackRepetitionError> {
         Self::auto_fit_components(track_sizing_components_from_tracks(tracks))
     }
 
-    #[must_use]
-    pub fn count_components(count: usize, components: Vec<TrackComponent>) -> Self {
-        Self {
-            repeat: TrackRepeat::Count(count),
-            components,
-        }
+    pub fn count_components(
+        count: usize,
+        components: Vec<TrackComponent>,
+    ) -> Result<Self, TrackRepetitionError> {
+        let count = TrackRepeatCount::new(count).ok_or(TrackRepetitionError::ZeroCount)?;
+        let components = TrackComponentList::try_from(components)?;
+        Ok(Self::from_validated(TrackRepeat::Count(count), components))
+    }
+
+    pub fn auto_fill_components(
+        components: Vec<TrackComponent>,
+    ) -> Result<Self, TrackRepetitionError> {
+        let components = TrackComponentList::try_from(components)?;
+        Ok(Self::from_validated(TrackRepeat::AutoFill, components))
+    }
+
+    pub fn auto_fit_components(
+        components: Vec<TrackComponent>,
+    ) -> Result<Self, TrackRepetitionError> {
+        let components = TrackComponentList::try_from(components)?;
+        Ok(Self::from_validated(TrackRepeat::AutoFit, components))
     }
 
     #[must_use]
-    pub fn auto_fill_components(components: Vec<TrackComponent>) -> Self {
-        Self {
-            repeat: TrackRepeat::AutoFill,
-            components,
-        }
-    }
-
-    #[must_use]
-    pub fn auto_fit_components(components: Vec<TrackComponent>) -> Self {
-        Self {
-            repeat: TrackRepeat::AutoFit,
-            components,
-        }
+    pub const fn from_validated(repeat: TrackRepeat, components: TrackComponentList) -> Self {
+        Self { components, repeat }
     }
 
     #[must_use]
     pub fn sizing_tracks(&self) -> Vec<TrackSizing> {
-        track_sizing_components(&self.components)
+        track_sizing_components(self.components.as_slice())
+    }
+
+    #[must_use]
+    pub const fn repeat(&self) -> TrackRepeat {
+        self.repeat
+    }
+
+    #[must_use]
+    pub fn components(&self) -> &[TrackComponent] {
+        self.components.as_slice()
+    }
+
+    #[must_use]
+    pub fn into_components(self) -> Vec<TrackComponent> {
+        self.components.into_vec()
     }
 }
 
@@ -1289,9 +1366,9 @@ pub fn track_sizing_components(components: &[TrackComponent]) -> Vec<TrackSizing
             TrackComponent::Track(track) => tracks.push(*track),
             TrackComponent::Repeat(repetition) => {
                 let repeated_tracks = repetition.sizing_tracks();
-                match repetition.repeat {
+                match repetition.repeat() {
                     TrackRepeat::Count(count) => {
-                        for _ in 0..count {
+                        for _ in 0..count.get() {
                             tracks.extend(repeated_tracks.iter().copied());
                         }
                     }

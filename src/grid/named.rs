@@ -1423,18 +1423,15 @@ fn append_track_component_names(
                 lines.ensure_track_count(*current_line);
             }
             TrackComponent::Repeat(repetition) => {
-                let repeated_track_count = fixed_track_count(lines.axis, &repetition.components)?;
-                let count = match repetition.repeat {
-                    TrackRepeat::Count(count) => count,
+                let repeated_track_count = fixed_track_count(lines.axis, repetition.components())?;
+                let count = match repetition.repeat() {
+                    TrackRepeat::Count(count) => count.get(),
                     TrackRepeat::AutoFill | TrackRepeat::AutoFit => auto_repeat_count.unwrap_or(0),
                 };
-                if matches!(repetition.repeat, TrackRepeat::Count(0)) {
-                    return Err(NamedGridError::ZeroRepeat { axis: lines.axis });
-                }
                 for _ in 0..count {
                     append_track_component_names(
                         lines,
-                        &repetition.components,
+                        repetition.components(),
                         repeated_track_count,
                         current_line,
                     )?;
@@ -1454,7 +1451,7 @@ fn validate_track_component_line_names(
         match component {
             TrackComponent::LineNames(names) => validate_line_names(names)?,
             TrackComponent::Repeat(repetition) => {
-                validate_track_component_line_names(&repetition.components)?;
+                validate_track_component_line_names(repetition.components())?;
             }
             TrackComponent::Track(_) | TrackComponent::Subgrid(_) => {}
         }
@@ -1645,18 +1642,15 @@ fn auto_repeat_expansion_count(
         match component {
             TrackComponent::Track(_) => fixed_tracks += 1,
             TrackComponent::LineNames(_) | TrackComponent::Subgrid(_) => {}
-            TrackComponent::Repeat(repetition) => match repetition.repeat {
+            TrackComponent::Repeat(repetition) => match repetition.repeat() {
                 TrackRepeat::Count(count) => {
-                    if count == 0 {
-                        return Err(NamedGridError::ZeroRepeat { axis });
-                    }
-                    fixed_tracks += fixed_track_count(axis, &repetition.components)? * count;
+                    fixed_tracks += fixed_track_count(axis, repetition.components())? * count.get();
                 }
                 TrackRepeat::AutoFill | TrackRepeat::AutoFit => {
                     if auto_repeated_tracks.is_some() {
                         return Err(NamedGridError::UnresolvedAutoRepeatNames { axis });
                     }
-                    auto_repeated_tracks = Some(fixed_track_count(axis, &repetition.components)?);
+                    auto_repeated_tracks = Some(fixed_track_count(axis, repetition.components())?);
                 }
             },
         }
@@ -1686,12 +1680,9 @@ fn fixed_track_count(
         match component {
             TrackComponent::Track(_) => count += 1,
             TrackComponent::LineNames(_) | TrackComponent::Subgrid(_) => {}
-            TrackComponent::Repeat(repetition) => match repetition.repeat {
+            TrackComponent::Repeat(repetition) => match repetition.repeat() {
                 TrackRepeat::Count(repeat_count) => {
-                    if repeat_count == 0 {
-                        return Err(NamedGridError::ZeroRepeat { axis });
-                    }
-                    count += fixed_track_count(axis, &repetition.components)? * repeat_count;
+                    count += fixed_track_count(axis, repetition.components())? * repeat_count.get();
                 }
                 TrackRepeat::AutoFill | TrackRepeat::AutoFit => {
                     return Err(NamedGridError::UnresolvedAutoRepeatNames { axis });
