@@ -52,12 +52,22 @@ pub const fn surgeist_layout::Axis::other(self) -> Self
 pub enum surgeist_layout::BoxSizing
 pub surgeist_layout::BoxSizing::BorderBox
 pub surgeist_layout::BoxSizing::ContentBox
+pub enum surgeist_layout::CalcResolutionStatus
+pub surgeist_layout::CalcResolutionStatus::MissingBasis
+pub surgeist_layout::CalcResolutionStatus::MissingExpression
+pub surgeist_layout::CalcResolutionStatus::MissingResolver
+pub surgeist_layout::CalcResolutionStatus::NonNumeric
+pub surgeist_layout::CalcResolutionStatus::Resolved
 pub enum surgeist_layout::CalcTerm
 pub surgeist_layout::CalcTerm::Percent(surgeist_layout::Scalar)
 pub surgeist_layout::CalcTerm::Px(surgeist_layout::Scalar)
 impl surgeist_layout::CalcTerm
 pub const fn surgeist_layout::CalcTerm::percent(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::CalcTerm::px(value: surgeist_layout::Scalar) -> Self
+pub enum surgeist_layout::CalcUnresolvedReason
+pub surgeist_layout::CalcUnresolvedReason::Basis
+pub surgeist_layout::CalcUnresolvedReason::Expression
+pub surgeist_layout::CalcUnresolvedReason::Resolver
 pub enum surgeist_layout::Clear
 pub surgeist_layout::Clear::Both
 pub surgeist_layout::Clear::Left
@@ -89,9 +99,11 @@ pub const fn surgeist_layout::Dimension::is_max_content(self) -> bool
 pub const fn surgeist_layout::Dimension::is_min_content(self) -> bool
 pub const fn surgeist_layout::Dimension::percent(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::Dimension::px(value: surgeist_layout::Scalar) -> Self
+pub const fn surgeist_layout::Dimension::requires_resolver(self) -> bool
 pub fn surgeist_layout::Dimension::resolve(self, basis: surgeist_layout::Scalar) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::Dimension::resolve_optional(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::Dimension::resolve_with(self, basis: core::option::Option<surgeist_layout::Scalar>, resolver: &dyn surgeist_layout::CalcResolver) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::Dimension::resolve_with_status(self, basis: core::option::Option<surgeist_layout::Scalar>, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::CalcResolution
 impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::MaxTrackSizing
 pub fn surgeist_layout::MaxTrackSizing::from(value: surgeist_layout::Dimension) -> Self
 impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::MinTrackSizing
@@ -165,10 +177,32 @@ pub surgeist_layout::GridFlowTolerance::Normal::font_size: surgeist_layout::Scal
 pub surgeist_layout::GridFlowTolerance::Percent(surgeist_layout::Scalar)
 impl core::default::Default for surgeist_layout::GridFlowTolerance
 pub fn surgeist_layout::GridFlowTolerance::default() -> Self
+pub enum surgeist_layout::LaneIntrinsicItemKind
+pub surgeist_layout::LaneIntrinsicItemKind::Definite
+pub surgeist_layout::LaneIntrinsicItemKind::Definite::span: surgeist_layout::LaneTrackSpan
+pub surgeist_layout::LaneIntrinsicItemKind::Indefinite
+pub surgeist_layout::LaneIntrinsicItemKind::Indefinite::span: surgeist_layout::LaneTrackSpanLength
+pub surgeist_layout::LaneIntrinsicItemKind::NestedIndefiniteSubgrid
+pub surgeist_layout::LaneIntrinsicItemKind::NestedIndefiniteSubgrid::span: surgeist_layout::LaneTrackSpanLength
 pub enum surgeist_layout::LanePlacementError
+pub surgeist_layout::LanePlacementError::ContentSizedTrackOutOfRange
+pub surgeist_layout::LanePlacementError::ContentSizedTrackOutOfRange::track_index: usize
+pub surgeist_layout::LanePlacementError::ContentSizedTrackOutOfRange::tracks: usize
+pub surgeist_layout::LanePlacementError::DefiniteLaneSpanOutOfRange
+pub surgeist_layout::LanePlacementError::DefiniteLaneSpanOutOfRange::span: surgeist_layout::LaneTrackSpan
+pub surgeist_layout::LanePlacementError::DefiniteLaneSpanOutOfRange::tracks: usize
 pub surgeist_layout::LanePlacementError::EmptyTrackList
+pub surgeist_layout::LanePlacementError::GridAxisSpanOutOfRange
+pub surgeist_layout::LanePlacementError::GridAxisSpanOutOfRange::span: usize
+pub surgeist_layout::LanePlacementError::GridAxisSpanOutOfRange::start: usize
+pub surgeist_layout::LanePlacementError::GridAxisSpanOutOfRange::tracks: usize
+pub surgeist_layout::LanePlacementError::InvalidDefiniteLaneSpan
+pub surgeist_layout::LanePlacementError::InvalidDefiniteLaneSpan::span: surgeist_layout::LaneTrackSpan
+pub surgeist_layout::LanePlacementError::InvalidGridAxisSpan
+pub surgeist_layout::LanePlacementError::InvalidGridAxisSpan::span: usize
+pub surgeist_layout::LanePlacementError::InvalidGridAxisStart
+pub surgeist_layout::LanePlacementError::InvalidGridAxisStart::start: usize
 pub surgeist_layout::LanePlacementError::NestedGridLanesSubgridIndefiniteUnsupported
-pub surgeist_layout::LanePlacementError::SpanOutOfRange
 pub enum surgeist_layout::Length
 pub surgeist_layout::Length::Calc(surgeist_layout::CalcId)
 pub surgeist_layout::Length::Normal
@@ -183,10 +217,12 @@ pub fn surgeist_layout::Length::depends_on_basis_with(self, resolver: &dyn surge
 pub const fn surgeist_layout::Length::percent(value: surgeist_layout::Scalar) -> Self
 pub fn surgeist_layout::Length::percent_fraction_with(self, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::Scalar
 pub const fn surgeist_layout::Length::px(value: surgeist_layout::Scalar) -> Self
+pub const fn surgeist_layout::Length::requires_resolver(self) -> bool
 pub fn surgeist_layout::Length::resolve(self, basis: surgeist_layout::Scalar) -> surgeist_layout::Scalar
 pub fn surgeist_layout::Length::resolve_optional(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::Length::resolve_or_zero(self, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::Scalar
 pub fn surgeist_layout::Length::resolve_with(self, basis: core::option::Option<surgeist_layout::Scalar>, resolver: &dyn surgeist_layout::CalcResolver) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::Length::resolve_with_status(self, basis: core::option::Option<surgeist_layout::Scalar>, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::CalcResolution
 impl core::convert::From<surgeist_layout::Length> for surgeist_layout::Dimension
 pub fn surgeist_layout::Dimension::from(value: surgeist_layout::Length) -> Self
 impl core::convert::From<surgeist_layout::Length> for surgeist_layout::LengthAuto
@@ -216,10 +252,13 @@ pub fn surgeist_layout::LengthAuto::depends_on_basis_with(self, resolver: &dyn s
 pub const fn surgeist_layout::LengthAuto::is_auto(self) -> bool
 pub const fn surgeist_layout::LengthAuto::percent(value: surgeist_layout::Scalar) -> Self
 pub const fn surgeist_layout::LengthAuto::px(value: surgeist_layout::Scalar) -> Self
+pub const fn surgeist_layout::LengthAuto::requires_resolver(self) -> bool
 pub fn surgeist_layout::LengthAuto::resolve(self, basis: surgeist_layout::Scalar) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::LengthAuto::resolve_auto_with_status(self, basis: core::option::Option<surgeist_layout::Scalar>, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::ResolvedLengthAuto
 pub fn surgeist_layout::LengthAuto::resolve_optional(self, basis: core::option::Option<surgeist_layout::Scalar>) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::LengthAuto::resolve_or_zero(self, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::Scalar
 pub fn surgeist_layout::LengthAuto::resolve_with(self, basis: core::option::Option<surgeist_layout::Scalar>, resolver: &dyn surgeist_layout::CalcResolver) -> core::option::Option<surgeist_layout::Scalar>
+pub fn surgeist_layout::LengthAuto::resolve_with_status(self, basis: core::option::Option<surgeist_layout::Scalar>, resolver: &dyn surgeist_layout::CalcResolver) -> surgeist_layout::CalcResolution
 impl core::convert::From<surgeist_layout::Length> for surgeist_layout::LengthAuto
 pub fn surgeist_layout::LengthAuto::from(value: surgeist_layout::Length) -> Self
 impl core::convert::From<surgeist_layout::LengthAuto> for surgeist_layout::Dimension
@@ -274,6 +313,28 @@ impl core::convert::From<surgeist_layout::Dimension> for surgeist_layout::MinTra
 pub fn surgeist_layout::MinTrackSizing::from(value: surgeist_layout::Dimension) -> Self
 impl core::convert::From<surgeist_layout::Length> for surgeist_layout::MinTrackSizing
 pub fn surgeist_layout::MinTrackSizing::from(value: surgeist_layout::Length) -> Self
+pub enum surgeist_layout::NamedGridErrorReport
+pub surgeist_layout::NamedGridErrorReport::AutoWithoutCursor
+pub surgeist_layout::NamedGridErrorReport::EmptyTemplateAreas
+pub surgeist_layout::NamedGridErrorReport::LineBeforeFirst
+pub surgeist_layout::NamedGridErrorReport::LineBeforeFirst::axis: surgeist_layout::GridAxisKind
+pub surgeist_layout::NamedGridErrorReport::LineBeforeFirst::line: isize
+pub surgeist_layout::NamedGridErrorReport::MultipleAutoFillRepeats
+pub surgeist_layout::NamedGridErrorReport::MultipleAutoFillRepeats::axis: surgeist_layout::GridAxisKind
+pub surgeist_layout::NamedGridErrorReport::NonRectangularTemplateArea
+pub surgeist_layout::NamedGridErrorReport::NonRectangularTemplateArea::name: alloc::string::String
+pub surgeist_layout::NamedGridErrorReport::ReservedLineName
+pub surgeist_layout::NamedGridErrorReport::ReservedLineName::name: alloc::string::String
+pub surgeist_layout::NamedGridErrorReport::TemplateAreaRowLengthMismatch
+pub surgeist_layout::NamedGridErrorReport::TemplateAreaRowLengthMismatch::actual: usize
+pub surgeist_layout::NamedGridErrorReport::TemplateAreaRowLengthMismatch::expected: usize
+pub surgeist_layout::NamedGridErrorReport::TemplateAreaRowLengthMismatch::row: usize
+pub surgeist_layout::NamedGridErrorReport::UnresolvedAutoRepeatNames
+pub surgeist_layout::NamedGridErrorReport::UnresolvedAutoRepeatNames::axis: surgeist_layout::GridAxisKind
+pub surgeist_layout::NamedGridErrorReport::ZeroLine
+pub surgeist_layout::NamedGridErrorReport::ZeroRepeat
+pub surgeist_layout::NamedGridErrorReport::ZeroRepeat::axis: surgeist_layout::GridAxisKind
+pub surgeist_layout::NamedGridErrorReport::ZeroSpan
 pub enum surgeist_layout::Overflow
 pub surgeist_layout::Overflow::Clip
 pub surgeist_layout::Overflow::Hidden
@@ -301,6 +362,10 @@ pub enum surgeist_layout::RequestedAxis
 pub surgeist_layout::RequestedAxis::Both
 pub surgeist_layout::RequestedAxis::Horizontal
 pub surgeist_layout::RequestedAxis::Vertical
+pub enum surgeist_layout::ResolvedLengthAuto
+pub surgeist_layout::ResolvedLengthAuto::Auto
+pub surgeist_layout::ResolvedLengthAuto::Resolved(surgeist_layout::Scalar)
+pub surgeist_layout::ResolvedLengthAuto::Unresolved(surgeist_layout::CalcUnresolvedReason)
 pub enum surgeist_layout::RunMode
 pub surgeist_layout::RunMode::ComputeSize
 pub surgeist_layout::RunMode::PerformHiddenLayout
@@ -350,7 +415,13 @@ pub fn surgeist_layout::TrackComponent::from(value: surgeist_layout::TrackSizing
 pub enum surgeist_layout::TrackRepeat
 pub surgeist_layout::TrackRepeat::AutoFill
 pub surgeist_layout::TrackRepeat::AutoFit
-pub surgeist_layout::TrackRepeat::Count(usize)
+pub surgeist_layout::TrackRepeat::Count(surgeist_layout::TrackRepeatCount)
+pub enum surgeist_layout::TrackRepetitionError
+pub surgeist_layout::TrackRepetitionError::EmptyComponents
+pub surgeist_layout::TrackRepetitionError::ZeroCount
+impl core::error::Error for surgeist_layout::TrackRepetitionError
+impl core::fmt::Display for surgeist_layout::TrackRepetitionError
+pub fn surgeist_layout::TrackRepetitionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 pub enum surgeist_layout::VerticalAlign
 pub surgeist_layout::VerticalAlign::Baseline
 pub surgeist_layout::VerticalAlign::Top
@@ -360,6 +431,10 @@ pub surgeist_layout::WritingMode::VerticalLr
 pub surgeist_layout::WritingMode::VerticalRl
 impl surgeist_layout::WritingMode
 pub const fn surgeist_layout::WritingMode::is_vertical(self) -> bool
+pub struct surgeist_layout::AspectRatio(_)
+impl surgeist_layout::AspectRatio
+pub const fn surgeist_layout::AspectRatio::get(self) -> surgeist_layout::Scalar
+pub fn surgeist_layout::AspectRatio::new(value: surgeist_layout::Scalar) -> core::option::Option<Self>
 pub struct surgeist_layout::Baselines
 pub surgeist_layout::Baselines::first: surgeist_layout::Point<core::option::Option<surgeist_layout::Scalar>>
 pub surgeist_layout::Baselines::last: surgeist_layout::Point<core::option::Option<surgeist_layout::Scalar>>
@@ -372,28 +447,41 @@ pub const fn surgeist_layout::Baselines::synthesized(size: surgeist_layout::Size
 pub struct surgeist_layout::Cache
 impl surgeist_layout::Cache
 pub fn surgeist_layout::Cache::clear(&mut self) -> surgeist_layout::ClearState
-pub fn surgeist_layout::Cache::get(&self, input: &surgeist_layout::ComputeInput) -> core::option::Option<surgeist_layout::ComputeOutput>
+pub fn surgeist_layout::Cache::get_with_context(&self, input: &surgeist_layout::ComputeInput, context: surgeist_layout::CacheKeyContext) -> core::option::Option<surgeist_layout::ComputeOutput>
 pub fn surgeist_layout::Cache::is_empty(&self) -> bool
 pub const fn surgeist_layout::Cache::new() -> Self
-pub fn surgeist_layout::Cache::store(&mut self, input: &surgeist_layout::ComputeInput, output: surgeist_layout::ComputeOutput)
+pub fn surgeist_layout::Cache::store_with_context(&mut self, input: &surgeist_layout::ComputeInput, context: surgeist_layout::CacheKeyContext, output: surgeist_layout::ComputeOutput)
 impl core::default::Default for surgeist_layout::Cache
 pub fn surgeist_layout::Cache::default() -> Self
+pub struct surgeist_layout::CacheKeyContext
+impl surgeist_layout::CacheKeyContext
+pub const fn surgeist_layout::CacheKeyContext::new(calc_generation: surgeist_layout::CalcGeneration) -> Self
+pub const fn surgeist_layout::CacheKeyContext::static_no_calc() -> Self
 pub struct surgeist_layout::CalcExpression
 impl surgeist_layout::CalcExpression
 pub fn surgeist_layout::CalcExpression::depends_on_basis(&self) -> bool
 pub fn surgeist_layout::CalcExpression::percent_fraction(&self) -> surgeist_layout::Scalar
 pub fn surgeist_layout::CalcExpression::resolve(&self, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 pub fn surgeist_layout::CalcExpression::sum(terms: impl core::iter::traits::collect::IntoIterator<Item = surgeist_layout::CalcTerm>) -> Self
+pub struct surgeist_layout::CalcGeneration(_)
+impl surgeist_layout::CalcGeneration
+pub const fn surgeist_layout::CalcGeneration::new(value: u64) -> Self
+pub const fn surgeist_layout::CalcGeneration::static_no_calc() -> Self
 pub struct surgeist_layout::CalcId(_)
 impl surgeist_layout::CalcId
 pub const fn surgeist_layout::CalcId::index(self) -> u32
-pub const fn surgeist_layout::CalcId::new(index: u32) -> Self
 pub struct surgeist_layout::CalcResolution
 pub surgeist_layout::CalcResolution::depends_on_basis: bool
 pub surgeist_layout::CalcResolution::value: core::option::Option<surgeist_layout::Scalar>
 impl surgeist_layout::CalcResolution
 pub const fn surgeist_layout::CalcResolution::definite(value: surgeist_layout::Scalar, depends_on_basis: bool) -> Self
+pub const fn surgeist_layout::CalcResolution::is_missing_expression(self) -> bool
+pub const fn surgeist_layout::CalcResolution::missing_expression() -> Self
+pub const fn surgeist_layout::CalcResolution::missing_resolver() -> Self
+pub const fn surgeist_layout::CalcResolution::non_numeric() -> Self
+pub const fn surgeist_layout::CalcResolution::status(self) -> surgeist_layout::CalcResolutionStatus
 pub const fn surgeist_layout::CalcResolution::unresolved(depends_on_basis: bool) -> Self
+pub const fn surgeist_layout::CalcResolution::unresolved_reason(self) -> core::option::Option<surgeist_layout::CalcUnresolvedReason>
 pub struct surgeist_layout::CollapsibleMargin
 impl surgeist_layout::CollapsibleMargin
 pub const surgeist_layout::CollapsibleMargin::ZERO: Self
@@ -453,19 +541,48 @@ pub fn surgeist_layout::Edges<T>::zip_size<U, R>(self, size: surgeist_layout::Si
 impl<U, T: core::ops::arith::Add<U>> core::ops::arith::Add<surgeist_layout::Edges<U>> for surgeist_layout::Edges<T>
 pub type surgeist_layout::Edges<T>::Output = surgeist_layout::Edges<<T as core::ops::arith::Add<U>>::Output>
 pub fn surgeist_layout::Edges<T>::add(self, rhs: surgeist_layout::Edges<U>) -> Self::Output
+pub struct surgeist_layout::GridComputation
+impl surgeist_layout::GridComputation
+pub fn surgeist_layout::GridComputation::into_parts(self) -> (surgeist_layout::ComputeOutput, surgeist_layout::GridComputationReport)
+pub fn surgeist_layout::GridComputation::output(&self) -> &surgeist_layout::ComputeOutput
+pub fn surgeist_layout::GridComputation::report(&self) -> &surgeist_layout::GridComputationReport
+pub struct surgeist_layout::GridComputationReport
+impl surgeist_layout::GridComputationReport
+pub fn surgeist_layout::GridComputationReport::is_empty(&self) -> bool
+pub fn surgeist_layout::GridComputationReport::named_grid(&self) -> &surgeist_layout::NamedGridReport
+pub fn surgeist_layout::GridComputationReport::named_grid_errors(&self) -> &[surgeist_layout::NamedGridErrorReport]
+pub struct surgeist_layout::GridLine(_)
+impl surgeist_layout::GridLine
+pub const fn surgeist_layout::GridLine::get(self) -> isize
+pub const fn surgeist_layout::GridLine::new(value: isize) -> core::option::Option<Self>
+impl core::convert::TryFrom<isize> for surgeist_layout::GridLine
+pub type surgeist_layout::GridLine::Error = ()
+pub fn surgeist_layout::GridLine::try_from(value: isize) -> core::result::Result<Self, Self::Error>
 pub struct surgeist_layout::GridPlacement
-pub surgeist_layout::GridPlacement::end: core::option::Option<isize>
-pub surgeist_layout::GridPlacement::span: core::option::Option<usize>
-pub surgeist_layout::GridPlacement::start: core::option::Option<isize>
 impl surgeist_layout::GridPlacement
 pub const surgeist_layout::GridPlacement::AUTO: Self
-pub const fn surgeist_layout::GridPlacement::end_line(line: isize) -> Self
+pub const fn surgeist_layout::GridPlacement::end(self) -> core::option::Option<surgeist_layout::GridLine>
+pub const fn surgeist_layout::GridPlacement::end_line(line: surgeist_layout::GridLine) -> Self
 pub const fn surgeist_layout::GridPlacement::is_auto(self) -> bool
-pub const fn surgeist_layout::GridPlacement::line(line: isize) -> Self
-pub const fn surgeist_layout::GridPlacement::line_span(line: isize, span: usize) -> Self
-pub const fn surgeist_layout::GridPlacement::lines(start: isize, end: isize) -> Self
-pub const fn surgeist_layout::GridPlacement::span(span: usize) -> Self
-pub const fn surgeist_layout::GridPlacement::span_line(span: usize, line: isize) -> Self
+pub const fn surgeist_layout::GridPlacement::line(line: surgeist_layout::GridLine) -> Self
+pub const fn surgeist_layout::GridPlacement::line_span(line: surgeist_layout::GridLine, span: surgeist_layout::GridSpan) -> Self
+pub const fn surgeist_layout::GridPlacement::lines(start: surgeist_layout::GridLine, end: surgeist_layout::GridLine) -> Self
+pub const fn surgeist_layout::GridPlacement::span(self) -> core::option::Option<surgeist_layout::GridSpan>
+pub const fn surgeist_layout::GridPlacement::span_line(span: surgeist_layout::GridSpan, line: surgeist_layout::GridLine) -> Self
+pub const fn surgeist_layout::GridPlacement::start(self) -> core::option::Option<surgeist_layout::GridLine>
+pub const fn surgeist_layout::GridPlacement::try_end_line(line: isize) -> core::option::Option<Self>
+pub const fn surgeist_layout::GridPlacement::try_line(line: isize) -> core::option::Option<Self>
+pub const fn surgeist_layout::GridPlacement::try_line_span(line: isize, span: usize) -> core::option::Option<Self>
+pub const fn surgeist_layout::GridPlacement::try_lines(start: isize, end: isize) -> core::option::Option<Self>
+pub const fn surgeist_layout::GridPlacement::try_span(span: usize) -> core::option::Option<Self>
+pub const fn surgeist_layout::GridPlacement::try_span_line(span: usize, line: isize) -> core::option::Option<Self>
+pub struct surgeist_layout::GridSpan(_)
+impl surgeist_layout::GridSpan
+pub const fn surgeist_layout::GridSpan::get(self) -> usize
+pub const fn surgeist_layout::GridSpan::new(value: usize) -> core::option::Option<Self>
+impl core::convert::TryFrom<usize> for surgeist_layout::GridSpan
+pub type surgeist_layout::GridSpan::Error = ()
+pub fn surgeist_layout::GridSpan::try_from(value: usize) -> core::result::Result<Self, Self::Error>
 pub struct surgeist_layout::GridTemplateAreaRow
 pub surgeist_layout::GridTemplateAreaRow::cells: alloc::vec::Vec<core::option::Option<alloc::string::String>>
 pub struct surgeist_layout::GridTemplateAreas
@@ -482,15 +599,13 @@ pub surgeist_layout::LaneContributionFacts::max_content: surgeist_layout::Scalar
 pub surgeist_layout::LaneContributionFacts::min_content: surgeist_layout::Scalar
 pub surgeist_layout::LaneContributionFacts::min_size: surgeist_layout::Scalar
 pub struct surgeist_layout::LaneIntrinsicItem
-pub surgeist_layout::LaneIntrinsicItem::contribution: surgeist_layout::LaneContributionFacts
-pub surgeist_layout::LaneIntrinsicItem::definite_span: core::option::Option<surgeist_layout::LaneTrackSpan>
-pub surgeist_layout::LaneIntrinsicItem::id: &'static str
-pub surgeist_layout::LaneIntrinsicItem::nested_indefinite_subgrid: bool
-pub surgeist_layout::LaneIntrinsicItem::span: usize
 impl surgeist_layout::LaneIntrinsicItem
-pub const fn surgeist_layout::LaneIntrinsicItem::definite(id: &'static str, start: usize, end: usize, contribution: surgeist_layout::LaneContributionFacts) -> Self
-pub const fn surgeist_layout::LaneIntrinsicItem::indefinite(id: &'static str, span: usize, contribution: surgeist_layout::LaneContributionFacts) -> Self
-pub const fn surgeist_layout::LaneIntrinsicItem::nested_indefinite_subgrid(id: &'static str, span: usize, contribution: surgeist_layout::LaneContributionFacts) -> Self
+pub const fn surgeist_layout::LaneIntrinsicItem::contribution(&self) -> surgeist_layout::LaneContributionFacts
+pub fn surgeist_layout::LaneIntrinsicItem::definite(id: &'static str, span: surgeist_layout::LaneTrackSpan, contribution: surgeist_layout::LaneContributionFacts) -> core::result::Result<Self, surgeist_layout::LanePlacementError>
+pub const fn surgeist_layout::LaneIntrinsicItem::id(&self) -> &'static str
+pub const fn surgeist_layout::LaneIntrinsicItem::indefinite(id: &'static str, span: surgeist_layout::LaneTrackSpanLength, contribution: surgeist_layout::LaneContributionFacts) -> Self
+pub const fn surgeist_layout::LaneIntrinsicItem::kind(&self) -> surgeist_layout::LaneIntrinsicItemKind
+pub const fn surgeist_layout::LaneIntrinsicItem::nested_indefinite_subgrid(id: &'static str, span: surgeist_layout::LaneTrackSpanLength, contribution: surgeist_layout::LaneContributionFacts) -> Self
 pub struct surgeist_layout::LaneIntrinsicSizingInput
 pub surgeist_layout::LaneIntrinsicSizingInput::available: core::option::Option<surgeist_layout::Scalar>
 pub surgeist_layout::LaneIntrinsicSizingInput::axis: surgeist_layout::GridAxisKind
@@ -523,16 +638,18 @@ pub surgeist_layout::LanePlacementInput::tolerance: surgeist_layout::GridFlowTol
 pub surgeist_layout::LanePlacementInput::tolerance_basis: surgeist_layout::Scalar
 pub struct surgeist_layout::LanePlacementReport<Item>
 pub surgeist_layout::LanePlacementReport::content_size: surgeist_layout::Scalar
-pub surgeist_layout::LanePlacementReport::final_cursor: usize
 pub surgeist_layout::LanePlacementReport::grid_axis: surgeist_layout::GridAxisKind
 pub surgeist_layout::LanePlacementReport::item_offsets: alloc::vec::Vec<surgeist_layout::LaneItemOffset<Item>>
 pub surgeist_layout::LanePlacementReport::lane_axis: surgeist_layout::GridAxisKind
-pub surgeist_layout::LanePlacementReport::running_positions_after_each_item: alloc::vec::Vec<alloc::vec::Vec<surgeist_layout::Scalar>>
 pub struct surgeist_layout::LaneTrackSpan
 pub surgeist_layout::LaneTrackSpan::end: usize
 pub surgeist_layout::LaneTrackSpan::start: usize
 impl surgeist_layout::LaneTrackSpan
 pub const fn surgeist_layout::LaneTrackSpan::new(start: usize, end: usize) -> Self
+pub struct surgeist_layout::LaneTrackSpanLength(_)
+impl surgeist_layout::LaneTrackSpanLength
+pub const fn surgeist_layout::LaneTrackSpanLength::get(self) -> usize
+pub const fn surgeist_layout::LaneTrackSpanLength::new(span: usize) -> core::option::Option<Self>
 pub struct surgeist_layout::LayoutCalcStore
 impl surgeist_layout::LayoutCalcStore
 pub fn surgeist_layout::LayoutCalcStore::get(&self, id: surgeist_layout::CalcId) -> core::option::Option<&surgeist_layout::CalcExpression>
@@ -542,17 +659,23 @@ pub const fn surgeist_layout::LayoutCalcStore::new() -> Self
 pub fn surgeist_layout::LayoutCalcStore::push(&mut self, expression: surgeist_layout::CalcExpression) -> surgeist_layout::CalcId
 impl surgeist_layout::CalcResolver for surgeist_layout::LayoutCalcStore
 pub fn surgeist_layout::LayoutCalcStore::calc_depends_on_basis(&self, id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::LayoutCalcStore::calc_generation(&self) -> surgeist_layout::CalcGeneration
 pub fn surgeist_layout::LayoutCalcStore::calc_percent_fraction(&self, id: surgeist_layout::CalcId) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::LayoutCalcStore::resolve_calc(&self, id: surgeist_layout::CalcId, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
+pub struct surgeist_layout::NamedGridReport
+impl surgeist_layout::NamedGridReport
+pub fn surgeist_layout::NamedGridReport::errors(&self) -> &[surgeist_layout::NamedGridErrorReport]
+pub fn surgeist_layout::NamedGridReport::is_empty(&self) -> bool
 pub struct surgeist_layout::NoCalcResolver
 impl surgeist_layout::CalcResolver for surgeist_layout::NoCalcResolver
 pub fn surgeist_layout::NoCalcResolver::calc_depends_on_basis(&self, _id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::NoCalcResolver::calc_generation(&self) -> surgeist_layout::CalcGeneration
 pub fn surgeist_layout::NoCalcResolver::resolve_calc(&self, _id: surgeist_layout::CalcId, _basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 pub struct surgeist_layout::NodeInput
 pub surgeist_layout::NodeInput::align_content: core::option::Option<surgeist_layout::AlignContent>
 pub surgeist_layout::NodeInput::align_items: core::option::Option<surgeist_layout::AlignItems>
 pub surgeist_layout::NodeInput::align_self: core::option::Option<surgeist_layout::AlignItems>
-pub surgeist_layout::NodeInput::aspect_ratio: core::option::Option<surgeist_layout::Scalar>
+pub surgeist_layout::NodeInput::aspect_ratio: core::option::Option<surgeist_layout::AspectRatio>
 pub surgeist_layout::NodeInput::border: surgeist_layout::Edges<surgeist_layout::Length>
 pub surgeist_layout::NodeInput::box_sizing: surgeist_layout::BoxSizing
 pub surgeist_layout::NodeInput::clear: surgeist_layout::Clear
@@ -664,16 +787,28 @@ pub surgeist_layout::SubgridTrack::name_components: alloc::vec::Vec<surgeist_lay
 impl surgeist_layout::SubgridTrack
 pub fn surgeist_layout::SubgridTrack::line_names(&self) -> alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>
 pub fn surgeist_layout::SubgridTrack::new(line_names: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>) -> Self
+pub struct surgeist_layout::TrackComponentList(_)
+impl surgeist_layout::TrackComponentList
+pub fn surgeist_layout::TrackComponentList::as_slice(&self) -> &[surgeist_layout::TrackComponent]
+impl core::convert::TryFrom<alloc::vec::Vec<surgeist_layout::TrackComponent>> for surgeist_layout::TrackComponentList
+pub type surgeist_layout::TrackComponentList::Error = surgeist_layout::TrackRepetitionError
+pub fn surgeist_layout::TrackComponentList::try_from(value: alloc::vec::Vec<surgeist_layout::TrackComponent>) -> core::result::Result<Self, Self::Error>
+pub struct surgeist_layout::TrackRepeatCount(_)
+impl surgeist_layout::TrackRepeatCount
+pub const fn surgeist_layout::TrackRepeatCount::get(self) -> usize
+pub const fn surgeist_layout::TrackRepeatCount::new(value: usize) -> core::option::Option<Self>
 pub struct surgeist_layout::TrackRepetition
-pub surgeist_layout::TrackRepetition::components: alloc::vec::Vec<surgeist_layout::TrackComponent>
-pub surgeist_layout::TrackRepetition::repeat: surgeist_layout::TrackRepeat
 impl surgeist_layout::TrackRepetition
-pub fn surgeist_layout::TrackRepetition::auto_fill(tracks: alloc::vec::Vec<surgeist_layout::TrackSizing>) -> Self
-pub fn surgeist_layout::TrackRepetition::auto_fill_components(components: alloc::vec::Vec<surgeist_layout::TrackComponent>) -> Self
-pub fn surgeist_layout::TrackRepetition::auto_fit(tracks: alloc::vec::Vec<surgeist_layout::TrackSizing>) -> Self
-pub fn surgeist_layout::TrackRepetition::auto_fit_components(components: alloc::vec::Vec<surgeist_layout::TrackComponent>) -> Self
-pub fn surgeist_layout::TrackRepetition::count(count: usize, tracks: alloc::vec::Vec<surgeist_layout::TrackSizing>) -> Self
-pub fn surgeist_layout::TrackRepetition::count_components(count: usize, components: alloc::vec::Vec<surgeist_layout::TrackComponent>) -> Self
+pub fn surgeist_layout::TrackRepetition::auto_fill(tracks: alloc::vec::Vec<surgeist_layout::TrackSizing>) -> core::result::Result<Self, surgeist_layout::TrackRepetitionError>
+pub fn surgeist_layout::TrackRepetition::auto_fill_components(components: alloc::vec::Vec<surgeist_layout::TrackComponent>) -> core::result::Result<Self, surgeist_layout::TrackRepetitionError>
+pub fn surgeist_layout::TrackRepetition::auto_fit(tracks: alloc::vec::Vec<surgeist_layout::TrackSizing>) -> core::result::Result<Self, surgeist_layout::TrackRepetitionError>
+pub fn surgeist_layout::TrackRepetition::auto_fit_components(components: alloc::vec::Vec<surgeist_layout::TrackComponent>) -> core::result::Result<Self, surgeist_layout::TrackRepetitionError>
+pub fn surgeist_layout::TrackRepetition::components(&self) -> &[surgeist_layout::TrackComponent]
+pub fn surgeist_layout::TrackRepetition::count(count: usize, tracks: alloc::vec::Vec<surgeist_layout::TrackSizing>) -> core::result::Result<Self, surgeist_layout::TrackRepetitionError>
+pub fn surgeist_layout::TrackRepetition::count_components(count: usize, components: alloc::vec::Vec<surgeist_layout::TrackComponent>) -> core::result::Result<Self, surgeist_layout::TrackRepetitionError>
+pub const fn surgeist_layout::TrackRepetition::from_validated(repeat: surgeist_layout::TrackRepeat, components: surgeist_layout::TrackComponentList) -> Self
+pub fn surgeist_layout::TrackRepetition::into_components(self) -> alloc::vec::Vec<surgeist_layout::TrackComponent>
+pub const fn surgeist_layout::TrackRepetition::repeat(&self) -> surgeist_layout::TrackRepeat
 pub fn surgeist_layout::TrackRepetition::sizing_tracks(&self) -> alloc::vec::Vec<surgeist_layout::TrackSizing>
 pub struct surgeist_layout::TrackSizing
 pub surgeist_layout::TrackSizing::max: surgeist_layout::MaxTrackSizing
@@ -703,18 +838,22 @@ pub fn surgeist_layout::TrackSizing::default() -> Self
 pub trait surgeist_layout::CacheAccess
 pub type surgeist_layout::CacheAccess::Node: core::marker::Copy + core::cmp::Eq
 pub fn surgeist_layout::CacheAccess::cache_clear(&mut self, node: Self::Node)
-pub fn surgeist_layout::CacheAccess::cache_get(&self, node: Self::Node, input: &surgeist_layout::ComputeInput) -> core::option::Option<surgeist_layout::ComputeOutput>
-pub fn surgeist_layout::CacheAccess::cache_store(&mut self, node: Self::Node, input: &surgeist_layout::ComputeInput, output: surgeist_layout::ComputeOutput)
+pub fn surgeist_layout::CacheAccess::cache_context(&self) -> surgeist_layout::CacheKeyContext
+pub fn surgeist_layout::CacheAccess::cache_get(&self, node: Self::Node, input: &surgeist_layout::ComputeInput, context: surgeist_layout::CacheKeyContext) -> core::option::Option<surgeist_layout::ComputeOutput>
+pub fn surgeist_layout::CacheAccess::cache_store(&mut self, node: Self::Node, input: &surgeist_layout::ComputeInput, context: surgeist_layout::CacheKeyContext, output: surgeist_layout::ComputeOutput)
 pub trait surgeist_layout::CalcResolver
 pub fn surgeist_layout::CalcResolver::calc_depends_on_basis(&self, id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::CalcResolver::calc_generation(&self) -> surgeist_layout::CalcGeneration
 pub fn surgeist_layout::CalcResolver::calc_percent_fraction(&self, id: surgeist_layout::CalcId) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::CalcResolver::resolve_calc(&self, id: surgeist_layout::CalcId, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 impl surgeist_layout::CalcResolver for surgeist_layout::LayoutCalcStore
 pub fn surgeist_layout::LayoutCalcStore::calc_depends_on_basis(&self, id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::LayoutCalcStore::calc_generation(&self) -> surgeist_layout::CalcGeneration
 pub fn surgeist_layout::LayoutCalcStore::calc_percent_fraction(&self, id: surgeist_layout::CalcId) -> core::option::Option<surgeist_layout::Scalar>
 pub fn surgeist_layout::LayoutCalcStore::resolve_calc(&self, id: surgeist_layout::CalcId, basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 impl surgeist_layout::CalcResolver for surgeist_layout::NoCalcResolver
 pub fn surgeist_layout::NoCalcResolver::calc_depends_on_basis(&self, _id: surgeist_layout::CalcId) -> bool
+pub fn surgeist_layout::NoCalcResolver::calc_generation(&self) -> surgeist_layout::CalcGeneration
 pub fn surgeist_layout::NoCalcResolver::resolve_calc(&self, _id: surgeist_layout::CalcId, _basis: core::option::Option<surgeist_layout::Scalar>) -> surgeist_layout::CalcResolution
 pub trait surgeist_layout::Compute: surgeist_layout::Traverse
 pub fn surgeist_layout::Compute::calc_resolver(&self) -> &dyn surgeist_layout::CalcResolver
@@ -734,6 +873,7 @@ pub fn surgeist_layout::compute_block<Tree>(tree: &mut Tree, node: <Tree as surg
 pub fn surgeist_layout::compute_cached<Tree, ComputeFn>(tree: &mut Tree, node: <Tree as surgeist_layout::CacheAccess>::Node, input: surgeist_layout::ComputeInput, compute: ComputeFn) -> surgeist_layout::ComputeOutput where Tree: surgeist_layout::CacheAccess + ?core::marker::Sized, ComputeFn: core::ops::function::FnOnce(&mut Tree, <Tree as surgeist_layout::CacheAccess>::Node, surgeist_layout::ComputeInput) -> surgeist_layout::ComputeOutput
 pub fn surgeist_layout::compute_flex<Tree>(tree: &mut Tree, node: <Tree as surgeist_layout::Traverse>::Node, input: surgeist_layout::ComputeInput) -> surgeist_layout::ComputeOutput where Tree: surgeist_layout::Compute
 pub fn surgeist_layout::compute_grid<Tree>(tree: &mut Tree, node: <Tree as surgeist_layout::Traverse>::Node, input: surgeist_layout::ComputeInput) -> surgeist_layout::ComputeOutput where Tree: surgeist_layout::Compute
+pub fn surgeist_layout::compute_grid_with_report<Tree>(tree: &mut Tree, node: <Tree as surgeist_layout::Traverse>::Node, input: surgeist_layout::ComputeInput) -> surgeist_layout::GridComputation where Tree: surgeist_layout::Compute
 pub fn surgeist_layout::compute_hidden<Tree>(tree: &mut Tree, node: <Tree as surgeist_layout::Traverse>::Node) -> surgeist_layout::ComputeOutput where Tree: surgeist_layout::Compute + surgeist_layout::CacheAccess<Node = <Tree as surgeist_layout::Traverse>::Node>
 pub fn surgeist_layout::compute_leaf(input: surgeist_layout::ComputeInput, style: &surgeist_layout::NodeInput, measure: impl core::ops::function::FnOnce(surgeist_layout::Size<core::option::Option<surgeist_layout::Scalar>>, surgeist_layout::Size<surgeist_layout::Available>) -> surgeist_layout::Size) -> surgeist_layout::ComputeOutput
 pub fn surgeist_layout::compute_root<Tree>(tree: &mut Tree, root: <Tree as surgeist_layout::Traverse>::Node, available: surgeist_layout::Size<surgeist_layout::Available>) where Tree: surgeist_layout::Compute

@@ -13,3 +13,9 @@ cargo run --manifest-path api/generator/Cargo.toml
 ```
 
 API refresh tooling is command-only and must not run as part of normal `cargo test`.
+
+## Modeling Contracts
+
+`surgeist-layout` exposes layout-ready contracts rather than authored CSS syntax.
+Public placement, aspect ratio, track repetition, lane, and calc values preserve
+their invariants through typed constructors and resolver-aware APIs.

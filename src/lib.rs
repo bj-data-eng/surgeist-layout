@@ -43,8 +43,8 @@ pub use output::{
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
     AspectRatio, Available, CalcExpression, CalcGeneration, CalcId, CalcResolution,
-    CalcResolutionStatus, CalcResolver, CalcTerm, Dimension, LayoutCalcStore, Length, LengthAuto,
-    NoCalcResolver,
+    CalcResolutionStatus, CalcResolver, CalcTerm, CalcUnresolvedReason, Dimension, LayoutCalcStore,
+    Length, LengthAuto, NoCalcResolver, ResolvedLengthAuto,
 };
 pub use value::{
     GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,
