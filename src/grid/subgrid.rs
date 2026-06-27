@@ -1097,14 +1097,14 @@ fn traversal_child_area_tracks(
     })
 }
 
-pub(super) fn intrinsic_subgrid_axis_parent_context(
+pub(super) fn intrinsic_subgrid_axis_parent_context<S: LayoutScalar>(
     report: SubgridAxisReport,
-    area: GridArea,
-    gap: Size,
+    area: GridArea<S>,
+    gap: Size<S>,
     named_columns: &NamedGridLines,
     named_rows: &NamedGridLines,
     area_facts: Option<&GridAreaNameFacts>,
-) -> Option<InheritedGridAxis> {
+) -> Option<InheritedGridAxis<S>> {
     if !report.can_inherit() {
         return None;
     }
@@ -1120,9 +1120,9 @@ pub(super) fn intrinsic_subgrid_axis_parent_context(
     let track_count = parent_end.saturating_sub(parent_start);
 
     Some(InheritedGridAxis {
-        offset: 0.0,
+        offset: S::ZERO,
         gap: parent_gap,
-        tracks: vec![0.0; track_count],
+        tracks: vec![S::ZERO; track_count],
         named_lines: named_lines.clone(),
         area_facts: area_facts
             .filter(|facts| facts.is_valid_for_axis(mapping.parent_axis))
@@ -1132,13 +1132,13 @@ pub(super) fn intrinsic_subgrid_axis_parent_context(
         parent_start,
         parent_end,
         reversed: mapping.reversed,
-        start_mbp: 0.0,
-        end_mbp: 0.0,
-        gap_difference: 0.0,
+        start_mbp: S::ZERO,
+        end_mbp: S::ZERO,
+        gap_difference: S::ZERO,
     })
 }
 
-fn area_span(area: GridArea, axis: GridAxisKind) -> GridTrackSpan {
+fn area_span<S: LayoutScalar>(area: GridArea<S>, axis: GridAxisKind) -> GridTrackSpan {
     match axis {
         GridAxisKind::Column => GridTrackSpan::new(area.column + 1, area.column_end + 1),
         GridAxisKind::Row => GridTrackSpan::new(area.row + 1, area.row_end + 1),

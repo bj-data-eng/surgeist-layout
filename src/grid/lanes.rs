@@ -294,7 +294,7 @@ pub const fn grid_axis_for_lanes(auto_flow: GridAutoFlow) -> GridAxisKind {
     }
 }
 
-pub(super) fn lane_axis_for_grid_lanes(style: &NodeInput) -> GridAxisKind {
+pub(super) fn lane_axis_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>) -> GridAxisKind {
     let has_columns = !style.grid_template_columns.is_empty();
     let has_rows = !style.grid_template_rows.is_empty();
     match (has_columns, has_rows) {
@@ -304,14 +304,14 @@ pub(super) fn lane_axis_for_grid_lanes(style: &NodeInput) -> GridAxisKind {
     }
 }
 
-pub(super) fn grid_axis_for_grid_lanes(style: &NodeInput) -> GridAxisKind {
+pub(super) fn grid_axis_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>) -> GridAxisKind {
     match lane_axis_for_grid_lanes(style) {
         GridAxisKind::Column => GridAxisKind::Row,
         GridAxisKind::Row => GridAxisKind::Column,
     }
 }
 
-pub(super) fn column_flow_for_grid_lanes(style: &NodeInput) -> bool {
+pub(super) fn column_flow_for_grid_lanes<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
     grid_axis_for_grid_lanes(style) == GridAxisKind::Row
 }
 
@@ -903,26 +903,26 @@ where
     Ok(trace.into_report())
 }
 
-pub(super) struct GridLanesLayoutInput<'a, Node> {
-    pub(super) style: &'a NodeInput,
-    pub(super) constants: &'a Constants,
-    pub(super) container_content_size: Size,
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
-    pub(super) context: GridContainerContext,
+pub(super) struct GridLanesLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
+    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) constants: &'a Constants<S>,
+    pub(super) container_content_size: Size<S>,
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
+    pub(super) context: GridContainerContext<S>,
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
     pub(super) placements: &'a GridPlacementContext<Node>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct LaneIntrinsicTrackSizeInput<'a, Node> {
-    pub(super) constants: &'a Constants,
+pub(super) struct LaneIntrinsicTrackSizeInput<'a, Node, S: LayoutScalar = Scalar> {
+    pub(super) constants: &'a Constants<S>,
     pub(super) axis: GridAxisKind,
-    pub(super) tracks: &'a [TrackSizing],
-    pub(super) gap: Scalar,
-    pub(super) available: Available,
-    pub(super) available_basis: Option<Scalar>,
+    pub(super) tracks: &'a [TrackSizingOf<S>],
+    pub(super) gap: S,
+    pub(super) available: AvailableOf<S>,
+    pub(super) available_basis: Option<S>,
     pub(super) lines: GridLines,
     pub(super) placements: &'a GridPlacementContext<Node>,
 }
@@ -1526,13 +1526,13 @@ where
 }
 
 #[derive(Clone, Copy)]
-struct LaneAxisMarginBoxMeasureInput<'a> {
-    child_style: &'a NodeInput,
-    container_style: &'a NodeInput,
-    constants: &'a Constants,
+struct LaneAxisMarginBoxMeasureInput<'a, S: LayoutScalar = Scalar> {
+    child_style: &'a NodeInputOf<S>,
+    container_style: &'a NodeInputOf<S>,
+    constants: &'a Constants<S>,
     lane_axis: GridAxisKind,
     grid_axis: GridAxisKind,
-    grid_axis_size: Scalar,
+    grid_axis_size: S,
 }
 
 fn measure_lane_axis_margin_box_with_grid_axis<Tree>(

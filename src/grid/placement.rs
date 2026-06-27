@@ -154,14 +154,14 @@ pub(super) fn area_is_free(
     })
 }
 
-pub(super) fn fully_definite_area(
+pub(super) fn fully_definite_area<S: LayoutScalar>(
     column: super::GridPlacement,
     row: super::GridPlacement,
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
+    columns: &[S],
+    rows: &[S],
+    gap: Size<S>,
     lines: GridLines,
-) -> Option<GridArea> {
+) -> Option<GridArea<S>> {
     if !has_definite_line(column) || !has_definite_line(row) {
         return None;
     }
@@ -400,14 +400,14 @@ pub(super) fn grid_line_offset<S: LayoutScalar>(
     None
 }
 
-pub(super) fn definite_area(
+pub(super) fn definite_area<S: LayoutScalar>(
     column: super::GridPlacement,
     row: super::GridPlacement,
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
+    columns: &[S],
+    rows: &[S],
+    gap: Size<S>,
     lines: GridLines,
-) -> Option<GridArea> {
+) -> Option<GridArea<S>> {
     let (column_start, column_end) = placement_range(
         column,
         columns.len(),
@@ -617,13 +617,13 @@ pub(super) fn resolve_grid_child_areas<Node>(
     areas
 }
 
-pub(super) struct ResolveGridChildAreasInput<'a, Node> {
+pub(super) struct ResolveGridChildAreasInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) children: &'a [Node],
     pub(super) placements: &'a GridPlacementContext<Node>,
-    pub(super) style: &'a NodeInput,
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
 }
 
@@ -673,10 +673,10 @@ pub(super) fn place_grid_child_area_phase<Node>(
     }
 }
 
-pub(super) struct PlacementContext<'a> {
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+pub(super) struct PlacementContext<'a, S: LayoutScalar = Scalar> {
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
     pub(super) column_flow: bool,
     pub(super) dense_flow: bool,
@@ -700,11 +700,11 @@ pub(super) fn placement_phase(
     }
 }
 
-pub(super) struct PlacementGrid<'a> {
+pub(super) struct PlacementGrid<'a, S: LayoutScalar = Scalar> {
     pub(super) occupancy: &'a [bool],
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
     pub(super) column_flow: bool,
     pub(super) dense_flow: bool,

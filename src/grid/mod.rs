@@ -1,10 +1,11 @@
 use super::{
-    AlignContent, AlignItems, AspectRatio, Available, Baselines, BoxSizing, CalcResolver, Compute,
-    ComputeInput, ComputeOutput, ComputeOutputOf, DefaultScalar, Dimension, Direction, Display,
-    Edges, GridAutoFlow, GridFlowTolerance, GridPlacement, LayoutScalar, Length, LengthAuto,
-    MaxTrackSizing, MinTrackSizing, NodeInput, NodeInputOf, NodeOutput, Overflow, Point, Position,
-    RequestedAxis, RunMode, Scalar, Size, SizingMode, TrackComponent, TrackComponentOf,
-    TrackRepeat, TrackSizing, TrackSizingOf, Traverse,
+    AlignContent, AlignItems, AspectRatio, Available, AvailableOf, Baselines, BoxSizing,
+    CalcResolver, Compute, ComputeInput, ComputeInputOf, ComputeOutput, ComputeOutputOf,
+    DefaultScalar, Dimension, Direction, Display, Edges, GridAutoFlow, GridFlowTolerance,
+    GridPlacement, LayoutScalar, Length, LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput,
+    NodeInputOf, NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size,
+    SizingMode, TrackComponent, TrackComponentOf, TrackRepeat, TrackSizing, TrackSizingOf,
+    Traverse,
 };
 
 mod alignment;
@@ -624,12 +625,12 @@ where
 }
 
 #[derive(Clone, Debug)]
-struct GridParentContext {
-    columns: Option<InheritedGridAxis>,
-    rows: Option<InheritedGridAxis>,
+struct GridParentContext<S: LayoutScalar = Scalar> {
+    columns: Option<InheritedGridAxis<S>>,
+    rows: Option<InheritedGridAxis<S>>,
 }
 
-impl GridParentContext {
+impl<S: LayoutScalar> GridParentContext<S> {
     fn none() -> Self {
         Self {
             columns: None,
@@ -643,27 +644,27 @@ impl GridParentContext {
 }
 
 #[derive(Clone, Debug)]
-struct InheritedGridAxis {
-    offset: Scalar,
-    gap: Scalar,
-    tracks: Vec<Scalar>,
+struct InheritedGridAxis<S: LayoutScalar = Scalar> {
+    offset: S,
+    gap: S,
+    tracks: Vec<S>,
     named_lines: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
-    major_baselines: Vec<Option<Scalar>>,
-    minor_baselines: Vec<Option<Scalar>>,
+    major_baselines: Vec<Option<S>>,
+    minor_baselines: Vec<Option<S>>,
     parent_start: usize,
     parent_end: usize,
     reversed: bool,
-    start_mbp: Scalar,
-    end_mbp: Scalar,
-    gap_difference: Scalar,
+    start_mbp: S,
+    end_mbp: S,
+    gap_difference: S,
 }
 
 #[derive(Clone)]
-struct GridContainerContext {
-    gap: Size,
-    column_basis: Option<Scalar>,
-    row_basis: Option<Scalar>,
+struct GridContainerContext<S: LayoutScalar = Scalar> {
+    gap: Size<S>,
+    column_basis: Option<S>,
+    row_basis: Option<S>,
     explicit_columns: usize,
     explicit_rows: usize,
     named_columns: NamedGridLines,
@@ -672,14 +673,14 @@ struct GridContainerContext {
     leading_columns: usize,
     leading_rows: usize,
     lines: GridLines,
-    inherited_column_offset: Option<Scalar>,
-    inherited_row_offset: Option<Scalar>,
+    inherited_column_offset: Option<S>,
+    inherited_row_offset: Option<S>,
 }
 
-struct InitializedGridTracks<Node> {
-    column_tracks: Vec<TrackSizing>,
-    row_tracks: Vec<TrackSizing>,
-    context: GridContainerContext,
+struct InitializedGridTracks<Node, S: LayoutScalar = Scalar> {
+    column_tracks: Vec<TrackSizingOf<S>>,
+    row_tracks: Vec<TrackSizingOf<S>>,
+    context: GridContainerContext<S>,
     placements: GridPlacementContext<Node>,
     subgrid_report: GridSubgridReport<Node>,
     report: GridComputationReport,
@@ -1133,24 +1134,24 @@ fn raw_grid_line_is_numeric(line: &super::RawGridLine) -> bool {
     )
 }
 
-struct GridTrackResolutionInput<'a, Node> {
-    style: &'a NodeInput,
-    constants: &'a Constants,
-    column_tracks: &'a [TrackSizing],
-    row_tracks: &'a [TrackSizing],
-    context: GridContainerContext,
+struct GridTrackResolutionInput<'a, Node, S: LayoutScalar = Scalar> {
+    style: &'a NodeInputOf<S>,
+    constants: &'a Constants<S>,
+    column_tracks: &'a [TrackSizingOf<S>],
+    row_tracks: &'a [TrackSizingOf<S>],
+    context: GridContainerContext<S>,
     subgrid_report: &'a GridSubgridReport<Node>,
-    available: Size<Available>,
+    available: Size<AvailableOf<S>>,
     intrinsic_max_available: Size<bool>,
     placements: &'a GridPlacementContext<Node>,
 }
 
-struct GridTrackResolution {
-    columns: Vec<Scalar>,
-    rows: Vec<Scalar>,
-    column_min_intrinsic_sizes: Vec<Scalar>,
-    column_max_intrinsic_sizes: Vec<Scalar>,
-    row_intrinsic_sizes: Vec<Scalar>,
+struct GridTrackResolution<S: LayoutScalar = Scalar> {
+    columns: Vec<S>,
+    rows: Vec<S>,
+    column_min_intrinsic_sizes: Vec<S>,
+    column_max_intrinsic_sizes: Vec<S>,
+    row_intrinsic_sizes: Vec<S>,
 }
 
 fn resolve_grid_track_sizes<Tree>(
@@ -1478,20 +1479,20 @@ fn merge_lane_intrinsic_lower_bounds(
     }
 }
 
-struct GridChildLayoutInput<'a, Node> {
-    style: &'a NodeInput,
-    constants: &'a Constants,
-    column_tracks: &'a [TrackSizing],
-    row_tracks: &'a [TrackSizing],
-    context: GridContainerContext,
-    columns: &'a [Scalar],
-    rows: &'a [Scalar],
-    column_min_intrinsic_sizes: &'a [Scalar],
-    column_max_intrinsic_sizes: &'a [Scalar],
-    row_intrinsic_sizes: &'a [Scalar],
-    output_size: Size,
+struct GridChildLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
+    style: &'a NodeInputOf<S>,
+    constants: &'a Constants<S>,
+    column_tracks: &'a [TrackSizingOf<S>],
+    row_tracks: &'a [TrackSizingOf<S>],
+    context: GridContainerContext<S>,
+    columns: &'a [S],
+    rows: &'a [S],
+    column_min_intrinsic_sizes: &'a [S],
+    column_max_intrinsic_sizes: &'a [S],
+    row_intrinsic_sizes: &'a [S],
+    output_size: Size<S>,
     subgrid_report: &'a GridSubgridReport<Node>,
-    parent_context: &'a GridParentContext,
+    parent_context: &'a GridParentContext<S>,
     placements: &'a GridPlacementContext<Node>,
 }
 
@@ -1688,35 +1689,35 @@ where
 }
 
 #[derive(Clone, Copy)]
-struct InlineTrackInput<'a> {
+struct InlineTrackInput<'a, S: LayoutScalar = Scalar> {
     resolver: &'a dyn CalcResolver,
-    tracks: &'a [TrackSizing],
-    basis: Option<Scalar>,
-    definite_size: Option<Scalar>,
-    available_size: Option<Scalar>,
-    gap: Scalar,
+    tracks: &'a [TrackSizingOf<S>],
+    basis: Option<S>,
+    definite_size: Option<S>,
+    available_size: Option<S>,
+    gap: S,
     alignment: AlignContent,
     stretch_empty_auto_to_available: bool,
-    min_intrinsic_sizes: &'a [Scalar],
-    max_intrinsic_sizes: &'a [Scalar],
+    min_intrinsic_sizes: &'a [S],
+    max_intrinsic_sizes: &'a [S],
 }
 
-struct GridLayoutContext<'a, Node> {
-    style: &'a NodeInput,
-    constants: &'a Constants,
-    container_content_size: Size,
-    columns: &'a [Scalar],
-    rows: &'a [Scalar],
-    row_tracks: &'a [TrackSizing],
-    gap: Size,
+struct GridLayoutContext<'a, Node, S: LayoutScalar = Scalar> {
+    style: &'a NodeInputOf<S>,
+    constants: &'a Constants<S>,
+    container_content_size: Size<S>,
+    columns: &'a [S],
+    rows: &'a [S],
+    row_tracks: &'a [TrackSizingOf<S>],
+    gap: Size<S>,
     lines: GridLines,
     named_columns: NamedGridLines,
     named_rows: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
-    inherited_column_offset: Option<Scalar>,
-    inherited_row_offset: Option<Scalar>,
+    inherited_column_offset: Option<S>,
+    inherited_row_offset: Option<S>,
     subgrid_report: &'a GridSubgridReport<Node>,
-    parent_context: &'a GridParentContext,
+    parent_context: &'a GridParentContext<S>,
     placements: &'a GridPlacementContext<Node>,
 }
 
@@ -1838,19 +1839,19 @@ fn effective_content_box_left(constants: &Constants, content_box_size: Size) -> 
 }
 
 #[derive(Clone, Copy)]
-struct Constants {
-    node_outer_size: Size<Option<Scalar>>,
-    node_inner_size: Size<Option<Scalar>>,
-    node_min_size: Size<Option<Scalar>>,
-    node_max_size: Size<Option<Scalar>>,
-    available_inner_size: Size<Option<Scalar>>,
-    content_box_inset: Edges,
-    padding: Edges,
-    border: Edges,
+struct Constants<S: LayoutScalar = Scalar> {
+    node_outer_size: Size<Option<S>>,
+    node_inner_size: Size<Option<S>>,
+    node_min_size: Size<Option<S>>,
+    node_max_size: Size<Option<S>>,
+    available_inner_size: Size<Option<S>>,
+    content_box_inset: Edges<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
 }
 
-impl Constants {
-    fn new(style: &NodeInput, input: ComputeInput, resolver: &dyn CalcResolver) -> Self {
+impl Constants<Scalar> {
+    fn new(style: &NodeInput, input: ComputeInputOf<Scalar>, resolver: &dyn CalcResolver) -> Self {
         let padding = style
             .padding
             .zip_inline_size(input.parent, |length, basis| {
