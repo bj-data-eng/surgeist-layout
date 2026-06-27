@@ -268,6 +268,11 @@ fn track_repetition_rejects_zero_count_and_empty_components() {
 }
 
 #[test]
+fn track_sizing_components_empty_slice_uses_default_scalar_api() {
+    assert!(super::track_sizing_components(&[]).is_empty());
+}
+
+#[test]
 fn track_sizing_reports_basis_dependency() {
     assert!(!TrackSizing::px(12.0).depends_on_basis());
     assert!(TrackSizing::percent(0.25).depends_on_basis());

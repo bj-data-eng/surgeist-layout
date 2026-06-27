@@ -45,15 +45,18 @@ pub use output::{
 pub use scalar::LayoutScalar;
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
-    AspectRatio, Available, CalcExpression, CalcGeneration, CalcId, CalcResolution,
-    CalcResolutionStatus, CalcResolver, CalcTerm, CalcUnresolvedReason, Dimension, LayoutCalcStore,
-    Length, LengthAuto, NoCalcResolver, ResolvedLengthAuto,
+    AspectRatio, AspectRatioOf, Available, AvailableOf, CalcExpression, CalcExpressionOf,
+    CalcGeneration, CalcId, CalcResolution, CalcResolutionOf, CalcResolutionStatus, CalcResolver,
+    CalcTerm, CalcTermOf, CalcUnresolvedReason, Dimension, DimensionOf, LayoutCalcStore,
+    LayoutCalcStoreOf, Length, LengthAuto, LengthAutoOf, LengthOf, NoCalcResolver,
+    ResolvedLengthAuto, ResolvedLengthAutoOf,
 };
 pub use value::{
-    GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,
-    SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackComponent,
-    TrackComponentList, TrackRepeat, TrackRepeatCount, TrackRepetition, TrackRepetitionError,
-    TrackSizing, track_sizing_components,
+    GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MaxTrackSizingOf,
+    MinTrackSizing, MinTrackSizingOf, SubgridLineNameComponent, SubgridLineNameRepeatCount,
+    SubgridTrack, TrackComponent, TrackComponentList, TrackComponentListOf, TrackComponentOf,
+    TrackRepeat, TrackRepeatCount, TrackRepetition, TrackRepetitionError, TrackRepetitionOf,
+    TrackSizing, TrackSizingOf, track_sizing_components, track_sizing_components_of,
 };
 
 #[cfg(test)]

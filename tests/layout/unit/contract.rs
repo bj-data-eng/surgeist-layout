@@ -1,5 +1,5 @@
 use super::*;
-use surgeist_layout::DefaultScalar;
+use surgeist_layout::{CalcResolver, DefaultScalar};
 
 #[test]
 fn default_scalar_remains_single_precision() {
@@ -29,6 +29,34 @@ fn layout_scalar_supports_f32_and_f64() {
 
     assert_scalar::<f32>();
     assert_scalar::<f64>();
+}
+
+#[test]
+fn value_types_support_f64_scalar_lane() {
+    let length = surgeist_layout::LengthOf::<f64>::percent(0.25);
+    assert_eq!(length.resolve(400.0), 100.0);
+
+    let dimension = surgeist_layout::DimensionOf::<f64>::px(42.5);
+    assert_eq!(dimension.resolve(1000.0), Some(42.5));
+
+    let ratio = surgeist_layout::AspectRatioOf::<f64>::new(16.0 / 9.0)
+        .expect("positive finite f64 aspect ratio should be accepted");
+    assert_eq!(ratio.get(), 16.0 / 9.0);
+
+    assert!(surgeist_layout::AspectRatioOf::<f64>::new(f64::INFINITY).is_none());
+}
+
+#[test]
+fn f64_calc_resolution_preserves_large_coordinate_precision() {
+    let mut store = surgeist_layout::LayoutCalcStoreOf::<f64>::new();
+    let id = store.push(surgeist_layout::CalcExpressionOf::sum(vec![
+        surgeist_layout::CalcTermOf::px(16_777_217.0),
+        surgeist_layout::CalcTermOf::percent(0.5),
+    ]));
+
+    let resolution = store.resolve_calc(id, Some(21.0));
+    assert_eq!(resolution.value, Some(16_777_227.5));
+    assert!(resolution.depends_on_basis);
 }
 
 #[test]
