@@ -427,13 +427,13 @@ where
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum ResolvedSubgridGap {
+pub(super) enum ResolvedSubgridGap<S: LayoutScalar = Scalar> {
     Normal,
-    Length(Scalar),
+    Length(S),
 }
 
-impl ResolvedSubgridGap {
-    const fn resolve(self, parent_gap: Scalar) -> Scalar {
+impl<S: LayoutScalar> ResolvedSubgridGap<S> {
+    const fn resolve(self, parent_gap: S) -> S {
         match self {
             Self::Normal => parent_gap,
             Self::Length(length) => length,
@@ -442,60 +442,60 @@ impl ResolvedSubgridGap {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SubgridTrackInheritanceInput<'a> {
-    pub(super) parent_tracks: &'a [Scalar],
+pub(super) struct SubgridTrackInheritanceInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) parent_tracks: &'a [S],
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
-    pub(super) start_mbp: Scalar,
-    pub(super) end_mbp: Scalar,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: ResolvedSubgridGap,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: ResolvedSubgridGap<S>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridTrackInheritanceReport {
+pub(super) struct SubgridTrackInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) parent_span: GridTrackSpan,
-    pub(super) copied_parent_tracks: Vec<Scalar>,
+    pub(super) copied_parent_tracks: Vec<S>,
     pub(super) reversed: bool,
-    pub(super) after_reversal: Vec<Scalar>,
-    pub(super) start_mbp_removed: Vec<Scalar>,
-    pub(super) end_mbp_removed: Vec<Scalar>,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: ResolvedSubgridGap,
-    pub(super) resolved_subgrid_gap: Scalar,
-    pub(super) gap_difference: Scalar,
-    pub(super) final_tracks: Vec<Scalar>,
+    pub(super) after_reversal: Vec<S>,
+    pub(super) start_mbp_removed: Vec<S>,
+    pub(super) end_mbp_removed: Vec<S>,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: ResolvedSubgridGap<S>,
+    pub(super) resolved_subgrid_gap: S,
+    pub(super) gap_difference: S,
+    pub(super) final_tracks: Vec<S>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SubgridBaselineInheritanceInput<'a> {
-    pub(super) parent_major: &'a [Option<Scalar>],
-    pub(super) parent_minor: &'a [Option<Scalar>],
+pub(super) struct SubgridBaselineInheritanceInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) parent_major: &'a [Option<S>],
+    pub(super) parent_minor: &'a [Option<S>],
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
-    pub(super) start_mbp: Scalar,
-    pub(super) end_mbp: Scalar,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: Scalar,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: S,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridBaselineInheritanceReport {
+pub(super) struct SubgridBaselineInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
-    pub(super) start_mbp: Scalar,
-    pub(super) end_mbp: Scalar,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: Scalar,
-    pub(super) gap_difference: Scalar,
-    pub(super) sliced_major: Vec<Option<Scalar>>,
-    pub(super) sliced_minor: Vec<Option<Scalar>>,
-    pub(super) after_reversal_major: Vec<Option<Scalar>>,
-    pub(super) after_reversal_minor: Vec<Option<Scalar>>,
-    pub(super) after_mbp_major: Vec<Option<Scalar>>,
-    pub(super) after_mbp_minor: Vec<Option<Scalar>>,
-    pub(super) final_major: Vec<Option<Scalar>>,
-    pub(super) final_minor: Vec<Option<Scalar>>,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: S,
+    pub(super) gap_difference: S,
+    pub(super) sliced_major: Vec<Option<S>>,
+    pub(super) sliced_minor: Vec<Option<S>>,
+    pub(super) after_reversal_major: Vec<Option<S>>,
+    pub(super) after_reversal_minor: Vec<Option<S>>,
+    pub(super) after_mbp_major: Vec<Option<S>>,
+    pub(super) after_mbp_minor: Vec<Option<S>>,
+    pub(super) final_major: Vec<Option<S>>,
+    pub(super) final_minor: Vec<Option<S>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -504,9 +504,9 @@ pub(super) enum SubgridTrackInheritanceError {
     SpanOutOfRange,
 }
 
-pub(super) fn inherit_subgrid_baselines(
-    input: SubgridBaselineInheritanceInput<'_>,
-) -> Result<SubgridBaselineInheritanceReport, SubgridTrackInheritanceError> {
+pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
+    input: SubgridBaselineInheritanceInput<'_, S>,
+) -> Result<SubgridBaselineInheritanceReport<S>, SubgridTrackInheritanceError> {
     let span_len = input
         .parent_span
         .checked_len()
@@ -536,15 +536,15 @@ pub(super) fn inherit_subgrid_baselines(
 
     let mut after_mbp_major = after_reversal_major.clone();
     if let Some(first_major) = after_mbp_major.first_mut().and_then(Option::as_mut) {
-        *first_major -= input.start_mbp;
+        *first_major = *first_major - input.start_mbp;
     }
 
     let mut after_mbp_minor = after_reversal_minor.clone();
     if let Some(last_minor) = after_mbp_minor.last_mut().and_then(Option::as_mut) {
-        *last_minor -= input.end_mbp;
+        *last_minor = *last_minor - input.end_mbp;
     }
 
-    let gap_difference = (input.subgrid_gap - input.parent_gap) / 2.0;
+    let gap_difference = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
     let mut final_major = after_mbp_major.clone();
     let mut final_minor = after_mbp_minor.clone();
     subtract_internal_gap_difference(&mut final_major, gap_difference);
@@ -569,9 +569,9 @@ pub(super) fn inherit_subgrid_baselines(
     })
 }
 
-pub(super) fn inherit_subgrid_tracks(
-    input: SubgridTrackInheritanceInput<'_>,
-) -> Result<SubgridTrackInheritanceReport, SubgridTrackInheritanceError> {
+pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
+    input: SubgridTrackInheritanceInput<'_, S>,
+) -> Result<SubgridTrackInheritanceReport<S>, SubgridTrackInheritanceError> {
     let span_len = input
         .parent_span
         .checked_len()
@@ -605,12 +605,12 @@ pub(super) fn inherit_subgrid_tracks(
     consume_track_space(&mut end_mbp_removed, input.end_mbp, TrackSpaceEdge::End);
 
     let resolved_subgrid_gap = input.subgrid_gap.resolve(input.parent_gap);
-    let gap_difference = (resolved_subgrid_gap - input.parent_gap) / 2.0;
+    let gap_difference = (resolved_subgrid_gap - input.parent_gap) / S::from_f64(2.0);
     let mut final_tracks = end_mbp_removed.clone();
     if final_tracks.len() > 1 {
         for edge in 0..(final_tracks.len() - 1) {
-            final_tracks[edge] = (final_tracks[edge] - gap_difference).max(0.0);
-            final_tracks[edge + 1] = (final_tracks[edge + 1] - gap_difference).max(0.0);
+            final_tracks[edge] = (final_tracks[edge] - gap_difference).max(S::ZERO);
+            final_tracks[edge + 1] = (final_tracks[edge + 1] - gap_difference).max(S::ZERO);
         }
     }
 
@@ -629,17 +629,17 @@ pub(super) fn inherit_subgrid_tracks(
     })
 }
 
-fn subtract_internal_gap_difference(groups: &mut [Option<Scalar>], gap_difference: Scalar) {
+fn subtract_internal_gap_difference<S: LayoutScalar>(groups: &mut [Option<S>], gap_difference: S) {
     if groups.len() < 2 {
         return;
     }
 
     for edge in 0..(groups.len() - 1) {
         if let Some(baseline) = &mut groups[edge] {
-            *baseline -= gap_difference;
+            *baseline = *baseline - gap_difference;
         }
         if let Some(baseline) = &mut groups[edge + 1] {
-            *baseline -= gap_difference;
+            *baseline = *baseline - gap_difference;
         }
     }
 }
@@ -650,26 +650,26 @@ enum TrackSpaceEdge {
     End,
 }
 
-fn consume_track_space(tracks: &mut [Scalar], mut amount: Scalar, edge: TrackSpaceEdge) {
+fn consume_track_space<S: LayoutScalar>(tracks: &mut [S], mut amount: S, edge: TrackSpaceEdge) {
     match edge {
         TrackSpaceEdge::Start => {
             for track in tracks.iter_mut() {
-                if amount <= 0.0 {
+                if amount <= S::ZERO {
                     break;
                 }
                 let removed = (*track).min(amount);
-                *track -= removed;
-                amount -= removed;
+                *track = *track - removed;
+                amount = amount - removed;
             }
         }
         TrackSpaceEdge::End => {
             for track in tracks.iter_mut().rev() {
-                if amount <= 0.0 {
+                if amount <= S::ZERO {
                     break;
                 }
                 let removed = (*track).min(amount);
-                *track -= removed;
-                amount -= removed;
+                *track = *track - removed;
+                amount = amount - removed;
             }
         }
     }

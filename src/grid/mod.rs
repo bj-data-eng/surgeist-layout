@@ -1,11 +1,11 @@
 use super::{
-    AlignContent, AlignItems, AspectRatio, Available, AvailableOf, Baselines, BoxSizing,
+    AlignContent, AlignItems, AspectRatioOf, Available, AvailableOf, Baselines, BoxSizing,
     CalcResolver, Compute, ComputeInput, ComputeInputOf, ComputeOutput, ComputeOutputOf,
-    DefaultScalar, Dimension, Direction, Display, Edges, GridAutoFlow, GridFlowTolerance,
-    GridPlacement, LayoutScalar, Length, LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput,
-    NodeInputOf, NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size,
-    SizingMode, TrackComponent, TrackComponentOf, TrackRepeat, TrackSizing, TrackSizingOf,
-    Traverse,
+    DefaultScalar, Dimension, DimensionOf, Direction, Display, Edges, GridAutoFlow,
+    GridFlowTolerance, GridPlacement, LayoutScalar, Length, LengthAutoOf, LengthOf, MaxTrackSizing,
+    MinTrackSizing, NodeInput, NodeInputOf, NodeOutput, Overflow, Point, Position, RequestedAxis,
+    RunMode, Scalar, Size, SizingMode, TrackComponent, TrackComponentOf, TrackRepeat, TrackSizing,
+    TrackSizingOf, Traverse,
 };
 
 mod alignment;
@@ -1935,59 +1935,67 @@ impl Constants<Scalar> {
     }
 }
 
-fn resolve_length_or_zero_with(
-    length: Length,
-    basis: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Scalar {
-    length.resolve_with(basis, resolver).unwrap_or(0.0)
+fn resolve_length_or_zero_with<S: LayoutScalar>(
+    length: LengthOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> S {
+    length.resolve_with(basis, resolver).unwrap_or(S::ZERO)
 }
 
-fn resolve_auto_or_zero_with(
-    length: LengthAuto,
-    basis: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Scalar {
-    length.resolve_with(basis, resolver).unwrap_or(0.0)
+fn resolve_auto_or_zero_with<S: LayoutScalar>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> S {
+    length.resolve_with(basis, resolver).unwrap_or(S::ZERO)
 }
 
-fn resolve_auto_optional_with(
-    length: LengthAuto,
-    basis: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Option<Scalar> {
+fn resolve_auto_optional_with<S: LayoutScalar>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> Option<S> {
     length.resolve_with(basis, resolver)
 }
 
-fn resolve_dimension_with(
-    dimension: Dimension,
-    basis: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Option<Scalar> {
+fn resolve_dimension_with<S: LayoutScalar>(
+    dimension: DimensionOf<S>,
+    basis: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> Option<S> {
     dimension.resolve_with(basis, resolver)
 }
 
 trait SizeOptionExt {
     fn or(self, other: Self) -> Self;
-    fn unwrap_or(self, fallback: Size) -> Size;
-    fn add_optional(self, amount: Size) -> Self;
-    fn sub_optional(self, amount: Size) -> Self;
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self;
+    type Scalar: LayoutScalar;
+    fn unwrap_or(self, fallback: Size<Self::Scalar>) -> Size<Self::Scalar>;
+    fn add_optional(self, amount: Size<Self::Scalar>) -> Self;
+    fn sub_optional(self, amount: Size<Self::Scalar>) -> Self;
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<Self::Scalar>>) -> Self;
     fn clamp_optional(self, min: Self, max: Self) -> Self;
     fn max_optional(self, other: Self) -> Self;
 }
 
 trait SizeExt {
+    type Scalar: LayoutScalar;
     fn max(self, other: Self) -> Self;
-    fn clamp_optional(self, min: Size<Option<Scalar>>, max: Size<Option<Scalar>>) -> Self;
+    fn clamp_optional(
+        self,
+        min: Size<Option<Self::Scalar>>,
+        max: Size<Option<Self::Scalar>>,
+    ) -> Self;
 }
 
-impl SizeExt for Size {
+impl<S: LayoutScalar> SizeExt for Size<S> {
+    type Scalar = S;
+
     fn max(self, other: Self) -> Self {
         Size::new(self.width.max(other.width), self.height.max(other.height))
     }
 
-    fn clamp_optional(self, min: Size<Option<Scalar>>, max: Size<Option<Scalar>>) -> Self {
+    fn clamp_optional(self, min: Size<Option<S>>, max: Size<Option<S>>) -> Self {
         Size::new(
             self.width.clamp_optional(min.width, max.width),
             self.height.clamp_optional(min.height, max.height),
@@ -1995,27 +2003,29 @@ impl SizeExt for Size {
     }
 }
 
-impl SizeOptionExt for Size<Option<Scalar>> {
+impl<S: LayoutScalar> SizeOptionExt for Size<Option<S>> {
+    type Scalar = S;
+
     fn or(self, other: Self) -> Self {
         Size::new(self.width.or(other.width), self.height.or(other.height))
     }
 
-    fn unwrap_or(self, fallback: Size) -> Size {
+    fn unwrap_or(self, fallback: Size<S>) -> Size<S> {
         Size::new(
             self.width.unwrap_or(fallback.width),
             self.height.unwrap_or(fallback.height),
         )
     }
 
-    fn add_optional(self, amount: Size) -> Self {
+    fn add_optional(self, amount: Size<S>) -> Self {
         self.zip_map(amount, |value, amount| value.map(|value| value + amount))
     }
 
-    fn sub_optional(self, amount: Size) -> Self {
+    fn sub_optional(self, amount: Size<S>) -> Self {
         self.zip_map(amount, |value, amount| value.map(|value| value - amount))
     }
 
-    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatio>) -> Self {
+    fn apply_aspect_ratio(self, aspect_ratio: Option<AspectRatioOf<S>>) -> Self {
         match (self.width, self.height, aspect_ratio) {
             (Some(width), None, Some(ratio)) => Size::new(Some(width), Some(width / ratio.get())),
             (None, Some(height), Some(ratio)) => {
@@ -2050,7 +2060,7 @@ trait ScalarExt {
         Self: Sized;
 }
 
-impl ScalarExt for Scalar {
+impl<S: LayoutScalar> ScalarExt for S {
     fn clamp_optional(self, min: Option<Self>, max: Option<Self>) -> Self {
         let value = min.map_or(self, |min| self.max(min));
         max.map_or(value, |max| value.min(max))

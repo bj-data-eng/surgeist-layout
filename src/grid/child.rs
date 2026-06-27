@@ -1,5 +1,5 @@
 use super::*;
-use crate::Baselines;
+use crate::BaselinesOf;
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
     pub(super) visible_content_size: Size<S>,
@@ -141,12 +141,12 @@ pub(super) fn spanned_track_size<S: LayoutScalar>(
     track_sum + gap_sum
 }
 
-pub(super) fn baseline_aligned_block_offset<Node: Copy>(
-    item: &PendingGridItem<Node>,
-    groups: &GridBaselineGroups,
-    rows: &[Scalar],
-    row_gap: Scalar,
-) -> Option<Scalar> {
+pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
+    item: &PendingGridItem<Node, S>,
+    groups: &GridBaselineGroups<S>,
+    rows: &[S],
+    row_gap: S,
+) -> Option<S> {
     if !item.baseline_participation.participates || item.block_auto_margins {
         return None;
     }
@@ -236,7 +236,7 @@ where
         if inherited_column_offset.is_some() && style.direction.is_rtl() {
             constants.content_box_inset.right - constants.content_box_inset.left
         } else {
-            0.0
+            Scalar::ZERO
         };
     let column_offsets = grid_axis_offsets(GridAxisOffsetsInput {
         style,
@@ -341,7 +341,9 @@ where
             .zip_inline_size(area_width_basis, |length, basis| {
                 resolve_length_or_zero_with(length, basis, tree.calc_resolver())
             });
-        let resolved_margin = item.unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+        let resolved_margin = item
+            .unresolved_margin
+            .map(|margin| margin.unwrap_or(Scalar::ZERO));
         let subgrid_content_box_size = (physical_area_size
             - resolved_margin.sum_axes()
             - padding.sum_axes()
@@ -375,7 +377,7 @@ where
             ),
             available: item
                 .available
-                .map(|value| Available::Definite(value.max(0.0))),
+                .map(|value| Available::Definite(value.max(Scalar::ZERO))),
         };
         let output = if child_context.has_inherited_axis() {
             // Subgrid layout depends on the parent grid's used tracks, so this
@@ -389,12 +391,12 @@ where
             if child_style.overflow.y == Overflow::Scroll {
                 child_style.scrollbar_width
             } else {
-                0.0
+                Scalar::ZERO
             },
             if child_style.overflow.x == Overflow::Scroll {
                 child_style.scrollbar_width
             } else {
-                0.0
+                Scalar::ZERO
             },
         );
         let alignment =
@@ -548,17 +550,17 @@ where
     }
 }
 
-struct SubgridBaselineRefreshInput<'a, Node> {
-    container_style: &'a NodeInput,
-    columns: &'a [Scalar],
-    rows: &'a [Scalar],
-    row_tracks: &'a [TrackSizing],
-    gap: Size,
+struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
+    container_style: &'a NodeInputOf<S>,
+    columns: &'a [S],
+    rows: &'a [S],
+    row_tracks: &'a [TrackSizingOf<S>],
+    gap: Size<S>,
     named_columns: NamedGridLines,
     named_rows: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
     subgrid_report: &'a GridSubgridReport<Node>,
-    baseline_groups: &'a GridBaselineGroups,
+    baseline_groups: &'a GridBaselineGroups<S>,
 }
 
 fn refresh_subgrid_items_with_baselines<Tree>(
@@ -599,7 +601,9 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             .zip_inline_size(area_width_basis, |length, basis| {
                 resolve_length_or_zero_with(length, basis, tree.calc_resolver())
             });
-        let resolved_margin = sizing.unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+        let resolved_margin = sizing
+            .unresolved_margin
+            .map(|margin| margin.unwrap_or(Scalar::ZERO));
         let subgrid_content_box_size = (physical_area_size
             - resolved_margin.sum_axes()
             - padding.sum_axes()
@@ -637,7 +641,7 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             ),
             available: sizing
                 .available
-                .map(|value| Available::Definite(value.max(0.0))),
+                .map(|value| Available::Definite(value.max(Scalar::ZERO))),
         };
         let row_axis = child_context.rows.clone();
         let result = compute_grid_with_context_result(tree, item.node, child_input, child_context);
@@ -709,23 +713,23 @@ fn refresh_subgrid_items_with_baselines<Tree>(
     }
 }
 
-pub(super) fn grid_area_inline_offset(offsets: &[Scalar], area: GridArea) -> Scalar {
+pub(super) fn grid_area_inline_offset<S: LayoutScalar>(offsets: &[S], area: GridArea<S>) -> S {
     grid_area_track_offset(offsets, area.column, area.column_end)
 }
 
-fn grid_area_track_offset(offsets: &[Scalar], start: usize, end: usize) -> Scalar {
+fn grid_area_track_offset<S: LayoutScalar>(offsets: &[S], start: usize, end: usize) -> S {
     offsets
         .get(start..end)
-        .and_then(|offsets| offsets.iter().copied().reduce(Scalar::min))
-        .unwrap_or(0.0)
+        .and_then(|offsets| offsets.iter().copied().reduce(S::min))
+        .unwrap_or(S::ZERO)
 }
 
-pub(super) fn grid_area_physical_origin(
-    style: &NodeInput,
-    column_offsets: &[Scalar],
-    row_offsets: &[Scalar],
-    area: GridArea,
-) -> Point {
+pub(super) fn grid_area_physical_origin<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    column_offsets: &[S],
+    row_offsets: &[S],
+    area: GridArea<S>,
+) -> Point<S> {
     if style.writing_mode.is_vertical() {
         Point::new(
             grid_area_track_offset(row_offsets, area.row, area.row_end),
@@ -739,7 +743,10 @@ pub(super) fn grid_area_physical_origin(
     }
 }
 
-fn grid_area_physical_size(writing_mode: crate::WritingMode, size: Size) -> Size {
+fn grid_area_physical_size<S: LayoutScalar>(
+    writing_mode: crate::WritingMode,
+    size: Size<S>,
+) -> Size<S> {
     if writing_mode.is_vertical() {
         Size::new(size.height, size.width)
     } else {
@@ -747,7 +754,10 @@ fn grid_area_physical_size(writing_mode: crate::WritingMode, size: Size) -> Size
     }
 }
 
-fn grid_area_logical_size(writing_mode: crate::WritingMode, size: Size) -> Size {
+fn grid_area_logical_size<S: LayoutScalar>(
+    writing_mode: crate::WritingMode,
+    size: Size<S>,
+) -> Size<S> {
     if writing_mode.is_vertical() {
         Size::new(size.height, size.width)
     } else {
@@ -756,18 +766,18 @@ fn grid_area_logical_size(writing_mode: crate::WritingMode, size: Size) -> Size 
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct GridAxisOffsetsInput<'a> {
-    pub(super) style: &'a NodeInput,
+pub(super) struct GridAxisOffsetsInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) style: &'a NodeInputOf<S>,
     pub(super) axis: GridAxisKind,
-    pub(super) tracks: &'a [Scalar],
-    pub(super) inherited_offset: Option<Scalar>,
-    pub(super) content_box_left: Scalar,
-    pub(super) content_box_size: Size,
-    pub(super) content_box_inset: Edges,
-    pub(super) alignment: GridAlignment,
+    pub(super) tracks: &'a [S],
+    pub(super) inherited_offset: Option<S>,
+    pub(super) content_box_left: S,
+    pub(super) content_box_size: Size<S>,
+    pub(super) content_box_inset: Edges<S>,
+    pub(super) alignment: GridAlignment<S>,
 }
 
-pub(super) fn grid_axis_offsets(input: GridAxisOffsetsInput<'_>) -> Vec<Scalar> {
+pub(super) fn grid_axis_offsets<S: LayoutScalar>(input: GridAxisOffsetsInput<'_, S>) -> Vec<S> {
     if !input.style.writing_mode.is_vertical() {
         return horizontal_grid_axis_offsets(input);
     }
@@ -818,7 +828,7 @@ pub(super) fn grid_axis_offsets(input: GridAxisOffsetsInput<'_>) -> Vec<Scalar> 
     }
 }
 
-fn horizontal_grid_axis_offsets(input: GridAxisOffsetsInput<'_>) -> Vec<Scalar> {
+fn horizontal_grid_axis_offsets<S: LayoutScalar>(input: GridAxisOffsetsInput<'_, S>) -> Vec<S> {
     match input.axis {
         GridAxisKind::Column => {
             if let Some(offset) = input.inherited_offset {
@@ -894,10 +904,10 @@ fn grid_physical_axis_direction(
     }
 }
 
-fn grid_item_block_axis_offset<Node>(
+fn grid_item_block_axis_offset<Node, S: LayoutScalar>(
     writing_mode: crate::WritingMode,
-    item: &PendingGridItem<Node>,
-) -> Scalar {
+    item: &PendingGridItem<Node, S>,
+) -> S {
     if writing_mode.is_vertical() {
         item.horizontal_axis.offset
     } else {
@@ -905,11 +915,11 @@ fn grid_item_block_axis_offset<Node>(
     }
 }
 
-fn grid_item_physical_offset<Node>(
+fn grid_item_physical_offset<Node, S: LayoutScalar>(
     writing_mode: crate::WritingMode,
-    item: &PendingGridItem<Node>,
-    block_axis_offset: Scalar,
-) -> Point {
+    item: &PendingGridItem<Node, S>,
+    block_axis_offset: S,
+) -> Point<S> {
     if writing_mode.is_vertical() {
         Point::new(block_axis_offset, item.vertical_axis.offset)
     } else {
@@ -918,29 +928,29 @@ fn grid_item_physical_offset<Node>(
 }
 
 #[derive(Clone)]
-pub(super) struct PendingGridItem<Node> {
+pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
     pub(super) order: u32,
-    pub(super) area: GridArea,
-    pub(super) output: ComputeOutput,
-    pub(super) horizontal_axis: ResolvedGridItemAxis,
-    pub(super) vertical_axis: ResolvedGridItemAxis,
-    pub(super) relative_offset: Point,
-    pub(super) first_baseline: Scalar,
-    pub(super) last_baseline: Scalar,
-    pub(super) published_row_baselines: Option<Vec<PublishedTrackBaselineGroup>>,
-    pub(super) block_offset: Scalar,
+    pub(super) area: GridArea<S>,
+    pub(super) output: ComputeOutputOf<S>,
+    pub(super) horizontal_axis: ResolvedGridItemAxis<S>,
+    pub(super) vertical_axis: ResolvedGridItemAxis<S>,
+    pub(super) relative_offset: Point<S>,
+    pub(super) first_baseline: S,
+    pub(super) last_baseline: S,
+    pub(super) published_row_baselines: Option<Vec<PublishedTrackBaselineGroup<S>>>,
+    pub(super) block_offset: S,
     pub(super) block_auto_margins: bool,
     pub(super) baseline_participation: BaselineParticipation,
-    pub(super) margin: Edges,
-    pub(super) scrollbar_size: Size,
-    pub(super) border: Edges,
-    pub(super) padding: Edges,
+    pub(super) margin: Edges<S>,
+    pub(super) scrollbar_size: Size<S>,
+    pub(super) border: Edges<S>,
+    pub(super) padding: Edges<S>,
     pub(super) overflow: Point<Overflow>,
 }
 
-impl<Node> PendingGridItem<Node> {
-    fn baseline_geometry(&self, rows: &[Scalar], row_gap: Scalar) -> BaselineGeometry {
+impl<Node, S: LayoutScalar> PendingGridItem<Node, S> {
+    fn baseline_geometry(&self, rows: &[S], row_gap: S) -> BaselineGeometry<S> {
         self.baseline_geometry_for_span(spanned_track_size(
             rows,
             self.area.row,
@@ -949,7 +959,7 @@ impl<Node> PendingGridItem<Node> {
         ))
     }
 
-    fn baseline_geometry_for_span(&self, available_span_size: Scalar) -> BaselineGeometry {
+    fn baseline_geometry_for_span(&self, available_span_size: S) -> BaselineGeometry<S> {
         BaselineGeometry {
             available_span_size,
             margin_box_size: self.vertical_axis.margin_start
@@ -962,11 +972,11 @@ impl<Node> PendingGridItem<Node> {
     }
 }
 
-pub(super) fn baseline_groups<Node>(
-    items: &[PendingGridItem<Node>],
+pub(super) fn baseline_groups<Node, S: LayoutScalar>(
+    items: &[PendingGridItem<Node, S>],
     row_count: usize,
     column_count: usize,
-) -> GridBaselineGroups {
+) -> GridBaselineGroups<S> {
     let mut groups = GridBaselineGroups {
         rows: vec![TrackBaselineGroup::default(); row_count],
         columns: vec![TrackBaselineGroup::default(); column_count],
@@ -988,7 +998,7 @@ pub(super) fn baseline_groups<Node>(
                     continue;
                 };
                 *group = Some(
-                    group.unwrap_or(0.0).max(
+                    group.unwrap_or(S::ZERO).max(
                         item.baseline_geometry_for_span(item.area.size.height)
                             .major_baseline,
                     ),
@@ -1002,7 +1012,7 @@ pub(super) fn baseline_groups<Node>(
                     continue;
                 };
                 *group = Some(
-                    group.unwrap_or(0.0).max(
+                    group.unwrap_or(S::ZERO).max(
                         item.baseline_geometry_for_span(item.area.size.height)
                             .minor_baseline,
                     ),
@@ -1014,9 +1024,9 @@ pub(super) fn baseline_groups<Node>(
     groups
 }
 
-fn merge_published_row_baselines<Node>(
-    rows: &mut [TrackBaselineGroup],
-    item: &PendingGridItem<Node>,
+fn merge_published_row_baselines<Node, S: LayoutScalar>(
+    rows: &mut [TrackBaselineGroup<S>],
+    item: &PendingGridItem<Node, S>,
 ) -> bool {
     let Some(published) = &item.published_row_baselines else {
         return false;
@@ -1042,10 +1052,10 @@ fn merge_published_row_baselines<Node>(
     merged
 }
 
-pub(super) fn publish_row_baseline_groups(
-    local_groups: &[TrackBaselineGroup],
-    axis: &InheritedGridAxis,
-) -> Vec<PublishedTrackBaselineGroup> {
+pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(
+    local_groups: &[TrackBaselineGroup<S>],
+    axis: &InheritedGridAxis<S>,
+) -> Vec<PublishedTrackBaselineGroup<S>> {
     let parent_span_len = axis.parent_end.saturating_sub(axis.parent_start);
     local_groups
         .iter()
@@ -1066,7 +1076,7 @@ pub(super) fn publish_row_baseline_groups(
                     + if local_index == 0 {
                         axis.start_mbp
                     } else {
-                        0.0
+                        S::ZERO
                     }
             });
             let last = group.last.map(|baseline| {
@@ -1075,7 +1085,7 @@ pub(super) fn publish_row_baseline_groups(
                     + if local_index + 1 == local_groups.len() {
                         axis.end_mbp
                     } else {
-                        0.0
+                        S::ZERO
                     }
             });
             (first.is_some() || last.is_some()).then_some(PublishedTrackBaselineGroup {
@@ -1086,21 +1096,21 @@ pub(super) fn publish_row_baseline_groups(
         .collect()
 }
 
-fn internal_gap_edge_count(track_count: usize, track_index: usize) -> Scalar {
+fn internal_gap_edge_count<S: LayoutScalar>(track_count: usize, track_index: usize) -> S {
     if track_count < 2 {
-        return 0.0;
+        return S::ZERO;
     }
     let before = usize::from(track_index > 0);
     let after = usize::from(track_index + 1 < track_count);
-    (before + after) as Scalar
+    S::from_usize(before + after)
 }
 
-pub(super) fn grid_container_baselines<Node>(
-    items: &[PendingGridItem<Node>],
-    groups: &GridBaselineGroups,
-    row_offsets: &[Scalar],
-    rows: &[Scalar],
-) -> GridContainerBaselines {
+pub(super) fn grid_container_baselines<Node, S: LayoutScalar>(
+    items: &[PendingGridItem<Node, S>],
+    groups: &GridBaselineGroups<S>,
+    row_offsets: &[S],
+    rows: &[S],
+) -> GridContainerBaselines<S> {
     let mut first_occupied_row = None;
     let mut last_occupied_row = None;
     for (row, group) in groups.rows.iter().enumerate() {
@@ -1156,9 +1166,9 @@ pub(super) fn grid_container_baselines<Node>(
     GridContainerBaselines { first, last }
 }
 
-fn merge_inherited_baseline_groups(
-    groups: &mut GridBaselineGroups,
-    parent_context: &GridParentContext,
+fn merge_inherited_baseline_groups<S: LayoutScalar>(
+    groups: &mut GridBaselineGroups<S>,
+    parent_context: &GridParentContext<S>,
 ) {
     if let Some(rows) = &parent_context.rows {
         merge_axis_baselines(&mut groups.rows, rows);
@@ -1168,7 +1178,10 @@ fn merge_inherited_baseline_groups(
     }
 }
 
-fn merge_axis_baselines(groups: &mut [TrackBaselineGroup], axis: &InheritedGridAxis) {
+fn merge_axis_baselines<S: LayoutScalar>(
+    groups: &mut [TrackBaselineGroup<S>],
+    axis: &InheritedGridAxis<S>,
+) {
     for (group, baseline) in groups.iter_mut().zip(&axis.major_baselines) {
         if let Some(baseline) = *baseline {
             group.first = Some(
@@ -1190,22 +1203,22 @@ fn include_occupied_row(first: &mut Option<usize>, last: &mut Option<usize>, row
     *last = Some(last.map_or(row, |current| current.max(row)));
 }
 
-fn grid_area_start_key(area: GridArea) -> (usize, usize) {
+fn grid_area_start_key<S: LayoutScalar>(area: GridArea<S>) -> (usize, usize) {
     (area.row, area.column)
 }
 
-fn grid_area_end_key(area: GridArea) -> (usize, usize) {
+fn grid_area_end_key<S: LayoutScalar>(area: GridArea<S>) -> (usize, usize) {
     (
         area.row_end.saturating_sub(1),
         area.column_end.saturating_sub(1),
     )
 }
 
-pub(super) fn baseline_participation(
+pub(super) fn baseline_participation<S: LayoutScalar>(
     align_self: AlignItems,
     block_auto_margins: bool,
     synthesized_baseline_would_cycle: bool,
-    baselines: Baselines,
+    baselines: BaselinesOf<S>,
 ) -> BaselineParticipation {
     let (mut group, synthesized, fallback_alignment) = match align_self {
         AlignItems::Baseline => (
@@ -1232,10 +1245,10 @@ pub(super) fn baseline_participation(
     }
 }
 
-pub(super) fn synthesized_baseline_would_cycle(
+pub(super) fn synthesized_baseline_would_cycle<S: LayoutScalar>(
     align_self: AlignItems,
-    baselines: Baselines,
-    row_span_tracks: &[TrackSizing],
+    baselines: BaselinesOf<S>,
+    row_span_tracks: &[TrackSizingOf<S>],
 ) -> bool {
     let synthesizes = match align_self {
         AlignItems::Baseline => baselines.first.y.is_none(),
@@ -1250,27 +1263,27 @@ pub(super) fn synthesized_baseline_would_cycle(
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SubgridChildParentContextInput<'a, Node> {
+pub(super) struct SubgridChildParentContextInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) item: SubgridItemReport<Node>,
-    pub(super) child_style: &'a NodeInput,
-    pub(super) area: GridArea,
-    pub(super) content_box_size: Size,
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+    pub(super) child_style: &'a NodeInputOf<S>,
+    pub(super) area: GridArea<S>,
+    pub(super) content_box_size: Size<S>,
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) parent_named_columns: &'a NamedGridLines,
     pub(super) parent_named_rows: &'a NamedGridLines,
     pub(super) parent_area_facts: Option<&'a GridAreaNameFacts>,
-    pub(super) parent_baseline_groups: &'a GridBaselineGroups,
-    pub(super) margin: Edges<Option<Scalar>>,
-    pub(super) border: Edges,
-    pub(super) padding: Edges,
-    pub(super) resolver: &'a dyn CalcResolver,
+    pub(super) parent_baseline_groups: &'a GridBaselineGroups<S>,
+    pub(super) margin: Edges<Option<S>>,
+    pub(super) border: Edges<S>,
+    pub(super) padding: Edges<S>,
+    pub(super) resolver: &'a dyn CalcResolver<S>,
 }
 
-pub(super) fn subgrid_child_parent_context<Node>(
-    input: SubgridChildParentContextInput<'_, Node>,
-) -> GridParentContext {
+pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
+    input: SubgridChildParentContextInput<'_, Node, S>,
+) -> GridParentContext<S> {
     GridParentContext {
         columns: subgrid_child_axis_context(SubgridChildAxisContextInput {
             axis: GridAxisKind::Column,
@@ -1312,28 +1325,28 @@ pub(super) fn subgrid_child_parent_context<Node>(
 }
 
 #[derive(Clone, Copy)]
-struct SubgridChildAxisContextInput<'a> {
+struct SubgridChildAxisContextInput<'a, S: LayoutScalar = Scalar> {
     axis: GridAxisKind,
     report: SubgridAxisReport,
-    child_style: &'a NodeInput,
-    area: GridArea,
-    content_box_size: Size,
-    parent_columns: &'a [Scalar],
-    parent_rows: &'a [Scalar],
-    parent_gap: Size,
+    child_style: &'a NodeInputOf<S>,
+    area: GridArea<S>,
+    content_box_size: Size<S>,
+    parent_columns: &'a [S],
+    parent_rows: &'a [S],
+    parent_gap: Size<S>,
     parent_named_columns: &'a NamedGridLines,
     parent_named_rows: &'a NamedGridLines,
     parent_area_facts: Option<&'a GridAreaNameFacts>,
-    parent_baseline_groups: &'a GridBaselineGroups,
-    margin: Edges<Option<Scalar>>,
-    border: Edges,
-    padding: Edges,
-    resolver: &'a dyn CalcResolver,
+    parent_baseline_groups: &'a GridBaselineGroups<S>,
+    margin: Edges<Option<S>>,
+    border: Edges<S>,
+    padding: Edges<S>,
+    resolver: &'a dyn CalcResolver<S>,
 }
 
-fn subgrid_child_axis_context(
-    input: SubgridChildAxisContextInput<'_>,
-) -> Option<InheritedGridAxis> {
+fn subgrid_child_axis_context<S: LayoutScalar>(
+    input: SubgridChildAxisContextInput<'_, S>,
+) -> Option<InheritedGridAxis<S>> {
     if !input.report.can_inherit() {
         return None;
     }
@@ -1379,7 +1392,7 @@ fn subgrid_child_axis_context(
     let (layout_tracks, layout_gap) = inherited_subgrid_layout_tracks(input.axis, &inherited);
 
     Some(InheritedGridAxis {
-        offset: 0.0,
+        offset: S::ZERO,
         gap: layout_gap,
         tracks: layout_tracks,
         named_lines: parent_axis.named_lines.clone(),
@@ -1398,17 +1411,17 @@ fn subgrid_child_axis_context(
     })
 }
 
-struct SubgridParentAxisData<'a> {
-    tracks: &'a [Scalar],
-    gap: Scalar,
+struct SubgridParentAxisData<'a, S: LayoutScalar = Scalar> {
+    tracks: &'a [S],
+    gap: S,
     named_lines: &'a NamedGridLines,
-    baseline_groups: &'a [TrackBaselineGroup],
+    baseline_groups: &'a [TrackBaselineGroup<S>],
 }
 
-fn subgrid_parent_axis_data<'a>(
-    input: &'a SubgridChildAxisContextInput<'a>,
+fn subgrid_parent_axis_data<'a, S: LayoutScalar>(
+    input: &'a SubgridChildAxisContextInput<'a, S>,
     axis: GridAxisKind,
-) -> SubgridParentAxisData<'a> {
+) -> SubgridParentAxisData<'a, S> {
     match axis {
         GridAxisKind::Column => SubgridParentAxisData {
             tracks: input.parent_columns,
@@ -1425,22 +1438,22 @@ fn subgrid_parent_axis_data<'a>(
     }
 }
 
-pub(super) fn inherited_subgrid_layout_tracks(
+pub(super) fn inherited_subgrid_layout_tracks<S: LayoutScalar>(
     axis: GridAxisKind,
-    inherited: &SubgridTrackInheritanceReport,
-) -> (Vec<Scalar>, Scalar) {
+    inherited: &SubgridTrackInheritanceReport<S>,
+) -> (Vec<S>, S) {
     if axis == GridAxisKind::Column
-        && inherited.gap_difference > 0.0
+        && inherited.gap_difference > S::ZERO
         && inherited.final_tracks.len() >= 2
-        && inherited.final_tracks.contains(&0.0)
+        && inherited.final_tracks.contains(&S::ZERO)
     {
         let mut lines = Vec::with_capacity(inherited.end_mbp_removed.len() + 1);
-        let mut cursor = 0.0;
+        let mut cursor = S::ZERO;
         lines.push(cursor);
         for (index, track) in inherited.end_mbp_removed.iter().copied().enumerate() {
-            cursor += track;
+            cursor = cursor + track;
             if index + 1 < inherited.end_mbp_removed.len() {
-                cursor += inherited.parent_gap;
+                cursor = cursor + inherited.parent_gap;
                 lines.push(cursor + inherited.gap_difference);
             }
         }
@@ -1449,9 +1462,9 @@ pub(super) fn inherited_subgrid_layout_tracks(
         return (
             lines
                 .windows(2)
-                .map(|pair| (pair[1] - pair[0]).max(0.0))
+                .map(|pair| (pair[1] - pair[0]).max(S::ZERO))
                 .collect(),
-            0.0,
+            S::ZERO,
         );
     }
 
@@ -1461,11 +1474,11 @@ pub(super) fn inherited_subgrid_layout_tracks(
     )
 }
 
-fn parent_baseline_groups(
-    groups: &[TrackBaselineGroup],
+fn parent_baseline_groups<S: LayoutScalar>(
+    groups: &[TrackBaselineGroup<S>],
     track_count: usize,
     major: bool,
-) -> Vec<Option<Scalar>> {
+) -> Vec<Option<S>> {
     let mut baselines = vec![None; track_count];
     for (baseline, group) in baselines.iter_mut().zip(groups) {
         *baseline = if major { group.first } else { group.last };
@@ -1473,30 +1486,30 @@ fn parent_baseline_groups(
     baselines
 }
 
-fn axis_margin_border_padding(
+fn axis_margin_border_padding<S: LayoutScalar>(
     axis: GridAxisKind,
-    margin: Edges<Option<Scalar>>,
-    border: Edges,
-    padding: Edges,
-) -> (Scalar, Scalar) {
+    margin: Edges<Option<S>>,
+    border: Edges<S>,
+    padding: Edges<S>,
+) -> (S, S) {
     match axis {
         GridAxisKind::Column => (
-            margin.left.unwrap_or(0.0) + border.left + padding.left,
-            margin.right.unwrap_or(0.0) + border.right + padding.right,
+            margin.left.unwrap_or(S::ZERO) + border.left + padding.left,
+            margin.right.unwrap_or(S::ZERO) + border.right + padding.right,
         ),
         GridAxisKind::Row => (
-            margin.top.unwrap_or(0.0) + border.top + padding.top,
-            margin.bottom.unwrap_or(0.0) + border.bottom + padding.bottom,
+            margin.top.unwrap_or(S::ZERO) + border.top + padding.top,
+            margin.bottom.unwrap_or(S::ZERO) + border.bottom + padding.bottom,
         ),
     }
 }
 
-pub(super) fn child_subgrid_gap(
-    style: &NodeInput,
+pub(super) fn child_subgrid_gap<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     axis: GridAxisKind,
-    area_size: Size,
-    resolver: &dyn CalcResolver,
-) -> ResolvedSubgridGap {
+    area_size: Size<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> ResolvedSubgridGap<S> {
     let (gap, basis) = match axis {
         GridAxisKind::Column => (
             style.gap.width,
@@ -1508,16 +1521,16 @@ pub(super) fn child_subgrid_gap(
         ),
     };
     match gap {
-        Length::Normal => ResolvedSubgridGap::Normal,
+        LengthOf::Normal => ResolvedSubgridGap::Normal,
         gap => ResolvedSubgridGap::Length(resolve_length_or_zero_with(gap, basis, resolver)),
     }
 }
 
-fn grid_axis_physical_size(
+fn grid_axis_physical_size<S: LayoutScalar>(
     writing_mode: crate::WritingMode,
     axis: GridAxisKind,
-    size: Size,
-) -> Scalar {
+    size: Size<S>,
+) -> S {
     match (writing_mode.is_vertical(), axis) {
         (false, GridAxisKind::Column) | (true, GridAxisKind::Row) => size.width,
         (false, GridAxisKind::Row) | (true, GridAxisKind::Column) => size.height,
@@ -1525,30 +1538,30 @@ fn grid_axis_physical_size(
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct GridItemSizing {
-    pub(super) known: Size<Option<Scalar>>,
-    pub(super) available: Size,
-    pub(super) unresolved_margin: Edges<Option<Scalar>>,
+pub(super) struct GridItemSizing<S: LayoutScalar = Scalar> {
+    pub(super) known: Size<Option<S>>,
+    pub(super) available: Size<S>,
+    pub(super) unresolved_margin: Edges<Option<S>>,
     pub(super) justify_self: AlignItems,
     pub(super) align_self: AlignItems,
 }
 
-pub(super) fn grid_item_sizing(
-    child_style: &NodeInput,
-    container_style: &NodeInput,
-    area_size: Size,
-    area_width_basis: Size<Option<Scalar>>,
-    resolver: &dyn CalcResolver,
-) -> GridItemSizing {
+pub(super) fn grid_item_sizing<S: LayoutScalar>(
+    child_style: &NodeInputOf<S>,
+    container_style: &NodeInputOf<S>,
+    area_size: Size<S>,
+    area_width_basis: Size<Option<S>>,
+    resolver: &dyn CalcResolver<S>,
+) -> GridItemSizing<S> {
     let unresolved_margin = child_style
         .margin
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_auto_optional_with(length, basis, resolver)
         });
-    let margin = unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+    let margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
     let available = Size::new(
-        (area_size.width - margin.horizontal_sum()).max(0.0),
-        (area_size.height - margin.vertical_sum()).max(0.0),
+        (area_size.width - margin.horizontal_sum()).max(S::ZERO),
+        (area_size.height - margin.vertical_sum()).max(S::ZERO),
     );
     let padding = child_style
         .padding
@@ -1644,15 +1657,18 @@ pub(super) fn grid_item_sizing(
     }
 }
 
-pub(super) fn stretch_subgridded_axes<Node>(
-    sizing: &mut GridItemSizing,
+pub(super) fn stretch_subgridded_axes<Node, S: LayoutScalar>(
+    sizing: &mut GridItemSizing<S>,
     item: SubgridItemReport<Node>,
 ) {
     stretch_subgridded_axis(sizing, item.column);
     stretch_subgridded_axis(sizing, item.row);
 }
 
-fn stretch_subgridded_axis(sizing: &mut GridItemSizing, report: SubgridAxisReport) {
+fn stretch_subgridded_axis<S: LayoutScalar>(
+    sizing: &mut GridItemSizing<S>,
+    report: SubgridAxisReport,
+) {
     if !report.can_inherit() {
         return;
     }
