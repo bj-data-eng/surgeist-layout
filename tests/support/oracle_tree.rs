@@ -147,7 +147,7 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
     pub fn output(&self, node: u32) -> NodeOutputOf<S> {
         self.final_layout(node)
             .or_else(|| self.layout(node))
-            .unwrap_or_else(NodeOutputOf::new)
+            .unwrap_or_default()
     }
 
     fn recorded_measurement(

@@ -18,7 +18,7 @@ for the owning crate coordinator to plan and implement the change.
 
 ### `surgeist-style` declaration insertion visibility blocks layout integration test compile
 
-- Status: `open`
+- Status: `resolved`
 - Owning crate: `surgeist-style`
 - Affected API: `DeclarationBlock::insert`
 - Observed command:
@@ -35,10 +35,14 @@ for the owning crate coordinator to plan and implement the change.
   insertion/builder path for declaration block construction or coordinate the
   replacement API with layout test support. Then rerun the layout integration
   test target from this crate.
+- Resolution: `surgeist-layout` browser parity support now constructs
+  declarations through the public fallible `surgeist-style`
+  `Declarations::try_insert` API, and the layout integration verification in
+  `plans/2026-06-27-surgeist-layout-style-fixture-integration.md` passed.
 
 ### `surgeist-style` grid and calc value API changes block browser parity support compile
 
-- Status: `open`
+- Status: `resolved`
 - Owning crate: `surgeist-style`
 - Affected APIs: grid line/name value constructors, subgrid/track repeat value
   constructors, and `CalcLength::sum`
@@ -62,3 +66,8 @@ for the owning crate coordinator to plan and implement the change.
   construction path for the browser parity lowering support and update the
   layout test-support call sites. Then rerun the layout integration test target
   from this crate.
+- Resolution: `surgeist-layout` browser parity support now uses the intentional
+  public `surgeist-style` constructors for grid line names, subgrid line-name
+  repeats, grid lines, track repeats, and non-empty calc sums, and the layout
+  integration verification in
+  `plans/2026-06-27-surgeist-layout-style-fixture-integration.md` passed.

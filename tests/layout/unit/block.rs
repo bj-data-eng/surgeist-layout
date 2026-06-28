@@ -147,8 +147,14 @@ fn f64_block_layout_preserves_fractional_child_offsets() {
     );
 
     assert_eq!(tree.output(1).location, Point::new(0.0, large));
-    assert_eq!(tree.output(2).location, Point::new(0.0, 16_777_223.125));
-    assert_eq!(tree.output(0).size, Size::new(100.0, 16_777_230.625));
+    assert_eq!(
+        tree.output(2).location,
+        Point::new(0.0, large + 5.25 + 0.375)
+    );
+    assert_eq!(
+        tree.output(0).size,
+        Size::new(100.0, large + 5.25 + 0.375 + 7.5)
+    );
 }
 
 #[test]
