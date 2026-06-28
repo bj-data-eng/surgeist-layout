@@ -1547,16 +1547,16 @@ where
 }
 
 #[derive(Clone, Copy)]
-struct LaneAxisMarginBoxMeasureInput<'a, S: LayoutScalar = Scalar> {
-    child_style: &'a NodeInputOf<S>,
-    container_style: &'a NodeInputOf<S>,
-    constants: &'a Constants<S>,
-    lane_axis: GridAxisKind,
-    grid_axis: GridAxisKind,
-    grid_axis_size: S,
+pub(super) struct LaneAxisMarginBoxMeasureInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) child_style: &'a NodeInputOf<S>,
+    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) constants: &'a Constants<S>,
+    pub(super) lane_axis: GridAxisKind,
+    pub(super) grid_axis: GridAxisKind,
+    pub(super) grid_axis_size: S,
 }
 
-fn measure_lane_axis_margin_box_with_grid_axis<Tree>(
+pub(super) fn measure_lane_axis_margin_box_with_grid_axis<Tree>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     input: LaneAxisMarginBoxMeasureInput<'_, Tree::Scalar>,
@@ -1762,128 +1762,4 @@ fn max_running_position<S: LayoutScalar>(running: &[S], start: usize, span: usiz
         .iter()
         .copied()
         .fold(S::ZERO, S::max)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::{
-        Available, Baselines, CalcExpression, CalcResolver, CalcTerm, ComputeInput, ComputeOutput,
-        LayoutCalcStore, LengthAuto, NodeInput, NodeOutput,
-    };
-
-    #[test]
-    fn lane_axis_margin_box_measurement_resolves_calc_margins_against_grid_axis() {
-        let mut store = LayoutCalcStore::new();
-        let margin = store.push(CalcExpression::sum([
-            CalcTerm::px(4.0),
-            CalcTerm::percent(0.10),
-        ]));
-        let child_style = NodeInput {
-            margin: Edges {
-                left: LengthAuto::calc(margin),
-                right: LengthAuto::px(6.0),
-                top: LengthAuto::ZERO,
-                bottom: LengthAuto::ZERO,
-            },
-            ..NodeInput::default()
-        };
-        let container_style = NodeInput::default();
-        let constants = Constants {
-            node_outer_size: Size::new(Some(200.0), Some(80.0)),
-            node_inner_size: Size::new(Some(200.0), Some(80.0)),
-            node_min_size: Size::NONE,
-            node_max_size: Size::NONE,
-            available_inner_size: Size::new(Some(200.0), Some(80.0)),
-            content_box_inset: Edges::ZERO,
-            padding: Edges::ZERO,
-            border: Edges::ZERO,
-        };
-        let mut tree = LaneMarginMeasureTree {
-            child_style: child_style.clone(),
-            resolver: store,
-            child_output: ComputeOutput::from_sizes_and_baselines(
-                Size::new(50.0, 12.0),
-                Size::new(50.0, 12.0),
-                Baselines::NONE,
-            ),
-            last_input: None,
-        };
-
-        let measured = measure_lane_axis_margin_box_with_grid_axis(
-            &mut tree,
-            LaneMarginMeasureTree::CHILD,
-            LaneAxisMarginBoxMeasureInput {
-                child_style: &child_style,
-                container_style: &container_style,
-                constants: &constants,
-                lane_axis: GridAxisKind::Column,
-                grid_axis: GridAxisKind::Column,
-                grid_axis_size: 200.0,
-            },
-        );
-
-        assert_eq!(measured, 80.0);
-        let input = tree
-            .last_input
-            .expect("measurement should compute the child");
-        assert_eq!(input.known.width, Some(170.0));
-        assert_eq!(input.parent.width, Some(200.0));
-        assert_eq!(input.available.width, Available::Definite(170.0));
-    }
-
-    struct LaneMarginMeasureTree {
-        child_style: NodeInput,
-        resolver: LayoutCalcStore,
-        child_output: ComputeOutput,
-        last_input: Option<ComputeInput>,
-    }
-
-    impl LaneMarginMeasureTree {
-        const ROOT: usize = 0;
-        const CHILD: usize = 1;
-    }
-
-    impl Traverse for LaneMarginMeasureTree {
-        type Node = usize;
-        type Scalar = Scalar;
-        type Children<'a> = std::vec::IntoIter<Self::Node>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            match node {
-                Self::ROOT => vec![Self::CHILD].into_iter(),
-                _ => Vec::new().into_iter(),
-            }
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            usize::from(node == Self::ROOT)
-        }
-
-        fn child(&self, _node: Self::Node, index: usize) -> Self::Node {
-            assert_eq!(index, 0);
-            Self::CHILD
-        }
-    }
-
-    impl Compute for LaneMarginMeasureTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
-            assert_eq!(node, Self::CHILD);
-            &self.child_style
-        }
-
-        fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {
-            unreachable!("lane margin measurement should not write layout output");
-        }
-
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            assert_eq!(node, Self::CHILD);
-            self.last_input = Some(input);
-            self.child_output
-        }
-
-        fn calc_resolver(&self) -> &dyn CalcResolver {
-            &self.resolver
-        }
-    }
 }

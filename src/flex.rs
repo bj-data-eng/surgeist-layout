@@ -3412,21 +3412,3 @@ impl BoolEdgeAxisExt for Edges<bool> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::{CalcExpression, CalcTerm, Dimension, LayoutCalcStore, NodeInput};
-
-    #[test]
-    fn flex_percent_dependent_calc_size_requests_definite_cross_rerun() {
-        let mut store = LayoutCalcStore::new();
-        let height = store.push(CalcExpression::sum([
-            CalcTerm::px(10.0),
-            CalcTerm::percent(0.50),
-        ]));
-        let mut child = NodeInput::default();
-        child.size.height = Dimension::calc(height);
-
-        assert!(child.size.height.depends_on_basis_with(&store));
-    }
-}

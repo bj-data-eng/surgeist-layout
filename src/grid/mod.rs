@@ -14,6 +14,7 @@ mod named;
 mod placement;
 mod subgrid;
 #[cfg(test)]
+#[path = "../grid_tests.rs"]
 mod tests;
 mod tracks;
 

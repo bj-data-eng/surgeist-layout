@@ -1,8 +1,20 @@
-use super::*;
-use surgeist_layout::{
+use std::collections::HashMap;
+
+use crate::block::resolve_in_flow_margin;
+use crate::compute::compute_leaf_with_resolver;
+use crate::*;
+use crate::{
     CalcExpression, CalcExpressionOf, CalcResolver, CalcTerm, CalcTermOf, LayoutCalcStore,
     LayoutCalcStoreOf,
 };
+
+fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
+    let size = Size::new(
+        input.known.width.unwrap_or(fallback.width),
+        input.known.height.unwrap_or(fallback.height),
+    );
+    ComputeOutput::from_sizes(size, size)
+}
 
 #[derive(Default)]
 struct CalcBlockTree {
@@ -60,7 +72,7 @@ impl Compute for CalcBlockTree {
 
 #[test]
 fn block_lays_out_atomic_inline_children_on_one_line() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -104,7 +116,7 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
 #[test]
 fn f64_block_layout_preserves_fractional_child_offsets() {
     let large = 16_777_217.25_f64;
-    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<f64>::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -170,7 +182,7 @@ fn f64_block_layout_resolves_calc_through_tree_resolver_without_narrowing() {
         CalcTermOf::percent(0.50),
         CalcTermOf::px(large + 0.25),
     ]));
-    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<f64>::new()
         .children(0, [1])
         .style(
             0,
@@ -210,7 +222,7 @@ fn f64_block_layout_resolves_calc_through_tree_resolver_without_narrowing() {
 #[test]
 fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
     let large = 16_777_217.25_f64;
-    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<f64>::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -253,7 +265,7 @@ fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
 
 #[test]
 fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .children(1, [2])
         .style(
@@ -294,7 +306,7 @@ fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
 
 #[test]
 fn inline_grid_uses_grid_tracks_and_participates_as_atomic_inline() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -333,7 +345,7 @@ fn inline_grid_uses_grid_tracks_and_participates_as_atomic_inline() {
 
 #[test]
 fn inline_grid_lanes_uses_lanes_tracks_and_participates_as_atomic_inline() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -372,7 +384,7 @@ fn inline_grid_lanes_uses_lanes_tracks_and_participates_as_atomic_inline() {
 
 #[test]
 fn block_wraps_atomic_inline_children_between_items() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])
         .style(
             0,
@@ -427,7 +439,7 @@ fn block_wraps_atomic_inline_children_between_items() {
 
 #[test]
 fn block_min_content_atomic_inline_run_uses_max_item_advance() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])
         .style(
             0,
@@ -482,7 +494,7 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
 
 #[test]
 fn atomic_inline_auto_margins_resolve_to_zero() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -517,7 +529,7 @@ fn atomic_inline_auto_margins_resolve_to_zero() {
 
 #[test]
 fn inline_block_intrinsic_width_shrink_wraps_children() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .children(1, [2])
         .style(
@@ -552,7 +564,7 @@ fn inline_block_intrinsic_width_shrink_wraps_children() {
 
 #[test]
 fn inline_block_uses_bottom_synthesized_baseline_when_child_has_no_baseline() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -590,12 +602,12 @@ fn inline_block_uses_inner_last_baseline_for_atomic_alignment() {
     let measured_inline_block = ComputeOutput::from_sizes_and_baselines(
         Size::new(10.0, 30.0),
         Size::new(10.0, 30.0),
-        surgeist_layout::Baselines {
+        crate::Baselines {
             first: Point::new(None, Some(5.0)),
             last: Point::new(None, Some(25.0)),
         },
     );
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -631,7 +643,7 @@ fn inline_block_uses_inner_last_baseline_for_atomic_alignment() {
 
 #[test]
 fn inline_block_keeps_child_margins_inside_atomic_wrapper() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .children(1, [2])
         .style(
@@ -672,11 +684,11 @@ fn inline_block_keeps_child_margins_inside_atomic_wrapper() {
 #[test]
 fn inline_grid_can_host_subgrid_descendant() {
     let subgrid_track = || {
-        TrackComponent::Subgrid(surgeist_layout::SubgridTrack {
+        TrackComponent::Subgrid(crate::SubgridTrack {
             name_components: Vec::new(),
         })
     };
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .children(1, [2])
         .style(
@@ -723,7 +735,7 @@ fn inline_grid_can_host_subgrid_descendant() {
 
 #[test]
 fn block_positions_block_children_around_atomic_inline_run() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3, 4])
         .style(
             0,
@@ -799,7 +811,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
 
 #[test]
 fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3, 4])
         .style(
             0,
@@ -858,7 +870,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
 
 #[test]
 fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -901,7 +913,7 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
 
 #[test]
 fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -945,7 +957,7 @@ fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
 
 #[test]
 fn block_atomic_inline_run_alignment_uses_resolved_inner_width() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -973,7 +985,7 @@ fn block_atomic_inline_run_alignment_uses_resolved_inner_width() {
 
 #[test]
 fn block_legacy_center_aligns_atomic_inline_run() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -1016,7 +1028,7 @@ fn block_legacy_center_aligns_atomic_inline_run() {
 
 #[test]
 fn block_inline_run_content_size_includes_visible_overflow_and_relative_inset() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -1060,7 +1072,7 @@ fn block_inline_run_content_size_includes_visible_overflow_and_relative_inset() 
 
 #[test]
 fn block_inline_run_content_size_accounts_for_negative_relative_inset_after_content() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -1111,7 +1123,7 @@ fn block_inline_run_content_size_accounts_for_negative_relative_inset_after_cont
 
 #[test]
 fn block_reports_inline_run_first_and_last_baselines() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -1155,7 +1167,7 @@ fn block_reports_inline_run_first_and_last_baselines() {
 
 #[test]
 fn block_reports_inline_run_baseline_including_padding() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -1195,7 +1207,7 @@ fn block_reports_inline_run_baseline_including_padding() {
 
 #[test]
 fn block_definite_compute_size_keeps_inline_run_baselines() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -1236,12 +1248,12 @@ fn block_definite_compute_size_keeps_block_child_baselines() {
     let child_output = ComputeOutput::from_sizes_and_baselines(
         Size::new(30.0, 20.0),
         Size::new(30.0, 20.0),
-        surgeist_layout::Baselines {
+        crate::Baselines {
             first: Point::new(None, Some(7.0)),
             last: Point::new(None, Some(17.0)),
         },
     );
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -1282,12 +1294,12 @@ fn block_definite_compute_size_keeps_non_empty_flex_child_baselines() {
     let child_output = ComputeOutput::from_sizes_and_baselines(
         Size::new(30.0, 20.0),
         Size::new(30.0, 20.0),
-        surgeist_layout::Baselines {
+        crate::Baselines {
             first: Point::new(None, Some(9.0)),
             last: Point::new(None, Some(19.0)),
         },
     );
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .children(1, [2])
         .style(
@@ -1424,7 +1436,7 @@ fn block_layout_stacks_in_flow_children_vertically() {
         ComputeOutput::from_sizes(Size::new(30.0, 12.0), Size::new(30.0, 12.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -1484,7 +1496,7 @@ fn block_in_flow_calc_margin_resolves_against_containing_block_width() {
         },
     );
 
-    surgeist_layout::compute_block(
+    crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -1521,7 +1533,7 @@ fn block_container_calc_padding_uses_tree_resolver() {
     );
     tree.styles.insert(1, NodeInput::default());
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         0,
         ComputeInput {
@@ -1610,7 +1622,7 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -1701,7 +1713,7 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
         );
     }
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -1722,7 +1734,7 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
 
 #[test]
 fn block_bfc_zero_width_child_fits_between_opposing_floats() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])
         .style(
             0,
@@ -1780,7 +1792,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats() {
 
 #[test]
 fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_float() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3, 4])
         .style(
             0,
@@ -1846,7 +1858,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
 
 #[test]
 fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clear() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])
         .style(
             0,
@@ -1896,7 +1908,7 @@ fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clea
 
 #[test]
 fn block_bfc_hidden_child_keeps_legacy_right_alignment_without_float_exclusion() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -1932,7 +1944,7 @@ fn block_bfc_hidden_child_keeps_legacy_right_alignment_without_float_exclusion()
 
 #[test]
 fn block_bfc_hidden_child_keeps_legacy_center_alignment_without_float_exclusion() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -1968,7 +1980,7 @@ fn block_bfc_hidden_child_keeps_legacy_center_alignment_without_float_exclusion(
 
 #[test]
 fn block_bfc_float_content_size_height_excludes_container_top_inset() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
             0,
@@ -2012,7 +2024,7 @@ fn block_bfc_float_content_size_height_excludes_container_top_inset() {
 
 #[test]
 fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3, 4])
         .style(
             0,
@@ -2045,7 +2057,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
             3,
             NodeInput {
                 display: Display::Block,
-                clear: surgeist_layout::Clear::Left,
+                clear: crate::Clear::Left,
                 overflow: Point::new(Overflow::Visible, Overflow::Visible),
                 size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
                 ..NodeInput::DEFAULT
@@ -2079,7 +2091,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
 
 #[test]
 fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3, 4])
         .style(
             0,
@@ -2120,7 +2132,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
             4,
             NodeInput {
                 display: Display::Block,
-                clear: surgeist_layout::Clear::Left,
+                clear: crate::Clear::Left,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(Dimension::px(0.0), Dimension::AUTO),
                 ..NodeInput::DEFAULT
@@ -2142,7 +2154,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
 
 #[test]
 fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
-    let mut tree = support::oracle_tree::OracleTree::new()
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3, 4])
         .style(
             0,
@@ -2183,7 +2195,7 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
             4,
             NodeInput {
                 display: Display::Block,
-                clear: surgeist_layout::Clear::Right,
+                clear: crate::Clear::Right,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(Dimension::px(0.0), Dimension::AUTO),
                 ..NodeInput::DEFAULT
@@ -2289,7 +2301,7 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
         ComputeOutput::from_sizes(Size::new(100.0, 10.0), Size::new(100.0, 10.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2378,7 +2390,7 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
         ComputeOutput::from_sizes(Size::new(100.0, 5.0), Size::new(100.0, 5.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2468,7 +2480,7 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
         ComputeOutput::from_sizes(Size::new(100.0, 5.0), Size::new(100.0, 5.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2556,7 +2568,7 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
         },
     );
 
-    surgeist_layout::compute_block(
+    crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2643,7 +2655,7 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
         ComputeOutput::from_sizes(Size::new(100.0, 5.0), Size::new(100.0, 5.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2727,7 +2739,7 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
         },
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2837,7 +2849,7 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
         ComputeOutput::from_sizes(Size::new(100.0, 10.0), Size::new(100.0, 10.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2906,7 +2918,7 @@ fn block_empty_auto_height_can_collapse_through() {
         },
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -2983,7 +2995,7 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
         },
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3082,7 +3094,7 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3173,7 +3185,7 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3261,7 +3273,7 @@ fn block_content_size_includes_visible_child_overflow_content() {
         ComputeOutput::from_sizes(Size::new(40.0, 10.0), Size::new(120.0, 24.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3356,7 +3368,7 @@ fn block_relative_child_inset_offsets_final_layout_location() {
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3451,7 +3463,7 @@ fn block_layout_stretches_auto_width_in_flow_children() {
         },
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3549,7 +3561,7 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
         },
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3622,7 +3634,7 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
     );
     tree.styles.insert(2, NodeInput::default());
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3701,7 +3713,7 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
         );
         tree.styles.insert(3, NodeInput::default());
 
-        let output = surgeist_layout::compute_block(
+        let output = crate::compute_block(
             &mut tree,
             1,
             ComputeInput {
@@ -3786,7 +3798,7 @@ fn block_auto_height_clamps_to_max_size() {
         ComputeOutput::from_sizes(Size::new(100.0, 20.0), Size::new(100.0, 20.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3868,7 +3880,7 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
         ComputeOutput::from_sizes(Size::new(80.0, 40.0), Size::new(80.0, 40.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -3949,7 +3961,7 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
             },
         );
 
-        surgeist_layout::compute_block(
+        crate::compute_block(
             &mut tree,
             1,
             ComputeInput {
@@ -4081,7 +4093,7 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(80.0, 32.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4184,7 +4196,7 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
         ComputeOutput::from_sizes(Size::new(20.0, 5.0), Size::new(20.0, 5.0)),
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4272,7 +4284,7 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
         ComputeOutput::from_sizes(Size::new(80.0, 40.0), Size::new(80.0, 40.0)),
     );
 
-    surgeist_layout::compute_block(
+    crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4360,7 +4372,7 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
         },
     );
 
-    let output = surgeist_layout::compute_block(
+    let output = crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4453,7 +4465,7 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
         },
     );
 
-    surgeist_layout::compute_block(
+    crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4547,7 +4559,7 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
         },
     );
 
-    surgeist_layout::compute_block(
+    crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4644,7 +4656,7 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
         },
     );
 
-    surgeist_layout::compute_block(
+    crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4737,7 +4749,7 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
         },
     );
 
-    surgeist_layout::compute_block(
+    crate::compute_block(
         &mut tree,
         1,
         ComputeInput {
@@ -4753,4 +4765,167 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(20.0), Some(10.0)));
     assert_eq!(tree.layouts[&2].location, Point::new(62.0, 1.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+}
+
+#[derive(Default)]
+struct CalcLeafTree {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInput>,
+    layouts: HashMap<u32, NodeOutput>,
+    calcs: LayoutCalcStore,
+}
+
+impl Traverse for CalcLeafTree {
+    type Node = u32;
+    type Scalar = Scalar;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map_or([].as_slice(), Vec::as_slice)
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map_or(0, Vec::len)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl Compute for CalcLeafTree {
+    fn node_input(&self, node: Self::Node) -> &NodeInput {
+        &self.styles[&node]
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+        self.layouts.insert(node, layout);
+    }
+
+    fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        if self.child_count(node) > 0 {
+            return compute_block(self, node, input);
+        }
+
+        let style = self.styles[&node].clone();
+        compute_leaf_with_resolver(input, &style, &self.calcs, |known, available| {
+            Size::new(
+                known
+                    .width
+                    .or_else(|| available.width.into_option())
+                    .unwrap_or(0.0),
+                known.height.unwrap_or(10.0),
+            )
+        })
+    }
+
+    fn calc_resolver(&self) -> &dyn CalcResolver {
+        &self.calcs
+    }
+}
+
+#[test]
+fn block_inline_calc_leaf_uses_private_resolver_aware_leaf_path() {
+    let mut tree = CalcLeafTree::default();
+    let width = tree.calcs.push(CalcExpression::sum([
+        CalcTerm::percent(0.5),
+        CalcTerm::px(10.0),
+    ]));
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::InlineBlock,
+            size: Size::new(Dimension::calc(width), Dimension::AUTO),
+            ..NodeInput::default()
+        },
+    );
+
+    let output = compute_block(
+        &mut tree,
+        0,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::new(Some(100.0), None),
+            parent: Size::new(Some(100.0), None),
+            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        },
+    );
+
+    assert_eq!(tree.layouts[&1].size.width, 60.0);
+    assert_eq!(output.content_size.width, 60.0);
+}
+
+#[test]
+fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
+    let mut tree = CalcLeafTree::default();
+    let margin = tree
+        .calcs
+        .push(CalcExpression::sum([CalcTerm::percent(0.25)]));
+    tree.styles.insert(
+        1,
+        NodeInput {
+            margin: Edges {
+                top: LengthAuto::calc(margin),
+                ..Edges::<Scalar>::ZERO.map(|_| LengthAuto::px(0.0))
+            },
+            ..NodeInput::default()
+        },
+    );
+
+    let resolved = tree.styles[&1]
+        .margin
+        .zip_inline_size(Size::new(None, None), |length, basis| {
+            length.resolve_auto_with_status(basis, &tree.calcs)
+        });
+    let resolved = resolve_in_flow_margin(resolved, Size::new(10.0, 10.0), None);
+
+    assert_eq!(resolved.top, 0.0);
+}
+
+#[test]
+#[should_panic(expected = "calc resolution requires an explicit resolver")]
+fn missing_resolver_margin_keeps_explicit_failure() {
+    let margin = LengthAuto::calc(CalcId::from_raw_for_tests(0))
+        .resolve_auto_with_status(Some(10.0), &NoCalcResolver);
+
+    let _ = resolve_in_flow_margin(
+        Edges {
+            top: margin,
+            ..Edges::<Scalar>::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
+        },
+        Size::new(10.0, 10.0),
+        Some(10.0),
+    );
+}
+
+#[test]
+#[should_panic(expected = "calc expression is missing")]
+fn missing_expression_margin_keeps_explicit_failure() {
+    let store = LayoutCalcStore::new();
+    let margin = LengthAuto::calc(CalcId::from_raw_for_tests(99))
+        .resolve_auto_with_status(Some(10.0), &store);
+
+    let _ = resolve_in_flow_margin(
+        Edges {
+            top: margin,
+            ..Edges::<Scalar>::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
+        },
+        Size::new(10.0, 10.0),
+        Some(10.0),
+    );
 }

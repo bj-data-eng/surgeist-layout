@@ -1,5 +1,5 @@
-use super::*;
-use surgeist_layout::{CalcResolver, DefaultScalar};
+use crate::*;
+use crate::{CalcResolver, DefaultScalar};
 
 #[test]
 fn default_scalar_remains_single_precision() {
@@ -12,7 +12,7 @@ fn default_scalar_remains_single_precision() {
 
 #[test]
 fn layout_scalar_supports_f32_and_f64() {
-    fn assert_scalar<S: surgeist_layout::LayoutScalar>() {
+    fn assert_scalar<S: crate::LayoutScalar>() {
         assert!(S::ONE.is_finite());
         assert_eq!(S::ZERO + S::ONE, S::ONE);
         assert_eq!(S::from_usize(3), S::ONE + S::ONE + S::ONE);
@@ -33,42 +33,41 @@ fn layout_scalar_supports_f32_and_f64() {
 
 #[test]
 fn value_types_support_f64_scalar_lane() {
-    let length = surgeist_layout::LengthOf::<f64>::percent(0.25);
+    let length = crate::LengthOf::<f64>::percent(0.25);
     assert_eq!(length.resolve(400.0), 100.0);
 
-    let dimension = surgeist_layout::DimensionOf::<f64>::px(42.5);
+    let dimension = crate::DimensionOf::<f64>::px(42.5);
     assert_eq!(dimension.resolve(1000.0), Some(42.5));
 
-    let ratio = surgeist_layout::AspectRatioOf::<f64>::new(16.0 / 9.0)
+    let ratio = crate::AspectRatioOf::<f64>::new(16.0 / 9.0)
         .expect("positive finite f64 aspect ratio should be accepted");
     assert_eq!(ratio.get(), 16.0 / 9.0);
 
-    assert!(surgeist_layout::AspectRatioOf::<f64>::new(f64::INFINITY).is_none());
+    assert!(crate::AspectRatioOf::<f64>::new(f64::INFINITY).is_none());
 }
 
 #[test]
 fn node_input_and_output_support_f64_scalar_lane() {
-    let input = surgeist_layout::NodeInputOf::<f64> {
-        size: surgeist_layout::Size::new(
-            surgeist_layout::DimensionOf::px(123.5),
-            surgeist_layout::DimensionOf::percent(0.25),
+    let input = crate::NodeInputOf::<f64> {
+        size: crate::Size::new(
+            crate::DimensionOf::px(123.5),
+            crate::DimensionOf::percent(0.25),
         ),
-        margin: surgeist_layout::Edges::all(surgeist_layout::LengthAutoOf::px(2.5)),
+        margin: crate::Edges::all(crate::LengthAutoOf::px(2.5)),
         flex_grow: 1.0,
-        ..surgeist_layout::NodeInputOf::<f64>::default()
+        ..crate::NodeInputOf::<f64>::default()
     };
 
     assert_eq!(input.size.width.resolve(1000.0), Some(123.5));
     assert_eq!(input.size.height.resolve(400.0), Some(100.0));
 
     let precision_sentinel = 16_777_217.0_f64;
-    let output = surgeist_layout::NodeOutputOf::<f64> {
-        size: surgeist_layout::Size::new(precision_sentinel, 10.0),
-        ..surgeist_layout::NodeOutputOf::<f64>::default()
+    let output = crate::NodeOutputOf::<f64> {
+        size: crate::Size::new(precision_sentinel, 10.0),
+        ..crate::NodeOutputOf::<f64>::default()
     };
-    let compute_output = surgeist_layout::ComputeOutputOf::<f64>::from_outer_size(
-        surgeist_layout::Size::new(precision_sentinel, 4.0),
-    );
+    let compute_output =
+        crate::ComputeOutputOf::<f64>::from_outer_size(crate::Size::new(precision_sentinel, 4.0));
 
     assert_eq!(output.size.width, precision_sentinel);
     assert_eq!(compute_output.size.width, precision_sentinel);
@@ -77,29 +76,25 @@ fn node_input_and_output_support_f64_scalar_lane() {
 #[test]
 fn f32_default_keeps_representative_layout_types_smaller_than_f64_lane() {
     assert!(
-        std::mem::size_of::<surgeist_layout::ComputeOutput>()
-            < std::mem::size_of::<surgeist_layout::ComputeOutputOf<f64>>()
+        std::mem::size_of::<crate::ComputeOutput>()
+            < std::mem::size_of::<crate::ComputeOutputOf<f64>>()
     );
     assert!(
-        std::mem::size_of::<surgeist_layout::NodeOutput>()
-            < std::mem::size_of::<surgeist_layout::NodeOutputOf<f64>>()
+        std::mem::size_of::<crate::NodeOutput>() < std::mem::size_of::<crate::NodeOutputOf<f64>>()
     );
     assert!(
-        std::mem::size_of::<surgeist_layout::CollapsibleMargin>()
-            < std::mem::size_of::<surgeist_layout::CollapsibleMarginOf<f64>>()
+        std::mem::size_of::<crate::CollapsibleMargin>()
+            < std::mem::size_of::<crate::CollapsibleMarginOf<f64>>()
     );
-    assert!(
-        std::mem::size_of::<surgeist_layout::Cache>()
-            < std::mem::size_of::<surgeist_layout::CacheOf<f64>>()
-    );
+    assert!(std::mem::size_of::<crate::Cache>() < std::mem::size_of::<crate::CacheOf<f64>>());
 }
 
 #[test]
 fn f64_calc_resolution_preserves_large_coordinate_precision() {
-    let mut store = surgeist_layout::LayoutCalcStoreOf::<f64>::new();
-    let id = store.push(surgeist_layout::CalcExpressionOf::sum(vec![
-        surgeist_layout::CalcTermOf::px(16_777_217.0),
-        surgeist_layout::CalcTermOf::percent(0.5),
+    let mut store = crate::LayoutCalcStoreOf::<f64>::new();
+    let id = store.push(crate::CalcExpressionOf::sum(vec![
+        crate::CalcTermOf::px(16_777_217.0),
+        crate::CalcTermOf::percent(0.5),
     ]));
 
     let resolution = store.resolve_calc(id, Some(21.0));
@@ -109,20 +104,17 @@ fn f64_calc_resolution_preserves_large_coordinate_precision() {
 
 #[test]
 fn geometry_supports_default_and_f64_scalars() {
-    let default_size = surgeist_layout::Size::new(2.0, 3.0);
+    let default_size = crate::Size::new(2.0, 3.0);
     assert_eq!(default_size.width, 2.0);
 
-    assert_eq!(surgeist_layout::Point::<f64>::ZERO, Point::new(0.0, 0.0));
-    assert_eq!(surgeist_layout::Size::<f64>::ZERO, Size::new(0.0, 0.0));
-    assert_eq!(
-        surgeist_layout::Edges::<f64>::ZERO,
-        Edges::new(0.0, 0.0, 0.0, 0.0)
-    );
+    assert_eq!(crate::Point::<f64>::ZERO, Point::new(0.0, 0.0));
+    assert_eq!(crate::Size::<f64>::ZERO, Size::new(0.0, 0.0));
+    assert_eq!(crate::Edges::<f64>::ZERO, Edges::new(0.0, 0.0, 0.0, 0.0));
 
-    let f64_size = surgeist_layout::Size::<f64>::new(2.0_f64, 3.0_f64);
+    let f64_size = crate::Size::<f64>::new(2.0_f64, 3.0_f64);
     assert_eq!(f64_size.height, 3.0_f64);
 
-    let f64_edges = surgeist_layout::Edges::<f64>::new(1.0, 2.0, 3.0, 4.0);
+    let f64_edges = crate::Edges::<f64>::new(1.0, 2.0, 3.0, 4.0);
     assert_eq!(f64_edges.horizontal_sum(), 6.0_f64);
     assert_eq!(f64_edges.vertical_sum(), 4.0_f64);
     assert_eq!(f64_edges.sum_axes(), Size::new(6.0_f64, 4.0_f64));
@@ -181,7 +173,7 @@ fn node_input_defaults_match_the_layout_contract() {
     assert_eq!(node_input.text_align, TextAlign::Auto);
     assert_eq!(
         node_input.overflow,
-        surgeist_layout::Point::new(Overflow::Visible, Overflow::Visible)
+        crate::Point::new(Overflow::Visible, Overflow::Visible)
     );
     assert_eq!(node_input.scrollbar_width, 0.0);
     assert_eq!(node_input.position, Position::Relative);

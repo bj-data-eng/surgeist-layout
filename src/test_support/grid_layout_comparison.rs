@@ -1,4 +1,4 @@
-use crate::test_support::oracle::grid::{
+use super::oracle::grid::{
     AlignmentSafety, GridArea, GridItemRect, GridScenarioReport, LaneIntrinsicSizingReport,
     LaneItemRectInput, LanePlacementReport, PlacementCursor, PlacementReport, TrackAlignment,
     TrackSizingReport, align_tracks_report, compose_grid_scenario, compose_lane_item_rect,

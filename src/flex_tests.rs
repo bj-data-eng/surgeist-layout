@@ -1,4 +1,14 @@
-use super::*;
+use std::collections::HashMap;
+
+use crate::*;
+
+fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
+    let size = Size::new(
+        input.known.width.unwrap_or(fallback.width),
+        input.known.height.unwrap_or(fallback.height),
+    );
+    ComputeOutput::from_sizes(size, size)
+}
 
 #[test]
 fn flex_direction_reports_main_cross_and_reverse_axes() {
@@ -124,7 +134,7 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
 #[test]
 fn f64_flex_layout_preserves_fractional_growth() {
     let container_width = 16_777_217.75;
-    let mut tree = support::oracle_tree::OracleTreeOf::<f64>::new()
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<f64>::new()
         .children(0, [1, 2])
         .style(
             0,
@@ -1724,10 +1734,8 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
 
             match node_input.display.inner_display() {
                 Display::Flex => compute_flex(self, node, input),
-                Display::Block => surgeist_layout::compute_block(self, node, input),
-                Display::Grid | Display::GridLanes => {
-                    surgeist_layout::compute_grid(self, node, input)
-                }
+                Display::Block => crate::compute_block(self, node, input),
+                Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
                 Display::None => ComputeOutput::HIDDEN,
                 Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                     unreachable!("inner_display removes inline display variants")
@@ -5637,4 +5645,19 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
     assert_eq!(output.size.width, 120.0);
     assert_eq!(output.content_size.width, 120.0);
     assert_eq!(tree.layouts[&2].content_size.width, 120.0);
+}
+
+use crate::{CalcExpression, CalcTerm, Dimension, LayoutCalcStore, NodeInput};
+
+#[test]
+fn flex_percent_dependent_calc_size_requests_definite_cross_rerun() {
+    let mut store = LayoutCalcStore::new();
+    let height = store.push(CalcExpression::sum([
+        CalcTerm::px(10.0),
+        CalcTerm::percent(0.50),
+    ]));
+    let mut child = NodeInput::default();
+    child.size.height = Dimension::calc(height);
+
+    assert!(child.size.height.depends_on_basis_with(&store));
 }

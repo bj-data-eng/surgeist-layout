@@ -1,5 +1,7 @@
-use super::*;
-use crate::support::oracle_tree::OracleTreeOf;
+use std::collections::HashMap;
+
+use crate::test_support::layout_tree::OracleTreeOf;
+use crate::*;
 
 #[test]
 fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
@@ -50,15 +52,15 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         type Node = u32;
         type Scalar = Scalar;
 
-        fn cache_context(&self) -> surgeist_layout::CacheKeyContext {
-            surgeist_layout::CacheKeyContext::static_no_calc()
+        fn cache_context(&self) -> crate::CacheKeyContext {
+            crate::CacheKeyContext::static_no_calc()
         }
 
         fn cache_get(
             &self,
             node: Self::Node,
             input: &ComputeInput,
-            context: surgeist_layout::CacheKeyContext,
+            context: crate::CacheKeyContext,
         ) -> Option<ComputeOutput> {
             self.caches[&node].get_with_context(input, context)
         }
@@ -67,7 +69,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             &mut self,
             node: Self::Node,
             input: &ComputeInput,
-            context: surgeist_layout::CacheKeyContext,
+            context: crate::CacheKeyContext,
             output: ComputeOutput,
         ) {
             self.caches
@@ -100,7 +102,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-        surgeist_layout::CacheKeyContext::static_no_calc(),
+        crate::CacheKeyContext::static_no_calc(),
         ComputeOutput::from_outer_size(Size::new(1.0, 1.0)),
     );
 
@@ -163,15 +165,15 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
         type Node = u32;
         type Scalar = f64;
 
-        fn cache_context(&self) -> surgeist_layout::CacheKeyContext {
-            surgeist_layout::CacheKeyContext::static_no_calc()
+        fn cache_context(&self) -> crate::CacheKeyContext {
+            crate::CacheKeyContext::static_no_calc()
         }
 
         fn cache_get(
             &self,
             node: Self::Node,
             input: &ComputeInputOf<f64>,
-            context: surgeist_layout::CacheKeyContext,
+            context: crate::CacheKeyContext,
         ) -> Option<ComputeOutputOf<f64>> {
             self.caches[&node].get_with_context(input, context)
         }
@@ -180,7 +182,7 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
             &mut self,
             node: Self::Node,
             input: &ComputeInputOf<f64>,
-            context: surgeist_layout::CacheKeyContext,
+            context: crate::CacheKeyContext,
             output: ComputeOutputOf<f64>,
         ) {
             self.caches
@@ -210,7 +212,7 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
             parent: Size::NONE,
             available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
         },
-        surgeist_layout::CacheKeyContext::static_no_calc(),
+        crate::CacheKeyContext::static_no_calc(),
         ComputeOutputOf::from_outer_size(Size::new(1.25, 1.5)),
     );
 
@@ -222,7 +224,7 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
 
 #[test]
 fn f64_tree_can_run_root_layout_smoke_test() {
-    let mut tree = crate::support::oracle_tree::OracleTreeOf::<f64>::new().style(
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<f64>::new().style(
         0,
         NodeInputOf::<f64> {
             display: Display::Block,
@@ -331,7 +333,7 @@ fn root_layout_stores_child_output_as_root_layout() {
         })
     );
     let layout = tree.layout.expect("root layout should be stored");
-    assert_eq!(layout.location, surgeist_layout::Point::new(120.0, 0.0));
+    assert_eq!(layout.location, crate::Point::new(120.0, 0.0));
     assert_eq!(layout.size, Size::new(80.0, 20.0));
     assert_eq!(layout.content_size, Size::new(80.0, 20.0));
     assert_eq!(layout.scrollbar_size, Size::new(13.0, 13.0));

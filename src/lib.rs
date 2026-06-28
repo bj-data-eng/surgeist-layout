@@ -73,6 +73,22 @@ pub use value::{
 };
 
 #[cfg(test)]
-mod test_support;
+mod block_tests;
 #[cfg(test)]
-mod tests;
+mod cache_tests;
+#[cfg(test)]
+mod compute_tests;
+#[cfg(test)]
+mod contract_tests;
+#[cfg(test)]
+mod flex_tests;
+#[cfg(test)]
+mod inline_tests;
+#[cfg(test)]
+mod leaf_tests;
+#[cfg(test)]
+mod lib_tests;
+#[cfg(test)]
+mod root_tests;
+#[cfg(test)]
+mod test_support;

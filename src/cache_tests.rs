@@ -1,5 +1,5 @@
-use super::*;
-use surgeist_layout::{CacheKeyContext, CalcGeneration};
+use crate::*;
+use crate::{CacheKeyContext, CalcGeneration};
 
 fn cache_test_input() -> ComputeInput {
     ComputeInput {
