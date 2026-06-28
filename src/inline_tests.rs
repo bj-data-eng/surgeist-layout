@@ -600,3 +600,120 @@ mod root_oracle {
         assert_eq!(contribution.item.contributions().max_content, 92.0);
     }
 }
+
+mod root_layout_oracle {
+    use crate::test_support::layout_tree::OracleTree;
+    use crate::test_support::oracle::inline;
+    use crate::{
+        Available, Dimension, Display, NodeInput, Size, TrackComponent, compute_root, round_layout,
+    };
+
+    fn assert_atomic_inline_layout_matches_oracle(display: Display) {
+        let item_sizes = [
+            ("first", Size::new(20.0, 10.0)),
+            ("second", Size::new(30.0, 20.0)),
+            ("third", Size::new(15.0, 10.0)),
+        ];
+        let mut tree = OracleTree::new().children(0, [1, 2, 3]).style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+        for (node, (_, size)) in (1_u32..).zip(item_sizes) {
+            tree = tree.style(node, atomic_inline_node_input(display, size));
+        }
+
+        compute_root(&mut tree, 0, Size::splat(Available::definite(50.0)));
+        round_layout(&mut tree, 0);
+
+        let expected = inline::layout_atomic_inline(inline::AtomicInlineInput {
+            available_width: inline::InlineAvailable::Definite(50.0),
+            items: item_sizes
+                .into_iter()
+                .map(|(id, size)| inline::AtomicInlineItemFacts {
+                    id,
+                    size: inline::InlineSize::new(size.width, size.height),
+                    margin: inline::InlineEdges::ZERO,
+                    first_baseline: None,
+                })
+                .collect(),
+        });
+
+        let root = tree.final_layout(0).expect("root layout");
+        assert_layout_close(root.size.width, 50.0, "root width");
+        assert_layout_close(root.size.height, expected.size.height, "root height");
+
+        for (index, expected_item) in expected.items.iter().enumerate() {
+            let node = (index + 1) as u32;
+            let actual = tree.final_layout(node).expect("child layout");
+            assert_layout_close(
+                actual.location.x,
+                expected_item.location.x,
+                &format!("node {node} x"),
+            );
+            assert_layout_close(
+                actual.location.y,
+                expected_item.location.y,
+                &format!("node {node} y"),
+            );
+            assert_layout_close(
+                actual.size.width,
+                expected_item.size.width,
+                &format!("node {node} width"),
+            );
+            assert_layout_close(
+                actual.size.height,
+                expected_item.size.height,
+                &format!("node {node} height"),
+            );
+        }
+    }
+
+    fn atomic_inline_node_input(display: Display, size: Size<f32>) -> NodeInput {
+        match display.inner_display() {
+            Display::Grid => NodeInput {
+                display,
+                grid_template_columns: vec![TrackComponent::px(size.width)],
+                grid_template_rows: vec![TrackComponent::px(size.height)],
+                ..NodeInput::DEFAULT
+            },
+            Display::GridLanes => NodeInput {
+                display,
+                grid_template_columns: vec![TrackComponent::px(size.width)],
+                grid_template_rows: vec![TrackComponent::px(size.height)],
+                ..NodeInput::DEFAULT
+            },
+            _ => NodeInput {
+                display,
+                size: Size::new(Dimension::px(size.width), Dimension::px(size.height)),
+                ..NodeInput::DEFAULT
+            },
+        }
+    }
+
+    fn assert_layout_close(actual: f32, expected: f32, label: &str) {
+        assert!(
+            (actual - expected).abs() <= 0.000_1,
+            "{label}: expected {expected}, got {actual}"
+        );
+    }
+
+    #[test]
+    fn oracle_layout_inline_block_line_matches_layout() {
+        assert_atomic_inline_layout_matches_oracle(Display::InlineBlock);
+    }
+
+    #[test]
+    fn oracle_layout_inline_grid_line_matches_layout() {
+        assert_atomic_inline_layout_matches_oracle(Display::InlineGrid);
+    }
+
+    #[test]
+    fn oracle_layout_inline_grid_lanes_line_matches_layout() {
+        assert_atomic_inline_layout_matches_oracle(Display::InlineGridLanes);
+    }
+}

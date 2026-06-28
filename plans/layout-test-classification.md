@@ -252,77 +252,77 @@
 | `oracle_scenario_offsets_grid_items_by_baseline_report` | `tests/oracle.rs:5612` | migrated | `src/grid_tests.rs::root_oracle::oracle_scenario_offsets_grid_items_by_baseline_report` | Copied from root oracle.rs with import path fit-up. |
 | `oracle_direct_subgrid_inherited_columns_shape` | `tests/oracle.rs:5647` | migrated | `src/grid_tests.rs::root_oracle::oracle_direct_subgrid_inherited_columns_shape` | Copied from root oracle.rs with import path fit-up. |
 | `oracle_grid_lanes_three_item_shape` | `tests/oracle.rs:5665` | migrated | `src/grid_tests.rs::root_oracle::oracle_grid_lanes_three_item_shape` | Copied from root oracle.rs with import path fit-up. |
-| `named_grid_layout_oracle_matches_bare_explicit_and_repeated_names` | `tests/layout_oracle.rs:279` | pending |  | |
-| `named_grid_layout_oracle_matches_negative_missing_and_backward_spans` | `tests/layout_oracle.rs:348` | pending |  | |
-| `named_grid_layout_oracle_matches_auto_span_and_conflict_normalization` | `tests/layout_oracle.rs:432` | pending |  | |
-| `named_grid_layout_oracle_matches_template_area_generated_lines` | `tests/layout_oracle.rs:499` | pending |  | |
-| `subgrid_layout_oracle_matches_merged_local_and_inherited_area_lines` | `tests/layout_oracle.rs:578` | pending |  | |
-| `subgrid_layout_oracle_matches_local_area_clamp_to_inherited_span` | `tests/layout_oracle.rs:723` | pending |  | |
-| `oracle_layout_inline_block_line_matches_layout` | `tests/layout_oracle.rs:821` | pending |  | |
-| `oracle_layout_inline_grid_line_matches_layout` | `tests/layout_oracle.rs:826` | pending |  | |
-| `oracle_layout_inline_grid_lanes_line_matches_layout` | `tests/layout_oracle.rs:831` | pending |  | |
-| `oracle_layout_fixed_tracks_match_layout_child_rects` | `tests/layout_oracle.rs:836` | pending |  | |
-| `oracle_layout_percent_and_flex_tracks_match_layout_child_rects` | `tests/layout_oracle.rs:857` | pending |  | |
-| `oracle_layout_sub_one_flex_track_uses_partial_leftover_space` | `tests/layout_oracle.rs:884` | pending |  | |
-| `oracle_layout_minmax_tracks_match_layout_child_rects` | `tests/layout_oracle.rs:901` | pending |  | |
-| `oracle_layout_stretch_expands_auto_tracks_like_layout` | `tests/layout_oracle.rs:927` | pending |  | |
-| `oracle_layout_explicit_line_span_matches_layout_area_rect` | `tests/layout_oracle.rs:947` | pending |  | |
-| `oracle_layout_row_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:969` | pending |  | |
-| `oracle_layout_column_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:996` | pending |  | |
-| `oracle_layout_dense_auto_flow_matches_spanning_oracle_placement` | `tests/layout_oracle.rs:1024` | pending |  | |
-| `oracle_layout_center_alignment_offsets_tracks_like_layout` | `tests/layout_oracle.rs:1056` | pending |  | |
-| `oracle_layout_space_between_alignment_offsets_tracks_like_layout` | `tests/layout_oracle.rs:1075` | pending |  | |
-| `oracle_layout_safe_center_alignment_falls_back_on_overflow` | `tests/layout_oracle.rs:1094` | pending |  | |
-| `oracle_layout_auto_track_uses_supplied_intrinsic_measurement` | `tests/layout_oracle.rs:1113` | pending |  | |
-| `oracle_layout_spanning_auto_tracks_distribute_intrinsic_deficit` | `tests/layout_oracle.rs:1139` | pending |  | |
-| `oracle_layout_fit_content_track_clamps_intrinsic_growth` | `tests/layout_oracle.rs:1167` | pending |  | |
-| `oracle_layout_harness_asserts_nested_grid_descendant_output` | `tests/layout_oracle.rs:1196` | pending |  | |
-| `subgrid_child_rect_matches_oracle_composed_rect` | `tests/layout_oracle.rs:1230` | pending |  | |
-| `layout_oracle_grid_baseline_offset_matches_oracle` | `tests/layout_oracle.rs:1284` | pending |  | |
-| `subgrid_child_items_resolve_against_local_lines` | `tests/layout_oracle.rs:1301` | pending |  | |
-| `subgrid_standalone_axis_uses_ordinary_child_tracks` | `tests/layout_oracle.rs:1334` | pending |  | |
-| `subgrid_item_still_respects_parent_grid_placement` | `tests/layout_oracle.rs:1368` | pending |  | |
-| `subgrid_child_auto_margins_use_inherited_area_size` | `tests/layout_oracle.rs:1396` | pending |  | |
-| `subgrid_child_alignment_uses_inherited_area_size` | `tests/layout_oracle.rs:1436` | pending |  | |
-| `subgrid_rtl_child_lines_use_reversed_inherited_columns` | `tests/layout_oracle.rs:1472` | pending |  | |
-| `subgrid_explicit_zero_gap_overrides_parent_gap` | `tests/layout_oracle.rs:1506` | pending |  | |
-| `subgrid_percent_gap_uses_content_box_basis` | `tests/layout_oracle.rs:1540` | pending |  | |
-| `subgrid_percentage_padding_uses_grid_area_basis` | `tests/layout_oracle.rs:1580` | pending |  | |
-| `subgrid_traversal_nested_inherited_leaf_contribution_grows_parent_auto_track` | `tests/layout_oracle.rs:1633` | pending |  | |
-| `subgrid_traversal_reversed_nested_inherited_subgrid_maps_to_mirrored_track` | `tests/layout_oracle.rs:1667` | pending |  | |
-| `subgrid_traversal_nested_margin_border_padding_increases_contribution` | `tests/layout_oracle.rs:1698` | pending |  | |
-| `subgrid_traversal_gap_difference_adjustment_accumulates_through_nested_subgrids` | `tests/layout_oracle.rs:1740` | pending |  | |
-| `subgrid_traversal_direct_leaf_uses_internal_gap_adjustment` | `tests/layout_oracle.rs:1777` | pending |  | |
-| `subgrid_traversal_unsupported_sibling_does_not_drop_valid_contribution` | `tests/layout_oracle.rs:1809` | pending |  | |
-| `subgrid_traversal_percent_padding_uses_definite_area_basis` | `tests/layout_oracle.rs:1847` | pending |  | |
-| `subgrid_traversal_percent_gap_uses_definite_content_box_basis` | `tests/layout_oracle.rs:1876` | pending |  | |
-| `subgrid_traversal_translated_nested_edge_adjustments_land_on_ancestor_tracks` | `tests/layout_oracle.rs:1906` | pending |  | |
-| `subgrid_absolute_descendant_uses_existing_static_position_behavior` | `tests/layout_oracle.rs:1948` | pending |  | |
-| `subgrid_named_placement_clamp_matches_oracle` | `tests/layout_oracle.rs:1983` | pending |  | |
-| `oracle_layout_harness_can_compare_lane_reports` | `tests/layout_oracle.rs:2054` | pending |  | |
-| `lanes_row_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:2098` | pending |  | |
-| `lanes_column_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:2128` | pending |  | |
-| `lanes_definite_grid_axis_item_matches_oracle_placement` | `tests/layout_oracle.rs:2158` | pending |  | |
-| `lanes_auto_span_clamping_matches_oracle_placement` | `tests/layout_oracle.rs:2186` | pending |  | |
-| `lanes_finite_tolerance_matches_oracle_placement` | `tests/layout_oracle.rs:2208` | pending |  | |
-| `lanes_finite_search_does_not_wrap_candidate_span_across_grid_axis_end` | `tests/layout_oracle.rs:2238` | pending |  | |
-| `lanes_infinite_tolerance_matches_oracle_placement` | `tests/layout_oracle.rs:2266` | pending |  | |
-| `lanes_intrinsic_groups_indefinite_items_like_oracle` | `tests/layout_oracle.rs:2296` | pending |  | |
-| `lanes_intrinsic_skips_definite_items_outside_content_sized_tracks` | `tests/layout_oracle.rs:2350` | pending |  | |
-| `lanes_intrinsic_projects_disjoint_content_sized_spans_like_oracle` | `tests/layout_oracle.rs:2388` | pending |  | |
-| `lanes_intrinsic_clamps_oversized_indefinite_spans_like_oracle` | `tests/layout_oracle.rs:2432` | pending |  | |
-| `lanes_intrinsic_preserves_min_content_track_behavior` | `tests/layout_oracle.rs:2464` | pending |  | |
-| `lanes_intrinsic_reports_nested_indefinite_subgrid_unsupported_like_oracle` | `tests/layout_oracle.rs:2507` | pending |  | |
-| `lanes_content_size_contributes_to_indefinite_container_size` | `tests/layout_oracle.rs:2530` | pending |  | |
-| `lanes_child_measurement_uses_resolved_grid_axis_span_size` | `tests/layout_oracle.rs:2560` | pending |  | |
-| `lanes_auto_child_measurement_uses_final_auto_placement_span` | `tests/layout_oracle.rs:2669` | pending |  | |
-| `lanes_spanning_child_measurement_uses_distributed_grid_axis_gap` | `tests/layout_oracle.rs:2828` | pending |  | |
-| `lanes_absolute_child_uses_grid_absolute_layout` | `tests/layout_oracle.rs:2915` | pending |  | |
-| `lanes_indefinite_nested_subgrid_does_not_contribute_as_ordinary_lane_item` | `tests/layout_oracle.rs:2939` | pending |  | |
-| `lanes_child_subgrid_inherits_grid_axis_tracks` | `tests/layout_oracle.rs:2970` | pending |  | |
-| `lanes_column_flow_child_subgrid_inherits_row_axis_tracks` | `tests/layout_oracle.rs:3005` | pending |  | |
-| `lanes_child_subgrid_uses_report_matching_child_order_after_skipped_siblings` | `tests/layout_oracle.rs:3040` | pending |  | |
-| `lanes_definite_lane_axis_container_lays_out_children_at_lane_offsets` | `tests/layout_oracle.rs:3086` | pending |  | |
+| `named_grid_layout_oracle_matches_bare_explicit_and_repeated_names` | `tests/layout_oracle.rs:279` | migrated | `src/grid_tests.rs::root_layout_oracle::named_grid_layout_oracle_matches_bare_explicit_and_repeated_names` | Copied from root layout_oracle.rs with import path fit-up. |
+| `named_grid_layout_oracle_matches_negative_missing_and_backward_spans` | `tests/layout_oracle.rs:348` | migrated | `src/grid_tests.rs::root_layout_oracle::named_grid_layout_oracle_matches_negative_missing_and_backward_spans` | Copied from root layout_oracle.rs with import path fit-up. |
+| `named_grid_layout_oracle_matches_auto_span_and_conflict_normalization` | `tests/layout_oracle.rs:432` | migrated | `src/grid_tests.rs::root_layout_oracle::named_grid_layout_oracle_matches_auto_span_and_conflict_normalization` | Copied from root layout_oracle.rs with import path fit-up. |
+| `named_grid_layout_oracle_matches_template_area_generated_lines` | `tests/layout_oracle.rs:499` | migrated | `src/grid_tests.rs::root_layout_oracle::named_grid_layout_oracle_matches_template_area_generated_lines` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_layout_oracle_matches_merged_local_and_inherited_area_lines` | `tests/layout_oracle.rs:578` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_layout_oracle_matches_merged_local_and_inherited_area_lines` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_layout_oracle_matches_local_area_clamp_to_inherited_span` | `tests/layout_oracle.rs:723` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_layout_oracle_matches_local_area_clamp_to_inherited_span` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_inline_block_line_matches_layout` | `tests/layout_oracle.rs:821` | migrated | `src/inline_tests.rs::root_layout_oracle::oracle_layout_inline_block_line_matches_layout` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_inline_grid_line_matches_layout` | `tests/layout_oracle.rs:826` | migrated | `src/inline_tests.rs::root_layout_oracle::oracle_layout_inline_grid_line_matches_layout` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_inline_grid_lanes_line_matches_layout` | `tests/layout_oracle.rs:831` | migrated | `src/inline_tests.rs::root_layout_oracle::oracle_layout_inline_grid_lanes_line_matches_layout` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_fixed_tracks_match_layout_child_rects` | `tests/layout_oracle.rs:836` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_fixed_tracks_match_layout_child_rects` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_percent_and_flex_tracks_match_layout_child_rects` | `tests/layout_oracle.rs:857` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_percent_and_flex_tracks_match_layout_child_rects` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_sub_one_flex_track_uses_partial_leftover_space` | `tests/layout_oracle.rs:884` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_sub_one_flex_track_uses_partial_leftover_space` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_minmax_tracks_match_layout_child_rects` | `tests/layout_oracle.rs:901` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_minmax_tracks_match_layout_child_rects` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_stretch_expands_auto_tracks_like_layout` | `tests/layout_oracle.rs:927` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_stretch_expands_auto_tracks_like_layout` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_explicit_line_span_matches_layout_area_rect` | `tests/layout_oracle.rs:947` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_explicit_line_span_matches_layout_area_rect` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_row_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:969` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_row_auto_flow_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_column_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:996` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_column_auto_flow_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_dense_auto_flow_matches_spanning_oracle_placement` | `tests/layout_oracle.rs:1024` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_dense_auto_flow_matches_spanning_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_center_alignment_offsets_tracks_like_layout` | `tests/layout_oracle.rs:1056` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_center_alignment_offsets_tracks_like_layout` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_space_between_alignment_offsets_tracks_like_layout` | `tests/layout_oracle.rs:1075` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_space_between_alignment_offsets_tracks_like_layout` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_safe_center_alignment_falls_back_on_overflow` | `tests/layout_oracle.rs:1094` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_safe_center_alignment_falls_back_on_overflow` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_auto_track_uses_supplied_intrinsic_measurement` | `tests/layout_oracle.rs:1113` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_auto_track_uses_supplied_intrinsic_measurement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_spanning_auto_tracks_distribute_intrinsic_deficit` | `tests/layout_oracle.rs:1139` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_spanning_auto_tracks_distribute_intrinsic_deficit` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_fit_content_track_clamps_intrinsic_growth` | `tests/layout_oracle.rs:1167` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_fit_content_track_clamps_intrinsic_growth` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_harness_asserts_nested_grid_descendant_output` | `tests/layout_oracle.rs:1196` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_harness_asserts_nested_grid_descendant_output` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_child_rect_matches_oracle_composed_rect` | `tests/layout_oracle.rs:1230` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_child_rect_matches_oracle_composed_rect` | Copied from root layout_oracle.rs with import path fit-up. |
+| `layout_oracle_grid_baseline_offset_matches_oracle` | `tests/layout_oracle.rs:1284` | migrated | `src/grid_tests.rs::root_layout_oracle::layout_oracle_grid_baseline_offset_matches_oracle` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_child_items_resolve_against_local_lines` | `tests/layout_oracle.rs:1301` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_child_items_resolve_against_local_lines` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_standalone_axis_uses_ordinary_child_tracks` | `tests/layout_oracle.rs:1334` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_standalone_axis_uses_ordinary_child_tracks` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_item_still_respects_parent_grid_placement` | `tests/layout_oracle.rs:1368` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_item_still_respects_parent_grid_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_child_auto_margins_use_inherited_area_size` | `tests/layout_oracle.rs:1396` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_child_auto_margins_use_inherited_area_size` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_child_alignment_uses_inherited_area_size` | `tests/layout_oracle.rs:1436` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_child_alignment_uses_inherited_area_size` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_rtl_child_lines_use_reversed_inherited_columns` | `tests/layout_oracle.rs:1472` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_rtl_child_lines_use_reversed_inherited_columns` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_explicit_zero_gap_overrides_parent_gap` | `tests/layout_oracle.rs:1506` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_explicit_zero_gap_overrides_parent_gap` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_percent_gap_uses_content_box_basis` | `tests/layout_oracle.rs:1540` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_percent_gap_uses_content_box_basis` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_percentage_padding_uses_grid_area_basis` | `tests/layout_oracle.rs:1580` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_percentage_padding_uses_grid_area_basis` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_nested_inherited_leaf_contribution_grows_parent_auto_track` | `tests/layout_oracle.rs:1633` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_nested_inherited_leaf_contribution_grows_parent_auto_track` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_reversed_nested_inherited_subgrid_maps_to_mirrored_track` | `tests/layout_oracle.rs:1667` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_reversed_nested_inherited_subgrid_maps_to_mirrored_track` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_nested_margin_border_padding_increases_contribution` | `tests/layout_oracle.rs:1698` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_nested_margin_border_padding_increases_contribution` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_gap_difference_adjustment_accumulates_through_nested_subgrids` | `tests/layout_oracle.rs:1740` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_gap_difference_adjustment_accumulates_through_nested_subgrids` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_direct_leaf_uses_internal_gap_adjustment` | `tests/layout_oracle.rs:1777` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_direct_leaf_uses_internal_gap_adjustment` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_unsupported_sibling_does_not_drop_valid_contribution` | `tests/layout_oracle.rs:1809` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_unsupported_sibling_does_not_drop_valid_contribution` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_percent_padding_uses_definite_area_basis` | `tests/layout_oracle.rs:1847` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_percent_padding_uses_definite_area_basis` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_percent_gap_uses_definite_content_box_basis` | `tests/layout_oracle.rs:1876` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_percent_gap_uses_definite_content_box_basis` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_traversal_translated_nested_edge_adjustments_land_on_ancestor_tracks` | `tests/layout_oracle.rs:1906` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_traversal_translated_nested_edge_adjustments_land_on_ancestor_tracks` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_absolute_descendant_uses_existing_static_position_behavior` | `tests/layout_oracle.rs:1948` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_absolute_descendant_uses_existing_static_position_behavior` | Copied from root layout_oracle.rs with import path fit-up. |
+| `subgrid_named_placement_clamp_matches_oracle` | `tests/layout_oracle.rs:1983` | migrated | `src/grid_tests.rs::root_layout_oracle::subgrid_named_placement_clamp_matches_oracle` | Copied from root layout_oracle.rs with import path fit-up. |
+| `oracle_layout_harness_can_compare_lane_reports` | `tests/layout_oracle.rs:2054` | migrated | `src/grid_tests.rs::root_layout_oracle::oracle_layout_harness_can_compare_lane_reports` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_row_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:2098` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_row_auto_flow_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_column_auto_flow_matches_oracle_placement` | `tests/layout_oracle.rs:2128` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_column_auto_flow_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_definite_grid_axis_item_matches_oracle_placement` | `tests/layout_oracle.rs:2158` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_definite_grid_axis_item_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_auto_span_clamping_matches_oracle_placement` | `tests/layout_oracle.rs:2186` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_auto_span_clamping_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_finite_tolerance_matches_oracle_placement` | `tests/layout_oracle.rs:2208` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_finite_tolerance_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_finite_search_does_not_wrap_candidate_span_across_grid_axis_end` | `tests/layout_oracle.rs:2238` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_finite_search_does_not_wrap_candidate_span_across_grid_axis_end` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_infinite_tolerance_matches_oracle_placement` | `tests/layout_oracle.rs:2266` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_infinite_tolerance_matches_oracle_placement` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_intrinsic_groups_indefinite_items_like_oracle` | `tests/layout_oracle.rs:2296` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_intrinsic_groups_indefinite_items_like_oracle` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_intrinsic_skips_definite_items_outside_content_sized_tracks` | `tests/layout_oracle.rs:2350` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_intrinsic_skips_definite_items_outside_content_sized_tracks` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_intrinsic_projects_disjoint_content_sized_spans_like_oracle` | `tests/layout_oracle.rs:2388` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_intrinsic_projects_disjoint_content_sized_spans_like_oracle` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_intrinsic_clamps_oversized_indefinite_spans_like_oracle` | `tests/layout_oracle.rs:2432` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_intrinsic_clamps_oversized_indefinite_spans_like_oracle` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_intrinsic_preserves_min_content_track_behavior` | `tests/layout_oracle.rs:2464` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_intrinsic_preserves_min_content_track_behavior` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_intrinsic_reports_nested_indefinite_subgrid_unsupported_like_oracle` | `tests/layout_oracle.rs:2507` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_intrinsic_reports_nested_indefinite_subgrid_unsupported_like_oracle` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_content_size_contributes_to_indefinite_container_size` | `tests/layout_oracle.rs:2530` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_content_size_contributes_to_indefinite_container_size` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_child_measurement_uses_resolved_grid_axis_span_size` | `tests/layout_oracle.rs:2560` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_child_measurement_uses_resolved_grid_axis_span_size` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_auto_child_measurement_uses_final_auto_placement_span` | `tests/layout_oracle.rs:2669` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_auto_child_measurement_uses_final_auto_placement_span` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_spanning_child_measurement_uses_distributed_grid_axis_gap` | `tests/layout_oracle.rs:2828` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_spanning_child_measurement_uses_distributed_grid_axis_gap` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_absolute_child_uses_grid_absolute_layout` | `tests/layout_oracle.rs:2915` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_absolute_child_uses_grid_absolute_layout` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_indefinite_nested_subgrid_does_not_contribute_as_ordinary_lane_item` | `tests/layout_oracle.rs:2939` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_indefinite_nested_subgrid_does_not_contribute_as_ordinary_lane_item` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_child_subgrid_inherits_grid_axis_tracks` | `tests/layout_oracle.rs:2970` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_child_subgrid_inherits_grid_axis_tracks` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_column_flow_child_subgrid_inherits_row_axis_tracks` | `tests/layout_oracle.rs:3005` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_column_flow_child_subgrid_inherits_row_axis_tracks` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_child_subgrid_uses_report_matching_child_order_after_skipped_siblings` | `tests/layout_oracle.rs:3040` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_child_subgrid_uses_report_matching_child_order_after_skipped_siblings` | Copied from root layout_oracle.rs with import path fit-up. |
+| `lanes_definite_lane_axis_container_lays_out_children_at_lane_offsets` | `tests/layout_oracle.rs:3086` | migrated | `src/grid_tests.rs::root_layout_oracle::lanes_definite_lane_axis_container_lays_out_children_at_lane_offsets` | Copied from root layout_oracle.rs with import path fit-up. |
 
 Disposition lifecycle:
 
