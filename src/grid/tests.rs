@@ -451,7 +451,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         overflow: Point::new(Overflow::Visible, Overflow::Visible),
     };
 
-    let groups = baseline_groups(&[item.clone()], 2, 1);
+    let groups = baseline_groups(std::slice::from_ref(&item), 2, 1);
     assert_eq!(groups.rows[0].first, Some(11.0));
     assert_eq!(
         baseline_aligned_block_offset(&item, &groups, &[40.0_f64, 40.0], 10.0),
