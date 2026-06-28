@@ -362,6 +362,9 @@ fn parse_bool(raw: &str) -> Result<bool, Error> {
 }
 
 fn parse_number(raw: &str) -> Result<Scalar, Error> {
+    // Browser parity XML is a default-precision fixture boundary. The layout
+    // engine has generic scalar APIs, but checked-in browser fixtures parse
+    // through layout::Scalar/layout::DefaultScalar so legacy XML remains stable.
     raw.parse()
         .map_err(|_| Error::new(format!("invalid number `{raw}`")))
 }
@@ -2428,6 +2431,18 @@ mod tests {
             parse_available("max-content").expect("keyword viewport should parse"),
             Available::MaxContent
         );
+    }
+
+    #[test]
+    fn browser_parity_xml_numbers_use_default_layout_scalar() {
+        fn require_default_scalar(value: layout::DefaultScalar) -> layout::DefaultScalar {
+            value
+        }
+
+        let parsed: Scalar =
+            parse_number("137.203125").expect("fixture number should parse as default scalar");
+
+        assert_eq!(require_default_scalar(parsed), 137.203125);
     }
 
     #[test]
