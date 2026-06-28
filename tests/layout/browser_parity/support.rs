@@ -1,13 +1,27 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use crate::support::grid_layout_comparison::ComparisonTolerance;
 use surgeist_layout as layout;
 use surgeist_layout::{CacheAccess as _, Compute as _, GridSpan};
 use surgeist_retained as retained;
 use surgeist_style as s;
 
 type Scalar = layout::Scalar;
+
+#[derive(Clone, Copy, Debug)]
+struct ComparisonTolerance {
+    value: Scalar,
+}
+
+impl ComparisonTolerance {
+    const fn browser_parity() -> Self {
+        Self { value: 0.1 }
+    }
+
+    fn contains(self, delta: Scalar) -> bool {
+        delta.abs() <= self.value
+    }
+}
 
 #[derive(Default)]
 struct StyleFixtureTree {
