@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use surgeist_layout::{
+use crate::{
     AvailableOf, CalcResolutionStatus, CalcResolver, Compute, ComputeInputOf, ComputeOutputOf,
     DefaultScalar, DimensionOf, Display, LayoutCalcStoreOf, LayoutScalar, NodeInput, NodeInputOf,
     NodeOutput, NodeOutputOf, RequestedAxis, Round, RunMode, Size, SizingMode, Traverse,
