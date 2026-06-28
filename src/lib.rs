@@ -17,7 +17,16 @@ mod scalar;
 mod traits;
 mod value;
 
+/// Default scalar precision used by the non-generic public layout aliases.
+///
+/// This is intentionally `f32`, matching the crate's browser-parity fixture
+/// boundary and the default Surgeist layout coordinate contract.
 pub type DefaultScalar = f32;
+
+/// Convenience alias for the default scalar precision.
+///
+/// Use explicit `*Of<S>` types with `S: LayoutScalar` when one layout tree
+/// needs to run end-to-end with a different supported precision such as `f64`.
 pub type Scalar = DefaultScalar;
 
 pub use block::compute_block;
@@ -45,6 +54,7 @@ pub use output::{
     Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, ComputeInput, ComputeInputOf,
     ComputeOutput, ComputeOutputOf, NodeOutput, NodeOutputOf, RequestedAxis, RunMode, SizingMode,
 };
+/// Supported scalar contract for generic layout APIs.
 pub use scalar::LayoutScalar;
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
