@@ -1,6 +1,6 @@
 use super::{
-    Available, CalcGeneration, ComputeInput, ComputeOutput, RequestedAxis, RunMode, Scalar, Size,
-    SizingMode,
+    AvailableOf, CalcGeneration, ComputeInputOf, ComputeOutputOf, DefaultScalar, LayoutScalar,
+    RequestedAxis, RunMode, Size, SizingMode,
 };
 
 const CACHE_SIZE: usize = 9;
@@ -20,21 +20,26 @@ impl CacheKeyContext {
     pub const fn static_no_calc() -> Self {
         Self::new(CalcGeneration::static_no_calc())
     }
+
+    #[must_use]
+    pub const fn calc_generation(self) -> CalcGeneration {
+        self.calc_generation
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct CacheKey {
+struct CacheKeyOf<S: LayoutScalar = DefaultScalar> {
     run_mode: RunMode,
     sizing_mode: SizingMode,
     axis: RequestedAxis,
-    known: Size<Option<Scalar>>,
-    parent: Size<Option<Scalar>>,
-    available: Size<Available>,
+    known: Size<Option<S>>,
+    parent: Size<Option<S>>,
+    available: Size<AvailableOf<S>>,
     context: CacheKeyContext,
 }
 
-impl CacheKey {
-    fn from_input(input: &ComputeInput, context: CacheKeyContext) -> Self {
+impl<S: LayoutScalar> CacheKeyOf<S> {
+    fn from_input(input: &ComputeInputOf<S>, context: CacheKeyContext) -> Self {
         Self {
             run_mode: input.run_mode,
             sizing_mode: input.sizing_mode,
@@ -48,19 +53,21 @@ impl CacheKey {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Entry<T> {
-    key: CacheKey,
+struct EntryOf<S: LayoutScalar, T> {
+    key: CacheKeyOf<S>,
     content: T,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Cache {
-    final_layout: Option<Entry<ComputeOutput>>,
-    measures: [Option<Entry<Size>>; CACHE_SIZE],
+pub struct CacheOf<S: LayoutScalar = DefaultScalar> {
+    final_layout: Option<EntryOf<S, ComputeOutputOf<S>>>,
+    measures: [Option<EntryOf<S, Size<S>>>; CACHE_SIZE],
     empty: bool,
 }
 
-impl Cache {
+pub type Cache = CacheOf<DefaultScalar>;
+
+impl<S: LayoutScalar> CacheOf<S> {
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -73,9 +80,9 @@ impl Cache {
     #[must_use]
     pub fn get_with_context(
         &self,
-        input: &ComputeInput,
+        input: &ComputeInputOf<S>,
         context: CacheKeyContext,
-    ) -> Option<ComputeOutput> {
+    ) -> Option<ComputeOutputOf<S>> {
         match input.run_mode {
             RunMode::PerformRootLayout | RunMode::PerformLayout => self
                 .final_layout
@@ -84,7 +91,7 @@ impl Cache {
             RunMode::ComputeSize => {
                 for entry in self.measures.iter().flatten() {
                     if matches_output(input, context, entry, entry.content) {
-                        return Some(ComputeOutput::from_outer_size(entry.content));
+                        return Some(ComputeOutputOf::from_outer_size(entry.content));
                     }
                 }
                 None
@@ -95,15 +102,15 @@ impl Cache {
 
     pub fn store_with_context(
         &mut self,
-        input: &ComputeInput,
+        input: &ComputeInputOf<S>,
         context: CacheKeyContext,
-        output: ComputeOutput,
+        output: ComputeOutputOf<S>,
     ) {
-        let key = CacheKey::from_input(input, context);
+        let key = CacheKeyOf::from_input(input, context);
         match input.run_mode {
             RunMode::PerformRootLayout | RunMode::PerformLayout => {
                 self.empty = false;
-                self.final_layout = Some(Entry {
+                self.final_layout = Some(EntryOf {
                     key,
                     content: output,
                 });
@@ -111,7 +118,7 @@ impl Cache {
             RunMode::ComputeSize => {
                 self.empty = false;
                 let slot = cache_slot(input.known, input.available);
-                self.measures[slot] = Some(Entry {
+                self.measures[slot] = Some(EntryOf {
                     key,
                     content: output.size,
                 });
@@ -136,7 +143,7 @@ impl Cache {
     }
 }
 
-impl Default for Cache {
+impl<S: LayoutScalar> Default for CacheOf<S> {
     fn default() -> Self {
         Self::new()
     }
@@ -148,7 +155,7 @@ pub enum ClearState {
     AlreadyEmpty,
 }
 
-fn cache_slot(known: Size<Option<Scalar>>, available: Size<Available>) -> usize {
+fn cache_slot<S: LayoutScalar>(known: Size<Option<S>>, available: Size<AvailableOf<S>>) -> usize {
     let has_known_width = known.width.is_some();
     let has_known_height = known.height.is_some();
 
@@ -157,31 +164,31 @@ fn cache_slot(known: Size<Option<Scalar>>, available: Size<Available>) -> usize 
     }
 
     if has_known_width && !has_known_height {
-        return 1 + usize::from(available.height == Available::MIN_CONTENT);
+        return 1 + usize::from(available.height == AvailableOf::MIN_CONTENT);
     }
 
     if has_known_height && !has_known_width {
-        return 3 + usize::from(available.width == Available::MIN_CONTENT);
+        return 3 + usize::from(available.width == AvailableOf::MIN_CONTENT);
     }
 
     match (available.width, available.height) {
         (
-            Available::MaxContent | Available::Definite(_),
-            Available::MaxContent | Available::Definite(_),
+            AvailableOf::MaxContent | AvailableOf::Definite(_),
+            AvailableOf::MaxContent | AvailableOf::Definite(_),
         ) => 5,
-        (Available::MaxContent | Available::Definite(_), Available::MinContent) => 6,
-        (Available::MinContent, Available::MaxContent | Available::Definite(_)) => 7,
-        (Available::MinContent, Available::MinContent) => 8,
+        (AvailableOf::MaxContent | AvailableOf::Definite(_), AvailableOf::MinContent) => 6,
+        (AvailableOf::MinContent, AvailableOf::MaxContent | AvailableOf::Definite(_)) => 7,
+        (AvailableOf::MinContent, AvailableOf::MinContent) => 8,
     }
 }
 
-fn matches_output<T>(
-    input: &ComputeInput,
+fn matches_output<S: LayoutScalar, T>(
+    input: &ComputeInputOf<S>,
     context: CacheKeyContext,
-    entry: &Entry<T>,
-    cached_size: Size,
+    entry: &EntryOf<S, T>,
+    cached_size: Size<S>,
 ) -> bool {
-    let key = CacheKey::from_input(input, context);
+    let key = CacheKeyOf::from_input(input, context);
     input.run_mode == entry.key.run_mode
         && input.sizing_mode == entry.key.sizing_mode
         && input.axis == entry.key.axis

@@ -3419,6 +3419,9 @@ fn layout_number_attr(value: &Value) -> String {
 }
 
 fn layout_number_attr_value(value: f64) -> String {
+    // Browser parity layout geometry is serialized through an f32-compatible
+    // boundary on purpose. Layout can run f64 lanes, but these generated XML
+    // fixtures target the default layout::Scalar precision.
     let value = value as f32;
     if value.fract() == 0.0 {
         format!("{value:.0}")
@@ -4835,7 +4838,7 @@ if (actual !== expected) {{
     }
 
     #[test]
-    fn layout_xml_attrs_match_engine_scalar_formatting() {
+    fn layout_xml_attrs_use_f32_compatible_browser_fixture_boundary() {
         assert_eq!(layout_number_attr_value(137.203125), "137.20313");
         assert_eq!(layout_number_attr_value(42.15625), "42.15625");
         assert_eq!(layout_number_attr_value(10.0), "10");

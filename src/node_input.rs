@@ -1,6 +1,6 @@
 use super::{
-    AspectRatio, Dimension, Edges, GridLine, GridSpan, GridTemplateAreas, Length, LengthAuto,
-    Point, Scalar, Size, TrackComponent,
+    AspectRatioOf, DefaultScalar, DimensionOf, Edges, GridLine, GridSpan, GridTemplateAreas,
+    LayoutScalar, LengthAutoOf, LengthOf, Point, Size, TrackComponentOf,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -187,9 +187,13 @@ impl AlignItems {
         }
     }
 
+    /// Applies CSS safe alignment fallback for any layout scalar lane.
+    ///
+    /// This is intentionally non-const because generic scalar comparison is
+    /// provided through the `LayoutScalar` contract.
     #[must_use]
-    pub const fn safe_fallback(self, free_space: Scalar) -> Self {
-        if free_space < 0.0 {
+    pub fn safe_fallback<S: LayoutScalar>(self, free_space: S) -> Self {
+        if free_space < S::ZERO {
             match self {
                 Self::SafeEnd | Self::SafeFlexEnd | Self::SafeCenter => Self::Start,
                 position => position.unsafe_position(),
@@ -243,9 +247,13 @@ impl AlignContent {
         }
     }
 
+    /// Applies CSS safe alignment fallback for any layout scalar lane.
+    ///
+    /// This is intentionally non-const because generic scalar comparison is
+    /// provided through the `LayoutScalar` contract.
     #[must_use]
-    pub const fn safe_fallback(self, free_space: Scalar) -> Self {
-        if free_space < 0.0 {
+    pub fn safe_fallback<S: LayoutScalar>(self, free_space: S) -> Self {
+        if free_space < S::ZERO {
             match self {
                 Self::SafeEnd | Self::SafeFlexEnd | Self::SafeCenter => Self::Start,
                 position => position.unsafe_position(),
@@ -318,16 +326,20 @@ pub enum GridAutoFlow {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum GridFlowTolerance {
-    Normal { font_size: Scalar },
-    Length(Length),
-    Percent(Scalar),
+pub enum GridFlowToleranceOf<S: LayoutScalar = DefaultScalar> {
+    Normal { font_size: S },
+    Length(LengthOf<S>),
+    Percent(S),
     Infinite,
 }
 
-impl Default for GridFlowTolerance {
+pub type GridFlowTolerance = GridFlowToleranceOf<DefaultScalar>;
+
+impl<S: LayoutScalar> Default for GridFlowToleranceOf<S> {
     fn default() -> Self {
-        Self::Normal { font_size: 16.0 }
+        Self::Normal {
+            font_size: S::from_usize(16),
+        }
     }
 }
 
@@ -525,7 +537,7 @@ impl GridAutoFlow {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct NodeInput {
+pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub display: Display,
     pub item_is_table: bool,
     pub item_is_replaced: bool,
@@ -535,44 +547,46 @@ pub struct NodeInput {
     pub vertical_align: VerticalAlign,
     pub writing_mode: WritingMode,
     pub overflow: Point<Overflow>,
-    pub scrollbar_width: Scalar,
+    pub scrollbar_width: S,
     pub position: Position,
     pub float: Float,
     pub clear: Clear,
-    pub inset: Edges<LengthAuto>,
-    pub size: Size<Dimension>,
-    pub min_size: Size<Dimension>,
-    pub max_size: Size<Dimension>,
-    pub aspect_ratio: Option<AspectRatio>,
-    pub margin: Edges<LengthAuto>,
-    pub padding: Edges<Length>,
-    pub border: Edges<Length>,
+    pub inset: Edges<LengthAutoOf<S>>,
+    pub size: Size<DimensionOf<S>>,
+    pub min_size: Size<DimensionOf<S>>,
+    pub max_size: Size<DimensionOf<S>>,
+    pub aspect_ratio: Option<AspectRatioOf<S>>,
+    pub margin: Edges<LengthAutoOf<S>>,
+    pub padding: Edges<LengthOf<S>>,
+    pub border: Edges<LengthOf<S>>,
     pub align_items: Option<AlignItems>,
     pub align_self: Option<AlignSelf>,
     pub justify_items: Option<AlignItems>,
     pub justify_self: Option<AlignSelf>,
     pub align_content: Option<AlignContent>,
     pub justify_content: Option<JustifyContent>,
-    pub gap: Size<Length>,
+    pub gap: Size<LengthOf<S>>,
     pub flex_direction: FlexDirection,
     pub flex_wrap: FlexWrap,
-    pub flex_basis: Dimension,
-    pub flex_grow: Scalar,
-    pub flex_shrink: Scalar,
-    pub grid_template_columns: Vec<TrackComponent>,
-    pub grid_template_rows: Vec<TrackComponent>,
+    pub flex_basis: DimensionOf<S>,
+    pub flex_grow: S,
+    pub flex_shrink: S,
+    pub grid_template_columns: Vec<TrackComponentOf<S>>,
+    pub grid_template_rows: Vec<TrackComponentOf<S>>,
     pub grid_template_areas: GridTemplateAreas,
-    pub grid_auto_columns: Vec<TrackComponent>,
-    pub grid_auto_rows: Vec<TrackComponent>,
+    pub grid_auto_columns: Vec<TrackComponentOf<S>>,
+    pub grid_auto_rows: Vec<TrackComponentOf<S>>,
     pub grid_auto_flow: GridAutoFlow,
-    pub grid_flow_tolerance: GridFlowTolerance,
+    pub grid_flow_tolerance: GridFlowToleranceOf<S>,
     pub grid_column: GridPlacement,
     pub grid_row: GridPlacement,
     pub raw_grid_column: RawGridPlacement,
     pub raw_grid_row: RawGridPlacement,
 }
 
-impl NodeInput {
+pub type NodeInput = NodeInputOf<DefaultScalar>;
+
+impl NodeInputOf<DefaultScalar> {
     pub const DEFAULT: Self = Self {
         display: Display::Flex,
         item_is_table: false,
@@ -586,37 +600,37 @@ impl NodeInput {
             x: Overflow::Visible,
             y: Overflow::Visible,
         },
-        scrollbar_width: 0.0,
+        scrollbar_width: DefaultScalar::ZERO,
         position: Position::Relative,
         float: Float::None,
         clear: Clear::None,
-        inset: Edges::all(LengthAuto::AUTO),
-        size: Size::new(Dimension::AUTO, Dimension::AUTO),
-        min_size: Size::new(Dimension::AUTO, Dimension::AUTO),
-        max_size: Size::new(Dimension::AUTO, Dimension::AUTO),
+        inset: Edges::all(LengthAutoOf::AUTO),
+        size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+        min_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+        max_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
         aspect_ratio: None,
-        margin: Edges::all(LengthAuto::ZERO),
-        padding: Edges::all(Length::ZERO),
-        border: Edges::all(Length::ZERO),
+        margin: Edges::all(LengthAutoOf::ZERO),
+        padding: Edges::all(LengthOf::ZERO),
+        border: Edges::all(LengthOf::ZERO),
         align_items: None,
         align_self: None,
         justify_items: None,
         justify_self: None,
         align_content: None,
         justify_content: None,
-        gap: Size::new(Length::NORMAL, Length::NORMAL),
+        gap: Size::new(LengthOf::NORMAL, LengthOf::NORMAL),
         flex_direction: FlexDirection::Row,
         flex_wrap: FlexWrap::NoWrap,
-        flex_basis: Dimension::AUTO,
-        flex_grow: 0.0,
-        flex_shrink: 1.0,
+        flex_basis: DimensionOf::AUTO,
+        flex_grow: DefaultScalar::ZERO,
+        flex_shrink: DefaultScalar::ONE,
         grid_template_columns: Vec::new(),
         grid_template_rows: Vec::new(),
         grid_template_areas: GridTemplateAreas { rows: Vec::new() },
         grid_auto_columns: Vec::new(),
         grid_auto_rows: Vec::new(),
         grid_auto_flow: GridAutoFlow::Row,
-        grid_flow_tolerance: GridFlowTolerance::Normal { font_size: 16.0 },
+        grid_flow_tolerance: GridFlowToleranceOf::Normal { font_size: 16.0 },
         grid_column: GridPlacement::AUTO,
         grid_row: GridPlacement::AUTO,
         raw_grid_column: RawGridPlacement::AUTO,
@@ -624,8 +638,56 @@ impl NodeInput {
     };
 }
 
-impl Default for NodeInput {
+impl<S: LayoutScalar> Default for NodeInputOf<S> {
     fn default() -> Self {
-        Self::DEFAULT
+        Self {
+            display: Display::Flex,
+            item_is_table: false,
+            item_is_replaced: false,
+            box_sizing: BoxSizing::BorderBox,
+            direction: Direction::Ltr,
+            text_align: TextAlign::Auto,
+            vertical_align: VerticalAlign::Baseline,
+            writing_mode: WritingMode::HorizontalTb,
+            overflow: Point {
+                x: Overflow::Visible,
+                y: Overflow::Visible,
+            },
+            scrollbar_width: S::ZERO,
+            position: Position::Relative,
+            float: Float::None,
+            clear: Clear::None,
+            inset: Edges::all(LengthAutoOf::AUTO),
+            size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+            min_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+            max_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+            aspect_ratio: None,
+            margin: Edges::all(LengthAutoOf::ZERO),
+            padding: Edges::all(LengthOf::ZERO),
+            border: Edges::all(LengthOf::ZERO),
+            align_items: None,
+            align_self: None,
+            justify_items: None,
+            justify_self: None,
+            align_content: None,
+            justify_content: None,
+            gap: Size::new(LengthOf::NORMAL, LengthOf::NORMAL),
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::NoWrap,
+            flex_basis: DimensionOf::AUTO,
+            flex_grow: S::ZERO,
+            flex_shrink: S::ONE,
+            grid_template_columns: Vec::new(),
+            grid_template_rows: Vec::new(),
+            grid_template_areas: GridTemplateAreas { rows: Vec::new() },
+            grid_auto_columns: Vec::new(),
+            grid_auto_rows: Vec::new(),
+            grid_auto_flow: GridAutoFlow::Row,
+            grid_flow_tolerance: GridFlowToleranceOf::default(),
+            grid_column: GridPlacement::AUTO,
+            grid_row: GridPlacement::AUTO,
+            raw_grid_column: RawGridPlacement::AUTO,
+            raw_grid_row: RawGridPlacement::AUTO,
+        }
     }
 }

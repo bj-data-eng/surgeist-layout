@@ -31,11 +31,11 @@ pub(super) struct SubgridEligibility {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SubgridEligibilityInput<'a> {
+pub(super) struct SubgridEligibilityInput<'a, S: LayoutScalar = Scalar> {
     pub(super) axis: GridAxisKind,
-    pub(super) parent_style: &'a NodeInput,
+    pub(super) parent_style: &'a NodeInputOf<S>,
     pub(super) has_parent_grid: bool,
-    pub(super) child_style: &'a NodeInput,
+    pub(super) child_style: &'a NodeInputOf<S>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -93,78 +93,80 @@ pub(super) enum SubgridTraversalAxis {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct SubgridAxisEdges {
-    pub(super) start: Scalar,
-    pub(super) end: Scalar,
+pub(super) struct SubgridAxisEdges<S: LayoutScalar = Scalar> {
+    pub(super) start: S,
+    pub(super) end: S,
 }
 
-impl Default for SubgridAxisEdges {
+impl<S: LayoutScalar> Default for SubgridAxisEdges<S> {
     fn default() -> Self {
         Self {
-            start: 0.0,
-            end: 0.0,
+            start: S::ZERO,
+            end: S::ZERO,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridTraversalInput<'a, Node> {
+pub(super) struct SubgridTraversalInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) ancestor_track_intrinsic_min_eligibility: IntrinsicMinTrackFacts<'a>,
-    pub(super) root_children: Vec<SubgridTraversalChild<Node>>,
+    pub(super) root_children: Vec<SubgridTraversalChild<Node, S>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum SubgridTraversalChild<Node> {
-    Subgrid(SubgridTraversalNode<Node>),
-    Leaf(SubgridTraversalLeaf<Node>),
+pub(super) enum SubgridTraversalChild<Node, S: LayoutScalar = Scalar> {
+    Subgrid(SubgridTraversalNode<Node, S>),
+    Leaf(SubgridTraversalLeaf<Node, S>),
 }
 
+type SubgridTraversalChildren<Node, S = Scalar> = Vec<SubgridTraversalChild<Node, S>>;
+
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridTraversalNode<Node> {
+pub(super) struct SubgridTraversalNode<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
     pub(super) axis: SubgridTraversalAxis,
     pub(super) reversed: bool,
     pub(super) span_in_parent: GridTrackSpan,
-    pub(super) available_inline_size: Option<Scalar>,
+    pub(super) available_inline_size: Option<S>,
     pub(super) available_inline_size_is_known: bool,
     pub(super) queried_axis_fully_inherited: bool,
-    pub(super) margins: SubgridAxisEdges,
-    pub(super) border: SubgridAxisEdges,
-    pub(super) padding: SubgridAxisEdges,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: Scalar,
-    pub(super) children: Vec<SubgridTraversalChild<Node>>,
+    pub(super) margins: SubgridAxisEdges<S>,
+    pub(super) border: SubgridAxisEdges<S>,
+    pub(super) padding: SubgridAxisEdges<S>,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: S,
+    pub(super) children: Vec<SubgridTraversalChild<Node, S>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridTraversalLeaf<Node> {
+pub(super) struct SubgridTraversalLeaf<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
     pub(super) span_in_parent: GridTrackSpan,
-    pub(super) available_inline_size: Option<Scalar>,
+    pub(super) available_inline_size: Option<S>,
     pub(super) available_inline_size_is_known: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridLeafContribution<Node> {
+pub(super) struct SubgridLeafContribution<Node, S: LayoutScalar = Scalar> {
     pub(super) root_node: Option<Node>,
     pub(super) root_axis_fully_inherited: bool,
     pub(super) node: Node,
     pub(super) ancestor_span: GridTrackSpan,
-    pub(super) available_inline_size: Option<Scalar>,
+    pub(super) available_inline_size: Option<S>,
     pub(super) available_inline_size_is_known: bool,
-    pub(super) accumulated_edge_adjustment: Vec<Scalar>,
-    pub(super) accumulated_gap_adjustment: Vec<Scalar>,
+    pub(super) accumulated_edge_adjustment: Vec<S>,
+    pub(super) accumulated_gap_adjustment: Vec<S>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridTraversalReport<Node> {
-    pub(super) edge_lower_bounds: Vec<Scalar>,
-    pub(super) leaves: Vec<SubgridLeafContribution<Node>>,
+pub(super) struct SubgridTraversalReport<Node, S: LayoutScalar = Scalar> {
+    pub(super) edge_lower_bounds: Vec<S>,
+    pub(super) leaves: Vec<SubgridLeafContribution<Node, S>>,
 }
 
-pub(super) fn traverse_subgrid_intrinsic<Node>(
-    input: SubgridTraversalInput<'_, Node>,
-) -> Result<SubgridTraversalReport<Node>, SubgridTraversalError>
+pub(super) fn traverse_subgrid_intrinsic<Node, S: LayoutScalar>(
+    input: SubgridTraversalInput<'_, Node, S>,
+) -> Result<SubgridTraversalReport<Node, S>, SubgridTraversalError>
 where
     Node: Copy,
 {
@@ -174,7 +176,7 @@ where
             return Err(SubgridTraversalError::MissingIntrinsicMinTrackFacts);
         }
     };
-    let mut edge_lower_bounds = vec![0.0; intrinsic_min.len()];
+    let mut edge_lower_bounds = vec![S::ZERO; intrinsic_min.len()];
     let mut leaves = Vec::new();
     let mut stack = input
         .root_children
@@ -190,8 +192,8 @@ where
                     line_direction: 1,
                     available_inline_size: None,
                     available_inline_size_is_known: false,
-                    accumulated_edge_adjustment: vec![0.0; intrinsic_min.len()],
-                    accumulated_gap_adjustment: vec![0.0; intrinsic_min.len()],
+                    accumulated_edge_adjustment: vec![S::ZERO; intrinsic_min.len()],
+                    accumulated_gap_adjustment: vec![S::ZERO; intrinsic_min.len()],
                 },
             )
         })
@@ -236,23 +238,28 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct SubgridTraversalContext<Node> {
+struct SubgridTraversalContext<Node, S: LayoutScalar = Scalar> {
     root_node: Option<Node>,
     root_axis_fully_inherited: bool,
     line_offset: isize,
     line_direction: isize,
-    available_inline_size: Option<Scalar>,
+    available_inline_size: Option<S>,
     available_inline_size_is_known: bool,
-    accumulated_edge_adjustment: Vec<Scalar>,
-    accumulated_gap_adjustment: Vec<Scalar>,
+    accumulated_edge_adjustment: Vec<S>,
+    accumulated_gap_adjustment: Vec<S>,
 }
 
-fn apply_subgrid_edge_placeholders<Node>(
+type SubgridTraversalStackEntry<Node, S = Scalar> = (
+    SubgridTraversalChild<Node, S>,
+    SubgridTraversalContext<Node, S>,
+);
+
+fn apply_subgrid_edge_placeholders<Node, S: LayoutScalar>(
     intrinsic_min: &[bool],
-    edge_lower_bounds: &mut [Scalar],
-    stack: &mut Vec<(SubgridTraversalChild<Node>, SubgridTraversalContext<Node>)>,
-    subgrid: SubgridTraversalNode<Node>,
-    mut context: SubgridTraversalContext<Node>,
+    edge_lower_bounds: &mut [S],
+    stack: &mut Vec<SubgridTraversalStackEntry<Node, S>>,
+    subgrid: SubgridTraversalNode<Node, S>,
+    mut context: SubgridTraversalContext<Node, S>,
 ) -> Result<(), SubgridTraversalError>
 where
     Node: Copy,
@@ -287,27 +294,31 @@ where
     let local_end_edge = subgrid.margins.end + subgrid.border.end + subgrid.padding.end;
 
     if intrinsic_min[local_start_index] {
-        context.accumulated_edge_adjustment[local_start_index] += local_start_edge;
+        context.accumulated_edge_adjustment[local_start_index] =
+            context.accumulated_edge_adjustment[local_start_index] + local_start_edge;
         edge_lower_bounds[local_start_index] = edge_lower_bounds[local_start_index]
             .max(context.accumulated_edge_adjustment[local_start_index]);
     }
     if intrinsic_min[local_end_index] {
-        context.accumulated_edge_adjustment[local_end_index] += local_end_edge;
+        context.accumulated_edge_adjustment[local_end_index] =
+            context.accumulated_edge_adjustment[local_end_index] + local_end_edge;
         edge_lower_bounds[local_end_index] = edge_lower_bounds[local_end_index]
             .max(context.accumulated_edge_adjustment[local_end_index]);
     }
 
     let empty_subgrid = subgrid.children.is_empty();
-    let gap_difference = (subgrid.subgrid_gap - subgrid.parent_gap) / 2.0;
+    let gap_difference = (subgrid.subgrid_gap - subgrid.parent_gap) / S::from_f64(2.0);
     for edge_index in start_index..end_index {
-        context.accumulated_gap_adjustment[edge_index] += gap_difference;
-        context.accumulated_gap_adjustment[edge_index + 1] += gap_difference;
+        context.accumulated_gap_adjustment[edge_index] =
+            context.accumulated_gap_adjustment[edge_index] + gap_difference;
+        context.accumulated_gap_adjustment[edge_index + 1] =
+            context.accumulated_gap_adjustment[edge_index + 1] + gap_difference;
     }
     if empty_subgrid {
         for edge_index in start_index..=end_index {
             if intrinsic_min[edge_index] {
                 let lower_bound = context.accumulated_edge_adjustment[edge_index]
-                    + context.accumulated_gap_adjustment[edge_index].max(0.0);
+                    + context.accumulated_gap_adjustment[edge_index].max(S::ZERO);
                 edge_lower_bounds[edge_index] = edge_lower_bounds[edge_index].max(lower_bound);
             }
         }
@@ -344,11 +355,11 @@ where
     Ok(())
 }
 
-fn child_line_transform<Node>(
-    context: &SubgridTraversalContext<Node>,
+fn child_line_transform<Node, S: LayoutScalar>(
+    context: &SubgridTraversalContext<Node, S>,
     span_in_parent: GridTrackSpan,
     reversed: bool,
-) -> SubgridTraversalContext<Node>
+) -> SubgridTraversalContext<Node, S>
 where
     Node: Copy,
 {
@@ -370,8 +381,8 @@ where
     }
 }
 
-fn translate_span_to_ancestor<Node>(
-    context: &SubgridTraversalContext<Node>,
+fn translate_span_to_ancestor<Node, S: LayoutScalar>(
+    context: &SubgridTraversalContext<Node, S>,
     local_span: GridTrackSpan,
 ) -> Result<GridTrackSpan, SubgridTraversalError>
 where
@@ -387,8 +398,8 @@ where
     Ok(GridTrackSpan::new(start as usize, end as usize))
 }
 
-fn edge_track_indices<Node>(
-    context: &SubgridTraversalContext<Node>,
+fn edge_track_indices<Node, S: LayoutScalar>(
+    context: &SubgridTraversalContext<Node, S>,
     span_len: usize,
 ) -> Result<(usize, usize), SubgridTraversalError>
 where
@@ -407,7 +418,10 @@ where
     Ok((start_edge_index as usize, end_edge_index as usize))
 }
 
-fn map_line_to_ancestor<Node>(context: &SubgridTraversalContext<Node>, line: usize) -> isize
+fn map_line_to_ancestor<Node, S: LayoutScalar>(
+    context: &SubgridTraversalContext<Node, S>,
+    line: usize,
+) -> isize
 where
     Node: Copy,
 {
@@ -415,13 +429,13 @@ where
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum ResolvedSubgridGap {
+pub(super) enum ResolvedSubgridGap<S: LayoutScalar = Scalar> {
     Normal,
-    Length(Scalar),
+    Length(S),
 }
 
-impl ResolvedSubgridGap {
-    const fn resolve(self, parent_gap: Scalar) -> Scalar {
+impl<S: LayoutScalar> ResolvedSubgridGap<S> {
+    const fn resolve(self, parent_gap: S) -> S {
         match self {
             Self::Normal => parent_gap,
             Self::Length(length) => length,
@@ -430,60 +444,60 @@ impl ResolvedSubgridGap {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SubgridTrackInheritanceInput<'a> {
-    pub(super) parent_tracks: &'a [Scalar],
+pub(super) struct SubgridTrackInheritanceInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) parent_tracks: &'a [S],
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
-    pub(super) start_mbp: Scalar,
-    pub(super) end_mbp: Scalar,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: ResolvedSubgridGap,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: ResolvedSubgridGap<S>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridTrackInheritanceReport {
+pub(super) struct SubgridTrackInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) parent_span: GridTrackSpan,
-    pub(super) copied_parent_tracks: Vec<Scalar>,
+    pub(super) copied_parent_tracks: Vec<S>,
     pub(super) reversed: bool,
-    pub(super) after_reversal: Vec<Scalar>,
-    pub(super) start_mbp_removed: Vec<Scalar>,
-    pub(super) end_mbp_removed: Vec<Scalar>,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: ResolvedSubgridGap,
-    pub(super) resolved_subgrid_gap: Scalar,
-    pub(super) gap_difference: Scalar,
-    pub(super) final_tracks: Vec<Scalar>,
+    pub(super) after_reversal: Vec<S>,
+    pub(super) start_mbp_removed: Vec<S>,
+    pub(super) end_mbp_removed: Vec<S>,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: ResolvedSubgridGap<S>,
+    pub(super) resolved_subgrid_gap: S,
+    pub(super) gap_difference: S,
+    pub(super) final_tracks: Vec<S>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct SubgridBaselineInheritanceInput<'a> {
-    pub(super) parent_major: &'a [Option<Scalar>],
-    pub(super) parent_minor: &'a [Option<Scalar>],
+pub(super) struct SubgridBaselineInheritanceInput<'a, S: LayoutScalar = Scalar> {
+    pub(super) parent_major: &'a [Option<S>],
+    pub(super) parent_minor: &'a [Option<S>],
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
-    pub(super) start_mbp: Scalar,
-    pub(super) end_mbp: Scalar,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: Scalar,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: S,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct SubgridBaselineInheritanceReport {
+pub(super) struct SubgridBaselineInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
-    pub(super) start_mbp: Scalar,
-    pub(super) end_mbp: Scalar,
-    pub(super) parent_gap: Scalar,
-    pub(super) subgrid_gap: Scalar,
-    pub(super) gap_difference: Scalar,
-    pub(super) sliced_major: Vec<Option<Scalar>>,
-    pub(super) sliced_minor: Vec<Option<Scalar>>,
-    pub(super) after_reversal_major: Vec<Option<Scalar>>,
-    pub(super) after_reversal_minor: Vec<Option<Scalar>>,
-    pub(super) after_mbp_major: Vec<Option<Scalar>>,
-    pub(super) after_mbp_minor: Vec<Option<Scalar>>,
-    pub(super) final_major: Vec<Option<Scalar>>,
-    pub(super) final_minor: Vec<Option<Scalar>>,
+    pub(super) start_mbp: S,
+    pub(super) end_mbp: S,
+    pub(super) parent_gap: S,
+    pub(super) subgrid_gap: S,
+    pub(super) gap_difference: S,
+    pub(super) sliced_major: Vec<Option<S>>,
+    pub(super) sliced_minor: Vec<Option<S>>,
+    pub(super) after_reversal_major: Vec<Option<S>>,
+    pub(super) after_reversal_minor: Vec<Option<S>>,
+    pub(super) after_mbp_major: Vec<Option<S>>,
+    pub(super) after_mbp_minor: Vec<Option<S>>,
+    pub(super) final_major: Vec<Option<S>>,
+    pub(super) final_minor: Vec<Option<S>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -492,9 +506,9 @@ pub(super) enum SubgridTrackInheritanceError {
     SpanOutOfRange,
 }
 
-pub(super) fn inherit_subgrid_baselines(
-    input: SubgridBaselineInheritanceInput<'_>,
-) -> Result<SubgridBaselineInheritanceReport, SubgridTrackInheritanceError> {
+pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
+    input: SubgridBaselineInheritanceInput<'_, S>,
+) -> Result<SubgridBaselineInheritanceReport<S>, SubgridTrackInheritanceError> {
     let span_len = input
         .parent_span
         .checked_len()
@@ -524,15 +538,15 @@ pub(super) fn inherit_subgrid_baselines(
 
     let mut after_mbp_major = after_reversal_major.clone();
     if let Some(first_major) = after_mbp_major.first_mut().and_then(Option::as_mut) {
-        *first_major -= input.start_mbp;
+        *first_major = *first_major - input.start_mbp;
     }
 
     let mut after_mbp_minor = after_reversal_minor.clone();
     if let Some(last_minor) = after_mbp_minor.last_mut().and_then(Option::as_mut) {
-        *last_minor -= input.end_mbp;
+        *last_minor = *last_minor - input.end_mbp;
     }
 
-    let gap_difference = (input.subgrid_gap - input.parent_gap) / 2.0;
+    let gap_difference = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
     let mut final_major = after_mbp_major.clone();
     let mut final_minor = after_mbp_minor.clone();
     subtract_internal_gap_difference(&mut final_major, gap_difference);
@@ -557,9 +571,9 @@ pub(super) fn inherit_subgrid_baselines(
     })
 }
 
-pub(super) fn inherit_subgrid_tracks(
-    input: SubgridTrackInheritanceInput<'_>,
-) -> Result<SubgridTrackInheritanceReport, SubgridTrackInheritanceError> {
+pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
+    input: SubgridTrackInheritanceInput<'_, S>,
+) -> Result<SubgridTrackInheritanceReport<S>, SubgridTrackInheritanceError> {
     let span_len = input
         .parent_span
         .checked_len()
@@ -593,12 +607,12 @@ pub(super) fn inherit_subgrid_tracks(
     consume_track_space(&mut end_mbp_removed, input.end_mbp, TrackSpaceEdge::End);
 
     let resolved_subgrid_gap = input.subgrid_gap.resolve(input.parent_gap);
-    let gap_difference = (resolved_subgrid_gap - input.parent_gap) / 2.0;
+    let gap_difference = (resolved_subgrid_gap - input.parent_gap) / S::from_f64(2.0);
     let mut final_tracks = end_mbp_removed.clone();
     if final_tracks.len() > 1 {
         for edge in 0..(final_tracks.len() - 1) {
-            final_tracks[edge] = (final_tracks[edge] - gap_difference).max(0.0);
-            final_tracks[edge + 1] = (final_tracks[edge + 1] - gap_difference).max(0.0);
+            final_tracks[edge] = (final_tracks[edge] - gap_difference).max(S::ZERO);
+            final_tracks[edge + 1] = (final_tracks[edge + 1] - gap_difference).max(S::ZERO);
         }
     }
 
@@ -617,17 +631,17 @@ pub(super) fn inherit_subgrid_tracks(
     })
 }
 
-fn subtract_internal_gap_difference(groups: &mut [Option<Scalar>], gap_difference: Scalar) {
+fn subtract_internal_gap_difference<S: LayoutScalar>(groups: &mut [Option<S>], gap_difference: S) {
     if groups.len() < 2 {
         return;
     }
 
     for edge in 0..(groups.len() - 1) {
         if let Some(baseline) = &mut groups[edge] {
-            *baseline -= gap_difference;
+            *baseline = *baseline - gap_difference;
         }
         if let Some(baseline) = &mut groups[edge + 1] {
-            *baseline -= gap_difference;
+            *baseline = *baseline - gap_difference;
         }
     }
 }
@@ -638,26 +652,26 @@ enum TrackSpaceEdge {
     End,
 }
 
-fn consume_track_space(tracks: &mut [Scalar], mut amount: Scalar, edge: TrackSpaceEdge) {
+fn consume_track_space<S: LayoutScalar>(tracks: &mut [S], mut amount: S, edge: TrackSpaceEdge) {
     match edge {
         TrackSpaceEdge::Start => {
             for track in tracks.iter_mut() {
-                if amount <= 0.0 {
+                if amount <= S::ZERO {
                     break;
                 }
                 let removed = (*track).min(amount);
-                *track -= removed;
-                amount -= removed;
+                *track = *track - removed;
+                amount = amount - removed;
             }
         }
         TrackSpaceEdge::End => {
             for track in tracks.iter_mut().rev() {
-                if amount <= 0.0 {
+                if amount <= S::ZERO {
                     break;
                 }
                 let removed = (*track).min(amount);
-                *track -= removed;
-                amount -= removed;
+                *track = *track - removed;
+                amount = amount - removed;
             }
         }
     }
@@ -666,7 +680,7 @@ fn consume_track_space(tracks: &mut [Scalar], mut amount: Scalar, edge: TrackSpa
 pub(super) fn collect_subgrid_report<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    parent_style: &NodeInput,
+    parent_style: &NodeInputOf<Tree::Scalar>,
 ) -> GridSubgridReport<<Tree as Traverse>::Node>
 where
     Tree: Compute,
@@ -686,25 +700,25 @@ where
     GridSubgridReport { items }
 }
 
-pub(super) struct GridSubgridIntrinsicTraversalInput<'a, Node> {
+pub(super) struct GridSubgridIntrinsicTraversalInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) axis: GridAxisKind,
     pub(super) children: &'a [Node],
-    pub(super) placed_areas: &'a [Option<GridArea>],
+    pub(super) placed_areas: &'a [Option<GridArea<S>>],
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
     pub(super) named_columns: &'a NamedGridLines,
     pub(super) named_rows: &'a NamedGridLines,
     pub(super) area_facts: Option<&'a GridAreaNameFacts>,
-    pub(super) parent_gap: Size,
-    pub(super) column_sizes: &'a [Scalar],
-    pub(super) row_sizes: &'a [Scalar],
-    pub(super) container_size: Size<Option<Scalar>>,
+    pub(super) parent_gap: Size<S>,
+    pub(super) column_sizes: &'a [S],
+    pub(super) row_sizes: &'a [S],
+    pub(super) container_size: Size<Option<S>>,
     pub(super) intrinsic_min_track_facts: IntrinsicMinTrackFacts<'a>,
 }
 
 pub(super) fn collect_grid_subgrid_intrinsic_traversal<Tree>(
     tree: &Tree,
-    input: GridSubgridIntrinsicTraversalInput<'_, <Tree as Traverse>::Node>,
-) -> Result<SubgridTraversalReport<<Tree as Traverse>::Node>, SubgridTraversalError>
+    input: GridSubgridIntrinsicTraversalInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+) -> Result<SubgridTraversalReport<<Tree as Traverse>::Node, Tree::Scalar>, SubgridTraversalError>
 where
     Tree: Compute,
 {
@@ -761,16 +775,16 @@ where
 fn subgrid_traversal_child<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    style: &NodeInput,
-    area: GridArea,
-    area_size: Size,
+    style: &NodeInputOf<Tree::Scalar>,
+    area: GridArea<Tree::Scalar>,
+    area_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
     queried_axis: GridAxisKind,
-    parent_gap: Size,
+    parent_gap: Size<Tree::Scalar>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
-) -> Option<SubgridTraversalChild<<Tree as Traverse>::Node>>
+) -> Option<SubgridTraversalChild<<Tree as Traverse>::Node, Tree::Scalar>>
 where
     Tree: Compute,
 {
@@ -784,7 +798,7 @@ where
             span_in_parent: area_span(area, queried_axis),
             available_inline_size: (queried_axis == GridAxisKind::Row)
                 .then_some(area_size.width)
-                .filter(|width| *width > 0.0),
+                .filter(|width| *width > Tree::Scalar::ZERO),
             available_inline_size_is_known: false,
         }));
     }
@@ -811,7 +825,7 @@ where
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_auto_optional_with(length, basis, resolver)
         })
-        .map(|margin| margin.unwrap_or(0.0));
+        .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let resolved_border = style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
@@ -868,7 +882,7 @@ where
         span_in_parent,
         available_inline_size: (queried_axis == GridAxisKind::Row)
             .then_some(content_box_size.width)
-            .filter(|width| *width > 0.0),
+            .filter(|width| *width > Tree::Scalar::ZERO),
         available_inline_size_is_known: queried_axis == GridAxisKind::Row
             && track_components_have_percent_sizing(&style.grid_template_columns, resolver),
         queried_axis_fully_inherited,
@@ -888,17 +902,20 @@ where
 fn subgrid_traversal_children<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    style: &NodeInput,
-    area: GridArea,
-    content_box_size: Size,
+    style: &NodeInputOf<Tree::Scalar>,
+    area: GridArea<Tree::Scalar>,
+    content_box_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
     queried_axis: GridAxisKind,
-    gap: Size,
+    gap: Size<Tree::Scalar>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
-    resolver: &dyn CalcResolver,
-) -> (Vec<SubgridTraversalChild<<Tree as Traverse>::Node>>, bool)
+    resolver: &dyn CalcResolver<Tree::Scalar>,
+) -> (
+    SubgridTraversalChildren<<Tree as Traverse>::Node, Tree::Scalar>,
+    bool,
+)
 where
     Tree: Compute,
 {
@@ -920,10 +937,10 @@ where
             parent_area_facts,
         ),
     };
-    let available = Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT);
+    let available = Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
     let constants = Constants::new(
         style,
-        ComputeInput {
+        ComputeInputOf {
             run_mode: RunMode::ComputeSize,
             sizing_mode: SizingMode::InherentSize,
             axis: RequestedAxis::Both,
@@ -941,8 +958,8 @@ where
         return (Vec::new(), true);
     }
 
-    let zero_columns = vec![0.0; column_count];
-    let zero_rows = vec![0.0; row_count];
+    let zero_columns = vec![Tree::Scalar::ZERO; column_count];
+    let zero_rows = vec![Tree::Scalar::ZERO; row_count];
     let traversal_columns = traversal_child_area_tracks(
         parent_context.columns.as_ref(),
         &initialized.column_tracks,
@@ -1023,8 +1040,8 @@ where
     (traversal_children, queried_axis_fully_inherited)
 }
 
-fn inherited_subgrid_axis_for_parent_axis<Node>(
-    style: &NodeInput,
+fn inherited_subgrid_axis_for_parent_axis<Node, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> Option<GridAxisKind>
@@ -1047,8 +1064,8 @@ where
         })
 }
 
-fn traversal_child_axis_for_parent_axis<Node>(
-    style: &NodeInput,
+fn traversal_child_axis_for_parent_axis<Node, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> GridAxisKind
@@ -1058,19 +1075,19 @@ where
     inherited_subgrid_axis_for_parent_axis(style, item_report, parent_axis).unwrap_or(parent_axis)
 }
 
-fn traversal_child_area_tracks(
-    inherited: Option<&InheritedGridAxis>,
-    tracks: &[TrackSizing],
-    content_width: Scalar,
-    gap: Scalar,
+fn traversal_child_area_tracks<S: LayoutScalar>(
+    inherited: Option<&InheritedGridAxis<S>>,
+    tracks: &[TrackSizingOf<S>],
+    content_width: S,
+    gap: S,
     alignment: AlignContent,
-    resolver: &dyn CalcResolver,
-) -> Vec<Scalar> {
+    resolver: &dyn CalcResolver<S>,
+) -> Vec<S> {
     if let Some(axis) = inherited {
         return axis.tracks.clone();
     }
 
-    let intrinsic_sizes = vec![0.0; tracks.len()];
+    let intrinsic_sizes = vec![S::ZERO; tracks.len()];
     resolve_inline_tracks(InlineTrackInput {
         resolver,
         tracks,
@@ -1085,14 +1102,14 @@ fn traversal_child_area_tracks(
     })
 }
 
-pub(super) fn intrinsic_subgrid_axis_parent_context(
+pub(super) fn intrinsic_subgrid_axis_parent_context<S: LayoutScalar>(
     report: SubgridAxisReport,
-    area: GridArea,
-    gap: Size,
+    area: GridArea<S>,
+    gap: Size<S>,
     named_columns: &NamedGridLines,
     named_rows: &NamedGridLines,
     area_facts: Option<&GridAreaNameFacts>,
-) -> Option<InheritedGridAxis> {
+) -> Option<InheritedGridAxis<S>> {
     if !report.can_inherit() {
         return None;
     }
@@ -1108,9 +1125,9 @@ pub(super) fn intrinsic_subgrid_axis_parent_context(
     let track_count = parent_end.saturating_sub(parent_start);
 
     Some(InheritedGridAxis {
-        offset: 0.0,
+        offset: S::ZERO,
         gap: parent_gap,
-        tracks: vec![0.0; track_count],
+        tracks: vec![S::ZERO; track_count],
         named_lines: named_lines.clone(),
         area_facts: area_facts
             .filter(|facts| facts.is_valid_for_axis(mapping.parent_axis))
@@ -1120,40 +1137,40 @@ pub(super) fn intrinsic_subgrid_axis_parent_context(
         parent_start,
         parent_end,
         reversed: mapping.reversed,
-        start_mbp: 0.0,
-        end_mbp: 0.0,
-        gap_difference: 0.0,
+        start_mbp: S::ZERO,
+        end_mbp: S::ZERO,
+        gap_difference: S::ZERO,
     })
 }
 
-fn area_span(area: GridArea, axis: GridAxisKind) -> GridTrackSpan {
+fn area_span<S: LayoutScalar>(area: GridArea<S>, axis: GridAxisKind) -> GridTrackSpan {
     match axis {
         GridAxisKind::Column => GridTrackSpan::new(area.column + 1, area.column_end + 1),
         GridAxisKind::Row => GridTrackSpan::new(area.row + 1, area.row_end + 1),
     }
 }
 
-fn axis_size(size: Size, axis: GridAxisKind) -> Scalar {
+fn axis_size<S: LayoutScalar>(size: Size<S>, axis: GridAxisKind) -> S {
     match axis {
         GridAxisKind::Column => size.width,
         GridAxisKind::Row => size.height,
     }
 }
 
-fn resolved_subgrid_axis_gap(
-    style: &NodeInput,
+fn resolved_subgrid_axis_gap<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     axis: GridAxisKind,
     report: SubgridAxisReport,
-    parent_gap: Size,
-    content_box_size: Size,
-    resolver: &dyn CalcResolver,
-) -> Scalar {
+    parent_gap: Size<S>,
+    content_box_size: Size<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> S {
     let gap = match axis {
         GridAxisKind::Column => style.gap.width,
         GridAxisKind::Row => style.gap.height,
     };
     match gap {
-        Length::Normal => {
+        LengthOf::Normal => {
             let parent_axis = report
                 .mapping
                 .ok()
@@ -1165,18 +1182,22 @@ fn resolved_subgrid_axis_gap(
     }
 }
 
-fn traversal_axis_edges(
-    style: &NodeInput,
+fn traversal_axis_edges<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     axis: GridAxisKind,
-    area_width_basis: Size<Option<Scalar>>,
-    resolver: &dyn CalcResolver,
-) -> (SubgridAxisEdges, SubgridAxisEdges, SubgridAxisEdges) {
+    area_width_basis: Size<Option<S>>,
+    resolver: &dyn CalcResolver<S>,
+) -> (
+    SubgridAxisEdges<S>,
+    SubgridAxisEdges<S>,
+    SubgridAxisEdges<S>,
+) {
     let margin = style
         .margin
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_auto_optional_with(length, basis, resolver)
         })
-        .map(|margin| margin.unwrap_or(0.0));
+        .map(|margin| margin.unwrap_or(S::ZERO));
     let border = style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
@@ -1220,13 +1241,13 @@ fn traversal_axis_edges(
     }
 }
 
-fn intrinsic_traversal_area_size(
-    area: GridArea,
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
-    container_size: Size<Option<Scalar>>,
-) -> Size {
+fn intrinsic_traversal_area_size<S: LayoutScalar>(
+    area: GridArea<S>,
+    columns: &[S],
+    rows: &[S],
+    gap: Size<S>,
+    container_size: Size<Option<S>>,
+) -> Size<S> {
     Size::new(
         intrinsic_traversal_axis_area_size(
             area.column,
@@ -1245,18 +1266,18 @@ fn intrinsic_traversal_area_size(
     )
 }
 
-fn intrinsic_traversal_axis_area_size(
+fn intrinsic_traversal_axis_area_size<S: LayoutScalar>(
     start: usize,
     end: usize,
-    tracks: &[Scalar],
-    gap: Scalar,
-    definite_container_size: Option<Scalar>,
-) -> Scalar {
+    tracks: &[S],
+    gap: S,
+    definite_container_size: Option<S>,
+) -> S {
     if tracks.is_empty() {
-        return definite_container_size.unwrap_or(0.0);
+        return definite_container_size.unwrap_or(S::ZERO);
     }
     if start >= tracks.len() {
-        return 0.0;
+        return S::ZERO;
     }
     if start == 0 && end == tracks.len() {
         definite_container_size.unwrap_or_else(|| track_span_sum(tracks, start, end, gap))
@@ -1265,7 +1286,9 @@ fn intrinsic_traversal_axis_area_size(
     }
 }
 
-pub(super) fn subgrid_eligibility(input: SubgridEligibilityInput<'_>) -> SubgridEligibility {
+pub(super) fn subgrid_eligibility<S: LayoutScalar>(
+    input: SubgridEligibilityInput<'_, S>,
+) -> SubgridEligibility {
     let reason = if !subgrid_requested(input.child_style, input.axis) {
         Some(SubgridIneligibleReason::NotRequested)
     } else if !input.has_parent_grid {
@@ -1288,9 +1311,9 @@ pub(super) fn subgrid_eligibility(input: SubgridEligibilityInput<'_>) -> Subgrid
     }
 }
 
-pub(super) fn subgrid_axis_report(
-    parent_style: &NodeInput,
-    child_style: &NodeInput,
+pub(super) fn subgrid_axis_report<S: LayoutScalar>(
+    parent_style: &NodeInputOf<S>,
+    child_style: &NodeInputOf<S>,
     axis: GridAxisKind,
 ) -> SubgridAxisReport {
     SubgridAxisReport {
@@ -1308,7 +1331,7 @@ pub(super) fn subgrid_axis_report(
     }
 }
 
-fn subgrid_requested(style: &NodeInput, axis: GridAxisKind) -> bool {
+fn subgrid_requested<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> bool {
     let components = match axis {
         GridAxisKind::Column => &style.grid_template_columns,
         GridAxisKind::Row => &style.grid_template_rows,
@@ -1316,22 +1339,27 @@ fn subgrid_requested(style: &NodeInput, axis: GridAxisKind) -> bool {
 
     components
         .iter()
-        .any(|component| matches!(component, TrackComponent::Subgrid(_)))
+        .any(|component| matches!(component, TrackComponentOf::Subgrid(_)))
 }
 
 const fn subgrid_container_display_supported(display: Display) -> bool {
     display.establishes_grid_formatting_context()
 }
 
-const fn excluded_from_normal_layout(style: &NodeInput) -> bool {
+const fn excluded_from_normal_layout<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
     matches!(style.display, Display::None) || matches!(style.position, Position::Absolute)
 }
 
-const fn establishes_independent_formatting_context(_style: &NodeInput) -> bool {
+const fn establishes_independent_formatting_context<S: LayoutScalar>(
+    _style: &NodeInputOf<S>,
+) -> bool {
     false
 }
 
-fn parent_is_lanes_in_resolved_axis(parent_style: &NodeInput, axis: GridAxisKind) -> bool {
+fn parent_is_lanes_in_resolved_axis<S: LayoutScalar>(
+    parent_style: &NodeInputOf<S>,
+    axis: GridAxisKind,
+) -> bool {
     parent_style
         .display
         .establishes_grid_lanes_formatting_context()

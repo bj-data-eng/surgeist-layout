@@ -1,6 +1,6 @@
 use crate::{
-    GridPlacement, GridTemplateAreas, NodeInput, RawGridLine, RawGridPlacement,
-    SubgridLineNameComponent, SubgridLineNameRepeatCount, TrackComponent, TrackRepeat,
+    GridPlacement, GridTemplateAreas, LayoutScalar, NodeInputOf, RawGridLine, RawGridPlacement,
+    SubgridLineNameComponent, SubgridLineNameRepeatCount, TrackComponentOf, TrackRepeat,
 };
 
 use super::{GridAxisKind, GridParentContext, InheritedGridAxis};
@@ -953,21 +953,21 @@ pub(super) struct GridNamedContext {
         reason = "retained unit-test entry point for named-grid report parity scaffolding"
     )
 )]
-pub(super) fn build_grid_named_context(
-    style: &NodeInput,
+pub(super) fn build_grid_named_context<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     explicit_columns: usize,
     explicit_rows: usize,
-    parent_context: &GridParentContext,
+    parent_context: &GridParentContext<S>,
 ) -> Result<GridNamedContext, NamedGridError> {
     build_grid_named_context_with_report(style, explicit_columns, explicit_rows, parent_context)
         .map(|(context, _report)| context)
 }
 
-pub(super) fn build_grid_named_context_with_report(
-    style: &NodeInput,
+pub(super) fn build_grid_named_context_with_report<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     explicit_columns: usize,
     explicit_rows: usize,
-    parent_context: &GridParentContext,
+    parent_context: &GridParentContext<S>,
 ) -> Result<(GridNamedContext, NamedGridReport), NamedGridError> {
     let mut report = NamedGridReport::default();
     let style_area_facts = if style.grid_template_areas.rows.is_empty() {
@@ -1058,10 +1058,10 @@ pub(super) fn empty_grid_named_context(
     }
 }
 
-fn inherited_subgrid_axis_named_lines(
+fn inherited_subgrid_axis_named_lines<S: LayoutScalar>(
     axis: GridAxisKind,
-    parent_axis: &InheritedGridAxis,
-    components: &[TrackComponent],
+    parent_axis: &InheritedGridAxis<S>,
+    components: &[TrackComponentOf<S>],
     parent_area_facts: Option<&GridAreaNameFacts>,
 ) -> Result<NamedGridLines, NamedGridError> {
     let used_track_count = parent_axis.tracks.len();
@@ -1080,25 +1080,27 @@ fn inherited_subgrid_axis_named_lines(
     )
 }
 
-fn subgrid_line_name_components(
-    components: &[TrackComponent],
+fn subgrid_line_name_components<S: LayoutScalar>(
+    components: &[TrackComponentOf<S>],
 ) -> Option<&[SubgridLineNameComponent]> {
     components.iter().find_map(|component| match component {
-        TrackComponent::Subgrid(subgrid) => Some(subgrid.name_components.as_slice()),
-        TrackComponent::LineNames(_) | TrackComponent::Track(_) | TrackComponent::Repeat(_) => None,
+        TrackComponentOf::Subgrid(subgrid) => Some(subgrid.name_components.as_slice()),
+        TrackComponentOf::LineNames(_)
+        | TrackComponentOf::Track(_)
+        | TrackComponentOf::Repeat(_) => None,
     })
 }
 
-pub(super) fn named_lines_from_track_components(
+pub(super) fn named_lines_from_track_components<S: LayoutScalar>(
     axis: GridAxisKind,
-    components: &[TrackComponent],
+    components: &[TrackComponentOf<S>],
     explicit_track_count: usize,
 ) -> Result<NamedGridLines, NamedGridError> {
     validate_track_component_line_names(components)?;
 
     if components
         .iter()
-        .any(|component| matches!(component, TrackComponent::Subgrid(_)))
+        .any(|component| matches!(component, TrackComponentOf::Subgrid(_)))
     {
         return Ok(NamedGridLines::new(axis, explicit_track_count));
     }
@@ -1228,7 +1230,9 @@ pub(super) fn inherit_subgrid_named_lines(
     Ok(lines)
 }
 
-fn inherited_subgrid_area_facts(parent_context: &GridParentContext) -> Option<GridAreaNameFacts> {
+fn inherited_subgrid_area_facts<S: LayoutScalar>(
+    parent_context: &GridParentContext<S>,
+) -> Option<GridAreaNameFacts> {
     let source = parent_context
         .columns
         .as_ref()
@@ -1247,10 +1251,10 @@ fn inherited_subgrid_area_facts(parent_context: &GridParentContext) -> Option<Gr
     (facts.columns_valid || facts.rows_valid).then_some(facts)
 }
 
-fn merge_subgrid_area_facts(
+fn merge_subgrid_area_facts<S: LayoutScalar>(
     local: Option<GridAreaNameFacts>,
     inherited: Option<GridAreaNameFacts>,
-    parent_context: &GridParentContext,
+    parent_context: &GridParentContext<S>,
 ) -> Option<GridAreaNameFacts> {
     match (local, inherited) {
         (None, None) => None,
@@ -1298,9 +1302,9 @@ fn merge_subgrid_area_facts(
     }
 }
 
-fn clamp_style_area_facts_to_subgrid_axes(
+fn clamp_style_area_facts_to_subgrid_axes<S: LayoutScalar>(
     facts: Option<GridAreaNameFacts>,
-    parent_context: &GridParentContext,
+    parent_context: &GridParentContext<S>,
 ) -> Option<GridAreaNameFacts> {
     let mut facts = facts?;
 
@@ -1361,10 +1365,10 @@ fn clamp_area_axis_to_local_boundary(
     *end_name = (*end_name).clamp(1, boundary);
 }
 
-fn merge_duplicate_subgrid_area_rectangle(
+fn merge_duplicate_subgrid_area_rectangle<S: LayoutScalar>(
     local: &mut GridAreaNameRectangle,
     inherited: &GridAreaNameRectangle,
-    parent_context: &GridParentContext,
+    parent_context: &GridParentContext<S>,
 ) {
     if parent_context.columns.is_some() {
         local.column_start = local.column_start.min(inherited.column_start);
@@ -1380,10 +1384,10 @@ fn merge_duplicate_subgrid_area_rectangle(
     }
 }
 
-fn clip_subgrid_area_facts(
+fn clip_subgrid_area_facts<S: LayoutScalar>(
     facts: &GridAreaNameFacts,
-    columns: Option<&InheritedGridAxis>,
-    rows: Option<&InheritedGridAxis>,
+    columns: Option<&InheritedGridAxis<S>>,
+    rows: Option<&InheritedGridAxis<S>>,
 ) -> GridAreaNameFacts {
     let columns_valid = columns.is_some() && facts.columns_valid;
     let rows_valid = rows.is_some() && facts.rows_valid;
@@ -1538,9 +1542,9 @@ fn add_area_generated_lines_from_facts(
     base
 }
 
-fn append_track_component_names(
+fn append_track_component_names<S: LayoutScalar>(
     lines: &mut NamedGridLines,
-    components: &[TrackComponent],
+    components: &[TrackComponentOf<S>],
     explicit_track_count: usize,
     current_line: &mut usize,
 ) -> Result<(), NamedGridError> {
@@ -1549,14 +1553,14 @@ fn append_track_component_names(
 
     for component in components {
         match component {
-            TrackComponent::LineNames(names) => {
+            TrackComponentOf::LineNames(names) => {
                 lines.add_line_names(*current_line, names, LineNameOrigin::Explicit);
             }
-            TrackComponent::Track(_) => {
+            TrackComponentOf::Track(_) => {
                 *current_line += 1;
                 lines.ensure_track_count(*current_line);
             }
-            TrackComponent::Repeat(repetition) => {
+            TrackComponentOf::Repeat(repetition) => {
                 let repeated_track_count = fixed_track_count(lines.axis, repetition.components())?;
                 let count = match repetition.repeat() {
                     TrackRepeat::Count(count) => count.get(),
@@ -1571,23 +1575,23 @@ fn append_track_component_names(
                     )?;
                 }
             }
-            TrackComponent::Subgrid(_) => {}
+            TrackComponentOf::Subgrid(_) => {}
         }
     }
 
     Ok(())
 }
 
-fn validate_track_component_line_names(
-    components: &[TrackComponent],
+fn validate_track_component_line_names<S: LayoutScalar>(
+    components: &[TrackComponentOf<S>],
 ) -> Result<(), NamedGridError> {
     for component in components {
         match component {
-            TrackComponent::LineNames(names) => validate_line_names(names)?,
-            TrackComponent::Repeat(repetition) => {
+            TrackComponentOf::LineNames(names) => validate_line_names(names)?,
+            TrackComponentOf::Repeat(repetition) => {
                 validate_track_component_line_names(repetition.components())?;
             }
-            TrackComponent::Track(_) | TrackComponent::Subgrid(_) => {}
+            TrackComponentOf::Track(_) | TrackComponentOf::Subgrid(_) => {}
         }
     }
     Ok(())
@@ -1764,9 +1768,9 @@ fn subgrid_local_line_index(
     }
 }
 
-fn auto_repeat_expansion_count(
+fn auto_repeat_expansion_count<S: LayoutScalar>(
     axis: GridAxisKind,
-    components: &[TrackComponent],
+    components: &[TrackComponentOf<S>],
     explicit_track_count: usize,
 ) -> Result<Option<usize>, NamedGridError> {
     let mut fixed_tracks = 0;
@@ -1774,9 +1778,9 @@ fn auto_repeat_expansion_count(
 
     for component in components {
         match component {
-            TrackComponent::Track(_) => fixed_tracks += 1,
-            TrackComponent::LineNames(_) | TrackComponent::Subgrid(_) => {}
-            TrackComponent::Repeat(repetition) => match repetition.repeat() {
+            TrackComponentOf::Track(_) => fixed_tracks += 1,
+            TrackComponentOf::LineNames(_) | TrackComponentOf::Subgrid(_) => {}
+            TrackComponentOf::Repeat(repetition) => match repetition.repeat() {
                 TrackRepeat::Count(count) => {
                     fixed_tracks += fixed_track_count(axis, repetition.components())? * count.get();
                 }
@@ -1805,16 +1809,16 @@ fn auto_repeat_expansion_count(
     Ok(Some(remaining_tracks / auto_repeated_tracks))
 }
 
-fn fixed_track_count(
+fn fixed_track_count<S: LayoutScalar>(
     axis: GridAxisKind,
-    components: &[TrackComponent],
+    components: &[TrackComponentOf<S>],
 ) -> Result<usize, NamedGridError> {
     let mut count = 0;
     for component in components {
         match component {
-            TrackComponent::Track(_) => count += 1,
-            TrackComponent::LineNames(_) | TrackComponent::Subgrid(_) => {}
-            TrackComponent::Repeat(repetition) => match repetition.repeat() {
+            TrackComponentOf::Track(_) => count += 1,
+            TrackComponentOf::LineNames(_) | TrackComponentOf::Subgrid(_) => {}
+            TrackComponentOf::Repeat(repetition) => match repetition.repeat() {
                 TrackRepeat::Count(repeat_count) => {
                     count += fixed_track_count(axis, repetition.components())? * repeat_count.get();
                 }

@@ -1,14 +1,602 @@
 use super::*;
 use crate::{
-    Baselines, CalcExpression, CalcTerm, GridLine, GridSpan, LayoutCalcStore, NoCalcResolver,
-    RawGridLine, RawGridPlacement, SubgridLineNameComponent, SubgridLineNameRepeatCount,
-    SubgridTrack, TrackRepetition, WritingMode,
+    AspectRatio, Baselines, BaselinesOf, CalcExpression, CalcTerm, ComputeOutput, Dimension,
+    GridFlowToleranceOf, GridLine, GridSpan, LayoutCalcStore, Length, MaxTrackSizing,
+    MinTrackSizing, NoCalcResolver, NodeInput, NodeOutputOf, RawGridLine, RawGridPlacement,
+    SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackComponent,
+    TrackRepetition, TrackSizing, TrackSizingOf, WritingMode,
 };
 
 fn subgrid_track() -> Vec<TrackComponent> {
-    vec![TrackComponent::Subgrid(SubgridTrack {
+    subgrid_track_of()
+}
+
+fn subgrid_track_of<S: LayoutScalar>() -> Vec<TrackComponentOf<S>> {
+    vec![TrackComponentOf::Subgrid(SubgridTrack {
         name_components: Vec::new(),
     })]
+}
+
+#[test]
+fn lane_intrinsic_public_inputs_accept_non_default_scalar() {
+    let facts = LaneContributionFactsOf::<f64> {
+        min_content: 1.25_f64,
+        max_content: 2.5_f64,
+        min_size: 0.75_f64,
+        automatic_minimum_applies: true,
+    };
+    let item = LaneIntrinsicItemOf::<f64>::indefinite(
+        "wide",
+        LaneTrackSpanLength::new(2).expect("span should be nonzero"),
+        facts,
+    );
+    let input = LaneIntrinsicSizingInputOf::<f64> {
+        axis: GridAxisKind::Column,
+        available: Some(10.5_f64),
+        gap: 1.5_f64,
+        tracks: vec![TrackSizingOf::<f64>::AUTO],
+        content_sized_tracks: vec![0],
+        items: vec![item],
+    };
+
+    assert_eq!(input.gap, 1.5_f64);
+    assert_eq!(input.items[0].contribution().max_content, 2.5_f64);
+
+    let placement_input = LanePlacementInputOf::<_, f64> {
+        grid_axis_tracks: 1,
+        auto_flow: GridAutoFlow::Row,
+        lane_gap: 1.5_f64,
+        tolerance: GridFlowToleranceOf::Percent(0.25_f64),
+        tolerance_basis: 10.5_f64,
+        items: Vec::<LaneItemOf<&str, f64>>::new(),
+    };
+
+    assert_eq!(
+        placement_input.tolerance,
+        GridFlowToleranceOf::Percent(0.25_f64)
+    );
+}
+
+#[test]
+fn lane_public_helpers_compute_with_non_default_scalar() {
+    let placement = place_lanes(LanePlacementInputOf::<_, f64> {
+        grid_axis_tracks: 2,
+        auto_flow: GridAutoFlow::Row,
+        lane_gap: 0.5,
+        tolerance: GridFlowToleranceOf::Normal { font_size: 0.0 },
+        tolerance_basis: 0.0,
+        items: vec![
+            LaneItemOf {
+                item: "a",
+                grid_axis_span: 1,
+                definite_grid_axis_start: None,
+                lane_axis_margin_box: 10.25,
+            },
+            LaneItemOf {
+                item: "b",
+                grid_axis_span: 1,
+                definite_grid_axis_start: None,
+                lane_axis_margin_box: 12.5,
+            },
+        ],
+    })
+    .expect("f64 lane placement should compute");
+
+    assert_eq!(placement.content_size, 12.5);
+    assert_eq!(placement.item_offsets[1].offset, 0.0);
+
+    let intrinsic = lane_intrinsic_sizing(LaneIntrinsicSizingInputOf::<f64> {
+        axis: GridAxisKind::Column,
+        available: Some(80.0),
+        gap: 1.25,
+        tracks: vec![TrackSizingOf::<f64>::AUTO],
+        content_sized_tracks: vec![0],
+        items: vec![
+            LaneIntrinsicItemOf::<f64>::definite(
+                "definite",
+                LaneTrackSpan::new(1, 2),
+                LaneContributionFactsOf {
+                    min_content: 9.5,
+                    max_content: 14.25,
+                    min_size: 7.0,
+                    automatic_minimum_applies: true,
+                },
+            )
+            .expect("span is valid"),
+        ],
+    })
+    .expect("f64 lane intrinsic sizing should compute");
+
+    assert_eq!(intrinsic.final_track_sizes, vec![9.5]);
+}
+
+#[test]
+fn grid_lanes_compute_result_accepts_non_default_scalar() {
+    #[derive(Clone)]
+    struct F64GridTree {
+        styles: Vec<NodeInputOf<f64>>,
+        children: Vec<Vec<usize>>,
+        layouts: Vec<NodeOutputOf<f64>>,
+    }
+
+    impl Traverse for F64GridTree {
+        type Node = usize;
+        type Scalar = f64;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, usize>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[node][index]
+        }
+    }
+
+    impl Compute for F64GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
+            &self.styles[node]
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
+            self.layouts[node] = layout;
+        }
+
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInputOf<f64>,
+        ) -> ComputeOutputOf<f64> {
+            let style = &self.styles[node];
+            let size = input.known.unwrap_or(Size::new(
+                style
+                    .size
+                    .width
+                    .resolve_with(input.parent.width, &NoCalcResolver)
+                    .or_else(|| input.available.width.into_option())
+                    .unwrap_or(0.0),
+                style
+                    .size
+                    .height
+                    .resolve_with(input.parent.height, &NoCalcResolver)
+                    .or_else(|| input.available.height.into_option())
+                    .unwrap_or(0.0),
+            ));
+            ComputeOutputOf::from_sizes(size, size)
+        }
+    }
+
+    let root_style = NodeInputOf::<f64> {
+        display: Display::GridLanes,
+        size: Size::new(DimensionOf::px(120.0), DimensionOf::px(90.0)),
+        grid_template_columns: vec![TrackSizingOf::px(60.0).into()],
+        grid_auto_rows: vec![TrackSizingOf::px(40.0).into()],
+        ..NodeInputOf::default()
+    };
+    let child_style = NodeInputOf::<f64> {
+        size: Size::new(DimensionOf::px(30.0), DimensionOf::px(20.0)),
+        ..NodeInputOf::default()
+    };
+    let mut tree = F64GridTree {
+        styles: vec![root_style, child_style],
+        children: vec![vec![1], Vec::new()],
+        layouts: vec![NodeOutputOf::new(), NodeOutputOf::new()],
+    };
+
+    let computation = compute_grid_with_report(
+        &mut tree,
+        0,
+        ComputeInputOf {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::NONE,
+            available: Size::splat(AvailableOf::MAX_CONTENT),
+        },
+    );
+    let (output, report) = computation.into_parts();
+
+    assert!(report.is_empty());
+    assert_eq!(output.size, Size::new(120.0, 90.0));
+    assert_eq!(tree.layouts[1].size, Size::new(30.0, 20.0));
+}
+
+#[test]
+fn shared_grid_contexts_accept_non_default_scalar() {
+    let named_lines = named::NamedGridLines::new(GridAxisKind::Column, 1);
+    let inherited_axis = InheritedGridAxis::<f64> {
+        offset: 0.25,
+        gap: 1.5,
+        tracks: vec![10.0, 20.0],
+        named_lines: named_lines.clone(),
+        area_facts: None,
+        major_baselines: vec![Some(2.0)],
+        minor_baselines: vec![None],
+        parent_start: 0,
+        parent_end: 2,
+        reversed: false,
+        start_mbp: 0.5,
+        end_mbp: 0.75,
+        gap_difference: 0.25,
+    };
+    let parent_context = GridParentContext::<f64> {
+        columns: Some(inherited_axis),
+        rows: None,
+    };
+    assert!(parent_context.has_inherited_axis());
+
+    let lines = GridLines {
+        column_explicit_start: 0,
+        column_explicit_count: 1,
+        row_explicit_start: 0,
+        row_explicit_count: 1,
+    };
+    let container_context = GridContainerContext::<f64> {
+        gap: Size::new(1.0, 2.0),
+        column_basis: Some(100.0),
+        row_basis: None,
+        explicit_columns: 1,
+        explicit_rows: 1,
+        named_columns: named_lines.clone(),
+        named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
+        area_facts: None,
+        leading_columns: 0,
+        leading_rows: 0,
+        lines,
+        inherited_column_offset: Some(0.25),
+        inherited_row_offset: None,
+    };
+    let constants = Constants::<f64> {
+        node_outer_size: Size::splat(Some(120.0)),
+        node_inner_size: Size::splat(Some(100.0)),
+        node_min_size: Size::NONE,
+        node_max_size: Size::NONE,
+        available_inner_size: Size::splat(Some(100.0)),
+        content_box_inset: Edges::ZERO,
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+    };
+    let style = NodeInputOf::<f64>::default();
+    let tracks = vec![TrackSizingOf::<f64>::AUTO];
+    let placements = GridPlacementContext::new(Vec::<usize>::new(), Vec::new());
+    let subgrid_report = GridSubgridReport { items: Vec::new() };
+
+    let _initialized = InitializedGridTracks::<usize, f64> {
+        column_tracks: tracks.clone(),
+        row_tracks: tracks.clone(),
+        context: container_context.clone(),
+        placements: GridPlacementContext::new(Vec::new(), Vec::new()),
+        subgrid_report: GridSubgridReport { items: Vec::new() },
+        report: GridComputationReport::default(),
+    };
+    let _track_input = GridTrackResolutionInput::<usize, f64> {
+        style: &style,
+        constants: &constants,
+        column_tracks: &tracks,
+        row_tracks: &tracks,
+        context: container_context.clone(),
+        subgrid_report: &subgrid_report,
+        available: Size::splat(AvailableOf::<f64>::MAX_CONTENT),
+        intrinsic_max_available: Size::splat(false),
+        placements: &placements,
+    };
+    let _track_resolution = GridTrackResolution::<f64> {
+        columns: vec![10.0],
+        rows: vec![20.0],
+        column_min_intrinsic_sizes: vec![1.0],
+        column_max_intrinsic_sizes: vec![2.0],
+        row_intrinsic_sizes: vec![3.0],
+    };
+    let _child_input = GridChildLayoutInput::<usize, f64> {
+        style: &style,
+        constants: &constants,
+        column_tracks: &tracks,
+        row_tracks: &tracks,
+        context: container_context.clone(),
+        columns: &[10.0],
+        rows: &[20.0],
+        column_min_intrinsic_sizes: &[1.0],
+        column_max_intrinsic_sizes: &[2.0],
+        row_intrinsic_sizes: &[3.0],
+        output_size: Size::new(100.0, 100.0),
+        subgrid_report: &subgrid_report,
+        parent_context: &parent_context,
+        placements: &placements,
+    };
+    let _layout_context = GridLayoutContext::<usize, f64> {
+        style: &style,
+        constants: &constants,
+        container_content_size: Size::new(100.0, 100.0),
+        columns: &[10.0],
+        rows: &[20.0],
+        row_tracks: &tracks,
+        gap: Size::new(1.0, 2.0),
+        lines,
+        named_columns: named_lines,
+        named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
+        area_facts: None,
+        inherited_column_offset: Some(0.25),
+        inherited_row_offset: None,
+        subgrid_report: &subgrid_report,
+        parent_context: &parent_context,
+        placements: &placements,
+    };
+}
+
+#[test]
+fn grid_child_pure_helpers_accept_non_default_scalar() {
+    let geometry = BaselineGeometry::<f64> {
+        available_span_size: 80.0,
+        margin_box_size: 30.0,
+        major_baseline: 12.5,
+        minor_baseline: 7.25,
+    };
+    let shared = TrackBaselineGroup::<f64> {
+        first: Some(20.0),
+        last: Some(10.0),
+    };
+
+    assert_eq!(
+        baseline_shim_for_intrinsic_contribution(
+            BaselineParticipation {
+                participates: true,
+                group: Some(BaselineGroupKind::Major),
+                synthesized: false,
+                fallback_alignment: None,
+            },
+            geometry,
+            shared,
+        ),
+        BaselineShim::<f64> {
+            before: 7.5,
+            after: 0.0,
+        }
+    );
+    assert_eq!(
+        baseline_offset(BaselineGroupKind::Minor, 10.0_f64, geometry),
+        47.25
+    );
+    assert_eq!(spanned_track_size(&[10.0_f64, 20.0, 30.0], 0, 3, 2.5), 65.0);
+
+    assert_eq!(
+        grid_item_axis(GridItemAxis::<f64> {
+            area_size: 100.0,
+            size: 20.0,
+            margin_start: None,
+            margin_end: None,
+            alignment: AlignItems::Center,
+            direction: Direction::Ltr,
+        }),
+        ResolvedGridItemAxis::<f64> {
+            offset: 40.0,
+            margin_start: 40.0,
+            margin_end: 40.0,
+        }
+    );
+
+    assert_eq!(
+        absolute_grid_axis(AbsoluteGridAxis::<f64> {
+            area_location: 5.0,
+            static_area_location: 10.0,
+            area_size: 100.0,
+            static_area_size: 80.0,
+            size: 20.0,
+            margin_start: Some(2.5),
+            margin_end: Some(7.5),
+            inset_start: None,
+            inset_end: None,
+            alignment: AlignItems::End,
+            direction: Direction::Ltr,
+        }),
+        ResolvedAbsoluteGridAxis::<f64> {
+            location: 62.5,
+            margin_start: 2.5,
+            margin_end: 7.5,
+        }
+    );
+}
+
+#[test]
+fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar() {
+    let area = GridArea::<f64> {
+        column: 0,
+        row: 0,
+        column_end: 1,
+        row_end: 2,
+        size: Size::new(40.0, 90.0),
+    };
+    let item = PendingGridItem::<_, f64> {
+        node: "child",
+        order: 0,
+        area,
+        output: ComputeOutputOf::<f64>::from_sizes_and_baselines(
+            Size::new(40.0, 30.0),
+            Size::new(40.0, 30.0),
+            BaselinesOf {
+                first: Point::new(None, Some(8.0)),
+                last: Point::new(None, Some(22.0)),
+            },
+        ),
+        horizontal_axis: ResolvedGridItemAxis::<f64> {
+            offset: 0.0,
+            margin_start: 0.0,
+            margin_end: 0.0,
+        },
+        vertical_axis: ResolvedGridItemAxis::<f64> {
+            offset: 0.0,
+            margin_start: 3.0,
+            margin_end: 5.0,
+        },
+        relative_offset: Point::<f64>::ZERO,
+        first_baseline: 8.0,
+        last_baseline: 22.0,
+        published_row_baselines: None,
+        block_offset: 0.0,
+        block_auto_margins: false,
+        baseline_participation: BaselineParticipation {
+            participates: true,
+            group: Some(BaselineGroupKind::Major),
+            synthesized: false,
+            fallback_alignment: None,
+        },
+        margin: Edges::new(0.0, 0.0, 3.0, 5.0),
+        scrollbar_size: Size::ZERO,
+        border: Edges::ZERO,
+        padding: Edges::ZERO,
+        overflow: Point::new(Overflow::Visible, Overflow::Visible),
+    };
+
+    let groups = baseline_groups(std::slice::from_ref(&item), 2, 1);
+    assert_eq!(groups.rows[0].first, Some(11.0));
+    assert_eq!(
+        baseline_aligned_block_offset(&item, &groups, &[40.0_f64, 40.0], 10.0),
+        Some(3.0)
+    );
+
+    let axis = InheritedGridAxis::<f64> {
+        offset: 0.0,
+        gap: 10.0,
+        tracks: vec![40.0, 40.0],
+        named_lines: named::NamedGridLines::new(GridAxisKind::Row, 2),
+        area_facts: None,
+        major_baselines: vec![None, None],
+        minor_baselines: vec![None, None],
+        parent_start: 0,
+        parent_end: 2,
+        reversed: false,
+        start_mbp: 1.5,
+        end_mbp: 2.5,
+        gap_difference: 0.25,
+    };
+    let published = publish_row_baseline_groups(&groups.rows, &axis);
+    assert_eq!(
+        published,
+        vec![PublishedTrackBaselineGroup::<f64> {
+            parent_index: 0,
+            group: TrackBaselineGroup {
+                first: Some(12.75),
+                last: None,
+            },
+        }]
+    );
+
+    let inherited = inherit_subgrid_tracks(SubgridTrackInheritanceInput::<f64> {
+        parent_tracks: &[20.0, 30.0],
+        parent_span: GridTrackSpan::new(1, 3),
+        reversed: false,
+        start_mbp: 2.0,
+        end_mbp: 4.0,
+        parent_gap: 6.0,
+        subgrid_gap: ResolvedSubgridGap::Length(10.0),
+    })
+    .unwrap();
+    assert_eq!(inherited.gap_difference, 2.0);
+    assert_eq!(inherited.final_tracks, vec![16.0, 24.0]);
+
+    let inherited_baselines = inherit_subgrid_baselines(SubgridBaselineInheritanceInput::<f64> {
+        parent_major: &[Some(9.0), Some(17.0)],
+        parent_minor: &[Some(4.0), Some(6.0)],
+        parent_span: GridTrackSpan::new(1, 3),
+        reversed: false,
+        start_mbp: 2.0,
+        end_mbp: 4.0,
+        parent_gap: 6.0,
+        subgrid_gap: inherited.resolved_subgrid_gap,
+    })
+    .unwrap();
+    assert_eq!(inherited_baselines.gap_difference, 2.0);
+    assert_eq!(inherited_baselines.final_major, vec![Some(5.0), Some(15.0)]);
+    assert_eq!(inherited_baselines.final_minor, vec![Some(2.0), Some(0.0)]);
+
+    let (layout_tracks, layout_gap) =
+        inherited_subgrid_layout_tracks(GridAxisKind::Row, &inherited);
+    assert_eq!(layout_tracks, vec![16.0, 24.0]);
+    assert_eq!(layout_gap, 10.0);
+
+    let offset_style = NodeInputOf::<f64>::default();
+    let offsets = grid_axis_offsets(GridAxisOffsetsInput::<f64> {
+        style: &offset_style,
+        axis: GridAxisKind::Column,
+        tracks: &[12.5, 17.5],
+        inherited_offset: Some(1.25),
+        content_box_left: 0.0,
+        content_box_size: Size::new(60.0, 20.0),
+        content_box_inset: Edges::new(0.0, 0.0, 0.0, 2.0),
+        alignment: GridAlignment {
+            start: 0.5,
+            gap: 3.25,
+        },
+    });
+    assert_eq!(offsets, vec![3.75, 19.5]);
+
+    let child_style = NodeInputOf::<f64> {
+        display: Display::Grid,
+        grid_template_rows: subgrid_track_of(),
+        ..NodeInputOf::default()
+    };
+    let parent_context = subgrid_child_parent_context(SubgridChildParentContextInput::<_, f64> {
+        item: SubgridItemReport {
+            node: "child",
+            column: SubgridAxisReport {
+                mapping: Ok(GridAxisMappingReport {
+                    queried_axis: GridAxisKind::Column,
+                    parent_axis: GridAxisKind::Column,
+                    child_axis: GridAxisKind::Column,
+                    reversed: false,
+                }),
+                eligibility: SubgridEligibility {
+                    eligible: false,
+                    reason: Some(SubgridIneligibleReason::NotRequested),
+                },
+            },
+            row: SubgridAxisReport {
+                mapping: Ok(GridAxisMappingReport {
+                    queried_axis: GridAxisKind::Row,
+                    parent_axis: GridAxisKind::Row,
+                    child_axis: GridAxisKind::Row,
+                    reversed: false,
+                }),
+                eligibility: SubgridEligibility {
+                    eligible: true,
+                    reason: None,
+                },
+            },
+        },
+        child_style: &child_style,
+        area,
+        content_box_size: Size::new(40.0, 90.0),
+        columns: &[40.0],
+        rows: &[20.0, 30.0],
+        gap: Size::new(0.0, 6.0),
+        parent_named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 1),
+        parent_named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
+        parent_area_facts: None,
+        parent_baseline_groups: &GridBaselineGroups::<f64> {
+            rows: groups.rows,
+            columns: vec![TrackBaselineGroup::default()],
+        },
+        margin: Edges::ZERO.map(Some),
+        border: Edges::ZERO,
+        padding: Edges::ZERO,
+        resolver: &NoCalcResolver,
+    });
+
+    let rows = parent_context.rows.expect("row subgrid should inherit");
+    assert_eq!(rows.tracks, vec![20.0, 30.0]);
+    assert_eq!(rows.gap, 6.0);
+}
+
+#[test]
+fn grid_alignment_accepts_f64_and_preserves_fractional_distribution() {
+    let alignment = grid_alignment::<f64>(9_000_000.75_f64, 3, 0.25_f64, AlignContent::SpaceAround);
+
+    assert_eq!(alignment.start, 1_500_000.125_f64);
+    assert_eq!(alignment.gap, 3_000_000.5_f64);
 }
 
 #[test]
@@ -270,7 +858,8 @@ fn named_lines_add_template_area_generated_names_and_facts() {
 
 #[test]
 fn named_lines_ignore_template_area_null_cells() {
-    let base = named::named_lines_from_track_components(GridAxisKind::Row, &[], 0).unwrap();
+    let base =
+        named::named_lines_from_track_components::<Scalar>(GridAxisKind::Row, &[], 0).unwrap();
     let areas = crate::GridTemplateAreas {
         rows: vec![
             crate::GridTemplateAreaRow {
@@ -546,7 +1135,8 @@ fn named_grid_placement_context_ignores_non_in_flow_track_requirements() {
 
 #[test]
 fn grid_axis_placement_preserves_out_of_range_numeric_lines() {
-    let lines = named::named_lines_from_track_components(GridAxisKind::Column, &[], 2).unwrap();
+    let lines =
+        named::named_lines_from_track_components::<Scalar>(GridAxisKind::Column, &[], 2).unwrap();
 
     assert_eq!(
         resolve_grid_item_axis_placement(
@@ -704,7 +1294,8 @@ fn named_lines_reject_non_rectangular_template_areas() {
 
 #[test]
 fn named_lines_treat_default_template_areas_as_noop() {
-    let base = named::named_lines_from_track_components(GridAxisKind::Column, &[], 1).unwrap();
+    let base =
+        named::named_lines_from_track_components::<Scalar>(GridAxisKind::Column, &[], 1).unwrap();
     let lines = named::add_area_generated_lines(
         GridAxisKind::Column,
         base,
@@ -824,9 +1415,9 @@ fn subgrid_intrinsic_parent_context_uses_actual_span_and_reversal() {
             column: 1,
             row_end: 1,
             column_end: 4,
-            size: Size::ZERO,
+            size: Size::<Scalar>::ZERO,
         },
-        Size::ZERO,
+        Size::<Scalar>::ZERO,
         &parent,
         &parent,
         None,
@@ -864,7 +1455,7 @@ fn subgrid_line_names_recompute_area_generated_names_clipped_to_span() {
     };
     let parent = named::add_area_generated_lines(
         GridAxisKind::Column,
-        named::named_lines_from_track_components(GridAxisKind::Column, &[], 4).unwrap(),
+        named::named_lines_from_track_components::<Scalar>(GridAxisKind::Column, &[], 4).unwrap(),
         &areas,
     )
     .unwrap();
@@ -892,7 +1483,7 @@ fn subgrid_area_facts_preserve_reversed_orientation_and_axis_validity() {
     };
     let parent_lines = named::add_area_generated_lines(
         GridAxisKind::Column,
-        named::named_lines_from_track_components(GridAxisKind::Column, &[], 4).unwrap(),
+        named::named_lines_from_track_components::<Scalar>(GridAxisKind::Column, &[], 4).unwrap(),
         &areas,
     )
     .unwrap();
@@ -934,7 +1525,8 @@ fn subgrid_area_facts_preserve_reversed_orientation_and_axis_validity() {
 fn subgrid_local_area_facts_clamp_to_inherited_span() {
     let parent_context = GridParentContext {
         columns: Some(test_inherited_axis(
-            named::named_lines_from_track_components(GridAxisKind::Column, &[], 4).unwrap(),
+            named::named_lines_from_track_components::<Scalar>(GridAxisKind::Column, &[], 4)
+                .unwrap(),
             None,
             0,
             2,
@@ -983,7 +1575,7 @@ fn subgrid_duplicate_area_facts_merge_with_parent_clipped_boundaries() {
     };
     let parent_lines = named::add_area_generated_lines(
         GridAxisKind::Column,
-        named::named_lines_from_track_components(GridAxisKind::Column, &[], 4).unwrap(),
+        named::named_lines_from_track_components::<Scalar>(GridAxisKind::Column, &[], 4).unwrap(),
         &parent_areas,
     )
     .unwrap();

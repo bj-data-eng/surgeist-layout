@@ -13,44 +13,63 @@ mod grid;
 mod inline;
 mod node_input;
 mod output;
+mod scalar;
 mod traits;
 mod value;
 
-pub type Scalar = f32;
+/// Default scalar precision used by the non-generic public layout aliases.
+///
+/// This is intentionally `f32`, matching the crate's browser-parity fixture
+/// boundary and the default Surgeist layout coordinate contract.
+pub type DefaultScalar = f32;
+
+/// Convenience alias for the default scalar precision.
+///
+/// Use explicit `*Of<S>` types with `S: LayoutScalar` when one layout tree
+/// needs to run end-to-end with a different supported precision such as `f64`.
+pub type Scalar = DefaultScalar;
 
 pub use block::compute_block;
-pub use cache::{Cache, CacheKeyContext, ClearState};
+pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
 pub use compute::{compute_hidden, compute_leaf, compute_root, round_layout};
 pub use flex::compute_flex;
 pub use geometry::{Axis, Edges, Point, Size};
 pub use grid::{
-    DefiniteLaneIntrinsicItem, GridAxisKind, GridComputation, GridComputationReport,
-    IndefiniteLaneContributionGroup, LaneContributionFacts, LaneIntrinsicItem,
-    LaneIntrinsicItemKind, LaneIntrinsicSizingInput, LaneIntrinsicSizingReport, LaneItem,
-    LaneItemOffset, LanePlacementError, LanePlacementInput, LanePlacementReport, LaneTrackSpan,
+    DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, GridAxisKind, GridComputation,
+    GridComputationOf, GridComputationReport, IndefiniteLaneContributionGroup,
+    IndefiniteLaneContributionGroupOf, LaneContributionFacts, LaneContributionFactsOf,
+    LaneIntrinsicItem, LaneIntrinsicItemKind, LaneIntrinsicItemOf, LaneIntrinsicSizingInput,
+    LaneIntrinsicSizingInputOf, LaneIntrinsicSizingReport, LaneIntrinsicSizingReportOf, LaneItem,
+    LaneItemOf, LaneItemOffset, LaneItemOffsetOf, LanePlacementError, LanePlacementInput,
+    LanePlacementInputOf, LanePlacementReport, LanePlacementReportOf, LaneTrackSpan,
     LaneTrackSpanLength, NamedGridErrorReport, NamedGridReport, compute_grid,
     compute_grid_with_report, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
 };
 pub use node_input::{
     AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexWrap, Float,
-    GridAutoFlow, GridFlowTolerance, GridPlacement, NodeInput, Overflow, Position, RawGridLine,
-    RawGridPlacement, TextAlign, VerticalAlign, WritingMode,
+    GridAutoFlow, GridFlowTolerance, GridFlowToleranceOf, GridPlacement, NodeInput, NodeInputOf,
+    Overflow, Position, RawGridLine, RawGridPlacement, TextAlign, VerticalAlign, WritingMode,
 };
 pub use output::{
-    Baselines, CollapsibleMargin, ComputeInput, ComputeOutput, NodeOutput, RequestedAxis, RunMode,
-    SizingMode,
+    Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, ComputeInput, ComputeInputOf,
+    ComputeOutput, ComputeOutputOf, NodeOutput, NodeOutputOf, RequestedAxis, RunMode, SizingMode,
 };
+/// Supported scalar contract for generic layout APIs.
+pub use scalar::LayoutScalar;
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
-    AspectRatio, Available, CalcExpression, CalcGeneration, CalcId, CalcResolution,
-    CalcResolutionStatus, CalcResolver, CalcTerm, CalcUnresolvedReason, Dimension, LayoutCalcStore,
-    Length, LengthAuto, NoCalcResolver, ResolvedLengthAuto,
+    AspectRatio, AspectRatioOf, Available, AvailableOf, CalcExpression, CalcExpressionOf,
+    CalcGeneration, CalcId, CalcResolution, CalcResolutionOf, CalcResolutionStatus, CalcResolver,
+    CalcTerm, CalcTermOf, CalcUnresolvedReason, Dimension, DimensionOf, LayoutCalcStore,
+    LayoutCalcStoreOf, Length, LengthAuto, LengthAutoOf, LengthOf, NoCalcResolver,
+    ResolvedLengthAuto, ResolvedLengthAutoOf,
 };
 pub use value::{
-    GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MinTrackSizing,
-    SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackComponent,
-    TrackComponentList, TrackRepeat, TrackRepeatCount, TrackRepetition, TrackRepetitionError,
-    TrackSizing, track_sizing_components,
+    GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MaxTrackSizingOf,
+    MinTrackSizing, MinTrackSizingOf, SubgridLineNameComponent, SubgridLineNameRepeatCount,
+    SubgridTrack, TrackComponent, TrackComponentList, TrackComponentListOf, TrackComponentOf,
+    TrackRepeat, TrackRepeatCount, TrackRepetition, TrackRepetitionError, TrackRepetitionOf,
+    TrackSizing, TrackSizingOf, track_sizing_components, track_sizing_components_of,
 };
 
 #[cfg(test)]

@@ -157,6 +157,7 @@ fn cached_compute_uses_tree_cache_before_running_expensive_layout() {
 
     impl CacheAccess for Probe {
         type Node = u32;
+        type Scalar = Scalar;
 
         fn cache_context(&self) -> CacheKeyContext {
             static_cache_context()
@@ -223,6 +224,7 @@ fn compute_cached_uses_cache_access_context_generation() {
 
     impl CacheAccess for Probe {
         type Node = u32;
+        type Scalar = Scalar;
 
         fn cache_context(&self) -> CacheKeyContext {
             CacheKeyContext::new(self.generation)
@@ -272,4 +274,41 @@ fn compute_cached_uses_cache_access_context_generation() {
     assert_eq!(first.size.width, 20.0);
     assert_eq!(second.size.width, 30.0);
     assert_eq!(probe.calls, 2);
+}
+
+#[test]
+fn f64_cache_context_remains_tree_context_only() {
+    let context = CacheKeyContext::new(CalcGeneration::static_no_calc());
+
+    assert_eq!(context.calc_generation(), CalcGeneration::static_no_calc());
+}
+
+#[test]
+fn f64_cache_key_distinguishes_available_values_that_collide_as_f32() {
+    let mut cache = CacheOf::<f64>::new();
+    let context = CacheKeyContext::static_no_calc();
+    let base = ComputeInputOf {
+        run_mode: RunMode::ComputeSize,
+        sizing_mode: SizingMode::ContentSize,
+        axis: RequestedAxis::Horizontal,
+        known: Size::NONE,
+        parent: Size::NONE,
+        available: Size::new(
+            AvailableOf::definite(16_777_216.0),
+            AvailableOf::MAX_CONTENT,
+        ),
+    };
+    let nearby = ComputeInputOf {
+        available: Size::new(
+            AvailableOf::definite(16_777_217.0),
+            AvailableOf::MAX_CONTENT,
+        ),
+        ..base
+    };
+
+    let output = ComputeOutputOf::<f64>::from_outer_size(Size::new(1.0, 1.0));
+    cache.store_with_context(&base, context, output);
+
+    assert_eq!(cache.get_with_context(&base, context), Some(output));
+    assert_eq!(cache.get_with_context(&nearby, context), None);
 }

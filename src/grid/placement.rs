@@ -1,16 +1,16 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct GridArea {
+pub(super) struct GridArea<S: LayoutScalar = Scalar> {
     pub(super) column: usize,
     pub(super) row: usize,
     pub(super) column_end: usize,
     pub(super) row_end: usize,
-    pub(super) size: Size,
+    pub(super) size: Size<S>,
 }
 
-impl GridArea {
-    fn single(column: usize, row: usize, width: Scalar, height: Scalar) -> Self {
+impl<S: LayoutScalar> GridArea<S> {
+    fn single(column: usize, row: usize, width: S, height: S) -> Self {
         Self {
             column,
             row,
@@ -74,7 +74,7 @@ pub(super) fn leading_implicit_tracks_for_placement(
         .max()
 }
 
-pub(super) fn is_in_flow_grid_child(style: &NodeInput) -> bool {
+pub(super) fn is_in_flow_grid_child<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
     style.display != super::Display::None && style.position != Position::Absolute
 }
 
@@ -128,7 +128,11 @@ fn explicit_grid_line_to_absolute(line: isize, explicit_track_count: usize) -> i
     }
 }
 
-pub(super) fn mark_occupied(occupancy: &mut [bool], column_count: usize, area: GridArea) {
+pub(super) fn mark_occupied<S: LayoutScalar>(
+    occupancy: &mut [bool],
+    column_count: usize,
+    area: GridArea<S>,
+) {
     for row in area.row..area.row_end {
         for column in area.column..area.column_end {
             occupancy[row * column_count + column] = true;
@@ -154,14 +158,14 @@ pub(super) fn area_is_free(
     })
 }
 
-pub(super) fn fully_definite_area(
+pub(super) fn fully_definite_area<S: LayoutScalar>(
     column: super::GridPlacement,
     row: super::GridPlacement,
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
+    columns: &[S],
+    rows: &[S],
+    gap: Size<S>,
     lines: GridLines,
-) -> Option<GridArea> {
+) -> Option<GridArea<S>> {
     if !has_definite_line(column) || !has_definite_line(row) {
         return None;
     }
@@ -169,7 +173,9 @@ pub(super) fn fully_definite_area(
     definite_area(column, row, columns, rows, gap, lines)
 }
 
-pub(super) fn absolute_grid_area(input: AbsoluteGridAreaInput<'_>) -> AbsoluteGridArea {
+pub(super) fn absolute_grid_area<S: LayoutScalar>(
+    input: AbsoluteGridAreaInput<'_, S>,
+) -> AbsoluteGridArea<S> {
     let AbsoluteGridAreaInput {
         column,
         row,
@@ -214,7 +220,7 @@ pub(super) fn absolute_grid_area(input: AbsoluteGridAreaInput<'_>) -> AbsoluteGr
         is_reverse: false,
         explicit_start: lines.row_explicit_start,
         explicit_count: lines.row_explicit_count,
-        reverse_positive_line_offset_adjustment: 0.0,
+        reverse_positive_line_offset_adjustment: S::ZERO,
     });
 
     let column_is_definite = has_definite_line(column);
@@ -249,7 +255,9 @@ pub(super) fn absolute_grid_area(input: AbsoluteGridAreaInput<'_>) -> AbsoluteGr
     }
 }
 
-pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> AbsoluteGridAxisArea {
+pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
+    input: AbsoluteGridAxisInput<'_, S>,
+) -> AbsoluteGridAxisArea<S> {
     let AbsoluteGridAxisInput {
         placement,
         tracks,
@@ -282,7 +290,7 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
         let end = if is_reverse { line } else { padding_box_end };
         return AbsoluteGridAxisArea {
             location,
-            size: (end - location).max(0.0),
+            size: (end - location).max(S::ZERO),
         };
     }
 
@@ -305,7 +313,7 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
         let end = if is_reverse { padding_box_end } else { line };
         return AbsoluteGridAxisArea {
             location,
-            size: (end - location).max(0.0),
+            size: (end - location).max(S::ZERO),
         };
     }
 
@@ -352,7 +360,7 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
         offsets[start..end]
             .iter()
             .copied()
-            .reduce(Scalar::min)
+            .reduce(S::min)
             .unwrap_or(offsets[start])
     } else {
         offsets[start]
@@ -364,20 +372,20 @@ pub(super) fn absolute_grid_axis_area(input: AbsoluteGridAxisInput<'_>) -> Absol
     }
 }
 
-pub(super) fn grid_line_offset(
+pub(super) fn grid_line_offset<S: LayoutScalar>(
     line: isize,
-    tracks: &[Scalar],
-    offsets: &[Scalar],
+    tracks: &[S],
+    offsets: &[S],
     is_reverse: bool,
     explicit_start: usize,
     explicit_count: usize,
-    reverse_positive_line_offset_adjustment: Scalar,
-) -> Option<Scalar> {
+    reverse_positive_line_offset_adjustment: S,
+) -> Option<S> {
     let index = grid_line_to_index(line, tracks.len(), explicit_start, explicit_count)?;
     let adjustment = if is_reverse && line > 0 && index > 0 {
         reverse_positive_line_offset_adjustment
     } else {
-        0.0
+        S::ZERO
     };
     if is_reverse {
         if index == 0 && !tracks.is_empty() {
@@ -400,14 +408,14 @@ pub(super) fn grid_line_offset(
     None
 }
 
-pub(super) fn definite_area(
+pub(super) fn definite_area<S: LayoutScalar>(
     column: super::GridPlacement,
     row: super::GridPlacement,
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
+    columns: &[S],
+    rows: &[S],
+    gap: Size<S>,
     lines: GridLines,
-) -> Option<GridArea> {
+) -> Option<GridArea<S>> {
     let (column_start, column_end) = placement_range(
         column,
         columns.len(),
@@ -496,20 +504,22 @@ pub(super) fn grid_line_to_index(
     (index >= 0 && index <= track_count as isize).then_some(index as usize)
 }
 
-pub(super) fn track_span_sum(sizes: &[Scalar], start: usize, end: usize, gap: Scalar) -> Scalar {
+pub(super) fn track_span_sum<S: LayoutScalar>(sizes: &[S], start: usize, end: usize, gap: S) -> S {
     let end = end.clamp(start + 1, sizes.len());
-    track_sum(&sizes[start..end], gap)
+    let tracks = &sizes[start..end];
+    tracks.iter().copied().fold(S::ZERO, |sum, size| sum + size)
+        + gap * S::from_usize(tracks.len().saturating_sub(1))
 }
 
-pub(super) fn next_auto_area(
+pub(super) fn next_auto_area<S: LayoutScalar>(
     placement_index: &mut usize,
     occupancy: &[bool],
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
+    columns: &[S],
+    rows: &[S],
+    gap: Size<S>,
     span: Size<usize>,
     column_flow: bool,
-) -> GridArea {
+) -> GridArea<S> {
     let column_span = span.width.max(1);
     let row_span = span.height.max(1);
     loop {
@@ -521,7 +531,7 @@ pub(super) fn next_auto_area(
             (index % columns.len(), index / columns.len())
         };
         if row >= rows.len() || column >= columns.len() {
-            return GridArea::single(column, row, 0.0, 0.0);
+            return GridArea::single(column, row, S::ZERO, S::ZERO);
         }
         if area_is_free(
             occupancy,
@@ -548,9 +558,9 @@ pub(super) fn next_auto_area(
     }
 }
 
-pub(super) fn resolve_grid_child_areas<Node>(
-    input: ResolveGridChildAreasInput<'_, Node>,
-) -> Vec<Option<GridArea>> {
+pub(super) fn resolve_grid_child_areas<Node, S: LayoutScalar>(
+    input: ResolveGridChildAreasInput<'_, Node, S>,
+) -> Vec<Option<GridArea<S>>> {
     let ResolveGridChildAreasInput {
         children,
         placements,
@@ -615,13 +625,13 @@ pub(super) fn resolve_grid_child_areas<Node>(
     areas
 }
 
-pub(super) struct ResolveGridChildAreasInput<'a, Node> {
+pub(super) struct ResolveGridChildAreasInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) children: &'a [Node],
     pub(super) placements: &'a GridPlacementContext<Node>,
-    pub(super) style: &'a NodeInput,
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
 }
 
@@ -631,12 +641,12 @@ pub(super) enum PlacementPhase {
     Auto,
 }
 
-pub(super) fn place_grid_child_area_phase<Node>(
+pub(super) fn place_grid_child_area_phase<Node, S: LayoutScalar>(
     placements: &GridPlacementContext<Node>,
-    areas: &mut [Option<GridArea>],
+    areas: &mut [Option<GridArea<S>>],
     occupancy: &mut [bool],
     phase: PlacementPhase,
-    grid: PlacementContext<'_>,
+    grid: PlacementContext<'_, S>,
 ) {
     debug_assert_eq!(areas.len(), placements.items.len());
     for (index, placement) in placements.items.iter().enumerate() {
@@ -671,10 +681,10 @@ pub(super) fn place_grid_child_area_phase<Node>(
     }
 }
 
-pub(super) struct PlacementContext<'a> {
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+pub(super) struct PlacementContext<'a, S: LayoutScalar = Scalar> {
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
     pub(super) column_flow: bool,
     pub(super) dense_flow: bool,
@@ -698,22 +708,22 @@ pub(super) fn placement_phase(
     }
 }
 
-pub(super) struct PlacementGrid<'a> {
+pub(super) struct PlacementGrid<'a, S: LayoutScalar = Scalar> {
     pub(super) occupancy: &'a [bool],
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
     pub(super) column_flow: bool,
     pub(super) dense_flow: bool,
     pub(super) placement_index: &'a mut usize,
 }
 
-pub(super) fn resolve_grid_area(
+pub(super) fn resolve_grid_area<S: LayoutScalar>(
     column: super::GridPlacement,
     row: super::GridPlacement,
-    grid: PlacementGrid<'_>,
-) -> GridArea {
+    grid: PlacementGrid<'_, S>,
+) -> GridArea<S> {
     if let Some(area) =
         fully_definite_area(column, row, grid.columns, grid.rows, grid.gap, grid.lines)
     {
@@ -769,19 +779,19 @@ fn placement_span_or_one(placement: super::GridPlacement) -> crate::GridSpan {
         .unwrap_or_else(|| crate::GridSpan::new(1).expect("one is a valid grid span"))
 }
 
-pub(super) fn next_area_with_fixed_column(
+pub(super) fn next_area_with_fixed_column<S: LayoutScalar>(
     search_index: usize,
-    grid: &PlacementGrid<'_>,
+    grid: &PlacementGrid<'_, S>,
     column: super::GridPlacement,
     row_span: crate::GridSpan,
-) -> GridArea {
+) -> GridArea<S> {
     let Some((column_start, column_end)) = placement_range(
         column,
         grid.columns.len(),
         grid.lines.column_explicit_start,
         grid.lines.column_explicit_count,
     ) else {
-        return GridArea::single(grid.columns.len(), grid.rows.len(), 0.0, 0.0);
+        return GridArea::single(grid.columns.len(), grid.rows.len(), S::ZERO, S::ZERO);
     };
     let column_span = column_end - column_start;
     let (current_column, mut row) = if grid.column_flow {
@@ -823,22 +833,22 @@ pub(super) fn next_area_with_fixed_column(
         }
         row += 1;
     }
-    GridArea::single(column_start, grid.rows.len(), 0.0, 0.0)
+    GridArea::single(column_start, grid.rows.len(), S::ZERO, S::ZERO)
 }
 
-pub(super) fn next_area_with_fixed_row(
+pub(super) fn next_area_with_fixed_row<S: LayoutScalar>(
     search_index: usize,
-    grid: &PlacementGrid<'_>,
+    grid: &PlacementGrid<'_, S>,
     row: super::GridPlacement,
     column_span: crate::GridSpan,
-) -> GridArea {
+) -> GridArea<S> {
     let Some((row_start, row_end)) = placement_range(
         row,
         grid.rows.len(),
         grid.lines.row_explicit_start,
         grid.lines.row_explicit_count,
     ) else {
-        return GridArea::single(grid.columns.len(), grid.rows.len(), 0.0, 0.0);
+        return GridArea::single(grid.columns.len(), grid.rows.len(), S::ZERO, S::ZERO);
     };
     let row_span = row_end - row_start;
     let (current_row, mut column) = if grid.column_flow {
@@ -880,5 +890,5 @@ pub(super) fn next_area_with_fixed_row(
         }
         column += 1;
     }
-    GridArea::single(grid.columns.len(), row_start, 0.0, 0.0)
+    GridArea::single(grid.columns.len(), row_start, S::ZERO, S::ZERO)
 }

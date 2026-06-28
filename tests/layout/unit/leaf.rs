@@ -111,3 +111,29 @@ fn leaf_uses_validated_aspect_ratio() {
 
     assert_eq!(output.size, Size::new(60.0, 30.0));
 }
+
+#[test]
+fn f64_leaf_layout_preserves_fractional_precision() {
+    let input = ComputeInputOf::<f64> {
+        run_mode: RunMode::PerformLayout,
+        sizing_mode: SizingMode::InherentSize,
+        axis: RequestedAxis::Both,
+        known: Size::NONE,
+        parent: Size::new(Some(200.0), Some(100.0)),
+        available: Size::new(AvailableOf::definite(123.125), AvailableOf::MAX_CONTENT),
+    };
+    let style = NodeInputOf::<f64> {
+        padding: Edges::all(LengthOf::px(0.125)),
+        border: Edges::all(LengthOf::px(0.0625)),
+        ..NodeInputOf::<f64>::default()
+    };
+
+    let output = compute_leaf(input, &style, |known, available| {
+        assert_eq!(known, Size::NONE);
+        assert_eq!(available.width, AvailableOf::definite(122.75));
+        Size::new(16_777_217.25_f64, 7.75)
+    });
+
+    assert_eq!(output.size, Size::new(16_777_217.625, 8.125));
+    assert_eq!(output.content_size, Size::new(16_777_217.5, 8.0));
+}
