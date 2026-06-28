@@ -161,10 +161,10 @@ pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
 pub(super) fn layout_grid_children<Tree>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    context: GridLayoutContext<'_, <Tree as Traverse>::Node>,
-) -> GridChildrenLayout
+    context: GridLayoutContext<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+) -> GridChildrenLayout<Tree::Scalar>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let GridLayoutContext {
         style,
@@ -192,8 +192,8 @@ where
             .into_iter()
             .enumerate()
         {
-            tree.set_unrounded(child, NodeOutput::with_order(order as u32));
-            tree.compute_child(child, ComputeInput::HIDDEN);
+            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.compute_child(child, ComputeInputOf::HIDDEN);
         }
         return GridChildrenLayout {
             visible_content_size: Size::ZERO,
@@ -236,7 +236,7 @@ where
         if inherited_column_offset.is_some() && style.direction.is_rtl() {
             constants.content_box_inset.right - constants.content_box_inset.left
         } else {
-            Scalar::ZERO
+            Tree::Scalar::ZERO
         };
     let column_offsets = grid_axis_offsets(GridAxisOffsetsInput {
         style,
@@ -282,8 +282,8 @@ where
     {
         let child_style = tree.node_input(child).clone();
         if child_style.display == super::Display::None {
-            tree.set_unrounded(child, NodeOutput::with_order(order as u32));
-            tree.compute_child(child, ComputeInput::HIDDEN);
+            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.compute_child(child, ComputeInputOf::HIDDEN);
             continue;
         }
         if child_style.position == Position::Absolute {
@@ -316,8 +316,8 @@ where
             continue;
         };
         if area.row >= rows.len() || area.column >= columns.len() {
-            tree.set_unrounded(child, NodeOutput::with_order(order as u32));
-            tree.compute_child(child, ComputeInput::HIDDEN);
+            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.compute_child(child, ComputeInputOf::HIDDEN);
             continue;
         }
 
@@ -343,7 +343,7 @@ where
             });
         let resolved_margin = item
             .unresolved_margin
-            .map(|margin| margin.unwrap_or(Scalar::ZERO));
+            .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
         let subgrid_content_box_size = (physical_area_size
             - resolved_margin.sum_axes()
             - padding.sum_axes()
@@ -366,7 +366,7 @@ where
             padding,
             resolver: tree.calc_resolver(),
         });
-        let child_input = ComputeInput {
+        let child_input = ComputeInputOf {
             run_mode: RunMode::PerformLayout,
             sizing_mode: SizingMode::InherentSize,
             axis: RequestedAxis::Both,
@@ -377,7 +377,7 @@ where
             ),
             available: item
                 .available
-                .map(|value| Available::Definite(value.max(Scalar::ZERO))),
+                .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         };
         let output = if child_context.has_inherited_axis() {
             // Subgrid layout depends on the parent grid's used tracks, so this
@@ -391,12 +391,12 @@ where
             if child_style.overflow.y == Overflow::Scroll {
                 child_style.scrollbar_width
             } else {
-                Scalar::ZERO
+                Tree::Scalar::ZERO
             },
             if child_style.overflow.x == Overflow::Scroll {
                 child_style.scrollbar_width
             } else {
-                Scalar::ZERO
+                Tree::Scalar::ZERO
             },
         );
         let alignment =
@@ -527,7 +527,7 @@ where
 
         tree.set_unrounded(
             item.node,
-            NodeOutput {
+            NodeOutputOf {
                 order: item.order,
                 location,
                 size: item.output.size,
@@ -565,10 +565,10 @@ struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
 
 fn refresh_subgrid_items_with_baselines<Tree>(
     tree: &mut Tree,
-    input: SubgridBaselineRefreshInput<'_, <Tree as Traverse>::Node>,
-    pending_items: &mut [PendingGridItem<<Tree as Traverse>::Node>],
+    input: SubgridBaselineRefreshInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+    pending_items: &mut [PendingGridItem<<Tree as Traverse>::Node, Tree::Scalar>],
 ) where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     for item in pending_items.iter_mut() {
         let Some(subgrid_item) = input.subgrid_report.items.get(item.order as usize).copied()
@@ -603,7 +603,7 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             });
         let resolved_margin = sizing
             .unresolved_margin
-            .map(|margin| margin.unwrap_or(Scalar::ZERO));
+            .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
         let subgrid_content_box_size = (physical_area_size
             - resolved_margin.sum_axes()
             - padding.sum_axes()
@@ -630,7 +630,7 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             continue;
         }
 
-        let child_input = ComputeInput {
+        let child_input = ComputeInputOf {
             run_mode: RunMode::PerformLayout,
             sizing_mode: SizingMode::InherentSize,
             axis: RequestedAxis::Both,
@@ -641,7 +641,7 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             ),
             available: sizing
                 .available
-                .map(|value| Available::Definite(value.max(Scalar::ZERO))),
+                .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         };
         let row_axis = child_context.rows.clone();
         let result = compute_grid_with_context_result(tree, item.node, child_input, child_context);
@@ -1779,58 +1779,58 @@ pub(super) fn grid_item_axis<S: LayoutScalar>(axis: GridItemAxis<S>) -> Resolved
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridContext<'a> {
-    pub(super) container_style: &'a NodeInput,
-    pub(super) constants: &'a Constants,
+pub(super) struct AbsoluteGridContext<'a, S: LayoutScalar = Scalar> {
+    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) constants: &'a Constants<S>,
     pub(super) column: super::GridPlacement,
     pub(super) row: super::GridPlacement,
-    pub(super) column_offsets: &'a [Scalar],
-    pub(super) row_offsets: &'a [Scalar],
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+    pub(super) column_offsets: &'a [S],
+    pub(super) row_offsets: &'a [S],
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
-    pub(super) column_line_offset_adjustment: Scalar,
+    pub(super) column_line_offset_adjustment: S,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridAreaInput<'a> {
+pub(super) struct AbsoluteGridAreaInput<'a, S: LayoutScalar = Scalar> {
     pub(super) column: super::GridPlacement,
     pub(super) row: super::GridPlacement,
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) column_offsets: &'a [Scalar],
-    pub(super) row_offsets: &'a [Scalar],
-    pub(super) gap: Size,
-    pub(super) constants: &'a Constants,
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) column_offsets: &'a [S],
+    pub(super) row_offsets: &'a [S],
+    pub(super) gap: Size<S>,
+    pub(super) constants: &'a Constants<S>,
     pub(super) columns_are_rtl: bool,
     pub(super) lines: GridLines,
-    pub(super) column_line_offset_adjustment: Scalar,
+    pub(super) column_line_offset_adjustment: S,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridAxisInput<'a> {
+pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
     pub(super) placement: super::GridPlacement,
-    pub(super) tracks: &'a [Scalar],
-    pub(super) offsets: &'a [Scalar],
-    pub(super) gap: Scalar,
-    pub(super) padding_box_location: Scalar,
-    pub(super) padding_box_size: Scalar,
+    pub(super) tracks: &'a [S],
+    pub(super) offsets: &'a [S],
+    pub(super) gap: S,
+    pub(super) padding_box_location: S,
+    pub(super) padding_box_size: S,
     pub(super) is_reverse: bool,
     pub(super) explicit_start: usize,
     pub(super) explicit_count: usize,
-    pub(super) reverse_positive_line_offset_adjustment: Scalar,
+    pub(super) reverse_positive_line_offset_adjustment: S,
 }
 
 pub(super) fn layout_absolute_grid_child<Tree>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     order: u32,
-    child_style: &NodeInput,
-    context: AbsoluteGridContext<'_>,
-) -> Size
+    child_style: &NodeInputOf<Tree::Scalar>,
+    context: AbsoluteGridContext<'_, Tree::Scalar>,
+) -> Size<Tree::Scalar>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let AbsoluteGridContext {
         container_style,
@@ -1862,7 +1862,7 @@ where
                 row_explicit_start: lines.column_explicit_start,
                 row_explicit_count: lines.column_explicit_count,
             },
-            column_line_offset_adjustment: 0.0,
+            column_line_offset_adjustment: Tree::Scalar::ZERO,
         })
     } else {
         absolute_grid_area(AbsoluteGridAreaInput {
@@ -1886,10 +1886,10 @@ where
         .zip_inline_size(Size::splat(Some(area.size.width)), |length, basis| {
             resolve_auto_optional_with(length, basis, resolver)
         });
-    let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+    let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let available_size = Size::new(
-        (area.size.width - non_auto_margin.horizontal_sum()).max(0.0),
-        (area.size.height - non_auto_margin.vertical_sum()).max(0.0),
+        (area.size.width - non_auto_margin.horizontal_sum()).max(Tree::Scalar::ZERO),
+        (area.size.height - non_auto_margin.vertical_sum()).max(Tree::Scalar::ZERO),
     );
     let area_width_basis = Size::splat(Some(area.size.width));
     let padding = child_style
@@ -1937,12 +1937,14 @@ where
     let mut known = Size::new(
         style_size.width.or_else(|| {
             inset.left.zip(inset.right).map(|(left, right)| {
-                (area.size.width - non_auto_margin.horizontal_sum() - left - right).max(0.0)
+                (area.size.width - non_auto_margin.horizontal_sum() - left - right)
+                    .max(Tree::Scalar::ZERO)
             })
         }),
         style_size.height.or_else(|| {
             inset.top.zip(inset.bottom).map(|(top, bottom)| {
-                (area.size.height - non_auto_margin.vertical_sum() - top - bottom).max(0.0)
+                (area.size.height - non_auto_margin.vertical_sum() - top - bottom)
+                    .max(Tree::Scalar::ZERO)
             })
         }),
     );
@@ -1960,15 +1962,15 @@ where
         .clamp_optional(min_size, max_size);
     let output = tree.compute_child(
         child,
-        ComputeInput {
+        ComputeInputOf {
             run_mode: RunMode::PerformLayout,
             sizing_mode: SizingMode::InherentSize,
             axis: RequestedAxis::Both,
             known,
             parent: area_parent,
             available: Size::new(
-                Available::definite(available_size.width),
-                Available::definite(available_size.height),
+                AvailableOf::definite(available_size.width),
+                AvailableOf::definite(available_size.height),
             ),
         },
     );
@@ -1979,12 +1981,12 @@ where
         if child_style.overflow.y == Overflow::Scroll {
             child_style.scrollbar_width
         } else {
-            0.0
+            Tree::Scalar::ZERO
         },
         if child_style.overflow.x == Overflow::Scroll {
             child_style.scrollbar_width
         } else {
-            0.0
+            Tree::Scalar::ZERO
         },
     );
     let horizontal_axis = absolute_grid_axis(AbsoluteGridAxis {
@@ -2035,7 +2037,7 @@ where
 
     tree.set_unrounded(
         child,
-        NodeOutput {
+        NodeOutputOf {
             order,
             location,
             size: final_size,
@@ -2059,17 +2061,17 @@ where
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridArea {
-    pub(super) location: Point,
-    pub(super) static_location: Point,
-    pub(super) size: Size,
-    pub(super) static_size: Size,
+pub(super) struct AbsoluteGridArea<S: LayoutScalar = Scalar> {
+    pub(super) location: Point<S>,
+    pub(super) static_location: Point<S>,
+    pub(super) size: Size<S>,
+    pub(super) static_size: Size<S>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridAxisArea {
-    pub(super) location: Scalar,
-    pub(super) size: Scalar,
+pub(super) struct AbsoluteGridAxisArea<S: LayoutScalar = Scalar> {
+    pub(super) location: S,
+    pub(super) size: S,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2168,11 +2170,11 @@ pub(super) fn absolute_grid_axis<S: LayoutScalar>(
     }
 }
 
-pub(super) fn relative_inset_offset(
-    inset: Edges<Option<Scalar>>,
+pub(super) fn relative_inset_offset<S: LayoutScalar>(
+    inset: Edges<Option<S>>,
     direction: Direction,
     position: Position,
-) -> Point {
+) -> Point<S> {
     if position != Position::Relative {
         return Point::ZERO;
     }
@@ -2183,30 +2185,30 @@ pub(super) fn relative_inset_offset(
                 .right
                 .map(|right| -right)
                 .or(inset.left)
-                .unwrap_or(0.0)
+                .unwrap_or(S::ZERO)
         } else {
             inset
                 .left
                 .or_else(|| inset.right.map(|right| -right))
-                .unwrap_or(0.0)
+                .unwrap_or(S::ZERO)
         },
         inset
             .top
             .or_else(|| inset.bottom.map(|bottom| -bottom))
-            .unwrap_or(0.0),
+            .unwrap_or(S::ZERO),
     )
 }
 
-pub(super) fn max_size(a: Size, b: Size) -> Size {
+pub(super) fn max_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
     Size::new(a.width.max(b.width), a.height.max(b.height))
 }
 
-pub(super) fn content_size_contribution(
-    location: Point,
-    size: Size,
-    content_size: Size,
+pub(super) fn content_size_contribution<S: LayoutScalar>(
+    location: Point<S>,
+    size: Size<S>,
+    content_size: Size<S>,
     overflow: Point<Overflow>,
-) -> Size {
+) -> Size<S> {
     let contribution_size = Size::new(
         if overflow.x == Overflow::Visible {
             size.width.max(content_size.width)
@@ -2219,13 +2221,13 @@ pub(super) fn content_size_contribution(
             size.height
         },
     );
-    if contribution_size.width <= 0.0 || contribution_size.height <= 0.0 {
+    if contribution_size.width <= S::ZERO || contribution_size.height <= S::ZERO {
         return Size::ZERO;
     }
 
-    let max_x = (location.x + contribution_size.width).max(0.0);
-    let min_x = location.x.min(0.0);
-    let max_y = (location.y + contribution_size.height).max(0.0);
-    let min_y = location.y.min(0.0);
+    let max_x = (location.x + contribution_size.width).max(S::ZERO);
+    let min_x = location.x.min(S::ZERO);
+    let max_y = (location.y + contribution_size.height).max(S::ZERO);
+    let min_y = location.y.min(S::ZERO);
     Size::new(max_x - min_x, max_y - min_y)
 }

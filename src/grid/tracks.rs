@@ -1,13 +1,13 @@
 use super::*;
 use crate::{LengthOf, MaxTrackSizingOf, MinTrackSizingOf};
 #[derive(Clone, Copy)]
-pub(super) struct IntrinsicGrid<'a, Node> {
-    pub(super) style: &'a NodeInput,
-    pub(super) constants: &'a Constants,
-    pub(super) column_tracks: &'a [TrackSizing],
-    pub(super) row_tracks: &'a [TrackSizing],
-    pub(super) gap: Size,
-    pub(super) percent_basis: Size<Option<Scalar>>,
+pub(super) struct IntrinsicGrid<'a, Node, S: LayoutScalar = Scalar> {
+    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) constants: &'a Constants<S>,
+    pub(super) column_tracks: &'a [TrackSizingOf<S>],
+    pub(super) row_tracks: &'a [TrackSizingOf<S>],
+    pub(super) gap: Size<S>,
+    pub(super) percent_basis: Size<Option<S>>,
     pub(super) lines: GridLines,
     pub(super) named_columns: &'a NamedGridLines,
     pub(super) named_rows: &'a NamedGridLines,
@@ -17,31 +17,31 @@ pub(super) struct IntrinsicGrid<'a, Node> {
 }
 
 #[derive(Clone, Copy, Default)]
-pub(super) struct IntrinsicGridLowerBounds<'a> {
-    pub(super) columns: Option<&'a [Scalar]>,
-    pub(super) rows: Option<&'a [Scalar]>,
+pub(super) struct IntrinsicGridLowerBounds<'a, S: LayoutScalar = Scalar> {
+    pub(super) columns: Option<&'a [S]>,
+    pub(super) rows: Option<&'a [S]>,
 }
 
 #[derive(Clone, Copy)]
-struct RowIntrinsicContribution {
+struct RowIntrinsicContribution<S: LayoutScalar = Scalar> {
     start: usize,
     end: usize,
     contributes_to_row_size: bool,
     contribution_kind: IntrinsicSpanContribution,
-    contribution: Scalar,
+    contribution: S,
     participation: BaselineParticipation,
-    geometry: BaselineGeometry,
+    geometry: BaselineGeometry<S>,
 }
 
 pub(super) fn intrinsic_track_sizes<Tree>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    grid: IntrinsicGrid<'_, <Tree as Traverse>::Node>,
-    available: Size<Available>,
-    lower_bounds: IntrinsicGridLowerBounds<'_>,
-) -> (Vec<Scalar>, Vec<Scalar>)
+    grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+    available: Size<AvailableOf<Tree::Scalar>>,
+    lower_bounds: IntrinsicGridLowerBounds<'_, Tree::Scalar>,
+) -> (Vec<Tree::Scalar>, Vec<Tree::Scalar>)
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let style = grid.style;
     let constants = grid.constants;
@@ -49,19 +49,19 @@ where
     let row_tracks = grid.row_tracks;
     let column_count = column_tracks.len();
     let row_count = row_tracks.len();
-    let mut columns: Vec<Scalar> = lower_bounds
+    let mut columns: Vec<Tree::Scalar> = lower_bounds
         .columns
         .map(|bounds| bounds.iter().copied().take(column_count).collect())
-        .unwrap_or_else(|| vec![0.0; column_count]);
-    columns.resize(column_count, 0.0);
-    let mut rows: Vec<Scalar> = lower_bounds
+        .unwrap_or_else(|| vec![Tree::Scalar::ZERO; column_count]);
+    columns.resize(column_count, Tree::Scalar::ZERO);
+    let mut rows: Vec<Tree::Scalar> = lower_bounds
         .rows
         .map(|bounds| bounds.iter().copied().take(row_count).collect())
-        .unwrap_or_else(|| vec![0.0; row_count]);
-    rows.resize(row_count, 0.0);
+        .unwrap_or_else(|| vec![Tree::Scalar::ZERO; row_count]);
+    rows.resize(row_count, Tree::Scalar::ZERO);
     let mut row_contributions = Vec::new();
-    let zero_columns: Vec<Scalar> = vec![0.0; column_count];
-    let zero_rows: Vec<Scalar> = vec![0.0; row_count];
+    let zero_columns: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; column_count];
+    let zero_rows: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; row_count];
     let children = tree.children(node).collect::<Vec<_>>();
     let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
         children: &children,
@@ -189,11 +189,11 @@ where
             Size::splat(Some(area.size.width)),
             tree.calc_resolver(),
         );
-        let output = if available.width == Available::MIN_CONTENT
+        let output = if available.width == AvailableOf::MIN_CONTENT
             && child_style.overflow.x.clips_contents()
             && !spans_min_content_column
         {
-            ComputeOutput::HIDDEN
+            ComputeOutputOf::HIDDEN
         } else {
             compute_intrinsic_grid_child(
                 tree,
@@ -206,7 +206,7 @@ where
                     rows: &rows,
                     sizing,
                     subgrid_item: grid.subgrid_report.items.get(index).copied(),
-                    input: ComputeInput {
+                    input: ComputeInputOf {
                         run_mode: if matches!(
                             align_self,
                             AlignItems::Baseline | AlignItems::LastBaseline
@@ -237,11 +237,11 @@ where
             if column_end == column_start + 1 {
                 columns[column_start] =
                     columns[column_start].max(output.size.width + margin.horizontal_sum());
-            } else if available.width == Available::MIN_CONTENT
+            } else if available.width == AvailableOf::MIN_CONTENT
                 && column_span_tracks.is_some_and(|tracks| {
                     tracks
                         .iter()
-                        .any(|track| track_percent_fraction(track, resolver) > 0.0)
+                        .any(|track| track_percent_fraction(track, resolver) > Tree::Scalar::ZERO)
                         && tracks
                             .iter()
                             .all(|track| track_flex_factor(*track).is_none())
@@ -325,10 +325,10 @@ where
     (columns, rows)
 }
 
-fn row_baseline_groups_for_intrinsic_contributions(
-    contributions: &[RowIntrinsicContribution],
+fn row_baseline_groups_for_intrinsic_contributions<S: LayoutScalar>(
+    contributions: &[RowIntrinsicContribution<S>],
     row_count: usize,
-) -> Vec<TrackBaselineGroup> {
+) -> Vec<TrackBaselineGroup<S>> {
     let mut groups = vec![TrackBaselineGroup::default(); row_count];
     for item in contributions {
         if !item.participation.participates {
@@ -338,14 +338,14 @@ fn row_baseline_groups_for_intrinsic_contributions(
         match item.participation.group {
             Some(BaselineGroupKind::Major) => {
                 if let Some(group) = groups.get_mut(item.start).map(|group| &mut group.first) {
-                    *group = Some(group.unwrap_or(0.0).max(item.geometry.major_baseline));
+                    *group = Some(group.unwrap_or(S::ZERO).max(item.geometry.major_baseline));
                 }
             }
             Some(BaselineGroupKind::Minor) => {
                 if let Some(row) = item.end.checked_sub(1)
                     && let Some(group) = groups.get_mut(row).map(|group| &mut group.last)
                 {
-                    *group = Some(group.unwrap_or(0.0).max(item.geometry.minor_baseline));
+                    *group = Some(group.unwrap_or(S::ZERO).max(item.geometry.minor_baseline));
                 }
             }
             None => {}
@@ -354,10 +354,10 @@ fn row_baseline_groups_for_intrinsic_contributions(
     groups
 }
 
-fn row_baseline_shim(
-    item: RowIntrinsicContribution,
-    groups: &[TrackBaselineGroup],
-) -> BaselineShim {
+fn row_baseline_shim<S: LayoutScalar>(
+    item: RowIntrinsicContribution<S>,
+    groups: &[TrackBaselineGroup<S>],
+) -> BaselineShim<S> {
     let Some(group_kind) = item.participation.group else {
         return BaselineShim::default();
     };
@@ -369,25 +369,25 @@ fn row_baseline_shim(
     baseline_shim_for_intrinsic_contribution(item.participation, item.geometry, shared)
 }
 
-fn baseline_geometry_for_intrinsic_contribution(
-    output: ComputeOutput,
-    margin: Edges,
-) -> BaselineGeometry {
+fn baseline_geometry_for_intrinsic_contribution<S: LayoutScalar>(
+    output: ComputeOutputOf<S>,
+    margin: Edges<S>,
+) -> BaselineGeometry<S> {
     let baselines = output.baselines();
     let first_baseline = baselines.first_or_synthesize_block(output.size);
     let last_baseline = baselines.last_or_synthesize_block(output.size);
     BaselineGeometry {
-        available_span_size: 0.0,
+        available_span_size: S::ZERO,
         margin_box_size: output.size.height + margin.vertical_sum(),
         major_baseline: margin.top + first_baseline,
         minor_baseline: margin.bottom + output.size.height - last_baseline,
     }
 }
 
-fn block_auto_margins_for_intrinsic_contribution(
-    style: &NodeInput,
-    constants: &Constants,
-    resolver: &dyn CalcResolver,
+fn block_auto_margins_for_intrinsic_contribution<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    constants: &Constants<S>,
+    resolver: &dyn CalcResolver<S>,
 ) -> bool {
     let margin = style.margin.zip_inline_size(
         Size::splat(constants.node_inner_size.width),
@@ -396,24 +396,24 @@ fn block_auto_margins_for_intrinsic_contribution(
     margin.top.is_none() || margin.bottom.is_none()
 }
 
-struct IntrinsicGridChildInput<'a, Node> {
-    child_style: &'a NodeInput,
-    grid: IntrinsicGrid<'a, Node>,
-    area: GridArea,
-    columns: &'a [Scalar],
-    rows: &'a [Scalar],
-    sizing: GridItemSizing,
+struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
+    child_style: &'a NodeInputOf<S>,
+    grid: IntrinsicGrid<'a, Node, S>,
+    area: GridArea<S>,
+    columns: &'a [S],
+    rows: &'a [S],
+    sizing: GridItemSizing<S>,
     subgrid_item: Option<SubgridItemReport<Node>>,
-    input: ComputeInput,
+    input: ComputeInputOf<S>,
 }
 
 fn compute_intrinsic_grid_child<Tree>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
-    args: IntrinsicGridChildInput<'_, <Tree as Traverse>::Node>,
-) -> ComputeOutput
+    args: IntrinsicGridChildInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+) -> ComputeOutputOf<Tree::Scalar>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let IntrinsicGridChildInput {
         child_style,
@@ -453,7 +453,9 @@ where
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_length_or_zero_with(length, basis, resolver)
         });
-    let margin = sizing.unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+    let margin = sizing
+        .unresolved_margin
+        .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let content_box_size =
         (area.size - margin.sum_axes() - padding.sum_axes() - border.sum_axes()).max(Size::ZERO);
     let baseline_groups = GridBaselineGroups {
@@ -486,7 +488,7 @@ where
             sizing.known,
             Size::new(Some(area.size.width), Some(area.size.height)),
             Size::new(
-                Available::Definite(sizing.available.width.max(0.0)),
+                AvailableOf::Definite(sizing.available.width.max(Tree::Scalar::ZERO)),
                 input.available.height,
             ),
         )
@@ -497,7 +499,7 @@ where
             input.available,
         )
     };
-    let child_input = ComputeInput {
+    let child_input = ComputeInputOf {
         known,
         parent,
         available,
@@ -506,11 +508,11 @@ where
     compute_grid_with_context_result(tree, child, child_input, child_context).output
 }
 
-pub(super) fn needs_intrinsic_subgrid_context<Node>(
-    style: &NodeInput,
+pub(super) fn needs_intrinsic_subgrid_context<Node, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     item: SubgridItemReport<Node>,
-    area: GridArea,
-    resolver: &dyn CalcResolver,
+    area: GridArea<S>,
+    resolver: &dyn CalcResolver<S>,
 ) -> bool
 where
     Node: Copy,
@@ -551,20 +553,20 @@ fn track_component_has_percent_sizing<S: LayoutScalar>(
     }
 }
 
-fn intrinsic_subgrid_child_parent<Node>(
-    input_parent: Size<Option<Scalar>>,
-    area_size: Size,
+fn intrinsic_subgrid_child_parent<Node, S: LayoutScalar>(
+    input_parent: Size<Option<S>>,
+    area_size: Size<S>,
     item: SubgridItemReport<Node>,
-) -> Size<Option<Scalar>> {
+) -> Size<Option<S>> {
     let mut parent = input_parent;
     apply_intrinsic_subgrid_axis_parent(&mut parent, area_size, item.column);
     apply_intrinsic_subgrid_axis_parent(&mut parent, area_size, item.row);
     parent
 }
 
-fn apply_intrinsic_subgrid_axis_parent(
-    parent: &mut Size<Option<Scalar>>,
-    area_size: Size,
+fn apply_intrinsic_subgrid_axis_parent<S: LayoutScalar>(
+    parent: &mut Size<Option<S>>,
+    area_size: Size<S>,
     report: SubgridAxisReport,
 ) {
     if !report.can_inherit() {
@@ -580,31 +582,31 @@ fn apply_intrinsic_subgrid_axis_parent(
     }
 }
 
-struct SubgridIntrinsicContributionInput<'a, Node> {
-    constants: &'a Constants,
+struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
+    constants: &'a Constants<S>,
     axis: GridAxisKind,
-    tracks: &'a [TrackSizing],
-    sizes: &'a mut [Scalar],
-    percent_basis: Option<Scalar>,
-    gap: Scalar,
-    container_gap: Size,
-    available: Size<Available>,
+    tracks: &'a [TrackSizingOf<S>],
+    sizes: &'a mut [S],
+    percent_basis: Option<S>,
+    gap: S,
+    container_gap: Size<S>,
+    available: Size<AvailableOf<S>>,
     children: &'a [Node],
-    placed_areas: &'a [Option<GridArea>],
+    placed_areas: &'a [Option<GridArea<S>>],
     subgrid_report: &'a GridSubgridReport<Node>,
     named_columns: &'a NamedGridLines,
     named_rows: &'a NamedGridLines,
     area_facts: Option<&'a GridAreaNameFacts>,
-    column_sizes: &'a [Scalar],
-    row_sizes: &'a [Scalar],
+    column_sizes: &'a [S],
+    row_sizes: &'a [S],
 }
 
 fn apply_subgrid_intrinsic_contributions<Tree>(
     tree: &mut Tree,
-    input: SubgridIntrinsicContributionInput<'_, <Tree as Traverse>::Node>,
+    input: SubgridIntrinsicContributionInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
 ) -> Vec<<Tree as Traverse>::Node>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     if input.tracks.is_empty() || input.subgrid_report.items.is_empty() {
         return Vec::new();
@@ -676,7 +678,7 @@ where
             && child_style.size.width.is_auto())
         .then_some(leaf.available_inline_size)
         .flatten()
-        .filter(|width| *width > 0.0);
+        .filter(|width| *width > Tree::Scalar::ZERO);
         if input.axis == GridAxisKind::Row
             && child_style.size.width.is_auto()
             && row_available_inline_size.is_none()
@@ -686,13 +688,13 @@ where
         let row_known_inline_size =
             row_available_inline_size.filter(|_| leaf.available_inline_size_is_known);
         let available = if let Some(width) = row_available_inline_size {
-            Size::new(Available::Definite(width), input.available.height)
+            Size::new(AvailableOf::Definite(width), input.available.height)
         } else {
             input.available
         };
         let output = tree.compute_child(
             leaf.node,
-            ComputeInput {
+            ComputeInputOf {
                 run_mode: RunMode::ComputeSize,
                 sizing_mode: SizingMode::InherentSize,
                 axis: RequestedAxis::Both,
@@ -726,10 +728,10 @@ where
         if end == start + 1 {
             input.sizes[start] = input.sizes[start].max(contribution);
         } else if input.axis == GridAxisKind::Column
-            && axis_available(input.available, input.axis) == Available::MIN_CONTENT
-            && span_tracks
-                .iter()
-                .any(|track| track_percent_fraction(track, tree.calc_resolver()) > 0.0)
+            && axis_available(input.available, input.axis) == AvailableOf::MIN_CONTENT
+            && span_tracks.iter().any(|track| {
+                track_percent_fraction(track, tree.calc_resolver()) > Tree::Scalar::ZERO
+            })
             && span_tracks
                 .iter()
                 .all(|track| track_flex_factor(*track).is_none())
@@ -756,17 +758,20 @@ where
     contributing_roots
 }
 
-fn scroll_container_auto_minimum_zero(style: &NodeInput, axis: GridAxisKind) -> bool {
+fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    axis: GridAxisKind,
+) -> bool {
     match axis {
         GridAxisKind::Column => scroll_container_auto_minimum_zero_inline(style),
         GridAxisKind::Row => scroll_container_auto_minimum_zero_block(style),
     }
 }
 
-fn subgrid_leaf_size_depends_on_queried_axis(
-    style: &NodeInput,
+fn subgrid_leaf_size_depends_on_queried_axis<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     axis: GridAxisKind,
-    resolver: &dyn CalcResolver,
+    resolver: &dyn CalcResolver<S>,
 ) -> bool {
     match axis {
         GridAxisKind::Column => style.size.width.depends_on_basis_with(resolver),
@@ -774,8 +779,8 @@ fn subgrid_leaf_size_depends_on_queried_axis(
     }
 }
 
-fn item_inherits_parent_axis<Node>(
-    style: &NodeInput,
+fn item_inherits_parent_axis<Node, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     item: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> bool
@@ -798,7 +803,10 @@ where
         })
 }
 
-fn track_components_request_subgrid(style: &NodeInput, axis: GridAxisKind) -> bool {
+fn track_components_request_subgrid<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    axis: GridAxisKind,
+) -> bool {
     let components = match axis {
         GridAxisKind::Column => &style.grid_template_columns,
         GridAxisKind::Row => &style.grid_template_rows,
@@ -806,59 +814,67 @@ fn track_components_request_subgrid(style: &NodeInput, axis: GridAxisKind) -> bo
 
     components
         .iter()
-        .any(|component| matches!(component, TrackComponent::Subgrid(_)))
+        .any(|component| matches!(component, TrackComponentOf::Subgrid(_)))
 }
 
-fn axis_size(size: Size, axis: GridAxisKind) -> Scalar {
+fn axis_size<S: LayoutScalar>(size: Size<S>, axis: GridAxisKind) -> S {
     match axis {
         GridAxisKind::Column => size.width,
         GridAxisKind::Row => size.height,
     }
 }
 
-fn axis_margin_sum(margin: Edges, axis: GridAxisKind) -> Scalar {
+fn axis_margin_sum<S: LayoutScalar>(margin: Edges<S>, axis: GridAxisKind) -> S {
     match axis {
         GridAxisKind::Column => margin.horizontal_sum(),
         GridAxisKind::Row => margin.vertical_sum(),
     }
 }
 
-fn axis_available(available: Size<Available>, axis: GridAxisKind) -> Available {
+fn axis_available<S: LayoutScalar>(
+    available: Size<AvailableOf<S>>,
+    axis: GridAxisKind,
+) -> AvailableOf<S> {
     match axis {
         GridAxisKind::Column => available.width,
         GridAxisKind::Row => available.height,
     }
 }
 
-fn axis_overflow(style: &NodeInput, axis: GridAxisKind) -> Overflow {
+fn axis_overflow<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> Overflow {
     match axis {
         GridAxisKind::Column => style.overflow.x,
         GridAxisKind::Row => style.overflow.y,
     }
 }
 
-fn adjustment_sum(adjustments: &[Scalar], start: usize, end: usize) -> Scalar {
-    adjustments.get(start..end).unwrap_or_default().iter().sum()
+fn adjustment_sum<S: LayoutScalar>(adjustments: &[S], start: usize, end: usize) -> S {
+    adjustments
+        .get(start..end)
+        .unwrap_or_default()
+        .iter()
+        .copied()
+        .fold(S::ZERO, |sum, value| sum + value)
 }
 
 pub(super) fn constrained_row_intrinsic_sizes<Tree>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    grid: IntrinsicGrid<'_, <Tree as Traverse>::Node>,
-    columns: &[Scalar],
-    gap: Size,
-) -> Vec<Scalar>
+    grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+    columns: &[Tree::Scalar],
+    gap: Size<Tree::Scalar>,
+) -> Vec<Tree::Scalar>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let row_count = grid.row_tracks.len();
-    let mut rows: Vec<Scalar> = vec![0.0; row_count];
+    let mut rows: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; row_count];
     if columns.is_empty() || row_count == 0 {
         return rows;
     }
     let mut row_contributions = Vec::new();
 
-    let zero_rows: Vec<Scalar> = vec![0.0; row_count];
+    let zero_rows: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; row_count];
     let children = tree.children(node).collect::<Vec<_>>();
     let placed_areas = resolve_grid_child_areas(ResolveGridChildAreasInput {
         children: &children,
@@ -888,8 +904,8 @@ where
                 gap: gap.height,
                 container_gap: gap,
                 available: Size::new(
-                    Available::Definite(track_sum(columns, gap.width)),
-                    Available::MAX_CONTENT,
+                    AvailableOf::Definite(track_sum(columns, gap.width)),
+                    AvailableOf::MAX_CONTENT,
                 ),
                 children: &children,
                 placed_areas: &placed_areas,
@@ -952,7 +968,7 @@ where
                 rows: &zero_rows,
                 sizing,
                 subgrid_item: grid.subgrid_report.items.get(index).copied(),
-                input: ComputeInput {
+                input: ComputeInputOf {
                     run_mode: if matches!(
                         sizing.align_self,
                         AlignItems::Baseline | AlignItems::LastBaseline
@@ -966,8 +982,8 @@ where
                     known: Size::new(sizing.known.width, None),
                     parent: Size::new(Some(area.size.width), Some(area.size.height)),
                     available: Size::new(
-                        Available::definite(sizing.available.width),
-                        Available::MAX_CONTENT,
+                        AvailableOf::definite(sizing.available.width),
+                        AvailableOf::MAX_CONTENT,
                     ),
                 },
             },
@@ -1036,16 +1052,16 @@ where
 pub(super) fn constrained_column_intrinsic_sizes<Tree>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    grid: IntrinsicGrid<'_, <Tree as Traverse>::Node>,
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
-) -> Vec<Scalar>
+    grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+    columns: &[Tree::Scalar],
+    rows: &[Tree::Scalar],
+    gap: Size<Tree::Scalar>,
+) -> Vec<Tree::Scalar>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let column_count = grid.column_tracks.len();
-    let mut column_sizes: Vec<Scalar> = vec![0.0; column_count];
+    let mut column_sizes: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; column_count];
     if column_count == 0 || rows.is_empty() {
         return column_sizes;
     }
@@ -1090,18 +1106,20 @@ where
             Size::splat(Some(area.size.width)),
             tree.calc_resolver(),
         );
-        let margin = sizing.unresolved_margin.map(|margin| margin.unwrap_or(0.0));
+        let margin = sizing
+            .unresolved_margin
+            .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
         let output = tree.compute_child(
             child,
-            ComputeInput {
+            ComputeInputOf {
                 run_mode: RunMode::ComputeSize,
                 sizing_mode: SizingMode::InherentSize,
                 axis: RequestedAxis::Both,
                 known: Size::new(None, sizing.known.height),
                 parent: Size::new(Some(area.size.width), Some(area.size.height)),
                 available: Size::new(
-                    Available::MIN_CONTENT,
-                    Available::definite(sizing.available.height),
+                    AvailableOf::MIN_CONTENT,
+                    AvailableOf::definite(sizing.available.height),
                 ),
             },
         );
@@ -1113,15 +1131,15 @@ where
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct PercentTrackContent<'a, Node> {
-    pub(super) style: &'a NodeInput,
-    pub(super) constants: &'a Constants,
-    pub(super) parent_context: &'a GridParentContext,
-    pub(super) column_tracks: &'a [TrackSizing],
-    pub(super) row_tracks: &'a [TrackSizing],
-    pub(super) columns: &'a [Scalar],
-    pub(super) rows: &'a [Scalar],
-    pub(super) gap: Size,
+pub(super) struct PercentTrackContent<'a, Node, S: LayoutScalar = Scalar> {
+    pub(super) style: &'a NodeInputOf<S>,
+    pub(super) constants: &'a Constants<S>,
+    pub(super) parent_context: &'a GridParentContext<S>,
+    pub(super) column_tracks: &'a [TrackSizingOf<S>],
+    pub(super) row_tracks: &'a [TrackSizingOf<S>],
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
     pub(super) lines: GridLines,
     pub(super) placements: &'a GridPlacementContext<Node>,
 }
@@ -1129,10 +1147,10 @@ pub(super) struct PercentTrackContent<'a, Node> {
 pub(super) fn cyclic_percent_track_content_size<Tree>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    input: PercentTrackContent<'_, <Tree as Traverse>::Node>,
-) -> Size
+    input: PercentTrackContent<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+) -> Size<Tree::Scalar>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let PercentTrackContent {
         style,
@@ -1161,15 +1179,15 @@ where
         gap,
         lines,
     });
-    let column_offsets = offsets(columns, 0.0, gap.width);
-    let row_offsets = offsets(rows, 0.0, gap.height);
+    let column_offsets = offsets(columns, Tree::Scalar::ZERO, gap.width);
+    let row_offsets = offsets(rows, Tree::Scalar::ZERO, gap.height);
     let mut content_size = Size::ZERO;
     let accumulate_standalone_percent_columns =
         inherits_opposite_subgrid_axis(parent_context, GridAxisKind::Column);
     let accumulate_standalone_percent_rows =
         inherits_opposite_subgrid_axis(parent_context, GridAxisKind::Row);
-    let mut column_content: Vec<Scalar> = vec![0.0; columns.len()];
-    let mut row_content: Vec<Scalar> = vec![0.0; rows.len()];
+    let mut column_content: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; columns.len()];
+    let mut row_content: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; rows.len()];
     for (child, area) in children.into_iter().zip(placed_areas) {
         let child_style = tree.node_input(child).clone();
         if !is_in_flow_grid_child(&child_style) {
@@ -1210,7 +1228,7 @@ where
 
         let output = tree.compute_child(
             child,
-            ComputeInput {
+            ComputeInputOf {
                 run_mode: RunMode::ComputeSize,
                 sizing_mode: SizingMode::InherentSize,
                 axis: RequestedAxis::Both,
@@ -1219,7 +1237,7 @@ where
                     constants.node_inner_size.width,
                     constants.node_inner_size.height,
                 ),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+                available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
             },
         );
         let location = Point::new(column_offsets[area.column], row_offsets[area.row]);
@@ -1274,7 +1292,10 @@ where
     content_size
 }
 
-fn inherits_opposite_subgrid_axis(parent_context: &GridParentContext, axis: GridAxisKind) -> bool {
+fn inherits_opposite_subgrid_axis<S: LayoutScalar>(
+    parent_context: &GridParentContext<S>,
+    axis: GridAxisKind,
+) -> bool {
     // Additive standalone percent sizing is only for grids that actually inherit
     // the opposite subgrid axis; raw fallback `subgrid` declarations stay ordinary grids.
     match axis {
@@ -1283,22 +1304,22 @@ fn inherits_opposite_subgrid_axis(parent_context: &GridParentContext, axis: Grid
     }
 }
 
-fn axis_content_contribution(
-    location: Scalar,
-    size: Scalar,
-    content_size: Scalar,
+fn axis_content_contribution<S: LayoutScalar>(
+    location: S,
+    size: S,
+    content_size: S,
     overflow: Overflow,
-) -> Scalar {
+) -> S {
     let contribution_size = if overflow == Overflow::Visible {
         size.max(content_size)
     } else {
         size
     };
-    if contribution_size <= 0.0 {
-        return 0.0;
+    if contribution_size <= S::ZERO {
+        return S::ZERO;
     }
-    let max = (location + contribution_size).max(0.0);
-    let min = location.min(0.0);
+    let max = (location + contribution_size).max(S::ZERO);
+    let min = location.min(S::ZERO);
     max - min
 }
 
@@ -1309,11 +1330,15 @@ pub(super) fn track_has_percent_sizing<S: LayoutScalar>(
     track.depends_on_basis_with(resolver)
 }
 
-pub(super) fn scroll_container_auto_minimum_zero_inline(style: &NodeInput) -> bool {
+pub(super) fn scroll_container_auto_minimum_zero_inline<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+) -> bool {
     style.overflow.x.is_scrollable() && style.size.width.is_auto()
 }
 
-pub(super) fn scroll_container_auto_minimum_zero_block(style: &NodeInput) -> bool {
+pub(super) fn scroll_container_auto_minimum_zero_block<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+) -> bool {
     style.overflow.y.is_scrollable() && style.size.height.is_auto()
 }
 
@@ -1709,16 +1734,16 @@ pub(super) fn track_accepts_percent_min_content_span<S: LayoutScalar>(
     }
 }
 
-pub(super) fn intrinsic_contribution_margin(
-    style: &NodeInput,
-    inner_node_width: Option<Scalar>,
-    resolver: &dyn CalcResolver,
-) -> Edges {
+pub(super) fn intrinsic_contribution_margin<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    inner_node_width: Option<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> Edges<S> {
     Edges {
         top: resolve_auto_or_zero_with(style.margin.top, inner_node_width, resolver),
-        right: resolve_auto_or_zero_with(style.margin.right, Some(0.0), resolver),
+        right: resolve_auto_or_zero_with(style.margin.right, Some(S::ZERO), resolver),
         bottom: resolve_auto_or_zero_with(style.margin.bottom, inner_node_width, resolver),
-        left: resolve_auto_or_zero_with(style.margin.left, Some(0.0), resolver),
+        left: resolve_auto_or_zero_with(style.margin.left, Some(S::ZERO), resolver),
     }
 }
 
@@ -2694,7 +2719,10 @@ pub(super) fn rtl_offsets<S: LayoutScalar>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CalcExpression, CalcTerm, LayoutCalcStore, NoCalcResolver};
+    use crate::{
+        CalcExpression, CalcTerm, LayoutCalcStore, Length, MaxTrackSizing, MinTrackSizing,
+        NoCalcResolver, TrackSizing,
+    };
 
     #[test]
     fn resolve_inline_tracks_accepts_f64_track_inputs() {

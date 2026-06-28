@@ -119,6 +119,8 @@ pub(super) enum SubgridTraversalChild<Node, S: LayoutScalar = Scalar> {
     Leaf(SubgridTraversalLeaf<Node, S>),
 }
 
+type SubgridTraversalChildren<Node, S = Scalar> = Vec<SubgridTraversalChild<Node, S>>;
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct SubgridTraversalNode<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
@@ -678,10 +680,10 @@ fn consume_track_space<S: LayoutScalar>(tracks: &mut [S], mut amount: S, edge: T
 pub(super) fn collect_subgrid_report<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    parent_style: &NodeInput,
+    parent_style: &NodeInputOf<Tree::Scalar>,
 ) -> GridSubgridReport<<Tree as Traverse>::Node>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let items = tree
         .children(node)
@@ -698,27 +700,27 @@ where
     GridSubgridReport { items }
 }
 
-pub(super) struct GridSubgridIntrinsicTraversalInput<'a, Node> {
+pub(super) struct GridSubgridIntrinsicTraversalInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) axis: GridAxisKind,
     pub(super) children: &'a [Node],
-    pub(super) placed_areas: &'a [Option<GridArea>],
+    pub(super) placed_areas: &'a [Option<GridArea<S>>],
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
     pub(super) named_columns: &'a NamedGridLines,
     pub(super) named_rows: &'a NamedGridLines,
     pub(super) area_facts: Option<&'a GridAreaNameFacts>,
-    pub(super) parent_gap: Size,
-    pub(super) column_sizes: &'a [Scalar],
-    pub(super) row_sizes: &'a [Scalar],
-    pub(super) container_size: Size<Option<Scalar>>,
+    pub(super) parent_gap: Size<S>,
+    pub(super) column_sizes: &'a [S],
+    pub(super) row_sizes: &'a [S],
+    pub(super) container_size: Size<Option<S>>,
     pub(super) intrinsic_min_track_facts: IntrinsicMinTrackFacts<'a>,
 }
 
 pub(super) fn collect_grid_subgrid_intrinsic_traversal<Tree>(
     tree: &Tree,
-    input: GridSubgridIntrinsicTraversalInput<'_, <Tree as Traverse>::Node>,
-) -> Result<SubgridTraversalReport<<Tree as Traverse>::Node>, SubgridTraversalError>
+    input: GridSubgridIntrinsicTraversalInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
+) -> Result<SubgridTraversalReport<<Tree as Traverse>::Node, Tree::Scalar>, SubgridTraversalError>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let root_children = input
         .children
@@ -773,18 +775,18 @@ where
 fn subgrid_traversal_child<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    style: &NodeInput,
-    area: GridArea,
-    area_size: Size,
+    style: &NodeInputOf<Tree::Scalar>,
+    area: GridArea<Tree::Scalar>,
+    area_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
     queried_axis: GridAxisKind,
-    parent_gap: Size,
+    parent_gap: Size<Tree::Scalar>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
-) -> Option<SubgridTraversalChild<<Tree as Traverse>::Node>>
+) -> Option<SubgridTraversalChild<<Tree as Traverse>::Node, Tree::Scalar>>
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let axis_report = match queried_axis {
         GridAxisKind::Column => item_report.column,
@@ -796,7 +798,7 @@ where
             span_in_parent: area_span(area, queried_axis),
             available_inline_size: (queried_axis == GridAxisKind::Row)
                 .then_some(area_size.width)
-                .filter(|width| *width > 0.0),
+                .filter(|width| *width > Tree::Scalar::ZERO),
             available_inline_size_is_known: false,
         }));
     }
@@ -823,7 +825,7 @@ where
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_auto_optional_with(length, basis, resolver)
         })
-        .map(|margin| margin.unwrap_or(0.0));
+        .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let resolved_border = style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
@@ -880,7 +882,7 @@ where
         span_in_parent,
         available_inline_size: (queried_axis == GridAxisKind::Row)
             .then_some(content_box_size.width)
-            .filter(|width| *width > 0.0),
+            .filter(|width| *width > Tree::Scalar::ZERO),
         available_inline_size_is_known: queried_axis == GridAxisKind::Row
             && track_components_have_percent_sizing(&style.grid_template_columns, resolver),
         queried_axis_fully_inherited,
@@ -900,19 +902,22 @@ where
 fn subgrid_traversal_children<Tree>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
-    style: &NodeInput,
-    area: GridArea,
-    content_box_size: Size,
+    style: &NodeInputOf<Tree::Scalar>,
+    area: GridArea<Tree::Scalar>,
+    content_box_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
     queried_axis: GridAxisKind,
-    gap: Size,
+    gap: Size<Tree::Scalar>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
-    resolver: &dyn CalcResolver,
-) -> (Vec<SubgridTraversalChild<<Tree as Traverse>::Node>>, bool)
+    resolver: &dyn CalcResolver<Tree::Scalar>,
+) -> (
+    SubgridTraversalChildren<<Tree as Traverse>::Node, Tree::Scalar>,
+    bool,
+)
 where
-    Tree: Compute<Scalar = Scalar>,
+    Tree: Compute,
 {
     let parent_context = GridParentContext {
         columns: intrinsic_subgrid_axis_parent_context(
@@ -932,10 +937,10 @@ where
             parent_area_facts,
         ),
     };
-    let available = Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT);
+    let available = Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
     let constants = Constants::new(
         style,
-        ComputeInput {
+        ComputeInputOf {
             run_mode: RunMode::ComputeSize,
             sizing_mode: SizingMode::InherentSize,
             axis: RequestedAxis::Both,
@@ -953,8 +958,8 @@ where
         return (Vec::new(), true);
     }
 
-    let zero_columns = vec![0.0; column_count];
-    let zero_rows = vec![0.0; row_count];
+    let zero_columns = vec![Tree::Scalar::ZERO; column_count];
+    let zero_rows = vec![Tree::Scalar::ZERO; row_count];
     let traversal_columns = traversal_child_area_tracks(
         parent_context.columns.as_ref(),
         &initialized.column_tracks,
@@ -1035,8 +1040,8 @@ where
     (traversal_children, queried_axis_fully_inherited)
 }
 
-fn inherited_subgrid_axis_for_parent_axis<Node>(
-    style: &NodeInput,
+fn inherited_subgrid_axis_for_parent_axis<Node, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> Option<GridAxisKind>
@@ -1059,8 +1064,8 @@ where
         })
 }
 
-fn traversal_child_axis_for_parent_axis<Node>(
-    style: &NodeInput,
+fn traversal_child_axis_for_parent_axis<Node, S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     item_report: SubgridItemReport<Node>,
     parent_axis: GridAxisKind,
 ) -> GridAxisKind
@@ -1070,19 +1075,19 @@ where
     inherited_subgrid_axis_for_parent_axis(style, item_report, parent_axis).unwrap_or(parent_axis)
 }
 
-fn traversal_child_area_tracks(
-    inherited: Option<&InheritedGridAxis>,
-    tracks: &[TrackSizing],
-    content_width: Scalar,
-    gap: Scalar,
+fn traversal_child_area_tracks<S: LayoutScalar>(
+    inherited: Option<&InheritedGridAxis<S>>,
+    tracks: &[TrackSizingOf<S>],
+    content_width: S,
+    gap: S,
     alignment: AlignContent,
-    resolver: &dyn CalcResolver,
-) -> Vec<Scalar> {
+    resolver: &dyn CalcResolver<S>,
+) -> Vec<S> {
     if let Some(axis) = inherited {
         return axis.tracks.clone();
     }
 
-    let intrinsic_sizes = vec![0.0; tracks.len()];
+    let intrinsic_sizes = vec![S::ZERO; tracks.len()];
     resolve_inline_tracks(InlineTrackInput {
         resolver,
         tracks,
@@ -1145,27 +1150,27 @@ fn area_span<S: LayoutScalar>(area: GridArea<S>, axis: GridAxisKind) -> GridTrac
     }
 }
 
-fn axis_size(size: Size, axis: GridAxisKind) -> Scalar {
+fn axis_size<S: LayoutScalar>(size: Size<S>, axis: GridAxisKind) -> S {
     match axis {
         GridAxisKind::Column => size.width,
         GridAxisKind::Row => size.height,
     }
 }
 
-fn resolved_subgrid_axis_gap(
-    style: &NodeInput,
+fn resolved_subgrid_axis_gap<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     axis: GridAxisKind,
     report: SubgridAxisReport,
-    parent_gap: Size,
-    content_box_size: Size,
-    resolver: &dyn CalcResolver,
-) -> Scalar {
+    parent_gap: Size<S>,
+    content_box_size: Size<S>,
+    resolver: &dyn CalcResolver<S>,
+) -> S {
     let gap = match axis {
         GridAxisKind::Column => style.gap.width,
         GridAxisKind::Row => style.gap.height,
     };
     match gap {
-        Length::Normal => {
+        LengthOf::Normal => {
             let parent_axis = report
                 .mapping
                 .ok()
@@ -1177,18 +1182,22 @@ fn resolved_subgrid_axis_gap(
     }
 }
 
-fn traversal_axis_edges(
-    style: &NodeInput,
+fn traversal_axis_edges<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
     axis: GridAxisKind,
-    area_width_basis: Size<Option<Scalar>>,
-    resolver: &dyn CalcResolver,
-) -> (SubgridAxisEdges, SubgridAxisEdges, SubgridAxisEdges) {
+    area_width_basis: Size<Option<S>>,
+    resolver: &dyn CalcResolver<S>,
+) -> (
+    SubgridAxisEdges<S>,
+    SubgridAxisEdges<S>,
+    SubgridAxisEdges<S>,
+) {
     let margin = style
         .margin
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_auto_optional_with(length, basis, resolver)
         })
-        .map(|margin| margin.unwrap_or(0.0));
+        .map(|margin| margin.unwrap_or(S::ZERO));
     let border = style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
@@ -1232,13 +1241,13 @@ fn traversal_axis_edges(
     }
 }
 
-fn intrinsic_traversal_area_size(
-    area: GridArea,
-    columns: &[Scalar],
-    rows: &[Scalar],
-    gap: Size,
-    container_size: Size<Option<Scalar>>,
-) -> Size {
+fn intrinsic_traversal_area_size<S: LayoutScalar>(
+    area: GridArea<S>,
+    columns: &[S],
+    rows: &[S],
+    gap: Size<S>,
+    container_size: Size<Option<S>>,
+) -> Size<S> {
     Size::new(
         intrinsic_traversal_axis_area_size(
             area.column,
@@ -1257,18 +1266,18 @@ fn intrinsic_traversal_area_size(
     )
 }
 
-fn intrinsic_traversal_axis_area_size(
+fn intrinsic_traversal_axis_area_size<S: LayoutScalar>(
     start: usize,
     end: usize,
-    tracks: &[Scalar],
-    gap: Scalar,
-    definite_container_size: Option<Scalar>,
-) -> Scalar {
+    tracks: &[S],
+    gap: S,
+    definite_container_size: Option<S>,
+) -> S {
     if tracks.is_empty() {
-        return definite_container_size.unwrap_or(0.0);
+        return definite_container_size.unwrap_or(S::ZERO);
     }
     if start >= tracks.len() {
-        return 0.0;
+        return S::ZERO;
     }
     if start == 0 && end == tracks.len() {
         definite_container_size.unwrap_or_else(|| track_span_sum(tracks, start, end, gap))

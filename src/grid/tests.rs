@@ -1,9 +1,10 @@
 use super::*;
 use crate::{
-    AspectRatio, Baselines, BaselinesOf, CalcExpression, CalcTerm, GridFlowToleranceOf, GridLine,
-    GridSpan, LayoutCalcStore, NoCalcResolver, RawGridLine, RawGridPlacement,
-    SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackRepetition,
-    TrackSizingOf, WritingMode,
+    AspectRatio, Baselines, BaselinesOf, CalcExpression, CalcTerm, ComputeOutput, Dimension,
+    GridFlowToleranceOf, GridLine, GridSpan, LayoutCalcStore, Length, MaxTrackSizing,
+    MinTrackSizing, NoCalcResolver, NodeInput, NodeOutputOf, RawGridLine, RawGridPlacement,
+    SubgridLineNameComponent, SubgridLineNameRepeatCount, SubgridTrack, TrackComponent,
+    TrackRepetition, TrackSizing, TrackSizingOf, WritingMode,
 };
 
 fn subgrid_track() -> Vec<TrackComponent> {
@@ -54,6 +55,155 @@ fn lane_intrinsic_public_inputs_accept_non_default_scalar() {
         placement_input.tolerance,
         GridFlowToleranceOf::Percent(0.25_f64)
     );
+}
+
+#[test]
+fn lane_public_helpers_compute_with_non_default_scalar() {
+    let placement = place_lanes(LanePlacementInputOf::<_, f64> {
+        grid_axis_tracks: 2,
+        auto_flow: GridAutoFlow::Row,
+        lane_gap: 0.5,
+        tolerance: GridFlowToleranceOf::Normal { font_size: 0.0 },
+        tolerance_basis: 0.0,
+        items: vec![
+            LaneItemOf {
+                item: "a",
+                grid_axis_span: 1,
+                definite_grid_axis_start: None,
+                lane_axis_margin_box: 10.25,
+            },
+            LaneItemOf {
+                item: "b",
+                grid_axis_span: 1,
+                definite_grid_axis_start: None,
+                lane_axis_margin_box: 12.5,
+            },
+        ],
+    })
+    .expect("f64 lane placement should compute");
+
+    assert_eq!(placement.content_size, 12.5);
+    assert_eq!(placement.item_offsets[1].offset, 0.0);
+
+    let intrinsic = lane_intrinsic_sizing(LaneIntrinsicSizingInputOf::<f64> {
+        axis: GridAxisKind::Column,
+        available: Some(80.0),
+        gap: 1.25,
+        tracks: vec![TrackSizingOf::<f64>::AUTO],
+        content_sized_tracks: vec![0],
+        items: vec![
+            LaneIntrinsicItemOf::<f64>::definite(
+                "definite",
+                LaneTrackSpan::new(1, 2),
+                LaneContributionFactsOf {
+                    min_content: 9.5,
+                    max_content: 14.25,
+                    min_size: 7.0,
+                    automatic_minimum_applies: true,
+                },
+            )
+            .expect("span is valid"),
+        ],
+    })
+    .expect("f64 lane intrinsic sizing should compute");
+
+    assert_eq!(intrinsic.final_track_sizes, vec![9.5]);
+}
+
+#[test]
+fn grid_lanes_compute_result_accepts_non_default_scalar() {
+    #[derive(Clone)]
+    struct F64GridTree {
+        styles: Vec<NodeInputOf<f64>>,
+        children: Vec<Vec<usize>>,
+        layouts: Vec<NodeOutputOf<f64>>,
+    }
+
+    impl Traverse for F64GridTree {
+        type Node = usize;
+        type Scalar = f64;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, usize>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[node][index]
+        }
+    }
+
+    impl Compute for F64GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
+            &self.styles[node]
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
+            self.layouts[node] = layout;
+        }
+
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInputOf<f64>,
+        ) -> ComputeOutputOf<f64> {
+            let style = &self.styles[node];
+            let size = input.known.unwrap_or(Size::new(
+                style
+                    .size
+                    .width
+                    .resolve_with(input.parent.width, &NoCalcResolver)
+                    .or_else(|| input.available.width.into_option())
+                    .unwrap_or(0.0),
+                style
+                    .size
+                    .height
+                    .resolve_with(input.parent.height, &NoCalcResolver)
+                    .or_else(|| input.available.height.into_option())
+                    .unwrap_or(0.0),
+            ));
+            ComputeOutputOf::from_sizes(size, size)
+        }
+    }
+
+    let root_style = NodeInputOf::<f64> {
+        display: Display::GridLanes,
+        size: Size::new(DimensionOf::px(120.0), DimensionOf::px(90.0)),
+        grid_template_columns: vec![TrackSizingOf::px(60.0).into()],
+        grid_auto_rows: vec![TrackSizingOf::px(40.0).into()],
+        ..NodeInputOf::default()
+    };
+    let child_style = NodeInputOf::<f64> {
+        size: Size::new(DimensionOf::px(30.0), DimensionOf::px(20.0)),
+        ..NodeInputOf::default()
+    };
+    let mut tree = F64GridTree {
+        styles: vec![root_style, child_style],
+        children: vec![vec![1], Vec::new()],
+        layouts: vec![NodeOutputOf::new(), NodeOutputOf::new()],
+    };
+
+    let computation = compute_grid_with_report(
+        &mut tree,
+        0,
+        ComputeInputOf {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::NONE,
+            available: Size::splat(AvailableOf::MAX_CONTENT),
+        },
+    );
+    let (output, report) = computation.into_parts();
+
+    assert!(report.is_empty());
+    assert_eq!(output.size, Size::new(120.0, 90.0));
+    assert_eq!(tree.layouts[1].size, Size::new(30.0, 20.0));
 }
 
 #[test]
