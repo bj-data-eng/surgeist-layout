@@ -52,20 +52,6 @@ impl Display {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum InlineRole {
-    #[default]
-    Box,
-    LineBreak,
-}
-
-impl InlineRole {
-    #[must_use]
-    pub const fn is_line_break(self) -> bool {
-        matches!(self, Self::LineBreak)
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum BoxSizing {
     ContentBox,
     #[default]
@@ -553,7 +539,6 @@ impl GridAutoFlow {
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub display: Display,
-    pub inline_role: InlineRole,
     pub item_is_table: bool,
     pub item_is_replaced: bool,
     pub box_sizing: BoxSizing,
@@ -604,7 +589,6 @@ pub type NodeInput = NodeInputOf<DefaultScalar>;
 impl NodeInputOf<DefaultScalar> {
     pub const DEFAULT: Self = Self {
         display: Display::Flex,
-        inline_role: InlineRole::Box,
         item_is_table: false,
         item_is_replaced: false,
         box_sizing: BoxSizing::BorderBox,
@@ -658,7 +642,6 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
     fn default() -> Self {
         Self {
             display: Display::Flex,
-            inline_role: InlineRole::Box,
             item_is_table: false,
             item_is_replaced: false,
             box_sizing: BoxSizing::BorderBox,
