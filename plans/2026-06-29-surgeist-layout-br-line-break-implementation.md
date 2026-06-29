@@ -340,18 +340,22 @@ return `LayoutInputOf::LineBreak(...)` for those nodes.
 
 - [ ] **Step 3: Store strict layout inputs in oracle trees**
 
-In `src/test_support/layout_tree.rs`, change `OracleTreeOf<S>` storage from `styles: HashMap<u32, NodeInputOf<S>>` to `layout_inputs: HashMap<u32, LayoutInputOf<S>>`. Rename the current `inputs` field that records `ComputeInputOf<S>` calls to `compute_inputs` to avoid ambiguity.
+In `src/test_support/layout_tree.rs`, change `OracleTreeOf<S>` storage from
+`styles: HashMap<u32, NodeInputOf<S>>` to
+`layout_inputs: HashMap<u32, LayoutInputOf<S>>`. Rename the current `inputs`
+field that records `ComputeInputOf<S>` calls to `compute_inputs` to avoid
+ambiguity.
 
-Rename the existing f32 fallback node-input constant to make its box-only
-meaning explicit:
+Remove the current f32 `DEFAULT_NODE_INPUT` fallback. The oracle should have one
+scalar-independent invariant:
 
-```rust
-static DEFAULT_BOX_LAYOUT_INPUT: NodeInput = NodeInput::DEFAULT;
+```text
+Every oracle node that layout can inspect must have an explicit typed layout input.
 ```
 
-This constant is only for the legacy f32 `node_input` box accessor. It must not
-be used by `layout_input`, because missing node-kind input should be a fixture
-authoring error rather than silently becoming a box.
+This is an intentional test-support modeling fix, not just `<br>` plumbing. An
+undeclared node should fail loudly, because silently defaulting to a box hides
+fixture authoring mistakes and makes f32/f64 oracle behavior diverge.
 
 Add builders:
 
@@ -367,27 +371,19 @@ pub fn line_break(mut self, node: u32, input: LineBreakInput) -> Self {
 }
 ```
 
-Update `node_input` to return the box input or panic with a clear message if a line-break node is incorrectly used as a box:
+Update `node_input` to return the box input or panic with a clear message if a
+line-break node is incorrectly used as a box or if a node has no declared layout
+input:
 
 ```rust
 match self.layout_inputs.get(&node) {
     Some(LayoutInputOf::Box(input)) => input,
     Some(LayoutInputOf::LineBreak(_)) => panic!("line break node has no box NodeInput"),
-    None => &DEFAULT_BOX_LAYOUT_INPUT,
+    None => panic!("oracle node {node} must define a layout input"),
 }
 ```
 
-For `OracleTreeOf<f64>`, preserve the stricter existing behavior:
-
-```rust
-match self.layout_inputs.get(&node) {
-    Some(LayoutInputOf::Box(input)) => input,
-    Some(LayoutInputOf::LineBreak(_)) => panic!("line break node has no box NodeInput"),
-    None => panic!("f64 oracle nodes must define a layout input"),
-}
-```
-
-Override `layout_input` for both f32 and f64 without a fallback:
+Override `layout_input` with the same missing-node behavior:
 
 ```rust
 fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
@@ -398,55 +394,7 @@ fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
 }
 ```
 
-Add a box-only fixture helper on the `OracleTree` f32 impl for tests that
-intentionally rely on the f32 default box style:
-
-```rust
-impl OracleTree {
-    pub fn box_node(mut self, node: u32) -> Self {
-        self.layout_inputs
-            .insert(node, LayoutInputOf::Box(NodeInput::default()));
-        self
-    }
-}
-```
-
-For `OracleTreeOf<f64>`, add only an explicit-style helper if needed:
-
-```rust
-impl OracleTreeOf<f64> {
-    pub fn box_node_with_style(mut self, node: u32, style: NodeInputOf<f64>) -> Self {
-        self.layout_inputs.insert(node, LayoutInputOf::Box(style));
-        self
-    }
-}
-```
-
-Do not add a generic helper like this:
-
-```rust
-pub fn box_node<S: LayoutScalar>(mut self, node: u32) -> Self {
-    self.layout_inputs
-        .insert(node, LayoutInputOf::Box(NodeInputOf::default()));
-    self
-}
-```
-
-That would weaken the f64 fixture contract by making default f64 styles easy to
-create accidentally. Use `box_node` in f32 tests for any child that has no
-explicit `style(...)` and is intentionally a default box. For f64 tests, use
-`.style(...)` or `box_node_with_style(...)` with an explicit `NodeInputOf<f64>`.
-
-The final f32 behavior should be:
-
-```text
-node_input(missing)      -> DEFAULT_BOX_LAYOUT_INPUT for legacy box-only callers
-layout_input(missing)   -> panic
-layout_input(box node)  -> LayoutInputOf::Box(...)
-layout_input(line break)-> LayoutInputOf::LineBreak(...)
-```
-
-The final f64 behavior should be:
+The final behavior should be the same for f32 and f64:
 
 ```text
 node_input(missing)      -> panic
@@ -458,19 +406,30 @@ layout_input(line break)-> LayoutInputOf::LineBreak(...)
 Audit source tests for implicit default child nodes after this change:
 
 ```sh
-rg -n "OracleTree(::|Of::<).*new|\\.children\\(|\\.style\\(|\\.line_break\\(|\\.box_node\\(" src tests
+rg -n "OracleTree(::|Of::<).*new|\\.children\\(|\\.style\\(|\\.line_break\\(" src tests
+rg -n "\\.styles\\.insert\\(" src tests
 ```
 
 Every child that can be reached through `layout_input` must be declared with
-`.style(...)`, `.box_node(...)`, or `.line_break(...)`.
+`.style(...)` or `.line_break(...)`. For a default box, the declaration should
+be explicit:
+
+```rust
+.style(node, NodeInput::default())
+```
+
+Replace any direct `tree.styles.insert(...)` writes with `.style(node, ...)`
+before or during this task. If a test genuinely needs direct map access after
+the rename, it must insert `LayoutInputOf::Box(...)` through an explicit helper
+owned by the oracle test support, not by reaching into storage.
 
 Do not implement this pattern:
 
 ```rust
-match self.layout_inputs.get(&node).unwrap_or(&DEFAULT_BOX_LAYOUT_INPUT) {
-    LayoutInputOf::Box(input) => input,
-    LayoutInputOf::LineBreak(_) => panic!("line break node has no box NodeInput"),
-}
+self.layout_inputs
+    .get(&node)
+    .cloned()
+    .unwrap_or_else(|| LayoutInputOf::Box(NodeInputOf::default()))
 ```
 
 That form would make a missing layout input silently become a box and violates
