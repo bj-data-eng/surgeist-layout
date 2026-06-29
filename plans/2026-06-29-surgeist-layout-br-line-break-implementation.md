@@ -152,6 +152,7 @@ git commit -m "Add line break role to layout input"
 
 **Files:**
 
+- Modify: `src/block.rs`
 - Modify: `src/inline.rs`
 - Modify: `src/inline_tests.rs`
 
@@ -340,7 +341,20 @@ let boxes = input
 Then use `boxes` for the existing line-width and placement loops. Do not
 silently drop forced breaks in vertical writing mode.
 
-- [ ] **Step 6: Update intrinsic widths**
+- [ ] **Step 6: Update existing block atomic-inline item construction**
+
+Because `AtomicInlineItem` becomes an enum in this task, make the minimal
+compile-preserving update in `src/block.rs` where `layout_atomic_inline_run`
+currently constructs an `AtomicInlineItem` with a struct literal. Build the box
+payload with `AtomicInlineBoxItem { ... }`, wrap it as
+`AtomicInlineItem::Box(box_item)`, push the enum into `items`, and keep enough
+box metadata in `run_children` for the existing box layout write-back.
+
+Do not add line-break node collection, `InlineRole` participation, or
+`compute_line_break` in this task. Those remain Task 3 guardrail work. This step
+only keeps the crate compiling after the internal enum conversion.
+
+- [ ] **Step 7: Update intrinsic widths**
 
 Update `atomic_inline_min_content_width` and `atomic_inline_max_content_width` so forced breaks split max-content sums into line segments:
 
@@ -377,7 +391,7 @@ pub(super) fn atomic_inline_max_content_width<S: LayoutScalar>(items: &[AtomicIn
 }
 ```
 
-- [ ] **Step 7: Add focused inline tests**
+- [ ] **Step 8: Add focused inline tests**
 
 In `src/inline_tests.rs`, add:
 
@@ -417,7 +431,7 @@ fn atomic_inline_intrinsic_widths_split_at_forced_line_breaks() {
 }
 ```
 
-- [ ] **Step 8: Run focused inline tests**
+- [ ] **Step 9: Run focused inline tests**
 
 Run:
 
@@ -427,10 +441,23 @@ cargo test -p surgeist-layout forced_line_break -- --nocapture
 
 Expected: both tests pass.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Request scoped review**
+
+Ask a separate reviewer to inspect only Task 2 changes. The reviewer must check:
+
+- `AtomicInlineItem` is a closed algorithm-state enum, not a public product API;
+- existing block atomic-inline box construction is adapted only far enough to
+  compile with the enum shape;
+- no `InlineRole` line-break node wiring leaks into Task 2;
+- forced break layout, report items, intrinsic widths, and vertical rejection
+  match this task's scope.
+
+Reconcile reviewer findings before committing.
+
+- [ ] **Step 11: Commit**
 
 ```sh
-git add src/inline.rs src/inline_tests.rs
+git add src/block.rs src/inline.rs src/inline_tests.rs
 git commit -m "Support forced breaks in atomic inline layout"
 ```
 
