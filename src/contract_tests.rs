@@ -207,6 +207,23 @@ fn node_input_defaults_match_the_layout_contract() {
 }
 
 #[test]
+fn node_input_defaults_to_box_inline_role() {
+    assert_eq!(NodeInput::default().inline_role, InlineRole::Box);
+}
+
+#[test]
+fn inline_role_marks_line_break_semantics_without_changing_display() {
+    let input = NodeInput {
+        display: Display::Block,
+        inline_role: InlineRole::LineBreak,
+        ..NodeInput::default()
+    };
+
+    assert!(input.inline_role.is_line_break());
+    assert_eq!(input.display, Display::Block);
+}
+
+#[test]
 fn geometry_reports_main_and_cross_components_for_flex_direction() {
     let size = Size::new(80.0, 24.0);
     assert_eq!(size.main(FlexDirection::Row), 80.0);
