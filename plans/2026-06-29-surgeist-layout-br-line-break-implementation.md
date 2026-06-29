@@ -69,7 +69,6 @@ required.
 - Modify: `src/node_input.rs`
 - Modify: `src/lib.rs`
 - Modify: `src/contract_tests.rs`
-- Modify: `api/public-api.txt`
 
 - [ ] **Step 1: Add the public semantic role**
 
@@ -142,20 +141,10 @@ cargo test -p surgeist-layout inline_role -- --nocapture
 
 Expected: both tests pass.
 
-- [ ] **Step 6: Refresh API artifact**
-
-Run:
+- [ ] **Step 6: Commit**
 
 ```sh
-cargo run --manifest-path api/generator/Cargo.toml
-```
-
-Expected: `api/public-api.txt` records `InlineRole` and the new `NodeInputOf::inline_role` field.
-
-- [ ] **Step 7: Commit**
-
-```sh
-git add src/node_input.rs src/lib.rs src/contract_tests.rs api/public-api.txt
+git add src/node_input.rs src/lib.rs src/contract_tests.rs
 git commit -m "Add line break role to layout input"
 ```
 
@@ -455,7 +444,6 @@ git commit -m "Support forced breaks in atomic inline layout"
 - Modify: `src/compute_tests.rs`
 - Modify: `src/lib.rs`
 - Modify: `src/test_support/layout_tree.rs`
-- Modify: `api/public-api.txt`
 
 - [ ] **Step 1: Add a local helper for inline-run participation**
 
@@ -720,14 +708,6 @@ prevents a semantic line-break node from being accidentally computed as a
 normal block, flex, grid, or leaf formatting context when a dispatcher sees it
 outside an inline-run collection.
 
-Run the API generator after adding the public helper:
-
-```sh
-cargo run --manifest-path api/generator/Cargo.toml
-```
-
-Expected: `api/public-api.txt` records `compute_line_break`.
-
 - [ ] **Step 8: Make crate test dispatchers prefer line-break role before display**
 
 In `src/test_support/layout_tree.rs`, update both `Compute` impls so
@@ -788,7 +768,7 @@ Reconcile reviewer findings before committing.
 - [ ] **Step 12: Commit**
 
 ```sh
-git add src/block.rs src/block_tests.rs src/compute.rs src/compute_tests.rs src/lib.rs src/test_support/layout_tree.rs api/public-api.txt
+git add src/block.rs src/block_tests.rs src/compute.rs src/compute_tests.rs src/lib.rs src/test_support/layout_tree.rs
 git commit -m "Wire line break nodes through block inline runs"
 ```
 
@@ -1295,16 +1275,17 @@ cargo fmt --check
 
 Expected: all pass.
 
-- [ ] **Step 3: Run generated-artifact checks**
+- [ ] **Step 3: Run generated-fixture checks**
 
 Run:
 
 ```sh
-cargo run --manifest-path api/generator/Cargo.toml
 cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- check-taffy-corpus
 ```
 
-Expected: the API artifact is current and the pinned Taffy corpus check passes.
+Expected: the pinned Taffy corpus check passes. Do not refresh
+`api/public-api.txt` from this crate; root owns API artifact refresh during
+integration and will coordinate follow-up if public API drift needs handling.
 
 - [ ] **Step 4: Request final holistic review**
 
