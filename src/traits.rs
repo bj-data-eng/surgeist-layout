@@ -1,6 +1,6 @@
 use super::{
-    CacheKeyContext, CalcResolver, ComputeInputOf, ComputeOutputOf, LayoutScalar, NoCalcResolver,
-    NodeInputOf, NodeOutputOf,
+    CacheKeyContext, CalcResolver, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar,
+    NoCalcResolver, NodeInputOf, NodeOutputOf,
 };
 
 pub trait Traverse {
@@ -17,6 +17,7 @@ pub trait Traverse {
 
 pub trait Compute: Traverse {
     fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar>;
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar>;
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>);
     fn compute_child(
         &mut self,

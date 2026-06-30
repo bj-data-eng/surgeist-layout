@@ -53,6 +53,10 @@ impl Compute for CalcBlockTree {
         &self.styles[&node]
     }
 
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::Box(self.node_input(node).clone())
+    }
+
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
         self.layouts.insert(node, layout);
     }
@@ -1372,6 +1376,10 @@ fn block_layout_stacks_in_flow_children_vertically() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1583,6 +1591,10 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1672,6 +1684,10 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2249,6 +2265,10 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2354,6 +2374,10 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2441,6 +2465,10 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2534,6 +2562,10 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2617,6 +2649,10 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2707,6 +2743,10 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2789,6 +2829,10 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2900,6 +2944,10 @@ fn block_empty_auto_height_can_collapse_through() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
@@ -2965,6 +3013,10 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -3046,6 +3098,10 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3147,6 +3203,10 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3240,6 +3300,10 @@ fn block_content_size_includes_visible_child_overflow_content() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3323,6 +3387,10 @@ fn block_relative_child_inset_offsets_final_layout_location() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3418,6 +3486,10 @@ fn block_layout_stretches_auto_width_in_flow_children() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3517,6 +3589,10 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3613,6 +3689,10 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
@@ -3681,6 +3761,10 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -3763,6 +3847,10 @@ fn block_auto_height_clamps_to_max_size() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3849,6 +3937,10 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
@@ -3927,6 +4019,10 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4025,6 +4121,10 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4149,6 +4249,10 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4249,6 +4353,10 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4332,6 +4440,10 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4425,6 +4537,10 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4514,6 +4630,10 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
     impl Compute for BlockTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4613,6 +4733,10 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4710,6 +4834,10 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4800,6 +4928,10 @@ impl Traverse for CalcLeafTree {
 impl Compute for CalcLeafTree {
     fn node_input(&self, node: Self::Node) -> &NodeInput {
         &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::Box(self.node_input(node).clone())
     }
 
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {

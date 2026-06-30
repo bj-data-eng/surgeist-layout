@@ -2,12 +2,10 @@ use std::collections::HashMap;
 
 use crate::{
     AvailableOf, CalcResolutionStatus, CalcResolver, Compute, ComputeInputOf, ComputeOutputOf,
-    DefaultScalar, DimensionOf, Display, LayoutCalcStoreOf, LayoutScalar, NodeInput, NodeInputOf,
-    NodeOutput, NodeOutputOf, RequestedAxis, Round, RunMode, Size, SizingMode, Traverse,
-    compute_block, compute_flex, compute_grid,
+    DefaultScalar, DimensionOf, Display, LayoutCalcStoreOf, LayoutInputOf, LayoutScalar,
+    LineBreakInput, NodeInput, NodeInputOf, NodeOutput, NodeOutputOf, RequestedAxis, Round,
+    RunMode, Size, SizingMode, Traverse, compute_block, compute_flex, compute_grid,
 };
-
-static DEFAULT_NODE_INPUT: NodeInput = NodeInput::DEFAULT;
 
 pub type OracleTree = OracleTreeOf<DefaultScalar>;
 pub type OracleMeasurement = OracleMeasurementOf<DefaultScalar>;
@@ -15,9 +13,9 @@ pub type OracleMeasurement = OracleMeasurementOf<DefaultScalar>;
 #[derive(Clone, Debug, Default)]
 pub struct OracleTreeOf<S: LayoutScalar = DefaultScalar> {
     children: HashMap<u32, Vec<u32>>,
-    styles: HashMap<u32, NodeInputOf<S>>,
+    layout_inputs: HashMap<u32, LayoutInputOf<S>>,
     measurements: HashMap<u32, Vec<OracleMeasurementOf<S>>>,
-    inputs: HashMap<u32, Vec<ComputeInputOf<S>>>,
+    compute_inputs: HashMap<u32, Vec<ComputeInputOf<S>>>,
     layouts: HashMap<u32, NodeOutputOf<S>>,
     final_layouts: HashMap<u32, NodeOutputOf<S>>,
     calcs: LayoutCalcStoreOf<S>,
@@ -105,7 +103,13 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
     }
 
     pub fn style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
-        self.styles.insert(node, style);
+        self.layout_inputs.insert(node, LayoutInputOf::Box(style));
+        self
+    }
+
+    pub fn line_break(mut self, node: u32, input: LineBreakInput) -> Self {
+        self.layout_inputs
+            .insert(node, LayoutInputOf::LineBreak(input));
         self
     }
 
@@ -133,7 +137,10 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
     }
 
     pub fn inputs(&self, node: u32) -> &[ComputeInputOf<S>] {
-        self.inputs.get(&node).map(Vec::as_slice).unwrap_or(&[])
+        self.compute_inputs
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 
     pub fn layout(&self, node: u32) -> Option<NodeOutputOf<S>> {
@@ -195,7 +202,18 @@ impl<S: LayoutScalar> Traverse for OracleTreeOf<S> {
 
 impl Compute for OracleTree {
     fn node_input(&self, node: Self::Node) -> &NodeInput {
-        self.styles.get(&node).unwrap_or(&DEFAULT_NODE_INPUT)
+        match self.layout_inputs.get(&node) {
+            Some(LayoutInputOf::Box(input)) => input,
+            Some(LayoutInputOf::LineBreak(_)) => panic!("line break node has no box NodeInput"),
+            None => panic!("oracle node {node} must define a layout input"),
+        }
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<DefaultScalar> {
+        self.layout_inputs
+            .get(&node)
+            .cloned()
+            .unwrap_or_else(|| panic!("oracle node {node} must define a layout input"))
     }
 
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -207,7 +225,7 @@ impl Compute for OracleTree {
         node: Self::Node,
         input: ComputeInputOf<DefaultScalar>,
     ) -> ComputeOutputOf<DefaultScalar> {
-        self.inputs.entry(node).or_default().push(input);
+        self.compute_inputs.entry(node).or_default().push(input);
 
         if let Some(output) = self.recorded_measurement(node, input) {
             return output;
@@ -234,9 +252,18 @@ impl Compute for OracleTree {
 
 impl Compute for OracleTreeOf<f64> {
     fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
-        self.styles
+        match self.layout_inputs.get(&node) {
+            Some(LayoutInputOf::Box(input)) => input,
+            Some(LayoutInputOf::LineBreak(_)) => panic!("line break node has no box NodeInput"),
+            None => panic!("oracle node {node} must define a layout input"),
+        }
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<f64> {
+        self.layout_inputs
             .get(&node)
-            .expect("f64 oracle nodes must define a style")
+            .cloned()
+            .unwrap_or_else(|| panic!("oracle node {node} must define a layout input"))
     }
 
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
@@ -248,7 +275,7 @@ impl Compute for OracleTreeOf<f64> {
         node: Self::Node,
         input: ComputeInputOf<f64>,
     ) -> ComputeOutputOf<f64> {
-        self.inputs.entry(node).or_default().push(input);
+        self.compute_inputs.entry(node).or_default().push(input);
 
         if let Some(output) = self.recorded_measurement(node, input) {
             return output;
@@ -319,5 +346,39 @@ fn resolve_dimension<S: LayoutScalar>(
             panic!("calc resolution requires an explicit resolver")
         }
         CalcResolutionStatus::MissingExpression => panic!("calc expression is missing"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{LayoutInput, LineBreakDisplay};
+
+    #[test]
+    fn layout_input_returns_declared_line_break() {
+        let input = LineBreakInput::new().hidden();
+        let tree = OracleTree::new().line_break(1, input);
+
+        assert_eq!(tree.layout_input(1), LayoutInput::LineBreak(input));
+        assert_eq!(
+            tree.layout_input(1).as_line_break().unwrap().display(),
+            LineBreakDisplay::None
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "line break node has no box NodeInput")]
+    fn node_input_panics_for_line_break_node() {
+        let tree = OracleTree::new().line_break(1, LineBreakInput::new());
+
+        let _ = tree.node_input(1);
+    }
+
+    #[test]
+    #[should_panic(expected = "oracle node 1 must define a layout input")]
+    fn node_input_panics_for_missing_node() {
+        let tree = OracleTree::new();
+
+        let _ = tree.node_input(1);
     }
 }

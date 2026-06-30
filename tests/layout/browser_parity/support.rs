@@ -440,7 +440,7 @@ fn expect_tag(node: roxmltree::Node<'_, '_>, tag: &str) -> Result<(), Error> {
 
 #[derive(Clone, Debug)]
 struct TestNode {
-    node_input: layout::NodeInput,
+    layout_input: layout::LayoutInput,
     font_family: FontFamily,
     font_size: Scalar,
     line_height: Scalar,
@@ -509,7 +509,7 @@ impl TestTree {
                 .establishes_grid_lanes_formatting_context();
         let inline_level_text = inherited.inline_level_text || node_input.display.is_inline_level();
         self.nodes.push(TestNode {
-            node_input,
+            layout_input: layout::LayoutInput::Box(node_input),
             font_family,
             font_size,
             line_height: resolved_line_height,
@@ -541,7 +541,7 @@ impl TestTree {
             })
             .collect::<Result<Vec<_>, _>>()?;
         if let Some(text) = &node.text
-            && grid_text_container_needs_anonymous_child(self.nodes[id].node_input.display)
+            && grid_text_container_needs_anonymous_child(self.box_node_input(id).display)
         {
             children.push(self.push_synthetic_text(
                 text,
@@ -568,7 +568,7 @@ impl TestTree {
     ) -> Result<usize, Error> {
         let id = self.nodes.len();
         self.nodes.push(TestNode {
-            node_input: layout::NodeInput::default(),
+            layout_input: layout::LayoutInput::Box(layout::NodeInput::default()),
             font_family,
             font_size,
             line_height,
@@ -589,7 +589,7 @@ impl TestTree {
         node: usize,
         input: layout::ComputeInput,
     ) -> layout::ComputeOutput {
-        let node_input = self.nodes[node].node_input.clone();
+        let node_input = self.box_node_input(node).clone();
         if node_input.display == layout::Display::None
             || input.run_mode == layout::RunMode::PerformHiddenLayout
         {
@@ -651,7 +651,7 @@ impl TestTree {
                 self.nodes[node].preserve_fractional_min_content,
                 self.nodes[node].use_tighter_monospace_wrap,
             );
-            if self.nodes[node].node_input.writing_mode.is_vertical() {
+            if self.box_node_input(node).writing_mode.is_vertical() {
                 let height = known.height.unwrap_or_else(|| match available.height {
                     layout::Available::Definite(height) => height,
                     layout::Available::MinContent => text.min_content_width(),
@@ -679,6 +679,13 @@ impl TestTree {
     fn copy_unrounded_to_final(&mut self) {
         for node in &mut self.nodes {
             node.final_layout = node.unrounded;
+        }
+    }
+
+    fn box_node_input(&self, node: usize) -> &layout::NodeInput {
+        match &self.nodes[node].layout_input {
+            layout::LayoutInput::Box(input) => input,
+            layout::LayoutInput::LineBreak(_) => panic!("line break node has no box NodeInput"),
         }
     }
 }
@@ -896,7 +903,11 @@ impl layout::Traverse for TestTree {
 
 impl layout::Compute for TestTree {
     fn node_input(&self, node: Self::Node) -> &layout::NodeInput {
-        &self.nodes[node].node_input
+        self.box_node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> layout::LayoutInput {
+        self.nodes[node].layout_input.clone()
     }
 
     fn set_unrounded(&mut self, node: Self::Node, layout: layout::NodeOutput) {
@@ -2493,6 +2504,43 @@ mod tests {
         to_node_input(&attrs, &mut lowering)
     }
 
+    fn line_break_tree(input: layout::LineBreakInput) -> TestTree {
+        TestTree {
+            nodes: vec![TestNode {
+                layout_input: layout::LayoutInput::LineBreak(input),
+                font_family: FontFamily::Ahem,
+                font_size: TextMeasure::LINE_HEIGHT,
+                line_height: TextMeasure::LINE_HEIGHT,
+                text: None,
+                children: Vec::new(),
+                synthetic: false,
+                preserve_fractional_min_content: false,
+                use_tighter_monospace_wrap: false,
+                cache: layout::Cache::new(),
+                unrounded: layout::NodeOutput::new(),
+                final_layout: layout::NodeOutput::new(),
+            }],
+            calc_store: layout::LayoutCalcStore::new(),
+        }
+    }
+
+    #[test]
+    fn layout_input_returns_browser_parity_line_break_node() {
+        let input = layout::LineBreakInput::new().hidden();
+        let tree = line_break_tree(input);
+
+        assert_eq!(tree.layout_input(0), layout::LayoutInput::LineBreak(input));
+        assert_eq!(tree.layout_input(0).as_line_break(), Some(input));
+    }
+
+    #[test]
+    #[should_panic(expected = "line break node has no box NodeInput")]
+    fn node_input_panics_for_browser_parity_line_break_node() {
+        let tree = line_break_tree(layout::LineBreakInput::new());
+
+        let _ = tree.node_input(0);
+    }
+
     #[test]
     fn parse_available_accepts_css_pixel_viewport_values() {
         assert_eq!(
@@ -2639,10 +2687,10 @@ mod tests {
 
         let tree = TestTree::from_golden(&golden.root).expect("calc margin should lower");
 
-        let layout::LengthAuto::Calc(id) = tree.nodes[0].node_input.margin.left else {
+        let layout::LengthAuto::Calc(id) = tree.box_node_input(0).margin.left else {
             panic!(
                 "expected calc margin-left, got {:?}",
-                tree.nodes[0].node_input.margin.left
+                tree.box_node_input(0).margin.left
             );
         };
         assert_eq!(
@@ -2671,11 +2719,11 @@ mod tests {
         let tree = TestTree::from_golden(&golden.root).expect("calc grid track should lower");
 
         let [layout::TrackComponent::Track(track)] =
-            tree.nodes[0].node_input.grid_template_columns.as_slice()
+            tree.box_node_input(0).grid_template_columns.as_slice()
         else {
             panic!(
                 "expected one grid track, got {:?}",
-                tree.nodes[0].node_input.grid_template_columns
+                tree.box_node_input(0).grid_template_columns
             );
         };
         assert!(matches!(
@@ -2936,12 +2984,12 @@ mod tests {
     fn empty_inline_grid_display_uses_grid_tracks_instead_of_leaf_measurement() {
         let mut tree = TestTree {
             nodes: vec![TestNode {
-                node_input: layout::NodeInput {
+                layout_input: layout::LayoutInput::Box(layout::NodeInput {
                     display: layout::Display::InlineGrid,
                     grid_template_columns: vec![layout::TrackComponent::px(40.0)],
                     grid_template_rows: vec![layout::TrackComponent::px(20.0)],
                     ..layout::NodeInput::default()
-                },
+                }),
                 font_family: FontFamily::Ahem,
                 font_size: TextMeasure::LINE_HEIGHT,
                 line_height: TextMeasure::LINE_HEIGHT,

@@ -59,6 +59,10 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -219,6 +223,10 @@ fn flex_content_size_includes_visible_child_overflow_content() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -300,6 +308,10 @@ fn flex_final_content_size_uses_rerun_output() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -392,6 +404,10 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -474,6 +490,10 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -554,6 +574,10 @@ fn flex_compute_size_short_circuits_when_container_size_is_definite() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
@@ -621,6 +645,10 @@ fn flex_compute_size_measures_children_without_perform_layout() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {
@@ -701,6 +729,10 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
@@ -779,6 +811,10 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -870,6 +906,10 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -967,6 +1007,10 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1061,6 +1105,10 @@ fn flex_compute_size_uses_definite_min_max_without_measuring_children() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
@@ -1129,6 +1177,10 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1226,6 +1278,10 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1308,6 +1364,10 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1388,6 +1448,10 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1465,6 +1529,10 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1572,6 +1640,10 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1655,6 +1727,10 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1768,6 +1844,10 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1862,6 +1942,10 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1980,6 +2064,10 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2065,6 +2153,10 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2159,6 +2251,10 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2275,6 +2371,10 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2352,6 +2452,10 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2435,6 +2539,10 @@ fn flex_absolute_child_expands_auto_margins() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2527,6 +2635,10 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2605,6 +2717,10 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2708,6 +2824,10 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2786,6 +2906,10 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2881,6 +3005,10 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2971,6 +3099,10 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3086,6 +3218,10 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3164,6 +3300,10 @@ fn flex_row_wraps_items_into_multiple_lines() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3253,6 +3393,10 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3340,6 +3484,10 @@ fn flex_row_justifies_items_on_the_main_axis() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3423,6 +3571,10 @@ fn flex_row_aligns_items_on_the_cross_axis() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3498,6 +3650,10 @@ fn flex_row_reports_first_child_baseline() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -3581,6 +3737,10 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3685,6 +3845,10 @@ fn flex_row_stretches_auto_cross_size_items() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3774,6 +3938,10 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3860,6 +4028,10 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3938,6 +4110,10 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4019,6 +4195,10 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4104,6 +4284,10 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4193,6 +4377,10 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4278,6 +4466,10 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4375,6 +4567,10 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4459,6 +4655,10 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4536,6 +4736,10 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4620,6 +4824,10 @@ fn flex_row_growth_respects_max_main_size() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4711,6 +4919,10 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4793,6 +5005,10 @@ fn flex_row_distributes_cross_axis_auto_margins() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4878,6 +5094,10 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4966,6 +5186,10 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5050,6 +5274,10 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -5146,6 +5374,10 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5232,6 +5464,10 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5316,6 +5552,10 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -5405,6 +5645,10 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5490,6 +5734,10 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -5596,6 +5844,10 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
     impl Compute for FlexTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {

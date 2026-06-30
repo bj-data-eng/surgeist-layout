@@ -181,6 +181,10 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -275,6 +279,10 @@ fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -344,6 +352,7 @@ fn grid_lanes_content_size_preserves_resolved_track_sum() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
 
     let output = crate::compute_grid(
@@ -544,6 +553,9 @@ fn grid_lanes_with_rows_template_uses_columns_as_lane_axis_for_intrinsic_width()
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
+        .style(4, NodeInput::default())
         .measure(2, ComputeOutput::from_outer_size(Size::new(72.0, 15.0)))
         .measure(3, ComputeOutput::from_outer_size(Size::new(72.0, 15.0)))
         .measure(4, ComputeOutput::from_outer_size(Size::new(72.0, 15.0)))
@@ -1003,6 +1015,7 @@ fn grid_lanes_reports_synthesized_container_baselines() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 20.0)));
 
     let output = compute_oracle_grid_output(&mut tree);
@@ -1127,6 +1140,10 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -1218,7 +1235,9 @@ fn both_axis_subgrid_zero_gap_auto_placement_advances_fully_auto_children() {
                 grid_row: GridPlacement::try_lines(1, -1).expect("valid grid lines"),
                 ..NodeInput::DEFAULT
             },
-        );
+        )
+        .style(3, NodeInput::default())
+        .style(4, NodeInput::default());
 
     compute_root(
         &mut tree,
@@ -1405,6 +1424,7 @@ fn row_subgrid_auto_track_sizing_tree(
                 ..NodeInput::DEFAULT
             },
         )
+        .style(3, NodeInput::default())
         .measure_when(
             3,
             OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(58.0, 84.0)))
@@ -1515,7 +1535,9 @@ fn row_subgrid_intrinsic_width_accumulates_standalone_percent_columns() {
                 size: Size::new(Dimension::px(100.0), Dimension::AUTO),
                 ..NodeInput::DEFAULT
             },
-        );
+        )
+        .style(3, NodeInput::default())
+        .style(4, NodeInput::default());
 
     let output = crate::compute_grid(
         &mut tree,
@@ -1785,7 +1807,10 @@ fn subgrid_line_names_nested_subgrid_inherits_area_generated_names() {
                 raw_grid_row: RawGridPlacement::line(1),
                 ..NodeInput::DEFAULT
             },
-        );
+        )
+        .style(5, NodeInput::default())
+        .style(6, NodeInput::default())
+        .style(7, NodeInput::default());
 
     compute_oracle_grid(&mut tree);
     let child = tree
@@ -1872,6 +1897,10 @@ fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1978,6 +2007,10 @@ fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display:
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2060,6 +2093,10 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2148,6 +2185,10 @@ fn row_subgrid_child_inherits_parent_baseline_group() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(5, NodeInput::default())
+        .style(6, NodeInput::default())
+        .style(7, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(14.0), None))
         .measure(4, baseline_measure(30.0, 20.0, Some(8.0), None));
 
@@ -2203,6 +2244,7 @@ fn row_subgrid_inherited_baseline_accounts_for_margin_border_padding() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(14.0), None))
         .measure(4, baseline_measure(30.0, 20.0, Some(8.0), None));
 
@@ -2290,6 +2332,8 @@ fn row_subgrid_without_descendant_publication_uses_container_baseline() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(4, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(14.0), None))
         .measure(4, baseline_measure(30.0, 20.0, Some(20.0), None));
 
@@ -2462,6 +2506,10 @@ fn grid_auto_places_children_into_declared_column_tracks() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2545,6 +2593,10 @@ fn grid_column_gap_separates_declared_tracks() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2643,6 +2695,10 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -2732,6 +2788,10 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2827,6 +2887,10 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3027,7 +3091,8 @@ fn named_grid_in_flow_item_occupies_cell_before_auto_sibling() {
                 raw_grid_row: RawGridPlacement::line(1),
                 ..NodeInput::DEFAULT
             },
-        );
+        )
+        .style(3, NodeInput::default());
 
     compute_oracle_grid(&mut tree);
     let named = tree
@@ -3073,6 +3138,10 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3168,6 +3237,10 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3260,6 +3333,10 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3344,6 +3421,10 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3439,6 +3520,10 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3530,6 +3615,10 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3630,6 +3719,10 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3715,6 +3808,10 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3806,6 +3903,10 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -3891,6 +3992,10 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3979,6 +4084,10 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4070,6 +4179,10 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4156,6 +4269,10 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4248,6 +4365,10 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4347,6 +4468,10 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4439,6 +4564,10 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -4527,6 +4656,10 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
@@ -4594,6 +4727,10 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -4671,6 +4808,10 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
@@ -4738,6 +4879,10 @@ fn grid_content_size_mode_ignores_authored_size() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -4810,6 +4955,10 @@ fn grid_item_margins_reduce_stretched_grid_area() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4913,6 +5062,10 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5002,6 +5155,10 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -5099,6 +5256,10 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5186,6 +5347,10 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -5297,6 +5462,10 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5388,6 +5557,10 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5475,6 +5648,10 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5560,6 +5737,10 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -5683,6 +5864,10 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -5835,6 +6020,10 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -5952,6 +6141,10 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -6038,6 +6231,10 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -6150,6 +6347,10 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -6251,7 +6452,8 @@ fn grid_mixed_positive_negative_line_span_counts_actual_tracks_for_auto_growth()
                 grid_column: GridPlacement::try_lines(2, -1).expect("valid grid lines"),
                 ..NodeInput::DEFAULT
             },
-        );
+        )
+        .style(3, NodeInput::default());
 
     compute_oracle_grid(&mut tree);
     let root = tree.final_layout(1).expect("root should be laid out");
@@ -6299,6 +6501,10 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -6392,6 +6598,10 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -6478,6 +6688,10 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -6571,6 +6785,10 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -6660,6 +6878,10 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -6754,6 +6976,10 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -6832,6 +7058,10 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -6929,6 +7159,10 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -7011,6 +7245,10 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7105,6 +7343,10 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7212,6 +7454,10 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -7294,6 +7540,10 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7379,6 +7629,10 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7467,6 +7721,10 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7571,6 +7829,10 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7714,6 +7976,10 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -7796,6 +8062,10 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7883,6 +8153,10 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -7973,6 +8247,10 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -8075,6 +8353,7 @@ fn nested_subgrid_percent_columns_rerun_rows_after_inherited_width_and_margin() 
                 ..NodeInput::DEFAULT
             },
         )
+        .style(4, NodeInput::default())
         .measure_when(
             4,
             OracleMeasurement::new(ComputeOutput::from_outer_size(Size::new(100.0, 64.0)))
@@ -8360,6 +8639,10 @@ fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -8447,6 +8730,10 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -8528,6 +8815,10 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -8624,6 +8915,10 @@ fn grid_intrinsic_column_sizing_treats_horizontal_percent_margins_as_zero() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -8744,6 +9039,10 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -8861,6 +9160,10 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -8953,6 +9256,10 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -9048,6 +9355,10 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -9169,6 +9480,10 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -9263,6 +9578,10 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -9360,6 +9679,10 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -9478,6 +9801,10 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -9604,6 +9931,10 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -9737,6 +10068,10 @@ fn grid_content_size_includes_visible_child_overflow_content() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -9825,6 +10160,10 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -9911,6 +10250,10 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -10022,6 +10365,10 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
         fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
@@ -10113,6 +10460,10 @@ fn grid_percent_rows_resolve_against_known_layout_height() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -10195,6 +10546,10 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -10283,6 +10638,10 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -10401,6 +10760,10 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -10497,6 +10860,10 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -10580,6 +10947,10 @@ fn grid_align_self_overrides_parent_align_items() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -10652,6 +11023,8 @@ fn grid_aligns_items_to_shared_first_baseline() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(8.0), None))
         .measure(3, baseline_measure(30.0, 30.0, Some(14.0), None));
 
@@ -10678,6 +11051,8 @@ fn grid_aligns_items_to_shared_last_baseline() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, None, Some(4.0)))
         .measure(3, baseline_measure(30.0, 30.0, None, Some(10.0)));
 
@@ -10710,6 +11085,7 @@ fn grid_reports_first_baseline_from_first_row_grid_order() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(7.0), None))
         .measure(3, baseline_measure(30.0, 20.0, Some(9.0), None));
 
@@ -10741,6 +11117,7 @@ fn grid_reports_last_baseline_from_last_row_grid_order() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, None, Some(6.0)))
         .measure(3, baseline_measure(30.0, 30.0, None, Some(8.0)));
 
@@ -10765,6 +11142,8 @@ fn grid_reports_first_baseline_from_shared_major_group_before_fallback_item() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(8.0), None))
         .measure(3, baseline_measure(30.0, 20.0, Some(14.0), None));
 
@@ -10878,6 +11257,7 @@ fn grid_aligns_first_baseline_with_block_margins() {
                 ..NodeInput::default()
             },
         )
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(8.0), None))
         .measure(3, baseline_measure(30.0, 30.0, Some(14.0), None));
 
@@ -10915,6 +11295,7 @@ fn grid_aligns_last_baseline_with_block_margins() {
                 ..NodeInput::default()
             },
         )
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, None, Some(4.0)))
         .measure(3, baseline_measure(30.0, 30.0, None, Some(10.0)));
 
@@ -11022,6 +11403,8 @@ fn grid_baseline_increases_auto_row_size() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(18.0), None))
         .measure(3, baseline_measure(30.0, 30.0, Some(6.0), None));
 
@@ -11047,6 +11430,8 @@ fn grid_last_baseline_increases_auto_row_size() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, None, Some(2.0)))
         .measure(3, baseline_measure(30.0, 25.0, None, Some(12.0)));
 
@@ -11081,6 +11466,7 @@ fn grid_absolute_baseline_child_does_not_affect_row_baseline_shim() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(18.0), None))
         .measure(3, baseline_measure(30.0, 30.0, Some(6.0), None));
 
@@ -11115,6 +11501,7 @@ fn grid_auto_block_margin_baseline_child_does_not_affect_row_baseline_shim() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(18.0), None))
         .measure(3, baseline_measure(30.0, 30.0, Some(6.0), None));
 
@@ -11147,6 +11534,7 @@ fn grid_baseline_less_child_spanning_intrinsic_row_uses_fallback_without_shim() 
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(18.0), None))
         .measure(3, ComputeOutput::from_outer_size(Size::new(30.0, 10.0)));
 
@@ -11180,6 +11568,7 @@ fn grid_fixed_row_baseline_seeds_spanning_auto_row_shim() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(18.0), None))
         .measure(3, baseline_measure(30.0, 30.0, Some(6.0), None));
 
@@ -11205,6 +11594,8 @@ fn grid_constrained_row_baseline_sizing_uses_layout_mode() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(18.0), None))
         .measure_when(
             3,
@@ -11234,6 +11625,8 @@ fn grid_baseline_less_child_in_fixed_row_does_not_grow_intrinsic_sizing() {
                 ..NodeInput::default()
             },
         )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
         .measure(2, baseline_measure(30.0, 20.0, Some(18.0), None))
         .measure(3, ComputeOutput::from_outer_size(Size::new(30.0, 30.0)));
 
@@ -11276,6 +11669,10 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -11360,6 +11757,10 @@ fn grid_child_calc_size_and_margin_resolve_against_grid_area() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -11469,6 +11870,10 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -11554,6 +11959,10 @@ fn grid_justify_self_overrides_parent_justify_items() {
     impl Compute for GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInput {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -11685,7 +12094,8 @@ fn named_grid_spanning_item_counts_resolved_lines_for_auto_track_growth() {
                 ),
                 ..NodeInput::DEFAULT
             },
-        );
+        )
+        .style(3, NodeInput::default());
 
     compute_oracle_grid(&mut tree);
     let spanning = tree
@@ -12308,6 +12718,10 @@ impl Compute for LaneMarginMeasureTree {
         &self.child_style
     }
 
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::Box(self.node_input(node).clone())
+    }
+
     fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {
         unreachable!("lane margin measurement should not write layout output");
     }
@@ -12537,6 +12951,10 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
     impl Compute for F64GridTree {
         fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
             &self.styles[node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {

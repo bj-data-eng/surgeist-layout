@@ -37,6 +37,10 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             &self.styles[&node]
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
             self.layouts.insert(node, layout);
         }
@@ -144,6 +148,10 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
     impl Compute for HiddenTree {
         fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
             &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
@@ -295,6 +303,10 @@ fn root_layout_stores_child_output_as_root_layout() {
             &self.style
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
             self.layout = Some(layout);
         }
@@ -371,6 +383,10 @@ fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
             &self.style
         }
 
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
+        }
+
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
             self.layout = Some(layout);
         }
@@ -435,6 +451,10 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
     impl Compute for RootTree {
         fn node_input(&self, _node: Self::Node) -> &NodeInput {
             &self.style
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
@@ -503,6 +523,10 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
     impl Compute for RootTree {
         fn node_input(&self, _node: Self::Node) -> &NodeInput {
             &self.style
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::Box(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
