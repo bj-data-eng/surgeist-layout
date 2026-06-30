@@ -502,14 +502,14 @@ impl TestTree {
             None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
-        let node_input = to_node_input(&node.style, lowering)?;
+        let layout_input = to_layout_input(&node.style, lowering)?;
+        let box_display = layout_input.as_box().map(|input| input.display);
         let grid_lanes_text = inherited.grid_lanes_text
-            || node_input
-                .display
-                .establishes_grid_lanes_formatting_context();
-        let inline_level_text = inherited.inline_level_text || node_input.display.is_inline_level();
+            || box_display.is_some_and(layout::Display::establishes_grid_lanes_formatting_context);
+        let inline_level_text = inherited.inline_level_text
+            || box_display.is_some_and(layout::Display::is_inline_level);
         self.nodes.push(TestNode {
-            layout_input: layout::LayoutInput::box_input(node_input),
+            layout_input,
             font_family,
             font_size,
             line_height: resolved_line_height,
@@ -541,7 +541,7 @@ impl TestTree {
             })
             .collect::<Result<Vec<_>, _>>()?;
         if let Some(text) = &node.text
-            && grid_text_container_needs_anonymous_child(self.box_node_input(id).display)
+            && box_display.is_some_and(grid_text_container_needs_anonymous_child)
         {
             children.push(self.push_synthetic_text(
                 text,
@@ -1055,10 +1055,10 @@ fn compare_optional_number(
     }
 }
 
-fn to_node_input(
+fn to_layout_input(
     attrs: &StyleAttrs,
     lowering: &mut s::adapters::layout::LayoutLoweringSession,
-) -> Result<layout::NodeInput, Error> {
+) -> Result<layout::LayoutInput, Error> {
     let declarations = to_declarations(attrs)?;
     let tree = StyleFixtureTree::default();
     let mut resolver = s::Resolver::new(s::Sheet::new());
@@ -1071,7 +1071,30 @@ fn to_node_input(
     if let Some(value) = attrs.get("vertical-align") {
         input.vertical_align = parse_vertical_align(value)?;
     }
-    Ok(input)
+    if attrs.get("source-tag") == Some("br") {
+        let mut br = layout::LineBreakInput::new()
+            .with_direction(input.direction)
+            .with_writing_mode(input.writing_mode)
+            .with_vertical_align(input.vertical_align)
+            .with_clear(input.clear);
+        if input.display == layout::Display::None {
+            br = br.hidden();
+        }
+        Ok(layout::LayoutInput::line_break(br))
+    } else {
+        Ok(layout::LayoutInput::box_input(input))
+    }
+}
+
+fn to_node_input(
+    attrs: &StyleAttrs,
+    lowering: &mut s::adapters::layout::LayoutLoweringSession,
+) -> Result<layout::NodeInput, Error> {
+    let layout_input = to_layout_input(attrs, lowering)?;
+    match layout_input.as_box() {
+        Some(input) => Ok(input.clone()),
+        None => Err(Error::new("line break node has no box NodeInput")),
+    }
 }
 
 fn font_size(attrs: &StyleAttrs) -> Result<Option<Scalar>, Error> {
@@ -1119,11 +1142,6 @@ fn insert_style_declaration(
 
 fn to_declarations(attrs: &StyleAttrs) -> Result<s::Declarations, Error> {
     let mut declarations = s::Declarations::new();
-    if attrs.get("source-tag") == Some("br") {
-        return Err(Error::new(
-            "unsupported source-tag `br`; line-break semantics are not represented",
-        ));
-    }
     let display = match attrs.get("display") {
         Some(value) => Some(parse_display(value)?),
         None => match attrs.get("source-tag") {
@@ -2867,16 +2885,47 @@ mod tests {
     }
 
     #[test]
-    fn source_tag_br_is_rejected_until_line_break_semantics_are_modeled() {
-        let error = to_declarations(&StyleAttrs {
-            attrs: BTreeMap::from([("source-tag".to_string(), "br".to_string())]),
-        })
-        .expect_err("source-tag br must not lower to an ordinary sized node");
+    fn source_tag_br_lowers_to_line_break_input() {
+        let input = to_layout_input(
+            &StyleAttrs {
+                attrs: BTreeMap::from([
+                    ("source-tag".to_string(), "br".to_string()),
+                    ("direction".to_string(), "rtl".to_string()),
+                    ("writing-mode".to_string(), "vertical-rl".to_string()),
+                    ("vertical-align".to_string(), "top".to_string()),
+                    ("clear".to_string(), "both".to_string()),
+                ]),
+            },
+            &mut s::adapters::layout::LayoutLoweringSession::new(),
+        )
+        .expect("source-tag br should lower");
 
-        assert_eq!(
-            error.to_string(),
-            "unsupported source-tag `br`; line-break semantics are not represented"
-        );
+        let layout::LayoutInput::LineBreak(input) = input else {
+            panic!("br should lower to line break");
+        };
+        assert_eq!(input.direction(), layout::Direction::Rtl);
+        assert_eq!(input.writing_mode(), layout::WritingMode::VerticalRl);
+        assert_eq!(input.vertical_align(), layout::VerticalAlign::Top);
+        assert_eq!(input.clear(), layout::Clear::Both);
+    }
+
+    #[test]
+    fn source_tag_br_display_none_lowers_to_hidden_line_break() {
+        let input = to_layout_input(
+            &StyleAttrs {
+                attrs: BTreeMap::from([
+                    ("source-tag".to_string(), "br".to_string()),
+                    ("display".to_string(), "none".to_string()),
+                ]),
+            },
+            &mut s::adapters::layout::LayoutLoweringSession::new(),
+        )
+        .expect("display none br should lower");
+
+        let layout::LayoutInput::LineBreak(input) = input else {
+            panic!("br should lower to line break");
+        };
+        assert_eq!(input.display(), layout::LineBreakDisplay::None);
     }
 
     #[test]
