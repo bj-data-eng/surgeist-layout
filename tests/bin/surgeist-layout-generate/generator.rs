@@ -3460,6 +3460,125 @@ mod tests {
         })
     }
 
+    fn run_bundled_helper_script(name: &str, script: String) {
+        let root =
+            std::env::temp_dir().join(format!("surgeist-layout-{name}-{}", std::process::id()));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join(format!("{name}.js"));
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run bundled helper smoke test");
+
+        assert!(
+            output.status.success(),
+            "node bundled helper smoke test failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    fn br_helper_smoke_script(
+        parent_display: &str,
+        writing_mode: &str,
+        expected_reason: Option<&str>,
+    ) -> String {
+        let expected_reason =
+            expected_reason.map_or_else(|| "undefined".to_string(), |reason| format!("{reason:?}"));
+        format!(
+            r#"
+const window = {{ innerWidth: 800 }};
+const Node = {{ ELEMENT_NODE: 1, TEXT_NODE: 3 }};
+const document = {{
+  styleSheets: [],
+  createElement() {{
+    return {{
+      style: {{}},
+      offsetWidth: 0,
+      clientWidth: 0,
+      remove() {{}},
+    }};
+  }},
+  body: {{ appendChild() {{}} }},
+}};
+
+{TEST_HELPER_SOURCE}
+
+const parent = {{
+  tagName: "DIV",
+  classList: {{ contains() {{ return false; }} }},
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 100, height: 20, right: 100, left: 0, bottom: 20, top: 0 }}; }},
+  clientLeft: 0,
+  clientTop: 0,
+}};
+
+const element = {{
+  tagName: "BR",
+  classList: {{ contains() {{ return false; }} }},
+  style: {{
+    gridTemplateRows: "",
+    gridTemplateColumns: "",
+    gridAutoRows: "",
+    gridAutoColumns: "",
+    gridRowStart: "auto",
+    gridRowEnd: "auto",
+    gridColumnStart: "auto",
+    gridColumnEnd: "auto",
+  }},
+  parentNode: parent,
+  parentElement: parent,
+  childNodes: [],
+  childElementCount: 0,
+  textContent: "",
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 0, height: 0, right: 0, left: 0, bottom: 0, top: 0 }}; }},
+  scrollWidth: 0,
+  scrollHeight: 0,
+  clientWidth: 0,
+  clientHeight: 0,
+  offsetWidth: 0,
+  offsetHeight: 0,
+  offsetLeft: 0,
+  offsetTop: 0,
+  getAttribute() {{ return null; }},
+}};
+
+function getComputedStyle(target) {{
+  return {{
+    display: target === parent ? "{parent_display}" : "inline",
+    boxSizing: "content-box",
+    direction: "ltr",
+    writingMode: target === element ? "{writing_mode}" : "horizontal-tb",
+    fontFamily: "ahem",
+    fontSize: "10px",
+    lineHeight: "10px",
+    width: "0px",
+    height: "0px",
+    minWidth: "0px",
+    minHeight: "0px",
+    maxWidth: "none",
+    maxHeight: "none",
+    marginLeft: "0px",
+    marginRight: "0px",
+    marginTop: "0px",
+    marginBottom: "0px",
+  }};
+}}
+
+const data = describeElement(element);
+const expectedReason = {expected_reason};
+if (data.unsupportedReason !== expectedReason) {{
+  throw new Error(`expected unsupportedReason ${{expectedReason}}, got ${{data.unsupportedReason}}`);
+}}
+if (data.tagName !== "br") {{
+  throw new Error(`expected tagName br, got ${{data.tagName}}`);
+}}
+"#
+        )
+    }
+
     #[test]
     fn fixture_cases_match_browser_measurement_keys() {
         assert_eq!(
@@ -4722,12 +4841,57 @@ if (actual !== expected) {{
     }
 
     #[test]
-    fn bundled_helper_rejects_br_instead_of_lowering_to_measured_size() {
+    fn bundled_helper_describes_br_as_source_tag_without_measured_box_special_case() {
         assert!(TEST_HELPER_SOURCE.contains("tagName: e.tagName.toLowerCase()"));
         assert!(TEST_HELPER_SOURCE.contains("unsupportedElementReason"));
-        assert!(TEST_HELPER_SOURCE.contains("Unsupported <br>"));
-        assert!(!TEST_HELPER_SOURCE.contains("width: px(boundingRect.width)"));
-        assert!(!TEST_HELPER_SOURCE.contains("height: px(boundingRect.height)"));
+        assert!(!TEST_HELPER_SOURCE.contains("Unsupported <br> line-break semantics"));
+
+        run_bundled_helper_script(
+            "br-supported-block-parent",
+            br_helper_smoke_script("block", "horizontal-tb", None),
+        );
+
+        let node = json!({
+            "tagName": "br",
+            "style": {"display": "inline"},
+        });
+        assert_eq!(
+            input_attrs(&node),
+            vec![
+                ("source-tag", "br".to_string()),
+                ("display", "inline".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn bundled_helper_keeps_vertical_br_explicitly_unsupported() {
+        assert!(!TEST_HELPER_SOURCE.contains("Unsupported <br> line-break semantics"));
+        assert!(TEST_HELPER_SOURCE.contains("Unsupported vertical <br> line-break semantics"));
+
+        run_bundled_helper_script(
+            "br-vertical-unsupported",
+            br_helper_smoke_script(
+                "block",
+                "vertical-rl",
+                Some("Unsupported vertical <br> line-break semantics"),
+            ),
+        );
+    }
+
+    #[test]
+    fn bundled_helper_keeps_unmodeled_br_parent_contexts_unsupported() {
+        assert!(!TEST_HELPER_SOURCE.contains("Unsupported <br> line-break semantics"));
+        assert!(TEST_HELPER_SOURCE.contains("Unsupported <br> outside block inline-run semantics"));
+
+        run_bundled_helper_script(
+            "br-inline-parent-unsupported",
+            br_helper_smoke_script(
+                "inline",
+                "horizontal-tb",
+                Some("Unsupported <br> outside block inline-run semantics"),
+            ),
+        );
     }
 
     #[test]
@@ -4768,9 +4932,9 @@ if (actual !== expected) {{
             browser_version: None,
         };
         let desc = json!({
-            "borderBoxLtrData": unsupported_node("Unsupported <br> line-break semantics"),
+            "borderBoxLtrData": unsupported_node("Unsupported vertical <br> line-break semantics"),
             "contentBoxLtrData": unsupported_node("Unsupported mixed text/element content"),
-            "borderBoxRtlData": unsupported_node("Unsupported <br> line-break semantics"),
+            "borderBoxRtlData": unsupported_node("Unsupported <br> outside block inline-run semantics"),
             "contentBoxRtlData": unsupported_node("Unsupported mixed text/element content")
         });
 

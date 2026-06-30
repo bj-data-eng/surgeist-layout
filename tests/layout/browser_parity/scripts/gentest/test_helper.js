@@ -412,7 +412,7 @@ function describeElement(e, expectedElement = null) {
 
   return {
     tagName: e.tagName.toLowerCase(),
-    unsupportedReason: unsupportedElementReason(e) || unsupportedChildNodesReason(e),
+    unsupportedReason: unsupportedElementReason(e, computedStyle) || unsupportedChildNodesReason(e),
     style: {
       display: parseEnum(computedStyle.display),
       boxSizing: parseEnum(computedStyle.boxSizing),
@@ -819,9 +819,20 @@ function describeChildNodes(e, expectedElement = null) {
   return children;
 }
 
-function unsupportedElementReason(e) {
-  if (e.tagName === 'BR') return "Unsupported <br> line-break semantics";
+function unsupportedElementReason(e, computedStyle) {
+  if (e.tagName === 'BR' && isVerticalWritingMode(computedStyle.writingMode)) {
+    return "Unsupported vertical <br> line-break semantics";
+  }
+  if (e.tagName === 'BR' && !hasSupportedBrLineBreakParent(e)) {
+    return "Unsupported <br> outside block inline-run semantics";
+  }
   return undefined;
+}
+
+function hasSupportedBrLineBreakParent(e) {
+  const parent = e.parentElement;
+  if (!parent) return false;
+  return getComputedStyle(parent).display === "block";
 }
 
 function unsupportedChildNodesReason(e) {
