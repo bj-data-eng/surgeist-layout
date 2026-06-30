@@ -2929,29 +2929,39 @@ mod tests {
     }
 
     #[test]
-    fn checked_fixture_enumerator_quarantines_unsupported_br_xml() {
-        let fixtures = fixture_files("xml").expect("checked XML fixtures should load");
-        let stale_br_fixture = Path::new(
-            "crates/surgeist-layout/tests/layout/browser_parity/xml/subgrid/subgrid_baseline_vertical_nested_parent_row1_first__content_box_ltr.xml",
-        );
+    fn generation_report_uses_explicit_br_unsupported_buckets() {
+        let report = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/layout/browser_parity/xml/generation-reports/all.json");
+        let raw = std::fs::read_to_string(&report)
+            .unwrap_or_else(|error| panic!("{} should read: {error}", report.display()));
+        let report_json: serde_json::Value = serde_json::from_str(&raw)
+            .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
+        let unsupported = report_json["unsupported"]
+            .as_array()
+            .expect("unsupported report entries should be an array");
+        let reasons = unsupported
+            .iter()
+            .map(|entry| {
+                entry
+                    .get("reason")
+                    .or_else(|| entry.get("kind"))
+                    .or_else(|| entry.get("error"))
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("unknown")
+            })
+            .collect::<Vec<_>>();
 
         assert!(
-            !fixtures.is_empty(),
-            "expected checked XML fixtures before quarantine filtering"
+            !reasons.contains(&"Unsupported <br> line-break semantics"),
+            "BR fixtures must not remain in the stale generic unsupported bucket"
         );
         assert!(
-            fixtures.iter().all(|fixture| {
-                !std::fs::read_to_string(fixture)
-                    .expect("fixture should be readable")
-                    .contains("source-tag=\"br\"")
-            }),
-            "source-tag=\"br\" fixtures must stay out of checked parity until line-break semantics are modeled"
+            reasons.contains(&"Unsupported vertical <br> line-break semantics"),
+            "vertical <br> fixtures should remain explicitly unsupported"
         );
         assert!(
-            !fixtures
-                .iter()
-                .any(|fixture| fixture.ends_with(stale_br_fixture)),
-            "stale XML generated from source <br> fixtures must stay out of checked parity"
+            reasons.contains(&"Unsupported <br> outside block inline-run semantics"),
+            "outside-block <br> fixtures should remain explicitly unsupported"
         );
     }
 

@@ -4,7 +4,7 @@
     "generator": "surgeist-layout-generate",
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
-    "helper_sha256": "98a38953da70c20585341157247d181f9ac9f70302a1414f1d10ff35b3354597",
+    "helper_sha256": "cada32af213d5a049df6eb94837b45766ee1a013f6061180da4bae90011a27a5",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
     "corpus_manifest_sha256": "2a525f4afa8e1dac0bca53fbd533d4d2aa38503b51d6bfd1835c5c064f617e5d",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
@@ -30528,865 +30528,865 @@
       "name": "subgrid_baseline_auto_rows_inner_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_inner_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_inner_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_outer_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_outer_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_auto_rows_parent_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_auto_rows_parent_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_inner_col2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_inner_col2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_outer_col3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_outer_col3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_inline_column_parent_col3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_inline_column_parent_col3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_inner_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_inner_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_outer_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_outer_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_nested_block_parent_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_nested_block_parent_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported <br> outside block inline-run semantics"
     },
     {
       "name": "subgrid_baseline_standalone_axis_first_item__border_box_ltr",
@@ -31440,577 +31440,577 @@
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_inner_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_inner_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_outer_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_outer_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_auto_rows_parent_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_auto_rows_parent_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_inner_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_inner_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_outer_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_outer_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row1_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row1_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row2_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row2_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_first__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_first.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_first__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_first.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_first__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_first.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_first__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_first.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_last__border_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_last.html",
       "variant": "border_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_last__content_box_ltr",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_last.html",
       "variant": "content_box_ltr",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_last__border_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_last.html",
       "variant": "border_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_baseline_vertical_nested_parent_row3_last__content_box_rtl",
       "source": "html/subgrid/subgrid_baseline_vertical_nested_parent_row3_last.html",
       "variant": "content_box_rtl",
-      "reason": "Unsupported <br> line-break semantics"
+      "reason": "Unsupported vertical <br> line-break semantics"
     },
     {
       "name": "subgrid_standalone_axis_max_width_clamp__border_box_ltr",
