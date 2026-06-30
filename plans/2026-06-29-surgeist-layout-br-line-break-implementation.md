@@ -57,6 +57,13 @@ Current generated corpus evidence:
 
 The plan should unblock only the supported horizontal block-parent subset. Vertical and outside-context `<br>` fixtures remain unsupported with distinct reasons.
 
+Root/retained HTML corpus checks are not expected to become fully green from
+layout-local fixture support alone. Layout browser parity can lower
+`source-tag="br"` XML metadata through its test support path, but real HTML
+integration remains blocked until the owning tree/HTML adapter implements
+`Compute::layout_input` and maps real `<br>` elements to
+`LayoutInput::LineBreak`.
+
 ## Coordinator Workflow
 
 Follow `AGENTS.md` for every implementation task. The coordinator assigns one worker for each task or tightly coupled task group, then assigns a separate scoped reviewer before committing. A task is committable only after:
@@ -1006,6 +1013,10 @@ implementing `plans/2026-06-29-surgeist-layout-br-line-break-implementation.md`.
   `display: none` should map to hidden line-break input.
 - Required owning change: add a root or adapter implementation plan after this
   layout API lands. Do not implement that adapter from the layout crate project.
+- Verification note: root/retained HTML corpus checks that exercise real `<br>`
+  elements are expected to remain blocked until this owning change lands. The
+  layout-local browser parity work only proves XML fixture metadata can be
+  lowered to `LayoutInput::LineBreak` through the layout test support path.
 ```
 
 - [ ] **Step 2: Commit**
