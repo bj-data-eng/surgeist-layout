@@ -1,5 +1,6 @@
 use super::inline::{
-    AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem, layout_atomic_inline_items,
+    AtomicInlineBoxItem, AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem,
+    layout_atomic_inline_items,
 };
 use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
@@ -762,7 +763,7 @@ where
             });
         let child_margin = resolve_atomic_inline_margin(unresolved_margin);
 
-        let item = AtomicInlineItem {
+        let item = AtomicInlineItem::Box(AtomicInlineBoxItem {
             order: order_start + offset as u32,
             size: output.size,
             content_size: output.content_size,
@@ -775,7 +776,7 @@ where
             } else {
                 output.last_baselines.y.or(output.first_baselines.y)
             },
-        };
+        });
         run_children.push((child, child_style, output, item));
         items.push(item);
     }

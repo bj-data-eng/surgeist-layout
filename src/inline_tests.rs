@@ -1,7 +1,7 @@
 use crate::Available;
 use crate::inline::{
-    AtomicInlineInput, AtomicInlineItem, atomic_inline_max_content_width,
-    atomic_inline_min_content_width, layout_atomic_inline_items,
+    AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItemKind,
+    atomic_inline_max_content_width, atomic_inline_min_content_width, layout_atomic_inline_items,
 };
 use crate::*;
 
@@ -95,6 +95,64 @@ fn atomic_inline_intrinsic_widths_use_max_item_and_sum() {
 
     assert_eq!(atomic_inline_min_content_width(&items), 110.0);
     assert_eq!(atomic_inline_max_content_width(&items), 195.0);
+}
+
+#[test]
+fn atomic_inline_forced_line_break_starts_next_line() {
+    let report = layout_atomic_inline_items(AtomicInlineInput {
+        available_width: Available::MAX_CONTENT,
+        writing_mode: WritingMode::HorizontalTb,
+        items: vec![
+            AtomicInlineItem::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(10.0)),
+            AtomicInlineItem::forced_line_break(1),
+            AtomicInlineItem::new(2, Size::new(15.0, 12.0), Edges::ZERO, Some(8.0)),
+            AtomicInlineItem::forced_line_break(3),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(20.0, 22.0));
+    assert_eq!(report.first_baseline, Some(10.0));
+    assert_eq!(report.last_baseline, Some(18.0));
+    assert_eq!(report.items.len(), 4);
+    assert_eq!(report.items[0].kind, AtomicInlineLayoutItemKind::Box);
+    assert_eq!(report.items[0].location, Point::new(0.0, 0.0));
+    assert_eq!(
+        report.items[1].kind,
+        AtomicInlineLayoutItemKind::ForcedLineBreak
+    );
+    assert_eq!(report.items[1].location, Point::new(20.0, 10.0));
+    assert_eq!(report.items[1].size, Size::ZERO);
+    assert_eq!(report.items[2].kind, AtomicInlineLayoutItemKind::Box);
+    assert_eq!(report.items[2].location, Point::new(0.0, 10.0));
+    assert_eq!(
+        report.items[3].kind,
+        AtomicInlineLayoutItemKind::ForcedLineBreak
+    );
+    assert_eq!(report.items[3].location, Point::new(15.0, 18.0));
+}
+
+#[test]
+fn atomic_inline_intrinsic_widths_split_at_forced_line_breaks() {
+    let items = vec![
+        AtomicInlineItem::new(
+            0,
+            Size::new(25.0, 10.0),
+            Edges::new(0.0, 5.0, 0.0, 5.0),
+            Some(10.0),
+        ),
+        AtomicInlineItem::forced_line_break(1),
+        AtomicInlineItem::new(
+            2,
+            Size::new(100.0, 10.0),
+            Edges::new(0.0, 0.0, 0.0, 10.0),
+            Some(10.0),
+        ),
+        AtomicInlineItem::new(3, Size::new(50.0, 10.0), Edges::ZERO, Some(10.0)),
+        AtomicInlineItem::forced_line_break(4),
+    ];
+
+    assert_eq!(atomic_inline_min_content_width(&items), 110.0);
+    assert_eq!(atomic_inline_max_content_width(&items), 160.0);
 }
 
 #[test]
