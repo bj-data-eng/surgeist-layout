@@ -442,6 +442,179 @@ fn block_wraps_atomic_inline_children_between_items() {
 }
 
 #[test]
+fn block_atomic_inline_run_honors_line_break_child() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(2, LineBreakInput::new())
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(20.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(0.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 22.0));
+}
+
+#[test]
+fn hidden_line_break_does_not_split_atomic_inline_run() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(2, LineBreakInput::new().hidden())
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
+    assert_eq!(tree.inputs(2), &[]);
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(20.0, 0.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 10.0));
+}
+
+#[test]
+fn block_atomic_inline_run_never_computes_line_break_as_box() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(2, LineBreakInput::new())
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    );
+
+    assert_eq!(tree.inputs(2), &[]);
+}
+
+#[test]
+#[should_panic(expected = "vertical line-break layout is not implemented")]
+fn vertical_line_break_panics_until_modeled() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            2,
+            LineBreakInput::new().with_writing_mode(WritingMode::VerticalRl),
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    );
+}
+
+#[test]
 fn block_min_content_atomic_inline_run_uses_max_item_advance() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])

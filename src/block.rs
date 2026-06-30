@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use super::inline::{
     AtomicInlineBoxItem, AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem,
     layout_atomic_inline_items,
@@ -6,9 +8,9 @@ use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, CalcResolutionOf, CalcResolutionStatus,
     CalcResolver, Clear, CollapsibleMarginOf, Compute, ComputeInputOf, ComputeOutputOf,
-    DimensionOf, Direction, Edges, Float, LayoutScalar, LengthAutoOf, LengthOf, NodeInputOf,
-    NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, TextAlign,
-    Traverse, VerticalAlign, WritingMode,
+    DimensionOf, Direction, Edges, Float, LayoutInputOf, LayoutScalar, LengthAutoOf, LengthOf,
+    NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode,
+    TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 
 pub fn compute_block<Tree>(
@@ -147,7 +149,9 @@ where
     Tree: Compute,
 {
     children.iter().copied().any(|child| {
-        let style = tree.node_input(child);
+        let LayoutInputOf::Box(style) = tree.layout_input(child) else {
+            return false;
+        };
         if style.display == super::Display::None
             || style.position == Position::Absolute
             || style.float != Float::None
@@ -351,6 +355,40 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
     }
 }
 
+fn atomic_inline_run_end<Tree>(
+    tree: &Tree,
+    children: &[<Tree as Traverse>::Node],
+    mut index: usize,
+) -> usize
+where
+    Tree: Compute,
+{
+    while index < children.len() {
+        match tree.layout_input(children[index]) {
+            LayoutInputOf::Box(style) => {
+                if style.display == super::Display::None || style.position == Position::Absolute {
+                    index += 1;
+                    continue;
+                }
+                if style.float != Float::None || !style.display.is_inline_level() {
+                    break;
+                }
+            }
+            LayoutInputOf::LineBreak(input) => {
+                if input.display().is_none() {
+                    index += 1;
+                    continue;
+                }
+                if input.writing_mode() != WritingMode::HorizontalTb {
+                    panic!("vertical line-break layout is not implemented");
+                }
+            }
+        }
+        index += 1;
+    }
+    index
+}
+
 fn layout_in_flow_children<Tree, S>(
     tree: &mut Tree,
     children: &[<Tree as Traverse>::Node],
@@ -389,7 +427,58 @@ where
     while index < children.len() {
         let order = index;
         let child = children[index];
-        let child_style = tree.node_input(child).clone();
+        let child_style = match tree.layout_input(child) {
+            LayoutInputOf::Box(style) => *style,
+            LayoutInputOf::LineBreak(line_break) => {
+                if line_break.display().is_none() {
+                    if set_layout {
+                        tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order as u32));
+                    }
+                    index += 1;
+                    continue;
+                }
+                if line_break.writing_mode() != WritingMode::HorizontalTb {
+                    panic!("vertical line-break layout is not implemented");
+                }
+
+                let run_start = index;
+                index = atomic_inline_run_end(tree, children, index + 1);
+
+                let collapsed_margin = active_margin.resolve();
+                cursor_y = cursor_y + collapsed_margin;
+                if is_collapsing_first_margin {
+                    is_collapsing_first_margin = false;
+                }
+
+                let placement = layout_atomic_inline_run(
+                    tree,
+                    &children[run_start..index],
+                    AtomicInlineRunContext {
+                        order_start: run_start as u32,
+                        cursor_y,
+                        constants,
+                        input,
+                        node_inner_size,
+                        set_layout,
+                    },
+                );
+                content_size.width = content_size.width.max(placement.content_size.width);
+                content_size.height = content_size.height.max(placement.content_size.height);
+                static_positions.extend(placement.static_positions);
+                if let Some(baseline) = placement.first_baseline {
+                    let absolute_baseline = cursor_y + baseline;
+                    first_baseline.get_or_insert(absolute_baseline);
+                }
+                if let Some(baseline) = placement.last_baseline {
+                    last_baseline = Some(cursor_y + baseline);
+                }
+                cursor_y = cursor_y + placement.size.height;
+                active_margin = CollapsibleMarginOf::<S>::ZERO;
+                active_margin_can_collapse_with_parent = false;
+                all_in_flow_children_can_collapse_through = false;
+                continue;
+            }
+        };
         if child_style.display == super::Display::None {
             if set_layout {
                 tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order as u32));
@@ -409,23 +498,7 @@ where
 
         if child_style.display.is_inline_level() && child_style.float.is_none() {
             let run_start = index;
-            index += 1;
-            while index < children.len() {
-                let run_style = tree.node_input(children[index]);
-                if run_style.display == super::Display::None
-                    || run_style.position == Position::Absolute
-                {
-                    index += 1;
-                    continue;
-                }
-                if run_style.float != Float::None {
-                    break;
-                }
-                if !run_style.display.is_inline_level() {
-                    break;
-                }
-                index += 1;
-            }
+            index = atomic_inline_run_end(tree, children, index + 1);
 
             let collapsed_margin = active_margin.resolve();
             cursor_y = cursor_y + collapsed_margin;
@@ -693,6 +766,19 @@ struct AtomicInlineRunContext<'a, S: LayoutScalar> {
     set_layout: bool,
 }
 
+enum AtomicInlineRunChild<Node, S: LayoutScalar> {
+    Box {
+        child: Node,
+        order: u32,
+        style: NodeInputOf<S>,
+        output: ComputeOutputOf<S>,
+    },
+    LineBreak {
+        child: Node,
+        order: u32,
+    },
+}
+
 fn layout_atomic_inline_run<Tree, S>(
     tree: &mut Tree,
     run: &[<Tree as Traverse>::Node],
@@ -714,13 +800,28 @@ where
     let mut run_children = Vec::with_capacity(run.len());
     let mut static_positions = Vec::new();
     for (offset, child) in run.iter().copied().enumerate() {
-        let child_style = tree.node_input(child).clone();
+        let order = order_start + offset as u32;
+        let child_style = match tree.layout_input(child) {
+            LayoutInputOf::Box(style) => *style,
+            LayoutInputOf::LineBreak(input) => {
+                if input.display().is_none() {
+                    if set_layout {
+                        tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order));
+                    }
+                    continue;
+                }
+                if input.writing_mode() != WritingMode::HorizontalTb {
+                    panic!("vertical line-break layout is not implemented");
+                }
+
+                run_children.push(AtomicInlineRunChild::LineBreak { child, order });
+                items.push(AtomicInlineItem::forced_line_break(order));
+                continue;
+            }
+        };
         if child_style.display == super::Display::None {
             if set_layout {
-                tree.set_unrounded(
-                    child,
-                    NodeOutputOf::<S>::with_order(order_start + offset as u32),
-                );
+                tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order));
                 tree.compute_child(child, ComputeInputOf::<S>::HIDDEN);
             }
             continue;
@@ -764,7 +865,7 @@ where
         let child_margin = resolve_atomic_inline_margin(unresolved_margin);
 
         let item = AtomicInlineItem::Box(AtomicInlineBoxItem {
-            order: order_start + offset as u32,
+            order,
             size: output.size,
             content_size: output.content_size,
             margin: child_margin,
@@ -777,7 +878,12 @@ where
                 output.last_baselines.y.or(output.first_baselines.y)
             },
         });
-        run_children.push((child, child_style, output, item));
+        run_children.push(AtomicInlineRunChild::Box {
+            child,
+            order,
+            style: child_style,
+            output,
+        });
         items.push(item);
     }
 
@@ -797,58 +903,92 @@ where
         Point::new(Overflow::Visible, Overflow::Visible),
     );
 
-    for ((child, child_style, output, _source_item), item) in run_children.iter().zip(&report.items)
-    {
-        let inset_offset = relative_inset_offset(
-            child_style.inset.zip_size(
-                Size::new(node_inner_size.width, Some(S::ZERO)),
-                |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
-            ),
-            constants.direction,
-        );
-        let item_x = inline_item_x(
-            *item,
-            report.size.width,
-            constants.direction,
-            constants.writing_mode,
-        );
-        let location = Point::new(
-            run_offset + item_x + inset_offset.x,
-            cursor_y + item.location.y + inset_offset.y - constants.content_box_inset.top,
-        );
-        let contribution = content_size_contribution(
-            location,
-            item.size,
-            output.content_size,
-            child_style.overflow,
-        );
-        content_size = max_content_size(content_size, contribution);
+    let report_items_by_order = report
+        .items
+        .iter()
+        .copied()
+        .map(|item| (item.order, item))
+        .collect::<BTreeMap<_, _>>();
 
-        if set_layout {
-            let inset_offset = relative_inset_offset(
-                child_style.inset.zip_size(
-                    Size::new(node_inner_size.width, Some(S::ZERO)),
-                    |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
-                ),
-                constants.direction,
-            );
-
-            tree.set_unrounded(
-                *child,
-                NodeOutputOf::<S> {
-                    order: item.order,
-                    location: Point::new(
-                        constants.content_box_inset.left + run_offset + item_x + inset_offset.x,
-                        cursor_y + item.location.y + inset_offset.y,
+    for run_child in &run_children {
+        match run_child {
+            AtomicInlineRunChild::Box {
+                child,
+                order,
+                style: child_style,
+                output,
+            } => {
+                let item = report_items_by_order[order];
+                let inset_offset = relative_inset_offset(
+                    child_style.inset.zip_size(
+                        Size::new(node_inner_size.width, Some(S::ZERO)),
+                        |length, basis| {
+                            resolve_auto_optional_with(length, basis, tree.calc_resolver())
+                        },
                     ),
-                    size: item.size,
-                    content_size: item.content_size,
-                    scrollbar_size: item.scrollbar_size,
-                    border: item.border,
-                    padding: item.padding,
-                    margin: item.margin,
-                },
-            );
+                    constants.direction,
+                );
+                let item_x = inline_item_x(
+                    item,
+                    report.size.width,
+                    constants.direction,
+                    constants.writing_mode,
+                );
+                let location = Point::new(
+                    run_offset + item_x + inset_offset.x,
+                    cursor_y + item.location.y + inset_offset.y - constants.content_box_inset.top,
+                );
+                let contribution = content_size_contribution(
+                    location,
+                    item.size,
+                    output.content_size,
+                    child_style.overflow,
+                );
+                content_size = max_content_size(content_size, contribution);
+
+                if set_layout {
+                    tree.set_unrounded(
+                        *child,
+                        NodeOutputOf::<S> {
+                            order: item.order,
+                            location: Point::new(
+                                constants.content_box_inset.left
+                                    + run_offset
+                                    + item_x
+                                    + inset_offset.x,
+                                cursor_y + item.location.y + inset_offset.y,
+                            ),
+                            size: item.size,
+                            content_size: item.content_size,
+                            scrollbar_size: item.scrollbar_size,
+                            border: item.border,
+                            padding: item.padding,
+                            margin: item.margin,
+                        },
+                    );
+                }
+            }
+            AtomicInlineRunChild::LineBreak { child, order } => {
+                if set_layout {
+                    let item = report_items_by_order[order];
+                    tree.set_unrounded(
+                        *child,
+                        NodeOutputOf::<S> {
+                            order: item.order,
+                            location: Point::new(
+                                constants.content_box_inset.left + run_offset + item.location.x,
+                                cursor_y + item.location.y,
+                            ),
+                            size: Size::ZERO,
+                            content_size: Size::ZERO,
+                            scrollbar_size: Size::ZERO,
+                            border: Edges::ZERO,
+                            padding: Edges::ZERO,
+                            margin: Edges::ZERO,
+                        },
+                    );
+                }
+            }
         }
     }
 
@@ -1242,7 +1382,9 @@ where
 
     let mut absolute_content_size = Size::ZERO;
     for (order, child) in children.iter().copied().enumerate() {
-        let style = tree.node_input(child).clone();
+        let LayoutInputOf::Box(style) = tree.layout_input(child) else {
+            continue;
+        };
         if style.position != Position::Absolute || style.display == super::Display::None {
             continue;
         }
