@@ -52,6 +52,20 @@ impl Display {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum LineBreakDisplay {
+    #[default]
+    Break,
+    None,
+}
+
+impl LineBreakDisplay {
+    #[must_use]
+    pub const fn is_none(self) -> bool {
+        matches!(self, Self::None)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum BoxSizing {
     ContentBox,
     #[default]
@@ -157,6 +171,91 @@ impl WritingMode {
     #[must_use]
     pub const fn is_vertical(self) -> bool {
         matches!(self, Self::VerticalLr | Self::VerticalRl)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LineBreakInput {
+    display: LineBreakDisplay,
+    direction: Direction,
+    writing_mode: WritingMode,
+    vertical_align: VerticalAlign,
+    clear: Clear,
+}
+
+impl LineBreakInput {
+    pub const DEFAULT: Self = Self {
+        display: LineBreakDisplay::Break,
+        direction: Direction::Ltr,
+        writing_mode: WritingMode::HorizontalTb,
+        vertical_align: VerticalAlign::Baseline,
+        clear: Clear::None,
+    };
+
+    #[must_use]
+    pub const fn new() -> Self {
+        Self::DEFAULT
+    }
+
+    #[must_use]
+    pub const fn hidden(mut self) -> Self {
+        self.display = LineBreakDisplay::None;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_direction(mut self, direction: Direction) -> Self {
+        self.direction = direction;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_writing_mode(mut self, writing_mode: WritingMode) -> Self {
+        self.writing_mode = writing_mode;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_vertical_align(mut self, vertical_align: VerticalAlign) -> Self {
+        self.vertical_align = vertical_align;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_clear(mut self, clear: Clear) -> Self {
+        self.clear = clear;
+        self
+    }
+
+    #[must_use]
+    pub const fn display(self) -> LineBreakDisplay {
+        self.display
+    }
+
+    #[must_use]
+    pub const fn direction(self) -> Direction {
+        self.direction
+    }
+
+    #[must_use]
+    pub const fn writing_mode(self) -> WritingMode {
+        self.writing_mode
+    }
+
+    #[must_use]
+    pub const fn vertical_align(self) -> VerticalAlign {
+        self.vertical_align
+    }
+
+    #[must_use]
+    pub const fn clear(self) -> Clear {
+        self.clear
+    }
+}
+
+impl Default for LineBreakInput {
+    fn default() -> Self {
+        Self::DEFAULT
     }
 }
 
@@ -688,6 +787,42 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             grid_row: GridPlacement::AUTO,
             raw_grid_column: RawGridPlacement::AUTO,
             raw_grid_row: RawGridPlacement::AUTO,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum LayoutInputOf<S: LayoutScalar = DefaultScalar> {
+    Box(NodeInputOf<S>),
+    LineBreak(LineBreakInput),
+}
+
+pub type LayoutInput = LayoutInputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> LayoutInputOf<S> {
+    #[must_use]
+    pub const fn box_input(input: NodeInputOf<S>) -> Self {
+        Self::Box(input)
+    }
+
+    #[must_use]
+    pub const fn line_break(input: LineBreakInput) -> Self {
+        Self::LineBreak(input)
+    }
+
+    #[must_use]
+    pub const fn as_box(&self) -> Option<&NodeInputOf<S>> {
+        match self {
+            Self::Box(input) => Some(input),
+            Self::LineBreak(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn as_line_break(&self) -> Option<LineBreakInput> {
+        match self {
+            Self::Box(_) => None,
+            Self::LineBreak(input) => Some(*input),
         }
     }
 }

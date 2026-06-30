@@ -207,6 +207,41 @@ fn node_input_defaults_match_the_layout_contract() {
 }
 
 #[test]
+fn line_break_input_defaults_to_visible_horizontal_break_context() {
+    let input = LineBreakInput::default();
+    assert_eq!(input.display(), LineBreakDisplay::Break);
+    assert_eq!(input.direction(), Direction::Ltr);
+    assert_eq!(input.writing_mode(), WritingMode::HorizontalTb);
+    assert_eq!(input.vertical_align(), VerticalAlign::Baseline);
+    assert_eq!(input.clear(), Clear::None);
+}
+
+#[test]
+fn layout_input_distinguishes_box_from_line_break() {
+    let box_input = LayoutInput::box_input(NodeInput::default());
+    assert!(box_input.as_box().is_some());
+    assert!(box_input.as_line_break().is_none());
+
+    let line_break = LayoutInput::line_break(LineBreakInput::new().hidden());
+    assert!(line_break.as_box().is_none());
+    assert_eq!(
+        line_break.as_line_break().unwrap().display(),
+        LineBreakDisplay::None
+    );
+}
+
+#[test]
+fn node_input_does_not_carry_line_break_state() {
+    let input = NodeInput {
+        display: Display::Grid,
+        ..NodeInput::default()
+    };
+
+    let layout_input = LayoutInput::box_input(input);
+    assert!(layout_input.as_line_break().is_none());
+}
+
+#[test]
 fn geometry_reports_main_and_cross_components_for_flex_direction() {
     let size = Size::new(80.0, 24.0);
     assert_eq!(size.main(FlexDirection::Row), 80.0);
