@@ -509,7 +509,7 @@ impl TestTree {
                 .establishes_grid_lanes_formatting_context();
         let inline_level_text = inherited.inline_level_text || node_input.display.is_inline_level();
         self.nodes.push(TestNode {
-            layout_input: layout::LayoutInput::Box(node_input),
+            layout_input: layout::LayoutInput::box_input(node_input),
             font_family,
             font_size,
             line_height: resolved_line_height,
@@ -568,7 +568,7 @@ impl TestTree {
     ) -> Result<usize, Error> {
         let id = self.nodes.len();
         self.nodes.push(TestNode {
-            layout_input: layout::LayoutInput::Box(layout::NodeInput::default()),
+            layout_input: layout::LayoutInput::box_input(layout::NodeInput::default()),
             font_family,
             font_size,
             line_height,
@@ -683,10 +683,10 @@ impl TestTree {
     }
 
     fn box_node_input(&self, node: usize) -> &layout::NodeInput {
-        match &self.nodes[node].layout_input {
-            layout::LayoutInput::Box(input) => input,
-            layout::LayoutInput::LineBreak(_) => panic!("line break node has no box NodeInput"),
-        }
+        self.nodes[node]
+            .layout_input
+            .as_box()
+            .unwrap_or_else(|| panic!("line break node has no box NodeInput"))
     }
 }
 
@@ -2984,7 +2984,7 @@ mod tests {
     fn empty_inline_grid_display_uses_grid_tracks_instead_of_leaf_measurement() {
         let mut tree = TestTree {
             nodes: vec![TestNode {
-                layout_input: layout::LayoutInput::Box(layout::NodeInput {
+                layout_input: layout::LayoutInput::box_input(layout::NodeInput {
                     display: layout::Display::InlineGrid,
                     grid_template_columns: vec![layout::TrackComponent::px(40.0)],
                     grid_template_rows: vec![layout::TrackComponent::px(20.0)],

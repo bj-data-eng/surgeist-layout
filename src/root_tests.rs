@@ -38,7 +38,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -151,7 +151,7 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
@@ -304,7 +304,7 @@ fn root_layout_stores_child_output_as_root_layout() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
@@ -384,7 +384,7 @@ fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
@@ -454,7 +454,7 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {
@@ -526,7 +526,7 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, layout: NodeOutput) {

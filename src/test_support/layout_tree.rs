@@ -103,7 +103,8 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
     }
 
     pub fn style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
-        self.layout_inputs.insert(node, LayoutInputOf::Box(style));
+        self.layout_inputs
+            .insert(node, LayoutInputOf::box_input(style));
         self
     }
 
@@ -203,8 +204,9 @@ impl<S: LayoutScalar> Traverse for OracleTreeOf<S> {
 impl Compute for OracleTree {
     fn node_input(&self, node: Self::Node) -> &NodeInput {
         match self.layout_inputs.get(&node) {
-            Some(LayoutInputOf::Box(input)) => input,
-            Some(LayoutInputOf::LineBreak(_)) => panic!("line break node has no box NodeInput"),
+            Some(input) => input
+                .as_box()
+                .unwrap_or_else(|| panic!("line break node has no box NodeInput")),
             None => panic!("oracle node {node} must define a layout input"),
         }
     }
@@ -253,8 +255,9 @@ impl Compute for OracleTree {
 impl Compute for OracleTreeOf<f64> {
     fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
         match self.layout_inputs.get(&node) {
-            Some(LayoutInputOf::Box(input)) => input,
-            Some(LayoutInputOf::LineBreak(_)) => panic!("line break node has no box NodeInput"),
+            Some(input) => input
+                .as_box()
+                .unwrap_or_else(|| panic!("line break node has no box NodeInput")),
             None => panic!("oracle node {node} must define a layout input"),
         }
     }

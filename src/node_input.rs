@@ -793,7 +793,7 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutInputOf<S: LayoutScalar = DefaultScalar> {
-    Box(NodeInputOf<S>),
+    Box(std::boxed::Box<NodeInputOf<S>>),
     LineBreak(LineBreakInput),
 }
 
@@ -801,8 +801,8 @@ pub type LayoutInput = LayoutInputOf<DefaultScalar>;
 
 impl<S: LayoutScalar> LayoutInputOf<S> {
     #[must_use]
-    pub const fn box_input(input: NodeInputOf<S>) -> Self {
-        Self::Box(input)
+    pub fn box_input(input: NodeInputOf<S>) -> Self {
+        Self::Box(std::boxed::Box::new(input))
     }
 
     #[must_use]
@@ -811,9 +811,9 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
     }
 
     #[must_use]
-    pub const fn as_box(&self) -> Option<&NodeInputOf<S>> {
+    pub fn as_box(&self) -> Option<&NodeInputOf<S>> {
         match self {
-            Self::Box(input) => Some(input),
+            Self::Box(input) => Some(input.as_ref()),
             Self::LineBreak(_) => None,
         }
     }

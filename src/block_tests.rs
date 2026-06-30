@@ -54,7 +54,7 @@ impl Compute for CalcBlockTree {
     }
 
     fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-        LayoutInputOf::Box(self.node_input(node).clone())
+        LayoutInputOf::box_input(self.node_input(node).clone())
     }
 
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1377,7 +1377,7 @@ fn block_layout_stacks_in_flow_children_vertically() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1592,7 +1592,7 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1687,7 +1687,7 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2266,7 +2266,7 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2375,7 +2375,7 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2468,7 +2468,7 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2563,7 +2563,7 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2652,7 +2652,7 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2744,7 +2744,7 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2832,7 +2832,7 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -2945,7 +2945,7 @@ fn block_empty_auto_height_can_collapse_through() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -3016,7 +3016,7 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -3101,7 +3101,7 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3204,7 +3204,7 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3301,7 +3301,7 @@ fn block_content_size_includes_visible_child_overflow_content() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3390,7 +3390,7 @@ fn block_relative_child_inset_offsets_final_layout_location() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3489,7 +3489,7 @@ fn block_layout_stretches_auto_width_in_flow_children() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3590,7 +3590,7 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3690,7 +3690,7 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -3764,7 +3764,7 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -3850,7 +3850,7 @@ fn block_auto_height_clamps_to_max_size() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -3938,7 +3938,7 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
@@ -4022,7 +4022,7 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4124,7 +4124,7 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4250,7 +4250,7 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4354,7 +4354,7 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4443,7 +4443,7 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4538,7 +4538,7 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4633,7 +4633,7 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4734,7 +4734,7 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4835,7 +4835,7 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
         }
 
         fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::Box(self.node_input(node).clone())
+            LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
         fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -4931,7 +4931,7 @@ impl Compute for CalcLeafTree {
     }
 
     fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-        LayoutInputOf::Box(self.node_input(node).clone())
+        LayoutInputOf::box_input(self.node_input(node).clone())
     }
 
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
