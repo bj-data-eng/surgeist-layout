@@ -1089,6 +1089,55 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
 }
 
 #[test]
+fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                direction: Direction::Rtl,
+                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(2, LineBreakInput::new())
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
+    round_layout(&mut tree, 0);
+
+    assert_eq!(
+        tree.final_layout(1).unwrap().location,
+        Point::new(80.0, 0.0)
+    );
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(80.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(70.0, 10.0)
+    );
+}
+
+#[test]
 fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])

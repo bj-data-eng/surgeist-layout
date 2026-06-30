@@ -971,12 +971,18 @@ where
             AtomicInlineRunChild::LineBreak { child, order } => {
                 if set_layout {
                     let item = report_items_by_order[order];
+                    let item_x = inline_item_x(
+                        item,
+                        report.size.width,
+                        constants.direction,
+                        constants.writing_mode,
+                    );
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
                             order: item.order,
                             location: Point::new(
-                                constants.content_box_inset.left + run_offset + item.location.x,
+                                constants.content_box_inset.left + run_offset + item_x,
                                 cursor_y + item.location.y,
                             ),
                             size: Size::ZERO,

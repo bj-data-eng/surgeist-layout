@@ -1,7 +1,8 @@
 use super::{
     AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CalcResolutionOf, CalcResolutionStatus,
-    CalcResolver, Compute, ComputeInputOf, ComputeOutputOf, LayoutScalar, NoCalcResolver,
-    NodeInputOf, NodeOutputOf, Position, Round, RunMode, Size, SizingMode, Traverse,
+    CalcResolver, Compute, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar,
+    NoCalcResolver, NodeInputOf, NodeOutputOf, Position, Round, RunMode, Size, SizingMode,
+    Traverse,
 };
 
 pub fn compute_hidden<Tree>(
@@ -17,7 +18,15 @@ where
 
     for index in 0..tree.child_count(node) {
         let child = tree.child(node, index);
-        tree.compute_child(child, ComputeInputOf::HIDDEN);
+        match tree.layout_input(child) {
+            LayoutInputOf::Box(_) => {
+                tree.compute_child(child, ComputeInputOf::HIDDEN);
+            }
+            LayoutInputOf::LineBreak(_) => {
+                tree.cache_clear(child);
+                tree.set_unrounded(child, NodeOutputOf::with_order(0));
+            }
+        }
     }
 
     ComputeOutputOf::HIDDEN
