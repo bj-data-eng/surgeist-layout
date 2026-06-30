@@ -770,7 +770,7 @@ enum AtomicInlineRunChild<Node, S: LayoutScalar> {
     Box {
         child: Node,
         order: u32,
-        style: NodeInputOf<S>,
+        style: Box<NodeInputOf<S>>,
         output: ComputeOutputOf<S>,
     },
     LineBreak {
@@ -881,7 +881,7 @@ where
         run_children.push(AtomicInlineRunChild::Box {
             child,
             order,
-            style: child_style,
+            style: Box::new(child_style),
             output,
         });
         items.push(item);
