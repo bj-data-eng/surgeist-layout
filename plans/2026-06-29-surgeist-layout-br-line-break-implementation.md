@@ -407,7 +407,7 @@ Audit source tests for implicit default child nodes after this change:
 
 ```sh
 rg -n "OracleTree(::|Of::<).*new|\\.children\\(|\\.style\\(|\\.line_break\\(" src tests
-rg -n "\\.styles\\.insert\\(" src tests
+rg -n "OracleTree|OracleTreeOf|\\.styles\\.insert\\(" src tests
 ```
 
 Every child that can be reached through `layout_input` must be declared with
@@ -418,10 +418,16 @@ be explicit:
 .style(node, NodeInput::default())
 ```
 
-Replace any direct `tree.styles.insert(...)` writes with `.style(node, ...)`
-before or during this task. If a test genuinely needs direct map access after
-the rename, it must insert `LayoutInputOf::Box(...)` through an explicit helper
-owned by the oracle test support, not by reaching into storage.
+Replace direct writes to oracle-owned `styles` storage with `.style(node, ...)`
+before or during this task. Do not apply that instruction to custom test
+fixtures that merely happen to have a local `styles: HashMap`; those fixtures
+may keep their local storage, but their `Compute` impls must provide explicit
+`layout_input` by returning `LayoutInputOf::Box(self.node_input(node).clone())`
+or another intentionally typed input.
+
+If an oracle-owned test genuinely needs direct map access after the rename, it
+must insert `LayoutInputOf::Box(...)` through an explicit helper owned by the
+oracle test support, not by reaching into storage.
 
 Do not implement this pattern:
 
@@ -635,7 +641,16 @@ git commit -m "Support forced breaks in atomic inline layout"
 
 - [ ] **Step 1: Match child `LayoutInputOf<S>` in block flow**
 
-In `layout_in_flow_children` and `layout_atomic_inline_run`, use `tree.layout_input(child)` for child flow decisions. Treat:
+Audit every block-flow child style read before changing behavior:
+
+```sh
+rg -n "node_input\\(child\\)|node_input\\(\\*child\\)|normal_flow_children_can_establish_baseline|layout_absolute_children|layout_in_flow_children|layout_atomic_inline_run" src/block.rs
+```
+
+In `layout_in_flow_children`, `layout_atomic_inline_run`,
+`normal_flow_children_can_establish_baseline`, `layout_absolute_children`, and
+any other block-flow helper that reads a child style, use
+`tree.layout_input(child)` for child flow decisions. Treat:
 
 - `LayoutInputOf::Box(style)` with `style.display == Display::None` as hidden.
 - `LayoutInputOf::LineBreak(input)` with `input.display().is_none()` as hidden.
@@ -652,7 +667,11 @@ skipping unsupported line-break semantics.
 The later run-child value should carry only the node identity and report order
 needed for write-back.
 
-Do not pass line breaks to `compute_child`.
+Do not pass line breaks to `compute_child`, and do not call `tree.node_input` for
+a line-break child. In baseline-establishment checks, line-break children should
+not establish a baseline. In absolute-child layout, line-break children should be
+skipped or rejected explicitly according to the same non-box semantics; they
+must not be requested as `NodeInputOf<S>`.
 
 - [ ] **Step 2: Add run child enum**
 
@@ -898,7 +917,7 @@ git commit -m "Narrow br fixture generation support"
 Run:
 
 ```sh
-SURGEIST_PARITY_FILTER=subgrid_baseline cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
+SURGEIST_LAYOUT_GENERATE_FILTER=subgrid_baseline cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
 ```
 
 Expected: supported horizontal block-parent BR XML is generated. Vertical and outside-block contexts remain unsupported with distinct reasons.
