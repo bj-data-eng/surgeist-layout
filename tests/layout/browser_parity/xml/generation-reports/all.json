@@ -11,7 +11,7 @@
   },
   "filter": null,
   "summary": {
-    "generated": 4984,
+    "generated": 5024,
     "unsupported": 356,
     "expected_fail": 0,
     "quarantined": 0,
@@ -1723,6 +1723,30 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "block_basic_with_br__border_box_ltr",
+      "source": "html/block/block_basic_with_br.html",
+      "output": "xml/block/block_basic_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_basic_with_br__content_box_ltr",
+      "source": "html/block/block_basic_with_br.html",
+      "output": "xml/block/block_basic_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_basic_with_br__border_box_rtl",
+      "source": "html/block/block_basic_with_br.html",
+      "output": "xml/block/block_basic_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_basic_with_br__content_box_rtl",
+      "source": "html/block/block_basic_with_br.html",
+      "output": "xml/block/block_basic_with_br__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "block_border_fixed_size__border_box_ltr",
       "source": "html/block/block_border_fixed_size.html",
       "output": "xml/block/block_border_fixed_size__border_box_ltr.xml",
@@ -1744,6 +1768,30 @@
       "name": "block_border_fixed_size__content_box_rtl",
       "source": "html/block/block_border_fixed_size.html",
       "output": "xml/block/block_border_fixed_size__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_border_fixed_size_with_br__border_box_ltr",
+      "source": "html/block/block_border_fixed_size_with_br.html",
+      "output": "xml/block/block_border_fixed_size_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_border_fixed_size_with_br__content_box_ltr",
+      "source": "html/block/block_border_fixed_size_with_br.html",
+      "output": "xml/block/block_border_fixed_size_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_border_fixed_size_with_br__border_box_rtl",
+      "source": "html/block/block_border_fixed_size_with_br.html",
+      "output": "xml/block/block_border_fixed_size_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_border_fixed_size_with_br__content_box_rtl",
+      "source": "html/block/block_border_fixed_size_with_br.html",
+      "output": "xml/block/block_border_fixed_size_with_br__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
@@ -1864,6 +1912,30 @@
       "name": "block_direction_rtl__content_box_rtl",
       "source": "html/block/block_direction_rtl.html",
       "output": "xml/block/block_direction_rtl__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_direction_rtl_with_br__border_box_ltr",
+      "source": "html/block/block_direction_rtl_with_br.html",
+      "output": "xml/block/block_direction_rtl_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_direction_rtl_with_br__content_box_ltr",
+      "source": "html/block/block_direction_rtl_with_br.html",
+      "output": "xml/block/block_direction_rtl_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_direction_rtl_with_br__border_box_rtl",
+      "source": "html/block/block_direction_rtl_with_br.html",
+      "output": "xml/block/block_direction_rtl_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_direction_rtl_with_br__content_box_rtl",
+      "source": "html/block/block_direction_rtl_with_br.html",
+      "output": "xml/block/block_direction_rtl_with_br__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
@@ -2563,6 +2635,54 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "block_margin_x_fixed_auto_left_and_right_with_br__border_box_ltr",
+      "source": "html/block/block_margin_x_fixed_auto_left_and_right_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_and_right_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_margin_x_fixed_auto_left_and_right_with_br__content_box_ltr",
+      "source": "html/block/block_margin_x_fixed_auto_left_and_right_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_and_right_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_margin_x_fixed_auto_left_and_right_with_br__border_box_rtl",
+      "source": "html/block/block_margin_x_fixed_auto_left_and_right_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_and_right_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_margin_x_fixed_auto_left_and_right_with_br__content_box_rtl",
+      "source": "html/block/block_margin_x_fixed_auto_left_and_right_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_and_right_with_br__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_margin_x_fixed_auto_left_with_br__border_box_ltr",
+      "source": "html/block/block_margin_x_fixed_auto_left_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_margin_x_fixed_auto_left_with_br__content_box_ltr",
+      "source": "html/block/block_margin_x_fixed_auto_left_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_margin_x_fixed_auto_left_with_br__border_box_rtl",
+      "source": "html/block/block_margin_x_fixed_auto_left_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_margin_x_fixed_auto_left_with_br__content_box_rtl",
+      "source": "html/block/block_margin_x_fixed_auto_left_with_br.html",
+      "output": "xml/block/block_margin_x_fixed_auto_left_with_br__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "block_margin_x_fixed_auto_right__border_box_ltr",
       "source": "html/block/block_margin_x_fixed_auto_right.html",
       "output": "xml/block/block_margin_x_fixed_auto_right__border_box_ltr.xml",
@@ -3187,6 +3307,30 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__border_box_ltr",
+      "source": "html/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__content_box_ltr",
+      "source": "html/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__border_box_rtl",
+      "source": "html/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__content_box_rtl",
+      "source": "html/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "block_margin_y_collapse_through_blocked_by_padding_top__border_box_ltr",
       "source": "html/block/block_margin_y_collapse_through_blocked_by_padding_top.html",
       "output": "xml/block/block_margin_y_collapse_through_blocked_by_padding_top__border_box_ltr.xml",
@@ -3280,6 +3424,30 @@
       "name": "block_margin_y_collapse_through_positive_and_negative__content_box_rtl",
       "source": "html/block/block_margin_y_collapse_through_positive_and_negative.html",
       "output": "xml/block/block_margin_y_collapse_through_positive_and_negative__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_margin_y_collapse_through_positive_with_br__border_box_ltr",
+      "source": "html/block/block_margin_y_collapse_through_positive_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_positive_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_margin_y_collapse_through_positive_with_br__content_box_ltr",
+      "source": "html/block/block_margin_y_collapse_through_positive_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_positive_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_margin_y_collapse_through_positive_with_br__border_box_rtl",
+      "source": "html/block/block_margin_y_collapse_through_positive_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_positive_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_margin_y_collapse_through_positive_with_br__content_box_rtl",
+      "source": "html/block/block_margin_y_collapse_through_positive_with_br.html",
+      "output": "xml/block/block_margin_y_collapse_through_positive_with_br__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
@@ -4387,6 +4555,30 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "block_margin_y_simple_positive_with_br__border_box_ltr",
+      "source": "html/block/block_margin_y_simple_positive_with_br.html",
+      "output": "xml/block/block_margin_y_simple_positive_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_margin_y_simple_positive_with_br__content_box_ltr",
+      "source": "html/block/block_margin_y_simple_positive_with_br.html",
+      "output": "xml/block/block_margin_y_simple_positive_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_margin_y_simple_positive_with_br__border_box_rtl",
+      "source": "html/block/block_margin_y_simple_positive_with_br.html",
+      "output": "xml/block/block_margin_y_simple_positive_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_margin_y_simple_positive_with_br__content_box_rtl",
+      "source": "html/block/block_margin_y_simple_positive_with_br.html",
+      "output": "xml/block/block_margin_y_simple_positive_with_br__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "block_margin_y_total_collapse__border_box_ltr",
       "source": "html/block/block_margin_y_total_collapse.html",
       "output": "xml/block/block_margin_y_total_collapse__border_box_ltr.xml",
@@ -4651,6 +4843,30 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "block_padding_border_fixed_size_with_br__border_box_ltr",
+      "source": "html/block/block_padding_border_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_border_fixed_size_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_padding_border_fixed_size_with_br__content_box_ltr",
+      "source": "html/block/block_padding_border_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_border_fixed_size_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_padding_border_fixed_size_with_br__border_box_rtl",
+      "source": "html/block/block_padding_border_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_border_fixed_size_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_padding_border_fixed_size_with_br__content_box_rtl",
+      "source": "html/block/block_padding_border_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_border_fixed_size_with_br__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "block_padding_border_intrinsic_size__border_box_ltr",
       "source": "html/block/block_padding_border_intrinsic_size.html",
       "output": "xml/block/block_padding_border_intrinsic_size__border_box_ltr.xml",
@@ -4816,6 +5032,30 @@
       "name": "block_padding_fixed_size__content_box_rtl",
       "source": "html/block/block_padding_fixed_size.html",
       "output": "xml/block/block_padding_fixed_size__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_padding_fixed_size_with_br__border_box_ltr",
+      "source": "html/block/block_padding_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_fixed_size_with_br__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_padding_fixed_size_with_br__content_box_ltr",
+      "source": "html/block/block_padding_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_fixed_size_with_br__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_padding_fixed_size_with_br__border_box_rtl",
+      "source": "html/block/block_padding_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_fixed_size_with_br__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_padding_fixed_size_with_br__content_box_rtl",
+      "source": "html/block/block_padding_fixed_size_with_br.html",
+      "output": "xml/block/block_padding_fixed_size_with_br__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {

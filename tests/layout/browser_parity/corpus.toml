@@ -48,6 +48,76 @@ generator = "constrained-html"
 status = "active"
 
 [[cases]]
+id = "block/block_basic_with_br"
+source_root = "surgeist"
+source = "block/block_basic_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_border_fixed_size_with_br"
+source_root = "surgeist"
+source = "block/block_border_fixed_size_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_direction_rtl_with_br"
+source_root = "surgeist"
+source = "block/block_direction_rtl_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_margin_x_fixed_auto_left_and_right_with_br"
+source_root = "surgeist"
+source = "block/block_margin_x_fixed_auto_left_and_right_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_margin_x_fixed_auto_left_with_br"
+source_root = "surgeist"
+source = "block/block_margin_x_fixed_auto_left_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br"
+source_root = "surgeist"
+source = "block/block_margin_y_collapse_through_blocked_by_padding_bottom_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_margin_y_collapse_through_positive_with_br"
+source_root = "surgeist"
+source = "block/block_margin_y_collapse_through_positive_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_margin_y_simple_positive_with_br"
+source_root = "surgeist"
+source = "block/block_margin_y_simple_positive_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_padding_border_fixed_size_with_br"
+source_root = "surgeist"
+source = "block/block_padding_border_fixed_size_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_padding_fixed_size_with_br"
+source_root = "surgeist"
+source = "block/block_padding_fixed_size_with_br.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
 id = "flex/flex_calc_basis_margin_gap"
 source_root = "surgeist"
 source = "flex/flex_calc_basis_margin_gap.html"

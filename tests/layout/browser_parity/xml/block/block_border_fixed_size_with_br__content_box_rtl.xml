@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_border_fixed_size_with_br.html" source-sha256="14cfa8559d29cf583234a6f80ba0a2310ef2df5bddd4c85066fa4ae16cbb11eb" helper-sha256="cada32af213d5a049df6eb94837b45766ee1a013f6061180da4bae90011a27a5" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_border_fixed_size_with_br__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" font-size="0px" line-height="0px" width="50px" height="50px" border-top="2px" border-left="8px" border-bottom="6px" border-right="4px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" font-size="0px" line-height="0px" height="10px"/>
+      <div source-tag="br" display="inline" box-sizing="content-box" direction="rtl" font-size="0px" line-height="0px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" font-size="0px" line-height="0px" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="62" height="58">
+      <node x="8" y="2" width="50" height="10"/>
+      <node x="58" y="12" width="0" height="0"/>
+      <node x="8" y="12" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>

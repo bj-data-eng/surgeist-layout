@@ -164,8 +164,8 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .count();
 
     assert_eq!(
-        taffy_plus_local_count, 1109,
-        "expected the Taffy baseline plus six Surgeist constrained additions"
+        taffy_plus_local_count, 1119,
+        "expected the Taffy baseline plus six Surgeist constrained additions and ten BR coverage fixtures"
     );
     assert_eq!(subgrid_count, 210);
     assert_eq!(grid_lanes_count, 16);
@@ -207,7 +207,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 4984);
+    assert_eq!(report_json["summary"]["generated"], 5024);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -218,7 +218,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        4984,
+        5024,
         "generated bucket length must match its summary"
     );
     assert_eq!(

@@ -1142,9 +1142,11 @@ fn insert_style_declaration(
 
 fn to_declarations(attrs: &StyleAttrs) -> Result<s::Declarations, Error> {
     let mut declarations = s::Declarations::new();
+    let source_tag = attrs.get("source-tag");
     let display = match attrs.get("display") {
+        Some("inline") if source_tag == Some("br") => None,
         Some(value) => Some(parse_display(value)?),
-        None => match attrs.get("source-tag") {
+        None => match source_tag {
             Some("div") => Some(layout::Display::Block),
             _ => None,
         },
@@ -2907,6 +2909,27 @@ mod tests {
         assert_eq!(input.writing_mode(), layout::WritingMode::VerticalRl);
         assert_eq!(input.vertical_align(), layout::VerticalAlign::Top);
         assert_eq!(input.clear(), layout::Clear::Both);
+    }
+
+    #[test]
+    fn source_tag_br_display_inline_lowers_to_visible_line_break() {
+        let input = to_layout_input(
+            &StyleAttrs {
+                attrs: BTreeMap::from([
+                    ("source-tag".to_string(), "br".to_string()),
+                    ("display".to_string(), "inline".to_string()),
+                    ("direction".to_string(), "rtl".to_string()),
+                ]),
+            },
+            &mut s::adapters::layout::LayoutLoweringSession::new(),
+        )
+        .expect("display inline br should lower");
+
+        let layout::LayoutInput::LineBreak(input) = input else {
+            panic!("br should lower to line break");
+        };
+        assert_eq!(input.display(), layout::LineBreakDisplay::Break);
+        assert_eq!(input.direction(), layout::Direction::Rtl);
     }
 
     #[test]

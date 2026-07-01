@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_padding_fixed_size_with_br.html" source-sha256="2765289f48c9650fc15c510f591a2469240f8c2a44b6e4e03d95d13a6b31fb4c" helper-sha256="cada32af213d5a049df6eb94837b45766ee1a013f6061180da4bae90011a27a5" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_padding_fixed_size_with_br__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" font-size="0px" line-height="0px" width="50px" height="50px" padding-top="2px" padding-left="8px" padding-bottom="6px" padding-right="4px">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-size="0px" line-height="0px" height="10px"/>
+      <div source-tag="br" display="inline" box-sizing="content-box" direction="ltr" font-size="0px" line-height="0px"/>
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" font-size="0px" line-height="0px" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="62" height="58">
+      <node x="8" y="2" width="50" height="10"/>
+      <node x="8" y="12" width="0" height="0"/>
+      <node x="8" y="12" width="50" height="10"/>
+    </node>
+  </expectations>
+</test>

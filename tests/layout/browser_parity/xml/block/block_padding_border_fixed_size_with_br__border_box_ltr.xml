@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_padding_border_fixed_size_with_br.html" source-sha256="4e59d010b0d3dc831f422f041f9a1d069691a175b46b32fd9c4b26d347d4f4c7" helper-sha256="cada32af213d5a049df6eb94837b45766ee1a013f6061180da4bae90011a27a5" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_padding_border_fixed_size_with_br__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px" width="50px" height="50px" padding-top="1px" padding-left="7px" padding-bottom="5px" padding-right="3px" border-top="2px" border-left="8px" border-bottom="6px" border-right="4px">
+      <div source-tag="div" display="flex" direction="ltr" font-size="0px" line-height="0px" height="10px"/>
+      <div source-tag="br" display="inline" direction="ltr" font-size="0px" line-height="0px"/>
+      <div source-tag="div" display="flex" direction="ltr" font-size="0px" line-height="0px" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="50">
+      <node x="15" y="3" width="28" height="10"/>
+      <node x="15" y="13" width="0" height="0"/>
+      <node x="15" y="13" width="28" height="10"/>
+    </node>
+  </expectations>
+</test>
