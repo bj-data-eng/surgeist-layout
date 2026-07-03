@@ -15,8 +15,8 @@ update the source fixture, importer, manifest, or generator instead.
 
 The XML fixture format accepts a deliberately small calc syntax for layout
 parity inputs: `calc(<number>px +/- <number>%)`. This is fixture syntax only;
-app-facing CSS parsing remains owned by `surgeist-css` and authored style calc
-modeling remains owned by `surgeist-style`.
+app-facing CSS parsing remains owned by integration layers outside this
+layout-ready fixture harness.
 
 Run checked-in fixtures:
 
@@ -99,8 +99,8 @@ Inline engine impact measured on 2026-06-17:
   inline-dispatch failures. Remaining failures are geometry buckets: height
   mismatch 24, width mismatch 24.
 
-Named grid placement syntax is parsed into style declarations for parity
-fixtures and lowered through production layout. The formerly blocked subgrid
+Named grid placement syntax is parsed directly into layout inputs for parity
+fixtures and exercised through production layout. The formerly blocked subgrid
 line-name fixtures `subgrid_line_names_004_b_to_b_minus_1` and
 `subgrid_line_names_repeat_outer_span_a_to_a_8` now run as ordinary parity
 fixtures, so any future failures should report their concrete mismatch or

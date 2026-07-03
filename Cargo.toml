@@ -38,8 +38,6 @@ layout-golden-generate = [
 proptest = { version = "=1.11.0", default-features = false, features = ["std"] }
 roxmltree = "=0.21.1"
 serde_json = "=1.0.145"
-surgeist-retained = { path = "../surgeist-retained", version = "=0.1.0" }
-surgeist-style = { path = "../surgeist-style", version = "=0.1.0" }
 
 [[bin]]
 name = "surgeist-layout-generate"

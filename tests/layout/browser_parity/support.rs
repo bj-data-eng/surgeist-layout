@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 
 use surgeist_layout as layout;
 use surgeist_layout::{CacheAccess as _, Compute as _, GridSpan};
-use surgeist_retained as retained;
-use surgeist_style as s;
 
 type Scalar = layout::Scalar;
 
@@ -20,52 +18,6 @@ impl ComparisonTolerance {
 
     fn contains(self, delta: Scalar) -> bool {
         delta.abs() <= self.value
-    }
-}
-
-#[derive(Default)]
-struct StyleFixtureTree {
-    state: retained::State,
-}
-
-impl s::Tree for StyleFixtureTree {
-    type Id = usize;
-
-    fn version_hint(&self) -> Option<u64> {
-        None
-    }
-
-    fn node(&self, id: Self::Id) -> s::Result<s::Node<'_, Self::Id>> {
-        Ok(s::Node {
-            id,
-            tag: None,
-            key: None,
-            classes: &[],
-            attributes: &[],
-            role: retained::Role::Generic,
-            state: &self.state,
-            text: false,
-        })
-    }
-
-    fn parent(&self, _id: Self::Id, _traversal: s::Traversal) -> s::Result<Option<Self::Id>> {
-        Ok(None)
-    }
-
-    fn children(
-        &self,
-        _id: Self::Id,
-        _traversal: s::Traversal,
-    ) -> s::Result<impl Iterator<Item = Self::Id> + '_> {
-        Ok(std::iter::empty())
-    }
-
-    fn previous_sibling(
-        &self,
-        _id: Self::Id,
-        _traversal: s::Traversal,
-    ) -> s::Result<Option<Self::Id>> {
-        Ok(None)
     }
 }
 
@@ -472,7 +424,7 @@ struct InheritedTextContext {
 impl TestTree {
     fn from_golden(root: &Node) -> Result<Self, Error> {
         let mut tree = Self::default();
-        let mut lowering = s::adapters::layout::LayoutLoweringSession::new();
+        let mut calc_store = layout::LayoutCalcStore::new();
         tree.push_node(
             root,
             InheritedTextContext {
@@ -482,9 +434,9 @@ impl TestTree {
                 grid_lanes_text: false,
                 inline_level_text: false,
             },
-            &mut lowering,
+            &mut calc_store,
         )?;
-        tree.calc_store = lowering.finish();
+        tree.calc_store = calc_store;
         Ok(tree)
     }
 
@@ -492,7 +444,7 @@ impl TestTree {
         &mut self,
         node: &Node,
         inherited: InheritedTextContext,
-        lowering: &mut s::adapters::layout::LayoutLoweringSession,
+        calc_store: &mut layout::LayoutCalcStore,
     ) -> Result<usize, Error> {
         let id = self.nodes.len();
         let font_family = font_family(&node.style)?.unwrap_or(inherited.font_family);
@@ -502,7 +454,7 @@ impl TestTree {
             None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
-        let layout_input = to_layout_input(&node.style, lowering)?;
+        let layout_input = to_layout_input(&node.style, calc_store)?;
         let box_display = layout_input.as_box().map(|input| input.display);
         let grid_lanes_text = inherited.grid_lanes_text
             || box_display.is_some_and(layout::Display::establishes_grid_lanes_formatting_context);
@@ -536,7 +488,7 @@ impl TestTree {
                         grid_lanes_text,
                         inline_level_text,
                     },
-                    lowering,
+                    calc_store,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -1057,20 +1009,9 @@ fn compare_optional_number(
 
 fn to_layout_input(
     attrs: &StyleAttrs,
-    lowering: &mut s::adapters::layout::LayoutLoweringSession,
+    calc_store: &mut layout::LayoutCalcStore,
 ) -> Result<layout::LayoutInput, Error> {
-    let declarations = to_declarations(attrs)?;
-    let tree = StyleFixtureTree::default();
-    let mut resolver = s::Resolver::new(s::Sheet::new());
-    let resolved = resolver
-        .resolve(s::Context::new(&tree, 0).local(&declarations))
-        .map_err(|error| Error::new(error.to_string()))?;
-    let mut input = lowering
-        .lower_node(&resolved)
-        .map_err(|error| Error::new(error.to_string()))?;
-    if let Some(value) = attrs.get("vertical-align") {
-        input.vertical_align = parse_vertical_align(value)?;
-    }
+    let input = to_node_input(attrs, calc_store)?;
     if attrs.get("source-tag") == Some("br") {
         let mut br = layout::LineBreakInput::new()
             .with_direction(input.direction)
@@ -1088,12 +1029,229 @@ fn to_layout_input(
 
 fn to_node_input(
     attrs: &StyleAttrs,
-    lowering: &mut s::adapters::layout::LayoutLoweringSession,
+    calc_store: &mut layout::LayoutCalcStore,
 ) -> Result<layout::NodeInput, Error> {
-    let layout_input = to_layout_input(attrs, lowering)?;
-    match layout_input.as_box() {
-        Some(input) => Ok(input.clone()),
-        None => Err(Error::new("line break node has no box NodeInput")),
+    let mut input = layout::NodeInput::default();
+    let source_tag = attrs.get("source-tag");
+    input.display = match attrs.get("display") {
+        Some("inline") if source_tag == Some("br") => layout::Display::Block,
+        Some(value) => parse_display(value)?,
+        None => match source_tag {
+            Some("div") => layout::Display::Block,
+            _ => input.display,
+        },
+    };
+    if let Some(value) = attrs.get("box-sizing") {
+        input.box_sizing = parse_box_sizing(value)?;
+    }
+    if let Some(value) = attrs.get("direction") {
+        input.direction = parse_direction(value)?;
+    }
+    if let Some(value) = attrs.get("position") {
+        input.position = parse_position(value)?;
+    }
+    if let Some(value) = attrs.get("float") {
+        input.float = parse_float(value)?;
+    }
+    if let Some(value) = attrs.get("clear") {
+        input.clear = parse_clear(value)?;
+    }
+    if let Some(value) = attrs.get("overflow-x") {
+        input.overflow.x = parse_overflow(value)?;
+    }
+    if let Some(value) = attrs.get("overflow-y") {
+        input.overflow.y = parse_overflow(value)?;
+    }
+    if let Some(value) = attrs.get("scrollbar-width") {
+        input.scrollbar_width = parse_number(value)?;
+    }
+    if let Some(value) = attrs.get("text-align") {
+        input.text_align = parse_text_align(value)?;
+    }
+    if let Some(value) = attrs.get("vertical-align") {
+        input.vertical_align = parse_vertical_align(value)?;
+    }
+    input.writing_mode = parse_writing_mode(attrs.get("writing-mode"))?;
+    if let Some(value) = attrs.get("flex-direction") {
+        input.flex_direction = parse_flex_direction(value)?;
+    }
+    if let Some(value) = attrs.get("flex-wrap") {
+        input.flex_wrap = parse_flex_wrap(value)?;
+    }
+    if let Some(value) = attrs.get("flex-grow") {
+        input.flex_grow = parse_number(value)?;
+    }
+    if let Some(value) = attrs.get("flex-shrink") {
+        input.flex_shrink = parse_number(value)?;
+    }
+    if let Some(value) = attrs.get("flex-basis") {
+        input.flex_basis = parse_dimension_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("width") {
+        input.size.width = parse_dimension_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("height") {
+        input.size.height = parse_dimension_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("min-width") {
+        input.min_size.width = parse_dimension_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("min-height") {
+        input.min_size.height = parse_dimension_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("max-width") {
+        input.max_size.width = parse_dimension_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("max-height") {
+        input.max_size.height = parse_dimension_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("aspect-ratio") {
+        let value = parse_number(value)?;
+        input.aspect_ratio = layout::AspectRatio::new(value);
+        if input.aspect_ratio.is_none() {
+            return Err(Error::new(format!("invalid aspect-ratio `{value}`")));
+        }
+    }
+    if let Some(value) = attrs.get("row-gap") {
+        input.gap.height = parse_length_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("column-gap") {
+        input.gap.width = parse_length_with_calc(value, calc_store)?;
+    }
+
+    apply_edges_auto(
+        &mut input.margin,
+        attrs,
+        [
+            ("margin-top", 0),
+            ("margin-right", 1),
+            ("margin-bottom", 2),
+            ("margin-left", 3),
+        ],
+        layout::LengthAuto::ZERO,
+        calc_store,
+    )?;
+    apply_edges(
+        &mut input.padding,
+        attrs,
+        [
+            ("padding-top", 0),
+            ("padding-right", 1),
+            ("padding-bottom", 2),
+            ("padding-left", 3),
+        ],
+        layout::Length::ZERO,
+        calc_store,
+    )?;
+    apply_edges(
+        &mut input.border,
+        attrs,
+        [
+            ("border-top", 0),
+            ("border-right", 1),
+            ("border-bottom", 2),
+            ("border-left", 3),
+        ],
+        layout::Length::ZERO,
+        calc_store,
+    )?;
+    apply_edges_auto(
+        &mut input.inset,
+        attrs,
+        [("top", 0), ("right", 1), ("bottom", 2), ("left", 3)],
+        layout::LengthAuto::AUTO,
+        calc_store,
+    )?;
+
+    if let Some(value) = attrs.get("align-items") {
+        input.align_items = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("align-self") {
+        input.align_self = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("justify-items") {
+        input.justify_items = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("justify-self") {
+        input.justify_self = Some(parse_align_items(value)?);
+    }
+    if let Some(value) = attrs.get("align-content") {
+        input.align_content = Some(parse_align_content(value)?);
+    }
+    if let Some(value) = attrs.get("justify-content") {
+        input.justify_content = Some(parse_align_content(value)?);
+    }
+    if let Some(value) = attrs.get("grid-auto-flow") {
+        input.grid_auto_flow = parse_grid_auto_flow(value)?;
+    }
+    if let Some(value) = attrs.get("grid-template-columns") {
+        input.grid_template_columns = parse_track_component_list_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("grid-template-rows") {
+        input.grid_template_rows = parse_track_component_list_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("grid-template-areas") {
+        input.grid_template_areas = parse_grid_template_areas(value)?;
+    }
+    if let Some(value) = attrs.get("grid-auto-columns") {
+        input.grid_auto_columns = parse_track_component_list_with_calc(value, calc_store)?;
+    }
+    if let Some(value) = attrs.get("grid-auto-rows") {
+        input.grid_auto_rows = parse_track_component_list_with_calc(value, calc_store)?;
+    }
+    let (grid_column, raw_grid_column) =
+        parse_grid_placement(attrs.get("grid-column-start"), attrs.get("grid-column-end"))?;
+    input.grid_column = grid_column;
+    input.raw_grid_column = raw_grid_column;
+    let (grid_row, raw_grid_row) =
+        parse_grid_placement(attrs.get("grid-row-start"), attrs.get("grid-row-end"))?;
+    input.grid_row = grid_row;
+    input.raw_grid_row = raw_grid_row;
+
+    Ok(input)
+}
+
+fn apply_edges(
+    edges: &mut layout::Edges<layout::Length>,
+    attrs: &StyleAttrs,
+    names: [(&str, usize); 4],
+    default: layout::Length,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<(), Error> {
+    for (name, side) in names {
+        if let Some(value) = attrs.get(name) {
+            set_edge(edges, side, parse_length_with_calc(value, calc_store)?);
+        } else {
+            set_edge(edges, side, default);
+        }
+    }
+    Ok(())
+}
+
+fn apply_edges_auto(
+    edges: &mut layout::Edges<layout::LengthAuto>,
+    attrs: &StyleAttrs,
+    names: [(&str, usize); 4],
+    default: layout::LengthAuto,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<(), Error> {
+    for (name, side) in names {
+        if let Some(value) = attrs.get(name) {
+            set_edge(edges, side, parse_length_auto_with_calc(value, calc_store)?);
+        } else {
+            set_edge(edges, side, default);
+        }
+    }
+    Ok(())
+}
+
+fn set_edge<T>(edges: &mut layout::Edges<T>, side: usize, value: T) {
+    match side {
+        0 => edges.top = value,
+        1 => edges.right = value,
+        2 => edges.bottom = value,
+        3 => edges.left = value,
+        _ => unreachable!("edge side index is fixed by caller"),
     }
 }
 
@@ -1129,743 +1287,82 @@ fn parse_px_dimension(raw: &str, name: &str) -> Result<Scalar, Error> {
     parse_number(value)
 }
 
-fn insert_style_declaration(
-    declarations: &mut s::Declarations,
-    property: s::Property,
-    value: s::Value,
-) -> Result<(), Error> {
-    declarations
-        .try_insert(property, value)
-        .map(|_| ())
-        .map_err(|error| Error::new(error.to_string()))
-}
-
-fn to_declarations(attrs: &StyleAttrs) -> Result<s::Declarations, Error> {
-    let mut declarations = s::Declarations::new();
-    let source_tag = attrs.get("source-tag");
-    let display = match attrs.get("display") {
-        Some("inline") if source_tag == Some("br") => None,
-        Some(value) => Some(parse_display(value)?),
-        None => match source_tag {
-            Some("div") => Some(layout::Display::Block),
-            _ => None,
-        },
-    };
-    if let Some(display) = display {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::Display,
-            s::Value::Display(to_style_display(display)),
-        )?;
-    }
-    if let Some(value) = attrs.get("box-sizing") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::BoxSizing,
-            s::Value::BoxSizing(to_style_box_sizing(parse_box_sizing(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("direction") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::Direction,
-            s::Value::Direction(to_style_direction(parse_direction(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("position") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::Position,
-            s::Value::Position(to_style_position(parse_position(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("float") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::Float,
-            s::Value::Float(to_style_float(parse_float(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("clear") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::Clear,
-            s::Value::Clear(to_style_clear(parse_clear(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("overflow-x") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::OverflowX,
-            s::Value::Overflow(to_style_overflow(parse_overflow(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("overflow-y") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::OverflowY,
-            s::Value::Overflow(to_style_overflow(parse_overflow(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("scrollbar-width") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::ScrollbarWidth,
-            s::Value::Number(parse_number(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("text-align") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::TextAlign,
-            s::Value::TextAlign(to_style_text_align(parse_text_align(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("line-height") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::LineHeight,
-            s::Value::Length(to_style_dimension(parse_dimension(value)?)?),
-        )?;
-    }
-    insert_style_declaration(
-        &mut declarations,
-        s::Property::WritingMode,
-        s::Value::WritingMode(to_style_writing_mode(parse_writing_mode(
-            attrs.get("writing-mode"),
-        )?)),
-    )?;
-    if let Some(value) = attrs.get("flex-direction") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::FlexDirection,
-            s::Value::FlexDirection(to_style_flex_direction(parse_flex_direction(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("flex-wrap") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::FlexWrap,
-            s::Value::FlexWrap(to_style_flex_wrap(parse_flex_wrap(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("flex-grow") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::FlexGrow,
-            s::Value::Number(parse_number(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("flex-shrink") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::FlexShrink,
-            s::Value::Number(parse_number(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("flex-basis") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::FlexBasis,
-            s::Value::Length(parse_style_dimension(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("width") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::Width,
-            s::Value::Length(parse_style_dimension(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("height") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::Height,
-            s::Value::Length(parse_style_dimension(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("min-width") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::MinWidth,
-            s::Value::Length(parse_style_dimension(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("min-height") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::MinHeight,
-            s::Value::Length(parse_style_dimension(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("max-width") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::MaxWidth,
-            s::Value::Length(parse_style_dimension(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("max-height") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::MaxHeight,
-            s::Value::Length(parse_style_dimension(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("aspect-ratio") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::AspectRatio,
-            s::Value::Number(parse_number(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("row-gap") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::RowGap,
-            s::Value::Length(parse_style_length(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("column-gap") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::ColumnGap,
-            s::Value::Length(parse_style_length(value)?),
-        )?;
-    }
-
-    insert_edges_auto(
-        &mut declarations,
-        attrs,
-        s::Property::Margin,
-        s::Edges::default(),
-        [
-            ("margin-top", 0),
-            ("margin-right", 1),
-            ("margin-bottom", 2),
-            ("margin-left", 3),
-        ],
-    )?;
-    insert_edges(
-        &mut declarations,
-        attrs,
-        s::Property::Padding,
-        s::Edges::default(),
-        [
-            ("padding-top", 0),
-            ("padding-right", 1),
-            ("padding-bottom", 2),
-            ("padding-left", 3),
-        ],
-    )?;
-    insert_edges(
-        &mut declarations,
-        attrs,
-        s::Property::BorderWidth,
-        s::Edges::default(),
-        [
-            ("border-top", 0),
-            ("border-right", 1),
-            ("border-bottom", 2),
-            ("border-left", 3),
-        ],
-    )?;
-    insert_edges_auto(
-        &mut declarations,
-        attrs,
-        s::Property::Inset,
-        s::Edges::all(s::Length::Auto),
-        [("top", 0), ("right", 1), ("bottom", 2), ("left", 3)],
-    )?;
-
-    if let Some(value) = attrs.get("align-items") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::AlignItems,
-            s::Value::AlignItems(to_style_align_items(parse_align_items(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("align-self") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::AlignSelf,
-            s::Value::AlignItems(to_style_align_items(parse_align_items(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("justify-items") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::JustifyItems,
-            s::Value::AlignItems(to_style_align_items(parse_align_items(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("justify-self") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::JustifySelf,
-            s::Value::AlignItems(to_style_align_items(parse_align_items(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("align-content") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::AlignContent,
-            s::Value::AlignContent(to_style_align_content(parse_align_content(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("justify-content") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::JustifyContent,
-            s::Value::AlignContent(to_style_align_content(parse_align_content(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-auto-flow") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridAutoFlow,
-            s::Value::GridAutoFlow(to_style_grid_auto_flow(parse_grid_auto_flow(value)?)),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-template-columns") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridTemplateColumns,
-            s::Value::GridTrackList(parse_style_track_component_list(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-template-rows") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridTemplateRows,
-            s::Value::GridTrackList(parse_style_track_component_list(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-template-areas") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridTemplateAreas,
-            s::Value::GridTemplateAreas(parse_grid_template_areas(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-auto-columns") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridAutoColumns,
-            s::Value::GridTrackList(parse_style_track_component_list(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-auto-rows") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridAutoRows,
-            s::Value::GridTrackList(parse_style_track_component_list(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-column-start") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridColumnStart,
-            s::Value::GridLine(parse_style_grid_line(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-column-end") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridColumnEnd,
-            s::Value::GridLine(parse_style_grid_line(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-row-start") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridRowStart,
-            s::Value::GridLine(parse_style_grid_line(value)?),
-        )?;
-    }
-    if let Some(value) = attrs.get("grid-row-end") {
-        insert_style_declaration(
-            &mut declarations,
-            s::Property::GridRowEnd,
-            s::Value::GridLine(parse_style_grid_line(value)?),
-        )?;
-    }
-    Ok(declarations)
-}
-
-fn insert_edges(
-    declarations: &mut s::Declarations,
-    attrs: &StyleAttrs,
-    property: s::Property,
-    mut edges: s::Edges,
-    names: [(&str, usize); 4],
-) -> Result<(), Error> {
-    let mut present = false;
-    for (name, side) in names {
-        if let Some(value) = attrs.get(name) {
-            present = true;
-            set_edge(&mut edges, side, parse_style_length(value)?);
-        }
-    }
-    if present {
-        insert_style_declaration(declarations, property, s::Value::Edges(edges))?;
-    }
-    Ok(())
-}
-
-fn insert_edges_auto(
-    declarations: &mut s::Declarations,
-    attrs: &StyleAttrs,
-    property: s::Property,
-    mut edges: s::Edges,
-    names: [(&str, usize); 4],
-) -> Result<(), Error> {
-    let mut present = false;
-    for (name, side) in names {
-        if let Some(value) = attrs.get(name) {
-            present = true;
-            set_edge(&mut edges, side, parse_style_length_auto(value)?);
-        }
-    }
-    if present {
-        insert_style_declaration(declarations, property, s::Value::Edges(edges))?;
-    }
-    Ok(())
-}
-
-fn set_edge(edges: &mut s::Edges, side: usize, value: s::Length) {
-    match side {
-        0 => edges.top = value,
-        1 => edges.right = value,
-        2 => edges.bottom = value,
-        3 => edges.left = value,
-        _ => unreachable!("edge side index is fixed by caller"),
-    }
-}
-
-fn to_style_display(value: layout::Display) -> s::Display {
-    match value {
-        layout::Display::Block => s::Display::Block,
-        layout::Display::Flex => s::Display::Flex,
-        layout::Display::Grid => s::Display::Grid,
-        layout::Display::GridLanes => s::Display::GridLanes,
-        layout::Display::InlineBlock => s::Display::InlineBlock,
-        layout::Display::InlineGrid => s::Display::InlineGrid,
-        layout::Display::InlineGridLanes => s::Display::InlineGridLanes,
-        layout::Display::None => s::Display::None,
-    }
-}
-
-fn to_style_box_sizing(value: layout::BoxSizing) -> s::BoxSizing {
-    match value {
-        layout::BoxSizing::ContentBox => s::BoxSizing::ContentBox,
-        layout::BoxSizing::BorderBox => s::BoxSizing::BorderBox,
-    }
-}
-
-fn to_style_direction(value: layout::Direction) -> s::Direction {
-    match value {
-        layout::Direction::Ltr => s::Direction::Ltr,
-        layout::Direction::Rtl => s::Direction::Rtl,
-    }
-}
-
-fn to_style_position(value: layout::Position) -> s::LayoutPosition {
-    match value {
-        layout::Position::Relative => s::LayoutPosition::Relative,
-        layout::Position::Absolute => s::LayoutPosition::Absolute,
-    }
-}
-
-fn to_style_float(value: layout::Float) -> s::Float {
-    match value {
-        layout::Float::None => s::Float::None,
-        layout::Float::Left => s::Float::Left,
-        layout::Float::Right => s::Float::Right,
-    }
-}
-
-fn to_style_clear(value: layout::Clear) -> s::Clear {
-    match value {
-        layout::Clear::None => s::Clear::None,
-        layout::Clear::Left => s::Clear::Left,
-        layout::Clear::Right => s::Clear::Right,
-        layout::Clear::Both => s::Clear::Both,
-    }
-}
-
-fn to_style_overflow(value: layout::Overflow) -> s::Overflow {
-    match value {
-        layout::Overflow::Visible => s::Overflow::Visible,
-        layout::Overflow::Clip => s::Overflow::Clip,
-        layout::Overflow::Hidden => s::Overflow::Hidden,
-        layout::Overflow::Scroll => s::Overflow::Scroll,
-    }
-}
-
-fn to_style_text_align(value: layout::TextAlign) -> s::StyleTextAlign {
-    match value {
-        layout::TextAlign::Auto => s::StyleTextAlign::Auto,
-        layout::TextAlign::LegacyLeft => s::StyleTextAlign::LegacyLeft,
-        layout::TextAlign::LegacyRight => s::StyleTextAlign::LegacyRight,
-        layout::TextAlign::LegacyCenter => s::StyleTextAlign::LegacyCenter,
-    }
-}
-
-fn to_style_writing_mode(value: layout::WritingMode) -> s::WritingMode {
-    match value {
-        layout::WritingMode::HorizontalTb => s::WritingMode::HorizontalTb,
-        layout::WritingMode::VerticalLr => s::WritingMode::VerticalLr,
-        layout::WritingMode::VerticalRl => s::WritingMode::VerticalRl,
-    }
-}
-
-fn to_style_flex_direction(value: layout::FlexDirection) -> s::FlexDirection {
-    match value {
-        layout::FlexDirection::Row => s::FlexDirection::Row,
-        layout::FlexDirection::Column => s::FlexDirection::Column,
-        layout::FlexDirection::RowReverse => s::FlexDirection::RowReverse,
-        layout::FlexDirection::ColumnReverse => s::FlexDirection::ColumnReverse,
-    }
-}
-
-fn to_style_flex_wrap(value: layout::FlexWrap) -> s::FlexWrap {
-    match value {
-        layout::FlexWrap::NoWrap => s::FlexWrap::NoWrap,
-        layout::FlexWrap::Wrap => s::FlexWrap::Wrap,
-        layout::FlexWrap::WrapReverse => s::FlexWrap::WrapReverse,
-    }
-}
-
-fn to_style_align_items(value: layout::AlignItems) -> s::AlignItems {
-    match value {
-        layout::AlignItems::Start => s::AlignItems::Start,
-        layout::AlignItems::End => s::AlignItems::End,
-        layout::AlignItems::FlexStart => s::AlignItems::FlexStart,
-        layout::AlignItems::FlexEnd => s::AlignItems::FlexEnd,
-        layout::AlignItems::Center => s::AlignItems::Center,
-        layout::AlignItems::SafeEnd => s::AlignItems::SafeEnd,
-        layout::AlignItems::SafeFlexEnd => s::AlignItems::SafeFlexEnd,
-        layout::AlignItems::SafeCenter => s::AlignItems::SafeCenter,
-        layout::AlignItems::Baseline => s::AlignItems::Baseline,
-        layout::AlignItems::LastBaseline => s::AlignItems::LastBaseline,
-        layout::AlignItems::Stretch => s::AlignItems::Stretch,
-    }
-}
-
-fn to_style_align_content(value: layout::AlignContent) -> s::AlignContent {
-    match value {
-        layout::AlignContent::Start => s::AlignContent::Start,
-        layout::AlignContent::End => s::AlignContent::End,
-        layout::AlignContent::FlexStart => s::AlignContent::FlexStart,
-        layout::AlignContent::FlexEnd => s::AlignContent::FlexEnd,
-        layout::AlignContent::Center => s::AlignContent::Center,
-        layout::AlignContent::SafeEnd => s::AlignContent::SafeEnd,
-        layout::AlignContent::SafeFlexEnd => s::AlignContent::SafeFlexEnd,
-        layout::AlignContent::SafeCenter => s::AlignContent::SafeCenter,
-        layout::AlignContent::Stretch => s::AlignContent::Stretch,
-        layout::AlignContent::SpaceBetween => s::AlignContent::SpaceBetween,
-        layout::AlignContent::SpaceEvenly => s::AlignContent::SpaceEvenly,
-        layout::AlignContent::SpaceAround => s::AlignContent::SpaceAround,
-    }
-}
-
-fn to_style_grid_auto_flow(value: layout::GridAutoFlow) -> s::GridAutoFlow {
-    match value {
-        layout::GridAutoFlow::Row => s::GridAutoFlow::Row,
-        layout::GridAutoFlow::Column => s::GridAutoFlow::Column,
-        layout::GridAutoFlow::RowDense => s::GridAutoFlow::RowDense,
-        layout::GridAutoFlow::ColumnDense => s::GridAutoFlow::ColumnDense,
-    }
-}
-
-fn to_style_dimension(value: layout::Dimension) -> Result<s::Length, Error> {
-    Ok(match value {
-        layout::Dimension::Px(value) => s::Length::px(value),
-        layout::Dimension::Percent(value) => s::Length::percent(value * 100.0),
-        layout::Dimension::Auto => s::Length::Auto,
-        layout::Dimension::MinContent => s::Length::MinContent,
-        layout::Dimension::MaxContent => s::Length::MaxContent,
-        layout::Dimension::Calc(id) => {
-            return Err(Error::new(format!(
-                "unsupported calc dimension handle `{}`",
-                id.index()
-            )));
-        }
-        layout::Dimension::Fr(value) if (value - 1.0).abs() < Scalar::EPSILON => s::Length::Fill,
-        layout::Dimension::Fr(value) => {
-            return Err(Error::new(format!(
-                "unsupported non-unit flexible dimension `{value}fr`"
-            )));
-        }
-    })
-}
-
-fn to_style_length(value: layout::Length) -> s::Length {
-    match value {
-        layout::Length::Normal => s::Length::NORMAL,
-        layout::Length::Px(value) => s::Length::px(value),
-        layout::Length::Percent(value) => s::Length::percent(value * 100.0),
-        layout::Length::Calc(id) => {
-            panic!("unsupported calc length handle `{}`", id.index());
-        }
-    }
-}
-
-fn to_style_track_component(
-    component: layout::TrackComponent,
-) -> Result<s::GridTrackComponent, Error> {
-    match component {
-        layout::TrackComponent::Track(track) => {
-            Ok(s::GridTrackComponent::Track(to_style_track_sizing(track)?))
-        }
-        layout::TrackComponent::Repeat(repeat) => Ok(s::GridTrackComponent::Repeat(
-            to_style_track_repeat(repeat)?,
-        )),
-        layout::TrackComponent::LineNames(names) => {
-            s::GridTrackComponent::line_names(names).map_err(|error| Error::new(error.to_string()))
-        }
-        layout::TrackComponent::Subgrid(subgrid) => {
-            let components = subgrid
-                .name_components
-                .into_iter()
-                .map(to_style_subgrid_line_name_component)
-                .collect::<Result<Vec<_>, _>>()?;
-            let subgrid = s::SubgridTrack::from_components(components)
-                .map_err(|error| Error::new(error.to_string()))?;
-            Ok(s::GridTrackComponent::Subgrid(subgrid))
-        }
-    }
-}
-
-fn to_style_track_repeat(repeat: layout::TrackRepetition) -> Result<s::TrackRepeat, Error> {
-    let repeat_kind = repeat.repeat();
-    let components = repeat
-        .into_components()
-        .into_iter()
-        .map(to_style_track_component)
-        .collect::<Result<Vec<_>, _>>()?;
-    match repeat_kind {
-        layout::TrackRepeat::Count(count) => s::TrackRepeat::count(
-            count
-                .get()
-                .try_into()
-                .map_err(|_| Error::new("repeat count does not fit style track repeat"))?,
-            components,
-        ),
-        layout::TrackRepeat::AutoFill => s::TrackRepeat::auto_fill(components),
-        layout::TrackRepeat::AutoFit => s::TrackRepeat::auto_fit(components),
-    }
-    .map_err(|error| Error::new(error.to_string()))
-}
-
-fn to_style_subgrid_line_name_component(
-    component: layout::SubgridLineNameComponent,
-) -> Result<s::SubgridLineNameComponent, Error> {
-    match component {
-        layout::SubgridLineNameComponent::LineNames(names) => {
-            s::SubgridLineNameComponent::line_names(names)
-                .map_err(|error| Error::new(error.to_string()))
-        }
-        layout::SubgridLineNameComponent::Repeat {
-            count,
-            line_name_sets,
-        } => {
-            let count = match count {
-                layout::SubgridLineNameRepeatCount::Count(count) => {
-                    s::SubgridLineNameRepeatCount::count(count)
-                        .map_err(|error| Error::new(error.to_string()))?
-                }
-                layout::SubgridLineNameRepeatCount::AutoFill => {
-                    s::SubgridLineNameRepeatCount::AutoFill
-                }
-            };
-            s::SubgridLineNameComponent::repeat(count, line_name_sets)
-                .map_err(|error| Error::new(error.to_string()))
-        }
-    }
-}
-
-fn to_style_track_sizing(track: layout::TrackSizing) -> Result<s::TrackSizing, Error> {
-    Ok(s::TrackSizing::minmax(
-        to_style_min_track_sizing(track.min),
-        to_style_max_track_sizing(track.max),
-    ))
-}
-
-fn to_style_min_track_sizing(track: layout::MinTrackSizing) -> s::MinTrackSizing {
-    match track {
-        layout::MinTrackSizing::Length(length) => {
-            s::MinTrackSizing::Length(to_style_length(length))
-        }
-        layout::MinTrackSizing::Auto => s::MinTrackSizing::Auto,
-        layout::MinTrackSizing::MinContent => s::MinTrackSizing::MinContent,
-        layout::MinTrackSizing::MaxContent => s::MinTrackSizing::MaxContent,
-    }
-}
-
-fn to_style_max_track_sizing(track: layout::MaxTrackSizing) -> s::MaxTrackSizing {
-    match track {
-        layout::MaxTrackSizing::Length(length) => {
-            s::MaxTrackSizing::Length(to_style_length(length))
-        }
-        layout::MaxTrackSizing::Flex(value) => s::MaxTrackSizing::Flex(value),
-        layout::MaxTrackSizing::Auto => s::MaxTrackSizing::Auto,
-        layout::MaxTrackSizing::MinContent => s::MaxTrackSizing::MinContent,
-        layout::MaxTrackSizing::MaxContent => s::MaxTrackSizing::MaxContent,
-        layout::MaxTrackSizing::FitContent(length) => {
-            s::MaxTrackSizing::FitContent(to_style_length(length))
-        }
-    }
-}
-
-fn parse_style_grid_line(raw: &str) -> Result<s::GridLine, Error> {
+fn parse_raw_grid_line(raw: &str) -> Result<layout::RawGridLine, Error> {
     let tokens = split_top_level_whitespace(raw);
     match tokens.as_slice() {
-        [token] if token == "auto" => Ok(s::GridLine::Auto),
+        [token] if token == "auto" => Ok(layout::RawGridLine::Auto),
         [token] if token == "span" => Err(Error::new("invalid grid span `span`")),
         [token] => match parse_style_line_index(token) {
-            Ok(line) => s::GridLine::line(line).map_err(|error| Error::new(error.to_string())),
-            Err(_) => s::GridLine::bare_ident(parse_custom_ident(token)?.to_owned())
-                .map_err(|error| Error::new(error.to_string())),
+            Ok(0) => Err(Error::new(format!("grid line cannot be zero in `{raw}`"))),
+            Ok(line) => Ok(layout::RawGridLine::Line(line.into())),
+            Err(_) => Ok(layout::RawGridLine::BareIdent(
+                parse_custom_ident(token)?.to_owned(),
+            )),
         },
         [span, token] if span == "span" => {
             if let Ok(index) = parse_style_span_index(token) {
-                s::GridLine::span(index).map_err(|error| Error::new(error.to_string()))
+                Ok(layout::RawGridLine::Span(index.into()))
             } else {
-                s::GridLine::named_span(parse_custom_ident(token)?.to_owned(), 1)
-                    .map_err(|error| Error::new(error.to_string()))
+                Ok(layout::RawGridLine::NamedSpan {
+                    name: parse_custom_ident(token)?.to_owned(),
+                    index: 1,
+                })
             }
         }
-        [name, index] if parse_style_line_index(index).is_ok() => named_line(name, index, raw),
-        [index, name] if parse_style_line_index(index).is_ok() => named_line(name, index, raw),
+        [name, index] if parse_style_line_index(index).is_ok() => named_raw_line(name, index, raw),
+        [index, name] if parse_style_line_index(index).is_ok() => named_raw_line(name, index, raw),
         [span, first, second] if span == "span" => {
             if let Ok(index) = parse_style_span_index(first) {
-                s::GridLine::named_span(parse_custom_ident(second)?.to_owned(), index)
-                    .map_err(|error| Error::new(error.to_string()))
+                Ok(layout::RawGridLine::NamedSpan {
+                    name: parse_custom_ident(second)?.to_owned(),
+                    index: index.into(),
+                })
             } else {
-                s::GridLine::named_span(
-                    parse_custom_ident(first)?.to_owned(),
-                    parse_style_span_index(second)?,
-                )
-                .map_err(|error| Error::new(error.to_string()))
+                Ok(layout::RawGridLine::NamedSpan {
+                    name: parse_custom_ident(first)?.to_owned(),
+                    index: parse_style_span_index(second)?.into(),
+                })
             }
         }
         _ => Err(Error::new(format!("unsupported grid line `{raw}`"))),
     }
 }
 
-fn parse_grid_template_areas(raw: &str) -> Result<s::GridTemplateAreas, Error> {
+fn parse_grid_placement(
+    start: Option<&str>,
+    end: Option<&str>,
+) -> Result<(layout::GridPlacement, layout::RawGridPlacement), Error> {
+    let start = start.unwrap_or("auto");
+    let end = end.unwrap_or("auto");
+    let mut span = None;
+    let legacy_start = parse_grid_line_or_span(start, &mut span).unwrap_or(None);
+    let legacy_end = parse_grid_line_or_span(end, &mut span).unwrap_or(None);
+    let legacy = match (legacy_start, legacy_end, span) {
+        (Some(start), Some(end), None) => layout::GridPlacement::try_lines(start, end),
+        (Some(start), None, Some(span)) => layout::GridPlacement::try_line_span(start, span),
+        (None, Some(end), Some(span)) => layout::GridPlacement::try_span_line(span, end),
+        (Some(start), None, None) => layout::GridPlacement::try_line(start),
+        (None, Some(end), None) => layout::GridPlacement::try_end_line(end),
+        (None, None, Some(span)) => layout::GridPlacement::try_span(span),
+        (None, None, None) => Some(layout::GridPlacement::AUTO),
+        (Some(_), Some(_), Some(_)) => None,
+    }
+    .unwrap_or(layout::GridPlacement::AUTO);
+    let raw = layout::RawGridPlacement::new(parse_raw_grid_line(start)?, parse_raw_grid_line(end)?);
+    Ok((legacy, raw))
+}
+
+fn parse_grid_template_areas(raw: &str) -> Result<layout::GridTemplateAreas, Error> {
     let rows = raw
         .split('/')
         .map(str::trim)
         .filter(|row| !row.is_empty())
         .map(parse_grid_template_area_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(s::GridTemplateAreas::new(rows))
+    Ok(layout::GridTemplateAreas { rows })
 }
 
-fn parse_grid_template_area_row(raw: &str) -> Result<s::GridTemplateAreaRow, Error> {
+fn parse_grid_template_area_row(raw: &str) -> Result<layout::GridTemplateAreaRow, Error> {
     let cells = split_top_level_whitespace(raw)
         .into_iter()
         .map(|cell| {
@@ -1876,22 +1373,24 @@ fn parse_grid_template_area_row(raw: &str) -> Result<s::GridTemplateAreaRow, Err
             }
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(s::GridTemplateAreaRow::new(cells))
+    Ok(layout::GridTemplateAreaRow { cells })
 }
 
 fn is_grid_template_area_null_cell(cell: &str) -> bool {
     !cell.is_empty() && cell.bytes().all(|byte| byte == b'.')
 }
 
-fn named_line(name: &str, index: &str, raw: &str) -> Result<s::GridLine, Error> {
+fn named_raw_line(name: &str, index: &str, raw: &str) -> Result<layout::RawGridLine, Error> {
     let index = parse_style_line_index(index)?;
     if index == 0 {
         return Err(Error::new(format!(
             "named grid line occurrence cannot be zero in `{raw}`"
         )));
     }
-    s::GridLine::named_line(parse_custom_ident(name)?.to_owned(), index)
-        .map_err(|error| Error::new(error.to_string()))
+    Ok(layout::RawGridLine::NamedLine {
+        name: parse_custom_ident(name)?.to_owned(),
+        index: index.into(),
+    })
 }
 
 fn parse_style_line_index(raw: &str) -> Result<i16, Error> {
@@ -2095,166 +1594,81 @@ fn parse_grid_auto_flow(raw: &str) -> Result<layout::GridAutoFlow, Error> {
     }
 }
 
-fn parse_style_track_component_list(raw: &str) -> Result<s::GridTrackList, Error> {
-    let components = if raw.trim_start().starts_with("subgrid") {
-        vec![to_style_track_component(parse_subgrid_track_component(
-            raw,
-        )?)?]
-    } else {
-        split_top_level_whitespace(raw)
-            .into_iter()
-            .map(|part| parse_style_track_component(&part))
-            .collect::<Result<Vec<_>, _>>()?
-    };
-
-    Ok(s::GridTrackList::new(components))
-}
-
-fn parse_style_track_component(raw: &str) -> Result<s::GridTrackComponent, Error> {
-    if let Some(body) = function_body(raw, "repeat") {
-        let (count, tracks) = split_once_top_level_comma(body)?;
-        let components = parse_style_track_component_list(tracks)?.components;
-        let repeat = match count.trim() {
-            "auto-fill" => s::TrackRepeat::auto_fill(components),
-            "auto-fit" => s::TrackRepeat::auto_fit(components),
-            raw => s::TrackRepeat::count(
-                raw.parse()
-                    .map_err(|_| Error::new(format!("invalid repeat count `{raw}`")))?,
-                components,
-            ),
-        }
-        .map_err(|error| Error::new(error.to_string()))?;
-        return Ok(s::GridTrackComponent::Repeat(repeat));
-    }
-    if raw.starts_with('[') {
-        return parse_style_line_names_component(raw);
-    }
-    Ok(s::GridTrackComponent::Track(parse_style_track_sizing(raw)?))
-}
-
-fn parse_style_line_names_component(raw: &str) -> Result<s::GridTrackComponent, Error> {
-    s::GridTrackComponent::line_names(parse_subgrid_line_names(raw)?)
-        .map_err(|error| Error::new(error.to_string()))
-}
-
-fn parse_style_track_sizing(raw: &str) -> Result<s::TrackSizing, Error> {
-    if let Some(body) = function_body(raw, "minmax") {
-        let (min, max) = split_once_top_level_comma(body)?;
-        return Ok(s::TrackSizing::minmax(
-            parse_style_min_track_sizing(min.trim())?,
-            parse_style_max_track_sizing(max.trim())?,
-        ));
-    }
-    if let Some(body) = function_body(raw, "fit-content") {
-        return Ok(s::TrackSizing::minmax(
-            s::MinTrackSizing::Auto,
-            s::MaxTrackSizing::FitContent(parse_style_length(body.trim())?),
-        ));
-    }
-    if let Some(flex) = raw.strip_suffix("fr") {
-        return Ok(s::TrackSizing::fr(parse_number(flex)?));
-    }
-    match parse_style_dimension(raw)? {
-        s::Length::Auto => Ok(s::TrackSizing::AUTO),
-        s::Length::MinContent => Ok(s::TrackSizing::minmax(
-            s::MinTrackSizing::MinContent,
-            s::MaxTrackSizing::MinContent,
-        )),
-        s::Length::MaxContent => Ok(s::TrackSizing::minmax(
-            s::MinTrackSizing::MaxContent,
-            s::MaxTrackSizing::MaxContent,
-        )),
-        s::Length::Fill => Ok(s::TrackSizing::fr(1.0)),
-        length => Ok(s::TrackSizing::minmax(
-            s::MinTrackSizing::Length(length.clone()),
-            s::MaxTrackSizing::Length(length),
-        )),
-    }
-}
-
-fn parse_style_min_track_sizing(raw: &str) -> Result<s::MinTrackSizing, Error> {
-    match raw {
-        "auto" => Ok(s::MinTrackSizing::Auto),
-        "min-content" => Ok(s::MinTrackSizing::MinContent),
-        "max-content" => Ok(s::MinTrackSizing::MaxContent),
-        _ => Ok(s::MinTrackSizing::Length(parse_style_length(raw)?)),
-    }
-}
-
-fn parse_style_max_track_sizing(raw: &str) -> Result<s::MaxTrackSizing, Error> {
-    match raw {
-        "auto" => Ok(s::MaxTrackSizing::Auto),
-        "min-content" => Ok(s::MaxTrackSizing::MinContent),
-        "max-content" => Ok(s::MaxTrackSizing::MaxContent),
-        _ if raw.ends_with("fr") => {
-            let value = raw.trim_end_matches("fr");
-            Ok(s::MaxTrackSizing::fr(parse_number(value)?))
-        }
-        _ => Ok(s::MaxTrackSizing::Length(parse_style_length(raw)?)),
-    }
-}
-
-fn parse_style_calc_length(raw: &str) -> Result<s::CalcLength, Error> {
+fn parse_calc_expression(raw: &str) -> Result<layout::CalcExpression, Error> {
     let body = raw
         .strip_prefix("calc(")
         .and_then(|value| value.strip_suffix(')'))
         .ok_or_else(|| Error::new(format!("unsupported calc expression `{raw}`")))?;
-    parse_style_calc_sum(body.trim(), raw)
+    parse_calc_sum(body.trim(), raw)
 }
 
-fn parse_style_calc_sum(body: &str, raw: &str) -> Result<s::CalcLength, Error> {
+fn parse_calc_sum(body: &str, raw: &str) -> Result<layout::CalcExpression, Error> {
     let parts = body.split_whitespace().collect::<Vec<_>>();
     let [first, operator, second] = parts.as_slice() else {
         return Err(Error::new(format!("unsupported calc expression `{raw}`")));
     };
 
-    let left = parse_style_calc_term(first)?;
-    let right = parse_style_calc_term(second)?;
+    let left = parse_calc_term(first, 1.0)?;
     let right = match *operator {
-        "+" => s::CalcLengthTerm::add(right),
-        "-" => s::CalcLengthTerm::sub(right),
+        "+" => parse_calc_term(second, 1.0)?,
+        "-" => parse_calc_term(second, -1.0)?,
         _ => return Err(Error::new(format!("unsupported calc expression `{raw}`"))),
     };
 
-    Ok(s::CalcLength::sum(s::CalcLengthTerm::add(left), [right]))
+    Ok(layout::CalcExpression::sum([left, right]))
 }
 
-fn parse_style_calc_term(raw: &str) -> Result<s::CalcLength, Error> {
+fn parse_calc_term(raw: &str, sign: Scalar) -> Result<layout::CalcTerm, Error> {
     if let Some(px) = raw.strip_suffix("px") {
-        return Ok(s::CalcLength::px(parse_number(px)?));
+        return Ok(layout::CalcTerm::px(parse_number(px)? * sign));
     }
     if let Some(percent) = raw.strip_suffix('%') {
-        return Ok(s::CalcLength::percent(parse_number(percent)?));
+        return Ok(layout::CalcTerm::percent(
+            parse_number(percent)? / 100.0 * sign,
+        ));
     }
     Err(Error::new(format!(
         "unsupported calc expression term `{raw}`"
     )))
 }
 
-fn parse_style_length(raw: &str) -> Result<s::Length, Error> {
+fn parse_length_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<layout::Length, Error> {
     if raw.trim_start().starts_with("calc(") {
-        return Ok(s::Length::Calc(parse_style_calc_length(raw)?));
+        return Ok(layout::Length::calc(
+            calc_store.push(parse_calc_expression(raw)?),
+        ));
     }
-    Ok(to_style_length(parse_length(raw)?))
+    parse_length(raw)
 }
 
-fn parse_style_length_auto(raw: &str) -> Result<s::Length, Error> {
+fn parse_length_auto_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<layout::LengthAuto, Error> {
     if raw == "auto" {
-        return Ok(s::Length::Auto);
+        return Ok(layout::LengthAuto::AUTO);
     }
-    parse_style_length(raw)
+    Ok(parse_length_with_calc(raw, calc_store)?.into())
 }
 
-fn parse_style_dimension(raw: &str) -> Result<s::Length, Error> {
+fn parse_dimension_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<layout::Dimension, Error> {
     match raw {
-        "auto" => Ok(s::Length::Auto),
-        "min-content" => Ok(s::Length::MinContent),
-        "max-content" => Ok(s::Length::MaxContent),
+        "auto" => Ok(layout::Dimension::AUTO),
+        "min-content" => Ok(layout::Dimension::MIN_CONTENT),
+        "max-content" => Ok(layout::Dimension::MAX_CONTENT),
         _ => {
             if raw.trim_start().starts_with("calc(") {
-                return Ok(s::Length::Calc(parse_style_calc_length(raw)?));
+                return Ok(layout::Dimension::calc(
+                    calc_store.push(parse_calc_expression(raw)?),
+                ));
             }
-            to_style_dimension(parse_dimension(raw)?)
+            parse_dimension(raw)
         }
     }
 }
@@ -2289,29 +1703,45 @@ fn parse_dimension(raw: &str) -> Result<layout::Dimension, Error> {
 }
 
 fn parse_track_component_list(raw: &str) -> Result<Vec<layout::TrackComponent>, Error> {
+    let mut calc_store = layout::LayoutCalcStore::new();
+    parse_track_component_list_with_calc(raw, &mut calc_store)
+}
+
+fn parse_track_component_list_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<Vec<layout::TrackComponent>, Error> {
     if raw.trim_start().starts_with("subgrid") {
         return Ok(vec![parse_subgrid_track_component(raw)?]);
     }
     split_top_level_whitespace(raw)
         .into_iter()
-        .map(|part| parse_track_component(&part))
+        .map(|part| parse_track_component_with_calc(&part, calc_store))
         .collect()
 }
 
 fn parse_track_component(raw: &str) -> Result<layout::TrackComponent, Error> {
+    let mut calc_store = layout::LayoutCalcStore::new();
+    parse_track_component_with_calc(raw, &mut calc_store)
+}
+
+fn parse_track_component_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<layout::TrackComponent, Error> {
     if let Some(body) = function_body(raw, "repeat") {
         let (count, tracks) = split_once_top_level_comma(body)?;
         let repeat = match count.trim() {
-            "auto-fill" => {
-                layout::TrackRepetition::auto_fill_components(parse_track_component_list(tracks)?)
-            }
-            "auto-fit" => {
-                layout::TrackRepetition::auto_fit_components(parse_track_component_list(tracks)?)
-            }
+            "auto-fill" => layout::TrackRepetition::auto_fill_components(
+                parse_track_component_list_with_calc(tracks, calc_store)?,
+            ),
+            "auto-fit" => layout::TrackRepetition::auto_fit_components(
+                parse_track_component_list_with_calc(tracks, calc_store)?,
+            ),
             raw => layout::TrackRepetition::count_components(
                 raw.parse()
                     .map_err(|_| Error::new(format!("invalid repeat count `{raw}`")))?,
-                parse_track_component_list(tracks)?,
+                parse_track_component_list_with_calc(tracks, calc_store)?,
             ),
         };
         let repeat =
@@ -2323,7 +1753,9 @@ fn parse_track_component(raw: &str) -> Result<layout::TrackComponent, Error> {
             raw,
         )?));
     }
-    Ok(layout::TrackComponent::Track(parse_track_sizing(raw)?))
+    Ok(layout::TrackComponent::Track(parse_track_sizing_with_calc(
+        raw, calc_store,
+    )?))
 }
 
 fn parse_subgrid_track_component(raw: &str) -> Result<layout::TrackComponent, Error> {
@@ -2374,30 +1806,42 @@ fn parse_subgrid_line_names(raw: &str) -> Result<Vec<String>, Error> {
         .collect::<Result<Vec<_>, _>>()
 }
 
-fn parse_track_sizing(raw: &str) -> Result<layout::TrackSizing, Error> {
+fn parse_track_sizing_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<layout::TrackSizing, Error> {
     if let Some(body) = function_body(raw, "minmax") {
         let (min, max) = split_once_top_level_comma(body)?;
         return Ok(layout::TrackSizing::minmax(
-            parse_min_track_sizing(min.trim())?,
-            parse_max_track_sizing(max.trim())?,
+            parse_min_track_sizing_with_calc(min.trim(), calc_store)?,
+            parse_max_track_sizing_with_calc(max.trim(), calc_store)?,
         ));
     }
     if let Some(body) = function_body(raw, "fit-content") {
-        return Ok(layout::TrackSizing::fit_content(parse_length(body.trim())?));
+        return Ok(layout::TrackSizing::fit_content(parse_length_with_calc(
+            body.trim(),
+            calc_store,
+        )?));
     }
-    Ok(parse_dimension(raw)?.into())
+    Ok(parse_dimension_with_calc(raw, calc_store)?.into())
 }
 
-fn parse_min_track_sizing(raw: &str) -> Result<layout::MinTrackSizing, Error> {
+fn parse_min_track_sizing_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<layout::MinTrackSizing, Error> {
     match raw {
         "auto" => Ok(layout::MinTrackSizing::AUTO),
         "min-content" => Ok(layout::MinTrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::MinTrackSizing::MAX_CONTENT),
-        _ => Ok(parse_length(raw)?.into()),
+        _ => Ok(parse_length_with_calc(raw, calc_store)?.into()),
     }
 }
 
-fn parse_max_track_sizing(raw: &str) -> Result<layout::MaxTrackSizing, Error> {
+fn parse_max_track_sizing_with_calc(
+    raw: &str,
+    calc_store: &mut layout::LayoutCalcStore,
+) -> Result<layout::MaxTrackSizing, Error> {
     match raw {
         "auto" => Ok(layout::MaxTrackSizing::AUTO),
         "min-content" => Ok(layout::MaxTrackSizing::MIN_CONTENT),
@@ -2406,7 +1850,7 @@ fn parse_max_track_sizing(raw: &str) -> Result<layout::MaxTrackSizing, Error> {
             let value = raw.trim_end_matches("fr");
             Ok(layout::MaxTrackSizing::fr(parse_number(value)?))
         }
-        _ => Ok(parse_length(raw)?.into()),
+        _ => Ok(parse_length_with_calc(raw, calc_store)?.into()),
     }
 }
 
@@ -2520,8 +1964,8 @@ mod tests {
     use super::*;
 
     fn test_node_input(attrs: StyleAttrs) -> Result<layout::NodeInput, Error> {
-        let mut lowering = s::adapters::layout::LayoutLoweringSession::new();
-        to_node_input(&attrs, &mut lowering)
+        let mut calc_store = layout::LayoutCalcStore::new();
+        to_node_input(&attrs, &mut calc_store)
     }
 
     fn line_break_tree(input: layout::LineBreakInput) -> TestTree {
@@ -2666,22 +2110,26 @@ mod tests {
     }
 
     #[test]
-    fn parse_style_length_accepts_fixture_calc_px_plus_percent() {
-        let length = parse_style_length("calc(12px + 25%)").expect("fixture calc should parse");
-        assert!(matches!(length, s::Length::Calc(_)));
+    fn parse_length_accepts_fixture_calc_px_plus_percent() {
+        let mut calc_store = layout::LayoutCalcStore::new();
+        let length = parse_length_with_calc("calc(12px + 25%)", &mut calc_store)
+            .expect("fixture calc should parse");
+        assert!(matches!(length, layout::Length::Calc(_)));
     }
 
     #[test]
-    fn parse_style_dimension_accepts_fixture_calc_percent_minus_px() {
-        let dimension =
-            parse_style_dimension("calc(50% - 8px)").expect("fixture calc dimension should parse");
-        assert!(matches!(dimension, s::Length::Calc(_)));
+    fn parse_dimension_accepts_fixture_calc_percent_minus_px() {
+        let mut calc_store = layout::LayoutCalcStore::new();
+        let dimension = parse_dimension_with_calc("calc(50% - 8px)", &mut calc_store)
+            .expect("fixture calc dimension should parse");
+        assert!(matches!(dimension, layout::Dimension::Calc(_)));
     }
 
     #[test]
-    fn parse_style_length_rejects_unsupported_calc_fixture_syntax() {
-        let error =
-            parse_style_length("calc(100% / 2)").expect_err("division is not supported yet");
+    fn parse_length_rejects_unsupported_calc_fixture_syntax() {
+        let mut calc_store = layout::LayoutCalcStore::new();
+        let error = parse_length_with_calc("calc(100% / 2)", &mut calc_store)
+            .expect_err("division is not supported yet");
         assert!(
             error.to_string().contains("unsupported calc expression"),
             "unexpected error: {error}"
@@ -2746,15 +2194,14 @@ mod tests {
                 tree.box_node_input(0).grid_template_columns
             );
         };
-        assert!(matches!(
-            track.min,
-            layout::MinTrackSizing::Length(layout::Length::Calc(_))
-        ));
-        assert!(matches!(
-            track.max,
-            layout::MaxTrackSizing::Length(layout::Length::Calc(_))
-        ));
-        assert_eq!(tree.calc_store.len(), 2);
+        let layout::MinTrackSizing::Length(layout::Length::Calc(min_id)) = track.min else {
+            panic!("expected calc min track, got {:?}", track.min);
+        };
+        let layout::MaxTrackSizing::Length(layout::Length::Calc(max_id)) = track.max else {
+            panic!("expected calc max track, got {:?}", track.max);
+        };
+        assert_eq!(min_id, max_id);
+        assert_eq!(tree.calc_store.len(), 1);
     }
 
     #[test]
@@ -2813,30 +2260,30 @@ mod tests {
 
     #[test]
     fn parse_track_component_list_accepts_explicit_line_names() {
-        let parsed = parse_style_track_component_list("[a] 10px [b c] 20px [d]")
-            .expect("line names should parse");
+        let parsed =
+            parse_track_component_list("[a] 10px [b c] 20px [d]").expect("line names should parse");
 
         assert_eq!(
-            parsed.components,
+            parsed,
             vec![
-                s::GridTrackComponent::line_names(["a"]).unwrap(),
-                s::GridTrackComponent::Track(s::TrackSizing::px(10.0)),
-                s::GridTrackComponent::line_names(["b", "c"]).unwrap(),
-                s::GridTrackComponent::Track(s::TrackSizing::px(20.0)),
-                s::GridTrackComponent::line_names(["d"]).unwrap(),
+                layout::TrackComponent::LineNames(vec!["a".to_string()]),
+                layout::TrackComponent::Track(layout::TrackSizing::px(10.0)),
+                layout::TrackComponent::LineNames(vec!["b".to_string(), "c".to_string()]),
+                layout::TrackComponent::Track(layout::TrackSizing::px(20.0)),
+                layout::TrackComponent::LineNames(vec!["d".to_string()]),
             ]
         );
     }
 
     #[test]
     fn parse_track_component_list_rejects_reserved_line_names() {
-        assert!(parse_style_track_component_list("[auto] 10px").is_err());
-        assert!(parse_style_track_component_list("[span] 10px").is_err());
+        assert!(parse_track_component_list("[auto] 10px").is_err());
+        assert!(parse_track_component_list("[span] 10px").is_err());
     }
 
     #[test]
-    fn to_declarations_preserves_named_grid_syntax() {
-        let declarations = to_declarations(&StyleAttrs {
+    fn to_node_input_preserves_named_grid_syntax() {
+        let input = test_node_input(StyleAttrs {
             attrs: BTreeMap::from([
                 (
                     "grid-template-columns".to_string(),
@@ -2845,45 +2292,46 @@ mod tests {
                 ("grid-column-start".to_string(), "a 2".to_string()),
             ]),
         })
-        .expect("named grid syntax should parse to style declarations");
+        .expect("named grid syntax should parse to layout input");
 
         assert_eq!(
-            declarations.get(s::Property::GridColumnStart),
-            Some(&s::Value::GridLine(
-                s::GridLine::named_line("a", 2).unwrap()
-            ))
+            input.raw_grid_column,
+            layout::RawGridPlacement::new(
+                layout::RawGridLine::NamedLine {
+                    name: "a".to_string(),
+                    index: 2,
+                },
+                layout::RawGridLine::Auto,
+            )
         );
         assert_eq!(
-            declarations.get(s::Property::GridTemplateColumns),
-            Some(&s::Value::GridTrackList(s::GridTrackList::new(vec![
-                s::GridTrackComponent::line_names(["a"]).unwrap(),
-                s::GridTrackComponent::Track(s::TrackSizing::px(10.0)),
-                s::GridTrackComponent::line_names(["b"]).unwrap(),
-            ])))
+            input.grid_template_columns,
+            vec![
+                layout::TrackComponent::LineNames(vec!["a".to_string()]),
+                layout::TrackComponent::Track(layout::TrackSizing::px(10.0)),
+                layout::TrackComponent::LineNames(vec!["b".to_string()]),
+            ]
         );
     }
 
     #[test]
-    fn to_declarations_leaves_untagged_default_display_to_toolkit_default() {
-        let declarations = to_declarations(&StyleAttrs {
+    fn to_node_input_leaves_untagged_default_display_to_layout_default() {
+        let input = test_node_input(StyleAttrs {
             attrs: BTreeMap::new(),
         })
         .expect("empty attrs should parse");
 
-        assert_eq!(declarations.get(s::Property::Display), None);
+        assert_eq!(input.display, layout::NodeInput::default().display);
     }
 
     #[test]
-    fn to_declarations_applies_html_source_tag_display_defaults() {
-        let div = to_declarations(&StyleAttrs {
+    fn to_node_input_applies_html_source_tag_display_defaults() {
+        let div = test_node_input(StyleAttrs {
             attrs: BTreeMap::from([("source-tag".to_string(), "div".to_string())]),
         })
         .expect("source-tag div should parse");
 
-        assert_eq!(
-            div.get(s::Property::Display),
-            Some(&s::Value::Display(s::Display::Block))
-        );
+        assert_eq!(div.display, layout::Display::Block);
     }
 
     #[test]
@@ -2898,7 +2346,7 @@ mod tests {
                     ("clear".to_string(), "both".to_string()),
                 ]),
             },
-            &mut s::adapters::layout::LayoutLoweringSession::new(),
+            &mut layout::LayoutCalcStore::new(),
         )
         .expect("source-tag br should lower");
 
@@ -2921,7 +2369,7 @@ mod tests {
                     ("direction".to_string(), "rtl".to_string()),
                 ]),
             },
-            &mut s::adapters::layout::LayoutLoweringSession::new(),
+            &mut layout::LayoutCalcStore::new(),
         )
         .expect("display inline br should lower");
 
@@ -2941,7 +2389,7 @@ mod tests {
                     ("display".to_string(), "none".to_string()),
                 ]),
             },
-            &mut s::adapters::layout::LayoutLoweringSession::new(),
+            &mut layout::LayoutCalcStore::new(),
         )
         .expect("display none br should lower");
 
@@ -2989,40 +2437,52 @@ mod tests {
     }
 
     #[test]
-    fn to_declarations_preserves_grid_template_areas() {
-        let declarations = to_declarations(&StyleAttrs {
+    fn to_node_input_preserves_grid_template_areas() {
+        let input = test_node_input(StyleAttrs {
             attrs: BTreeMap::from([(
                 "grid-template-areas".to_string(),
                 "head head / nav main".to_string(),
             )]),
         })
-        .expect("grid template areas should parse to style declarations");
+        .expect("grid template areas should parse to layout input");
 
         assert_eq!(
-            declarations.get(s::Property::GridTemplateAreas),
-            Some(&s::Value::GridTemplateAreas(s::GridTemplateAreas::new([
-                s::GridTemplateAreaRow::named(["head", "head"]),
-                s::GridTemplateAreaRow::named(["nav", "main"]),
-            ])))
+            input.grid_template_areas,
+            layout::GridTemplateAreas {
+                rows: vec![
+                    layout::GridTemplateAreaRow {
+                        cells: vec![Some("head".to_string()), Some("head".to_string())],
+                    },
+                    layout::GridTemplateAreaRow {
+                        cells: vec![Some("nav".to_string()), Some("main".to_string())],
+                    },
+                ],
+            }
         );
     }
 
     #[test]
-    fn to_declarations_treats_grid_template_area_dot_runs_as_null_cells() {
-        let declarations = to_declarations(&StyleAttrs {
+    fn to_node_input_treats_grid_template_area_dot_runs_as_null_cells() {
+        let input = test_node_input(StyleAttrs {
             attrs: BTreeMap::from([(
                 "grid-template-areas".to_string(),
                 "... main / footer ...".to_string(),
             )]),
         })
-        .expect("grid template areas should parse to style declarations");
+        .expect("grid template areas should parse to layout input");
 
         assert_eq!(
-            declarations.get(s::Property::GridTemplateAreas),
-            Some(&s::Value::GridTemplateAreas(s::GridTemplateAreas::new([
-                s::GridTemplateAreaRow::new([None, Some("main".to_string())]),
-                s::GridTemplateAreaRow::new([Some("footer".to_string()), None]),
-            ])))
+            input.grid_template_areas,
+            layout::GridTemplateAreas {
+                rows: vec![
+                    layout::GridTemplateAreaRow {
+                        cells: vec![None, Some("main".to_string())],
+                    },
+                    layout::GridTemplateAreaRow {
+                        cells: vec![Some("footer".to_string()), None],
+                    },
+                ],
+            }
         );
     }
 
@@ -3464,76 +2924,99 @@ mod tests {
     #[test]
     fn parse_grid_line_accepts_named_line() {
         assert_eq!(
-            parse_style_grid_line("a").unwrap(),
-            s::GridLine::bare_ident("a").unwrap()
+            parse_raw_grid_line("a").unwrap(),
+            layout::RawGridLine::BareIdent("a".to_string())
         );
     }
 
     #[test]
     fn parse_grid_line_accepts_named_line_with_occurrence() {
         assert_eq!(
-            parse_style_grid_line("a 8").unwrap(),
-            s::GridLine::named_line("a", 8).unwrap()
+            parse_raw_grid_line("a 8").unwrap(),
+            layout::RawGridLine::NamedLine {
+                name: "a".to_string(),
+                index: 8
+            }
         );
     }
 
     #[test]
     fn parse_grid_line_accepts_integer_before_named_line() {
         assert_eq!(
-            parse_style_grid_line("2 a").unwrap(),
-            s::GridLine::named_line("a", 2).unwrap()
+            parse_raw_grid_line("2 a").unwrap(),
+            layout::RawGridLine::NamedLine {
+                name: "a".to_string(),
+                index: 2
+            }
         );
     }
 
     #[test]
     fn parse_grid_line_accepts_negative_named_line_occurrence() {
         assert_eq!(
-            parse_style_grid_line("b -1").unwrap(),
-            s::GridLine::named_line("b", -1).unwrap()
+            parse_raw_grid_line("b -1").unwrap(),
+            layout::RawGridLine::NamedLine {
+                name: "b".to_string(),
+                index: -1
+            }
         );
+    }
+
+    #[test]
+    fn parse_grid_line_rejects_zero_numeric_line() {
+        assert!(parse_raw_grid_line("0").is_err());
     }
 
     #[test]
     fn parse_grid_line_accepts_named_span() {
         assert_eq!(
-            parse_style_grid_line("span a").unwrap(),
-            s::GridLine::named_span("a", 1).unwrap()
+            parse_raw_grid_line("span a").unwrap(),
+            layout::RawGridLine::NamedSpan {
+                name: "a".to_string(),
+                index: 1
+            }
         );
     }
 
     #[test]
     fn parse_grid_line_accepts_named_span_with_count() {
         assert_eq!(
-            parse_style_grid_line("span 2 a").unwrap(),
-            s::GridLine::named_span("a", 2).unwrap()
+            parse_raw_grid_line("span 2 a").unwrap(),
+            layout::RawGridLine::NamedSpan {
+                name: "a".to_string(),
+                index: 2
+            }
         );
     }
 
     #[test]
     fn parse_grid_line_accepts_named_span_with_reversed_count_order() {
         assert_eq!(
-            parse_style_grid_line("span a 2").unwrap(),
-            s::GridLine::named_span("a", 2).unwrap()
+            parse_raw_grid_line("span a 2").unwrap(),
+            layout::RawGridLine::NamedSpan {
+                name: "a".to_string(),
+                index: 2
+            }
         );
     }
 
     #[test]
     fn parse_grid_line_rejects_zero_named_line_occurrence() {
-        assert!(parse_style_grid_line("a 0").is_err());
+        assert!(parse_raw_grid_line("a 0").is_err());
     }
 
     #[test]
     fn parse_grid_line_rejects_zero_named_span_count() {
-        assert!(parse_style_grid_line("span 0 a").is_err());
-        assert!(parse_style_grid_line("span a 0").is_err());
+        assert!(parse_raw_grid_line("span 0 a").is_err());
+        assert!(parse_raw_grid_line("span a 0").is_err());
     }
 
     #[test]
     fn parse_grid_line_rejects_reserved_named_custom_ident() {
-        assert!(parse_style_grid_line("auto 1").is_err());
-        assert!(parse_style_grid_line("1 auto").is_err());
-        assert!(parse_style_grid_line("span auto").is_err());
-        assert!(parse_style_grid_line("span 1 auto").is_err());
+        assert!(parse_raw_grid_line("auto 1").is_err());
+        assert!(parse_raw_grid_line("1 auto").is_err());
+        assert!(parse_raw_grid_line("span auto").is_err());
+        assert!(parse_raw_grid_line("span 1 auto").is_err());
     }
 
     #[test]
