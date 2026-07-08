@@ -174,6 +174,99 @@ impl WritingMode {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InlineMetricsOf<S: LayoutScalar = DefaultScalar> {
+    baseline: S,
+    line_extent: S,
+}
+
+pub type InlineMetrics = InlineMetricsOf<DefaultScalar>;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum InlineMetricsError<S: LayoutScalar = DefaultScalar> {
+    NonFinite { value: S },
+    Negative { value: S },
+    BaselineExceedsLineExtent { baseline: S, line_extent: S },
+    BaselineExceedsLineHeight { baseline: S, line_height: S },
+}
+
+impl<S: LayoutScalar> InlineMetricsOf<S> {
+    pub fn try_new(baseline: S, line_extent: S) -> Result<Self, InlineMetricsError<S>> {
+        validate_non_negative_finite(baseline)?;
+        validate_non_negative_finite(line_extent)?;
+
+        if baseline > line_extent {
+            return Err(InlineMetricsError::BaselineExceedsLineExtent {
+                baseline,
+                line_extent,
+            });
+        }
+
+        Ok(Self {
+            baseline,
+            line_extent,
+        })
+    }
+
+    pub fn from_ascent_descent(ascent: S, descent: S) -> Result<Self, InlineMetricsError<S>> {
+        validate_non_negative_finite(ascent)?;
+        validate_non_negative_finite(descent)?;
+        Self::try_new(ascent, ascent + descent)
+    }
+
+    pub fn from_line_height_and_baseline(
+        line_height: S,
+        baseline: S,
+    ) -> Result<Self, InlineMetricsError<S>> {
+        validate_non_negative_finite(line_height)?;
+        validate_non_negative_finite(baseline)?;
+
+        if baseline > line_height {
+            return Err(InlineMetricsError::BaselineExceedsLineHeight {
+                baseline,
+                line_height,
+            });
+        }
+
+        Ok(Self {
+            baseline,
+            line_extent: line_height,
+        })
+    }
+
+    #[must_use]
+    pub const fn baseline(self) -> S {
+        self.baseline
+    }
+
+    #[must_use]
+    pub const fn line_extent(self) -> S {
+        self.line_extent
+    }
+
+    #[must_use]
+    pub fn after_baseline(self) -> S {
+        self.line_extent - self.baseline
+    }
+}
+
+impl<S: LayoutScalar> Default for InlineMetricsOf<S> {
+    fn default() -> Self {
+        Self::from_line_height_and_baseline(S::from_f64(16.0), S::from_f64(12.0))
+            .expect("default inline metrics are valid")
+    }
+}
+
+fn validate_non_negative_finite<S: LayoutScalar>(value: S) -> Result<(), InlineMetricsError<S>> {
+    if !value.is_finite() {
+        return Err(InlineMetricsError::NonFinite { value });
+    }
+    if value < S::ZERO {
+        return Err(InlineMetricsError::Negative { value });
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LineBreakInput {
     display: LineBreakDisplay,

@@ -217,6 +217,53 @@ fn line_break_input_defaults_to_visible_horizontal_break_context() {
 }
 
 #[test]
+fn inline_metrics_validate_line_box_invariants() {
+    let metrics = InlineMetrics::try_new(12.0, 18.0).unwrap();
+
+    assert_eq!(metrics.baseline(), 12.0);
+    assert_eq!(metrics.line_extent(), 18.0);
+    assert_eq!(metrics.after_baseline(), 6.0);
+
+    assert_eq!(
+        InlineMetrics::try_new(19.0, 18.0),
+        Err(InlineMetricsError::BaselineExceedsLineExtent {
+            baseline: 19.0,
+            line_extent: 18.0,
+        })
+    );
+    assert_eq!(
+        InlineMetrics::from_line_height_and_baseline(10.0, 12.0),
+        Err(InlineMetricsError::BaselineExceedsLineHeight {
+            baseline: 12.0,
+            line_height: 10.0,
+        })
+    );
+}
+
+#[test]
+fn inline_metrics_reject_non_finite_and_negative_values() {
+    assert!(matches!(
+        InlineMetrics::try_new(f32::NAN, 18.0),
+        Err(InlineMetricsError::NonFinite { value }) if value.is_nan()
+    ));
+    assert_eq!(
+        InlineMetrics::try_new(12.0, -18.0),
+        Err(InlineMetricsError::Negative { value: -18.0 })
+    );
+}
+
+#[test]
+fn inline_metrics_support_f64_scalar_lane() {
+    let metrics = InlineMetricsOf::<f64>::from_line_height_and_baseline(
+        9_000_000_000_000.0,
+        8_000_000_000_000.0,
+    )
+    .unwrap();
+
+    assert_eq!(metrics.after_baseline(), 1_000_000_000_000.0);
+}
+
+#[test]
 fn layout_input_distinguishes_box_from_line_break() {
     let box_input = LayoutInput::box_input(NodeInput::default());
     assert!(box_input.as_box().is_some());
