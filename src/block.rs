@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use super::inline::{
-    AtomicInlineBoxItem, AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem,
-    ForcedLineBreakControlOf, InlineControlAlignment, InlineFlowOf, layout_atomic_inline_items,
+    AtomicInlineBoxItem, AtomicInlineInput, AtomicInlineItem, ForcedLineBreakControlOf,
+    InlineControlAlignment, InlineFlowOf, layout_atomic_inline_items,
 };
 use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
@@ -1121,6 +1121,7 @@ where
             .map(AvailableOf::<S>::definite)
             .unwrap_or(input.available.width),
         writing_mode: constants.writing_mode,
+        direction: constants.direction,
         items,
     });
     let run_offset = inline_run_offset(report.size.width, constants, node_inner_size.width);
@@ -1156,14 +1157,8 @@ where
                     ),
                     constants.direction,
                 );
-                let item_x = inline_item_x(
-                    item,
-                    report.size.width,
-                    constants.direction,
-                    constants.writing_mode,
-                );
                 let location = Point::new(
-                    run_offset + item_x + inset_offset.x,
+                    run_offset + item.location.x + inset_offset.x,
                     cursor_y + item.location.y + inset_offset.y - constants.content_box_inset.top,
                 );
                 let contribution = content_size_contribution(
@@ -1182,7 +1177,7 @@ where
                             location: Point::new(
                                 constants.content_box_inset.left
                                     + run_offset
-                                    + item_x
+                                    + item.location.x
                                     + inset_offset.x,
                                 cursor_y + item.location.y + inset_offset.y,
                             ),
@@ -1199,18 +1194,12 @@ where
             AtomicInlineRunChild::LineBreak { child, order } => {
                 if set_layout {
                     let item = report_items_by_order[order];
-                    let item_x = inline_item_x(
-                        item,
-                        report.size.width,
-                        constants.direction,
-                        constants.writing_mode,
-                    );
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
                             order: item.order,
                             location: Point::new(
-                                constants.content_box_inset.left + run_offset + item_x,
+                                constants.content_box_inset.left + run_offset + item.location.x,
                                 cursor_y + item.location.y,
                             ),
                             size: Size::ZERO,
@@ -1260,19 +1249,6 @@ fn inline_run_offset<S: LayoutScalar>(
         | (TextAlign::LegacyRight, Direction::Ltr)
         | (TextAlign::LegacyRight, Direction::Rtl) => free_space,
         (TextAlign::LegacyCenter, _) => free_space / S::from_f64(2.0),
-    }
-}
-
-fn inline_item_x<S: LayoutScalar>(
-    item: AtomicInlineLayoutItem<S>,
-    run_width: S,
-    direction: Direction,
-    writing_mode: WritingMode,
-) -> S {
-    if direction == Direction::Rtl && writing_mode == WritingMode::HorizontalTb {
-        run_width - item.location.x - item.size.width
-    } else {
-        item.location.x
     }
 }
 

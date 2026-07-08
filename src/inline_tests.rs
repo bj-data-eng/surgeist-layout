@@ -20,10 +20,113 @@ fn forced_line_break(order: u32, metrics: InlineMetrics) -> AtomicInlineItem {
 }
 
 #[test]
+fn inline_axis_mapping_maps_horizontal_tb_ltr() {
+    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::HorizontalTb, Direction::Ltr);
+
+    assert_eq!(
+        mapping.physical_size(crate::inline::LogicalInlineSizeOf::new(30.0, 12.0)),
+        Size::new(30.0, 12.0)
+    );
+    assert_eq!(
+        mapping.physical_item_origin(
+            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
+            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
+            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
+            80.0,
+        ),
+        Point::new(5.0, 7.0)
+    );
+}
+
+#[test]
+fn inline_axis_mapping_maps_horizontal_tb_rtl() {
+    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::HorizontalTb, Direction::Rtl);
+
+    assert_eq!(
+        mapping.physical_item_origin(
+            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
+            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
+            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
+            80.0,
+        ),
+        Point::new(15.0, 7.0)
+    );
+}
+
+#[test]
+fn inline_axis_mapping_maps_vertical_rl_ltr() {
+    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalRl, Direction::Ltr);
+
+    assert_eq!(
+        mapping.physical_size(crate::inline::LogicalInlineSizeOf::new(30.0, 12.0)),
+        Size::new(12.0, 30.0)
+    );
+    assert_eq!(
+        mapping.physical_item_origin(
+            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
+            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
+            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
+            80.0,
+        ),
+        Point::new(69.0, 5.0)
+    );
+}
+
+#[test]
+fn inline_axis_mapping_maps_vertical_rl_rtl() {
+    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalRl, Direction::Rtl);
+
+    assert_eq!(
+        mapping.physical_item_origin(
+            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
+            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
+            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
+            80.0,
+        ),
+        Point::new(69.0, 15.0)
+    );
+}
+
+#[test]
+fn inline_axis_mapping_maps_vertical_lr_ltr() {
+    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalLr, Direction::Ltr);
+
+    assert_eq!(
+        mapping.physical_size(crate::inline::LogicalInlineSizeOf::new(30.0, 12.0)),
+        Size::new(12.0, 30.0)
+    );
+    assert_eq!(
+        mapping.physical_item_origin(
+            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
+            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
+            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
+            80.0,
+        ),
+        Point::new(7.0, 5.0)
+    );
+}
+
+#[test]
+fn inline_axis_mapping_maps_vertical_lr_rtl() {
+    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalLr, Direction::Rtl);
+
+    assert_eq!(
+        mapping.physical_item_origin(
+            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
+            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
+            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
+            80.0,
+        ),
+        Point::new(7.0, 15.0)
+    );
+}
+
+#[test]
 fn atomic_inline_line_aligns_items_to_max_baseline() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::definite(200.0),
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(7.0)),
             AtomicInlineItem::new(1, Size::new(10.0, 20.0), Edges::ZERO, Some(12.0)),
@@ -41,6 +144,7 @@ fn atomic_inline_items_wrap_between_items_for_definite_width() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::definite(25.0),
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(10.0)),
             AtomicInlineItem::new(1, Size::new(20.0, 10.0), Edges::ZERO, Some(10.0)),
@@ -58,6 +162,7 @@ fn atomic_inline_line_geometry_clamps_item_baseline_to_its_box() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MAX_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(124.0, 64.0), Edges::ZERO, Some(94.0)),
             AtomicInlineItem::new(1, Size::new(10.0, 0.0), Edges::ZERO, Some(0.0)),
@@ -75,6 +180,7 @@ fn atomic_inline_min_content_available_wraps_to_max_item_advance() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MIN_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(40.0, 10.0), Edges::ZERO, Some(10.0)),
             AtomicInlineItem::new(1, Size::new(60.0, 10.0), Edges::ZERO, Some(10.0)),
@@ -118,6 +224,7 @@ fn atomic_inline_forced_line_break_starts_next_line() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MAX_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(10.0)),
             forced_line_break(1, first_line_metrics),
@@ -145,6 +252,26 @@ fn atomic_inline_forced_line_break_starts_next_line() {
         AtomicInlineLayoutItemKind::ForcedLineBreak
     );
     assert_eq!(report.items[3].location, Point::new(15.0, 18.0));
+}
+
+#[test]
+fn atomic_inline_horizontal_rtl_maps_item_origins_in_report() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
+    let report = layout_atomic_inline_items(AtomicInlineInput {
+        available_width: Available::MAX_CONTENT,
+        writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Rtl,
+        items: vec![
+            AtomicInlineItem::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(10.0)),
+            forced_line_break(1, metrics),
+            AtomicInlineItem::new(2, Size::new(30.0, 10.0), Edges::ZERO, Some(10.0)),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(30.0, 20.0));
+    assert_eq!(report.items[0].location, Point::new(10.0, 0.0));
+    assert_eq!(report.items[1].location, Point::new(10.0, 10.0));
+    assert_eq!(report.items[2].location, Point::new(0.0, 10.0));
 }
 
 #[test]
@@ -195,6 +322,7 @@ fn forced_line_break_control_can_be_used_as_atomic_inline_item() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MAX_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(10.0)),
             AtomicInlineItem::forced_line_break(control),
@@ -218,6 +346,7 @@ fn forced_line_break_metrics_give_empty_line_height() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MAX_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![forced_line_break(0, metrics), forced_line_break(1, metrics)],
     });
 
@@ -234,6 +363,7 @@ fn forced_line_break_metrics_expand_line_with_boxes() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MAX_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(8.0)),
             forced_line_break(1, metrics),
@@ -276,6 +406,7 @@ fn atomic_inline_vertical_margins_participate_in_line_metrics() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MAX_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: vec![AtomicInlineItem::new(
             0,
             Size::new(20.0, 10.0),
@@ -295,6 +426,7 @@ fn atomic_inline_vertical_rl_places_line_against_right_edge() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::definite(70.0),
         writing_mode: WritingMode::VerticalRl,
+        direction: Direction::Ltr,
         items: vec![
             AtomicInlineItem::new(0, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
             AtomicInlineItem::new(1, Size::new(10.0, 0.0), Edges::ZERO, Some(0.0)),
@@ -309,10 +441,41 @@ fn atomic_inline_vertical_rl_places_line_against_right_edge() {
 }
 
 #[test]
+fn atomic_inline_vertical_rl_rtl_maps_inline_progression_bottom_to_top() {
+    let report = layout_atomic_inline_items(AtomicInlineInput {
+        available_width: Available::definite(70.0),
+        writing_mode: WritingMode::VerticalRl,
+        direction: Direction::Rtl,
+        items: vec![
+            AtomicInlineItem::new(0, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
+            AtomicInlineItem::new(1, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(70.0, 40.0));
+    assert_eq!(report.items[0].location, Point::new(50.0, 20.0));
+    assert_eq!(report.items[1].location, Point::new(50.0, 0.0));
+}
+
+#[test]
+#[should_panic(expected = "forced atomic inline breaks are unsupported in vertical-lr layout")]
+fn atomic_inline_vertical_lr_forced_break_panics_until_modeled() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
+
+    let _ = layout_atomic_inline_items(AtomicInlineInput {
+        available_width: Available::MAX_CONTENT,
+        writing_mode: WritingMode::VerticalLr,
+        direction: Direction::Ltr,
+        items: vec![forced_line_break(0, metrics)],
+    });
+}
+
+#[test]
 fn atomic_inline_empty_items_report_zero_size_and_no_baselines() {
     let report = layout_atomic_inline_items(AtomicInlineInput {
         available_width: Available::MAX_CONTENT,
         writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
         items: Vec::new(),
     });
 

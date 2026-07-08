@@ -7,7 +7,83 @@ use super::{
 pub(super) struct AtomicInlineInput<S: LayoutScalar = DefaultScalar> {
     pub available_width: AvailableOf<S>,
     pub writing_mode: WritingMode,
+    pub direction: Direction,
     pub items: Vec<AtomicInlineItem<S>>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct LogicalInlinePointOf<S: LayoutScalar = DefaultScalar> {
+    pub inline: S,
+    pub block: S,
+}
+
+impl<S: LayoutScalar> LogicalInlinePointOf<S> {
+    #[must_use]
+    pub(super) const fn new(inline: S, block: S) -> Self {
+        Self { inline, block }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(super) struct LogicalInlineSizeOf<S: LayoutScalar = DefaultScalar> {
+    pub inline: S,
+    pub block: S,
+}
+
+impl<S: LayoutScalar> LogicalInlineSizeOf<S> {
+    #[must_use]
+    pub(super) const fn new(inline: S, block: S) -> Self {
+        Self { inline, block }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct InlineAxisMapping {
+    writing_mode: WritingMode,
+    direction: Direction,
+}
+
+impl InlineAxisMapping {
+    #[must_use]
+    pub(super) const fn new(writing_mode: WritingMode, direction: Direction) -> Self {
+        Self {
+            writing_mode,
+            direction,
+        }
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(super) fn physical_size<S: LayoutScalar>(self, logical: LogicalInlineSizeOf<S>) -> Size<S> {
+        match self.writing_mode {
+            WritingMode::HorizontalTb => Size::new(logical.inline, logical.block),
+            WritingMode::VerticalRl | WritingMode::VerticalLr => {
+                Size::new(logical.block, logical.inline)
+            }
+        }
+    }
+
+    #[must_use]
+    pub(super) fn physical_item_origin<S: LayoutScalar>(
+        self,
+        logical_origin: LogicalInlinePointOf<S>,
+        item_size: LogicalInlineSizeOf<S>,
+        line_size: LogicalInlineSizeOf<S>,
+        container_block_extent: S,
+    ) -> Point<S> {
+        let physical_inline = match self.direction {
+            Direction::Ltr => logical_origin.inline,
+            Direction::Rtl => line_size.inline - logical_origin.inline - item_size.inline,
+        };
+        match self.writing_mode {
+            WritingMode::HorizontalTb => Point::new(physical_inline, logical_origin.block),
+            WritingMode::VerticalRl => Point::new(
+                container_block_extent - logical_origin.block - item_size.block,
+                physical_inline,
+            ),
+            WritingMode::VerticalLr => Point::new(logical_origin.block, physical_inline),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -279,6 +355,26 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
     if input.writing_mode == WritingMode::VerticalRl {
         return layout_vertical_rl_atomic_inline_items(input);
     }
+    if input.writing_mode == WritingMode::VerticalLr
+        && input
+            .items
+            .iter()
+            .any(|item| matches!(item, AtomicInlineItem::ForcedLineBreak(_)))
+    {
+        panic!("forced atomic inline breaks are unsupported in vertical-lr layout");
+    }
+
+    let axis_mapping = match input.writing_mode {
+        WritingMode::HorizontalTb => {
+            InlineAxisMapping::new(WritingMode::HorizontalTb, input.direction)
+        }
+        WritingMode::VerticalLr => {
+            InlineAxisMapping::new(WritingMode::HorizontalTb, Direction::Ltr)
+        }
+        WritingMode::VerticalRl => {
+            unreachable!("vertical-rl layout is handled before line construction")
+        }
+    };
 
     let available_width = match input.available_width {
         AvailableOf::Definite(width) => Some(width),
@@ -319,6 +415,7 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
     let mut items = Vec::new();
     let mut first_baseline = None;
     let mut last_baseline = None;
+    let report_inline_extent = lines.iter().map(|line| line.width).fold(S::ZERO, S::max);
 
     for line in lines {
         width = width.max(line.width);
@@ -333,7 +430,12 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
                     items.push(AtomicInlineLayoutItem {
                         kind: AtomicInlineLayoutItemKind::Box,
                         order: item.order,
-                        location: Point::new(x, y + line.baseline - item.baseline()),
+                        location: axis_mapping.physical_item_origin(
+                            LogicalInlinePointOf::new(x, y + line.baseline - item.baseline()),
+                            LogicalInlineSizeOf::new(item.size.width, item.size.height),
+                            LogicalInlineSizeOf::new(report_inline_extent, line_height),
+                            line_height,
+                        ),
                         size: item.size,
                         content_size: item.content_size,
                         margin: item.margin,
@@ -346,7 +448,12 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
                     items.push(AtomicInlineLayoutItem {
                         kind: AtomicInlineLayoutItemKind::ForcedLineBreak,
                         order,
-                        location: Point::new(x, line_baseline),
+                        location: axis_mapping.physical_item_origin(
+                            LogicalInlinePointOf::new(x, line_baseline),
+                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
+                            LogicalInlineSizeOf::new(report_inline_extent, line_height),
+                            line_height,
+                        ),
                         size: Size::ZERO,
                         content_size: Size::ZERO,
                         margin: Edges::ZERO,
@@ -400,25 +507,40 @@ fn layout_vertical_rl_atomic_inline_items<S: LayoutScalar>(
         AvailableOf::Definite(width) => width.max(line_width),
         AvailableOf::MinContent | AvailableOf::MaxContent => line_width,
     };
-    let line_x = (container_width - line_width).max(S::ZERO);
-    let mut y = S::ZERO;
-    let mut layout_items = Vec::with_capacity(items.len());
+    let axis_mapping = InlineAxisMapping::new(WritingMode::VerticalRl, input.direction);
+    let mut logical_inline_extent = S::ZERO;
+    let positioned_items = items
+        .into_iter()
+        .map(|item| {
+            logical_inline_extent = logical_inline_extent + item.margin.top;
+            let logical_inline_start = logical_inline_extent;
+            logical_inline_extent = logical_inline_extent + item.size.height + item.margin.bottom;
+            (item, logical_inline_start)
+        })
+        .collect::<Vec<_>>();
+    let line_size = LogicalInlineSizeOf::new(logical_inline_extent, line_width);
+    let mut layout_items = Vec::with_capacity(positioned_items.len());
     let mut first_baseline = None;
     let mut last_baseline = None;
 
-    for item in items {
-        y = y + item.margin.top;
-        let mut item_x = line_x + line_width - item.margin.right - item.size.width;
-        if item.size.height == S::ZERO {
-            item_x = item_x + item.size.width / S::from_f64(2.0);
-        }
-        let baseline = y + item.baseline();
+    for (item, logical_inline_start) in positioned_items {
+        let logical_block_start = if item.size.height == S::ZERO {
+            item.margin.right - item.size.width / S::from_f64(2.0)
+        } else {
+            item.margin.right
+        };
+        let baseline = logical_inline_start + item.baseline();
         first_baseline.get_or_insert(baseline);
         last_baseline = Some(baseline);
         layout_items.push(AtomicInlineLayoutItem {
             kind: AtomicInlineLayoutItemKind::Box,
             order: item.order,
-            location: Point::new(item_x, y),
+            location: axis_mapping.physical_item_origin(
+                LogicalInlinePointOf::new(logical_inline_start, logical_block_start),
+                LogicalInlineSizeOf::new(item.size.height, item.size.width),
+                line_size,
+                container_width,
+            ),
             size: item.size,
             content_size: item.content_size,
             margin: item.margin,
@@ -426,10 +548,9 @@ fn layout_vertical_rl_atomic_inline_items<S: LayoutScalar>(
             border: item.border,
             scrollbar_size: item.scrollbar_size,
         });
-        y = y + item.size.height + item.margin.bottom;
     }
 
-    let content_size = Size::new(container_width, y);
+    let content_size = Size::new(container_width, logical_inline_extent);
 
     AtomicInlineReport {
         size: content_size,
