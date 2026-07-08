@@ -2934,6 +2934,18 @@ fn input_attrs_with_parent_writing_mode(
         dimension(&style["lineHeight"]),
         Some("10px"),
     );
+    maybe(
+        &mut attrs,
+        "inline-baseline",
+        dimension_or_non_empty_string(&style["inlineBaseline"]),
+        None,
+    );
+    maybe(
+        &mut attrs,
+        "inline-line-height",
+        dimension_or_non_empty_string(&style["inlineLineHeight"]),
+        None,
+    );
     maybe(&mut attrs, "align-items", string(style, "alignItems"), None);
     maybe(&mut attrs, "align-self", string(style, "alignSelf"), None);
     maybe(
@@ -3229,6 +3241,13 @@ fn dimension(value: &Value) -> Option<String> {
             .map(str::to_string),
         _ => None,
     }
+}
+
+fn dimension_or_non_empty_string(value: &Value) -> Option<String> {
+    dimension(value).or_else(|| {
+        let value = value.as_str()?;
+        (!value.is_empty()).then(|| value.to_string())
+    })
 }
 
 fn dimension_list(values: &Value) -> Option<String> {
@@ -3575,6 +3594,14 @@ if (data.unsupportedReason !== expectedReason) {{
 if (data.tagName !== "br") {{
   throw new Error(`expected tagName br, got ${{data.tagName}}`);
 }}
+if (expectedReason === undefined) {{
+  if (data.style.inlineBaseline !== "8px") {{
+    throw new Error(`expected inlineBaseline 8px, got ${{data.style.inlineBaseline}}`);
+  }}
+  if (data.style.inlineLineHeight !== "10px") {{
+    throw new Error(`expected inlineLineHeight 10px, got ${{data.style.inlineLineHeight}}`);
+  }}
+}}
 "#
         )
     }
@@ -3890,6 +3917,57 @@ if (data.tagName !== "br") {{
         let xml = generate_xml("line_height__border_box_ltr", &node);
 
         assert!(xml.contains("    <text display=\"block\" line-height=\"0px\">"));
+    }
+
+    #[test]
+    fn br_inline_metrics_xml_generation_serializes_complete_br_metrics() {
+        let node = json!({
+            "tagName": "br",
+            "useRounding": true,
+            "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+            "style": {
+                "display": "inline",
+                "inlineBaseline": "21px",
+                "inlineLineHeight": "30px",
+            },
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 0, "height": 0, "scrollWidth": 0, "scrollHeight": 0},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 0, "scrollWidth": 0, "scrollHeight": 0},
+            "naivelyRoundedLayout": {"clientWidth": 0, "clientHeight": 0},
+            "children": []
+        });
+
+        let xml = generate_xml("br_inline_metrics__border_box_ltr", &node);
+
+        assert!(xml.contains(
+            "    <div source-tag=\"br\" display=\"inline\" inline-baseline=\"21px\" inline-line-height=\"30px\"/>"
+        ));
+    }
+
+    #[test]
+    fn br_inline_metrics_xml_generation_does_not_infer_metrics_from_text_styles() {
+        let node = json!({
+            "useRounding": true,
+            "viewport": {"width": {"unit": "max-content"}, "height": {"unit": "max-content"}},
+            "style": {
+                "display": "block",
+                "fontSize": {"unit": "px", "value": 20},
+                "lineHeight": {"unit": "px", "value": 30},
+                "inlineBaseline": "",
+                "inlineLineHeight": "",
+            },
+            "textContent": "x",
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 20, "height": 30, "scrollWidth": 20, "scrollHeight": 30},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 20, "height": 30, "scrollWidth": 20, "scrollHeight": 30},
+            "naivelyRoundedLayout": {"clientWidth": 20, "clientHeight": 30},
+            "children": []
+        });
+
+        let xml = generate_xml("non_br_text_styles__border_box_ltr", &node);
+
+        assert!(xml.contains("font-size=\"20px\""));
+        assert!(xml.contains("line-height=\"30px\""));
+        assert!(!xml.contains("inline-baseline"));
+        assert!(!xml.contains("inline-line-height"));
     }
 
     #[test]
@@ -4841,7 +4919,7 @@ if (actual !== expected) {{
     }
 
     #[test]
-    fn bundled_helper_describes_br_as_source_tag_without_measured_box_special_case() {
+    fn br_inline_metrics_bundled_helper_describes_br_with_layout_ready_metrics() {
         assert!(TEST_HELPER_SOURCE.contains("tagName: e.tagName.toLowerCase()"));
         assert!(TEST_HELPER_SOURCE.contains("unsupportedElementReason"));
         assert!(!TEST_HELPER_SOURCE.contains("Unsupported <br> line-break semantics"));
@@ -4853,13 +4931,19 @@ if (actual !== expected) {{
 
         let node = json!({
             "tagName": "br",
-            "style": {"display": "inline"},
+            "style": {
+                "display": "inline",
+                "inlineBaseline": "8px",
+                "inlineLineHeight": "10px",
+            },
         });
         assert_eq!(
             input_attrs(&node),
             vec![
                 ("source-tag", "br".to_string()),
-                ("display", "inline".to_string())
+                ("display", "inline".to_string()),
+                ("inline-baseline", "8px".to_string()),
+                ("inline-line-height", "10px".to_string())
             ]
         );
     }

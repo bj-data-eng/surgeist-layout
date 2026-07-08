@@ -226,6 +226,26 @@ function parseNumber(input) {
   return Number(input);
 }
 
+function parseCssPx(value) {
+  if (!value.endsWith("px")) {
+    throw new Error(`expected computed px value, got ${value}`);
+  }
+  return Number(value.slice(0, -2));
+}
+
+function resolveLineHeightPx(lineHeight, fontSize) {
+  if (lineHeight === "normal") {
+    return fontSize * 1.2;
+  }
+  return parseCssPx(lineHeight);
+}
+
+function estimateInlineBaselinePx(fontSize, lineHeight) {
+  const fontBaseline = fontSize * 0.8;
+  const leading = Math.max(0, lineHeight - fontSize);
+  return leading / 2 + fontBaseline;
+}
+
 function parseRatio(input) {
   if (!input) return undefined;
 
@@ -391,6 +411,19 @@ function parseGridPosition(input) {
   throw new Error(`Unsupported grid placement ${input}`);
 }
 
+function brInlineMetricsForElement(e, computedStyle) {
+  if (e.tagName === 'BR') {
+    const fontSize = parseCssPx(computedStyle.fontSize);
+    const lineHeight = resolveLineHeightPx(computedStyle.lineHeight, fontSize);
+    const baseline = estimateInlineBaselinePx(fontSize, lineHeight);
+    return {
+      baseline: `${baseline}px`,
+      lineHeight: `${lineHeight}px`,
+    };
+  }
+  return undefined;
+}
+
 function describeElement(e, expectedElement = null) {
 
   // Get precise, unrounded dimensions for the current element and it's parent
@@ -409,6 +442,7 @@ function describeElement(e, expectedElement = null) {
     return inlineCalc;
   };
   const children = describeChildNodes(e, expectedElement);
+  const brInlineMetrics = brInlineMetricsForElement(e, computedStyle);
 
   return {
     tagName: e.tagName.toLowerCase(),
@@ -430,6 +464,8 @@ function describeElement(e, expectedElement = null) {
       fontFamily: parseEnum(computedStyle.fontFamily),
       fontSize: parseDimension(computedStyle.fontSize),
       lineHeight: parseDimension(computedStyle.lineHeight),
+      inlineBaseline: brInlineMetrics?.baseline ?? "",
+      inlineLineHeight: brInlineMetrics?.lineHeight ?? "",
 
       flexDirection: parseEnum(styleValue("flexDirection")),
       flexWrap: parseEnum(styleValue("flexWrap")),

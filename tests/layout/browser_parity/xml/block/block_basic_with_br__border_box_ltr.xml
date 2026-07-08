@@ -1,10 +1,10 @@
-<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_basic_with_br.html" source-sha256="3f208d7fc14ea901969d6e10bea96f71efefdd6b0dc78f208364e9e939db5895" helper-sha256="cada32af213d5a049df6eb94837b45766ee1a013f6061180da4bae90011a27a5" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_basic_with_br.html" source-sha256="3f208d7fc14ea901969d6e10bea96f71efefdd6b0dc78f208364e9e939db5895" helper-sha256="9134b0d7819036c763e0ec0b49f7b719ba0bb21175b13068527a9f490d34396b" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
 <test name="block_basic_with_br__border_box_ltr" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
     <div source-tag="div" display="block" direction="ltr" font-size="0px" line-height="0px" width="50px">
       <div source-tag="div" display="flex" direction="ltr" font-size="0px" line-height="0px" height="10px"/>
-      <div source-tag="br" display="inline" direction="ltr" font-size="0px" line-height="0px"/>
+      <div source-tag="br" display="inline" direction="ltr" font-size="0px" line-height="0px" inline-baseline="0px" inline-line-height="0px"/>
       <div source-tag="div" display="flex" direction="ltr" font-size="0px" line-height="0px" height="10px"/>
     </div>
   </input>

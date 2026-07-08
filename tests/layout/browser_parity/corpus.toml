@@ -55,6 +55,20 @@ generator = "constrained-html"
 status = "active"
 
 [[cases]]
+id = "block/block_br_empty_lines_metrics"
+source_root = "surgeist"
+source = "block/block_br_empty_lines_metrics.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_br_inline_block_metrics"
+source_root = "surgeist"
+source = "block/block_br_inline_block_metrics.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
 id = "block/block_border_fixed_size_with_br"
 source_root = "surgeist"
 source = "block/block_border_fixed_size_with_br.html"

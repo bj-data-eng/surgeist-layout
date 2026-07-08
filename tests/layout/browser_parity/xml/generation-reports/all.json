@@ -4,14 +4,14 @@
     "generator": "surgeist-layout-generate",
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
-    "helper_sha256": "cada32af213d5a049df6eb94837b45766ee1a013f6061180da4bae90011a27a5",
+    "helper_sha256": "9134b0d7819036c763e0ec0b49f7b719ba0bb21175b13068527a9f490d34396b",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
-    "corpus_manifest_sha256": "2a525f4afa8e1dac0bca53fbd533d4d2aa38503b51d6bfd1835c5c064f617e5d",
+    "corpus_manifest_sha256": "997f983f4414cbc5c01403e635b4a8a4c0e3e256b036d600a3bc2cb22dc9acf8",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },
   "filter": null,
   "summary": {
-    "generated": 5024,
+    "generated": 5032,
     "unsupported": 356,
     "expected_fail": 0,
     "quarantined": 0,
@@ -1864,6 +1864,54 @@
       "name": "block_border_percentage_intrinsic_size__content_box_rtl",
       "source": "html/block/block_border_percentage_intrinsic_size.html",
       "output": "xml/block/block_border_percentage_intrinsic_size__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_br_empty_lines_metrics__border_box_ltr",
+      "source": "html/block/block_br_empty_lines_metrics.html",
+      "output": "xml/block/block_br_empty_lines_metrics__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_br_empty_lines_metrics__content_box_ltr",
+      "source": "html/block/block_br_empty_lines_metrics.html",
+      "output": "xml/block/block_br_empty_lines_metrics__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_br_empty_lines_metrics__border_box_rtl",
+      "source": "html/block/block_br_empty_lines_metrics.html",
+      "output": "xml/block/block_br_empty_lines_metrics__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_br_empty_lines_metrics__content_box_rtl",
+      "source": "html/block/block_br_empty_lines_metrics.html",
+      "output": "xml/block/block_br_empty_lines_metrics__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_br_inline_block_metrics__border_box_ltr",
+      "source": "html/block/block_br_inline_block_metrics.html",
+      "output": "xml/block/block_br_inline_block_metrics__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_br_inline_block_metrics__content_box_ltr",
+      "source": "html/block/block_br_inline_block_metrics.html",
+      "output": "xml/block/block_br_inline_block_metrics__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_br_inline_block_metrics__border_box_rtl",
+      "source": "html/block/block_br_inline_block_metrics.html",
+      "output": "xml/block/block_br_inline_block_metrics__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_br_inline_block_metrics__content_box_rtl",
+      "source": "html/block/block_br_inline_block_metrics.html",
+      "output": "xml/block/block_br_inline_block_metrics__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {

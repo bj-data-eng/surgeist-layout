@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_br_inline_block_metrics.html" source-sha256="f3b6993d8b99568915733e21f5a5ad4e3405a8954bf2f29d855bdc6edaaa33cc" helper-sha256="9134b0d7819036c763e0ec0b49f7b719ba0bb21175b13068527a9f490d34396b" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_br_inline_block_metrics__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" font-size="20px" line-height="30px" width="120px">
+      <div source-tag="span" display="inline-block" direction="rtl" font-size="20px" line-height="30px" width="10px" height="10px"/>
+      <div source-tag="br" display="inline" direction="rtl" font-size="20px" line-height="30px" inline-baseline="21px" inline-line-height="30px"/>
+      <div source-tag="span" display="inline-block" direction="rtl" font-size="20px" line-height="30px" width="10px" height="10px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="120" height="60">
+      <node x="110" y="11" width="10" height="10"/>
+      <node x="110" y="5" width="0" height="20"/>
+      <node x="110" y="41" width="10" height="10"/>
+    </node>
+  </expectations>
+</test>
