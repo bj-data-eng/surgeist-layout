@@ -176,8 +176,10 @@ For a forced line break:
 - `Clear::None` does not alter line placement.
 - `Clear::Left`, `Clear::Right`, and `Clear::Both` participate in the same
   float exclusion and clearance model used by block flow layout.
-- Clearance applies before placing the line affected by the forced break, so the
-  break and following line construction occur after the relevant floats.
+- Clearance applies after committing the line that contains the forced break and
+  before placing the following line. The forced break's zero-size output remains
+  at its insertion point in the committed line; following line construction
+  occurs after the relevant floats.
 - In vertical writing modes, clearance must be evaluated through the layout
   engine's physical float side model, then translated back into the logical line
   origin used by the inline formatting context.
