@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use crate::{
     AvailableOf, CalcResolutionStatus, CalcResolver, Compute, ComputeInputOf, ComputeOutputOf,
     DefaultScalar, DimensionOf, Display, LayoutCalcStoreOf, LayoutInputOf, LayoutScalar,
-    LineBreakInput, NodeInput, NodeInputOf, NodeOutput, NodeOutputOf, RequestedAxis, Round,
-    RunMode, Size, SizingMode, Traverse, compute_block, compute_flex, compute_grid,
+    LineBreakInput, LineBreakInputOf, NodeInput, NodeInputOf, NodeOutput, NodeOutputOf,
+    RequestedAxis, Round, RunMode, Size, SizingMode, Traverse, compute_block, compute_flex,
+    compute_grid,
 };
 
 pub type OracleTree = OracleTreeOf<DefaultScalar>;
@@ -108,7 +109,7 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
         self
     }
 
-    pub fn line_break(mut self, node: u32, input: LineBreakInput) -> Self {
+    pub fn line_break(mut self, node: u32, input: LineBreakInputOf<S>) -> Self {
         self.layout_inputs
             .insert(node, LayoutInputOf::LineBreak(input));
         self

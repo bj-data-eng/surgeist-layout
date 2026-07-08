@@ -217,6 +217,23 @@ fn line_break_input_defaults_to_visible_horizontal_break_context() {
 }
 
 #[test]
+fn line_break_input_carries_inline_metrics() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 15.0).unwrap();
+    let input = LineBreakInput::new().with_metrics(metrics);
+
+    assert_eq!(input.metrics(), metrics);
+    assert_eq!(input.metrics().line_extent(), 20.0);
+}
+
+#[test]
+fn line_break_input_supports_f64_metrics() {
+    let metrics = InlineMetricsOf::<f64>::from_line_height_and_baseline(32.0, 25.0).unwrap();
+    let input = LineBreakInputOf::<f64>::new().with_metrics(metrics);
+
+    assert_eq!(input.metrics().baseline(), 25.0);
+}
+
+#[test]
 fn inline_metrics_validate_line_box_invariants() {
     let metrics = InlineMetrics::try_new(12.0, 18.0).unwrap();
 

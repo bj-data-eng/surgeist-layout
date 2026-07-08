@@ -267,27 +267,28 @@ fn validate_non_negative_finite<S: LayoutScalar>(value: S) -> Result<(), InlineM
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct LineBreakInput {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LineBreakInputOf<S: LayoutScalar = DefaultScalar> {
     display: LineBreakDisplay,
     direction: Direction,
     writing_mode: WritingMode,
     vertical_align: VerticalAlign,
     clear: Clear,
+    metrics: InlineMetricsOf<S>,
 }
 
-impl LineBreakInput {
-    pub const DEFAULT: Self = Self {
-        display: LineBreakDisplay::Break,
-        direction: Direction::Ltr,
-        writing_mode: WritingMode::HorizontalTb,
-        vertical_align: VerticalAlign::Baseline,
-        clear: Clear::None,
-    };
+pub type LineBreakInput = LineBreakInputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> LineBreakInputOf<S> {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     #[must_use]
-    pub const fn new() -> Self {
-        Self::DEFAULT
+    pub const fn with_metrics(mut self, metrics: InlineMetricsOf<S>) -> Self {
+        self.metrics = metrics;
+        self
     }
 
     #[must_use]
@@ -344,11 +345,23 @@ impl LineBreakInput {
     pub const fn clear(self) -> Clear {
         self.clear
     }
+
+    #[must_use]
+    pub const fn metrics(self) -> InlineMetricsOf<S> {
+        self.metrics
+    }
 }
 
-impl Default for LineBreakInput {
+impl<S: LayoutScalar> Default for LineBreakInputOf<S> {
     fn default() -> Self {
-        Self::DEFAULT
+        Self {
+            display: LineBreakDisplay::Break,
+            direction: Direction::Ltr,
+            writing_mode: WritingMode::HorizontalTb,
+            vertical_align: VerticalAlign::Baseline,
+            clear: Clear::None,
+            metrics: InlineMetricsOf::default(),
+        }
     }
 }
 
@@ -887,7 +900,7 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum LayoutInputOf<S: LayoutScalar = DefaultScalar> {
     Box(std::boxed::Box<NodeInputOf<S>>),
-    LineBreak(LineBreakInput),
+    LineBreak(LineBreakInputOf<S>),
 }
 
 pub type LayoutInput = LayoutInputOf<DefaultScalar>;
@@ -899,7 +912,7 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
     }
 
     #[must_use]
-    pub const fn line_break(input: LineBreakInput) -> Self {
+    pub const fn line_break(input: LineBreakInputOf<S>) -> Self {
         Self::LineBreak(input)
     }
 
@@ -912,7 +925,7 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
     }
 
     #[must_use]
-    pub const fn as_line_break(&self) -> Option<LineBreakInput> {
+    pub const fn as_line_break(&self) -> Option<LineBreakInputOf<S>> {
         match self {
             Self::Box(_) => None,
             Self::LineBreak(input) => Some(*input),

@@ -49,8 +49,8 @@ pub use node_input::{
     AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexWrap, Float,
     GridAutoFlow, GridFlowTolerance, GridFlowToleranceOf, GridPlacement, InlineMetrics,
     InlineMetricsError, InlineMetricsOf, LayoutInput, LayoutInputOf, LineBreakDisplay,
-    LineBreakInput, NodeInput, NodeInputOf, Overflow, Position, RawGridLine, RawGridPlacement,
-    TextAlign, VerticalAlign, WritingMode,
+    LineBreakInput, LineBreakInputOf, NodeInput, NodeInputOf, Overflow, Position, RawGridLine,
+    RawGridPlacement, TextAlign, VerticalAlign, WritingMode,
 };
 pub use output::{
     Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, ComputeInput, ComputeInputOf,
