@@ -29,3 +29,10 @@ this crate.
 `surgeist-layout` exposes layout-ready contracts rather than authored CSS syntax.
 Public placement, aspect ratio, track repetition, lane, and calc values preserve
 their invariants through typed constructors and resolver-aware APIs.
+
+## Inline Metrics Contract
+
+`InlineMetricsOf<S>` is layout-ready line box data. Layout consumes it for inline
+line construction and does not derive it from authored CSS or fonts. Integration
+layers should provide metrics from computed style and text/font measurement
+before constructing `LineBreakInputOf<S>`.
