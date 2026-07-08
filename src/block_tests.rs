@@ -491,6 +491,61 @@ fn block_atomic_inline_run_honors_line_break_child() {
 }
 
 #[test]
+fn block_line_break_conversion_with_metadata_preserves_current_output() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(24.0, 18.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                direction: Direction::Rtl,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            2,
+            LineBreakInput::new()
+                .with_direction(Direction::Rtl)
+                .with_writing_mode(WritingMode::HorizontalTb)
+                .with_vertical_align(VerticalAlign::Top)
+                .with_clear(Clear::Both)
+                .with_metrics(metrics),
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.inputs(2), &[]);
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(80.0, 18.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 36.0));
+}
+
+#[test]
 fn block_line_break_metrics_create_empty_line_height() {
     let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 15.0).unwrap();
     let mut tree = crate::test_support::layout_tree::OracleTree::new()

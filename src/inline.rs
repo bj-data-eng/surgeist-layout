@@ -1,5 +1,6 @@
 use super::{
-    AvailableOf, DefaultScalar, Edges, InlineMetricsOf, LayoutScalar, Point, Size, WritingMode,
+    AvailableOf, Clear, DefaultScalar, Direction, Edges, InlineMetricsOf, LayoutScalar, Point,
+    Size, VerticalAlign, WritingMode,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -19,6 +20,123 @@ pub(super) struct AtomicInlineBoxItem<S: LayoutScalar = DefaultScalar> {
     pub border: Edges<S>,
     pub scrollbar_size: Size<S>,
     pub first_baseline: Option<S>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct InlineFlowOf<S: LayoutScalar = DefaultScalar> {
+    writing_mode: WritingMode,
+    direction: Direction,
+    available_inline_extent: AvailableOf<S>,
+}
+
+impl<S: LayoutScalar> InlineFlowOf<S> {
+    #[must_use]
+    pub(super) const fn new(
+        writing_mode: WritingMode,
+        direction: Direction,
+        available_inline_extent: AvailableOf<S>,
+    ) -> Self {
+        Self {
+            writing_mode,
+            direction,
+            available_inline_extent,
+        }
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn writing_mode(self) -> WritingMode {
+        self.writing_mode
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn direction(self) -> Direction {
+        self.direction
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn available_inline_extent(self) -> AvailableOf<S> {
+        self.available_inline_extent
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum InlineControlAlignment {
+    Baseline,
+    Top,
+}
+
+impl From<VerticalAlign> for InlineControlAlignment {
+    fn from(value: VerticalAlign) -> Self {
+        match value {
+            VerticalAlign::Baseline => Self::Baseline,
+            VerticalAlign::Top => Self::Top,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ForcedLineBreakControlOf<S: LayoutScalar = DefaultScalar> {
+    order: u32,
+    flow: InlineFlowOf<S>,
+    metrics: InlineMetricsOf<S>,
+    alignment: InlineControlAlignment,
+    clear: Clear,
+}
+
+impl<S: LayoutScalar> ForcedLineBreakControlOf<S> {
+    #[must_use]
+    pub(super) const fn new(
+        order: u32,
+        flow: InlineFlowOf<S>,
+        metrics: InlineMetricsOf<S>,
+        alignment: InlineControlAlignment,
+        clear: Clear,
+    ) -> Self {
+        Self {
+            order,
+            flow,
+            metrics,
+            alignment,
+            clear,
+        }
+    }
+
+    #[must_use]
+    pub(super) const fn order(self) -> u32 {
+        self.order
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn flow(self) -> InlineFlowOf<S> {
+        self.flow
+    }
+
+    #[must_use]
+    pub(super) const fn metrics(self) -> InlineMetricsOf<S> {
+        self.metrics
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn alignment(self) -> InlineControlAlignment {
+        self.alignment
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn clear(self) -> Clear {
+        self.clear
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum InlineControlItemOf<S: LayoutScalar = DefaultScalar> {
+    ForcedLineBreak(ForcedLineBreakControlOf<S>),
 }
 
 impl<S: LayoutScalar> AtomicInlineItem<S> {
@@ -43,8 +161,8 @@ impl<S: LayoutScalar> AtomicInlineItem<S> {
 
     #[allow(dead_code)]
     #[must_use]
-    pub(super) const fn forced_line_break(order: u32, metrics: InlineMetricsOf<S>) -> Self {
-        Self::ForcedLineBreak { order, metrics }
+    pub(super) const fn forced_line_break(control: ForcedLineBreakControlOf<S>) -> Self {
+        Self::ForcedLineBreak(control)
     }
 }
 
@@ -52,10 +170,7 @@ impl<S: LayoutScalar> AtomicInlineItem<S> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum AtomicInlineItem<S: LayoutScalar = DefaultScalar> {
     Box(AtomicInlineBoxItem<S>),
-    ForcedLineBreak {
-        order: u32,
-        metrics: InlineMetricsOf<S>,
-    },
+    ForcedLineBreak(ForcedLineBreakControlOf<S>),
 }
 
 impl<S: LayoutScalar> AtomicInlineBoxItem<S> {
@@ -141,11 +256,12 @@ impl<S: LayoutScalar> InlineLine<S> {
         self.width = self.width + item.advance();
     }
 
-    fn push_forced_line_break(&mut self, order: u32, metrics: InlineMetricsOf<S>) {
+    fn push_forced_line_break(&mut self, control: ForcedLineBreakControlOf<S>) {
+        let metrics = control.metrics();
         self.baseline = self.baseline.max(metrics.baseline());
         self.descent = self.descent.max(metrics.after_baseline());
         self.items.push(PendingInlineItem::ForcedLineBreak {
-            order,
+            order: control.order(),
             x: self.width,
         });
     }
@@ -186,8 +302,8 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
 
                 line.push_box(item);
             }
-            AtomicInlineItem::ForcedLineBreak { order, metrics } => {
-                line.push_forced_line_break(order, metrics);
+            AtomicInlineItem::ForcedLineBreak(control) => {
+                line.push_forced_line_break(control);
                 lines.push(line);
                 line = InlineLine::<S>::default();
             }
@@ -271,7 +387,7 @@ fn layout_vertical_rl_atomic_inline_items<S: LayoutScalar>(
         .into_iter()
         .map(|item| match item {
             AtomicInlineItem::Box(item) => item,
-            AtomicInlineItem::ForcedLineBreak { .. } => {
+            AtomicInlineItem::ForcedLineBreak(_) => {
                 unreachable!("forced atomic inline breaks are unsupported in vertical-rl layout")
             }
         })
@@ -330,7 +446,7 @@ pub(super) fn atomic_inline_min_content_width<S: LayoutScalar>(items: &[AtomicIn
         .iter()
         .filter_map(|item| match item {
             AtomicInlineItem::Box(item) => Some(item.advance()),
-            AtomicInlineItem::ForcedLineBreak { .. } => None,
+            AtomicInlineItem::ForcedLineBreak(_) => None,
         })
         .fold(S::ZERO, S::max)
 }
@@ -345,7 +461,7 @@ pub(super) fn atomic_inline_max_content_width<S: LayoutScalar>(items: &[AtomicIn
             AtomicInlineItem::Box(item) => {
                 segment_width = segment_width + item.advance();
             }
-            AtomicInlineItem::ForcedLineBreak { .. } => {
+            AtomicInlineItem::ForcedLineBreak(_) => {
                 max_width = max_width.max(segment_width);
                 segment_width = S::ZERO;
             }

@@ -2,15 +2,15 @@ use std::collections::BTreeMap;
 
 use super::inline::{
     AtomicInlineBoxItem, AtomicInlineInput, AtomicInlineItem, AtomicInlineLayoutItem,
-    layout_atomic_inline_items,
+    ForcedLineBreakControlOf, InlineControlAlignment, InlineFlowOf, layout_atomic_inline_items,
 };
 use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, CalcResolutionOf, CalcResolutionStatus,
     CalcResolver, Clear, CollapsibleMarginOf, Compute, ComputeInputOf, ComputeOutputOf,
     DimensionOf, Direction, Edges, Float, LayoutInputOf, LayoutScalar, LengthAutoOf, LengthOf,
-    NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode,
-    TextAlign, Traverse, VerticalAlign, WritingMode,
+    LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode,
+    Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 
 pub fn compute_block<Tree>(
@@ -766,6 +766,24 @@ struct AtomicInlineRunContext<'a, S: LayoutScalar> {
     set_layout: bool,
 }
 
+fn forced_line_break_control<S: LayoutScalar>(
+    order: u32,
+    input: LineBreakInputOf<S>,
+    available_inline_extent: AvailableOf<S>,
+) -> ForcedLineBreakControlOf<S> {
+    ForcedLineBreakControlOf::new(
+        order,
+        InlineFlowOf::new(
+            input.writing_mode(),
+            input.direction(),
+            available_inline_extent,
+        ),
+        input.metrics(),
+        InlineControlAlignment::from(input.vertical_align()),
+        input.clear(),
+    )
+}
+
 enum AtomicInlineRunChild<Node, S: LayoutScalar> {
     Box {
         child: Node,
@@ -803,19 +821,28 @@ where
         let order = order_start + offset as u32;
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
-            LayoutInputOf::LineBreak(input) => {
-                if input.display().is_none() {
+            LayoutInputOf::LineBreak(line_break) => {
+                if line_break.display().is_none() {
                     if set_layout {
                         tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order));
                     }
                     continue;
                 }
-                if input.writing_mode() != WritingMode::HorizontalTb {
+                if line_break.writing_mode() != WritingMode::HorizontalTb {
                     panic!("vertical line-break layout is not implemented");
                 }
 
                 run_children.push(AtomicInlineRunChild::LineBreak { child, order });
-                items.push(AtomicInlineItem::forced_line_break(order, input.metrics()));
+                items.push(AtomicInlineItem::forced_line_break(
+                    forced_line_break_control(
+                        order,
+                        line_break,
+                        node_inner_size
+                            .width
+                            .map(AvailableOf::<S>::definite)
+                            .unwrap_or(input.available.width),
+                    ),
+                ));
                 continue;
             }
         };
