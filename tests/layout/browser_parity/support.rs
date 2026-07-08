@@ -1021,6 +1021,9 @@ fn to_layout_input(
         if input.display == layout::Display::None {
             br = br.hidden();
         }
+        if let Some(metrics) = inline_metrics(attrs)? {
+            br = br.with_metrics(metrics);
+        }
         Ok(layout::LayoutInput::line_break(br))
     } else {
         Ok(layout::LayoutInput::box_input(input))
@@ -1266,6 +1269,26 @@ fn line_height(attrs: &StyleAttrs) -> Result<Option<Scalar>, Error> {
     match attrs.get("line-height") {
         Some(value) => Ok(Some(parse_px_dimension(value, "line-height")?)),
         None => Ok(None),
+    }
+}
+
+fn inline_metrics(attrs: &StyleAttrs) -> Result<Option<layout::InlineMetrics>, Error> {
+    match (
+        attrs.get("inline-baseline"),
+        attrs.get("inline-line-height"),
+    ) {
+        (None, None) => Ok(None),
+        (Some(baseline), Some(line_height)) => {
+            layout::InlineMetrics::from_line_height_and_baseline(
+                parse_px_dimension(line_height, "inline-line-height")?,
+                parse_px_dimension(baseline, "inline-baseline")?,
+            )
+            .map(Some)
+            .map_err(|error| Error::new(format!("{error:?}")))
+        }
+        _ => Err(Error::new(
+            "inline metrics require inline-baseline and inline-line-height",
+        )),
     }
 }
 
@@ -2397,6 +2420,47 @@ mod tests {
             panic!("br should lower to line break");
         };
         assert_eq!(input.display(), layout::LineBreakDisplay::None);
+    }
+
+    #[test]
+    fn source_tag_br_lowers_explicit_inline_metrics() {
+        let input = to_layout_input(
+            &StyleAttrs {
+                attrs: BTreeMap::from([
+                    ("source-tag".to_string(), "br".to_string()),
+                    ("inline-baseline".to_string(), "15px".to_string()),
+                    ("inline-line-height".to_string(), "20px".to_string()),
+                ]),
+            },
+            &mut layout::LayoutCalcStore::new(),
+        )
+        .expect("source-tag br with inline metrics should lower");
+
+        let layout::LayoutInput::LineBreak(input) = input else {
+            panic!("br should lower to line break");
+        };
+        assert_eq!(input.metrics().baseline(), 15.0);
+        assert_eq!(input.metrics().line_extent(), 20.0);
+        assert_eq!(input.metrics().after_baseline(), 5.0);
+    }
+
+    #[test]
+    fn source_tag_br_rejects_partial_inline_metrics() {
+        let error = to_layout_input(
+            &StyleAttrs {
+                attrs: BTreeMap::from([
+                    ("source-tag".to_string(), "br".to_string()),
+                    ("inline-baseline".to_string(), "15px".to_string()),
+                ]),
+            },
+            &mut layout::LayoutCalcStore::new(),
+        )
+        .expect_err("partial inline metrics should be rejected");
+
+        assert!(
+            error.to_string().contains("inline metrics require"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

@@ -18,6 +18,10 @@ parity inputs: `calc(<number>px +/- <number>%)`. This is fixture syntax only;
 app-facing CSS parsing remains owned by integration layers outside this
 layout-ready fixture harness.
 
+Inline metrics attributes are layout-ready fixture data. They are not CSS
+syntax. Root/style/text integration is expected to generate them from computed
+style and text/font metrics later.
+
 Run checked-in fixtures:
 
 ```sh
