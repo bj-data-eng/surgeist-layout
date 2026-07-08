@@ -8,9 +8,9 @@ use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, CalcResolutionOf, CalcResolutionStatus,
     CalcResolver, Clear, CollapsibleMarginOf, Compute, ComputeInputOf, ComputeOutputOf,
-    DimensionOf, Direction, Edges, Float, InlineMetricsOf, LayoutInputOf, LayoutScalar,
-    LengthAutoOf, LengthOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis,
-    RunMode, Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    DimensionOf, Direction, Edges, Float, LayoutInputOf, LayoutScalar, LengthAutoOf, LengthOf,
+    NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode,
+    TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 
 pub fn compute_block<Tree>(
@@ -815,13 +815,7 @@ where
                 }
 
                 run_children.push(AtomicInlineRunChild::LineBreak { child, order });
-                items.push(AtomicInlineItem::forced_line_break(
-                    order,
-                    // Task 3 compile bridge only: Task 4 will pass
-                    // `LineBreakInputOf<S>::metrics()` through block layout.
-                    InlineMetricsOf::<S>::try_new(S::ZERO, S::ZERO)
-                        .expect("zero inline metrics are valid"),
-                ));
+                items.push(AtomicInlineItem::forced_line_break(order, input.metrics()));
                 continue;
             }
         };

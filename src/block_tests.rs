@@ -477,17 +477,52 @@ fn block_atomic_inline_run_honors_line_break_child() {
     );
     round_layout(&mut tree, 0);
 
-    assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 2.0));
     assert_eq!(
         tree.final_layout(2).unwrap().location,
-        Point::new(20.0, 10.0)
+        Point::new(20.0, 12.0)
     );
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(0.0, 10.0)
+        Point::new(0.0, 16.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 22.0));
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 28.0));
+}
+
+#[test]
+fn block_line_break_metrics_create_empty_line_height() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 15.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                ..NodeInput::default()
+            },
+        )
+        .children(0, [1, 2])
+        .line_break(1, LineBreakInput::new().with_metrics(metrics))
+        .line_break(2, LineBreakInput::new().with_metrics(metrics));
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::NONE,
+            available: Size::splat(Available::MAX_CONTENT),
+        },
+    );
+
+    assert_eq!(output.size.height, 40.0);
+    assert_eq!(output.first_baselines.y, Some(15.0));
+    assert_eq!(output.last_baselines.y, Some(35.0));
+    assert_eq!(tree.layout(1).unwrap().location.y, 15.0);
+    assert_eq!(tree.layout(2).unwrap().location.y, 35.0);
 }
 
 #[test]
@@ -1124,16 +1159,16 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
-        Point::new(80.0, 0.0)
+        Point::new(80.0, 2.0)
     );
     assert_eq!(
         tree.final_layout(2).unwrap().location,
-        Point::new(80.0, 10.0)
+        Point::new(80.0, 12.0)
     );
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(70.0, 10.0)
+        Point::new(70.0, 16.0)
     );
 }
 
