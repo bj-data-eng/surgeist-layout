@@ -379,14 +379,78 @@ where
                     index += 1;
                     continue;
                 }
-                if input.writing_mode() != WritingMode::HorizontalTb {
-                    panic!("vertical line-break layout is not implemented");
-                }
+                visible_horizontal_line_break(tree, children[index]);
             }
         }
         index += 1;
     }
     index
+}
+
+fn visible_horizontal_line_break<Tree>(
+    tree: &Tree,
+    child: <Tree as Traverse>::Node,
+) -> Option<LineBreakInputOf<<Tree as Traverse>::Scalar>>
+where
+    Tree: Compute,
+{
+    let LayoutInputOf::LineBreak(line_break) = tree.layout_input(child) else {
+        return None;
+    };
+    if line_break.display().is_none() {
+        return None;
+    }
+    if line_break.writing_mode() != WritingMode::HorizontalTb {
+        panic!("vertical line-break layout is not implemented");
+    }
+    Some(line_break)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct AtomicInlineClearCandidate {
+    end: usize,
+    clear: Clear,
+}
+
+fn next_atomic_inline_clear_candidate<Tree>(
+    tree: &Tree,
+    children: &[<Tree as Traverse>::Node],
+    start: usize,
+    run_end: usize,
+) -> Option<AtomicInlineClearCandidate>
+where
+    Tree: Compute,
+{
+    for (index, child) in children
+        .iter()
+        .copied()
+        .enumerate()
+        .take(run_end)
+        .skip(start)
+    {
+        if let Some(line_break) = visible_horizontal_line_break(tree, child) {
+            let clear = line_break.clear();
+            if clear != Clear::None {
+                return Some(AtomicInlineClearCandidate {
+                    end: index + 1,
+                    clear,
+                });
+            }
+        }
+    }
+    None
+}
+
+fn atomic_inline_run_contains_clear<Tree>(
+    tree: &Tree,
+    children: &[<Tree as Traverse>::Node],
+    run_start: usize,
+    run_end: usize,
+) -> bool
+where
+    Tree: Compute,
+{
+    next_atomic_inline_clear_candidate(tree, children, run_start, run_end).is_some()
 }
 
 fn layout_in_flow_children<Tree, S>(
@@ -437,9 +501,7 @@ where
                     index += 1;
                     continue;
                 }
-                if line_break.writing_mode() != WritingMode::HorizontalTb {
-                    panic!("vertical line-break layout is not implemented");
-                }
+                visible_horizontal_line_break(tree, child);
 
                 let run_start = index;
                 index = atomic_inline_run_end(tree, children, index + 1);
@@ -450,9 +512,11 @@ where
                     is_collapsing_first_margin = false;
                 }
 
-                let placement = layout_atomic_inline_run(
+                let placement = layout_atomic_inline_run_with_clear(
                     tree,
-                    &children[run_start..index],
+                    children,
+                    run_start,
+                    index,
                     AtomicInlineRunContext {
                         order_start: run_start as u32,
                         cursor_y,
@@ -461,6 +525,7 @@ where
                         node_inner_size,
                         set_layout,
                     },
+                    &float_exclusions,
                 );
                 content_size.width = content_size.width.max(placement.content_size.width);
                 content_size.height = content_size.height.max(placement.content_size.height);
@@ -506,9 +571,11 @@ where
                 is_collapsing_first_margin = false;
             }
 
-            let placement = layout_atomic_inline_run(
+            let placement = layout_atomic_inline_run_with_clear(
                 tree,
-                &children[run_start..index],
+                children,
+                run_start,
+                index,
                 AtomicInlineRunContext {
                     order_start: run_start as u32,
                     cursor_y,
@@ -517,6 +584,7 @@ where
                     node_inner_size,
                     set_layout,
                 },
+                &float_exclusions,
             );
             content_size.width = content_size.width.max(placement.content_size.width);
             content_size.height = content_size.height.max(placement.content_size.height);
@@ -766,6 +834,15 @@ struct AtomicInlineRunContext<'a, S: LayoutScalar> {
     set_layout: bool,
 }
 
+struct AtomicInlineSegmentsContext<'a, S: LayoutScalar> {
+    order_start: u32,
+    cursor_y: S,
+    constants: &'a Constants<S>,
+    input: ComputeInputOf<S>,
+    node_inner_size: Size<Option<S>>,
+    set_layout: bool,
+}
+
 fn forced_line_break_control<S: LayoutScalar>(
     order: u32,
     input: LineBreakInputOf<S>,
@@ -795,6 +872,132 @@ enum AtomicInlineRunChild<Node, S: LayoutScalar> {
         child: Node,
         order: u32,
     },
+}
+
+fn layout_atomic_inline_segments<Tree, S>(
+    tree: &mut Tree,
+    run: &[<Tree as Traverse>::Node],
+    context: AtomicInlineSegmentsContext<'_, S>,
+    float_exclusions: &FloatExclusions<S>,
+) -> InlineRunPlacement<<Tree as Traverse>::Node, S>
+where
+    Tree: Compute<Scalar = S>,
+    S: LayoutScalar,
+{
+    let AtomicInlineSegmentsContext {
+        order_start,
+        mut cursor_y,
+        constants,
+        input,
+        node_inner_size,
+        set_layout,
+    } = context;
+    let mut offset = 0;
+    let mut content_size: Size<S> = Size::ZERO;
+    let mut static_positions = Vec::new();
+    let mut first_baseline = None;
+    let mut last_baseline = None;
+    let start_y = cursor_y;
+
+    while offset < run.len() {
+        let mut segment_end = run.len();
+        let mut segment_clear = Clear::None;
+        let mut scan_start = offset;
+        while let Some(candidate) =
+            next_atomic_inline_clear_candidate(tree, run, scan_start, run.len())
+        {
+            let probe = layout_atomic_inline_run(
+                tree,
+                &run[offset..candidate.end],
+                AtomicInlineRunContext {
+                    order_start: order_start + offset as u32,
+                    cursor_y,
+                    constants,
+                    input,
+                    node_inner_size,
+                    set_layout: false,
+                },
+            );
+            let segment_bottom = cursor_y + probe.size.height;
+            if float_exclusions.clearance_y(segment_bottom, candidate.clear) > segment_bottom {
+                segment_end = candidate.end;
+                segment_clear = candidate.clear;
+                break;
+            }
+            scan_start = candidate.end;
+        }
+
+        let placement = layout_atomic_inline_run(
+            tree,
+            &run[offset..segment_end],
+            AtomicInlineRunContext {
+                order_start: order_start + offset as u32,
+                cursor_y,
+                constants,
+                input,
+                node_inner_size,
+                set_layout,
+            },
+        );
+
+        content_size.width = content_size.width.max(placement.content_size.width);
+        content_size.height = content_size.height.max(placement.content_size.height);
+        static_positions.extend(placement.static_positions);
+        if let Some(baseline) = placement.first_baseline {
+            first_baseline.get_or_insert(cursor_y - start_y + baseline);
+        }
+        if let Some(baseline) = placement.last_baseline {
+            last_baseline = Some(cursor_y - start_y + baseline);
+        }
+
+        cursor_y = cursor_y + placement.size.height;
+        if segment_clear != Clear::None {
+            cursor_y = float_exclusions.clearance_y(cursor_y, segment_clear);
+            content_size.height = content_size
+                .height
+                .max(cursor_y - constants.content_box_inset.top);
+        }
+        offset = segment_end;
+    }
+
+    InlineRunPlacement {
+        size: Size::new(content_size.width, cursor_y - start_y),
+        content_size,
+        static_positions,
+        first_baseline,
+        last_baseline,
+    }
+}
+
+fn layout_atomic_inline_run_with_clear<Tree, S>(
+    tree: &mut Tree,
+    children: &[<Tree as Traverse>::Node],
+    run_start: usize,
+    run_end: usize,
+    context: AtomicInlineRunContext<'_, S>,
+    float_exclusions: &FloatExclusions<S>,
+) -> InlineRunPlacement<<Tree as Traverse>::Node, S>
+where
+    Tree: Compute<Scalar = S>,
+    S: LayoutScalar,
+{
+    if !atomic_inline_run_contains_clear(tree, children, run_start, run_end) {
+        return layout_atomic_inline_run(tree, &children[run_start..run_end], context);
+    }
+
+    layout_atomic_inline_segments(
+        tree,
+        &children[run_start..run_end],
+        AtomicInlineSegmentsContext {
+            order_start: context.order_start,
+            cursor_y: context.cursor_y,
+            constants: context.constants,
+            input: context.input,
+            node_inner_size: context.node_inner_size,
+            set_layout: context.set_layout,
+        },
+        float_exclusions,
+    )
 }
 
 fn layout_atomic_inline_run<Tree, S>(
@@ -828,9 +1031,7 @@ where
                     }
                     continue;
                 }
-                if line_break.writing_mode() != WritingMode::HorizontalTb {
-                    panic!("vertical line-break layout is not implemented");
-                }
+                let line_break = visible_horizontal_line_break(tree, child).unwrap();
 
                 run_children.push(AtomicInlineRunChild::LineBreak { child, order });
                 items.push(AtomicInlineItem::forced_line_break(

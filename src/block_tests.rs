@@ -704,6 +704,397 @@ fn vertical_line_break_panics_until_modeled() {
     );
 }
 
+fn inline_break_clear_tree(
+    clear: Clear,
+    float_side: Float,
+) -> crate::test_support::layout_tree::OracleTree {
+    let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
+    crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3, 4])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                float: float_side,
+                size: Size::new(Dimension::px(80.0), Dimension::px(50.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            3,
+            LineBreakInput::new()
+                .with_clear(clear)
+                .with_metrics(metrics),
+        )
+        .style(
+            4,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+}
+
+#[test]
+fn line_break_clear_left_moves_following_inline_segment_below_left_float() {
+    let mut tree = inline_break_clear_tree(Clear::Left, Float::Left);
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(20.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(3).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(0.0, 50.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 60.0));
+}
+
+#[test]
+fn line_break_clear_right_moves_following_inline_segment_below_right_float() {
+    let mut tree = inline_break_clear_tree(Clear::Right, Float::Right);
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(0.0, 50.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 60.0));
+}
+
+#[test]
+fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3, 4, 5])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                float: Float::Left,
+                size: Size::new(Dimension::px(60.0), Dimension::px(30.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                float: Float::Right,
+                size: Size::new(Dimension::px(60.0), Dimension::px(70.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            4,
+            LineBreakInput::new()
+                .with_clear(Clear::Both)
+                .with_metrics(metrics),
+        )
+        .style(
+            5,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(3).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.final_layout(5).unwrap().location,
+        Point::new(0.0, 70.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 80.0));
+}
+
+#[test]
+fn line_break_clear_at_run_end_moves_following_block_below_float() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3, 4])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                float: Float::Left,
+                size: Size::new(Dimension::px(80.0), Dimension::px(50.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            3,
+            LineBreakInput::new()
+                .with_clear(Clear::Left)
+                .with_metrics(metrics),
+        )
+        .style(
+            4,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(25.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(0.0, 50.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 60.0));
+}
+
+#[test]
+fn line_break_clear_left_ignores_right_float_and_preserves_alignment() {
+    let mut tree = inline_break_clear_tree(Clear::Left, Float::Right).style(
+        0,
+        NodeInput {
+            display: Display::Block,
+            text_align: TextAlign::LegacyRight,
+            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            ..NodeInput::DEFAULT
+        },
+    );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(180.0, 0.0)
+    );
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(200.0, 10.0)
+    );
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(180.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
+}
+
+#[test]
+fn line_break_clear_right_ignores_left_float_and_preserves_alignment() {
+    let mut tree = inline_break_clear_tree(Clear::Right, Float::Left).style(
+        0,
+        NodeInput {
+            display: Display::Block,
+            text_align: TextAlign::LegacyCenter,
+            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            ..NodeInput::DEFAULT
+        },
+    );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(90.0, 0.0)
+    );
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(110.0, 10.0)
+    );
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(90.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
+}
+
+#[test]
+fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3, 4])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                text_align: TextAlign::LegacyRight,
+                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                float: Float::Left,
+                size: Size::new(Dimension::px(80.0), Dimension::px(5.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            3,
+            LineBreakInput::new()
+                .with_clear(Clear::Left)
+                .with_metrics(metrics),
+        )
+        .style(
+            4,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(180.0, 0.0)
+    );
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(200.0, 10.0)
+    );
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(180.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
+}
+
+#[test]
+fn line_break_clear_none_preserves_existing_single_run_layout_near_float() {
+    let mut tree = inline_break_clear_tree(Clear::None, Float::Left);
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(200.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(20.0, 10.0)
+    );
+    assert_eq!(
+        tree.final_layout(4).unwrap().location,
+        Point::new(0.0, 10.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
+}
+
 #[test]
 fn block_min_content_atomic_inline_run_uses_max_item_advance() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
