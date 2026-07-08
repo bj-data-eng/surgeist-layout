@@ -1,4 +1,6 @@
-use super::{AvailableOf, DefaultScalar, Edges, LayoutScalar, Point, Size, WritingMode};
+use super::{
+    AvailableOf, DefaultScalar, Edges, InlineMetricsOf, LayoutScalar, Point, Size, WritingMode,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct AtomicInlineInput<S: LayoutScalar = DefaultScalar> {
@@ -41,8 +43,8 @@ impl<S: LayoutScalar> AtomicInlineItem<S> {
 
     #[allow(dead_code)]
     #[must_use]
-    pub(super) const fn forced_line_break(order: u32) -> Self {
-        Self::ForcedLineBreak { order }
+    pub(super) const fn forced_line_break(order: u32, metrics: InlineMetricsOf<S>) -> Self {
+        Self::ForcedLineBreak { order, metrics }
     }
 }
 
@@ -50,7 +52,10 @@ impl<S: LayoutScalar> AtomicInlineItem<S> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum AtomicInlineItem<S: LayoutScalar = DefaultScalar> {
     Box(AtomicInlineBoxItem<S>),
-    ForcedLineBreak { order: u32 },
+    ForcedLineBreak {
+        order: u32,
+        metrics: InlineMetricsOf<S>,
+    },
 }
 
 impl<S: LayoutScalar> AtomicInlineBoxItem<S> {
@@ -136,7 +141,9 @@ impl<S: LayoutScalar> InlineLine<S> {
         self.width = self.width + item.advance();
     }
 
-    fn push_forced_line_break(&mut self, order: u32) {
+    fn push_forced_line_break(&mut self, order: u32, metrics: InlineMetricsOf<S>) {
+        self.baseline = self.baseline.max(metrics.baseline());
+        self.descent = self.descent.max(metrics.after_baseline());
         self.items.push(PendingInlineItem::ForcedLineBreak {
             order,
             x: self.width,
@@ -179,8 +186,8 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
 
                 line.push_box(item);
             }
-            AtomicInlineItem::ForcedLineBreak { order } => {
-                line.push_forced_line_break(order);
+            AtomicInlineItem::ForcedLineBreak { order, metrics } => {
+                line.push_forced_line_break(order, metrics);
                 lines.push(line);
                 line = InlineLine::<S>::default();
             }
