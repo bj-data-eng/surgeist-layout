@@ -348,29 +348,79 @@ impl<S: LayoutScalar> InlineLine<S> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum PendingVerticalInlineItem<S: LayoutScalar = DefaultScalar> {
+    Box {
+        item: AtomicInlineBoxItem<S>,
+        logical_inline_start: S,
+    },
+    ForcedLineBreak {
+        order: u32,
+        logical_inline_start: S,
+        baseline: S,
+    },
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct VerticalInlineLine<S: LayoutScalar = DefaultScalar> {
+    items: Vec<PendingVerticalInlineItem<S>>,
+    inline_extent: S,
+    block_extent: S,
+    first_report_baseline: Option<S>,
+    last_report_baseline: Option<S>,
+}
+
+impl<S: LayoutScalar> VerticalInlineLine<S> {
+    #[must_use]
+    fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    fn push_box(&mut self, item: AtomicInlineBoxItem<S>) {
+        self.inline_extent = self.inline_extent + item.margin.top;
+        let logical_inline_start = self.inline_extent;
+        self.inline_extent = self.inline_extent + item.size.height + item.margin.bottom;
+        let baseline = logical_inline_start + item.baseline();
+        self.first_report_baseline.get_or_insert(baseline);
+        self.last_report_baseline = Some(baseline);
+        self.block_extent = self
+            .block_extent
+            .max(item.margin.left + item.size.width + item.margin.right);
+        self.items.push(PendingVerticalInlineItem::Box {
+            item,
+            logical_inline_start,
+        });
+    }
+
+    fn push_forced_line_break(&mut self, control: ForcedLineBreakControlOf<S>) {
+        let metrics = control.metrics();
+        self.first_report_baseline.get_or_insert(self.inline_extent);
+        self.last_report_baseline = Some(self.inline_extent);
+        self.block_extent = self.block_extent.max(metrics.line_extent());
+        self.items.push(PendingVerticalInlineItem::ForcedLineBreak {
+            order: control.order(),
+            logical_inline_start: self.inline_extent,
+            baseline: metrics.baseline(),
+        });
+    }
+}
+
 #[must_use]
 pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
     input: AtomicInlineInput<S>,
 ) -> AtomicInlineReport<S> {
-    if input.writing_mode == WritingMode::VerticalRl {
-        return layout_vertical_rl_atomic_inline_items(input);
-    }
-    if input.writing_mode == WritingMode::VerticalLr
-        && input
-            .items
-            .iter()
-            .any(|item| matches!(item, AtomicInlineItem::ForcedLineBreak(_)))
-    {
-        panic!("forced atomic inline breaks are unsupported in vertical-lr layout");
+    if matches!(
+        input.writing_mode,
+        WritingMode::VerticalRl | WritingMode::VerticalLr
+    ) {
+        return layout_vertical_atomic_inline_items(input);
     }
 
     let axis_mapping = match input.writing_mode {
         WritingMode::HorizontalTb => {
             InlineAxisMapping::new(WritingMode::HorizontalTb, input.direction)
         }
-        WritingMode::VerticalLr => {
-            InlineAxisMapping::new(WritingMode::HorizontalTb, Direction::Ltr)
-        }
+        WritingMode::VerticalLr => unreachable!("vertical inline layout uses the vertical path"),
         WritingMode::VerticalRl => {
             unreachable!("vertical-rl layout is handled before line construction")
         }
@@ -479,85 +529,151 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
     }
 }
 
-fn layout_vertical_rl_atomic_inline_items<S: LayoutScalar>(
+fn layout_vertical_atomic_inline_items<S: LayoutScalar>(
     input: AtomicInlineInput<S>,
 ) -> AtomicInlineReport<S> {
-    debug_assert!(
-        input
-            .items
-            .iter()
-            .all(|item| matches!(item, AtomicInlineItem::Box(_))),
-        "forced atomic inline breaks are unsupported in vertical-rl layout"
-    );
-    let items = input
-        .items
-        .into_iter()
-        .map(|item| match item {
-            AtomicInlineItem::Box(item) => item,
-            AtomicInlineItem::ForcedLineBreak(_) => {
-                unreachable!("forced atomic inline breaks are unsupported in vertical-rl layout")
+    debug_assert!(matches!(
+        input.writing_mode,
+        WritingMode::VerticalRl | WritingMode::VerticalLr
+    ));
+
+    let mut lines = Vec::new();
+    let mut line = VerticalInlineLine::<S>::default();
+
+    for item in input.items {
+        match item {
+            AtomicInlineItem::Box(item) => {
+                line.push_box(item);
             }
-        })
-        .collect::<Vec<_>>();
-    let line_width = items
+            AtomicInlineItem::ForcedLineBreak(control) => {
+                line.push_forced_line_break(control);
+                lines.push(line);
+                line = VerticalInlineLine::<S>::default();
+            }
+        }
+    }
+
+    if !line.is_empty() {
+        lines.push(line);
+    }
+
+    layout_vertical_inline_lines(
+        input.writing_mode,
+        input.direction,
+        input.available_width,
+        lines,
+    )
+}
+
+fn layout_vertical_inline_lines<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+    available_width: AvailableOf<S>,
+    lines: Vec<VerticalInlineLine<S>>,
+) -> AtomicInlineReport<S> {
+    let line_inline_extent = lines
         .iter()
-        .map(|item| item.margin.left + item.size.width + item.margin.right)
+        .map(|line| line.inline_extent)
         .fold(S::ZERO, S::max);
-    let container_width = match input.available_width {
-        AvailableOf::Definite(width) => width.max(line_width),
-        AvailableOf::MinContent | AvailableOf::MaxContent => line_width,
+    let logical_block_extent = lines
+        .iter()
+        .map(|line| line.block_extent)
+        .fold(S::ZERO, |sum, extent| sum + extent);
+    let container_block_extent = match writing_mode {
+        WritingMode::VerticalRl => match available_width {
+            AvailableOf::Definite(width) => width.max(logical_block_extent),
+            AvailableOf::MinContent | AvailableOf::MaxContent => logical_block_extent,
+        },
+        WritingMode::VerticalLr => logical_block_extent,
+        WritingMode::HorizontalTb => {
+            unreachable!("horizontal inline layout uses the horizontal path")
+        }
     };
-    let axis_mapping = InlineAxisMapping::new(WritingMode::VerticalRl, input.direction);
-    let mut logical_inline_extent = S::ZERO;
-    let positioned_items = items
-        .into_iter()
-        .map(|item| {
-            logical_inline_extent = logical_inline_extent + item.margin.top;
-            let logical_inline_start = logical_inline_extent;
-            logical_inline_extent = logical_inline_extent + item.size.height + item.margin.bottom;
-            (item, logical_inline_start)
-        })
-        .collect::<Vec<_>>();
-    let line_size = LogicalInlineSizeOf::new(logical_inline_extent, line_width);
-    let mut layout_items = Vec::with_capacity(positioned_items.len());
+    let axis_mapping = InlineAxisMapping::new(writing_mode, direction);
+    let mut logical_block_start = S::ZERO;
+    let mut items = Vec::new();
     let mut first_baseline = None;
     let mut last_baseline = None;
 
-    for (item, logical_inline_start) in positioned_items {
-        let logical_block_start = if item.size.height == S::ZERO {
-            item.margin.right - item.size.width / S::from_f64(2.0)
-        } else {
-            item.margin.right
-        };
-        let baseline = logical_inline_start + item.baseline();
-        first_baseline.get_or_insert(baseline);
-        last_baseline = Some(baseline);
-        layout_items.push(AtomicInlineLayoutItem {
-            kind: AtomicInlineLayoutItemKind::Box,
-            order: item.order,
-            location: axis_mapping.physical_item_origin(
-                LogicalInlinePointOf::new(logical_inline_start, logical_block_start),
-                LogicalInlineSizeOf::new(item.size.height, item.size.width),
-                line_size,
-                container_width,
-            ),
-            size: item.size,
-            content_size: item.content_size,
-            margin: item.margin,
-            padding: item.padding,
-            border: item.border,
-            scrollbar_size: item.scrollbar_size,
-        });
+    for line in lines {
+        let line_block_extent = line.block_extent;
+        if let Some(baseline) = line.first_report_baseline {
+            first_baseline.get_or_insert(baseline);
+        }
+        if let Some(baseline) = line.last_report_baseline {
+            last_baseline = Some(baseline);
+        }
+
+        for pending in line.items {
+            match pending {
+                PendingVerticalInlineItem::Box {
+                    item,
+                    logical_inline_start,
+                } => {
+                    let logical_block_start_for_item = if item.size.height == S::ZERO {
+                        logical_block_start + item.margin.right - item.size.width / S::from_f64(2.0)
+                    } else {
+                        logical_block_start + item.margin.right
+                    };
+                    items.push(AtomicInlineLayoutItem {
+                        kind: AtomicInlineLayoutItemKind::Box,
+                        order: item.order,
+                        location: axis_mapping.physical_item_origin(
+                            LogicalInlinePointOf::new(
+                                logical_inline_start,
+                                logical_block_start_for_item,
+                            ),
+                            LogicalInlineSizeOf::new(item.size.height, item.size.width),
+                            LogicalInlineSizeOf::new(line_inline_extent, line_block_extent),
+                            container_block_extent,
+                        ),
+                        size: item.size,
+                        content_size: item.content_size,
+                        margin: item.margin,
+                        padding: item.padding,
+                        border: item.border,
+                        scrollbar_size: item.scrollbar_size,
+                    });
+                }
+                PendingVerticalInlineItem::ForcedLineBreak {
+                    order,
+                    logical_inline_start,
+                    baseline,
+                } => {
+                    items.push(AtomicInlineLayoutItem {
+                        kind: AtomicInlineLayoutItemKind::ForcedLineBreak,
+                        order,
+                        location: axis_mapping.physical_item_origin(
+                            LogicalInlinePointOf::new(
+                                logical_inline_start,
+                                logical_block_start + baseline,
+                            ),
+                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
+                            LogicalInlineSizeOf::new(line_inline_extent, line_block_extent),
+                            container_block_extent,
+                        ),
+                        size: Size::ZERO,
+                        content_size: Size::ZERO,
+                        margin: Edges::ZERO,
+                        padding: Edges::ZERO,
+                        border: Edges::ZERO,
+                        scrollbar_size: Size::ZERO,
+                    });
+                }
+            }
+        }
+
+        logical_block_start = logical_block_start + line_block_extent;
     }
 
-    let content_size = Size::new(container_width, logical_inline_extent);
+    let content_size = Size::new(container_block_extent, line_inline_extent);
 
     AtomicInlineReport {
         size: content_size,
         content_size,
         first_baseline,
         last_baseline,
-        items: layout_items,
+        items,
     }
 }
 

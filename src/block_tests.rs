@@ -665,14 +665,16 @@ fn block_atomic_inline_run_never_computes_line_break_as_box() {
 }
 
 #[test]
-#[should_panic(expected = "vertical line-break layout is not implemented")]
-fn vertical_line_break_panics_until_modeled() {
+fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])
         .style(
             0,
             NodeInput {
                 display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -680,19 +682,23 @@ fn vertical_line_break_panics_until_modeled() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         )
         .line_break(
             2,
-            LineBreakInput::new().with_writing_mode(WritingMode::VerticalRl),
+            LineBreakInput::new()
+                .with_writing_mode(WritingMode::VerticalRl)
+                .with_metrics(metrics),
         )
         .style(
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::px(12.0), Dimension::px(16.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -700,7 +706,193 @@ fn vertical_line_break_panics_until_modeled() {
     compute_root(
         &mut tree,
         0,
-        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(66.0, 30.0)
+    );
+    assert_eq!(tree.final_layout(3).unwrap().location.x, 48.0);
+}
+
+#[test]
+fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            2,
+            LineBreakInput::new()
+                .with_writing_mode(WritingMode::VerticalLr)
+                .with_metrics(metrics),
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(Dimension::px(12.0), Dimension::px(16.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(14.0, 30.0)
+    );
+    assert_eq!(tree.final_layout(3).unwrap().location.x, 20.0);
+}
+
+#[test]
+#[should_panic(expected = "vertical line-break clear layout is not implemented")]
+fn vertical_line_break_clear_panics_until_vertical_clear_is_modeled() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            1,
+            LineBreakInput::new()
+                .with_writing_mode(WritingMode::VerticalRl)
+                .with_clear(Clear::Both),
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+}
+
+#[test]
+#[should_panic(expected = "vertical line-break clear layout is not implemented")]
+fn vertical_parent_rejects_clear_even_when_line_break_input_defaults_horizontal() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(1, LineBreakInput::new().with_clear(Clear::Both));
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+}
+
+#[test]
+#[should_panic(expected = "line-break flow must match containing inline flow")]
+fn vertical_parent_rejects_default_line_break_flow_until_input_is_layout_ready() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Ltr,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(1, LineBreakInput::new());
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+}
+
+#[test]
+fn hidden_vertical_line_break_does_not_create_inline_control() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .line_break(
+            2,
+            LineBreakInput::new()
+                .with_writing_mode(WritingMode::VerticalRl)
+                .hidden(),
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::InlineBlock,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::px(12.0), Dimension::px(16.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(68.0, 30.0)
     );
 }
 
@@ -1590,7 +1782,7 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
                 ..NodeInput::DEFAULT
             },
         )
-        .line_break(2, LineBreakInput::new())
+        .line_break(2, LineBreakInput::new().with_direction(Direction::Rtl))
         .style(
             3,
             NodeInput {

@@ -358,6 +358,7 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
 fn atomic_inline_run_end<Tree>(
     tree: &Tree,
     children: &[<Tree as Traverse>::Node],
+    constants: &Constants<<Tree as Traverse>::Scalar>,
     mut index: usize,
 ) -> usize
 where
@@ -379,7 +380,12 @@ where
                     index += 1;
                     continue;
                 }
-                visible_horizontal_line_break(tree, children[index]);
+                visible_line_break_in_flow(
+                    tree,
+                    children[index],
+                    constants.writing_mode,
+                    constants.direction,
+                );
             }
         }
         index += 1;
@@ -387,9 +393,11 @@ where
     index
 }
 
-fn visible_horizontal_line_break<Tree>(
+fn visible_line_break_in_flow<Tree>(
     tree: &Tree,
     child: <Tree as Traverse>::Node,
+    flow_writing_mode: WritingMode,
+    flow_direction: Direction,
 ) -> Option<LineBreakInputOf<<Tree as Traverse>::Scalar>>
 where
     Tree: Compute,
@@ -400,8 +408,11 @@ where
     if line_break.display().is_none() {
         return None;
     }
-    if line_break.writing_mode() != WritingMode::HorizontalTb {
-        panic!("vertical line-break layout is not implemented");
+    if flow_writing_mode != WritingMode::HorizontalTb && line_break.clear() != Clear::None {
+        panic!("vertical line-break clear layout is not implemented");
+    }
+    if line_break.writing_mode() != flow_writing_mode || line_break.direction() != flow_direction {
+        panic!("line-break flow must match containing inline flow");
     }
     Some(line_break)
 }
@@ -417,6 +428,8 @@ fn next_atomic_inline_clear_candidate<Tree>(
     children: &[<Tree as Traverse>::Node],
     start: usize,
     run_end: usize,
+    flow_writing_mode: WritingMode,
+    flow_direction: Direction,
 ) -> Option<AtomicInlineClearCandidate>
 where
     Tree: Compute,
@@ -428,7 +441,12 @@ where
         .take(run_end)
         .skip(start)
     {
-        if let Some(line_break) = visible_horizontal_line_break(tree, child) {
+        if let Some(line_break) =
+            visible_line_break_in_flow(tree, child, flow_writing_mode, flow_direction)
+        {
+            if flow_writing_mode != WritingMode::HorizontalTb {
+                continue;
+            }
             let clear = line_break.clear();
             if clear != Clear::None {
                 return Some(AtomicInlineClearCandidate {
@@ -446,11 +464,20 @@ fn atomic_inline_run_contains_clear<Tree>(
     children: &[<Tree as Traverse>::Node],
     run_start: usize,
     run_end: usize,
+    constants: &Constants<<Tree as Traverse>::Scalar>,
 ) -> bool
 where
     Tree: Compute,
 {
-    next_atomic_inline_clear_candidate(tree, children, run_start, run_end).is_some()
+    next_atomic_inline_clear_candidate(
+        tree,
+        children,
+        run_start,
+        run_end,
+        constants.writing_mode,
+        constants.direction,
+    )
+    .is_some()
 }
 
 fn layout_in_flow_children<Tree, S>(
@@ -501,10 +528,15 @@ where
                     index += 1;
                     continue;
                 }
-                visible_horizontal_line_break(tree, child);
+                visible_line_break_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                );
 
                 let run_start = index;
-                index = atomic_inline_run_end(tree, children, index + 1);
+                index = atomic_inline_run_end(tree, children, constants, index + 1);
 
                 let collapsed_margin = active_margin.resolve();
                 cursor_y = cursor_y + collapsed_margin;
@@ -563,7 +595,7 @@ where
 
         if child_style.display.is_inline_level() && child_style.float.is_none() {
             let run_start = index;
-            index = atomic_inline_run_end(tree, children, index + 1);
+            index = atomic_inline_run_end(tree, children, constants, index + 1);
 
             let collapsed_margin = active_margin.resolve();
             cursor_y = cursor_y + collapsed_margin;
@@ -903,9 +935,14 @@ where
         let mut segment_end = run.len();
         let mut segment_clear = Clear::None;
         let mut scan_start = offset;
-        while let Some(candidate) =
-            next_atomic_inline_clear_candidate(tree, run, scan_start, run.len())
-        {
+        while let Some(candidate) = next_atomic_inline_clear_candidate(
+            tree,
+            run,
+            scan_start,
+            run.len(),
+            constants.writing_mode,
+            constants.direction,
+        ) {
             let probe = layout_atomic_inline_run(
                 tree,
                 &run[offset..candidate.end],
@@ -981,7 +1018,7 @@ where
     Tree: Compute<Scalar = S>,
     S: LayoutScalar,
 {
-    if !atomic_inline_run_contains_clear(tree, children, run_start, run_end) {
+    if !atomic_inline_run_contains_clear(tree, children, run_start, run_end, context.constants) {
         return layout_atomic_inline_run(tree, &children[run_start..run_end], context);
     }
 
@@ -1031,7 +1068,13 @@ where
                     }
                     continue;
                 }
-                let line_break = visible_horizontal_line_break(tree, child).unwrap();
+                let line_break = visible_line_break_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                )
+                .unwrap();
 
                 run_children.push(AtomicInlineRunChild::LineBreak { child, order });
                 items.push(AtomicInlineItem::forced_line_break(
