@@ -15,6 +15,23 @@ pub enum ScrollUnsupportedFeature {
     LayoutOwnedMixedAxisOverflowCoupling,
 }
 
+impl ScrollUnsupportedFeature {
+    #[must_use]
+    pub const fn is_phase_one_deferred(self) -> bool {
+        matches!(
+            self,
+            Self::OverflowAuto
+                | Self::OverflowClipMargin
+                | Self::ScrollbarGutterStable
+                | Self::ScrollbarGutterBothEdges
+                | Self::ScrollPadding
+                | Self::ScrollMargin
+                | Self::ScrollSnap
+                | Self::LayoutOwnedMixedAxisOverflowCoupling
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollRectOf<S: LayoutScalar = DefaultScalar> {
     origin: Point<S>,

@@ -166,3 +166,25 @@ fn phase_one_mixed_axis_boundary_is_root_pre_resolved() {
         Some(ScrollUnsupportedFeature::LayoutOwnedMixedAxisOverflowCoupling)
     );
 }
+
+#[test]
+fn phase_one_reports_deferred_scroll_features_explicitly() {
+    let deferred = [
+        ScrollUnsupportedFeature::OverflowAuto,
+        ScrollUnsupportedFeature::OverflowClipMargin,
+        ScrollUnsupportedFeature::ScrollbarGutterStable,
+        ScrollUnsupportedFeature::ScrollbarGutterBothEdges,
+        ScrollUnsupportedFeature::ScrollPadding,
+        ScrollUnsupportedFeature::ScrollMargin,
+        ScrollUnsupportedFeature::ScrollSnap,
+    ];
+
+    for feature in deferred {
+        assert!(feature.is_phase_one_deferred());
+    }
+
+    assert!(ScrollUnsupportedFeature::LayoutOwnedMixedAxisOverflowCoupling.is_phase_one_deferred());
+    assert!(!ScrollUnsupportedFeature::InvalidScrollRect.is_phase_one_deferred());
+    assert!(!ScrollUnsupportedFeature::InvalidScrollRange.is_phase_one_deferred());
+    assert!(!ScrollUnsupportedFeature::InvalidScrollGeometry.is_phase_one_deferred());
+}

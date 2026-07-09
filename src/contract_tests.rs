@@ -121,6 +121,17 @@ fn geometry_supports_default_and_f64_scalars() {
 }
 
 #[test]
+fn scroll_geometry_core_is_scalar_generic() {
+    fn assert_scalar<S: crate::LayoutScalar>() {
+        let range = crate::ScrollRangeOf::<S>::new(crate::Size::new(S::ZERO, S::ZERO)).unwrap();
+        assert_eq!(range.maximum_offset(), crate::Size::ZERO);
+    }
+
+    assert_scalar::<f32>();
+    assert_scalar::<f64>();
+}
+
+#[test]
 fn length_values_resolve_against_a_containing_size() {
     assert_eq!(Length::px(24.0).resolve(320.0), 24.0);
     assert_eq!(Length::percent(0.25).resolve(320.0), 80.0);
