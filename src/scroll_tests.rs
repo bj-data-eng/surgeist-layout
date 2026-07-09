@@ -409,3 +409,137 @@ fn scrollbar_box_rects_clamp_overlarge_insets_to_empty_rects() {
     assert_eq!(rects.content_box().size(), Size::ZERO);
     assert_eq!(rects.scrollport().size(), Size::ZERO);
 }
+
+#[test]
+fn scroll_geometry_from_layout_exposes_hidden_range_and_clip() {
+    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
+        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
+        Size::new(140.0, 70.0),
+    )
+    .unwrap();
+    let geometry = crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(Overflow::Hidden, Overflow::Hidden),
+        Size::new(100.0, 40.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        scrollable_overflow,
+    )
+    .unwrap();
+
+    assert_eq!(
+        geometry.scrollport(),
+        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
+    );
+    assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
+    assert_eq!(
+        geometry.scrollable_overflow(),
+        ScrollRect::new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(40.0, 30.0));
+}
+
+#[test]
+fn scroll_geometry_from_layout_keeps_clip_range_zero() {
+    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
+        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
+        Size::new(140.0, 70.0),
+    )
+    .unwrap();
+    let geometry = crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(Overflow::Clip, Overflow::Clip),
+        Size::new(100.0, 40.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        scrollable_overflow,
+    )
+    .unwrap();
+
+    assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
+    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+}
+
+#[test]
+fn scroll_geometry_from_layout_keeps_visible_range_zero_with_visible_overflow() {
+    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
+        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
+        Size::new(140.0, 70.0),
+    )
+    .unwrap();
+    let geometry = crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(Overflow::Visible, Overflow::Visible),
+        Size::new(100.0, 40.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        scrollable_overflow,
+    )
+    .unwrap();
+
+    assert_eq!(geometry.overflow_clip(), None);
+    assert_eq!(
+        geometry.scrollable_overflow(),
+        ScrollRect::new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+}
+
+#[test]
+fn scroll_geometry_from_layout_accounts_for_scrollbar_gutter() {
+    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
+        ScrollRect::new(Point::new(10.0, 0.0), Size::new(90.0, 40.0)).unwrap(),
+        Size::new(120.0, 40.0),
+    )
+    .unwrap();
+    let geometry = crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Rtl,
+        Point::new(Overflow::Hidden, Overflow::Scroll),
+        Size::new(100.0, 40.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        10.0,
+        scrollable_overflow,
+    )
+    .unwrap();
+
+    assert_eq!(
+        geometry.scrollport(),
+        ScrollRect::new(Point::new(10.0, 0.0), Size::new(90.0, 40.0)).unwrap()
+    );
+    assert_eq!(
+        geometry.gutters().vertical(),
+        Some(ScrollRect::new(Point::ZERO, Size::new(10.0, 40.0)).unwrap())
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(30.0, 0.0));
+}
+
+#[test]
+fn scroll_geometry_from_layout_keeps_visible_axis_range_zero_when_other_axis_scrolls() {
+    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
+        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
+        Size::new(140.0, 70.0),
+    )
+    .unwrap();
+    let geometry = crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(Overflow::Visible, Overflow::Hidden),
+        Size::new(100.0, 40.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        scrollable_overflow,
+    )
+    .unwrap();
+
+    assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
+    assert_eq!(geometry.range().maximum_offset(), Size::new(0.0, 30.0));
+}

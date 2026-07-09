@@ -553,3 +553,135 @@ impl<S: LayoutScalar> ScrollGeometryOf<S> {
         self.gutters
     }
 }
+
+pub fn scroll_container_facts_from_overflow(
+    overflow: Point<Overflow>,
+) -> Result<ScrollContainerFacts, ScrollUnsupportedFeature> {
+    Ok(ScrollContainerFacts::new(
+        ScrollContainerAxis::from_overflow(overflow.x)?,
+        ScrollContainerAxis::from_overflow(overflow.y)?,
+    ))
+}
+
+#[allow(dead_code)]
+pub fn scroll_rect_union<S: LayoutScalar>(
+    a: ScrollRectOf<S>,
+    b: ScrollRectOf<S>,
+) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
+    let a_origin = a.origin();
+    let b_origin = b.origin();
+    let a_size = a.size();
+    let b_size = b.size();
+    let min_x = a_origin.x.min(b_origin.x);
+    let min_y = a_origin.y.min(b_origin.y);
+    let max_x = (a_origin.x + a_size.width).max(b_origin.x + b_size.width);
+    let max_y = (a_origin.y + a_size.height).max(b_origin.y + b_size.height);
+
+    ScrollRectOf::new(
+        Point::new(min_x, min_y),
+        Size::new((max_x - min_x).max(S::ZERO), (max_y - min_y).max(S::ZERO)),
+    )
+}
+
+#[allow(dead_code)]
+pub fn scrollable_overflow_from_content_size<S: LayoutScalar>(
+    content_box: ScrollRectOf<S>,
+    content_size: Size<S>,
+) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
+    scroll_rect_union(
+        content_box,
+        ScrollRectOf::new(
+            content_box.origin(),
+            Size::new(
+                content_box.size().width.max(content_size.width),
+                content_box.size().height.max(content_size.height),
+            ),
+        )?,
+    )
+}
+
+#[allow(dead_code)]
+pub fn scrollable_overflow_from_layout_content_size<S: LayoutScalar>(
+    direction: Direction,
+    overflow: Point<Overflow>,
+    border_box_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    scrollbar_width: S,
+    content_size: Size<S>,
+) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
+    let reservation = ScrollbarReservationOf::from_overflow(overflow, scrollbar_width, direction);
+    let rects = scroll_box_rects_from_border_box(
+        ScrollRectOf::new(Point::ZERO, border_box_size)?,
+        padding,
+        border,
+        reservation,
+    )?;
+    scrollable_overflow_from_content_size(rects.content_box(), content_size)
+}
+
+#[allow(dead_code)]
+pub fn scroll_range_from_overflow_rects<S: LayoutScalar>(
+    container: ScrollContainerFacts,
+    scrollport: ScrollRectOf<S>,
+    scrollable_overflow: ScrollRectOf<S>,
+) -> Result<ScrollRangeOf<S>, ScrollUnsupportedFeature> {
+    let scrollport_origin = scrollport.origin();
+    let scrollport_size = scrollport.size();
+    let scrollable_origin = scrollable_overflow.origin();
+    let scrollable_size = scrollable_overflow.size();
+    ScrollRangeOf::new(Size::new(
+        if container.x().exposes_scroll_range() {
+            ((scrollable_origin.x + scrollable_size.width)
+                - (scrollport_origin.x + scrollport_size.width))
+                .max(S::ZERO)
+        } else {
+            S::ZERO
+        },
+        if container.y().exposes_scroll_range() {
+            ((scrollable_origin.y + scrollable_size.height)
+                - (scrollport_origin.y + scrollport_size.height))
+                .max(S::ZERO)
+        } else {
+            S::ZERO
+        },
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+#[allow(dead_code)]
+pub fn scroll_geometry_from_layout<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+    overflow: Point<Overflow>,
+    border_box_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    scrollbar_width: S,
+    scrollable_overflow: ScrollRectOf<S>,
+) -> Result<ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
+    let container = scroll_container_facts_from_overflow(overflow)?;
+    let reservation = ScrollbarReservationOf::from_overflow(overflow, scrollbar_width, direction);
+    let rects = scroll_box_rects_from_border_box(
+        ScrollRectOf::new(Point::ZERO, border_box_size)?,
+        padding,
+        border,
+        reservation,
+    )?;
+    let range =
+        scroll_range_from_overflow_rects(container, rects.scrollport(), scrollable_overflow)?;
+    let overflow_clip = container
+        .requires_overflow_clip()
+        .then_some(rects.scrollport());
+
+    ScrollGeometryOf::new(
+        writing_mode,
+        direction,
+        container,
+        rects.scrollport(),
+        overflow_clip,
+        scrollable_overflow,
+        range,
+        rects.gutters(),
+    )
+}
