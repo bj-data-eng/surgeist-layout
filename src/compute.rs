@@ -5,7 +5,8 @@ use super::{
     Traverse,
 };
 use crate::scroll::{
-    ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
+    ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
+    scroll_rect_union, scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
 };
 
 pub fn compute_hidden<Tree>(
@@ -70,6 +71,36 @@ pub fn compute_root<Tree>(
         resolve_auto_or_zero_with(length, basis, tree.calc_resolver())
     });
     let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width);
+    let scrollable_overflow = scrollable_overflow_from_layout_content_size(
+        style.direction,
+        style.overflow,
+        output.size,
+        padding,
+        border,
+        style.scrollbar_width,
+        output.content_size,
+    )
+    .expect("root scrollable overflow is derived from finite non-negative layout output");
+    let scrollable_overflow = output
+        .scroll_geometry
+        .map(|geometry| {
+            scroll_rect_union(scrollable_overflow, geometry.scrollable_overflow())
+                .expect("root scrollable overflow union remains valid")
+        })
+        .unwrap_or(scrollable_overflow);
+    let scroll_geometry = Some(
+        scroll_geometry_from_layout(
+            style.writing_mode,
+            style.direction,
+            style.overflow,
+            output.size,
+            padding,
+            border,
+            style.scrollbar_width,
+            scrollable_overflow,
+        )
+        .expect("root scroll geometry is derived from finite non-negative layout output"),
+    );
     let location = super::Point::new(
         if style.direction.is_rtl() {
             parent_width.map_or(<Tree as Traverse>::Scalar::ZERO, |width| {
@@ -88,7 +119,7 @@ pub fn compute_root<Tree>(
             location,
             size: output.size,
             content_size: output.content_size,
-            scroll_geometry: None,
+            scroll_geometry,
             scrollbar_size,
             padding,
             border,

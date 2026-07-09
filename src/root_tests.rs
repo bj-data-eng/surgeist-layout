@@ -471,6 +471,205 @@ fn f64_tree_can_run_root_layout_smoke_test() {
     assert_eq!(tree.output(0).size, Size::new(100.0, 50.0));
 }
 
+struct SingleRootTree {
+    style: NodeInput,
+    output: ComputeOutput,
+    layouts: HashMap<u32, NodeOutput>,
+    input: Option<ComputeInput>,
+}
+
+impl SingleRootTree {
+    fn new(style: NodeInput) -> Self {
+        Self {
+            style,
+            output: ComputeOutput::from_outer_size(Size::ZERO),
+            layouts: HashMap::new(),
+            input: None,
+        }
+    }
+}
+
+impl Traverse for SingleRootTree {
+    type Node = u32;
+    type Scalar = Scalar;
+    type Children<'a> = std::iter::Empty<u32>;
+
+    fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+        std::iter::empty()
+    }
+
+    fn child_count(&self, _node: Self::Node) -> usize {
+        0
+    }
+
+    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+        unreachable!("root test tree has no children")
+    }
+}
+
+impl Compute for SingleRootTree {
+    fn node_input(&self, _node: Self::Node) -> &NodeInput {
+        &self.style
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::box_input(self.node_input(node).clone())
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+        self.layouts.insert(node, layout);
+    }
+
+    fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        self.input = Some(input);
+        self.output
+    }
+}
+
+#[test]
+fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
+    let mut tree = SingleRootTree::new(NodeInput {
+        overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+        scrollbar_width: 10.0,
+        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        ..NodeInput::default()
+    });
+    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::definite(100.0), Available::definite(40.0)),
+    );
+
+    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollport(),
+        ScrollRect::new(Point::ZERO, Size::new(90.0, 30.0)).unwrap()
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(40.0, 40.0));
+    assert_eq!(
+        geometry
+            .range()
+            .clamp(ScrollOffset::new(Point::new(99.0, -5.0))),
+        ScrollOffset::new(Point::new(40.0, 0.0))
+    );
+    assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
+}
+
+#[test]
+fn root_layout_emits_visible_scroll_geometry_without_range() {
+    let mut tree = SingleRootTree::new(NodeInput {
+        overflow: Point::new(Overflow::Visible, Overflow::Visible),
+        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        ..NodeInput::default()
+    });
+    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::definite(100.0), Available::definite(40.0)),
+    );
+
+    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    assert_eq!(geometry.overflow_clip(), None);
+    assert_eq!(
+        geometry.scrollable_overflow(),
+        ScrollRect::new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+}
+
+#[test]
+fn root_layout_emits_clip_geometry_without_range() {
+    let mut tree = SingleRootTree::new(NodeInput {
+        overflow: Point::new(Overflow::Clip, Overflow::Clip),
+        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        ..NodeInput::default()
+    });
+    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::definite(100.0), Available::definite(40.0)),
+    );
+
+    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
+    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+}
+
+#[test]
+fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
+    let mut tree = SingleRootTree::new(NodeInput {
+        overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
+        scrollbar_width: 10.0,
+        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        padding: Edges::all(Length::px(2.0)),
+        border: Edges::all(Length::px(3.0)),
+        ..NodeInput::default()
+    });
+    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::definite(100.0), Available::definite(40.0)),
+    );
+
+    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollport(),
+        ScrollRect::new(Point::new(3.0, 3.0), Size::new(84.0, 34.0)).unwrap()
+    );
+    assert_eq!(
+        geometry.scrollable_overflow(),
+        ScrollRect::new(Point::new(5.0, 5.0), Size::new(130.0, 70.0)).unwrap()
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(48.0, 38.0));
+    assert_eq!(
+        geometry
+            .range()
+            .clamp(ScrollOffset::new(Point::new(99.0, 99.0))),
+        ScrollOffset::new(Point::new(48.0, 38.0))
+    );
+}
+
+#[test]
+fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
+    let mut tree = SingleRootTree::new(NodeInput {
+        overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        ..NodeInput::default()
+    });
+    let child_overflow = ScrollRect::new(Point::new(-12.0, -4.0), Size::new(160.0, 74.0)).unwrap();
+    let child_geometry = crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(Overflow::Hidden, Overflow::Hidden),
+        Size::new(100.0, 40.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        child_overflow,
+    )
+    .unwrap();
+    tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
+    tree.output.scroll_geometry = Some(child_geometry);
+
+    compute_root(
+        &mut tree,
+        1,
+        Size::new(Available::definite(100.0), Available::definite(40.0)),
+    );
+
+    let geometry = tree.layouts[&1].scroll_geometry.unwrap();
+    assert_eq!(geometry.scrollable_overflow(), child_overflow);
+    assert_eq!(geometry.range().maximum_offset(), Size::new(48.0, 30.0));
+}
+
 #[test]
 fn f64_round_layout_preserves_large_coordinates() {
     let large = 16_777_217.25_f64;
