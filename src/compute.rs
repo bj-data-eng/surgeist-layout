@@ -1,8 +1,11 @@
 use super::{
     AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CalcResolutionOf, CalcResolutionStatus,
-    CalcResolver, Compute, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar,
+    CalcResolver, Compute, ComputeInputOf, ComputeOutputOf, Direction, LayoutInputOf, LayoutScalar,
     NoCalcResolver, NodeInputOf, NodeOutputOf, Position, Round, RunMode, Size, SizingMode,
     Traverse,
+};
+use crate::scroll::{
+    ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
 };
 
 pub fn compute_hidden<Tree>(
@@ -66,18 +69,7 @@ pub fn compute_root<Tree>(
     let margin = style.margin.zip_size(inline_basis, |length, basis| {
         resolve_auto_or_zero_with(length, basis, tree.calc_resolver())
     });
-    let scrollbar_size = Size::new(
-        if style.overflow.y == super::Overflow::Scroll {
-            style.scrollbar_width
-        } else {
-            <Tree as Traverse>::Scalar::ZERO
-        },
-        if style.overflow.x == super::Overflow::Scroll {
-            style.scrollbar_width
-        } else {
-            <Tree as Traverse>::Scalar::ZERO
-        },
-    );
+    let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width);
     let location = super::Point::new(
         if style.direction.is_rtl() {
             parent_width.map_or(<Tree as Traverse>::Scalar::ZERO, |width| {
@@ -232,21 +224,13 @@ where
     });
     let padding_border = padding + border;
     let padding_border_size = padding_border.sum_axes();
-    let scrollbar_gutter = Size::new(
-        if style.overflow.y == super::Overflow::Scroll {
-            style.scrollbar_width
-        } else {
-            S::ZERO
-        },
-        if style.overflow.x == super::Overflow::Scroll {
-            style.scrollbar_width
-        } else {
-            S::ZERO
-        },
+    let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
+        style.overflow,
+        style.scrollbar_width,
+        Direction::Ltr,
     );
-    let mut content_box_inset = padding_border;
-    content_box_inset.right = content_box_inset.right + scrollbar_gutter.width;
-    content_box_inset.bottom = content_box_inset.bottom + scrollbar_gutter.height;
+    let content_box_inset =
+        content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
     let content_box_inset_size = content_box_inset.sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border_size

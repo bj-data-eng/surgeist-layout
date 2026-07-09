@@ -12,6 +12,9 @@ use super::{
     LengthAutoOf, LengthOf, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position,
     RequestedAxis, RunMode, Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
+use crate::scroll::{
+    ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
+};
 
 pub fn compute_block<Tree>(
     tree: &mut Tree,
@@ -2110,32 +2113,15 @@ impl<S: LayoutScalar> Constants<S> {
         let border = style.border.zip_inline_size(input.parent, |length, basis| {
             resolve_length_or_zero_with(length, basis, resolver)
         });
-        let scrollbar_gutter = Size::new(
-            if style.overflow.y == Overflow::Scroll {
-                style.scrollbar_width
-            } else {
-                S::ZERO
-            },
-            if style.overflow.x == Overflow::Scroll {
-                style.scrollbar_width
-            } else {
-                S::ZERO
-            },
+        let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
+            style.overflow,
+            style.scrollbar_width,
+            style.direction,
         );
-        let scrollbar_gutter = match style.direction {
-            Direction::Ltr => Edges {
-                right: scrollbar_gutter.width,
-                bottom: scrollbar_gutter.height,
-                ..Edges::<S>::ZERO
-            },
-            Direction::Rtl => Edges {
-                left: scrollbar_gutter.width,
-                bottom: scrollbar_gutter.height,
-                ..Edges::<S>::ZERO
-            },
-        };
+        let scrollbar_gutter = scrollbar_reservation.inset();
         let padding_border_size = (padding + border).sum_axes();
-        let content_box_inset = padding + border + scrollbar_gutter;
+        let content_box_inset =
+            content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
         let content_box_inset_size = content_box_inset.sum_axes();
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
             padding_border_size
@@ -2233,18 +2219,7 @@ impl<S: LayoutScalar> Constants<S> {
 }
 
 fn child_scrollbar_size<S: LayoutScalar>(style: &NodeInputOf<S>) -> Size<S> {
-    Size::new(
-        if style.overflow.y == Overflow::Scroll {
-            style.scrollbar_width
-        } else {
-            S::ZERO
-        },
-        if style.overflow.x == Overflow::Scroll {
-            style.scrollbar_width
-        } else {
-            S::ZERO
-        },
-    )
+    scrollbar_size_from_overflow(style.overflow, style.scrollbar_width)
 }
 
 fn resolve_auto_optional_with<S: LayoutScalar>(

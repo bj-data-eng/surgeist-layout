@@ -92,6 +92,35 @@ fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
 }
 
 #[test]
+fn leaf_layout_preserves_physical_end_scrollbar_gutter_for_rtl() {
+    let input = ComputeInput {
+        run_mode: RunMode::PerformLayout,
+        sizing_mode: SizingMode::InherentSize,
+        axis: RequestedAxis::Both,
+        known: Size::NONE,
+        parent: Size::new(Some(200.0), Some(100.0)),
+        available: Size::new(Available::definite(100.0), Available::definite(50.0)),
+    };
+    let node_input = NodeInput {
+        direction: Direction::Rtl,
+        overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+        scrollbar_width: 15.0,
+        padding: Edges::all(Length::px(2.0)),
+        border: Edges::all(Length::px(1.0)),
+        ..NodeInput::default()
+    };
+
+    let output = compute_leaf(input, &node_input, |_known, available| {
+        assert_eq!(available.width, Available::definite(79.0));
+        assert_eq!(available.height, Available::definite(44.0));
+        Size::new(40.0, 12.0)
+    });
+
+    assert_eq!(output.size, Size::new(61.0, 18.0));
+    assert_eq!(output.content_size, Size::new(44.0, 16.0));
+}
+
+#[test]
 fn leaf_uses_validated_aspect_ratio() {
     let input = ComputeInput {
         run_mode: RunMode::PerformLayout,
