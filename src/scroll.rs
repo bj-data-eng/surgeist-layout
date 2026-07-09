@@ -1,4 +1,4 @@
-use super::{DefaultScalar, Direction, LayoutScalar, Overflow, Point, Size, WritingMode};
+use super::{DefaultScalar, Direction, Edges, LayoutScalar, Overflow, Point, Size, WritingMode};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScrollUnsupportedFeature {
@@ -258,6 +258,214 @@ impl<S: LayoutScalar> ScrollbarGutterRectsOf<S> {
     pub const fn vertical(self) -> Option<ScrollRectOf<S>> {
         self.vertical
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
+pub struct ScrollbarReservationOf<S: LayoutScalar = DefaultScalar> {
+    size: Size<S>,
+    inset: Edges<S>,
+}
+
+#[allow(dead_code)]
+pub type ScrollbarReservation = ScrollbarReservationOf<DefaultScalar>;
+
+#[allow(dead_code)]
+impl<S: LayoutScalar> ScrollbarReservationOf<S> {
+    #[must_use]
+    pub fn from_overflow(
+        overflow: Point<Overflow>,
+        scrollbar_width: S,
+        direction: Direction,
+    ) -> Self {
+        let size = scrollbar_size_from_overflow(overflow, scrollbar_width);
+        Self {
+            size,
+            inset: scrollbar_inset_from_size(size, direction),
+        }
+    }
+
+    #[must_use]
+    pub const fn size(self) -> Size<S> {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn inset(self) -> Edges<S> {
+        self.inset
+    }
+}
+
+#[must_use]
+#[allow(dead_code)]
+pub fn scrollbar_size_from_overflow<S: LayoutScalar>(
+    overflow: Point<Overflow>,
+    scrollbar_width: S,
+) -> Size<S> {
+    Size::new(
+        if overflow.y == Overflow::Scroll {
+            scrollbar_width
+        } else {
+            S::ZERO
+        },
+        if overflow.x == Overflow::Scroll {
+            scrollbar_width
+        } else {
+            S::ZERO
+        },
+    )
+}
+
+#[must_use]
+#[allow(dead_code)]
+pub fn scrollbar_inset_from_size<S: LayoutScalar>(size: Size<S>, direction: Direction) -> Edges<S> {
+    match direction {
+        Direction::Ltr => Edges {
+            right: size.width,
+            bottom: size.height,
+            ..Edges::<S>::ZERO
+        },
+        Direction::Rtl => Edges {
+            left: size.width,
+            bottom: size.height,
+            ..Edges::<S>::ZERO
+        },
+    }
+}
+
+#[must_use]
+#[allow(dead_code)]
+pub fn content_box_inset_with_scrollbar<S: LayoutScalar>(
+    padding: Edges<S>,
+    border: Edges<S>,
+    reservation: ScrollbarReservationOf<S>,
+) -> Edges<S> {
+    padding + border + reservation.inset()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
+pub struct ScrollBoxRectsOf<S: LayoutScalar = DefaultScalar> {
+    border_box: ScrollRectOf<S>,
+    padding_box: ScrollRectOf<S>,
+    content_box: ScrollRectOf<S>,
+    scrollport: ScrollRectOf<S>,
+    gutters: ScrollbarGutterRectsOf<S>,
+}
+
+#[allow(dead_code)]
+pub type ScrollBoxRects = ScrollBoxRectsOf<DefaultScalar>;
+
+#[allow(dead_code)]
+impl<S: LayoutScalar> ScrollBoxRectsOf<S> {
+    #[must_use]
+    pub const fn border_box(self) -> ScrollRectOf<S> {
+        self.border_box
+    }
+
+    #[must_use]
+    pub const fn padding_box(self) -> ScrollRectOf<S> {
+        self.padding_box
+    }
+
+    #[must_use]
+    pub const fn content_box(self) -> ScrollRectOf<S> {
+        self.content_box
+    }
+
+    #[must_use]
+    pub const fn scrollport(self) -> ScrollRectOf<S> {
+        self.scrollport
+    }
+
+    #[must_use]
+    pub const fn gutters(self) -> ScrollbarGutterRectsOf<S> {
+        self.gutters
+    }
+}
+
+#[allow(dead_code)]
+pub fn scroll_box_rects_from_border_box<S: LayoutScalar>(
+    border_box: ScrollRectOf<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    reservation: ScrollbarReservationOf<S>,
+) -> Result<ScrollBoxRectsOf<S>, ScrollUnsupportedFeature> {
+    let padding_box = inset_scroll_rect(border_box, border)?;
+    let content_box = inset_scroll_rect(
+        border_box,
+        content_box_inset_with_scrollbar(padding, border, reservation),
+    )?;
+    let scrollport = inset_scroll_rect(padding_box, reservation.inset())?;
+    let gutters = scrollbar_gutter_rects_from_padding_box(padding_box, reservation)?;
+
+    Ok(ScrollBoxRectsOf {
+        border_box,
+        padding_box,
+        content_box,
+        scrollport,
+        gutters,
+    })
+}
+
+fn inset_scroll_rect<S: LayoutScalar>(
+    rect: ScrollRectOf<S>,
+    inset: Edges<S>,
+) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
+    let origin = rect.origin();
+    let size = rect.size();
+    ScrollRectOf::new(
+        Point::new(origin.x + inset.left, origin.y + inset.top),
+        Size::new(
+            (size.width - inset.horizontal_sum()).max(S::ZERO),
+            (size.height - inset.vertical_sum()).max(S::ZERO),
+        ),
+    )
+}
+
+fn scrollbar_gutter_rects_from_padding_box<S: LayoutScalar>(
+    padding_box: ScrollRectOf<S>,
+    reservation: ScrollbarReservationOf<S>,
+) -> Result<ScrollbarGutterRectsOf<S>, ScrollUnsupportedFeature> {
+    let origin = padding_box.origin();
+    let size = padding_box.size();
+    let gutter_size = reservation.size();
+    let inset = reservation.inset();
+
+    let vertical = if gutter_size.width > S::ZERO {
+        let x = if inset.left > S::ZERO {
+            origin.x
+        } else {
+            origin.x + (size.width - gutter_size.width).max(S::ZERO)
+        };
+        Some(ScrollRectOf::new(
+            Point::new(x, origin.y),
+            Size::new(
+                gutter_size.width.min(size.width),
+                (size.height - gutter_size.height).max(S::ZERO),
+            ),
+        )?)
+    } else {
+        None
+    };
+
+    let horizontal = if gutter_size.height > S::ZERO {
+        let x = origin.x + inset.left.min(size.width);
+        Some(ScrollRectOf::new(
+            Point::new(
+                x,
+                origin.y + (size.height - gutter_size.height).max(S::ZERO),
+            ),
+            Size::new(
+                (size.width - gutter_size.width).max(S::ZERO),
+                gutter_size.height.min(size.height),
+            ),
+        )?)
+    } else {
+        None
+    };
+
+    Ok(ScrollbarGutterRectsOf::new(horizontal, vertical))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

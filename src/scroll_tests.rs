@@ -1,5 +1,6 @@
+use crate::scroll::{ScrollBoxRects, ScrollbarReservation};
 use crate::{
-    Direction, Overflow, Point, ScrollContainerAxis, ScrollContainerFacts, ScrollGeometry,
+    Direction, Edges, Overflow, Point, ScrollContainerAxis, ScrollContainerFacts, ScrollGeometry,
     ScrollOffset, ScrollOffsetOf, ScrollOverflowCouplingPolicy, ScrollOverflowExposure,
     ScrollRange, ScrollRangeOf, ScrollRect, ScrollUnsupportedFeature, ScrollbarGutterRects, Size,
     WritingMode,
@@ -264,4 +265,147 @@ fn phase_one_reports_deferred_scroll_features_explicitly() {
     assert!(!ScrollUnsupportedFeature::InvalidScrollRect.is_phase_one_deferred());
     assert!(!ScrollUnsupportedFeature::InvalidScrollRange.is_phase_one_deferred());
     assert!(!ScrollUnsupportedFeature::InvalidScrollGeometry.is_phase_one_deferred());
+}
+
+#[test]
+fn scrollbar_size_uses_scroll_overflow_on_opposite_physical_axis() {
+    assert_eq!(
+        crate::scroll::scrollbar_size_from_overflow(
+            Point::new(Overflow::Visible, Overflow::Scroll),
+            15.0,
+        ),
+        Size::new(15.0, 0.0)
+    );
+    assert_eq!(
+        crate::scroll::scrollbar_size_from_overflow(
+            Point::new(Overflow::Scroll, Overflow::Visible),
+            15.0,
+        ),
+        Size::new(0.0, 15.0)
+    );
+    assert_eq!(
+        crate::scroll::scrollbar_size_from_overflow(
+            Point::new(Overflow::Scroll, Overflow::Scroll),
+            15.0,
+        ),
+        Size::new(15.0, 15.0)
+    );
+}
+
+#[test]
+fn scrollbar_reservation_places_inline_gutter_by_direction() {
+    let ltr = ScrollbarReservation::from_overflow(
+        Point::new(Overflow::Visible, Overflow::Scroll),
+        12.0,
+        Direction::Ltr,
+    );
+    let rtl = ScrollbarReservation::from_overflow(
+        Point::new(Overflow::Visible, Overflow::Scroll),
+        12.0,
+        Direction::Rtl,
+    );
+
+    assert_eq!(ltr.size(), Size::new(12.0, 0.0));
+    assert_eq!(ltr.inset(), Edges::new(0.0, 12.0, 0.0, 0.0));
+    assert_eq!(rtl.size(), Size::new(12.0, 0.0));
+    assert_eq!(rtl.inset(), Edges::new(0.0, 0.0, 0.0, 12.0));
+}
+
+#[test]
+fn content_box_inset_includes_padding_border_and_scrollbar_reservation() {
+    let padding = Edges::new(1.0, 2.0, 3.0, 4.0);
+    let border = Edges::new(5.0, 6.0, 7.0, 8.0);
+    let reservation = ScrollbarReservation::from_overflow(
+        Point::new(Overflow::Visible, Overflow::Scroll),
+        9.0,
+        Direction::Ltr,
+    );
+
+    assert_eq!(
+        crate::scroll::content_box_inset_with_scrollbar(padding, border, reservation),
+        Edges::new(6.0, 17.0, 10.0, 12.0)
+    );
+}
+
+#[test]
+fn scrollbar_box_rects_derive_ltr_scrollport_and_gutter_rects() {
+    let rects = crate::scroll::scroll_box_rects_from_border_box(
+        ScrollRect::new(Point::new(10.0, 20.0), Size::new(100.0, 80.0)).unwrap(),
+        Edges::new(2.0, 3.0, 4.0, 5.0),
+        Edges::all(1.0),
+        ScrollbarReservation::from_overflow(
+            Point::new(Overflow::Scroll, Overflow::Scroll),
+            10.0,
+            Direction::Ltr,
+        ),
+    )
+    .unwrap();
+
+    assert_eq!(
+        rects.border_box(),
+        ScrollRect::new(Point::new(10.0, 20.0), Size::new(100.0, 80.0)).unwrap()
+    );
+    assert_eq!(
+        rects.padding_box(),
+        ScrollRect::new(Point::new(11.0, 21.0), Size::new(98.0, 78.0)).unwrap()
+    );
+    assert_eq!(
+        rects.content_box(),
+        ScrollRect::new(Point::new(16.0, 23.0), Size::new(80.0, 62.0)).unwrap()
+    );
+    assert_eq!(
+        rects.scrollport(),
+        ScrollRect::new(Point::new(11.0, 21.0), Size::new(88.0, 68.0)).unwrap()
+    );
+    assert_eq!(
+        rects.gutters().vertical(),
+        Some(ScrollRect::new(Point::new(99.0, 21.0), Size::new(10.0, 68.0)).unwrap())
+    );
+    assert_eq!(
+        rects.gutters().horizontal(),
+        Some(ScrollRect::new(Point::new(11.0, 89.0), Size::new(88.0, 10.0)).unwrap())
+    );
+}
+
+#[test]
+fn scrollbar_box_rects_shift_rtl_scrollport_after_left_gutter() {
+    let rects = crate::scroll::scroll_box_rects_from_border_box(
+        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
+        Edges::ZERO,
+        Edges::ZERO,
+        ScrollbarReservation::from_overflow(
+            Point::new(Overflow::Visible, Overflow::Scroll),
+            12.0,
+            Direction::Rtl,
+        ),
+    )
+    .unwrap();
+
+    assert_eq!(
+        rects.scrollport(),
+        ScrollRect::new(Point::new(12.0, 0.0), Size::new(88.0, 40.0)).unwrap()
+    );
+    assert_eq!(
+        rects.gutters().vertical(),
+        Some(ScrollRect::new(Point::ZERO, Size::new(12.0, 40.0)).unwrap())
+    );
+    assert_eq!(rects.gutters().horizontal(), None);
+}
+
+#[test]
+fn scrollbar_box_rects_clamp_overlarge_insets_to_empty_rects() {
+    let rects: ScrollBoxRects = crate::scroll::scroll_box_rects_from_border_box(
+        ScrollRect::new(Point::ZERO, Size::new(10.0, 10.0)).unwrap(),
+        Edges::all(20.0),
+        Edges::all(20.0),
+        ScrollbarReservation::from_overflow(
+            Point::new(Overflow::Scroll, Overflow::Scroll),
+            20.0,
+            Direction::Ltr,
+        ),
+    )
+    .unwrap();
+
+    assert_eq!(rects.content_box().size(), Size::ZERO);
+    assert_eq!(rects.scrollport().size(), Size::ZERO);
 }
