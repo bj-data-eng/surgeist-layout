@@ -40,12 +40,12 @@ classification, or root adapter orchestration.
 | Floats around line breaks | Line boxes before and after `<br>` honor active floats and clearances. | Block float exclusion exists for boxes; line-break-specific float behavior is incomplete. | Integrate forced line breaks with line placement and float exclusion without modeling CSS parsing. | Style/root provide float and clear inputs. |
 | `direction` | RTL affects inline placement around the break. | Supported for current horizontal atomic inline cases. | Preserve direction-aware output placement for line-break output and following lines. | Style/root lower computed direction. |
 | Horizontal `writing-mode` | `horizontal-tb` line breaks advance block direction vertically. | Supported. | Keep as the default supported writing mode. | Style/root lower computed writing mode. |
-| Vertical writing modes | Vertical `<br>` advances in the relevant block/inline axes. | Explicitly unsupported; layout panics and browser parity buckets it. | Model vertical forced-break line progression in layout coordinates. | Style/root lower writing mode; text supplies vertical metrics if needed. |
+| Vertical writing modes | Vertical `<br>` advances in the relevant block/inline axes. | Supported for layout-ready `LineBreakInputOf<S>` in constrained block inline-run contexts when `Clear::None`; browser parity has layout-owned vertical fixtures. Vertical `clear` and complex subgrid/baseline vertical `<br>` cases remain unsupported until their surrounding contracts are reviewed. | Preserve logical-axis forced-break behavior and expand only through layout-ready participant contracts. Keep vertical clear explicitly unsupported until modeled. | Style/root lower writing mode and clear; text supplies vertical metrics if needed. |
 | `vertical-align` | Inline alignment context affects inline-level participants around the break. | Parsed/carried; only narrow `baseline`/`top` behavior exists for atomic inline boxes. | Decide and implement the layout-ready effect of `LineBreakInputOf<S>::vertical_align()` in inline line metrics, if any. | Style/root parse and lower computed vertical-align. |
 | Baseline reporting | Lines split by `<br>` report first/last baselines consistently. | Supported for current horizontal metric cases. | Maintain baseline reporting as broader inline/text contexts are added. | Text/root provide text metrics; layout reports geometry. |
 | Output geometry | `<br>` has zero-size node output but participates in line construction. | Supported for current horizontal cases. | Preserve non-box zero-size output while expanding behavior. | Consumers interpret output tree. |
 | Intrinsic sizing | Forced breaks split intrinsic inline contributions; widths reflect max line segment and sums per line. | Supported in atomic inline tests. | Extend only as new layout-ready inline participants are added. | Text/root provide measured inline participants. |
-| Browser fixture generation | Browser-derived XML can express metric-bearing `<br>` cases. | Supported for layout-owned browser parity fixtures. | Keep XML parser strict: complete metric pairs only, fixture syntax only. | Root-owned generators/schemas coordinate with layout-ready contract. |
+| Browser fixture generation | Browser-derived XML can express metric-bearing `<br>` cases. | Supported for horizontal and constrained vertical layout-owned fixtures; remaining unsupported buckets are explicit. | Keep XML parser strict: complete metric pairs only, fixture syntax only. | Root-owned generators/schemas coordinate with layout-ready contract. |
 | Error classification | Unsupported `<br>` cases are visible and classified, not silently skipped. | Supported in browser parity report buckets for vertical and outside-context cases. | Keep unsupported buckets explicit until implemented. | Root may aggregate and prioritize cross-crate unsupported buckets. |
 
 ## Layout-Owned Completion Checklist
@@ -59,7 +59,8 @@ classification, or root adapter orchestration.
 - [ ] Apply `clear` semantics to line-break placement.
 - [ ] Define and implement line-break behavior outside the current block
   atomic-inline-run context, using layout-ready inputs only.
-- [ ] Define and implement vertical writing-mode line-break geometry.
+- [x] Define and implement vertical writing-mode line-break geometry for layout-ready block inline-run contexts.
+- [ ] Keep complex vertical `<br>` cases with subgrid/baseline dependencies explicitly unsupported until those surrounding contracts are implemented.
 - [ ] Decide the layout-ready meaning of `vertical-align` for line-break inputs.
 - [ ] Expand fixture coverage for each newly supported layout-ready state.
 
@@ -81,7 +82,8 @@ The next layout-owned implementation plan should probably start with `clear` on
 line breaks. The input already carries `Clear`, block layout already has float
 exclusion machinery, and the behavior stays squarely inside layout calculation.
 
-Vertical writing and broader outside-context support are larger because they
-touch inline formatting context modeling and axis mapping. Those should be
-planned after the layout-ready parent/run model is explicit enough to avoid
-turning `LineBreakInputOf<S>` into a proxy for DOM or CSS semantics.
+Vertical writing-mode forced breaks are now supported for layout-ready block
+inline-run contexts. Broader outside-context support remains larger because it
+touches inline formatting context modeling, anonymous wrapper ownership, and
+mixed inline participant streams. Those should be planned through the mixed
+inline participant contract before runtime code changes.
