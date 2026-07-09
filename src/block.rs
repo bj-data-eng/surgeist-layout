@@ -387,6 +387,9 @@ where
                     constants.direction,
                 );
             }
+            LayoutInputOf::InlineBoundary(_) => {
+                panic!("visible inline boundary layout is not implemented");
+            }
         }
         index += 1;
     }
@@ -574,6 +577,9 @@ where
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
                 continue;
+            }
+            LayoutInputOf::InlineBoundary(_) => {
+                panic!("visible inline boundary layout is not implemented");
             }
         };
         if child_style.display == super::Display::None {
@@ -1088,6 +1094,9 @@ where
                     ),
                 ));
                 continue;
+            }
+            LayoutInputOf::InlineBoundary(_) => {
+                panic!("visible inline boundary layout is not implemented");
             }
         };
         if child_style.display == super::Display::None {

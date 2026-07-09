@@ -366,6 +366,79 @@ impl<S: LayoutScalar> Default for LineBreakInputOf<S> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InlineBoundaryKind {
+    Start,
+    End,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InlineBoundaryInputOf<S: LayoutScalar = DefaultScalar> {
+    kind: InlineBoundaryKind,
+    writing_mode: WritingMode,
+    direction: Direction,
+    vertical_align: VerticalAlign,
+    metrics: InlineMetricsOf<S>,
+}
+
+pub type InlineBoundaryInput = InlineBoundaryInputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> InlineBoundaryInputOf<S> {
+    #[must_use]
+    pub const fn new(kind: InlineBoundaryKind, metrics: InlineMetricsOf<S>) -> Self {
+        Self {
+            kind,
+            writing_mode: WritingMode::HorizontalTb,
+            direction: Direction::Ltr,
+            vertical_align: VerticalAlign::Baseline,
+            metrics,
+        }
+    }
+
+    #[must_use]
+    pub const fn with_writing_mode(mut self, writing_mode: WritingMode) -> Self {
+        self.writing_mode = writing_mode;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_direction(mut self, direction: Direction) -> Self {
+        self.direction = direction;
+        self
+    }
+
+    #[must_use]
+    pub const fn with_vertical_align(mut self, vertical_align: VerticalAlign) -> Self {
+        self.vertical_align = vertical_align;
+        self
+    }
+
+    #[must_use]
+    pub const fn kind(self) -> InlineBoundaryKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn writing_mode(self) -> WritingMode {
+        self.writing_mode
+    }
+
+    #[must_use]
+    pub const fn direction(self) -> Direction {
+        self.direction
+    }
+
+    #[must_use]
+    pub const fn vertical_align(self) -> VerticalAlign {
+        self.vertical_align
+    }
+
+    #[must_use]
+    pub const fn metrics(self) -> InlineMetricsOf<S> {
+        self.metrics
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AlignItems {
     Start,
     End,
@@ -901,6 +974,7 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
 pub enum LayoutInputOf<S: LayoutScalar = DefaultScalar> {
     Box(std::boxed::Box<NodeInputOf<S>>),
     LineBreak(LineBreakInputOf<S>),
+    InlineBoundary(InlineBoundaryInputOf<S>),
 }
 
 pub type LayoutInput = LayoutInputOf<DefaultScalar>;
@@ -917,18 +991,31 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
     }
 
     #[must_use]
+    pub const fn inline_boundary(input: InlineBoundaryInputOf<S>) -> Self {
+        Self::InlineBoundary(input)
+    }
+
+    #[must_use]
     pub fn as_box(&self) -> Option<&NodeInputOf<S>> {
         match self {
             Self::Box(input) => Some(input.as_ref()),
-            Self::LineBreak(_) => None,
+            Self::LineBreak(_) | Self::InlineBoundary(_) => None,
         }
     }
 
     #[must_use]
     pub const fn as_line_break(&self) -> Option<LineBreakInputOf<S>> {
         match self {
-            Self::Box(_) => None,
+            Self::Box(_) | Self::InlineBoundary(_) => None,
             Self::LineBreak(input) => Some(*input),
+        }
+    }
+
+    #[must_use]
+    pub const fn as_inline_boundary(&self) -> Option<InlineBoundaryInputOf<S>> {
+        match self {
+            Self::Box(_) | Self::LineBreak(_) => None,
+            Self::InlineBoundary(input) => Some(*input),
         }
     }
 }

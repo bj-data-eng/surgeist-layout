@@ -234,6 +234,31 @@ fn line_break_input_supports_f64_metrics() {
 }
 
 #[test]
+fn inline_boundary_input_requires_explicit_metrics() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(28.0, 20.0).unwrap();
+    let input = InlineBoundaryInput::new(InlineBoundaryKind::Start, metrics)
+        .with_writing_mode(WritingMode::VerticalRl)
+        .with_direction(Direction::Rtl)
+        .with_vertical_align(VerticalAlign::Top);
+
+    assert_eq!(input.kind(), InlineBoundaryKind::Start);
+    assert_eq!(input.metrics(), metrics);
+    assert_eq!(input.writing_mode(), WritingMode::VerticalRl);
+    assert_eq!(input.direction(), Direction::Rtl);
+    assert_eq!(input.vertical_align(), VerticalAlign::Top);
+}
+
+#[test]
+fn inline_boundary_input_supports_f64_metrics() {
+    let metrics = InlineMetricsOf::<f64>::from_line_height_and_baseline(40.0, 30.0).unwrap();
+    let input = InlineBoundaryInputOf::<f64>::new(InlineBoundaryKind::End, metrics);
+
+    assert_eq!(input.kind(), InlineBoundaryKind::End);
+    assert_eq!(input.metrics().line_extent(), 40.0);
+    assert_eq!(input.metrics().baseline(), 30.0);
+}
+
+#[test]
 fn inline_metrics_validate_line_box_invariants() {
     let metrics = InlineMetrics::try_new(12.0, 18.0).unwrap();
 
@@ -292,6 +317,17 @@ fn layout_input_distinguishes_box_from_line_break() {
         line_break.as_line_break().unwrap().display(),
         LineBreakDisplay::None
     );
+}
+
+#[test]
+fn layout_input_distinguishes_inline_boundary_from_boxes_and_breaks() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(18.0, 14.0).unwrap();
+    let boundary = InlineBoundaryInput::new(InlineBoundaryKind::Start, metrics);
+    let layout_input = LayoutInput::inline_boundary(boundary);
+
+    assert!(layout_input.as_box().is_none());
+    assert!(layout_input.as_line_break().is_none());
+    assert_eq!(layout_input.as_inline_boundary(), Some(boundary));
 }
 
 #[test]

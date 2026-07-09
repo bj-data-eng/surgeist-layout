@@ -22,7 +22,7 @@ where
             LayoutInputOf::Box(_) => {
                 tree.compute_child(child, ComputeInputOf::HIDDEN);
             }
-            LayoutInputOf::LineBreak(_) => {
+            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
                 tree.set_unrounded(child, NodeOutputOf::with_order(0));
             }
