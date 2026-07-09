@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use super::inline::{
-    AtomicInlineBoxItem, AtomicInlineInput, AtomicInlineItem, ForcedLineBreakControlOf,
-    InlineControlAlignment, InlineFlowOf, layout_atomic_inline_items,
+    AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineControlAlignment, InlineFlowOf,
+    InlineParticipant, InlineRunInput, layout_inline_run,
 };
 use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
@@ -355,7 +355,7 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
     }
 }
 
-fn atomic_inline_run_end<Tree>(
+fn inline_run_end<Tree>(
     tree: &Tree,
     children: &[<Tree as Traverse>::Node],
     constants: &Constants<<Tree as Traverse>::Scalar>,
@@ -421,19 +421,19 @@ where
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct AtomicInlineClearCandidate {
+struct InlineClearCandidate {
     end: usize,
     clear: Clear,
 }
 
-fn next_atomic_inline_clear_candidate<Tree>(
+fn next_inline_clear_candidate<Tree>(
     tree: &Tree,
     children: &[<Tree as Traverse>::Node],
     start: usize,
     run_end: usize,
     flow_writing_mode: WritingMode,
     flow_direction: Direction,
-) -> Option<AtomicInlineClearCandidate>
+) -> Option<InlineClearCandidate>
 where
     Tree: Compute,
 {
@@ -452,7 +452,7 @@ where
             }
             let clear = line_break.clear();
             if clear != Clear::None {
-                return Some(AtomicInlineClearCandidate {
+                return Some(InlineClearCandidate {
                     end: index + 1,
                     clear,
                 });
@@ -462,7 +462,7 @@ where
     None
 }
 
-fn atomic_inline_run_contains_clear<Tree>(
+fn inline_run_contains_clear<Tree>(
     tree: &Tree,
     children: &[<Tree as Traverse>::Node],
     run_start: usize,
@@ -472,7 +472,7 @@ fn atomic_inline_run_contains_clear<Tree>(
 where
     Tree: Compute,
 {
-    next_atomic_inline_clear_candidate(
+    next_inline_clear_candidate(
         tree,
         children,
         run_start,
@@ -539,7 +539,7 @@ where
                 );
 
                 let run_start = index;
-                index = atomic_inline_run_end(tree, children, constants, index + 1);
+                index = inline_run_end(tree, children, constants, index + 1);
 
                 let collapsed_margin = active_margin.resolve();
                 cursor_y = cursor_y + collapsed_margin;
@@ -547,12 +547,12 @@ where
                     is_collapsing_first_margin = false;
                 }
 
-                let placement = layout_atomic_inline_run_with_clear(
+                let placement = layout_inline_run_with_clear(
                     tree,
                     children,
                     run_start,
                     index,
-                    AtomicInlineRunContext {
+                    InlineRunContext {
                         order_start: run_start as u32,
                         cursor_y,
                         constants,
@@ -601,7 +601,7 @@ where
 
         if child_style.display.is_inline_level() && child_style.float.is_none() {
             let run_start = index;
-            index = atomic_inline_run_end(tree, children, constants, index + 1);
+            index = inline_run_end(tree, children, constants, index + 1);
 
             let collapsed_margin = active_margin.resolve();
             cursor_y = cursor_y + collapsed_margin;
@@ -609,12 +609,12 @@ where
                 is_collapsing_first_margin = false;
             }
 
-            let placement = layout_atomic_inline_run_with_clear(
+            let placement = layout_inline_run_with_clear(
                 tree,
                 children,
                 run_start,
                 index,
-                AtomicInlineRunContext {
+                InlineRunContext {
                     order_start: run_start as u32,
                     cursor_y,
                     constants,
@@ -863,7 +863,7 @@ struct InlineRunPlacement<Node, S: LayoutScalar> {
     last_baseline: Option<S>,
 }
 
-struct AtomicInlineRunContext<'a, S: LayoutScalar> {
+struct InlineRunContext<'a, S: LayoutScalar> {
     order_start: u32,
     cursor_y: S,
     constants: &'a Constants<S>,
@@ -872,7 +872,7 @@ struct AtomicInlineRunContext<'a, S: LayoutScalar> {
     set_layout: bool,
 }
 
-struct AtomicInlineSegmentsContext<'a, S: LayoutScalar> {
+struct InlineSegmentsContext<'a, S: LayoutScalar> {
     order_start: u32,
     cursor_y: S,
     constants: &'a Constants<S>,
@@ -899,7 +899,7 @@ fn forced_line_break_control<S: LayoutScalar>(
     )
 }
 
-enum AtomicInlineRunChild<Node, S: LayoutScalar> {
+enum InlineRunChild<Node, S: LayoutScalar> {
     Box {
         child: Node,
         order: u32,
@@ -912,17 +912,17 @@ enum AtomicInlineRunChild<Node, S: LayoutScalar> {
     },
 }
 
-fn layout_atomic_inline_segments<Tree, S>(
+fn layout_inline_segments<Tree, S>(
     tree: &mut Tree,
     run: &[<Tree as Traverse>::Node],
-    context: AtomicInlineSegmentsContext<'_, S>,
+    context: InlineSegmentsContext<'_, S>,
     float_exclusions: &FloatExclusions<S>,
 ) -> InlineRunPlacement<<Tree as Traverse>::Node, S>
 where
     Tree: Compute<Scalar = S>,
     S: LayoutScalar,
 {
-    let AtomicInlineSegmentsContext {
+    let InlineSegmentsContext {
         order_start,
         mut cursor_y,
         constants,
@@ -941,7 +941,7 @@ where
         let mut segment_end = run.len();
         let mut segment_clear = Clear::None;
         let mut scan_start = offset;
-        while let Some(candidate) = next_atomic_inline_clear_candidate(
+        while let Some(candidate) = next_inline_clear_candidate(
             tree,
             run,
             scan_start,
@@ -949,10 +949,10 @@ where
             constants.writing_mode,
             constants.direction,
         ) {
-            let probe = layout_atomic_inline_run(
+            let probe = layout_inline_run_children(
                 tree,
                 &run[offset..candidate.end],
-                AtomicInlineRunContext {
+                InlineRunContext {
                     order_start: order_start + offset as u32,
                     cursor_y,
                     constants,
@@ -970,10 +970,10 @@ where
             scan_start = candidate.end;
         }
 
-        let placement = layout_atomic_inline_run(
+        let placement = layout_inline_run_children(
             tree,
             &run[offset..segment_end],
-            AtomicInlineRunContext {
+            InlineRunContext {
                 order_start: order_start + offset as u32,
                 cursor_y,
                 constants,
@@ -1012,26 +1012,26 @@ where
     }
 }
 
-fn layout_atomic_inline_run_with_clear<Tree, S>(
+fn layout_inline_run_with_clear<Tree, S>(
     tree: &mut Tree,
     children: &[<Tree as Traverse>::Node],
     run_start: usize,
     run_end: usize,
-    context: AtomicInlineRunContext<'_, S>,
+    context: InlineRunContext<'_, S>,
     float_exclusions: &FloatExclusions<S>,
 ) -> InlineRunPlacement<<Tree as Traverse>::Node, S>
 where
     Tree: Compute<Scalar = S>,
     S: LayoutScalar,
 {
-    if !atomic_inline_run_contains_clear(tree, children, run_start, run_end, context.constants) {
-        return layout_atomic_inline_run(tree, &children[run_start..run_end], context);
+    if !inline_run_contains_clear(tree, children, run_start, run_end, context.constants) {
+        return layout_inline_run_children(tree, &children[run_start..run_end], context);
     }
 
-    layout_atomic_inline_segments(
+    layout_inline_segments(
         tree,
         &children[run_start..run_end],
-        AtomicInlineSegmentsContext {
+        InlineSegmentsContext {
             order_start: context.order_start,
             cursor_y: context.cursor_y,
             constants: context.constants,
@@ -1043,16 +1043,16 @@ where
     )
 }
 
-fn layout_atomic_inline_run<Tree, S>(
+fn layout_inline_run_children<Tree, S>(
     tree: &mut Tree,
     run: &[<Tree as Traverse>::Node],
-    context: AtomicInlineRunContext<'_, S>,
+    context: InlineRunContext<'_, S>,
 ) -> InlineRunPlacement<<Tree as Traverse>::Node, S>
 where
     Tree: Compute<Scalar = S>,
     S: LayoutScalar,
 {
-    let AtomicInlineRunContext {
+    let InlineRunContext {
         order_start,
         cursor_y,
         constants,
@@ -1082,8 +1082,8 @@ where
                 )
                 .unwrap();
 
-                run_children.push(AtomicInlineRunChild::LineBreak { child, order });
-                items.push(AtomicInlineItem::forced_line_break(
+                run_children.push(InlineRunChild::LineBreak { child, order });
+                items.push(InlineParticipant::forced_line_break(
                     forced_line_break_control(
                         order,
                         line_break,
@@ -1144,7 +1144,7 @@ where
             });
         let child_margin = resolve_atomic_inline_margin(unresolved_margin);
 
-        let item = AtomicInlineItem::Box(AtomicInlineBoxItem {
+        let item = InlineParticipant::Box(AtomicInlineBoxParticipant {
             order,
             size: output.size,
             content_size: output.content_size,
@@ -1158,7 +1158,7 @@ where
                 output.last_baselines.y.or(output.first_baselines.y)
             },
         });
-        run_children.push(AtomicInlineRunChild::Box {
+        run_children.push(InlineRunChild::Box {
             child,
             order,
             style: Box::new(child_style),
@@ -1167,7 +1167,7 @@ where
         items.push(item);
     }
 
-    let report = layout_atomic_inline_items(AtomicInlineInput {
+    let report = layout_inline_run(InlineRunInput {
         available_width: node_inner_size
             .width
             .map(AvailableOf::<S>::definite)
@@ -1193,7 +1193,7 @@ where
 
     for run_child in &run_children {
         match run_child {
-            AtomicInlineRunChild::Box {
+            InlineRunChild::Box {
                 child,
                 order,
                 style: child_style,
@@ -1243,7 +1243,7 @@ where
                     );
                 }
             }
-            AtomicInlineRunChild::LineBreak { child, order } => {
+            InlineRunChild::LineBreak { child, order } => {
                 if set_layout {
                     let item = report_items_by_order[order];
                     tree.set_unrounded(

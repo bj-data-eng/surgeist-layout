@@ -1,14 +1,14 @@
 use super::{
-    AvailableOf, Clear, DefaultScalar, Direction, Edges, InlineMetricsOf, LayoutScalar, Point,
-    Size, VerticalAlign, WritingMode,
+    AvailableOf, Clear, DefaultScalar, Direction, Edges, InlineBoundaryKind, InlineMetricsOf,
+    LayoutScalar, Point, Size, VerticalAlign, WritingMode,
 };
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct AtomicInlineInput<S: LayoutScalar = DefaultScalar> {
+pub(super) struct InlineRunInput<S: LayoutScalar = DefaultScalar> {
     pub available_width: AvailableOf<S>,
     pub writing_mode: WritingMode,
     pub direction: Direction,
-    pub items: Vec<AtomicInlineItem<S>>,
+    pub items: Vec<InlineParticipant<S>>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -87,7 +87,7 @@ impl InlineAxisMapping {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct AtomicInlineBoxItem<S: LayoutScalar = DefaultScalar> {
+pub(super) struct AtomicInlineBoxParticipant<S: LayoutScalar = DefaultScalar> {
     pub order: u32,
     pub size: Size<S>,
     pub content_size: Size<S>,
@@ -209,13 +209,70 @@ impl<S: LayoutScalar> ForcedLineBreakControlOf<S> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct InlineBoundaryControlOf<S: LayoutScalar = DefaultScalar> {
+    order: u32,
+    kind: InlineBoundaryKind,
+    flow: InlineFlowOf<S>,
+    metrics: InlineMetricsOf<S>,
+    alignment: InlineControlAlignment,
+}
+
+#[allow(dead_code)]
+impl<S: LayoutScalar> InlineBoundaryControlOf<S> {
+    #[must_use]
+    pub(super) const fn new(
+        order: u32,
+        kind: InlineBoundaryKind,
+        flow: InlineFlowOf<S>,
+        metrics: InlineMetricsOf<S>,
+        alignment: InlineControlAlignment,
+    ) -> Self {
+        Self {
+            order,
+            kind,
+            flow,
+            metrics,
+            alignment,
+        }
+    }
+
+    #[must_use]
+    pub(super) const fn order(self) -> u32 {
+        self.order
+    }
+
+    #[must_use]
+    pub(super) const fn kind(self) -> InlineBoundaryKind {
+        self.kind
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn flow(self) -> InlineFlowOf<S> {
+        self.flow
+    }
+
+    #[must_use]
+    pub(super) const fn metrics(self) -> InlineMetricsOf<S> {
+        self.metrics
+    }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn alignment(self) -> InlineControlAlignment {
+        self.alignment
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum InlineControlItemOf<S: LayoutScalar = DefaultScalar> {
     ForcedLineBreak(ForcedLineBreakControlOf<S>),
+    Boundary(InlineBoundaryControlOf<S>),
 }
 
-impl<S: LayoutScalar> AtomicInlineItem<S> {
+impl<S: LayoutScalar> InlineParticipant<S> {
     #[cfg(test)]
     pub(super) const fn new(
         order: u32,
@@ -223,7 +280,7 @@ impl<S: LayoutScalar> AtomicInlineItem<S> {
         margin: Edges<S>,
         first_baseline: Option<S>,
     ) -> Self {
-        Self::Box(AtomicInlineBoxItem {
+        Self::Box(AtomicInlineBoxParticipant {
             order,
             size,
             content_size: size,
@@ -240,16 +297,23 @@ impl<S: LayoutScalar> AtomicInlineItem<S> {
     pub(super) const fn forced_line_break(control: ForcedLineBreakControlOf<S>) -> Self {
         Self::ForcedLineBreak(control)
     }
+
+    #[allow(dead_code)]
+    #[must_use]
+    pub(super) const fn inline_boundary(control: InlineBoundaryControlOf<S>) -> Self {
+        Self::Boundary(control)
+    }
 }
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum AtomicInlineItem<S: LayoutScalar = DefaultScalar> {
-    Box(AtomicInlineBoxItem<S>),
+pub(super) enum InlineParticipant<S: LayoutScalar = DefaultScalar> {
+    Box(AtomicInlineBoxParticipant<S>),
     ForcedLineBreak(ForcedLineBreakControlOf<S>),
+    Boundary(InlineBoundaryControlOf<S>),
 }
 
-impl<S: LayoutScalar> AtomicInlineBoxItem<S> {
+impl<S: LayoutScalar> AtomicInlineBoxParticipant<S> {
     #[must_use]
     fn advance(self) -> S {
         self.margin.left + self.size.width + self.margin.right
@@ -274,14 +338,14 @@ impl<S: LayoutScalar> AtomicInlineBoxItem<S> {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum AtomicInlineLayoutItemKind {
+pub(super) enum InlineParticipantLayoutKind {
     Box,
     ForcedLineBreak,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct AtomicInlineLayoutItem<S: LayoutScalar = DefaultScalar> {
-    pub kind: AtomicInlineLayoutItemKind,
+pub(super) struct InlineParticipantLayoutItem<S: LayoutScalar = DefaultScalar> {
+    pub kind: InlineParticipantLayoutKind,
     pub order: u32,
     pub location: Point<S>,
     pub size: Size<S>,
@@ -293,18 +357,24 @@ pub(super) struct AtomicInlineLayoutItem<S: LayoutScalar = DefaultScalar> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct AtomicInlineReport<S: LayoutScalar = DefaultScalar> {
+pub(super) struct InlineRunReport<S: LayoutScalar = DefaultScalar> {
     pub size: Size<S>,
     pub content_size: Size<S>,
     pub first_baseline: Option<S>,
     pub last_baseline: Option<S>,
-    pub items: Vec<AtomicInlineLayoutItem<S>>,
+    pub items: Vec<InlineParticipantLayoutItem<S>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PendingInlineItem<S: LayoutScalar = DefaultScalar> {
-    Box { item: AtomicInlineBoxItem<S>, x: S },
-    ForcedLineBreak { order: u32, x: S },
+    Box {
+        item: AtomicInlineBoxParticipant<S>,
+        x: S,
+    },
+    ForcedLineBreak {
+        order: u32,
+        x: S,
+    },
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -321,7 +391,7 @@ impl<S: LayoutScalar> InlineLine<S> {
         self.items.is_empty()
     }
 
-    fn push_box(&mut self, item: AtomicInlineBoxItem<S>) {
+    fn push_box(&mut self, item: AtomicInlineBoxParticipant<S>) {
         let baseline = item.line_baseline();
         self.baseline = self.baseline.max(baseline);
         self.descent = self.descent.max(item.line_descent());
@@ -351,7 +421,7 @@ impl<S: LayoutScalar> InlineLine<S> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum PendingVerticalInlineItem<S: LayoutScalar = DefaultScalar> {
     Box {
-        item: AtomicInlineBoxItem<S>,
+        item: AtomicInlineBoxParticipant<S>,
         logical_inline_start: S,
     },
     ForcedLineBreak {
@@ -376,7 +446,7 @@ impl<S: LayoutScalar> VerticalInlineLine<S> {
         self.items.is_empty()
     }
 
-    fn push_box(&mut self, item: AtomicInlineBoxItem<S>) {
+    fn push_box(&mut self, item: AtomicInlineBoxParticipant<S>) {
         self.inline_extent = self.inline_extent + item.margin.top;
         let logical_inline_start = self.inline_extent;
         self.inline_extent = self.inline_extent + item.size.height + item.margin.bottom;
@@ -406,14 +476,12 @@ impl<S: LayoutScalar> VerticalInlineLine<S> {
 }
 
 #[must_use]
-pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
-    input: AtomicInlineInput<S>,
-) -> AtomicInlineReport<S> {
+pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> InlineRunReport<S> {
     if matches!(
         input.writing_mode,
         WritingMode::VerticalRl | WritingMode::VerticalLr
     ) {
-        return layout_vertical_atomic_inline_items(input);
+        return layout_vertical_inline_run(input);
     }
 
     let axis_mapping = match input.writing_mode {
@@ -428,7 +496,7 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
 
     let available_width = match input.available_width {
         AvailableOf::Definite(width) => Some(width),
-        AvailableOf::MinContent => Some(atomic_inline_min_content_width(&input.items)),
+        AvailableOf::MinContent => Some(inline_run_min_content_width(&input.items)),
         AvailableOf::MaxContent => None,
     };
     let mut lines = Vec::new();
@@ -436,7 +504,7 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
 
     for item in input.items {
         match item {
-            AtomicInlineItem::Box(item) => {
+            InlineParticipant::Box(item) => {
                 let advance = item.advance();
                 if let Some(available_width) = available_width
                     && !line.is_empty()
@@ -448,10 +516,13 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
 
                 line.push_box(item);
             }
-            AtomicInlineItem::ForcedLineBreak(control) => {
+            InlineParticipant::ForcedLineBreak(control) => {
                 line.push_forced_line_break(control);
                 lines.push(line);
                 line = InlineLine::<S>::default();
+            }
+            InlineParticipant::Boundary(_) => {
+                panic!("inline boundary participant layout is implemented in Task 3");
             }
         }
     }
@@ -477,8 +548,8 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
         for pending in line.items {
             match pending {
                 PendingInlineItem::Box { item, x } => {
-                    items.push(AtomicInlineLayoutItem {
-                        kind: AtomicInlineLayoutItemKind::Box,
+                    items.push(InlineParticipantLayoutItem {
+                        kind: InlineParticipantLayoutKind::Box,
                         order: item.order,
                         location: axis_mapping.physical_item_origin(
                             LogicalInlinePointOf::new(x, y + line.baseline - item.baseline()),
@@ -495,8 +566,8 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
                     });
                 }
                 PendingInlineItem::ForcedLineBreak { order, x } => {
-                    items.push(AtomicInlineLayoutItem {
-                        kind: AtomicInlineLayoutItemKind::ForcedLineBreak,
+                    items.push(InlineParticipantLayoutItem {
+                        kind: InlineParticipantLayoutKind::ForcedLineBreak,
                         order,
                         location: axis_mapping.physical_item_origin(
                             LogicalInlinePointOf::new(x, line_baseline),
@@ -520,7 +591,7 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
 
     let content_size = Size::new(width, y);
 
-    AtomicInlineReport {
+    InlineRunReport {
         size: content_size,
         content_size,
         first_baseline,
@@ -529,9 +600,7 @@ pub(super) fn layout_atomic_inline_items<S: LayoutScalar>(
     }
 }
 
-fn layout_vertical_atomic_inline_items<S: LayoutScalar>(
-    input: AtomicInlineInput<S>,
-) -> AtomicInlineReport<S> {
+fn layout_vertical_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> InlineRunReport<S> {
     debug_assert!(matches!(
         input.writing_mode,
         WritingMode::VerticalRl | WritingMode::VerticalLr
@@ -542,13 +611,16 @@ fn layout_vertical_atomic_inline_items<S: LayoutScalar>(
 
     for item in input.items {
         match item {
-            AtomicInlineItem::Box(item) => {
+            InlineParticipant::Box(item) => {
                 line.push_box(item);
             }
-            AtomicInlineItem::ForcedLineBreak(control) => {
+            InlineParticipant::ForcedLineBreak(control) => {
                 line.push_forced_line_break(control);
                 lines.push(line);
                 line = VerticalInlineLine::<S>::default();
+            }
+            InlineParticipant::Boundary(_) => {
+                panic!("inline boundary participant layout is implemented in Task 3");
             }
         }
     }
@@ -570,7 +642,7 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
     direction: Direction,
     available_width: AvailableOf<S>,
     lines: Vec<VerticalInlineLine<S>>,
-) -> AtomicInlineReport<S> {
+) -> InlineRunReport<S> {
     let line_inline_extent = lines
         .iter()
         .map(|line| line.inline_extent)
@@ -615,8 +687,8 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                     } else {
                         logical_block_start + item.margin.right
                     };
-                    items.push(AtomicInlineLayoutItem {
-                        kind: AtomicInlineLayoutItemKind::Box,
+                    items.push(InlineParticipantLayoutItem {
+                        kind: InlineParticipantLayoutKind::Box,
                         order: item.order,
                         location: axis_mapping.physical_item_origin(
                             LogicalInlinePointOf::new(
@@ -640,8 +712,8 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                     logical_inline_start,
                     baseline,
                 } => {
-                    items.push(AtomicInlineLayoutItem {
-                        kind: AtomicInlineLayoutItemKind::ForcedLineBreak,
+                    items.push(InlineParticipantLayoutItem {
+                        kind: InlineParticipantLayoutKind::ForcedLineBreak,
                         order,
                         location: axis_mapping.physical_item_origin(
                             LogicalInlinePointOf::new(
@@ -668,7 +740,7 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
 
     let content_size = Size::new(container_block_extent, line_inline_extent);
 
-    AtomicInlineReport {
+    InlineRunReport {
         size: content_size,
         content_size,
         first_baseline,
@@ -678,29 +750,35 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
 }
 
 #[must_use]
-pub(super) fn atomic_inline_min_content_width<S: LayoutScalar>(items: &[AtomicInlineItem<S>]) -> S {
+pub(super) fn inline_run_min_content_width<S: LayoutScalar>(items: &[InlineParticipant<S>]) -> S {
     items
         .iter()
         .filter_map(|item| match item {
-            AtomicInlineItem::Box(item) => Some(item.advance()),
-            AtomicInlineItem::ForcedLineBreak(_) => None,
+            InlineParticipant::Box(item) => Some(item.advance()),
+            InlineParticipant::ForcedLineBreak(_) => None,
+            InlineParticipant::Boundary(_) => {
+                panic!("inline boundary intrinsic sizing is implemented in Task 3");
+            }
         })
         .fold(S::ZERO, S::max)
 }
 
 #[must_use]
 #[cfg(test)]
-pub(super) fn atomic_inline_max_content_width<S: LayoutScalar>(items: &[AtomicInlineItem<S>]) -> S {
+pub(super) fn inline_run_max_content_width<S: LayoutScalar>(items: &[InlineParticipant<S>]) -> S {
     let mut max_width = S::ZERO;
     let mut segment_width = S::ZERO;
     for item in items {
         match item {
-            AtomicInlineItem::Box(item) => {
+            InlineParticipant::Box(item) => {
                 segment_width = segment_width + item.advance();
             }
-            AtomicInlineItem::ForcedLineBreak(_) => {
+            InlineParticipant::ForcedLineBreak(_) => {
                 max_width = max_width.max(segment_width);
                 segment_width = S::ZERO;
+            }
+            InlineParticipant::Boundary(_) => {
+                panic!("inline boundary intrinsic sizing is implemented in Task 3");
             }
         }
     }
