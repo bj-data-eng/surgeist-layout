@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 
 use super::inline::{
-    AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineControlAlignment, InlineFlowOf,
-    InlineParticipant, InlineRunInput, layout_inline_run,
+    AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
+    InlineControlAlignment, InlineFlowOf, InlineParticipant, InlineRunInput, layout_inline_run,
 };
 use super::value::{CalcUnresolvedReason, ResolvedLengthAutoOf};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, CalcResolutionOf, CalcResolutionStatus,
     CalcResolver, Clear, CollapsibleMarginOf, Compute, ComputeInputOf, ComputeOutputOf,
-    DimensionOf, Direction, Edges, Float, LayoutInputOf, LayoutScalar, LengthAutoOf, LengthOf,
-    LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode,
-    Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    DimensionOf, Direction, Edges, Float, InlineBoundaryInputOf, LayoutInputOf, LayoutScalar,
+    LengthAutoOf, LengthOf, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position,
+    RequestedAxis, RunMode, Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 
 pub fn compute_block<Tree>(
@@ -388,7 +388,12 @@ where
                 );
             }
             LayoutInputOf::InlineBoundary(_) => {
-                panic!("visible inline boundary layout is not implemented");
+                visible_inline_boundary_in_flow(
+                    tree,
+                    children[index],
+                    constants.writing_mode,
+                    constants.direction,
+                );
             }
         }
         index += 1;
@@ -418,6 +423,24 @@ where
         panic!("line-break flow must match containing inline flow");
     }
     Some(line_break)
+}
+
+fn visible_inline_boundary_in_flow<Tree>(
+    tree: &Tree,
+    child: <Tree as Traverse>::Node,
+    flow_writing_mode: WritingMode,
+    flow_direction: Direction,
+) -> Option<InlineBoundaryInputOf<<Tree as Traverse>::Scalar>>
+where
+    Tree: Compute,
+{
+    let LayoutInputOf::InlineBoundary(boundary) = tree.layout_input(child) else {
+        return None;
+    };
+    if boundary.writing_mode() != flow_writing_mode || boundary.direction() != flow_direction {
+        panic!("inline boundary flow must match containing inline flow");
+    }
+    Some(boundary)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -579,7 +602,52 @@ where
                 continue;
             }
             LayoutInputOf::InlineBoundary(_) => {
-                panic!("visible inline boundary layout is not implemented");
+                visible_inline_boundary_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                );
+
+                let run_start = index;
+                index = inline_run_end(tree, children, constants, index + 1);
+
+                let collapsed_margin = active_margin.resolve();
+                cursor_y = cursor_y + collapsed_margin;
+                if is_collapsing_first_margin {
+                    is_collapsing_first_margin = false;
+                }
+
+                let placement = layout_inline_run_with_clear(
+                    tree,
+                    children,
+                    run_start,
+                    index,
+                    InlineRunContext {
+                        order_start: run_start as u32,
+                        cursor_y,
+                        constants,
+                        input,
+                        node_inner_size,
+                        set_layout,
+                    },
+                    &float_exclusions,
+                );
+                content_size.width = content_size.width.max(placement.content_size.width);
+                content_size.height = content_size.height.max(placement.content_size.height);
+                static_positions.extend(placement.static_positions);
+                if let Some(baseline) = placement.first_baseline {
+                    let absolute_baseline = cursor_y + baseline;
+                    first_baseline.get_or_insert(absolute_baseline);
+                }
+                if let Some(baseline) = placement.last_baseline {
+                    last_baseline = Some(cursor_y + baseline);
+                }
+                cursor_y = cursor_y + placement.size.height;
+                active_margin = CollapsibleMarginOf::<S>::ZERO;
+                active_margin_can_collapse_with_parent = false;
+                all_in_flow_children_can_collapse_through = false;
+                continue;
             }
         };
         if child_style.display == super::Display::None {
@@ -899,6 +967,24 @@ fn forced_line_break_control<S: LayoutScalar>(
     )
 }
 
+fn inline_boundary_control<S: LayoutScalar>(
+    order: u32,
+    input: InlineBoundaryInputOf<S>,
+    available_inline_extent: AvailableOf<S>,
+) -> InlineBoundaryControlOf<S> {
+    InlineBoundaryControlOf::new(
+        order,
+        input.kind(),
+        InlineFlowOf::new(
+            input.writing_mode(),
+            input.direction(),
+            available_inline_extent,
+        ),
+        input.metrics(),
+        InlineControlAlignment::from(input.vertical_align()),
+    )
+}
+
 enum InlineRunChild<Node, S: LayoutScalar> {
     Box {
         child: Node,
@@ -907,6 +993,10 @@ enum InlineRunChild<Node, S: LayoutScalar> {
         output: ComputeOutputOf<S>,
     },
     LineBreak {
+        child: Node,
+        order: u32,
+    },
+    Boundary {
         child: Node,
         order: u32,
     },
@@ -1096,7 +1186,24 @@ where
                 continue;
             }
             LayoutInputOf::InlineBoundary(_) => {
-                panic!("visible inline boundary layout is not implemented");
+                let boundary = visible_inline_boundary_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                )
+                .unwrap();
+
+                run_children.push(InlineRunChild::Boundary { child, order });
+                items.push(InlineParticipant::inline_boundary(inline_boundary_control(
+                    order,
+                    boundary,
+                    node_inner_size
+                        .width
+                        .map(AvailableOf::<S>::definite)
+                        .unwrap_or(input.available.width),
+                )));
+                continue;
             }
         };
         if child_style.display == super::Display::None {
@@ -1244,6 +1351,27 @@ where
                 }
             }
             InlineRunChild::LineBreak { child, order } => {
+                if set_layout {
+                    let item = report_items_by_order[order];
+                    tree.set_unrounded(
+                        *child,
+                        NodeOutputOf::<S> {
+                            order: item.order,
+                            location: Point::new(
+                                constants.content_box_inset.left + run_offset + item.location.x,
+                                cursor_y + item.location.y,
+                            ),
+                            size: Size::ZERO,
+                            content_size: Size::ZERO,
+                            scrollbar_size: Size::ZERO,
+                            border: Edges::ZERO,
+                            padding: Edges::ZERO,
+                            margin: Edges::ZERO,
+                        },
+                    );
+                }
+            }
+            InlineRunChild::Boundary { child, order } => {
                 if set_layout {
                     let item = report_items_by_order[order];
                     tree.set_unrounded(

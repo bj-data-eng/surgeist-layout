@@ -226,6 +226,118 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
 }
 
 #[test]
+fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
+    #[derive(Default)]
+    struct HiddenTree {
+        children: HashMap<u32, Vec<u32>>,
+        layouts: HashMap<u32, NodeOutput>,
+        caches: HashMap<u32, Cache>,
+        inputs: HashMap<u32, LayoutInput>,
+        hidden_children: Vec<u32>,
+    }
+
+    impl Traverse for HiddenTree {
+        type Node = u32;
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
+
+    impl Compute for HiddenTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            self.inputs[&node]
+                .as_box()
+                .unwrap_or_else(|| panic!("inline boundary node {node} has no box NodeInput"))
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            self.inputs[&node].clone()
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            assert_eq!(input, ComputeInput::HIDDEN);
+            let _ = self.node_input(node);
+            self.hidden_children.push(node);
+            ComputeOutput::HIDDEN
+        }
+    }
+
+    impl CacheAccess for HiddenTree {
+        type Node = u32;
+        type Scalar = Scalar;
+
+        fn cache_context(&self) -> crate::CacheKeyContext {
+            crate::CacheKeyContext::static_no_calc()
+        }
+
+        fn cache_get(
+            &self,
+            node: Self::Node,
+            input: &ComputeInput,
+            context: crate::CacheKeyContext,
+        ) -> Option<ComputeOutput> {
+            self.caches[&node].get_with_context(input, context)
+        }
+
+        fn cache_store(
+            &mut self,
+            node: Self::Node,
+            input: &ComputeInput,
+            context: crate::CacheKeyContext,
+            output: ComputeOutput,
+        ) {
+            self.caches
+                .get_mut(&node)
+                .unwrap()
+                .store_with_context(input, context, output);
+        }
+
+        fn cache_clear(&mut self, node: Self::Node) {
+            self.caches.get_mut(&node).unwrap().clear();
+        }
+    }
+
+    let metrics = InlineMetrics::from_line_height_and_baseline(16.0, 12.0).unwrap();
+    let mut tree = HiddenTree::default();
+    tree.children.insert(1, vec![2, 3]);
+    tree.children.insert(2, vec![]);
+    tree.children.insert(3, vec![]);
+    tree.inputs
+        .insert(1, LayoutInput::box_input(NodeInput::default()));
+    tree.inputs
+        .insert(2, LayoutInput::box_input(NodeInput::default()));
+    tree.inputs.insert(
+        3,
+        LayoutInput::inline_boundary(InlineBoundaryInput::new(InlineBoundaryKind::Start, metrics)),
+    );
+    tree.caches.insert(1, Cache::new());
+    tree.caches.insert(2, Cache::new());
+    tree.caches.insert(3, Cache::new());
+
+    assert_eq!(compute_hidden(&mut tree, 1), ComputeOutput::HIDDEN);
+    assert_eq!(tree.hidden_children, vec![2]);
+    assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
+    assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
+    assert!(tree.caches[&1].is_empty());
+    assert!(tree.caches[&3].is_empty());
+}
+
+#[test]
 fn f64_compute_hidden_clears_layout_with_f64_output_type() {
     #[derive(Default)]
     struct HiddenTree {
