@@ -147,6 +147,14 @@ impl ScrollContainerAxis {
         matches!(self.exposure, ScrollOverflowExposure::ScrollableClip)
     }
 
+    #[must_use]
+    pub const fn clips_overflow(self) -> bool {
+        matches!(
+            self.exposure,
+            ScrollOverflowExposure::ClipOnly | ScrollOverflowExposure::ScrollableClip
+        )
+    }
+
     pub const fn from_overflow(overflow: Overflow) -> Result<Self, ScrollUnsupportedFeature> {
         Ok(Self {
             exposure: match overflow {
@@ -185,6 +193,19 @@ impl ScrollContainerFacts {
         let maximum = range.maximum_offset();
         (self.x.exposes_scroll_range() || maximum.width == S::ZERO)
             && (self.y.exposes_scroll_range() || maximum.height == S::ZERO)
+    }
+
+    #[must_use]
+    pub const fn requires_overflow_clip(self) -> bool {
+        self.x.clips_overflow() || self.y.clips_overflow()
+    }
+
+    #[must_use]
+    pub const fn accepts_overflow_clip<S: LayoutScalar>(
+        self,
+        overflow_clip: Option<ScrollRectOf<S>>,
+    ) -> bool {
+        !self.requires_overflow_clip() || overflow_clip.is_some()
     }
 }
 
@@ -266,6 +287,9 @@ impl<S: LayoutScalar> ScrollGeometryOf<S> {
         gutters: ScrollbarGutterRectsOf<S>,
     ) -> Result<Self, ScrollUnsupportedFeature> {
         if !container.accepts_range(range) {
+            return Err(ScrollUnsupportedFeature::InvalidScrollGeometry);
+        }
+        if !container.accepts_overflow_clip(overflow_clip) {
             return Err(ScrollUnsupportedFeature::InvalidScrollGeometry);
         }
 

@@ -65,12 +65,18 @@ fn scroll_container_facts_distinguish_hidden_clip_and_scroll() {
 
     assert_eq!(hidden.exposure(), ScrollOverflowExposure::ScrollableClip);
     assert!(hidden.exposes_scroll_range());
+    assert!(hidden.clips_overflow());
     assert_eq!(clip.exposure(), ScrollOverflowExposure::ClipOnly);
     assert!(!clip.exposes_scroll_range());
+    assert!(clip.clips_overflow());
     assert_eq!(scroll.exposure(), ScrollOverflowExposure::ScrollableClip);
     assert!(scroll.exposes_scroll_range());
+    assert!(scroll.clips_overflow());
     assert_eq!(visible.exposure(), ScrollOverflowExposure::Visible);
     assert!(!visible.exposes_scroll_range());
+    assert!(!visible.clips_overflow());
+    assert!(ScrollContainerFacts::new(hidden, visible).requires_overflow_clip());
+    assert!(!ScrollContainerFacts::new(visible, visible).requires_overflow_clip());
 }
 
 #[test]
@@ -101,6 +107,77 @@ fn scroll_geometry_front_door_preserves_physical_rects_and_flow_metadata() {
     assert_eq!(geometry.overflow_clip(), Some(clip));
     assert_eq!(geometry.scrollable_overflow(), overflow);
     assert_eq!(geometry.range(), range);
+}
+
+#[test]
+fn scroll_geometry_rejects_clipping_axis_without_clip_rect() {
+    let scrollport = ScrollRect::new(Point::ZERO, Size::new(80.0, 40.0)).unwrap();
+    let overflow = ScrollRect::new(Point::ZERO, Size::new(120.0, 90.0)).unwrap();
+    let range = ScrollRange::new(Size::new(0.0, 0.0)).unwrap();
+    let gutters = ScrollbarGutterRects::new(None, None);
+
+    for overflow_x in [Overflow::Hidden, Overflow::Clip, Overflow::Scroll] {
+        assert_eq!(
+            ScrollGeometry::new(
+                WritingMode::HorizontalTb,
+                Direction::Ltr,
+                ScrollContainerFacts::new(
+                    ScrollContainerAxis::from_overflow(overflow_x).unwrap(),
+                    ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
+                ),
+                scrollport,
+                None,
+                overflow,
+                range,
+                gutters,
+            )
+            .unwrap_err(),
+            ScrollUnsupportedFeature::InvalidScrollGeometry
+        );
+    }
+
+    assert_eq!(
+        ScrollGeometry::new(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            ScrollContainerFacts::new(
+                ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
+                ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
+            ),
+            scrollport,
+            None,
+            overflow,
+            range,
+            gutters,
+        )
+        .unwrap_err(),
+        ScrollUnsupportedFeature::InvalidScrollGeometry
+    );
+}
+
+#[test]
+fn scroll_geometry_allows_visible_axes_without_clip_rect() {
+    let scrollport = ScrollRect::new(Point::ZERO, Size::new(80.0, 40.0)).unwrap();
+    let overflow = ScrollRect::new(Point::ZERO, Size::new(120.0, 90.0)).unwrap();
+    let range = ScrollRange::new(Size::new(0.0, 0.0)).unwrap();
+    let gutters = ScrollbarGutterRects::new(None, None);
+
+    let geometry = ScrollGeometry::new(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        ScrollContainerFacts::new(
+            ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
+            ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
+        ),
+        scrollport,
+        None,
+        overflow,
+        range,
+        gutters,
+    )
+    .unwrap();
+
+    assert_eq!(geometry.overflow_clip(), None);
 }
 
 #[test]
