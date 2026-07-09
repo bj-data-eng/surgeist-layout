@@ -61,8 +61,10 @@ pub use output::{
 /// Supported scalar contract for generic layout APIs.
 pub use scalar::LayoutScalar;
 pub use scroll::{
-    ScrollOffset, ScrollOffsetOf, ScrollRange, ScrollRangeOf, ScrollRect, ScrollRectOf,
-    ScrollUnsupportedFeature,
+    ScrollContainerAxis, ScrollContainerFacts, ScrollGeometry, ScrollGeometryOf, ScrollOffset,
+    ScrollOffsetOf, ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRange,
+    ScrollRangeOf, ScrollRect, ScrollRectOf, ScrollUnsupportedFeature, ScrollbarGutterRects,
+    ScrollbarGutterRectsOf,
 };
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{

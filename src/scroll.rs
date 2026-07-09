@@ -1,4 +1,4 @@
-use super::{DefaultScalar, LayoutScalar, Point, Size};
+use super::{DefaultScalar, Direction, LayoutScalar, Overflow, Point, Size, WritingMode};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScrollUnsupportedFeature {
@@ -100,5 +100,207 @@ impl<S: LayoutScalar> ScrollRangeOf<S> {
             position.x.max(S::ZERO).min(self.maximum_offset.width),
             position.y.max(S::ZERO).min(self.maximum_offset.height),
         ))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScrollOverflowExposure {
+    Visible,
+    ClipOnly,
+    ScrollableClip,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScrollContainerAxis {
+    exposure: ScrollOverflowExposure,
+}
+
+impl ScrollContainerAxis {
+    pub const VISIBLE: Self = Self {
+        exposure: ScrollOverflowExposure::Visible,
+    };
+
+    #[must_use]
+    pub const fn exposure(self) -> ScrollOverflowExposure {
+        self.exposure
+    }
+
+    #[must_use]
+    pub const fn exposes_scroll_range(self) -> bool {
+        matches!(self.exposure, ScrollOverflowExposure::ScrollableClip)
+    }
+
+    pub const fn from_overflow(overflow: Overflow) -> Result<Self, ScrollUnsupportedFeature> {
+        Ok(Self {
+            exposure: match overflow {
+                Overflow::Visible => ScrollOverflowExposure::Visible,
+                Overflow::Clip => ScrollOverflowExposure::ClipOnly,
+                Overflow::Hidden | Overflow::Scroll => ScrollOverflowExposure::ScrollableClip,
+            },
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScrollContainerFacts {
+    x: ScrollContainerAxis,
+    y: ScrollContainerAxis,
+}
+
+impl ScrollContainerFacts {
+    #[must_use]
+    pub const fn new(x: ScrollContainerAxis, y: ScrollContainerAxis) -> Self {
+        Self { x, y }
+    }
+
+    #[must_use]
+    pub const fn x(self) -> ScrollContainerAxis {
+        self.x
+    }
+
+    #[must_use]
+    pub const fn y(self) -> ScrollContainerAxis {
+        self.y
+    }
+
+    #[must_use]
+    pub fn accepts_range<S: LayoutScalar>(self, range: ScrollRangeOf<S>) -> bool {
+        let maximum = range.maximum_offset();
+        (self.x.exposes_scroll_range() || maximum.width == S::ZERO)
+            && (self.y.exposes_scroll_range() || maximum.height == S::ZERO)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScrollOverflowCouplingPolicy {
+    RootPreResolved,
+    LayoutOwnedVisibleToAutoCoupling,
+}
+
+impl ScrollOverflowCouplingPolicy {
+    pub const PHASE_ONE: Self = Self::RootPreResolved;
+
+    #[must_use]
+    pub const fn unsupported_feature(self) -> Option<ScrollUnsupportedFeature> {
+        match self {
+            Self::RootPreResolved => None,
+            Self::LayoutOwnedVisibleToAutoCoupling => {
+                Some(ScrollUnsupportedFeature::LayoutOwnedMixedAxisOverflowCoupling)
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollbarGutterRectsOf<S: LayoutScalar = DefaultScalar> {
+    horizontal: Option<ScrollRectOf<S>>,
+    vertical: Option<ScrollRectOf<S>>,
+}
+
+pub type ScrollbarGutterRects = ScrollbarGutterRectsOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollbarGutterRectsOf<S> {
+    #[must_use]
+    pub const fn new(
+        horizontal: Option<ScrollRectOf<S>>,
+        vertical: Option<ScrollRectOf<S>>,
+    ) -> Self {
+        Self {
+            horizontal,
+            vertical,
+        }
+    }
+
+    #[must_use]
+    pub const fn horizontal(self) -> Option<ScrollRectOf<S>> {
+        self.horizontal
+    }
+
+    #[must_use]
+    pub const fn vertical(self) -> Option<ScrollRectOf<S>> {
+        self.vertical
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
+    writing_mode: WritingMode,
+    direction: Direction,
+    container: ScrollContainerFacts,
+    scrollport: ScrollRectOf<S>,
+    overflow_clip: Option<ScrollRectOf<S>>,
+    scrollable_overflow: ScrollRectOf<S>,
+    range: ScrollRangeOf<S>,
+    gutters: ScrollbarGutterRectsOf<S>,
+}
+
+pub type ScrollGeometry = ScrollGeometryOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollGeometryOf<S> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        writing_mode: WritingMode,
+        direction: Direction,
+        container: ScrollContainerFacts,
+        scrollport: ScrollRectOf<S>,
+        overflow_clip: Option<ScrollRectOf<S>>,
+        scrollable_overflow: ScrollRectOf<S>,
+        range: ScrollRangeOf<S>,
+        gutters: ScrollbarGutterRectsOf<S>,
+    ) -> Result<Self, ScrollUnsupportedFeature> {
+        if !container.accepts_range(range) {
+            return Err(ScrollUnsupportedFeature::InvalidScrollGeometry);
+        }
+
+        Ok(Self {
+            writing_mode,
+            direction,
+            container,
+            scrollport,
+            overflow_clip,
+            scrollable_overflow,
+            range,
+            gutters,
+        })
+    }
+
+    #[must_use]
+    pub const fn writing_mode(self) -> WritingMode {
+        self.writing_mode
+    }
+
+    #[must_use]
+    pub const fn direction(self) -> Direction {
+        self.direction
+    }
+
+    #[must_use]
+    pub const fn container(self) -> ScrollContainerFacts {
+        self.container
+    }
+
+    #[must_use]
+    pub const fn scrollport(self) -> ScrollRectOf<S> {
+        self.scrollport
+    }
+
+    #[must_use]
+    pub const fn overflow_clip(self) -> Option<ScrollRectOf<S>> {
+        self.overflow_clip
+    }
+
+    #[must_use]
+    pub const fn scrollable_overflow(self) -> ScrollRectOf<S> {
+        self.scrollable_overflow
+    }
+
+    #[must_use]
+    pub const fn range(self) -> ScrollRangeOf<S> {
+        self.range
+    }
+
+    #[must_use]
+    pub const fn gutters(self) -> ScrollbarGutterRectsOf<S> {
+        self.gutters
     }
 }
