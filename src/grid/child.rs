@@ -1,5 +1,6 @@
 use super::*;
 use crate::BaselinesOf;
+use crate::scroll::scrollbar_size_from_overflow;
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
     pub(super) visible_content_size: Size<S>,
@@ -387,18 +388,8 @@ where
         } else {
             tree.compute_child(child, child_input)
         };
-        let scrollbar_size = Size::new(
-            if child_style.overflow.y == Overflow::Scroll {
-                child_style.scrollbar_width
-            } else {
-                Tree::Scalar::ZERO
-            },
-            if child_style.overflow.x == Overflow::Scroll {
-                child_style.scrollbar_width
-            } else {
-                Tree::Scalar::ZERO
-            },
-        );
+        let scrollbar_size =
+            scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width);
         let alignment =
             grid_item_physical_alignment(style.writing_mode, item.justify_self, item.align_self);
         let horizontal_axis = grid_item_axis(GridItemAxis {
@@ -1977,18 +1968,8 @@ where
     let final_size = known
         .unwrap_or(output.size)
         .clamp_optional(min_size, max_size);
-    let scrollbar_size = Size::new(
-        if child_style.overflow.y == Overflow::Scroll {
-            child_style.scrollbar_width
-        } else {
-            Tree::Scalar::ZERO
-        },
-        if child_style.overflow.x == Overflow::Scroll {
-            child_style.scrollbar_width
-        } else {
-            Tree::Scalar::ZERO
-        },
-    );
+    let scrollbar_size =
+        scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width);
     let horizontal_axis = absolute_grid_axis(AbsoluteGridAxis {
         area_location: area.location.x,
         static_area_location: area.static_location.x,

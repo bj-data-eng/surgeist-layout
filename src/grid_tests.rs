@@ -4146,6 +4146,92 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
 }
 
 #[test]
+fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
+    #[derive(Default)]
+    struct GridTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+    }
+
+    impl Traverse for GridTree {
+        type Node = u32;
+
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
+
+    impl Compute for GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+        }
+    }
+
+    let mut tree = GridTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            grid_template_columns: vec![TrackComponent::px(20.0)],
+            grid_template_rows: vec![TrackComponent::px(10.0)],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            position: Position::Absolute,
+            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: 12.0,
+            ..NodeInput::default()
+        },
+    );
+
+    crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(500.0), Some(400.0)),
+            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        },
+    );
+
+    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(12.0, 12.0));
+}
+
+#[test]
 fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
     #[derive(Default)]
     struct GridTree {
@@ -4847,6 +4933,90 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
 
     assert_eq!(output.size, Size::new(2.0, 4.0));
     assert_eq!(output.content_size, Size::ZERO);
+}
+
+#[test]
+fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
+    #[derive(Default)]
+    struct GridTree {
+        children: HashMap<u32, Vec<u32>>,
+        styles: HashMap<u32, NodeInput>,
+        layouts: HashMap<u32, NodeOutput>,
+    }
+
+    impl Traverse for GridTree {
+        type Node = u32;
+
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[&node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[&node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[&node][index]
+        }
+    }
+
+    impl Compute for GridTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+        }
+    }
+
+    let mut tree = GridTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            grid_template_columns: vec![TrackComponent::px(20.0)],
+            grid_template_rows: vec![TrackComponent::px(10.0)],
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: 11.0,
+            ..NodeInput::default()
+        },
+    );
+
+    crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(500.0), Some(400.0)),
+            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        },
+    );
+
+    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(11.0, 11.0));
 }
 
 #[test]
