@@ -13,7 +13,8 @@ use super::{
     RequestedAxis, RunMode, Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::scroll::{
-    ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
+    ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
+    scrollbar_size_from_overflow,
 };
 
 pub fn compute_block<Tree>(
@@ -122,21 +123,35 @@ where
         output
     } else {
         layout_floats(tree, &final_pass.pending_floats, output_size, &constants);
-        let content_size = max_content_size(
-            final_pass.content_size,
-            layout_absolute_children(
-                tree,
-                &children,
-                &final_pass.static_positions,
-                output_size,
-                &constants,
-            ),
+        let absolute = layout_absolute_children(
+            tree,
+            &children,
+            &final_pass.static_positions,
+            output_size,
+            &constants,
         );
+        let content_size = max_content_size(final_pass.content_size, absolute.content_size);
+        let scrollable_overflow = crate::scroll::scroll_rect_union(
+            final_pass.scrollable_overflow,
+            final_content_box_scroll_rect(&style, output_size, constants.padding, constants.border),
+        )
+        .expect("block scrollable overflow includes final content box");
+        let scrollable_overflow = match absolute.scrollable_overflow {
+            Some(absolute) => crate::scroll::scroll_rect_union(scrollable_overflow, absolute)
+                .expect("block scrollable overflow union remains valid"),
+            None => scrollable_overflow,
+        };
         let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
             output_size,
             content_size,
             final_pass.baselines,
         );
+        output.scroll_geometry = Some(block_scroll_geometry(
+            &style,
+            &constants,
+            output_size,
+            scrollable_overflow,
+        ));
         output.top_margin = top_margin;
         output.bottom_margin = bottom_margin;
         output.margins_can_collapse_through = margins_can_collapse_through;
@@ -180,6 +195,8 @@ struct PendingFloat<Node, S: LayoutScalar> {
     border: Edges<S>,
     padding: Edges<S>,
     margin: Edges<S>,
+    style: Box<NodeInputOf<S>>,
+    scrollable_overflow: super::ScrollRectOf<S>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -319,6 +336,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
 
 struct InFlowResult<Node, S: LayoutScalar> {
     content_size: Size<S>,
+    scrollable_overflow: super::ScrollRectOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
     pending_floats: Vec<PendingFloat<Node, S>>,
@@ -542,6 +560,19 @@ where
         .or(input.available.width.into_option())
         .unwrap_or(S::ZERO);
     let mut float_exclusions = FloatExclusions::new(content_width, constants.content_box_inset);
+    let content_box_size = Size::new(
+        inner_width
+            .or(constants.node_inner_size.width)
+            .or(input.available.width.into_option())
+            .unwrap_or(S::ZERO),
+        constants.node_inner_size.height.unwrap_or(S::ZERO),
+    );
+    let content_box_origin = Point::new(
+        constants.content_box_inset.left,
+        constants.content_box_inset.top,
+    );
+    let mut scrollable_overflow =
+        ScrollableOverflowAccumulator::new(content_box_origin, content_box_size);
 
     let mut index = 0;
     while index < children.len() {
@@ -590,6 +621,7 @@ where
                 );
                 content_size.width = content_size.width.max(placement.content_size.width);
                 content_size.height = content_size.height.max(placement.content_size.height);
+                scrollable_overflow.include_rect(placement.scrollable_overflow);
                 static_positions.extend(placement.static_positions);
                 if let Some(baseline) = placement.first_baseline {
                     let absolute_baseline = cursor_y + baseline;
@@ -638,6 +670,7 @@ where
                 );
                 content_size.width = content_size.width.max(placement.content_size.width);
                 content_size.height = content_size.height.max(placement.content_size.height);
+                scrollable_overflow.include_rect(placement.scrollable_overflow);
                 static_positions.extend(placement.static_positions);
                 if let Some(baseline) = placement.first_baseline {
                     let absolute_baseline = cursor_y + baseline;
@@ -697,6 +730,7 @@ where
             );
             content_size.width = content_size.width.max(placement.content_size.width);
             content_size.height = content_size.height.max(placement.content_size.height);
+            scrollable_overflow.include_rect(placement.scrollable_overflow);
             static_positions.extend(placement.static_positions);
             if let Some(baseline) = placement.first_baseline {
                 let absolute_baseline = cursor_y + baseline;
@@ -768,6 +802,14 @@ where
         if !child_style.float.is_none() {
             let margin_box = output.size + child_margin.sum_axes();
             float_intrinsics.add(margin_box.width, child_style.float, child_style.clear);
+            let float_scrollable_overflow = child_scrollable_overflow(
+                &child_style,
+                output.size,
+                output.content_size,
+                child_padding,
+                child_border,
+                output.scroll_geometry,
+            );
             let pending_float = PendingFloat {
                 node: child,
                 order: order as u32,
@@ -780,8 +822,21 @@ where
                 border: child_border,
                 padding: child_padding,
                 margin: child_margin,
+                style: Box::new(child_style),
+                scrollable_overflow: float_scrollable_overflow,
             };
             let float_location = float_exclusions.place_float(&pending_float, cursor_y);
+            scrollable_overflow.include_child(
+                float_location,
+                pending_float.size,
+                pending_float.content_size,
+                pending_float.margin,
+                pending_float.style.overflow,
+            );
+            scrollable_overflow.include_translated_child_overflow(
+                float_location,
+                pending_float.scrollable_overflow,
+            );
             if set_layout {
                 pending_floats.push(pending_float);
             }
@@ -885,6 +940,22 @@ where
             .height
             .max(contribution.height)
             .max(child_bottom - constants.content_box_inset.top);
+        scrollable_overflow.include_child(
+            location,
+            output.size,
+            output.content_size,
+            child_margin,
+            child_style.overflow,
+        );
+        let child_overflow = child_scrollable_overflow(
+            &child_style,
+            output.size,
+            output.content_size,
+            child_padding,
+            child_border,
+            output.scroll_geometry,
+        );
+        scrollable_overflow.include_translated_child_overflow(location, child_overflow);
         if let Some(baseline) = output.first_baselines.y {
             let absolute_baseline = location.y + baseline;
             first_baseline.get_or_insert(absolute_baseline);
@@ -913,6 +984,7 @@ where
 
     InFlowResult {
         content_size,
+        scrollable_overflow: scrollable_overflow.finish(),
         baselines: BaselinesOf::<S> {
             first: Point::new(None, first_baseline),
             last: Point::new(None, last_baseline),
@@ -930,6 +1002,7 @@ where
 struct InlineRunPlacement<Node, S: LayoutScalar> {
     size: Size<S>,
     content_size: Size<S>,
+    scrollable_overflow: super::ScrollRectOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
     first_baseline: Option<S>,
     last_baseline: Option<S>,
@@ -1030,6 +1103,7 @@ where
     let mut first_baseline = None;
     let mut last_baseline = None;
     let start_y = cursor_y;
+    let mut scrollable_overflow: Option<super::ScrollRectOf<S>> = None;
 
     while offset < run.len() {
         let mut segment_end = run.len();
@@ -1079,6 +1153,13 @@ where
 
         content_size.width = content_size.width.max(placement.content_size.width);
         content_size.height = content_size.height.max(placement.content_size.height);
+        scrollable_overflow = Some(match scrollable_overflow {
+            Some(existing) => {
+                crate::scroll::scroll_rect_union(existing, placement.scrollable_overflow)
+                    .expect("segmented inline scroll overflow union remains valid")
+            }
+            None => placement.scrollable_overflow,
+        });
         static_positions.extend(placement.static_positions);
         if let Some(baseline) = placement.first_baseline {
             first_baseline.get_or_insert(cursor_y - start_y + baseline);
@@ -1100,6 +1181,13 @@ where
     InlineRunPlacement {
         size: Size::new(content_size.width, cursor_y - start_y),
         content_size,
+        scrollable_overflow: scrollable_overflow.unwrap_or_else(|| {
+            super::ScrollRectOf::new(
+                Point::new(constants.content_box_inset.left, start_y),
+                Size::ZERO,
+            )
+            .expect("empty segmented inline scroll overflow is valid")
+        }),
         static_positions,
         first_baseline,
         last_baseline,
@@ -1301,6 +1389,7 @@ where
         .copied()
         .map(|item| (item.order, item))
         .collect::<BTreeMap<_, _>>();
+    let mut run_scrollable_overflow = ScrollableOverflowAccumulator::new(Point::ZERO, report.size);
 
     for run_child in &run_children {
         match run_child {
@@ -1320,6 +1409,20 @@ where
                     ),
                     constants.direction,
                 );
+                let run_child_location = Point::new(
+                    item.location.x + inset_offset.x,
+                    item.location.y + inset_offset.y,
+                );
+                let child_overflow = child_scrollable_overflow(
+                    child_style,
+                    item.size,
+                    item.content_size,
+                    item.padding,
+                    item.border,
+                    output.scroll_geometry,
+                );
+                run_scrollable_overflow
+                    .include_translated_child_overflow(run_child_location, child_overflow);
                 let location = Point::new(
                     run_offset + item.location.x + inset_offset.x,
                     cursor_y + item.location.y + inset_offset.y - constants.content_box_inset.top,
@@ -1405,6 +1508,10 @@ where
     InlineRunPlacement {
         size: report.size,
         content_size,
+        scrollable_overflow: translate_scroll_rect(
+            run_scrollable_overflow.finish(),
+            Point::new(constants.content_box_inset.left + run_offset, cursor_y),
+        ),
         static_positions,
         first_baseline: report.first_baseline,
         last_baseline: report.last_baseline,
@@ -1745,8 +1852,153 @@ fn content_size_contribution<S: LayoutScalar>(
     Size::new(max_x - min_x, max_y - min_y)
 }
 
+fn block_scroll_geometry<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    constants: &Constants<S>,
+    output_size: Size<S>,
+    scrollable_overflow: super::ScrollRectOf<S>,
+) -> super::ScrollGeometryOf<S> {
+    scroll_geometry_from_layout(
+        style.writing_mode,
+        style.direction,
+        style.overflow,
+        output_size,
+        constants.padding,
+        constants.border,
+        style.scrollbar_width,
+        scrollable_overflow,
+    )
+    .expect("block scroll geometry is derived from finite non-negative layout output")
+}
+
+fn child_scrollable_overflow<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    size: Size<S>,
+    content_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
+) -> super::ScrollRectOf<S> {
+    let base = crate::scroll::scrollable_overflow_from_layout_content_size(
+        style.direction,
+        style.overflow,
+        size,
+        padding,
+        border,
+        style.scrollbar_width,
+        content_size,
+    )
+    .expect("child scrollable overflow is derived from finite non-negative layout output");
+    let Some(child_compute_geometry) = child_compute_geometry else {
+        return base;
+    };
+
+    crate::scroll::scroll_rect_union(base, child_compute_geometry.scrollable_overflow())
+        .expect("child scrollable overflow union remains valid")
+}
+
+fn translate_scroll_rect<S: LayoutScalar>(
+    rect: super::ScrollRectOf<S>,
+    offset: Point<S>,
+) -> super::ScrollRectOf<S> {
+    super::ScrollRectOf::new(
+        Point::new(rect.origin().x + offset.x, rect.origin().y + offset.y),
+        rect.size(),
+    )
+    .expect("translated scroll rect remains valid")
+}
+
+fn final_content_box_scroll_rect<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+) -> super::ScrollRectOf<S> {
+    let reservation = ScrollbarReservationOf::from_overflow(
+        style.overflow,
+        style.scrollbar_width,
+        style.direction,
+    );
+    let inset = content_box_inset_with_scrollbar(padding, border, reservation);
+    let content_size = Size::new(
+        (size.width - inset.horizontal_sum()).max(S::ZERO),
+        (size.height - inset.vertical_sum()).max(S::ZERO),
+    );
+    super::ScrollRectOf::new(Point::new(inset.left, inset.top), content_size)
+        .expect("final content box scroll rect is valid")
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ScrollableOverflowAccumulator<S: LayoutScalar> {
+    rect: super::ScrollRectOf<S>,
+}
+
+impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
+    fn new(content_box_origin: Point<S>, content_box_size: Size<S>) -> Self {
+        Self {
+            rect: super::ScrollRectOf::new(content_box_origin, content_box_size)
+                .expect("content box size is non-negative"),
+        }
+    }
+
+    fn include_rect(&mut self, rect: super::ScrollRectOf<S>) {
+        self.rect = crate::scroll::scroll_rect_union(self.rect, rect)
+            .expect("scrollable overflow union remains valid");
+    }
+
+    fn include_translated_child_overflow(
+        &mut self,
+        location: Point<S>,
+        overflow: super::ScrollRectOf<S>,
+    ) {
+        self.include_rect(translate_scroll_rect(overflow, location));
+    }
+
+    fn include_child(
+        &mut self,
+        location: Point<S>,
+        size: Size<S>,
+        content_size: Size<S>,
+        margin: Edges<S>,
+        overflow: Point<Overflow>,
+    ) {
+        let margin_rect = super::ScrollRectOf::new(
+            Point::new(location.x - margin.left, location.y - margin.top),
+            size + margin.sum_axes(),
+        )
+        .expect("child margin rect is non-negative");
+        self.include_rect(margin_rect);
+
+        let visible_size = Size::new(
+            if overflow.x == Overflow::Visible {
+                size.width.max(content_size.width)
+            } else {
+                size.width
+            },
+            if overflow.y == Overflow::Visible {
+                size.height.max(content_size.height)
+            } else {
+                size.height
+            },
+        );
+        self.include_rect(
+            super::ScrollRectOf::new(location, visible_size)
+                .expect("visible overflow rect is non-negative"),
+        );
+    }
+
+    fn finish(self) -> super::ScrollRectOf<S> {
+        self.rect
+    }
+}
+
 fn max_content_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
     Size::new(a.width.max(b.width), a.height.max(b.height))
+}
+
+struct AbsoluteLayoutResult<S: LayoutScalar> {
+    content_size: Size<S>,
+    scrollable_overflow: Option<super::ScrollRectOf<S>>,
 }
 
 fn layout_absolute_children<Tree, S>(
@@ -1755,7 +2007,7 @@ fn layout_absolute_children<Tree, S>(
     static_positions: &[(<Tree as Traverse>::Node, Point<S>)],
     container: Size<S>,
     constants: &Constants<S>,
-) -> Size<S>
+) -> AbsoluteLayoutResult<S>
 where
     Tree: Compute<Scalar = S>,
     S: LayoutScalar,
@@ -1779,6 +2031,7 @@ where
     );
 
     let mut absolute_content_size = Size::ZERO;
+    let mut absolute_scrollable_overflow: Option<super::ScrollRectOf<S>> = None;
     for (order, child) in children.iter().copied().enumerate() {
         let LayoutInputOf::Box(style) = tree.layout_input(child) else {
             continue;
@@ -1933,6 +2186,31 @@ where
                 style.overflow,
             ),
         );
+        let margin_box_origin = Point::new(location.x - margin.left, location.y - margin.top);
+        let mut absolute_accumulator =
+            ScrollableOverflowAccumulator::new(margin_box_origin, final_size + margin.sum_axes());
+        absolute_accumulator.include_child(
+            location,
+            final_size,
+            output.content_size,
+            margin,
+            style.overflow,
+        );
+        let child_overflow = child_scrollable_overflow(
+            &style,
+            final_size,
+            output.content_size,
+            padding,
+            border,
+            output.scroll_geometry,
+        );
+        absolute_accumulator.include_translated_child_overflow(location, child_overflow);
+        let child_rect = absolute_accumulator.finish();
+        absolute_scrollable_overflow = Some(match absolute_scrollable_overflow {
+            Some(existing) => crate::scroll::scroll_rect_union(existing, child_rect)
+                .expect("absolute scroll overflow union remains valid"),
+            None => child_rect,
+        });
 
         tree.set_unrounded(
             child,
@@ -1950,7 +2228,10 @@ where
         );
     }
 
-    absolute_content_size
+    AbsoluteLayoutResult {
+        content_size: absolute_content_size,
+        scrollable_overflow: absolute_scrollable_overflow,
+    }
 }
 
 struct AbsoluteAxis<S: LayoutScalar> {
@@ -2087,6 +2368,7 @@ struct Constants<S: LayoutScalar> {
     writing_mode: WritingMode,
     text_align: TextAlign,
     border: Edges<S>,
+    padding: Edges<S>,
     padding_border_size: Size<S>,
     scrollbar_gutter: Edges<S>,
     content_box_inset: Edges<S>,
@@ -2195,6 +2477,7 @@ impl<S: LayoutScalar> Constants<S> {
             writing_mode: style.writing_mode,
             text_align: style.text_align,
             border,
+            padding,
             padding_border_size,
             scrollbar_gutter,
             content_box_inset,

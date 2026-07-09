@@ -8,6 +8,630 @@ use crate::{
     LayoutCalcStoreOf,
 };
 
+#[derive(Default)]
+struct ScrollBlockTree {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInput>,
+    layouts: HashMap<u32, NodeOutput>,
+    outputs: HashMap<u32, ComputeOutput>,
+}
+
+impl Traverse for ScrollBlockTree {
+    type Node = u32;
+
+    type Scalar = Scalar;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map_or([].as_slice(), Vec::as_slice)
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map_or(0, Vec::len)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl Compute for ScrollBlockTree {
+    fn node_input(&self, node: Self::Node) -> &NodeInput {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::box_input(self.node_input(node).clone())
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+        self.layouts.insert(node, layout);
+    }
+
+    fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        self.outputs[&node]
+    }
+}
+
+fn perform_scroll_block(tree: &mut ScrollBlockTree) -> ComputeOutput {
+    crate::compute_block(
+        tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(100.0), Some(40.0)),
+            available: Size::new(Available::definite(100.0), Available::definite(40.0)),
+        },
+    )
+}
+
+fn child_scroll_geometry(
+    overflow: Point<Overflow>,
+    size: Size,
+    scrollable_overflow: ScrollRect,
+) -> ScrollGeometry {
+    crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        overflow,
+        size,
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        scrollable_overflow,
+    )
+    .unwrap()
+}
+
+#[test]
+fn block_layout_emits_scroll_geometry_for_scroll_overflow() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            overflow: Point::new(Overflow::Scroll, Overflow::Hidden),
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            ..NodeInput::default()
+        },
+    );
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
+    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+}
+
+#[test]
+fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            ..NodeInput::default()
+        },
+    );
+    tree.outputs.insert(
+        2,
+        ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(130.0, 70.0)),
+    );
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow(),
+        ScrollRect::new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(30.0, 30.0));
+}
+
+#[test]
+fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            inset: Edges {
+                left: LengthAuto::px(-20.0),
+                top: LengthAuto::px(-5.0),
+                ..Edges::all(LengthAuto::AUTO)
+            },
+            position: Position::Relative,
+            ..NodeInput::default()
+        },
+    );
+    tree.outputs.insert(
+        2,
+        ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(50.0, 20.0)),
+    );
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow().origin(),
+        Point::new(-20.0, -5.0)
+    );
+    assert_eq!(
+        geometry.scrollable_overflow().size(),
+        Size::new(120.0, 45.0)
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+}
+
+#[test]
+fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
+    fn run(overflow: Point<Overflow>) -> ScrollGeometry {
+        let mut tree = ScrollBlockTree::default();
+        tree.children.insert(1, vec![]);
+        tree.styles.insert(
+            1,
+            NodeInput {
+                display: Display::Block,
+                overflow,
+                size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+                ..NodeInput::default()
+            },
+        );
+
+        perform_scroll_block(&mut tree).scroll_geometry.unwrap()
+    }
+
+    let visible = run(Point::new(Overflow::Visible, Overflow::Visible));
+    assert_eq!(visible.overflow_clip(), None);
+    assert_eq!(visible.range().maximum_offset(), Size::ZERO);
+
+    let hidden = run(Point::new(Overflow::Hidden, Overflow::Hidden));
+    assert_eq!(hidden.overflow_clip(), Some(hidden.scrollport()));
+    assert_eq!(
+        hidden
+            .range()
+            .clamp(ScrollOffset::new(Point::new(3.0, 4.0))),
+        ScrollOffset::new(Point::ZERO)
+    );
+
+    let clip = run(Point::new(Overflow::Clip, Overflow::Clip));
+    assert_eq!(clip.overflow_clip(), Some(clip.scrollport()));
+    assert_eq!(clip.range().maximum_offset(), Size::ZERO);
+
+    let scroll = run(Point::new(Overflow::Scroll, Overflow::Scroll));
+    assert_eq!(scroll.overflow_clip(), Some(scroll.scrollport()));
+    assert_eq!(scroll.range().maximum_offset(), Size::ZERO);
+}
+
+#[test]
+fn block_scroll_geometry_uses_node_local_padding_border_and_gutter_coordinates() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            direction: Direction::Rtl,
+            overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+            scrollbar_width: 10.0,
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            padding: Edges::all(Length::px(2.0)),
+            border: Edges::all(Length::px(3.0)),
+            ..NodeInput::default()
+        },
+    );
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(geometry.scrollport().origin(), Point::new(13.0, 3.0));
+    assert_eq!(geometry.scrollport().size(), Size::new(84.0, 34.0));
+    assert_eq!(
+        geometry.gutters().vertical(),
+        Some(ScrollRect::new(Point::new(3.0, 3.0), Size::new(10.0, 34.0)).unwrap())
+    );
+}
+
+#[test]
+fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            position: Position::Absolute,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            inset: Edges {
+                left: LengthAuto::px(90.0),
+                top: LengthAuto::px(35.0),
+                ..Edges::all(LengthAuto::AUTO)
+            },
+            ..NodeInput::default()
+        },
+    );
+    tree.outputs.insert(
+        2,
+        ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(45.0, 25.0)),
+    );
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow().size(),
+        Size::new(135.0, 60.0)
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(35.0, 20.0));
+}
+
+#[test]
+fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            min_size: Size::new(Dimension::px(140.0), Dimension::px(80.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            ..NodeInput::default()
+        },
+    );
+    tree.outputs.insert(
+        2,
+        ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0)),
+    );
+
+    let output = crate::compute_block(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(60.0), Some(40.0)),
+            available: Size::new(Available::definite(60.0), Available::MAX_CONTENT),
+        },
+    );
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow(),
+        ScrollRect::new(Point::ZERO, Size::new(140.0, 80.0)).unwrap()
+    );
+}
+
+#[test]
+fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Visible, Overflow::Hidden),
+            size: Size::new(Dimension::px(40.0), Dimension::px(10.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::InlineBlock,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            ..NodeInput::default()
+        },
+    );
+    let mut inline_output = ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0));
+    inline_output.scroll_geometry = Some(child_scroll_geometry(
+        Point::new(Overflow::Visible, Overflow::Visible),
+        Size::new(20.0, 10.0),
+        ScrollRect::new(Point::new(-12.0, -3.0), Size::new(70.0, 26.0)).unwrap(),
+    ));
+    tree.outputs.insert(2, inline_output);
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow().origin(),
+        Point::new(-12.0, -3.0)
+    );
+    assert_eq!(geometry.scrollable_overflow().size(), Size::new(70.0, 26.0));
+    assert_eq!(geometry.range().maximum_offset(), Size::new(0.0, 13.0));
+}
+
+#[test]
+fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2, 3, 4, 5]);
+    tree.children.insert(2, vec![]);
+    tree.children.insert(3, vec![]);
+    tree.children.insert(5, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            size: Size::new(Dimension::px(100.0), Dimension::px(80.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            float: Float::Left,
+            size: Size::new(Dimension::px(80.0), Dimension::px(50.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        3,
+        NodeInput {
+            display: Display::InlineBlock,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        5,
+        NodeInput {
+            display: Display::InlineBlock,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            ..NodeInput::default()
+        },
+    );
+    let mut first_inline = ComputeOutput::from_sizes(Size::new(10.0, 10.0), Size::new(10.0, 10.0));
+    first_inline.scroll_geometry = Some(child_scroll_geometry(
+        Point::new(Overflow::Visible, Overflow::Visible),
+        Size::new(10.0, 10.0),
+        ScrollRect::new(Point::new(-20.0, 0.0), Size::new(30.0, 10.0)).unwrap(),
+    ));
+    let mut second_inline = ComputeOutput::from_sizes(Size::new(10.0, 10.0), Size::new(10.0, 10.0));
+    second_inline.scroll_geometry = Some(child_scroll_geometry(
+        Point::new(Overflow::Visible, Overflow::Visible),
+        Size::new(10.0, 10.0),
+        ScrollRect::new(Point::new(-7.0, 0.0), Size::new(25.0, 12.0)).unwrap(),
+    ));
+    tree.outputs
+        .insert(2, ComputeOutput::from_outer_size(Size::new(80.0, 50.0)));
+    tree.outputs.insert(3, first_inline);
+    tree.outputs.insert(5, second_inline);
+    tree.styles.insert(4, NodeInput::default());
+
+    struct SegmentedTree {
+        inner: ScrollBlockTree,
+        line_break: LineBreakInput,
+    }
+
+    impl Traverse for SegmentedTree {
+        type Node = u32;
+        type Scalar = Scalar;
+        type Children<'a> = <ScrollBlockTree as Traverse>::Children<'a>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.inner.children(node)
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.inner.child_count(node)
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.inner.child(node, index)
+        }
+    }
+
+    impl Compute for SegmentedTree {
+        fn node_input(&self, node: Self::Node) -> &NodeInput {
+            self.inner.node_input(node)
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            if node == 4 {
+                LayoutInputOf::line_break(self.line_break)
+            } else {
+                self.inner.layout_input(node)
+            }
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+            self.inner.set_unrounded(node, layout);
+        }
+
+        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+            self.inner.compute_child(node, input)
+        }
+    }
+
+    let mut segmented = SegmentedTree {
+        inner: tree,
+        line_break: LineBreakInput::new()
+            .with_clear(Clear::Left)
+            .with_metrics(metrics),
+    };
+
+    let output = crate::compute_block(
+        &mut segmented,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(100.0), Some(80.0)),
+            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        },
+    );
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow().origin(),
+        Point::new(-20.0, 0.0)
+    );
+    assert_eq!(
+        geometry.scrollable_overflow().size(),
+        Size::new(120.0, 80.0)
+    );
+}
+
+#[test]
+fn block_scroll_geometry_includes_float_child_overflow_rect() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            float: Float::Left,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            ..NodeInput::default()
+        },
+    );
+    let mut float_output = ComputeOutput::from_sizes(Size::new(30.0, 10.0), Size::new(30.0, 10.0));
+    float_output.scroll_geometry = Some(child_scroll_geometry(
+        Point::new(Overflow::Visible, Overflow::Visible),
+        Size::new(30.0, 10.0),
+        ScrollRect::new(Point::ZERO, Size::new(140.0, 55.0)).unwrap(),
+    ));
+    tree.outputs.insert(2, float_output);
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow().size(),
+        Size::new(140.0, 55.0)
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(40.0, 15.0));
+}
+
+#[test]
+fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
+    let mut tree = ScrollBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
+            scrollbar_width: 10.0,
+            size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+            padding: Edges::all(Length::px(7.0)),
+            border: Edges::all(Length::px(5.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            position: Position::Absolute,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            inset: Edges {
+                left: LengthAuto::px(90.0),
+                top: LengthAuto::px(60.0),
+                ..Edges::all(LengthAuto::AUTO)
+            },
+            margin: Edges {
+                left: LengthAuto::px(4.0),
+                top: LengthAuto::px(3.0),
+                right: LengthAuto::px(6.0),
+                bottom: LengthAuto::px(7.0),
+            },
+            ..NodeInput::default()
+        },
+    );
+    let mut absolute_output =
+        ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(50.0, 20.0));
+    absolute_output.scroll_geometry = Some(child_scroll_geometry(
+        Point::new(Overflow::Visible, Overflow::Visible),
+        Size::new(20.0, 10.0),
+        ScrollRect::new(Point::new(-2.0, -1.0), Size::new(60.0, 25.0)).unwrap(),
+    ));
+    tree.outputs.insert(2, absolute_output);
+
+    let output = perform_scroll_block(&mut tree);
+
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(
+        geometry.scrollable_overflow().origin(),
+        Point::new(12.0, 12.0)
+    );
+    assert_eq!(
+        geometry.scrollable_overflow().size(),
+        Size::new(145.0, 80.0)
+    );
+    assert_eq!(output.content_size, Size::new(144.0, 83.0));
+}
+
 fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
     let size = Size::new(
         input.known.width.unwrap_or(fallback.width),
