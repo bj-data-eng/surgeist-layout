@@ -460,6 +460,37 @@ fn inline_boundaries_do_not_affect_intrinsic_widths_or_wrapping() {
 }
 
 #[test]
+fn inline_boundaries_before_overwide_first_box_do_not_create_leading_line() {
+    let boundary_metrics = InlineMetrics::from_line_height_and_baseline(50.0, 35.0).unwrap();
+    let report = layout_inline_run(InlineRunInput {
+        available_width: Available::definite(20.0),
+        writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
+        items: vec![
+            inline_boundary_participant(
+                0,
+                InlineBoundaryKind::Start,
+                WritingMode::HorizontalTb,
+                Direction::Ltr,
+                boundary_metrics,
+            ),
+            InlineParticipant::new(1, Size::new(40.0, 10.0), Edges::ZERO, Some(8.0)),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(40.0, 50.0));
+    assert_eq!(report.first_baseline, Some(35.0));
+    assert_eq!(report.last_baseline, Some(35.0));
+    assert_eq!(
+        report.items[0].kind,
+        InlineParticipantLayoutKind::InlineBoundaryStart
+    );
+    assert_eq!(report.items[0].location, Point::new(0.0, 35.0));
+    assert_eq!(report.items[1].kind, InlineParticipantLayoutKind::Box);
+    assert_eq!(report.items[1].location, Point::new(0.0, 27.0));
+}
+
+#[test]
 fn inline_boundaries_expand_vertical_line_metrics_without_inline_advance() {
     let start_metrics = InlineMetrics::from_line_height_and_baseline(12.0, 8.0).unwrap();
     let end_metrics = InlineMetrics::from_line_height_and_baseline(26.0, 18.0).unwrap();

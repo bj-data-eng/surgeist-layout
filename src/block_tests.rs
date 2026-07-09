@@ -646,6 +646,51 @@ fn block_inline_boundaries_are_reported_as_zero_size_inline_controls() {
 }
 
 #[test]
+fn block_inline_boundaries_before_overwide_first_inline_block_do_not_create_leading_line() {
+    let boundary_metrics = InlineMetrics::from_line_height_and_baseline(50.0, 35.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(20.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .inline_boundary(
+            1,
+            InlineBoundaryInput::new(InlineBoundaryKind::Start, boundary_metrics),
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::px(40.0), Dimension::px(10.0)),
+                ..NodeInput::DEFAULT
+            },
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(20.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(
+        tree.final_layout(1).unwrap().location,
+        Point::new(0.0, 35.0)
+    );
+    assert_eq!(tree.final_layout(1).unwrap().size, Size::ZERO);
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(0.0, 25.0)
+    );
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(20.0, 50.0));
+}
+
+#[test]
 fn vertical_block_inline_boundaries_use_parent_flow() {
     let boundary_metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
     let mut tree = crate::test_support::layout_tree::OracleTree::new()

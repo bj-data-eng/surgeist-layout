@@ -389,12 +389,18 @@ struct InlineLine<S: LayoutScalar = DefaultScalar> {
     width: S,
     baseline: S,
     descent: S,
+    has_breakable_inline_content: bool,
 }
 
 impl<S: LayoutScalar> InlineLine<S> {
     #[must_use]
     fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    #[must_use]
+    fn has_breakable_inline_content(&self) -> bool {
+        self.has_breakable_inline_content
     }
 
     fn push_box(&mut self, item: AtomicInlineBoxParticipant<S>) {
@@ -406,6 +412,7 @@ impl<S: LayoutScalar> InlineLine<S> {
             x: self.width + item.margin.left,
         });
         self.width = self.width + item.advance();
+        self.has_breakable_inline_content = true;
     }
 
     fn push_forced_line_break(&mut self, control: ForcedLineBreakControlOf<S>) {
@@ -548,7 +555,7 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
             InlineParticipant::Box(item) => {
                 let advance = item.advance();
                 if let Some(available_width) = available_width
-                    && !line.is_empty()
+                    && line.has_breakable_inline_content()
                     && line.width + advance > available_width
                 {
                     lines.push(line);
