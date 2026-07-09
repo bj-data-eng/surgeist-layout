@@ -18,14 +18,13 @@ implementing `plans/2026-06-29-surgeist-layout-br-line-break-implementation.md`.
   `display: none` should map to hidden line-break input.
 - Required owning change: add a root or adapter implementation plan after this
   layout API lands. Do not implement that adapter from the layout crate project.
-- Verification note: layout owns this repo's HTML/browser-parity corpus. The
-  generator now separates remaining `<br>` cases into explicit vertical and
-  outside-block unsupported buckets. At this commit, the checked corpus does not
-  contain a generated supported `source-tag="br"` XML fixture because existing
-  `<br>` source fixtures compute as vertical or as non-block-parent contexts
-  after base CSS. Separate root/retained integration checks that exercise real
-  application tree nodes are expected to remain blocked until this owning change
-  lands.
+- Verification note: layout owns this repo's HTML/browser-parity corpus, which
+  now includes generated supported `source-tag="br"` XML fixtures for
+  layout-ready horizontal and constrained vertical cases. The generator still
+  keeps remaining `<br>` cases in explicit unsupported buckets when their
+  surrounding layout-ready contracts are not available. Separate root/retained
+  integration checks that exercise real application tree nodes are expected to
+  remain blocked until this owning change lands.
 
 ### Text/root need to provide layout-ready measured inline participants
 

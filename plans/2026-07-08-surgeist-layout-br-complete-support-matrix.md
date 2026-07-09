@@ -36,8 +36,8 @@ classification, or root adapter orchestration.
 | Inline metrics | `<br>` line height and baseline come from computed style and font metrics. | Layout consumes validated metrics; fixture generator approximates metrics for browser parity only. | Keep `InlineMetricsOf<S>` typed, scalar-generic, and layout-ready. | Style/text compute real font and line-height metrics; root adapter passes them through. |
 | Mixed inline text and `<br>` | Text, atomic inline boxes, and `<br>` share one inline formatting context. | Partially supported for atomic inline boxes; general inline text is not complete in layout corpus. | Consume text as layout-ready inline participants once text integration supplies them; do not shape text here. | Text/style/root own text shaping, runs, and adapter lowering. |
 | Outside block inline-run context | Browser accepts `<br>` in broader inline formatting contexts and anonymous boxes. | Browser parity currently buckets this as unsupported. | Define which layout-ready parent/run contexts can contain `LineBreakInputOf<S>` and calculate geometry for them. | Retained/root normalize DOM structure and anonymous inline/block wrappers. |
-| `clear` on `<br>` | `clear` moves the break line below relevant floats. | Carried on `LineBreakInputOf<S>` but not applied to line-break layout. | Apply layout-ready `Clear` to line-break placement using existing float exclusion machinery. | Style/root lower computed `clear`. |
-| Floats around line breaks | Line boxes before and after `<br>` honor active floats and clearances. | Block float exclusion exists for boxes; line-break-specific float behavior is incomplete. | Integrate forced line breaks with line placement and float exclusion without modeling CSS parsing. | Style/root provide float and clear inputs. |
+| `clear` on `<br>` | `clear` moves the break line below relevant floats. | Supported for horizontal layout-ready line breaks; vertical clear remains explicitly unsupported. | Preserve horizontal `Clear` behavior through existing float exclusion machinery and model vertical clear separately before enabling it. | Style/root lower computed `clear`. |
+| Floats around line breaks | Line boxes before and after `<br>` honor active floats and clearances. | Supported for current horizontal atomic inline runs with layout-ready line breaks; broader mixed inline and vertical clear interactions remain pending. | Integrate future mixed inline participants with line placement and float exclusion without modeling CSS parsing. | Style/root provide float and clear inputs. |
 | `direction` | RTL affects inline placement around the break. | Supported for current horizontal atomic inline cases. | Preserve direction-aware output placement for line-break output and following lines. | Style/root lower computed direction. |
 | Horizontal `writing-mode` | `horizontal-tb` line breaks advance block direction vertically. | Supported. | Keep as the default supported writing mode. | Style/root lower computed writing mode. |
 | Vertical writing modes | Vertical `<br>` advances in the relevant block/inline axes. | Supported for layout-ready `LineBreakInputOf<S>` in constrained block inline-run contexts when `Clear::None`; browser parity has layout-owned vertical fixtures. Vertical `clear` and complex subgrid/baseline vertical `<br>` cases remain unsupported until their surrounding contracts are reviewed. | Preserve logical-axis forced-break behavior and expand only through layout-ready participant contracts. Keep vertical clear explicitly unsupported until modeled. | Style/root lower writing mode and clear; text supplies vertical metrics if needed. |
@@ -56,7 +56,8 @@ classification, or root adapter orchestration.
 - [x] Keep line-break node output zero-size and non-box.
 - [x] Parse layout-ready browser fixture metrics with complete-pair validation.
 - [x] Generate browser parity fixtures for horizontal metric-bearing breaks.
-- [ ] Apply `clear` semantics to line-break placement.
+- [x] Apply horizontal `clear` semantics to line-break placement.
+- [ ] Model vertical `clear` semantics for line-break placement.
 - [ ] Define and implement line-break behavior outside the current block
   atomic-inline-run context, using layout-ready inputs only.
 - [x] Define and implement vertical writing-mode line-break geometry for layout-ready block inline-run contexts.
@@ -78,12 +79,10 @@ classification, or root adapter orchestration.
 
 ## Planning Notes
 
-The next layout-owned implementation plan should probably start with `clear` on
-line breaks. The input already carries `Clear`, block layout already has float
-exclusion machinery, and the behavior stays squarely inside layout calculation.
-
 Vertical writing-mode forced breaks are now supported for layout-ready block
-inline-run contexts. Broader outside-context support remains larger because it
-touches inline formatting context modeling, anonymous wrapper ownership, and
-mixed inline participant streams. Those should be planned through the mixed
-inline participant contract before runtime code changes.
+inline-run contexts when `Clear::None`, and horizontal line-break clear is
+implemented through the existing float exclusion machinery. Broader
+outside-context support remains larger because it touches inline formatting
+context modeling, anonymous wrapper ownership, mixed inline participant
+streams, and vertical clear semantics. Those should be planned through the
+mixed inline participant contract before runtime code changes.
