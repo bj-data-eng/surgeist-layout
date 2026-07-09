@@ -803,7 +803,7 @@ where
         if !child_style.float.is_none() {
             let margin_box = output.size + child_margin.sum_axes();
             float_intrinsics.add(margin_box.width, child_style.float, child_style.clear);
-            let float_scrollable_overflow = child_scrollable_overflow(
+            let float_parent_overflow = child_scrollable_overflow_for_parent(
                 &child_style,
                 output.size,
                 output.content_size,
@@ -824,7 +824,7 @@ where
                 padding: child_padding,
                 margin: child_margin,
                 style: Box::new(child_style),
-                scrollable_overflow: float_scrollable_overflow,
+                scrollable_overflow: float_parent_overflow,
                 child_compute_geometry: output.scroll_geometry,
             };
             let float_location = float_exclusions.place_float(&pending_float, cursor_y);
@@ -956,7 +956,7 @@ where
             child_margin,
             child_style.overflow,
         );
-        let child_overflow = child_scrollable_overflow(
+        let child_overflow = child_scrollable_overflow_for_parent(
             &child_style,
             output.size,
             output.content_size,
@@ -1422,7 +1422,7 @@ where
                     item.location.x + inset_offset.x,
                     item.location.y + inset_offset.y,
                 );
-                let child_overflow = child_scrollable_overflow(
+                let child_overflow = child_scrollable_overflow_for_parent(
                     child_style,
                     item.size,
                     item.content_size,
@@ -1949,6 +1949,71 @@ fn child_scrollable_overflow<S: LayoutScalar>(
         .expect("child scrollable overflow union remains valid")
 }
 
+fn child_scrollable_overflow_for_parent<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    size: Size<S>,
+    content_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
+) -> super::ScrollRectOf<S> {
+    let child_overflow = child_scrollable_overflow(
+        style,
+        size,
+        content_size,
+        padding,
+        border,
+        child_compute_geometry,
+    );
+    project_child_scrollable_overflow_for_parent(style.overflow, size, child_overflow)
+}
+
+fn project_child_scrollable_overflow_for_parent<S: LayoutScalar>(
+    overflow: Point<Overflow>,
+    size: Size<S>,
+    child_overflow: super::ScrollRectOf<S>,
+) -> super::ScrollRectOf<S> {
+    let child_origin = child_overflow.origin();
+    let child_size = child_overflow.size();
+    let child_end = Point::new(
+        child_origin.x + child_size.width,
+        child_origin.y + child_size.height,
+    );
+    let projected_origin = Point::new(
+        if overflow.x == Overflow::Visible {
+            child_origin.x
+        } else {
+            S::ZERO
+        },
+        if overflow.y == Overflow::Visible {
+            child_origin.y
+        } else {
+            S::ZERO
+        },
+    );
+    let projected_end = Point::new(
+        if overflow.x == Overflow::Visible {
+            child_end.x
+        } else {
+            size.width
+        },
+        if overflow.y == Overflow::Visible {
+            child_end.y
+        } else {
+            size.height
+        },
+    );
+
+    super::ScrollRectOf::new(
+        projected_origin,
+        Size::new(
+            (projected_end.x - projected_origin.x).max(S::ZERO),
+            (projected_end.y - projected_origin.y).max(S::ZERO),
+        ),
+    )
+    .expect("projected child scrollable overflow remains valid")
+}
+
 fn translate_scroll_rect<S: LayoutScalar>(
     rect: super::ScrollRectOf<S>,
     offset: Point<S>,
@@ -2248,7 +2313,7 @@ where
             margin,
             style.overflow,
         );
-        let child_overflow = child_scrollable_overflow(
+        let child_overflow = child_scrollable_overflow_for_parent(
             &style,
             final_size,
             output.content_size,
