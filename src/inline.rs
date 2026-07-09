@@ -341,6 +341,8 @@ impl<S: LayoutScalar> AtomicInlineBoxParticipant<S> {
 pub(super) enum InlineParticipantLayoutKind {
     Box,
     ForcedLineBreak,
+    InlineBoundaryStart,
+    InlineBoundaryEnd,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -373,6 +375,10 @@ enum PendingInlineItem<S: LayoutScalar = DefaultScalar> {
     },
     ForcedLineBreak {
         order: u32,
+        x: S,
+    },
+    Boundary {
+        control: InlineBoundaryControlOf<S>,
         x: S,
     },
 }
@@ -412,6 +418,16 @@ impl<S: LayoutScalar> InlineLine<S> {
         });
     }
 
+    fn push_boundary(&mut self, control: InlineBoundaryControlOf<S>) {
+        let metrics = control.metrics();
+        self.baseline = self.baseline.max(metrics.baseline());
+        self.descent = self.descent.max(metrics.after_baseline());
+        self.items.push(PendingInlineItem::Boundary {
+            control,
+            x: self.width,
+        });
+    }
+
     #[must_use]
     fn height(&self) -> S {
         self.baseline + self.descent
@@ -426,6 +442,11 @@ enum PendingVerticalInlineItem<S: LayoutScalar = DefaultScalar> {
     },
     ForcedLineBreak {
         order: u32,
+        logical_inline_start: S,
+        baseline: S,
+    },
+    Boundary {
+        control: InlineBoundaryControlOf<S>,
         logical_inline_start: S,
         baseline: S,
     },
@@ -472,6 +493,26 @@ impl<S: LayoutScalar> VerticalInlineLine<S> {
             logical_inline_start: self.inline_extent,
             baseline: metrics.baseline(),
         });
+    }
+
+    fn push_boundary(&mut self, control: InlineBoundaryControlOf<S>) {
+        let metrics = control.metrics();
+        self.first_report_baseline
+            .get_or_insert(self.inline_extent + metrics.baseline());
+        self.last_report_baseline = Some(self.inline_extent + metrics.baseline());
+        self.block_extent = self.block_extent.max(metrics.line_extent());
+        self.items.push(PendingVerticalInlineItem::Boundary {
+            control,
+            logical_inline_start: self.inline_extent,
+            baseline: metrics.baseline(),
+        });
+    }
+}
+
+fn inline_boundary_layout_kind(kind: InlineBoundaryKind) -> InlineParticipantLayoutKind {
+    match kind {
+        InlineBoundaryKind::Start => InlineParticipantLayoutKind::InlineBoundaryStart,
+        InlineBoundaryKind::End => InlineParticipantLayoutKind::InlineBoundaryEnd,
     }
 }
 
@@ -521,8 +562,8 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                 lines.push(line);
                 line = InlineLine::<S>::default();
             }
-            InlineParticipant::Boundary(_) => {
-                panic!("inline boundary participant layout is implemented in Task 3");
+            InlineParticipant::Boundary(control) => {
+                line.push_boundary(control);
             }
         }
     }
@@ -583,6 +624,24 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                         scrollbar_size: Size::ZERO,
                     });
                 }
+                PendingInlineItem::Boundary { control, x } => {
+                    items.push(InlineParticipantLayoutItem {
+                        kind: inline_boundary_layout_kind(control.kind()),
+                        order: control.order(),
+                        location: axis_mapping.physical_item_origin(
+                            LogicalInlinePointOf::new(x, line_baseline),
+                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
+                            LogicalInlineSizeOf::new(report_inline_extent, line_height),
+                            line_height,
+                        ),
+                        size: Size::ZERO,
+                        content_size: Size::ZERO,
+                        margin: Edges::ZERO,
+                        padding: Edges::ZERO,
+                        border: Edges::ZERO,
+                        scrollbar_size: Size::ZERO,
+                    });
+                }
             }
         }
 
@@ -619,8 +678,8 @@ fn layout_vertical_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> Inli
                 lines.push(line);
                 line = VerticalInlineLine::<S>::default();
             }
-            InlineParticipant::Boundary(_) => {
-                panic!("inline boundary participant layout is implemented in Task 3");
+            InlineParticipant::Boundary(control) => {
+                line.push_boundary(control);
             }
         }
     }
@@ -732,6 +791,31 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                         scrollbar_size: Size::ZERO,
                     });
                 }
+                PendingVerticalInlineItem::Boundary {
+                    control,
+                    logical_inline_start,
+                    baseline,
+                } => {
+                    items.push(InlineParticipantLayoutItem {
+                        kind: inline_boundary_layout_kind(control.kind()),
+                        order: control.order(),
+                        location: axis_mapping.physical_item_origin(
+                            LogicalInlinePointOf::new(
+                                logical_inline_start,
+                                logical_block_start + baseline,
+                            ),
+                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
+                            LogicalInlineSizeOf::new(line_inline_extent, line_block_extent),
+                            container_block_extent,
+                        ),
+                        size: Size::ZERO,
+                        content_size: Size::ZERO,
+                        margin: Edges::ZERO,
+                        padding: Edges::ZERO,
+                        border: Edges::ZERO,
+                        scrollbar_size: Size::ZERO,
+                    });
+                }
             }
         }
 
@@ -755,10 +839,7 @@ pub(super) fn inline_run_min_content_width<S: LayoutScalar>(items: &[InlineParti
         .iter()
         .filter_map(|item| match item {
             InlineParticipant::Box(item) => Some(item.advance()),
-            InlineParticipant::ForcedLineBreak(_) => None,
-            InlineParticipant::Boundary(_) => {
-                panic!("inline boundary intrinsic sizing is implemented in Task 3");
-            }
+            InlineParticipant::ForcedLineBreak(_) | InlineParticipant::Boundary(_) => None,
         })
         .fold(S::ZERO, S::max)
 }
@@ -777,9 +858,7 @@ pub(super) fn inline_run_max_content_width<S: LayoutScalar>(items: &[InlineParti
                 max_width = max_width.max(segment_width);
                 segment_width = S::ZERO;
             }
-            InlineParticipant::Boundary(_) => {
-                panic!("inline boundary intrinsic sizing is implemented in Task 3");
-            }
+            InlineParticipant::Boundary(_) => {}
         }
     }
     max_width.max(segment_width)

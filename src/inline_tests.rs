@@ -41,6 +41,23 @@ fn inline_boundary_control(
     )
 }
 
+fn inline_boundary_participant(
+    order: u32,
+    kind: InlineBoundaryKind,
+    writing_mode: WritingMode,
+    direction: Direction,
+    metrics: InlineMetrics,
+) -> InlineParticipant {
+    InlineParticipant::inline_boundary(inline_boundary_control(
+        order,
+        kind,
+        writing_mode,
+        direction,
+        metrics,
+        crate::inline::InlineControlAlignment::Baseline,
+    ))
+}
+
 #[test]
 fn inline_axis_mapping_maps_horizontal_tb_ltr() {
     let mapping = crate::inline::InlineAxisMapping::new(WritingMode::HorizontalTb, Direction::Ltr);
@@ -355,6 +372,132 @@ fn inline_boundary_control_preserves_layout_ready_fields() {
         InlineParticipant::inline_boundary(control),
         InlineParticipant::Boundary(control)
     );
+}
+
+#[test]
+fn inline_boundaries_expand_horizontal_line_metrics_without_advance() {
+    let start_metrics = InlineMetrics::from_line_height_and_baseline(10.0, 8.0).unwrap();
+    let end_metrics = InlineMetrics::from_line_height_and_baseline(30.0, 20.0).unwrap();
+    let report = layout_inline_run(InlineRunInput {
+        available_width: Available::MAX_CONTENT,
+        writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
+        items: vec![
+            inline_boundary_participant(
+                0,
+                InlineBoundaryKind::Start,
+                WritingMode::HorizontalTb,
+                Direction::Ltr,
+                start_metrics,
+            ),
+            InlineParticipant::new(1, Size::new(20.0, 10.0), Edges::ZERO, Some(8.0)),
+            inline_boundary_participant(
+                2,
+                InlineBoundaryKind::End,
+                WritingMode::HorizontalTb,
+                Direction::Ltr,
+                end_metrics,
+            ),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(20.0, 30.0));
+    assert_eq!(report.first_baseline, Some(20.0));
+    assert_eq!(report.last_baseline, Some(20.0));
+    assert_eq!(
+        report.items[0].kind,
+        InlineParticipantLayoutKind::InlineBoundaryStart
+    );
+    assert_eq!(report.items[0].location, Point::new(0.0, 20.0));
+    assert_eq!(report.items[0].size, Size::ZERO);
+    assert_eq!(report.items[1].kind, InlineParticipantLayoutKind::Box);
+    assert_eq!(report.items[1].location, Point::new(0.0, 12.0));
+    assert_eq!(
+        report.items[2].kind,
+        InlineParticipantLayoutKind::InlineBoundaryEnd
+    );
+    assert_eq!(report.items[2].location, Point::new(20.0, 20.0));
+    assert_eq!(report.items[2].size, Size::ZERO);
+}
+
+#[test]
+fn inline_boundaries_do_not_affect_intrinsic_widths_or_wrapping() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(80.0, 60.0).unwrap();
+    let items = vec![
+        InlineParticipant::new(0, Size::new(30.0, 10.0), Edges::ZERO, Some(8.0)),
+        inline_boundary_participant(
+            1,
+            InlineBoundaryKind::Start,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            metrics,
+        ),
+        InlineParticipant::new(2, Size::new(25.0, 10.0), Edges::ZERO, Some(8.0)),
+        inline_boundary_participant(
+            3,
+            InlineBoundaryKind::End,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            metrics,
+        ),
+    ];
+
+    assert_eq!(inline_run_min_content_width(&items), 30.0);
+    assert_eq!(inline_run_max_content_width(&items), 55.0);
+
+    let report = layout_inline_run(InlineRunInput {
+        available_width: Available::definite(40.0),
+        writing_mode: WritingMode::HorizontalTb,
+        direction: Direction::Ltr,
+        items,
+    });
+
+    assert_eq!(report.size, Size::new(30.0, 160.0));
+    assert_eq!(report.items[1].location, Point::new(30.0, 60.0));
+    assert_eq!(report.items[2].location.x, 0.0);
+    assert_eq!(report.items[2].location, Point::new(0.0, 132.0));
+    assert_eq!(report.items[3].location, Point::new(25.0, 140.0));
+}
+
+#[test]
+fn inline_boundaries_expand_vertical_line_metrics_without_inline_advance() {
+    let start_metrics = InlineMetrics::from_line_height_and_baseline(12.0, 8.0).unwrap();
+    let end_metrics = InlineMetrics::from_line_height_and_baseline(26.0, 18.0).unwrap();
+    let report = layout_inline_run(InlineRunInput {
+        available_width: Available::MAX_CONTENT,
+        writing_mode: WritingMode::VerticalRl,
+        direction: Direction::Ltr,
+        items: vec![
+            inline_boundary_participant(
+                0,
+                InlineBoundaryKind::Start,
+                WritingMode::VerticalRl,
+                Direction::Ltr,
+                start_metrics,
+            ),
+            InlineParticipant::new(1, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
+            inline_boundary_participant(
+                2,
+                InlineBoundaryKind::End,
+                WritingMode::VerticalRl,
+                Direction::Ltr,
+                end_metrics,
+            ),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(26.0, 30.0));
+    assert_eq!(
+        report.items[0].kind,
+        InlineParticipantLayoutKind::InlineBoundaryStart
+    );
+    assert_eq!(report.items[0].size, Size::ZERO);
+    assert_eq!(report.items[1].kind, InlineParticipantLayoutKind::Box);
+    assert_eq!(
+        report.items[2].kind,
+        InlineParticipantLayoutKind::InlineBoundaryEnd
+    );
+    assert_eq!(report.items[2].size, Size::ZERO);
 }
 
 #[test]
