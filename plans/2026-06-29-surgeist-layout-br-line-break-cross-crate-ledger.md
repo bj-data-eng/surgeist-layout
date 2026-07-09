@@ -54,9 +54,28 @@ implementing `plans/2026-06-29-surgeist-layout-br-line-break-implementation.md`.
   context boundaries, anonymous wrappers, and output association.
 - Expected behavior: retained/root should present layout with normalized
   ordered inline participant streams, including atomic boxes, line-break
-  controls, and measured text fragments, without requiring layout to inspect DOM
-  structure.
+  controls, typed inline boundaries, and measured text fragments, without
+  requiring layout to inspect DOM structure.
 - Required owning change: root should create integration plans once layout
-  defines whether inline fragment boundaries are needed by the layout API.
+  defines measured text participant and output-association contracts.
 - Verification note: layout must not implement fallback DOM normalization to
   unblock these cases locally.
+
+### Root fixture metadata must expose layout-ready inline boundaries
+
+- Status: `open`
+- Owning crate: root `surgeist` plus retained/style fixture integration
+- Affected API: `surgeist_layout::InlineBoundaryInputOf<S>` and
+  `surgeist_layout::LayoutInputOf::InlineBoundary`
+- Observed behavior: layout now accepts and computes typed inline boundary
+  participants. Browser parity fixture support still cannot produce those
+  inputs from HTML/CSS locally without duplicating retained/style/root ownership.
+- Expected behavior: retained/style/root should decide when anonymous or
+  explicit inline wrapper boundaries have layout-relevant effects and pass
+  layout-ready start/end kind, writing mode, direction, vertical alignment, and
+  `InlineMetricsOf<S>` through root fixture metadata.
+- Required owning change: root should extend fixture metadata and production
+  integration so layout receives boundary inputs rather than deriving them from
+  HTML tags, CSS strings, or anonymous wrapper rules locally.
+- Verification note: boundary-backed HTML fixture checks remain unsupported
+  until root/surgeist-test provide layout-ready boundary metadata.
