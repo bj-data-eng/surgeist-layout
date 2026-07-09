@@ -14,6 +14,7 @@ mod inline;
 mod node_input;
 mod output;
 mod scalar;
+mod scroll;
 mod traits;
 mod value;
 
@@ -59,6 +60,10 @@ pub use output::{
 };
 /// Supported scalar contract for generic layout APIs.
 pub use scalar::LayoutScalar;
+pub use scroll::{
+    ScrollOffset, ScrollOffsetOf, ScrollRange, ScrollRangeOf, ScrollRect, ScrollRectOf,
+    ScrollUnsupportedFeature,
+};
 pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
     AspectRatio, AspectRatioOf, Available, AvailableOf, CalcExpression, CalcExpressionOf,
@@ -93,5 +98,7 @@ mod leaf_tests;
 mod lib_tests;
 #[cfg(test)]
 mod root_tests;
+#[cfg(test)]
+mod scroll_tests;
 #[cfg(test)]
 mod test_support;
