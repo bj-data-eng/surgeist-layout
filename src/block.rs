@@ -197,6 +197,7 @@ struct PendingFloat<Node, S: LayoutScalar> {
     margin: Edges<S>,
     style: Box<NodeInputOf<S>>,
     scrollable_overflow: super::ScrollRectOf<S>,
+    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -824,6 +825,7 @@ where
                 margin: child_margin,
                 style: Box::new(child_style),
                 scrollable_overflow: float_scrollable_overflow,
+                child_compute_geometry: output.scroll_geometry,
             };
             let float_location = float_exclusions.place_float(&pending_float, cursor_y);
             scrollable_overflow.include_child(
@@ -913,7 +915,14 @@ where
                     location,
                     size: output.size,
                     content_size: output.content_size,
-                    scroll_geometry: None,
+                    scroll_geometry: Some(child_node_scroll_geometry(
+                        &child_style,
+                        output.size,
+                        output.content_size,
+                        child_padding,
+                        child_border,
+                        output.scroll_geometry,
+                    )),
                     scrollbar_size: child_scrollbar_size(&child_style),
                     border: child_border,
                     padding: child_padding,
@@ -1449,7 +1458,14 @@ where
                             ),
                             size: item.size,
                             content_size: item.content_size,
-                            scroll_geometry: None,
+                            scroll_geometry: Some(child_node_scroll_geometry(
+                                child_style,
+                                item.size,
+                                item.content_size,
+                                item.padding,
+                                item.border,
+                                output.scroll_geometry,
+                            )),
                             scrollbar_size: item.scrollbar_size,
                             border: item.border,
                             padding: item.padding,
@@ -1569,7 +1585,14 @@ fn layout_floats<Tree, S>(
                 location,
                 size: float.size,
                 content_size: float.content_size,
-                scroll_geometry: None,
+                scroll_geometry: Some(child_node_scroll_geometry(
+                    &float.style,
+                    float.size,
+                    float.content_size,
+                    float.padding,
+                    float.border,
+                    float.child_compute_geometry,
+                )),
                 scrollbar_size: float.scrollbar_size,
                 border: float.border,
                 padding: float.padding,
@@ -1869,6 +1892,35 @@ fn block_scroll_geometry<S: LayoutScalar>(
         scrollable_overflow,
     )
     .expect("block scroll geometry is derived from finite non-negative layout output")
+}
+
+fn child_node_scroll_geometry<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    size: Size<S>,
+    content_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
+) -> super::ScrollGeometryOf<S> {
+    let scrollable_overflow = child_scrollable_overflow(
+        style,
+        size,
+        content_size,
+        padding,
+        border,
+        child_compute_geometry,
+    );
+    scroll_geometry_from_layout(
+        style.writing_mode,
+        style.direction,
+        style.overflow,
+        size,
+        padding,
+        border,
+        style.scrollbar_width,
+        scrollable_overflow,
+    )
+    .expect("child scroll geometry is derived from finite non-negative layout output")
 }
 
 fn child_scrollable_overflow<S: LayoutScalar>(
@@ -2219,7 +2271,14 @@ where
                 location,
                 size: final_size,
                 content_size: output.content_size,
-                scroll_geometry: None,
+                scroll_geometry: Some(child_node_scroll_geometry(
+                    &style,
+                    final_size,
+                    output.content_size,
+                    padding,
+                    border,
+                    output.scroll_geometry,
+                )),
                 scrollbar_size: child_scrollbar_size(&style),
                 border,
                 padding,
