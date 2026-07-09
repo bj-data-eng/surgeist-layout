@@ -4,6 +4,9 @@ use super::{
     LayoutScalar, LengthAutoOf, LengthOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position,
     RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
+use crate::scroll::{
+    ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
+};
 
 pub fn compute_flex<Tree>(
     tree: &mut Tree,
@@ -112,26 +115,17 @@ impl<S: LayoutScalar> Constants<S> {
         let border = style.border.zip_inline_size(input.parent, |length, basis| {
             resolve_length_or_zero(length, basis, resolver)
         });
-        let scrollbar_gutter = Point::new(
-            if style.overflow.y == Overflow::Scroll {
-                style.scrollbar_width
-            } else {
-                S::ZERO
-            },
-            if style.overflow.x == Overflow::Scroll {
-                style.scrollbar_width
-            } else {
-                S::ZERO
-            },
+        let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
+            style.overflow,
+            style.scrollbar_width,
+            style.direction,
         );
-        let mut content_box_inset = padding + border;
-        content_box_inset.bottom = content_box_inset.bottom + scrollbar_gutter.y;
-        match style.direction {
-            Direction::Ltr => {
-                content_box_inset.right = content_box_inset.right + scrollbar_gutter.x
-            }
-            Direction::Rtl => content_box_inset.left = content_box_inset.left + scrollbar_gutter.x,
-        }
+        let scrollbar_gutter = Point::new(
+            scrollbar_reservation.size().width,
+            scrollbar_reservation.size().height,
+        );
+        let content_box_inset =
+            content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
         let padding_border = (padding + border).sum_axes();
         let content_box_inset_size = content_box_inset.sum_axes();
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
@@ -1397,18 +1391,7 @@ fn item_vertical_baseline<S: LayoutScalar>(
 }
 
 fn item_scrollbar_size<S: LayoutScalar>(overflow: Point<Overflow>, scrollbar_width: S) -> Size<S> {
-    Size::new(
-        if overflow.y == Overflow::Scroll {
-            scrollbar_width
-        } else {
-            S::ZERO
-        },
-        if overflow.x == Overflow::Scroll {
-            scrollbar_width
-        } else {
-            S::ZERO
-        },
-    )
+    scrollbar_size_from_overflow(overflow, scrollbar_width)
 }
 
 fn resolve_cross_axis_auto_margins<Node, S: LayoutScalar>(
