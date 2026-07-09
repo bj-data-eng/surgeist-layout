@@ -88,6 +88,7 @@ pub fn compute_root<Tree>(
             location,
             size: output.size,
             content_size: output.content_size,
+            scroll_geometry: None,
             scrollbar_size,
             padding,
             border,

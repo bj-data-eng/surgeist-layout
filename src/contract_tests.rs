@@ -74,6 +74,20 @@ fn node_input_and_output_support_f64_scalar_lane() {
 }
 
 #[test]
+fn compute_output_defaults_to_no_scroll_geometry() {
+    let output = ComputeOutput::from_outer_size(Size::new(10.0, 20.0));
+
+    assert_eq!(output.scroll_geometry, None);
+}
+
+#[test]
+fn node_output_defaults_to_no_scroll_geometry() {
+    let output = NodeOutput::with_order(7);
+
+    assert_eq!(output.scroll_geometry, None);
+}
+
+#[test]
 fn f32_default_keeps_representative_layout_types_smaller_than_f64_lane() {
     assert!(
         std::mem::size_of::<crate::ComputeOutput>()

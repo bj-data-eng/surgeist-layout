@@ -1,4 +1,4 @@
-use super::{AvailableOf, DefaultScalar, Edges, LayoutScalar, Point, Size};
+use super::{AvailableOf, DefaultScalar, Edges, LayoutScalar, Point, ScrollGeometryOf, Size};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RunMode {
@@ -150,6 +150,7 @@ impl<S: LayoutScalar> BaselinesOf<S> {
 pub struct ComputeOutputOf<S: LayoutScalar = DefaultScalar> {
     pub size: Size<S>,
     pub content_size: Size<S>,
+    pub scroll_geometry: Option<ScrollGeometryOf<S>>,
     pub first_baselines: Point<Option<S>>,
     pub last_baselines: Point<Option<S>>,
     pub top_margin: CollapsibleMarginOf<S>,
@@ -163,6 +164,7 @@ impl<S: LayoutScalar> ComputeOutputOf<S> {
     pub const HIDDEN: Self = Self {
         size: Size::<S>::ZERO,
         content_size: Size::<S>::ZERO,
+        scroll_geometry: None,
         first_baselines: Point::NONE,
         last_baselines: Point::NONE,
         top_margin: CollapsibleMarginOf::ZERO,
@@ -181,6 +183,7 @@ impl<S: LayoutScalar> ComputeOutputOf<S> {
         Self {
             size,
             content_size,
+            scroll_geometry: None,
             first_baselines: baselines.first,
             last_baselines: baselines.last,
             top_margin: CollapsibleMarginOf::ZERO,
@@ -223,6 +226,7 @@ pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {
     pub location: Point<S>,
     pub size: Size<S>,
     pub content_size: Size<S>,
+    pub scroll_geometry: Option<ScrollGeometryOf<S>>,
     pub scrollbar_size: Size<S>,
     pub border: Edges<S>,
     pub padding: Edges<S>,
@@ -244,6 +248,7 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
             location: Point::<S>::ZERO,
             size: Size::<S>::ZERO,
             content_size: Size::<S>::ZERO,
+            scroll_geometry: None,
             scrollbar_size: Size::<S>::ZERO,
             border: Edges::<S>::ZERO,
             padding: Edges::<S>::ZERO,

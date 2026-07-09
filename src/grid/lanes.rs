@@ -1518,6 +1518,7 @@ where
                 location,
                 size: item.output.size,
                 content_size: item.output.content_size,
+                scroll_geometry: None,
                 scrollbar_size: item.scrollbar_size,
                 border: item.border,
                 padding: item.padding,
