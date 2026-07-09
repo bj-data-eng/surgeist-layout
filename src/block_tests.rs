@@ -748,6 +748,60 @@ fn vertical_block_inline_boundaries_use_parent_flow() {
 }
 
 #[test]
+fn vertical_lr_block_inline_boundaries_use_parent_flow() {
+    let boundary_metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2, 3])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .inline_boundary(
+            1,
+            InlineBoundaryInput::new(InlineBoundaryKind::Start, boundary_metrics)
+                .with_writing_mode(WritingMode::VerticalLr),
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::InlineBlock,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                ..NodeInput::DEFAULT
+            },
+        )
+        .inline_boundary(
+            3,
+            InlineBoundaryInput::new(InlineBoundaryKind::End, boundary_metrics)
+                .with_writing_mode(WritingMode::VerticalLr),
+        );
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+    round_layout(&mut tree, 0);
+
+    assert_eq!(
+        tree.final_layout(1).unwrap().location,
+        Point::new(14.0, 0.0)
+    );
+    assert_eq!(tree.final_layout(1).unwrap().size, Size::ZERO);
+    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(14.0, 30.0)
+    );
+    assert_eq!(tree.final_layout(3).unwrap().size, Size::ZERO);
+}
+
+#[test]
 fn hidden_line_break_does_not_split_atomic_inline_run() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2, 3])
@@ -1003,6 +1057,33 @@ fn vertical_parent_rejects_default_line_break_flow_until_input_is_layout_ready()
             },
         )
         .line_break(1, LineBreakInput::new());
+
+    compute_root(
+        &mut tree,
+        0,
+        Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+    );
+}
+
+#[test]
+#[should_panic(expected = "inline boundary flow must match containing inline flow")]
+fn vertical_parent_rejects_default_inline_boundary_flow_until_input_is_layout_ready() {
+    let boundary_metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Ltr,
+                ..NodeInput::DEFAULT
+            },
+        )
+        .inline_boundary(
+            1,
+            InlineBoundaryInput::new(InlineBoundaryKind::Start, boundary_metrics),
+        );
 
     compute_root(
         &mut tree,
