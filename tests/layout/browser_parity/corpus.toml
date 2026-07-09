@@ -69,6 +69,34 @@ generator = "constrained-html"
 status = "active"
 
 [[cases]]
+id = "block/block_br_vertical_rl_inline_block_metrics"
+source_root = "surgeist"
+source = "block/block_br_vertical_rl_inline_block_metrics.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_br_vertical_lr_inline_block_metrics"
+source_root = "surgeist"
+source = "block/block_br_vertical_lr_inline_block_metrics.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_br_vertical_rl_empty_lines_metrics"
+source_root = "surgeist"
+source = "block/block_br_vertical_rl_empty_lines_metrics.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_br_vertical_rl_rtl_inline_block_metrics"
+source_root = "surgeist"
+source = "block/block_br_vertical_rl_rtl_inline_block_metrics.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
 id = "block/block_border_fixed_size_with_br"
 source_root = "surgeist"
 source = "block/block_border_fixed_size_with_br.html"

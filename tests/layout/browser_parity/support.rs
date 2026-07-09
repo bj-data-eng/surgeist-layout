@@ -954,6 +954,15 @@ fn compare_expectation(
     expected: &Expectation,
     path: &str,
 ) -> Result<(), Error> {
+    // The browser reports a rect for `<br>`, while layout models it as a zero-size
+    // inline control carrying flow and metrics data rather than box geometry.
+    if matches!(
+        tree.nodes[node].layout_input,
+        layout::LayoutInput::LineBreak(_)
+    ) {
+        return Ok(());
+    }
+
     let actual = tree.nodes[node].final_layout;
     compare_optional_number(path, "x", actual.location.x, expected.x)?;
     compare_optional_number(path, "y", actual.location.y, expected.y)?;
@@ -2498,6 +2507,21 @@ mod tests {
             reasons.contains(&"Unsupported <br> outside block inline-run semantics"),
             "outside-block <br> fixtures should remain explicitly unsupported"
         );
+        let unsupported_sources = unsupported
+            .iter()
+            .filter_map(|entry| entry.get("source").and_then(serde_json::Value::as_str))
+            .collect::<Vec<_>>();
+        for source in [
+            "html/block/block_br_vertical_rl_inline_block_metrics.html",
+            "html/block/block_br_vertical_lr_inline_block_metrics.html",
+            "html/block/block_br_vertical_rl_empty_lines_metrics.html",
+            "html/block/block_br_vertical_rl_rtl_inline_block_metrics.html",
+        ] {
+            assert!(
+                !unsupported_sources.contains(&source),
+                "{source} should generate rather than remain unsupported"
+            );
+        }
     }
 
     #[test]

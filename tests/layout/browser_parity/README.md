@@ -32,7 +32,7 @@ Regenerate XML fixtures from constrained HTML fixtures:
 
 ```sh
 cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
-SURGEIST_PARITY_FILTER=subgrid cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
+SURGEIST_LAYOUT_GENERATE_FILTER=subgrid cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
 ```
 
 Import or verify the pinned Taffy green baseline:

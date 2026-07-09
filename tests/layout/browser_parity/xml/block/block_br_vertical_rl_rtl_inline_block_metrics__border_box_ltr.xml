@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=1 source="html/block/block_br_vertical_rl_rtl_inline_block_metrics.html" source-sha256="5cf0ec7bbe067797786f18ae7353007fc233c6c3948cbad1bf94923ca84815c2" helper-sha256="eba4ae5086b835f75c968ae233e20810d136ec87c7993572e5e454601f6406f1" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" -->
+<test name="block_br_vertical_rl_rtl_inline_block_metrics__border_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" width="80px">
+      <div source-tag="span" display="inline-block" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" width="30px" height="30px"/>
+      <div source-tag="br" display="inline" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" inline-baseline="21px" inline-line-height="30px"/>
+      <div source-tag="span" display="inline-block" direction="rtl" writing-mode="vertical-rl" font-size="20px" line-height="30px" width="30px" height="16px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="80" height="30">
+      <node x="50" y="0" width="30" height="30"/>
+      <node x="55" y="0" width="20" height="0"/>
+      <node x="20" y="14" width="30" height="16"/>
+    </node>
+  </expectations>
+</test>

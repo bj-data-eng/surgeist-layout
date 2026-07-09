@@ -4,14 +4,14 @@
     "generator": "surgeist-layout-generate",
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
-    "helper_sha256": "9134b0d7819036c763e0ec0b49f7b719ba0bb21175b13068527a9f490d34396b",
+    "helper_sha256": "eba4ae5086b835f75c968ae233e20810d136ec87c7993572e5e454601f6406f1",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
-    "corpus_manifest_sha256": "997f983f4414cbc5c01403e635b4a8a4c0e3e256b036d600a3bc2cb22dc9acf8",
+    "corpus_manifest_sha256": "8a5d4153df67465627ae2c20e55bc080d934fa8405adc7f0782eb6f3c4d6c765",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },
   "filter": null,
   "summary": {
-    "generated": 5032,
+    "generated": 5048,
     "unsupported": 356,
     "expected_fail": 0,
     "quarantined": 0,
@@ -1912,6 +1912,102 @@
       "name": "block_br_inline_block_metrics__content_box_rtl",
       "source": "html/block/block_br_inline_block_metrics.html",
       "output": "xml/block/block_br_inline_block_metrics__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_lr_inline_block_metrics__border_box_ltr",
+      "source": "html/block/block_br_vertical_lr_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_lr_inline_block_metrics__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_lr_inline_block_metrics__content_box_ltr",
+      "source": "html/block/block_br_vertical_lr_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_lr_inline_block_metrics__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_lr_inline_block_metrics__border_box_rtl",
+      "source": "html/block/block_br_vertical_lr_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_lr_inline_block_metrics__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_lr_inline_block_metrics__content_box_rtl",
+      "source": "html/block/block_br_vertical_lr_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_lr_inline_block_metrics__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_rl_empty_lines_metrics__border_box_ltr",
+      "source": "html/block/block_br_vertical_rl_empty_lines_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_empty_lines_metrics__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_rl_empty_lines_metrics__content_box_ltr",
+      "source": "html/block/block_br_vertical_rl_empty_lines_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_empty_lines_metrics__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_rl_empty_lines_metrics__border_box_rtl",
+      "source": "html/block/block_br_vertical_rl_empty_lines_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_empty_lines_metrics__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_rl_empty_lines_metrics__content_box_rtl",
+      "source": "html/block/block_br_vertical_rl_empty_lines_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_empty_lines_metrics__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_rl_inline_block_metrics__border_box_ltr",
+      "source": "html/block/block_br_vertical_rl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_inline_block_metrics__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_rl_inline_block_metrics__content_box_ltr",
+      "source": "html/block/block_br_vertical_rl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_inline_block_metrics__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_rl_inline_block_metrics__border_box_rtl",
+      "source": "html/block/block_br_vertical_rl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_inline_block_metrics__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_rl_inline_block_metrics__content_box_rtl",
+      "source": "html/block/block_br_vertical_rl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_inline_block_metrics__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_rl_rtl_inline_block_metrics__border_box_ltr",
+      "source": "html/block/block_br_vertical_rl_rtl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_rtl_inline_block_metrics__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_rl_rtl_inline_block_metrics__content_box_ltr",
+      "source": "html/block/block_br_vertical_rl_rtl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_rtl_inline_block_metrics__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "block_br_vertical_rl_rtl_inline_block_metrics__border_box_rtl",
+      "source": "html/block/block_br_vertical_rl_rtl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_rtl_inline_block_metrics__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "block_br_vertical_rl_rtl_inline_block_metrics__content_box_rtl",
+      "source": "html/block/block_br_vertical_rl_rtl_inline_block_metrics.html",
+      "output": "xml/block/block_br_vertical_rl_rtl_inline_block_metrics__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {

@@ -856,7 +856,11 @@ function describeChildNodes(e, expectedElement = null) {
 }
 
 function unsupportedElementReason(e, computedStyle) {
-  if (e.tagName === 'BR' && isVerticalWritingMode(computedStyle.writingMode)) {
+  if (
+    e.tagName === 'BR' &&
+    isVerticalWritingMode(computedStyle.writingMode) &&
+    !hasLayoutReadyVerticalBrFixture(e)
+  ) {
     return "Unsupported vertical <br> line-break semantics";
   }
   if (e.tagName === 'BR' && !hasSupportedBrLineBreakParent(e)) {
@@ -869,6 +873,10 @@ function hasSupportedBrLineBreakParent(e) {
   const parent = e.parentElement;
   if (!parent) return false;
   return getComputedStyle(parent).display === "block";
+}
+
+function hasLayoutReadyVerticalBrFixture(e) {
+  return e.parentElement?.getAttribute?.('data-surgeist-layout-ready-vertical-br') === 'true';
 }
 
 function unsupportedChildNodesReason(e) {

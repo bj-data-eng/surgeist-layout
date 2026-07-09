@@ -3503,10 +3503,16 @@ mod tests {
     fn br_helper_smoke_script(
         parent_display: &str,
         writing_mode: &str,
+        layout_ready_vertical_br: bool,
         expected_reason: Option<&str>,
     ) -> String {
         let expected_reason =
             expected_reason.map_or_else(|| "undefined".to_string(), |reason| format!("{reason:?}"));
+        let vertical_br_attr = if layout_ready_vertical_br {
+            r#"name === "data-surgeist-layout-ready-vertical-br" ? "true" : null"#
+        } else {
+            "null"
+        };
         format!(
             r#"
 const window = {{ innerWidth: 800 }};
@@ -3532,6 +3538,7 @@ const parent = {{
   getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 100, height: 20, right: 100, left: 0, bottom: 20, top: 0 }}; }},
   clientLeft: 0,
   clientTop: 0,
+  getAttribute(name) {{ return {vertical_br_attr}; }},
 }};
 
 const element = {{
@@ -4926,7 +4933,7 @@ if (actual !== expected) {{
 
         run_bundled_helper_script(
             "br-supported-block-parent",
-            br_helper_smoke_script("block", "horizontal-tb", None),
+            br_helper_smoke_script("block", "horizontal-tb", false, None),
         );
 
         let node = json!({
@@ -4958,8 +4965,13 @@ if (actual !== expected) {{
             br_helper_smoke_script(
                 "block",
                 "vertical-rl",
+                false,
                 Some("Unsupported vertical <br> line-break semantics"),
             ),
+        );
+        run_bundled_helper_script(
+            "br-vertical-layout-ready",
+            br_helper_smoke_script("block", "vertical-rl", true, None),
         );
     }
 
@@ -4973,6 +4985,7 @@ if (actual !== expected) {{
             br_helper_smoke_script(
                 "inline",
                 "horizontal-tb",
+                false,
                 Some("Unsupported <br> outside block inline-run semantics"),
             ),
         );

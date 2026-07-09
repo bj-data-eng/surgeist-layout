@@ -165,8 +165,8 @@ Do not remove the assertion that the stale generic `"Unsupported <br> line-break
 Run:
 
 ```sh
-cargo test -p surgeist-layout bundled_helper_keeps_vertical_br -- --nocapture
-cargo test -p surgeist-layout bundled_helper_keeps_unmodeled_br_parent_contexts_unsupported -- --nocapture
+cargo test -p surgeist-layout --features layout-golden-generate bundled_helper_keeps_vertical_br -- --nocapture
+cargo test -p surgeist-layout --features layout-golden-generate bundled_helper_keeps_unmodeled_br_parent_contexts_unsupported -- --nocapture
 ```
 
 Expected: pass.
@@ -450,7 +450,7 @@ Run:
 cargo test -p surgeist-layout generation_report_uses_explicit_br_unsupported_buckets -- --nocapture
 cargo test -p surgeist-layout browser_parity_generation_report_counts_full_scope -- --nocapture
 cargo test -p surgeist-layout browser_parity_html_corpus_inventory_is_documented -- --nocapture
-cargo test -p surgeist-layout bundled_helper_keeps_vertical_br -- --nocapture
+cargo test -p surgeist-layout --features layout-golden-generate bundled_helper_keeps_vertical_br -- --nocapture
 SURGEIST_PARITY_FILTER=block/block_br_vertical cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored --nocapture
 ```
 
