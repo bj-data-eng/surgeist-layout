@@ -685,3 +685,67 @@ pub fn scroll_geometry_from_layout<S: LayoutScalar>(
         rects.gutters(),
     )
 }
+
+pub fn round_scroll_geometry<S: LayoutScalar>(
+    geometry: ScrollGeometryOf<S>,
+    cumulative_origin: Point<S>,
+) -> Result<ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
+    let scrollport = round_scroll_rect(geometry.scrollport(), cumulative_origin)?;
+    let overflow_clip = geometry
+        .overflow_clip()
+        .map(|rect| round_scroll_rect(rect, cumulative_origin))
+        .transpose()?;
+    let scrollable_overflow = round_scroll_rect(geometry.scrollable_overflow(), cumulative_origin)?;
+    let gutters = ScrollbarGutterRectsOf::new(
+        geometry
+            .gutters()
+            .horizontal()
+            .map(|rect| round_scroll_rect(rect, cumulative_origin))
+            .transpose()?,
+        geometry
+            .gutters()
+            .vertical()
+            .map(|rect| round_scroll_rect(rect, cumulative_origin))
+            .transpose()?,
+    );
+    let range =
+        scroll_range_from_overflow_rects(geometry.container(), scrollport, scrollable_overflow)?;
+
+    ScrollGeometryOf::new(
+        geometry.writing_mode(),
+        geometry.direction(),
+        geometry.container(),
+        scrollport,
+        overflow_clip,
+        scrollable_overflow,
+        range,
+        gutters,
+    )
+}
+
+fn round_scroll_rect<S: LayoutScalar>(
+    rect: ScrollRectOf<S>,
+    cumulative_origin: Point<S>,
+) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
+    let origin = rect.origin();
+    let size = rect.size();
+    let rounded_origin = Point::new(
+        round(cumulative_origin.x + origin.x) - round(cumulative_origin.x),
+        round(cumulative_origin.y + origin.y) - round(cumulative_origin.y),
+    );
+    let rounded_end = Point::new(
+        round(cumulative_origin.x + origin.x + size.width) - round(cumulative_origin.x),
+        round(cumulative_origin.y + origin.y + size.height) - round(cumulative_origin.y),
+    );
+    ScrollRectOf::new(
+        rounded_origin,
+        Size::new(
+            (rounded_end.x - rounded_origin.x).max(S::ZERO),
+            (rounded_end.y - rounded_origin.y).max(S::ZERO),
+        ),
+    )
+}
+
+fn round<S: LayoutScalar>(value: S) -> S {
+    (value + S::from_f64(0.5)).floor()
+}

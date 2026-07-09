@@ -692,6 +692,47 @@ fn f64_round_layout_preserves_large_coordinates() {
 }
 
 #[test]
+fn round_layout_rounds_scroll_geometry_with_node_output() {
+    let mut tree = OracleTreeOf::<f64>::new().unrounded(
+        0,
+        NodeOutputOf::<f64> {
+            location: Point::new(10.25, 20.25),
+            size: Size::new(100.5, 40.5),
+            content_size: Size::new(120.5, 70.5),
+            scroll_geometry: Some(
+                crate::scroll::scroll_geometry_from_layout(
+                    WritingMode::HorizontalTb,
+                    Direction::Ltr,
+                    Point::new(Overflow::Hidden, Overflow::Hidden),
+                    Size::new(100.5, 40.5),
+                    Edges::ZERO,
+                    Edges::all(0.25),
+                    0.0,
+                    ScrollRectOf::new(Point::new(0.25, 0.25), Size::new(120.5, 70.5)).unwrap(),
+                )
+                .unwrap(),
+            ),
+            ..NodeOutputOf::<f64>::default()
+        },
+    );
+
+    round_layout(&mut tree, 0);
+
+    let geometry = tree.output(0).scroll_geometry.unwrap();
+    assert_eq!(geometry.scrollport().origin(), Point::new(1.0, 1.0));
+    assert_eq!(geometry.scrollport().size(), Size::new(100.0, 40.0));
+    assert_eq!(
+        geometry.scrollable_overflow().origin(),
+        Point::new(1.0, 1.0)
+    );
+    assert_eq!(
+        geometry.scrollable_overflow().size(),
+        Size::new(120.0, 70.0)
+    );
+    assert_eq!(geometry.range().maximum_offset(), Size::new(20.0, 30.0));
+}
+
+#[test]
 fn root_layout_stores_child_output_as_root_layout() {
     #[derive(Default)]
     struct RootTree {

@@ -1,12 +1,13 @@
 use super::{
     AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CalcResolutionOf, CalcResolutionStatus,
     CalcResolver, Compute, ComputeInputOf, ComputeOutputOf, Direction, LayoutInputOf, LayoutScalar,
-    NoCalcResolver, NodeInputOf, NodeOutputOf, Position, Round, RunMode, Size, SizingMode,
+    NoCalcResolver, NodeInputOf, NodeOutputOf, Point, Position, Round, RunMode, Size, SizingMode,
     Traverse,
 };
 use crate::scroll::{
-    ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
-    scroll_rect_union, scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
+    ScrollbarReservationOf, content_box_inset_with_scrollbar, round_scroll_geometry,
+    scroll_geometry_from_layout, scroll_rect_union, scrollable_overflow_from_layout_content_size,
+    scrollbar_size_from_overflow,
 };
 
 pub fn compute_hidden<Tree>(
@@ -209,6 +210,11 @@ fn round_layout_inner<Tree>(
     layout.padding.top = round(cumulative_y + unrounded.padding.top) - round(cumulative_y);
     layout.padding.bottom = round(cumulative_y + unrounded.size.height)
         - round(cumulative_y + unrounded.size.height - unrounded.padding.bottom);
+    layout.scroll_geometry = unrounded
+        .scroll_geometry
+        .map(|geometry| round_scroll_geometry(geometry, Point::new(cumulative_x, cumulative_y)))
+        .transpose()
+        .expect("rounded scroll geometry remains finite and non-negative");
 
     tree.set_final(node, layout);
 

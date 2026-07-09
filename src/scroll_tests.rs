@@ -543,3 +543,43 @@ fn scroll_geometry_from_layout_keeps_visible_axis_range_zero_when_other_axis_scr
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
     assert_eq!(geometry.range().maximum_offset(), Size::new(0.0, 30.0));
 }
+
+#[test]
+fn round_scroll_geometry_rounds_rects_with_cumulative_origin() {
+    let scrollable_overflow =
+        ScrollRect::new(Point::new(0.25, 0.25), Size::new(10.5, 20.5)).unwrap();
+    let geometry = ScrollGeometry::new(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        ScrollContainerFacts::new(
+            ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
+            ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
+        ),
+        ScrollRect::new(Point::new(0.25, 0.25), Size::new(5.5, 6.5)).unwrap(),
+        Some(ScrollRect::new(Point::new(0.25, 0.25), Size::new(5.5, 6.5)).unwrap()),
+        scrollable_overflow,
+        ScrollRange::new(Size::new(5.0, 14.0)).unwrap(),
+        ScrollbarGutterRects::new(
+            None,
+            Some(ScrollRect::new(Point::new(5.75, 0.25), Size::new(1.0, 6.5)).unwrap()),
+        ),
+    )
+    .unwrap();
+
+    let rounded = crate::scroll::round_scroll_geometry(geometry, Point::new(10.25, 20.25)).unwrap();
+
+    assert_eq!(
+        rounded.scrollport(),
+        ScrollRect::new(Point::new(1.0, 1.0), Size::new(5.0, 6.0)).unwrap()
+    );
+    assert_eq!(rounded.overflow_clip(), Some(rounded.scrollport()));
+    assert_eq!(
+        rounded.scrollable_overflow(),
+        ScrollRect::new(Point::new(1.0, 1.0), Size::new(10.0, 20.0)).unwrap()
+    );
+    assert_eq!(
+        rounded.gutters().vertical(),
+        Some(ScrollRect::new(Point::new(6.0, 1.0), Size::new(1.0, 6.0)).unwrap())
+    );
+    assert_eq!(rounded.range().maximum_offset(), Size::new(5.0, 14.0));
+}
