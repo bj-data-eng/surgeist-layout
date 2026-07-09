@@ -206,7 +206,14 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
             ..NodeInput::default()
         },
     );
-    tree.styles.insert(2, NodeInput::default());
+    tree.styles.insert(
+        2,
+        NodeInput {
+            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: 10.0,
+            ..NodeInput::default()
+        },
+    );
     tree.outputs
         .insert(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
 
@@ -224,6 +231,7 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
 
     assert_eq!(output.content_size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
+    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(10.0, 10.0));
 }
 
 #[test]

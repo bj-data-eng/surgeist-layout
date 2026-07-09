@@ -1,4 +1,5 @@
 use super::*;
+use crate::scroll::scrollbar_size_from_overflow;
 use crate::{GridFlowToleranceOf, MaxTrackSizingOf, MinTrackSizingOf, NoCalcResolver};
 use std::num::NonZeroUsize;
 
@@ -1454,17 +1455,9 @@ where
             block_auto_margins,
             baseline_participation,
             margin,
-            scrollbar_size: Size::new(
-                if child_style.overflow.y == Overflow::Scroll {
-                    child_style.scrollbar_width
-                } else {
-                    Tree::Scalar::ZERO
-                },
-                if child_style.overflow.x == Overflow::Scroll {
-                    child_style.scrollbar_width
-                } else {
-                    Tree::Scalar::ZERO
-                },
+            scrollbar_size: scrollbar_size_from_overflow(
+                child_style.overflow,
+                child_style.scrollbar_width,
             ),
             border,
             padding,
