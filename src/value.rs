@@ -437,15 +437,16 @@ impl<S: LayoutScalar> LengthOf<S> {
     pub const ZERO: Self = Self::Value(LengthPercentageOf::ZERO);
 
     #[must_use]
-    pub fn px(value: S) -> Self {
-        Self::Value(LengthPercentageOf::px(value).expect("length px value must be finite"))
+    pub(crate) fn px(value: S) -> Self {
+        Self::Value(LengthPercentageOf::px(value).expect("trusted crate length px literal"))
     }
 
     #[must_use]
-    pub fn percent(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
         Self::Value(
             LengthPercentageOf::from_percent_fraction(value)
-                .expect("length percent value must be finite"),
+                .expect("trusted crate length percent literal"),
         )
     }
 
@@ -528,15 +529,17 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     pub const AUTO: Self = Self::Auto;
 
     #[must_use]
-    pub fn px(value: S) -> Self {
-        Self::Value(LengthPercentageOf::px(value).expect("length-auto px value must be finite"))
+    #[cfg(test)]
+    pub(crate) fn px(value: S) -> Self {
+        Self::Value(LengthPercentageOf::px(value).expect("trusted crate length-auto px literal"))
     }
 
     #[must_use]
-    pub fn percent(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
         Self::Value(
             LengthPercentageOf::from_percent_fraction(value)
-                .expect("length-auto percent value must be finite"),
+                .expect("trusted crate length-auto percent literal"),
         )
     }
 
@@ -650,15 +653,17 @@ impl<S: LayoutScalar> DimensionOf<S> {
     pub const MAX_CONTENT: Self = Self::MaxContent;
 
     #[must_use]
-    pub fn px(value: S) -> Self {
-        Self::Value(LengthPercentageOf::px(value).expect("dimension px value must be finite"))
+    #[cfg(test)]
+    pub(crate) fn px(value: S) -> Self {
+        Self::Value(LengthPercentageOf::px(value).expect("trusted crate dimension px literal"))
     }
 
     #[must_use]
-    pub fn percent(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
         Self::Value(
             LengthPercentageOf::from_percent_fraction(value)
-                .expect("dimension percent value must be finite"),
+                .expect("trusted crate dimension percent literal"),
         )
     }
 
@@ -775,12 +780,13 @@ impl<S: LayoutScalar> MinTrackSizingOf<S> {
     pub const ZERO: Self = Self::Length(LengthOf::ZERO);
 
     #[must_use]
-    pub fn px(value: S) -> Self {
+    pub(crate) fn px(value: S) -> Self {
         Self::Length(LengthOf::px(value))
     }
 
     #[must_use]
-    pub fn percent(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
         Self::Length(LengthOf::percent(value))
     }
 
@@ -850,12 +856,13 @@ impl<S: LayoutScalar> MaxTrackSizingOf<S> {
     pub const ZERO: Self = Self::Length(LengthOf::ZERO);
 
     #[must_use]
-    pub fn px(value: S) -> Self {
+    pub(crate) fn px(value: S) -> Self {
         Self::Length(LengthOf::px(value))
     }
 
     #[must_use]
-    pub fn percent(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
         Self::Length(LengthOf::percent(value))
     }
 
@@ -969,12 +976,13 @@ impl<S: LayoutScalar> TrackSizingOf<S> {
     }
 
     #[must_use]
-    pub fn px(value: S) -> Self {
+    pub(crate) fn px(value: S) -> Self {
         Self::new(MinTrackSizingOf::px(value), MaxTrackSizingOf::px(value))
     }
 
     #[must_use]
-    pub fn percent(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
         Self::new(
             MinTrackSizingOf::percent(value),
             MaxTrackSizingOf::percent(value),
@@ -1240,12 +1248,14 @@ impl<S: LayoutScalar> TrackComponentOf<S> {
     pub const ZERO: Self = Self::Track(TrackSizingOf::ZERO);
 
     #[must_use]
-    pub fn px(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn px(value: S) -> Self {
         Self::Track(TrackSizingOf::px(value))
     }
 
     #[must_use]
-    pub fn percent(value: S) -> Self {
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
         Self::Track(TrackSizingOf::percent(value))
     }
 
@@ -1339,15 +1349,9 @@ fn track_sizing_components_from_tracks<S: LayoutScalar>(
 #[cfg(test)]
 mod value_tests {
     use super::{
-        DimensionOf, LengthAutoOf, LengthOf, LengthPercentageOf, LengthResolutionStatus,
-        MaxTrackSizingOf, MinTrackSizingOf, NumericResolutionOf, PercentageBasisOf,
-        TrackComponentOf, TrackSizingOf,
+        LengthOf, LengthPercentageOf, LengthResolutionStatus, NumericResolutionOf,
+        PercentageBasisOf,
     };
-    use std::panic::{self, UnwindSafe};
-
-    fn assert_panics(operation: impl FnOnce() + UnwindSafe) {
-        assert!(panic::catch_unwind(operation).is_err());
-    }
 
     #[test]
     fn value_length_percentage_constructs_f32_px_percent_and_mixed_values() {
@@ -1415,61 +1419,16 @@ mod value_tests {
     }
 
     #[test]
-    fn value_invalid_affine_numeric_result_raw_length_constructors_reject_non_finite() {
-        assert_panics(|| {
-            let _ = LengthOf::<f32>::px(f32::NAN);
-        });
-        assert_panics(|| {
-            let _ = LengthOf::<f32>::percent(f32::INFINITY);
-        });
-    }
+    fn value_public_length_construction_uses_validated_affine_values() {
+        assert!(LengthPercentageOf::<f32>::px(f32::NAN).is_err());
+        assert!(LengthPercentageOf::<f32>::from_percent_fraction(f32::INFINITY).is_err());
+        assert!(LengthPercentageOf::<f32>::from_coefficients(0.0, f32::NAN).is_err());
 
-    #[test]
-    fn value_invalid_affine_numeric_result_raw_length_auto_constructors_reject_non_finite() {
-        assert_panics(|| {
-            let _ = LengthAutoOf::<f32>::px(f32::NAN);
-        });
-        assert_panics(|| {
-            let _ = LengthAutoOf::<f32>::percent(f32::INFINITY);
-        });
-    }
+        let validated =
+            LengthPercentageOf::<f32>::from_coefficients(8.0, 0.25).expect("finite coefficients");
+        let length = LengthOf::<f32>::value(validated);
 
-    #[test]
-    fn value_invalid_affine_numeric_result_raw_dimension_constructors_reject_non_finite() {
-        assert_panics(|| {
-            let _ = DimensionOf::<f32>::px(f32::NAN);
-        });
-        assert_panics(|| {
-            let _ = DimensionOf::<f32>::percent(f32::INFINITY);
-        });
-    }
-
-    #[test]
-    fn value_invalid_affine_numeric_result_raw_track_constructors_reject_non_finite() {
-        assert_panics(|| {
-            let _ = MinTrackSizingOf::<f32>::px(f32::NAN);
-        });
-        assert_panics(|| {
-            let _ = MinTrackSizingOf::<f32>::percent(f32::INFINITY);
-        });
-        assert_panics(|| {
-            let _ = MaxTrackSizingOf::<f32>::px(f32::NAN);
-        });
-        assert_panics(|| {
-            let _ = MaxTrackSizingOf::<f32>::percent(f32::INFINITY);
-        });
-        assert_panics(|| {
-            let _ = TrackSizingOf::<f32>::px(f32::NAN);
-        });
-        assert_panics(|| {
-            let _ = TrackSizingOf::<f32>::percent(f32::INFINITY);
-        });
-        assert_panics(|| {
-            let _ = TrackComponentOf::<f32>::px(f32::NAN);
-        });
-        assert_panics(|| {
-            let _ = TrackComponentOf::<f32>::percent(f32::INFINITY);
-        });
+        assert_eq!(length.resolve_optional(Some(80.0)), Some(28.0));
     }
 
     #[test]
@@ -1483,6 +1442,20 @@ mod value_tests {
 
         assert_eq!(resolution.value, None);
         assert_eq!(resolution.status(), LengthResolutionStatus::InvalidNumeric);
+    }
+
+    #[test]
+    fn value_invalid_affine_numeric_result_never_resolves_to_non_finite_value() {
+        let length = LengthOf::<f32>::value(
+            LengthPercentageOf::<f32>::from_coefficients(f32::MAX, f32::MAX)
+                .expect("finite coefficients"),
+        );
+
+        assert_eq!(length.resolve_optional(Some(f32::MAX)), None);
+        assert_ne!(
+            length.resolve_with_status(Some(f32::MAX)).status(),
+            LengthResolutionStatus::Resolved
+        );
     }
 
     #[test]

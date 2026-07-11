@@ -1612,14 +1612,10 @@ fn parse_calc_sum(body: &str, raw: &str) -> Result<layout::LengthPercentageOf, E
 
 fn parse_calc_term(raw: &str, sign: Scalar) -> Result<layout::LengthPercentageOf, Error> {
     if let Some(px) = raw.strip_suffix("px") {
-        return layout::LengthPercentageOf::px(parse_number(px)? * sign)
-            .map_err(|error| Error::new(format!("invalid calc px term `{raw}`: {error}")));
+        return length_percentage_px(parse_number(px)? * sign, raw);
     }
     if let Some(percent) = raw.strip_suffix('%') {
-        return layout::LengthPercentageOf::from_percent_fraction(
-            parse_number(percent)? / 100.0 * sign,
-        )
-        .map_err(|error| Error::new(format!("invalid calc percent term `{raw}`: {error}")));
+        return length_percentage_percent(parse_number(percent)? / 100.0 * sign, raw);
     }
     Err(Error::new(format!(
         "unsupported calc expression term `{raw}`"
@@ -1656,15 +1652,15 @@ fn parse_dimension_with_calc(raw: &str) -> Result<layout::Dimension, Error> {
 
 fn parse_length(raw: &str) -> Result<layout::Length, Error> {
     if let Some(px) = raw.strip_suffix("px") {
-        return Ok(layout::Length::px(parse_number(px)?));
+        return length_px(parse_number(px)?, raw);
     }
     if let Some(percent) = raw.strip_suffix('%') {
-        return Ok(layout::Length::percent(parse_number(percent)? / 100.0));
+        return length_percent(parse_number(percent)? / 100.0, raw);
     }
     // Browser parity XML is a typed fixture format. Unitless fixture numbers
     // represent layout lengths; app-facing CSS parsing stays outside layout math.
     if let Ok(value) = parse_number(raw) {
-        return Ok(layout::Length::px(value));
+        return length_px(value, raw);
     }
     Err(Error::new(format!("unsupported length `{raw}`")))
 }
@@ -1681,6 +1677,66 @@ fn parse_dimension(raw: &str) -> Result<layout::Dimension, Error> {
             Ok(parse_length(raw)?.into())
         }
     }
+}
+
+fn length_percentage_px(value: Scalar, raw: &str) -> Result<layout::LengthPercentageOf, Error> {
+    layout::LengthPercentageOf::px(value)
+        .map_err(|error| Error::new(format!("invalid length `{raw}`: {error}")))
+}
+
+fn length_percentage_percent(
+    value: Scalar,
+    raw: &str,
+) -> Result<layout::LengthPercentageOf, Error> {
+    layout::LengthPercentageOf::from_percent_fraction(value)
+        .map_err(|error| Error::new(format!("invalid length `{raw}`: {error}")))
+}
+
+fn length_px(value: Scalar, raw: &str) -> Result<layout::Length, Error> {
+    Ok(layout::Length::value(length_percentage_px(value, raw)?))
+}
+
+fn length_percent(value: Scalar, raw: &str) -> Result<layout::Length, Error> {
+    Ok(layout::Length::value(length_percentage_percent(
+        value, raw,
+    )?))
+}
+
+#[cfg(test)]
+fn dimension_px(value: Scalar) -> layout::Dimension {
+    layout::Dimension::value(
+        layout::LengthPercentageOf::px(value).expect("finite test dimension px"),
+    )
+}
+
+#[cfg(test)]
+fn min_track_px(value: Scalar) -> layout::MinTrackSizing {
+    layout::Length::value(layout::LengthPercentageOf::px(value).expect("finite test min track px"))
+        .into()
+}
+
+#[cfg(test)]
+fn max_track_px(value: Scalar) -> layout::MaxTrackSizing {
+    layout::Length::value(layout::LengthPercentageOf::px(value).expect("finite test max track px"))
+        .into()
+}
+
+#[cfg(test)]
+fn track_px(value: Scalar) -> layout::TrackSizing {
+    layout::Length::value(layout::LengthPercentageOf::px(value).expect("finite test track px"))
+        .into()
+}
+
+#[cfg(test)]
+fn track_component_px(value: Scalar) -> layout::TrackComponent {
+    layout::TrackComponent::Track(track_px(value))
+}
+
+#[cfg(test)]
+fn length_percent_for_test(value: Scalar) -> layout::Length {
+    layout::Length::value(
+        layout::LengthPercentageOf::from_percent_fraction(value).expect("finite test percent"),
+    )
 }
 
 fn parse_track_component_list(raw: &str) -> Result<Vec<layout::TrackComponent>, Error> {
@@ -2056,11 +2112,11 @@ mod tests {
     fn parse_dimension_accepts_browser_fixture_unitless_lengths() {
         assert_eq!(
             parse_dimension("40").expect("unitless fixture length should parse"),
-            layout::Dimension::px(40.0)
+            dimension_px(40.0)
         );
         assert_eq!(
             parse_dimension("0").expect("unitless zero fixture length should parse"),
-            layout::Dimension::px(0.0)
+            dimension_px(0.0)
         );
     }
 
@@ -2068,6 +2124,28 @@ mod tests {
     fn parse_length_rejects_non_fixture_css_units() {
         assert!(parse_length("1em").is_err());
         assert!(parse_length("calc(100% - 1px)").is_err());
+    }
+
+    #[test]
+    fn parse_length_rejects_non_finite_fixture_numbers_without_panicking() {
+        let px_error = parse_length("NaNpx").expect_err("NaN px should be rejected");
+        assert!(
+            px_error.to_string().contains("scalar must be finite"),
+            "unexpected error: {px_error}"
+        );
+
+        let percent_error = parse_length("inf%").expect_err("infinite percent should be rejected");
+        assert!(
+            percent_error.to_string().contains("scalar must be finite"),
+            "unexpected error: {percent_error}"
+        );
+
+        let calc_error =
+            parse_length_with_calc("calc(infpx + 10%)").expect_err("infinite calc should fail");
+        assert!(
+            calc_error.to_string().contains("scalar must be finite"),
+            "unexpected error: {calc_error}"
+        );
     }
 
     #[test]
@@ -2187,17 +2265,14 @@ mod tests {
         .expect("rich grid track list should parse");
 
         assert_eq!(tracks.len(), 4);
-        assert_eq!(tracks[0], layout::TrackComponent::px(40.0));
+        assert_eq!(tracks[0], track_component_px(40.0));
         assert_eq!(
             tracks[1],
-            layout::TrackComponent::minmax(
-                layout::MinTrackSizing::px(20.0),
-                layout::MaxTrackSizing::px(40.0)
-            )
+            layout::TrackComponent::minmax(min_track_px(20.0), max_track_px(40.0))
         );
         assert_eq!(
             tracks[2],
-            layout::TrackComponent::fit_content(layout::Length::percent(0.5))
+            layout::TrackComponent::fit_content(length_percent_for_test(0.5))
         );
         assert_eq!(
             tracks[3],
@@ -2218,7 +2293,7 @@ mod tests {
                 .expect("auto-fill should parse"),
             layout::TrackComponent::Repeat(
                 layout::TrackRepetition::auto_fill(vec![layout::TrackSizing::minmax(
-                    layout::MinTrackSizing::px(150.0),
+                    min_track_px(150.0),
                     layout::MaxTrackSizing::fr(1.0)
                 )])
                 .expect("valid track repetition")
@@ -2227,7 +2302,7 @@ mod tests {
         assert_eq!(
             parse_track_component("repeat(auto-fit, 40px)").expect("auto-fit should parse"),
             layout::TrackComponent::Repeat(
-                layout::TrackRepetition::auto_fit(vec![layout::TrackSizing::px(40.0)])
+                layout::TrackRepetition::auto_fit(vec![track_px(40.0)])
                     .expect("valid track repetition")
             )
         );
@@ -2242,9 +2317,9 @@ mod tests {
             parsed,
             vec![
                 layout::TrackComponent::LineNames(vec!["a".to_string()]),
-                layout::TrackComponent::Track(layout::TrackSizing::px(10.0)),
+                layout::TrackComponent::Track(track_px(10.0)),
                 layout::TrackComponent::LineNames(vec!["b".to_string(), "c".to_string()]),
-                layout::TrackComponent::Track(layout::TrackSizing::px(20.0)),
+                layout::TrackComponent::Track(track_px(20.0)),
                 layout::TrackComponent::LineNames(vec!["d".to_string()]),
             ]
         );
@@ -2283,7 +2358,7 @@ mod tests {
             input.grid_template_columns,
             vec![
                 layout::TrackComponent::LineNames(vec!["a".to_string()]),
-                layout::TrackComponent::Track(layout::TrackSizing::px(10.0)),
+                layout::TrackComponent::Track(track_px(10.0)),
                 layout::TrackComponent::LineNames(vec!["b".to_string()]),
             ]
         );
@@ -2544,8 +2619,8 @@ mod tests {
             nodes: vec![TestNode {
                 layout_input: layout::LayoutInput::box_input(layout::NodeInput {
                     display: layout::Display::InlineGrid,
-                    grid_template_columns: vec![layout::TrackComponent::px(40.0)],
-                    grid_template_rows: vec![layout::TrackComponent::px(20.0)],
+                    grid_template_columns: vec![track_component_px(40.0)],
+                    grid_template_rows: vec![track_component_px(20.0)],
                     ..layout::NodeInput::default()
                 }),
                 font_family: FontFamily::Ahem,
@@ -2919,7 +2994,10 @@ mod tests {
         .expect("physical margin attrs should parse");
 
         assert_eq!(node_input.margin.left, layout::LengthAuto::AUTO);
-        assert_eq!(node_input.margin.right, layout::LengthAuto::px(12.0));
+        assert_eq!(
+            node_input.margin.right,
+            length_px(12.0, "12px").unwrap().into()
+        );
     }
 
     #[test]
