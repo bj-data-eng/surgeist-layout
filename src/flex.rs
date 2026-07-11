@@ -3014,16 +3014,18 @@ fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
         LengthResolutionStatus::Resolved => resolution
             .value
             .expect("resolved length resolution must carry a value"),
-        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => S::ZERO,
-        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::NonNumeric => S::ZERO,
     }
 }
 
 fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
     match resolution.status() {
         LengthResolutionStatus::Resolved => resolution.value,
-        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => None,
-        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::NonNumeric => None,
     }
 }
 

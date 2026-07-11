@@ -12979,20 +12979,20 @@ fn basis_dependent_affine_max_track_uses_max_intrinsic_resolution() {
 }
 
 #[test]
-#[should_panic(expected = "invalid numeric length resolution")]
-fn track_intrinsic_min_resolution_panics_on_invalid_affine_numeric_result() {
-    track_min_size_for_intrinsics(
+fn track_intrinsic_min_resolution_handles_invalid_affine_numeric_result() {
+    let size = track_min_size_for_intrinsics(
         MinTrackSizing::Length(Length::value(invalid_numeric_lp())),
         Some(2.0),
         11.0,
         99.0,
     );
+
+    assert_eq!(size, 0.0);
 }
 
 #[test]
-#[should_panic(expected = "invalid numeric length resolution")]
-fn track_intrinsic_max_resolution_panics_on_invalid_affine_numeric_result() {
-    track_base_size_for_intrinsics(
+fn track_intrinsic_max_resolution_handles_invalid_affine_numeric_result() {
+    let size = track_base_size_for_intrinsics(
         TrackSizing::new(
             MinTrackSizing::MinContent,
             MaxTrackSizing::Length(Length::value(invalid_numeric_lp())),
@@ -13001,12 +13001,13 @@ fn track_intrinsic_max_resolution_panics_on_invalid_affine_numeric_result() {
         11.0,
         99.0,
     );
+
+    assert_eq!(size, 99.0);
 }
 
 #[test]
-#[should_panic(expected = "invalid numeric length resolution")]
-fn track_fit_content_limit_panics_on_invalid_affine_numeric_result() {
-    track_growth_limit(
+fn track_fit_content_limit_handles_invalid_affine_numeric_result() {
+    let limit = track_growth_limit(
         TrackSizing::new(
             MinTrackSizing::MinContent,
             MaxTrackSizing::FitContent(Length::value(invalid_numeric_lp())),
@@ -13014,12 +13015,13 @@ fn track_fit_content_limit_panics_on_invalid_affine_numeric_result() {
         Some(2.0),
         99.0,
     );
+
+    assert_eq!(limit, Some(99.0));
 }
 
 #[test]
-#[should_panic(expected = "invalid numeric length resolution")]
-fn grid_lane_track_base_panics_on_invalid_affine_numeric_result() {
-    lane_intrinsic_sizing(LaneIntrinsicSizingInput {
+fn grid_lane_track_base_handles_invalid_affine_numeric_result() {
+    let report = lane_intrinsic_sizing(LaneIntrinsicSizingInput {
         axis: GridAxisKind::Column,
         available: Some(2.0),
         gap: 0.0,
@@ -13031,6 +13033,8 @@ fn grid_lane_track_base_panics_on_invalid_affine_numeric_result() {
         items: Vec::new(),
     })
     .expect("lane intrinsic sizing should not return before track initialization");
+
+    assert_eq!(report.final_track_sizes, vec![0.0]);
 }
 
 fn subgrid_track() -> Vec<TrackComponent> {
@@ -13186,13 +13190,13 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
                 style
                     .size
                     .width
-                    .resolve_with(input.parent.width)
+                    .resolve_optional(input.parent.width)
                     .or_else(|| input.available.width.into_option())
                     .unwrap_or(0.0),
                 style
                     .size
                     .height
-                    .resolve_with(input.parent.height)
+                    .resolve_optional(input.parent.height)
                     .or_else(|| input.available.height.into_option())
                     .unwrap_or(0.0),
             ));

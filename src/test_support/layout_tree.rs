@@ -329,7 +329,7 @@ impl<S: LayoutScalar> Round for OracleTreeOf<S> {
 }
 
 fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
-    dimension.resolve_with(basis)
+    dimension.resolve_optional(basis)
 }
 
 #[cfg(test)]

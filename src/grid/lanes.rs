@@ -696,8 +696,9 @@ fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
         LengthResolutionStatus::Resolved => resolution
             .value
             .expect("resolved length resolution must carry a value"),
-        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => S::ZERO,
-        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::NonNumeric => S::ZERO,
     }
 }
 
@@ -1703,7 +1704,7 @@ fn resolve_tolerance<S: LayoutScalar>(tolerance: GridFlowToleranceOf<S>, basis: 
 
     match tolerance {
         GridFlowToleranceOf::Normal { font_size } => font_size,
-        GridFlowToleranceOf::Length(length) => length.resolve_against(basis),
+        GridFlowToleranceOf::Length(length) => resolution_or_zero(length.resolve_against(basis)),
         GridFlowToleranceOf::Percent(factor) => factor * basis_value,
         GridFlowToleranceOf::Infinite => S::INFINITY,
     }

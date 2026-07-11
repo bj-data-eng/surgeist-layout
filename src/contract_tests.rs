@@ -34,10 +34,14 @@ fn layout_scalar_supports_f32_and_f64() {
 #[test]
 fn value_types_support_f64_scalar_lane() {
     let length = crate::LengthOf::<f64>::percent(0.25);
-    assert_eq!(length.resolve(400.0), 100.0);
+    let length = length.resolve(400.0);
+    assert_eq!(length.value, Some(100.0));
+    assert_eq!(length.status(), crate::LengthResolutionStatus::Resolved);
 
     let dimension = crate::DimensionOf::<f64>::px(42.5);
-    assert_eq!(dimension.resolve(1000.0), Some(42.5));
+    let dimension = dimension.resolve(1000.0);
+    assert_eq!(dimension.value, Some(42.5));
+    assert_eq!(dimension.status(), crate::LengthResolutionStatus::Resolved);
 
     let ratio = crate::AspectRatioOf::<f64>::new(16.0 / 9.0)
         .expect("positive finite f64 aspect ratio should be accepted");
@@ -58,8 +62,12 @@ fn node_input_and_output_support_f64_scalar_lane() {
         ..crate::NodeInputOf::<f64>::default()
     };
 
-    assert_eq!(input.size.width.resolve(1000.0), Some(123.5));
-    assert_eq!(input.size.height.resolve(400.0), Some(100.0));
+    let width = input.size.width.resolve(1000.0);
+    let height = input.size.height.resolve(400.0);
+    assert_eq!(width.value, Some(123.5));
+    assert_eq!(width.status(), LengthResolutionStatus::Resolved);
+    assert_eq!(height.value, Some(100.0));
+    assert_eq!(height.status(), LengthResolutionStatus::Resolved);
 
     let precision_sentinel = 16_777_217.0_f64;
     let output = crate::NodeOutputOf::<f64> {
@@ -144,22 +152,41 @@ fn scroll_geometry_core_is_scalar_generic() {
 
 #[test]
 fn length_values_resolve_against_a_containing_size() {
-    assert_eq!(Length::px(24.0).resolve(320.0), 24.0);
-    assert_eq!(Length::percent(0.25).resolve(320.0), 80.0);
+    let px = Length::px(24.0).resolve(320.0);
+    let percent = Length::percent(0.25).resolve(320.0);
+
+    assert_eq!(px.value, Some(24.0));
+    assert_eq!(px.status(), LengthResolutionStatus::Resolved);
+    assert_eq!(percent.value, Some(80.0));
+    assert_eq!(percent.status(), LengthResolutionStatus::Resolved);
 }
 
 #[test]
 fn auto_lengths_resolve_to_optional_values() {
-    assert_eq!(LengthAuto::px(12.0).resolve(200.0), Some(12.0));
-    assert_eq!(LengthAuto::percent(0.5).resolve(200.0), Some(100.0));
-    assert_eq!(LengthAuto::AUTO.resolve(200.0), None);
+    let px = LengthAuto::px(12.0).resolve(200.0);
+    let percent = LengthAuto::percent(0.5).resolve(200.0);
+    let auto = LengthAuto::AUTO.resolve(200.0);
+
+    assert_eq!(px.value, Some(12.0));
+    assert_eq!(px.status(), LengthResolutionStatus::Resolved);
+    assert_eq!(percent.value, Some(100.0));
+    assert_eq!(percent.status(), LengthResolutionStatus::Resolved);
+    assert_eq!(auto.value, None);
+    assert_eq!(auto.status(), LengthResolutionStatus::NonNumeric);
 }
 
 #[test]
 fn dimensions_preserve_layout_sizing_semantics() {
-    assert_eq!(Dimension::px(42.0).resolve(100.0), Some(42.0));
-    assert_eq!(Dimension::percent(0.25).resolve(100.0), Some(25.0));
-    assert_eq!(Dimension::AUTO.resolve(100.0), None);
+    let px = Dimension::px(42.0).resolve(100.0);
+    let percent = Dimension::percent(0.25).resolve(100.0);
+    let auto = Dimension::AUTO.resolve(100.0);
+
+    assert_eq!(px.value, Some(42.0));
+    assert_eq!(px.status(), LengthResolutionStatus::Resolved);
+    assert_eq!(percent.value, Some(25.0));
+    assert_eq!(percent.status(), LengthResolutionStatus::Resolved);
+    assert_eq!(auto.value, None);
+    assert_eq!(auto.status(), LengthResolutionStatus::NonNumeric);
     assert!(Dimension::MIN_CONTENT.is_min_content());
     assert!(Dimension::MAX_CONTENT.is_max_content());
 }

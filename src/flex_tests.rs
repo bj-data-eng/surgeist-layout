@@ -190,8 +190,7 @@ fn f64_flex_layout_preserves_fractional_growth() {
 }
 
 #[test]
-#[should_panic(expected = "invalid numeric length resolution")]
-fn flex_margin_resolution_panics_on_invalid_affine_numeric_result() {
+fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panicking() {
     let invalid_margin =
         LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX).expect("finite coefficients");
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
@@ -230,6 +229,8 @@ fn flex_margin_resolution_panics_on_invalid_affine_numeric_result() {
             available: Size::new(Available::definite(120.0), Available::definite(40.0)),
         },
     );
+
+    assert_eq!(tree.output(2).location.x, 0.0);
 }
 
 #[test]

@@ -1584,7 +1584,7 @@ pub(super) fn track_min_floor_space<S: LayoutScalar>(track: TrackSizingOf<S>) ->
         .percent_fraction()
         .eq(&S::ZERO)
         .then(|| match track.min {
-            MinTrackSizingOf::Length(length) => length.resolve_with(None),
+            MinTrackSizingOf::Length(length) => length.resolve_optional(None),
             MinTrackSizingOf::Auto
             | MinTrackSizingOf::MinContent
             | MinTrackSizingOf::MaxContent => None,
@@ -1613,7 +1613,7 @@ pub(super) fn track_accepts_intrinsic_contribution<S: LayoutScalar>(
 
 pub(super) fn track_has_definite_min_floor<S: LayoutScalar>(track: TrackSizingOf<S>) -> bool {
     match track.min {
-        MinTrackSizingOf::Length(length) => length.resolve_with(None).is_some(),
+        MinTrackSizingOf::Length(length) => length.resolve_optional(None).is_some(),
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {
             false
         }
@@ -2509,16 +2509,18 @@ fn resolution_or_else<S: LayoutScalar>(
         LengthResolutionStatus::Resolved => resolution
             .value
             .expect("resolved length resolution must carry a value"),
-        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => fallback(),
-        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::NonNumeric => fallback(),
     }
 }
 
 fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
     match resolution.status() {
         LengthResolutionStatus::Resolved => resolution.value,
-        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => None,
-        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::NonNumeric => None,
     }
 }
 

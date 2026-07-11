@@ -7138,14 +7138,13 @@ fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
 }
 
 #[test]
-#[should_panic(expected = "invalid numeric length resolution")]
-fn invalid_numeric_margin_keeps_explicit_failure() {
+fn invalid_numeric_margin_keeps_explicit_failure_without_panicking() {
     let margin = LengthAuto::value(
         LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX).expect("finite coefficients"),
     )
     .resolve_auto_with_status(Some(10.0));
 
-    let _ = resolve_in_flow_margin(
+    let resolved = resolve_in_flow_margin(
         Edges {
             top: margin,
             ..Edges::<Scalar>::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
@@ -7153,4 +7152,6 @@ fn invalid_numeric_margin_keeps_explicit_failure() {
         Size::new(10.0, 10.0),
         Some(10.0),
     );
+
+    assert_eq!(resolved.top, 0.0);
 }

@@ -77,8 +77,8 @@ fn affine_values_resolve_px_and_percent_coefficients_inline() {
     assert_eq!(value.absolute_px(), 12.0);
     assert_eq!(value.percent_fraction(), 0.25);
     assert!(length.depends_on_basis());
-    assert_eq!(length.resolve_with(Some(80.0)), Some(32.0));
-    assert_eq!(length.resolve_with(None), None);
+    assert_eq!(length.resolve_optional(Some(80.0)), Some(32.0));
+    assert_eq!(length.resolve_optional(None), None);
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn affine_values_report_basis_dependency_and_percent_fraction() {
 
     assert!(!px_only.depends_on_basis());
     assert!(with_percent.depends_on_basis());
-    assert_eq!(px_only.resolve_with(None), Some(12.0));
+    assert_eq!(px_only.resolve_optional(None), Some(12.0));
 
     let unresolved = with_percent.resolve_with_status(None);
     assert_eq!(unresolved.value, None);
@@ -105,7 +105,10 @@ fn affine_track_sizing_reports_signed_percent_fraction() {
     );
 
     assert_eq!(track.percent_fraction(), 0.25);
-    assert_eq!(Length::value(value).resolve_with(Some(200.0)), Some(50.0));
+    assert_eq!(
+        Length::value(value).resolve_optional(Some(200.0)),
+        Some(50.0)
+    );
 }
 
 #[test]
