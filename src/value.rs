@@ -103,6 +103,206 @@ impl<S: LayoutScalar> AvailableOf<S> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FiniteScalarErrorOf<S: LayoutScalar = DefaultScalar> {
+    NonFinite { value: S },
+}
+
+impl<S: LayoutScalar> core::fmt::Display for FiniteScalarErrorOf<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonFinite { .. } => f.write_str("scalar must be finite"),
+        }
+    }
+}
+
+impl<S: LayoutScalar> std::error::Error for FiniteScalarErrorOf<S> {}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NonNegativeFiniteScalarErrorOf<S: LayoutScalar = DefaultScalar> {
+    NonFinite { value: S },
+    Negative { value: S },
+}
+
+impl<S: LayoutScalar> core::fmt::Display for NonNegativeFiniteScalarErrorOf<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonFinite { .. } => f.write_str("scalar must be finite"),
+            Self::Negative { .. } => f.write_str("scalar must be non-negative"),
+        }
+    }
+}
+
+impl<S: LayoutScalar> std::error::Error for NonNegativeFiniteScalarErrorOf<S> {}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct NonNegativeFiniteOf<S: LayoutScalar = DefaultScalar> {
+    value: S,
+}
+
+impl<S: LayoutScalar> NonNegativeFiniteOf<S> {
+    pub const ZERO: Self = Self { value: S::ZERO };
+
+    pub fn new(value: S) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        if !value.is_finite() {
+            return Err(NonNegativeFiniteScalarErrorOf::NonFinite { value });
+        }
+
+        if value < S::ZERO {
+            return Err(NonNegativeFiniteScalarErrorOf::Negative { value });
+        }
+
+        Ok(Self {
+            value: canonical_zero(value),
+        })
+    }
+
+    #[must_use]
+    pub const fn get(self) -> S {
+        self.value
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LengthPercentageErrorOf<S: LayoutScalar = DefaultScalar> {
+    InvalidAbsolutePx(FiniteScalarErrorOf<S>),
+    InvalidPercentFraction(FiniteScalarErrorOf<S>),
+}
+
+impl<S: LayoutScalar> core::fmt::Display for LengthPercentageErrorOf<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InvalidAbsolutePx(_) => f.write_str("absolute length coefficient must be finite"),
+            Self::InvalidPercentFraction(_) => f.write_str("percentage coefficient must be finite"),
+        }
+    }
+}
+
+impl<S: LayoutScalar> std::error::Error for LengthPercentageErrorOf<S> {}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LengthPercentageOf<S: LayoutScalar = DefaultScalar> {
+    absolute_px: S,
+    percent_fraction: S,
+}
+
+impl<S: LayoutScalar> LengthPercentageOf<S> {
+    pub const ZERO: Self = Self {
+        absolute_px: S::ZERO,
+        percent_fraction: S::ZERO,
+    };
+
+    pub fn px(value: S) -> Result<Self, FiniteScalarErrorOf<S>> {
+        let absolute_px = finite_scalar(value)?;
+        Ok(Self {
+            absolute_px,
+            percent_fraction: S::ZERO,
+        })
+    }
+
+    pub fn percent_fraction(value: S) -> Result<Self, FiniteScalarErrorOf<S>> {
+        let percent_fraction = finite_scalar(value)?;
+        Ok(Self {
+            absolute_px: S::ZERO,
+            percent_fraction,
+        })
+    }
+
+    pub fn from_coefficients(
+        absolute_px: S,
+        percent_fraction: S,
+    ) -> Result<Self, LengthPercentageErrorOf<S>> {
+        Ok(Self {
+            absolute_px: finite_scalar(absolute_px)
+                .map_err(LengthPercentageErrorOf::InvalidAbsolutePx)?,
+            percent_fraction: finite_scalar(percent_fraction)
+                .map_err(LengthPercentageErrorOf::InvalidPercentFraction)?,
+        })
+    }
+
+    #[must_use]
+    pub const fn absolute_px(self) -> S {
+        self.absolute_px
+    }
+
+    #[must_use]
+    pub const fn percent_fraction_coefficient(self) -> S {
+        self.percent_fraction
+    }
+
+    #[must_use]
+    pub fn depends_on_basis(self) -> bool {
+        self.percent_fraction != S::ZERO
+    }
+
+    #[must_use]
+    pub fn resolve_against(self, basis: PercentageBasisOf<S>) -> NumericResolutionOf<S> {
+        if !self.depends_on_basis() {
+            return NumericResolutionOf::Resolved(self.absolute_px);
+        }
+
+        let PercentageBasisOf::Definite(basis) = basis else {
+            return NumericResolutionOf::MissingBasis { value: self };
+        };
+
+        let resolved = self.absolute_px + self.percent_fraction * basis.get();
+        if resolved.is_finite() {
+            NumericResolutionOf::Resolved(canonical_zero(resolved))
+        } else {
+            NumericResolutionOf::InvalidNumeric {
+                value: self,
+                basis: PercentageBasisOf::Definite(basis),
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PercentageBasisOf<S: LayoutScalar = DefaultScalar> {
+    Missing,
+    Definite(NonNegativeFiniteOf<S>),
+}
+
+impl<S: LayoutScalar> PercentageBasisOf<S> {
+    pub const MISSING: Self = Self::Missing;
+
+    pub fn definite(value: S) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        Ok(Self::Definite(NonNegativeFiniteOf::new(value)?))
+    }
+
+    #[must_use]
+    pub const fn definite_value(self) -> Option<NonNegativeFiniteOf<S>> {
+        match self {
+            Self::Missing => None,
+            Self::Definite(value) => Some(value),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NumericResolutionOf<S: LayoutScalar = DefaultScalar> {
+    Resolved(S),
+    MissingBasis {
+        value: LengthPercentageOf<S>,
+    },
+    InvalidNumeric {
+        value: LengthPercentageOf<S>,
+        basis: PercentageBasisOf<S>,
+    },
+}
+
+fn finite_scalar<S: LayoutScalar>(value: S) -> Result<S, FiniteScalarErrorOf<S>> {
+    if value.is_finite() {
+        Ok(canonical_zero(value))
+    } else {
+        Err(FiniteScalarErrorOf::NonFinite { value })
+    }
+}
+
+fn canonical_zero<S: LayoutScalar>(value: S) -> S {
+    if value == S::ZERO { S::ZERO } else { value }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct CalcId(u32);
 
@@ -1414,4 +1614,131 @@ fn track_sizing_components_from_tracks<S: LayoutScalar>(
     tracks: Vec<TrackSizingOf<S>>,
 ) -> Vec<TrackComponentOf<S>> {
     tracks.into_iter().map(TrackComponentOf::Track).collect()
+}
+
+#[cfg(test)]
+mod value_tests {
+    use super::{LengthPercentageOf, NumericResolutionOf, PercentageBasisOf};
+
+    #[test]
+    fn value_length_percentage_constructs_f32_px_percent_and_mixed_values() {
+        let px = LengthPercentageOf::<f32>::px(12.5).expect("finite px");
+        assert_eq!(px.absolute_px(), 12.5);
+        assert_eq!(px.percent_fraction_coefficient(), 0.0);
+        assert!(!px.depends_on_basis());
+
+        let percent = LengthPercentageOf::<f32>::percent_fraction(0.25).expect("finite percent");
+        assert_eq!(percent.absolute_px(), 0.0);
+        assert_eq!(percent.percent_fraction_coefficient(), 0.25);
+        assert!(percent.depends_on_basis());
+
+        let mixed = LengthPercentageOf::<f32>::from_coefficients(10.0, 0.5).expect("finite mixed");
+        let basis = PercentageBasisOf::<f32>::definite(80.0).expect("valid basis");
+        assert_eq!(
+            mixed.resolve_against(basis),
+            NumericResolutionOf::Resolved(50.0)
+        );
+    }
+
+    #[test]
+    fn value_length_percentage_constructs_f64_negative_percent_and_resolves() {
+        let value =
+            LengthPercentageOf::<f64>::from_coefficients(30.0, -0.25).expect("finite mixed value");
+        let basis = PercentageBasisOf::<f64>::definite(40.0).expect("valid basis");
+
+        assert_eq!(value.absolute_px(), 30.0);
+        assert_eq!(value.percent_fraction_coefficient(), -0.25);
+        assert!(value.depends_on_basis());
+        assert_eq!(
+            value.resolve_against(basis),
+            NumericResolutionOf::Resolved(20.0)
+        );
+    }
+
+    #[test]
+    fn value_length_percentage_canonicalizes_signed_zero_coefficients() {
+        let f32_value =
+            LengthPercentageOf::<f32>::from_coefficients(-0.0, -0.0).expect("finite zeros");
+        assert_eq!(f32_value.absolute_px().to_bits(), 0.0f32.to_bits());
+        assert_eq!(
+            f32_value.percent_fraction_coefficient().to_bits(),
+            0.0f32.to_bits()
+        );
+        assert_eq!(
+            f32_value.resolve_against(PercentageBasisOf::Missing),
+            NumericResolutionOf::Resolved(0.0)
+        );
+
+        let f64_value =
+            LengthPercentageOf::<f64>::from_coefficients(-0.0, -0.0).expect("finite zeros");
+        assert_eq!(f64_value.absolute_px().to_bits(), 0.0f64.to_bits());
+        assert_eq!(
+            f64_value.percent_fraction_coefficient().to_bits(),
+            0.0f64.to_bits()
+        );
+        assert_eq!(
+            f64_value.resolve_against(PercentageBasisOf::Missing),
+            NumericResolutionOf::Resolved(0.0)
+        );
+    }
+
+    #[test]
+    fn value_length_percentage_rejects_non_finite_coefficients() {
+        assert!(LengthPercentageOf::<f32>::px(f32::INFINITY).is_err());
+        assert!(LengthPercentageOf::<f32>::percent_fraction(f32::NAN).is_err());
+        assert!(LengthPercentageOf::<f64>::from_coefficients(f64::NAN, 0.0).is_err());
+        assert!(LengthPercentageOf::<f64>::from_coefficients(0.0, f64::INFINITY).is_err());
+    }
+
+    #[test]
+    fn value_percentage_basis_rejects_negative_and_non_finite_values() {
+        assert!(PercentageBasisOf::<f32>::definite(-1.0).is_err());
+        assert!(PercentageBasisOf::<f32>::definite(f32::INFINITY).is_err());
+        assert!(PercentageBasisOf::<f64>::definite(f64::NAN).is_err());
+        assert!(PercentageBasisOf::<f64>::definite(-0.0).is_ok());
+    }
+
+    #[test]
+    fn value_length_percentage_missing_basis_only_when_needed() {
+        let basis_independent =
+            LengthPercentageOf::<f32>::from_coefficients(7.0, 0.0).expect("finite value");
+        assert_eq!(
+            basis_independent.resolve_against(PercentageBasisOf::Missing),
+            NumericResolutionOf::Resolved(7.0)
+        );
+
+        let basis_dependent =
+            LengthPercentageOf::<f32>::from_coefficients(7.0, 0.5).expect("finite value");
+        assert_eq!(
+            basis_dependent.resolve_against(PercentageBasisOf::Missing),
+            NumericResolutionOf::MissingBasis {
+                value: basis_dependent
+            }
+        );
+    }
+
+    #[test]
+    fn value_length_percentage_reports_overflow_as_invalid_numeric() {
+        let f32_value =
+            LengthPercentageOf::<f32>::from_coefficients(f32::MAX, 1.0).expect("finite value");
+        let f32_basis = PercentageBasisOf::<f32>::definite(f32::MAX).expect("valid basis");
+        assert_eq!(
+            f32_value.resolve_against(f32_basis),
+            NumericResolutionOf::InvalidNumeric {
+                value: f32_value,
+                basis: f32_basis,
+            }
+        );
+
+        let f64_value =
+            LengthPercentageOf::<f64>::from_coefficients(f64::MAX, 1.0).expect("finite value");
+        let f64_basis = PercentageBasisOf::<f64>::definite(f64::MAX).expect("valid basis");
+        assert_eq!(
+            f64_value.resolve_against(f64_basis),
+            NumericResolutionOf::InvalidNumeric {
+                value: f64_value,
+                basis: f64_basis,
+            }
+        );
+    }
 }

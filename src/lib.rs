@@ -70,9 +70,11 @@ pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
 pub use value::{
     AspectRatio, AspectRatioOf, Available, AvailableOf, CalcExpression, CalcExpressionOf,
     CalcGeneration, CalcId, CalcResolution, CalcResolutionOf, CalcResolutionStatus, CalcResolver,
-    CalcTerm, CalcTermOf, CalcUnresolvedReason, Dimension, DimensionOf, LayoutCalcStore,
-    LayoutCalcStoreOf, Length, LengthAuto, LengthAutoOf, LengthOf, NoCalcResolver,
-    ResolvedLengthAuto, ResolvedLengthAutoOf,
+    CalcTerm, CalcTermOf, CalcUnresolvedReason, Dimension, DimensionOf, FiniteScalarErrorOf,
+    LayoutCalcStore, LayoutCalcStoreOf, Length, LengthAuto, LengthAutoOf, LengthOf,
+    LengthPercentageErrorOf, LengthPercentageOf, NoCalcResolver, NonNegativeFiniteOf,
+    NonNegativeFiniteScalarErrorOf, NumericResolutionOf, PercentageBasisOf, ResolvedLengthAuto,
+    ResolvedLengthAutoOf,
 };
 pub use value::{
     GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MaxTrackSizingOf,
