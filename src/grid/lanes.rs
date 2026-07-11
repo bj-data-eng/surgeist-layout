@@ -87,6 +87,8 @@ pub enum LanePlacementError {
         span: LaneTrackSpan,
         tracks: usize,
     },
+    InvalidGridFlowToleranceBasis,
+    InvalidGridFlowToleranceResolution,
     NestedGridLanesSubgridIndefiniteUnsupported,
 }
 
@@ -332,7 +334,7 @@ fn place_lanes_with_trace<Item, S: LayoutScalar>(
     let mut item_offsets = Vec::new();
     let mut running_positions_after_each_item = Vec::new();
     let mut cursor = 0usize;
-    let tolerance = resolve_tolerance(input.tolerance, input.tolerance_basis);
+    let tolerance = resolve_tolerance(input.tolerance, input.tolerance_basis)?;
     let mut content_size = S::ZERO;
 
     for item in input.items {
@@ -807,7 +809,7 @@ where
             GridAxisKind::Column => context.column_basis.unwrap_or(Tree::Scalar::ZERO),
             GridAxisKind::Row => context.row_basis.unwrap_or(Tree::Scalar::ZERO),
         },
-    );
+    )?;
     let lane_gap = match lane_axis {
         GridAxisKind::Column => context.gap.width,
         GridAxisKind::Row => context.gap.height,
@@ -1693,9 +1695,12 @@ fn grid_axis_lines(lines: GridLines, axis: GridAxisKind) -> GridAxisLines {
     }
 }
 
-fn resolve_tolerance<S: LayoutScalar>(tolerance: GridFlowToleranceOf<S>, basis: S) -> S {
+fn resolve_tolerance<S: LayoutScalar>(
+    tolerance: GridFlowToleranceOf<S>,
+    basis: S,
+) -> Result<S, LanePlacementError> {
     let Ok(basis) = PercentageBasisOf::definite(basis) else {
-        return S::NAN;
+        return Err(LanePlacementError::InvalidGridFlowToleranceBasis);
     };
     let basis_value = basis
         .definite_value()
@@ -1703,10 +1708,36 @@ fn resolve_tolerance<S: LayoutScalar>(tolerance: GridFlowToleranceOf<S>, basis: 
         .get();
 
     match tolerance {
-        GridFlowToleranceOf::Normal { font_size } => font_size,
-        GridFlowToleranceOf::Length(length) => resolution_or_zero(length.resolve_against(basis)),
-        GridFlowToleranceOf::Percent(factor) => factor * basis_value,
-        GridFlowToleranceOf::Infinite => S::INFINITY,
+        GridFlowToleranceOf::Normal { font_size } => finite_tolerance(font_size),
+        GridFlowToleranceOf::Length(length) => {
+            resolve_length_tolerance(length.resolve_against(basis))
+        }
+        GridFlowToleranceOf::Percent(factor) => finite_tolerance(factor * basis_value),
+        GridFlowToleranceOf::Infinite => Ok(S::INFINITY),
+    }
+}
+
+fn resolve_length_tolerance<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<S, LanePlacementError> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution
+            .value
+            .ok_or(LanePlacementError::InvalidGridFlowToleranceResolution)
+            .and_then(finite_tolerance),
+        LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::NonNumeric => {
+            Err(LanePlacementError::InvalidGridFlowToleranceResolution)
+        }
+    }
+}
+
+fn finite_tolerance<S: LayoutScalar>(value: S) -> Result<S, LanePlacementError> {
+    if value.is_finite() {
+        Ok(value)
+    } else {
+        Err(LanePlacementError::InvalidGridFlowToleranceResolution)
     }
 }
 

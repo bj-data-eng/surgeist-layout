@@ -123,6 +123,94 @@ fn lane_errors_carry_context() {
     assert_eq!(err, LanePlacementError::InvalidGridAxisStart { start: 0 });
 }
 
+#[test]
+fn lanes_reject_invalid_raw_tolerance_basis() {
+    let err = place_lanes(LanePlacementInput::<&str> {
+        grid_axis_tracks: 2,
+        auto_flow: GridAutoFlow::Row,
+        lane_gap: 0.0,
+        tolerance: GridFlowTolerance::Percent(0.25),
+        tolerance_basis: f32::NAN,
+        items: Vec::new(),
+    })
+    .expect_err("invalid raw tolerance basis should return a typed error");
+
+    assert_eq!(err, LanePlacementError::InvalidGridFlowToleranceBasis);
+}
+
+#[test]
+fn lanes_reject_overflowed_affine_tolerance_resolution() {
+    let err = place_lanes(LanePlacementInput::<&str> {
+        grid_axis_tracks: 2,
+        auto_flow: GridAutoFlow::Row,
+        lane_gap: 0.0,
+        tolerance: GridFlowTolerance::Length(Length::value(invalid_numeric_lp())),
+        tolerance_basis: f32::MAX,
+        items: Vec::new(),
+    })
+    .expect_err("overflowed affine tolerance should return a typed error");
+
+    assert_eq!(err, LanePlacementError::InvalidGridFlowToleranceResolution);
+}
+
+#[test]
+fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
+    let style = NodeInput {
+        display: Display::GridLanes,
+        grid_auto_flow: GridAutoFlow::Row,
+        grid_flow_tolerance: GridFlowTolerance::Length(Length::value(invalid_numeric_lp())),
+        ..NodeInput::default()
+    };
+    let constants = Constants {
+        node_outer_size: Size::splat(Some(10.0)),
+        node_inner_size: Size::splat(Some(10.0)),
+        node_min_size: Size::NONE,
+        node_max_size: Size::NONE,
+        available_inner_size: Size::splat(Some(10.0)),
+        content_box_inset: Edges::ZERO,
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+    };
+    let lines = GridLines {
+        column_explicit_start: 0,
+        column_explicit_count: 1,
+        row_explicit_start: 0,
+        row_explicit_count: 1,
+    };
+    let context = GridContainerContext {
+        gap: Size::ZERO,
+        column_basis: Some(f32::MAX),
+        row_basis: Some(f32::MAX),
+        explicit_columns: 1,
+        explicit_rows: 1,
+        named_columns: named::NamedGridLines::new(GridAxisKind::Column, 1),
+        named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
+        area_facts: None,
+        leading_columns: 0,
+        leading_rows: 0,
+        lines,
+        inherited_column_offset: None,
+        inherited_row_offset: None,
+    };
+    let placements = GridPlacementContext::new(Vec::<u32>::new(), Vec::new());
+    let mut tree = OracleTree::new().children(1, []).style(1, style.clone());
+
+    let err = resolve_grid_lanes_placement_with_resolved_tracks(
+        &mut tree,
+        1,
+        &style,
+        &constants,
+        context,
+        &[10.0],
+        &[10.0],
+        &placements,
+        0.0,
+    )
+    .expect_err("invalid layout tolerance should not produce a placement report");
+
+    assert_eq!(err, LanePlacementError::InvalidGridFlowToleranceResolution);
+}
+
 fn final_y(tree: &OracleTree, node: u32) -> Scalar {
     tree.final_layout(node)
         .expect("node should have a final layout")

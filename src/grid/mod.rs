@@ -1450,7 +1450,9 @@ fn merge_lane_intrinsic_lower_bounds<S: LayoutScalar>(
             | LanePlacementError::GridAxisSpanOutOfRange { .. }
             | LanePlacementError::ContentSizedTrackOutOfRange { .. }
             | LanePlacementError::InvalidDefiniteLaneSpan { .. }
-            | LanePlacementError::DefiniteLaneSpanOutOfRange { .. }),
+            | LanePlacementError::DefiniteLaneSpanOutOfRange { .. }
+            | LanePlacementError::InvalidGridFlowToleranceBasis
+            | LanePlacementError::InvalidGridFlowToleranceResolution),
         ) => {
             unreachable!("unexpected grid-lanes intrinsic sizing error: {error:?}");
         }
