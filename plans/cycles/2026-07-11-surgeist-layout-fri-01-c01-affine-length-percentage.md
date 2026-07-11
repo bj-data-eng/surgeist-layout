@@ -1,6 +1,6 @@
 # FRI-01-C01 Storeless Affine Length-Percentage Values
 
-Status: draft
+Status: in_progress
 
 Cycle ID: `FRI-01-C01`
 
@@ -20,22 +20,21 @@ Reviewed sequence:
 at `8f59ee47df7312a01a4d7daeb37e78a8f0f35aefd567dcba5fedbf77a9cad715`,
 entry `FRI-01-C01`.
 
-Bounded outcome: storeless affine length-percentage values replace calc IDs,
-stores, resolver traits, and resolver-free calc panic paths in the value model
-and direct value consumers. Cache-context generation removal is sequenced in
-`FRI-01-C02`.
+Bounded outcome: calc-capable storeless affine length-percentage values replace
+calc IDs, stores, generations, resolver traits, and resolver-free calc panic
+paths in the value model, direct value consumers, and current cache context.
 
 ## Boundary
 
-This cycle owns `src/value.rs`, calc-related reexports in `src/lib.rs`, direct
+This cycle owns `src/value.rs`, calc-related reexports in `src/lib.rs`, current
+cache-context generation state in `src/cache.rs` and `src/traits.rs`, direct
 value-resolution consumers in block, flex, grid, grid-lanes, and layout-owned
 tests or parity support needed to compile and prove the affine value model.
 
-It does not change cache storage or cache context generation, measurement
-provider input, numeric scrollbar or flex-factor wrappers, public root
-request/session/batch/error APIs, docs, MSRV, root adapters, root API artifacts,
-or sibling repositories. Existing public compute shape may remain until
-`FRI-01-C03`.
+It does not change cache storage shape, staged cache writes, measurement provider
+input, numeric scrollbar or flex-factor wrappers, public root request/session/
+batch/error APIs, docs, MSRV, root adapters, root API artifacts, or sibling
+repositories. Existing public compute shape may remain until `FRI-01-C03`.
 
 Current evidence: source exposes `CalcId`, `CalcGeneration`, `CalcResolver`,
 `NoCalcResolver`, `LayoutCalcStore`, `CalcExpression`, `CalcTerm`, and calc
@@ -44,9 +43,9 @@ algorithm helpers, tests, and browser-parity support.
 
 ## Impacts
 
-Public API: breaking pre-release removal of calc identity/resolver/store types
-and replacement with `LengthPercentageOf<S>`, `PercentageBasisOf<S>`, and
-`NumericResolutionOf<S>`.
+Public API: breaking pre-release removal of calc identity/resolver/store/
+generation representation types and replacement with calc-capable
+`LengthPercentageOf<S>`, `PercentageBasisOf<S>`, and `NumericResolutionOf<S>`.
 
 Dependencies/features/artifacts/docs/MSRV/root: no dependency, feature,
 generated artifact, documentation, MSRV, or root change in this cycle; root
@@ -59,22 +58,20 @@ Unsafe: no Surgeist-owned unsafe may be added or retained.
 | Task | Files/area | Intended behavior/outcome | RED evidence | Acceptance criteria | Commands | Depends on | Intended commit |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `C01-T1` | `src/value.rs`, focused value tests | Add private-field `LengthPercentageOf<S>`, `PercentageBasisOf<S>`, `NumericResolutionOf<S>`, and finite construction/resolution behavior without changing existing value-family callers yet. | Focused tests fail because the new affine types, invalid basis rejection, missing-basis outcome, signed-zero canonicalization, and overflow outcome do not exist. | Tests cover `f32` and `f64`, px, percent, mixed coefficients, negative percent, zero canonicalization, invalid coefficients, invalid basis, missing basis only when needed, and overflow to `InvalidNumeric`. | `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout value -- --nocapture`; `cargo fmt --check` | Reviewed spec and sequence | `value: add affine length percentage model` |
-| `C01-T2` | `src/value.rs`, `src/lib.rs`, value tests | Replace current calc variants and calc identity/store/resolver public surface with `Value(LengthPercentageOf<S>)` across `LengthOf`, `LengthAutoOf`, `DimensionOf`, and track-sizing value helpers while preserving non-calc keyword behavior. | Tests that construct calc through old ID/store APIs fail or are replaced by tests proving old resolver-free calc paths cannot exist. | `CalcId`, `CalcGeneration`, `CalcResolver`, `NoCalcResolver`, `LayoutCalcStore`, `CalcExpression`, and `CalcTerm` are absent from public exports and `src/value.rs`, `src/lib.rs`, and migrated value tests; value-family tests cover construction, conversion, basis dependence, percent fraction, and resolution outcomes. | `rg -n "CalcId|CalcGeneration|CalcResolver|NoCalcResolver|LayoutCalcStore|CalcExpression|CalcTerm" src/value.rs src/lib.rs src/lib_tests.rs src/contract_tests.rs`; `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout value -- --nocapture`; `cargo fmt --check` | `C01-T1` | `value: remove calc identity surface` |
-| `C01-T3` | `src/block.rs`, `src/flex.rs`, `src/grid/**`, direct algorithm tests | Update direct consumers to use affine value resolution and explicit percentage basis outcomes without resolver parameters or no-calc sentinels. | Focused block, flex, grid, and grid-lane tests fail on the cycle base because calc-bearing public paths panic, degrade to zero, or require a resolver. | Block/flex/grid/grid-lane calc paths compile without resolver traits; missing basis and invalid numeric outcomes are handled by the current operation's temporary cycle-local policy without panics; later-FRI behavior is not claimed. | `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout calc -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout grid_lanes -- --nocapture`; `cargo fmt --check` | `C01-T2` | `layout: consume affine length percentage values` |
-| `C01-T4` | `tests/layout/browser_parity/support.rs`, calc fixture tests, source search | Remove layout-local calc-store parsing/resolution from parity support and construct affine layout values directly from checked-in calc XML attributes. | Active calc fixture families fail on the cycle base before comparison because measured leaves or lane paths require resolver composition. | Calc fixture parsing uses no resolver/store/type identity; all active calc fixture families reach comparison or fail only on later-FRI geometry findings; final source search finds no obsolete value-level calc identity/resolver/store types in C01-owned source and tests. Cache `CalcGeneration` and cache-context uses are explicitly deferred to `FRI-01-C02`. | `SURGEIST_PARITY_FILTER=block/block_calc_width_margin CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored`; `SURGEIST_PARITY_FILTER=flex/flex_calc_basis_margin_gap CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored`; `SURGEIST_PARITY_FILTER=grid/grid_calc_track_and_item_margin CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored`; `rg -n "CalcId|CalcResolver|NoCalcResolver|LayoutCalcStore|CalcExpression|CalcTerm" src tests`; `cargo fmt --check` | `C01-T3` | `tests: migrate calc fixtures to affine values` |
+| `C01-T2` | `src/value.rs`, `src/lib.rs`, `src/cache.rs`, `src/cache_tests.rs`, `src/traits.rs`, `src/compute.rs`, `src/block.rs`, `src/flex.rs`, `src/grid/**`, `src/test_support/layout_tree.rs`, focused value/cache/direct algorithm tests | Replace current calc variants and calc identity/store/resolver/generation public surface with `Value(LengthPercentageOf<S>)` across `LengthOf`, `LengthAutoOf`, `DimensionOf`, track-sizing helpers, current cache context, and direct algorithm consumers while preserving non-calc keyword behavior. Direct consumers resolve affine values with explicit percentage-basis outcomes and no resolver parameters or no-calc sentinels. | Removing the old value surface alone fails because cache context, `traits`, `compute`, block, flex, grid, grid lanes/tracks, and layout test support still import resolver/store/generation APIs. Focused block, flex, grid, and grid-lane tests fail on the cycle base because calc-bearing public paths panic, degrade to zero, or require a resolver. | `CalcId`, `CalcGeneration`, `CalcResolver`, `NoCalcResolver`, `LayoutCalcStore`, `CalcExpression`, and `CalcTerm` are absent from `src`, `src/lib_tests.rs`, and `src/contract_tests.rs`; `CacheKeyContext` no longer stores calc generation, resolver identity, or external revision state; value-family tests cover construction, conversion, basis dependence, percent fraction, and resolution outcomes; block/flex/grid/grid-lane calc paths compile without resolver traits; missing percentage basis preserves the current operation result shape (`None` for optional resolution and zero only where the existing helper was already explicitly zero-fallback); invalid numeric resolution has focused tests and is not silently treated as a valid finite result; public accessor names match the reviewed specification. | `rg -n "CalcId|CalcGeneration|CalcResolver|NoCalcResolver|LayoutCalcStore|CalcExpression|CalcTerm" src src/lib_tests.rs src/contract_tests.rs`; `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout value -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout cache -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout calc -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test -p surgeist-layout grid_lanes -- --nocapture`; `cargo fmt --check` | `C01-T1` | `layout: consume affine length percentage values` |
+| `C01-T3` | `tests/layout/browser_parity/support.rs`, calc fixture tests, source search | Remove layout-local calc-store parsing/resolution from parity support and construct affine layout values directly from checked-in calc XML attributes. | Active calc fixture families fail on the cycle base before comparison because measured leaves or lane paths require resolver composition. | Calc fixture parsing uses no resolver/store/type identity; all active calc fixture families reach comparison or fail only on later-FRI geometry findings; final source search finds no obsolete calc identity/resolver/store/generation representation types in C01-owned source and tests. | `SURGEIST_PARITY_FILTER=block/block_calc_width_margin CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored`; `SURGEIST_PARITY_FILTER=flex/flex_calc_basis_margin_gap CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored`; `SURGEIST_PARITY_FILTER=grid/grid_calc_track_and_item_margin CARGO_NET_OFFLINE=true cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored`; `rg -n "CalcId|CalcGeneration|CalcResolver|NoCalcResolver|LayoutCalcStore|CalcExpression|CalcTerm" src tests`; `cargo fmt --check` | `C01-T2` | `tests: migrate calc fixtures to affine values` |
 
 ## Completion
 
 Cycle acceptance:
 
-1. obsolete value-level calc identity/resolver/store types are absent from
-   C01-owned source and tests, with cache `CalcGeneration` removal deferred to
-   `FRI-01-C02`;
+1. obsolete calc identity/resolver/store/generation representation types are
+   absent from C01-owned source and tests;
 2. `LengthPercentageOf<S>`, `PercentageBasisOf<S>`, and
    `NumericResolutionOf<S>` satisfy the reviewed construction and resolution
    contract for both scalar modes;
-3. current length, length-auto, dimension, and track value helpers consume affine
-   values without resolver-free panic paths;
+3. current length, length-auto, dimension, track value, cache-context, and direct
+   algorithm helpers consume affine values without resolver-free panic paths;
 4. active calc browser fixture families reach comparison through layout-owned
    support; and
 5. root handoff notes that root must lower style calc into affine coefficients
