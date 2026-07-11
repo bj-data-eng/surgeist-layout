@@ -16,6 +16,89 @@ fn static_cache_context() -> CacheKeyContext {
     CacheKeyContext::new()
 }
 
+fn scalar<S: LayoutScalar>(value: f64) -> S {
+    S::from_f64(value)
+}
+
+fn compute_size_cache_input<S: LayoutScalar>() -> ComputeInputOf<S> {
+    ComputeInputOf {
+        run_mode: RunMode::ComputeSize,
+        sizing_mode: SizingMode::InherentSize,
+        axis: RequestedAxis::Both,
+        known: Size::new(None, None),
+        parent: Size::new(Some(scalar(300.0)), Some(scalar(200.0))),
+        available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+    }
+}
+
+fn cache_scroll_rect<S: LayoutScalar>(x: f64, y: f64, width: f64, height: f64) -> ScrollRectOf<S> {
+    ScrollRectOf::new(
+        Point::new(scalar(x), scalar(y)),
+        Size::new(scalar(width), scalar(height)),
+    )
+    .expect("test scroll rect is valid")
+}
+
+fn cache_scroll_geometry<S: LayoutScalar>() -> ScrollGeometryOf<S> {
+    let scroll_axis =
+        ScrollContainerAxis::from_overflow(Overflow::Scroll).expect("scroll overflow is supported");
+    let container = ScrollContainerFacts::new(scroll_axis, scroll_axis);
+
+    ScrollGeometryOf::new(
+        WritingMode::VerticalRl,
+        Direction::Rtl,
+        container,
+        cache_scroll_rect(2.0, 3.0, 40.0, 20.0),
+        Some(cache_scroll_rect(1.0, 1.0, 44.0, 24.0)),
+        cache_scroll_rect(0.0, 0.0, 100.0, 80.0),
+        ScrollRangeOf::new(Size::new(scalar(60.0), scalar(60.0)))
+            .expect("test scroll range is valid"),
+        ScrollbarGutterRectsOf::new(
+            Some(cache_scroll_rect(2.0, 21.0, 30.0, 2.0)),
+            Some(cache_scroll_rect(40.0, 3.0, 2.0, 18.0)),
+        ),
+    )
+    .expect("test scroll geometry is valid")
+}
+
+fn complete_compute_size_output<S: LayoutScalar>() -> ComputeOutputOf<S> {
+    ComputeOutputOf {
+        size: Size::new(scalar(120.0), scalar(40.0)),
+        content_size: Size::new(scalar(180.0), scalar(90.0)),
+        scroll_geometry: Some(cache_scroll_geometry()),
+        first_baselines: Point::new(Some(scalar(12.0)), Some(scalar(18.0))),
+        last_baselines: Point::new(Some(scalar(102.0)), Some(scalar(34.0))),
+        top_margin: CollapsibleMarginOf::from_margin(scalar(9.0))
+            .collapse_with_margin(scalar(-3.0)),
+        bottom_margin: CollapsibleMarginOf::from_margin(scalar(4.0))
+            .collapse_with_margin(scalar(-6.0)),
+        margins_can_collapse_through: true,
+    }
+}
+
+fn cache_returns_complete_compute_size_output<S: LayoutScalar>() {
+    let mut cache = CacheOf::<S>::new();
+    let input = compute_size_cache_input();
+    let output = complete_compute_size_output();
+
+    assert_eq!(cache.get_with_context(&input, static_cache_context()), None);
+    cache.store_with_context(&input, static_cache_context(), output);
+    assert_eq!(
+        cache.get_with_context(&input, static_cache_context()),
+        Some(output)
+    );
+}
+
+#[test]
+fn compute_size_cache_hit_returns_complete_f32_output() {
+    cache_returns_complete_compute_size_output::<f32>();
+}
+
+#[test]
+fn compute_size_cache_hit_returns_complete_f64_output() {
+    cache_returns_complete_compute_size_output::<f64>();
+}
+
 #[test]
 fn cache_reuses_measure_and_layout_results_for_matching_inputs() {
     let mut cache = Cache::new();

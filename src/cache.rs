@@ -49,7 +49,7 @@ struct EntryOf<S: LayoutScalar, T> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct CacheOf<S: LayoutScalar = DefaultScalar> {
     final_layout: Option<EntryOf<S, ComputeOutputOf<S>>>,
-    measures: [Option<EntryOf<S, Size<S>>>; CACHE_SIZE],
+    measures: [Option<EntryOf<S, ComputeOutputOf<S>>>; CACHE_SIZE],
     empty: bool,
 }
 
@@ -78,8 +78,8 @@ impl<S: LayoutScalar> CacheOf<S> {
                 .map(|entry| entry.content),
             RunMode::ComputeSize => {
                 for entry in self.measures.iter().flatten() {
-                    if matches_output(input, context, entry, entry.content) {
-                        return Some(ComputeOutputOf::from_outer_size(entry.content));
+                    if matches_output(input, context, entry, entry.content.size) {
+                        return Some(entry.content);
                     }
                 }
                 None
@@ -108,7 +108,7 @@ impl<S: LayoutScalar> CacheOf<S> {
                 let slot = cache_slot(input.known, input.available);
                 self.measures[slot] = Some(EntryOf {
                     key,
-                    content: output.size,
+                    content: output,
                 });
             }
             RunMode::PerformHiddenLayout => {}
