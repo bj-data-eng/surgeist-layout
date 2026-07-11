@@ -2,7 +2,7 @@ use super::*;
 use crate::scroll::scrollbar_size_from_overflow;
 use crate::{
     GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
-    MinTrackSizingOf,
+    MinTrackSizingOf, PercentageBasisOf,
 };
 use std::num::NonZeroUsize;
 
@@ -1693,10 +1693,18 @@ fn grid_axis_lines(lines: GridLines, axis: GridAxisKind) -> GridAxisLines {
 }
 
 fn resolve_tolerance<S: LayoutScalar>(tolerance: GridFlowToleranceOf<S>, basis: S) -> S {
+    let Ok(basis) = PercentageBasisOf::definite(basis) else {
+        return S::NAN;
+    };
+    let basis_value = basis
+        .definite_value()
+        .expect("validated definite basis")
+        .get();
+
     match tolerance {
         GridFlowToleranceOf::Normal { font_size } => font_size,
-        GridFlowToleranceOf::Length(length) => length.resolve(basis),
-        GridFlowToleranceOf::Percent(factor) => factor * basis,
+        GridFlowToleranceOf::Length(length) => length.resolve_against(basis),
+        GridFlowToleranceOf::Percent(factor) => factor * basis_value,
         GridFlowToleranceOf::Infinite => S::INFINITY,
     }
 }

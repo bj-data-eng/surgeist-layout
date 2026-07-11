@@ -387,17 +387,13 @@ impl<S: LayoutScalar> LengthResolutionOf<S> {
     }
 }
 
-fn optional_basis<S: LayoutScalar>(basis: Option<S>) -> PercentageBasisOf<S> {
+fn optional_basis<S: LayoutScalar>(
+    basis: Option<S>,
+) -> Result<PercentageBasisOf<S>, NonNegativeFiniteScalarErrorOf<S>> {
     match basis {
-        Some(basis) => definite_basis_unchecked(basis),
-        None => PercentageBasisOf::Missing,
+        Some(basis) => PercentageBasisOf::definite(basis),
+        None => Ok(PercentageBasisOf::Missing),
     }
-}
-
-fn definite_basis_unchecked<S: LayoutScalar>(basis: S) -> PercentageBasisOf<S> {
-    PercentageBasisOf::Definite(NonNegativeFiniteOf {
-        value: canonical_zero(basis),
-    })
 }
 
 fn resolution_optional<S: LayoutScalar>(resolution: NumericResolutionOf<S>) -> Option<S> {
@@ -409,11 +405,11 @@ fn resolution_optional<S: LayoutScalar>(resolution: NumericResolutionOf<S>) -> O
     }
 }
 
-fn length_resolution<S: LayoutScalar>(
+fn length_resolution_against<S: LayoutScalar>(
     length_percentage: LengthPercentageOf<S>,
-    basis: Option<S>,
+    basis: PercentageBasisOf<S>,
 ) -> LengthResolutionOf<S> {
-    match length_percentage.resolve_against(optional_basis(basis)) {
+    match length_percentage.resolve_against(basis) {
         NumericResolutionOf::Resolved(value) => {
             LengthResolutionOf::definite(value, length_percentage.depends_on_basis())
         }
@@ -472,14 +468,22 @@ impl<S: LayoutScalar> LengthOf<S> {
     }
 
     #[must_use]
-    pub fn resolve(self, basis: S) -> S {
+    pub fn resolve_against(self, basis: PercentageBasisOf<S>) -> S {
         match self {
             Self::Normal => S::ZERO,
-            Self::Value(value) => match value.resolve_against(definite_basis_unchecked(basis)) {
+            Self::Value(value) => match value.resolve_against(basis) {
                 NumericResolutionOf::Resolved(value) => value,
                 NumericResolutionOf::MissingBasis { .. } => S::ZERO,
                 NumericResolutionOf::InvalidNumeric { .. } => S::NAN,
             },
+        }
+    }
+
+    #[must_use]
+    pub fn resolve(self, basis: S) -> S {
+        match PercentageBasisOf::definite(basis) {
+            Ok(basis) => self.resolve_against(basis),
+            Err(_) => S::NAN,
         }
     }
 
@@ -489,11 +493,24 @@ impl<S: LayoutScalar> LengthOf<S> {
     }
 
     #[must_use]
-    pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
+    pub fn resolve_optional_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
         match self {
             Self::Normal => Some(S::ZERO),
-            Self::Value(value) => resolution_optional(value.resolve_against(optional_basis(basis))),
+            Self::Value(value) => resolution_optional(value.resolve_against(basis)),
         }
+    }
+
+    #[must_use]
+    pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
+        match optional_basis(basis) {
+            Ok(basis) => self.resolve_optional_against(basis),
+            Err(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_with_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
+        self.resolve_with_status_against(basis).value
     }
 
     #[must_use]
@@ -502,10 +519,18 @@ impl<S: LayoutScalar> LengthOf<S> {
     }
 
     #[must_use]
-    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
+    pub fn resolve_with_status_against(self, basis: PercentageBasisOf<S>) -> LengthResolutionOf<S> {
         match self {
             Self::Normal => LengthResolutionOf::definite(S::ZERO, false),
-            Self::Value(value) => length_resolution(value, basis),
+            Self::Value(value) => length_resolution_against(value, basis),
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
+        match optional_basis(basis) {
+            Ok(basis) => self.resolve_with_status_against(basis),
+            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
         }
     }
 }
@@ -562,13 +587,18 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     }
 
     #[must_use]
-    pub fn resolve(self, basis: S) -> Option<S> {
+    pub fn resolve_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
         match self {
-            Self::Value(value) => {
-                resolution_optional(value.resolve_against(definite_basis_unchecked(basis)))
-            }
+            Self::Value(value) => resolution_optional(value.resolve_against(basis)),
             Self::Auto => None,
         }
+    }
+
+    #[must_use]
+    pub fn resolve(self, basis: S) -> Option<S> {
+        PercentageBasisOf::definite(basis)
+            .ok()
+            .and_then(|basis| self.resolve_against(basis))
     }
 
     #[must_use]
@@ -577,11 +607,24 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     }
 
     #[must_use]
-    pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
+    pub fn resolve_optional_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
         match self {
-            Self::Value(value) => resolution_optional(value.resolve_against(optional_basis(basis))),
+            Self::Value(value) => resolution_optional(value.resolve_against(basis)),
             Self::Auto => None,
         }
+    }
+
+    #[must_use]
+    pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
+        match optional_basis(basis) {
+            Ok(basis) => self.resolve_optional_against(basis),
+            Err(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_with_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
+        self.resolve_with_status_against(basis).value
     }
 
     #[must_use]
@@ -590,20 +633,31 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     }
 
     #[must_use]
-    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
+    pub fn resolve_with_status_against(self, basis: PercentageBasisOf<S>) -> LengthResolutionOf<S> {
         match self {
-            Self::Value(value) => length_resolution(value, basis),
+            Self::Value(value) => length_resolution_against(value, basis),
             Self::Auto => LengthResolutionOf::non_numeric(),
         }
     }
 
     #[must_use]
-    pub fn resolve_auto_with_status(self, basis: Option<S>) -> ResolvedLengthAutoOf<S> {
+    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
+        match optional_basis(basis) {
+            Ok(basis) => self.resolve_with_status_against(basis),
+            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_auto_with_status_against(
+        self,
+        basis: PercentageBasisOf<S>,
+    ) -> ResolvedLengthAutoOf<S> {
         if self.is_auto() {
             return ResolvedLengthAutoOf::Auto;
         }
 
-        let resolution = self.resolve_with_status(basis);
+        let resolution = self.resolve_with_status_against(basis);
         if let Some(value) = resolution.value {
             return ResolvedLengthAutoOf::Resolved(value);
         }
@@ -612,6 +666,14 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
         }
 
         panic!("non-auto length resolution produced non-numeric status")
+    }
+
+    #[must_use]
+    pub fn resolve_auto_with_status(self, basis: Option<S>) -> ResolvedLengthAutoOf<S> {
+        match optional_basis(basis) {
+            Ok(basis) => self.resolve_auto_with_status_against(basis),
+            Err(_) => ResolvedLengthAutoOf::Unresolved(UnresolvedLengthReason::InvalidNumeric),
+        }
     }
 
     #[must_use]
@@ -691,21 +753,39 @@ impl<S: LayoutScalar> DimensionOf<S> {
     }
 
     #[must_use]
-    pub fn resolve(self, basis: S) -> Option<S> {
+    pub fn resolve_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
         match self {
-            Self::Value(value) => {
-                resolution_optional(value.resolve_against(definite_basis_unchecked(basis)))
-            }
+            Self::Value(value) => resolution_optional(value.resolve_against(basis)),
+            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
+        }
+    }
+
+    #[must_use]
+    pub fn resolve(self, basis: S) -> Option<S> {
+        PercentageBasisOf::definite(basis)
+            .ok()
+            .and_then(|basis| self.resolve_against(basis))
+    }
+
+    #[must_use]
+    pub fn resolve_optional_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
+        match self {
+            Self::Value(value) => resolution_optional(value.resolve_against(basis)),
             Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
 
     #[must_use]
     pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
-        match self {
-            Self::Value(value) => resolution_optional(value.resolve_against(optional_basis(basis))),
-            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
+        match optional_basis(basis) {
+            Ok(basis) => self.resolve_optional_against(basis),
+            Err(_) => None,
         }
+    }
+
+    #[must_use]
+    pub fn resolve_with_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
+        self.resolve_with_status_against(basis).value
     }
 
     #[must_use]
@@ -714,12 +794,20 @@ impl<S: LayoutScalar> DimensionOf<S> {
     }
 
     #[must_use]
-    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
+    pub fn resolve_with_status_against(self, basis: PercentageBasisOf<S>) -> LengthResolutionOf<S> {
         match self {
-            Self::Value(value) => length_resolution(value, basis),
+            Self::Value(value) => length_resolution_against(value, basis),
             Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => {
                 LengthResolutionOf::non_numeric()
             }
+        }
+    }
+
+    #[must_use]
+    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
+        match optional_basis(basis) {
+            Ok(basis) => self.resolve_with_status_against(basis),
+            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
         }
     }
 
@@ -1349,8 +1437,8 @@ fn track_sizing_components_from_tracks<S: LayoutScalar>(
 #[cfg(test)]
 mod value_tests {
     use super::{
-        LengthOf, LengthPercentageOf, LengthResolutionStatus, NumericResolutionOf,
-        PercentageBasisOf,
+        DimensionOf, LengthAutoOf, LengthOf, LengthPercentageOf, LengthResolutionStatus,
+        NumericResolutionOf, PercentageBasisOf,
     };
 
     #[test]
@@ -1464,6 +1552,44 @@ mod value_tests {
         assert!(PercentageBasisOf::<f32>::definite(f32::INFINITY).is_err());
         assert!(PercentageBasisOf::<f64>::definite(f64::NAN).is_err());
         assert!(PercentageBasisOf::<f64>::definite(-0.0).is_ok());
+    }
+
+    #[test]
+    fn value_raw_length_resolution_rejects_invalid_bases() {
+        let length = LengthOf::<f32>::percent(0.25);
+
+        assert!(length.resolve(-1.0).is_nan());
+        assert_eq!(length.resolve_optional(Some(-1.0)), None);
+        assert_eq!(
+            length.resolve_with_status(Some(-1.0)).status(),
+            LengthResolutionStatus::InvalidNumeric
+        );
+        assert_eq!(
+            length.resolve_with_status(Some(f32::NAN)).status(),
+            LengthResolutionStatus::InvalidNumeric
+        );
+        assert_eq!(
+            length.resolve_with_status(Some(f32::INFINITY)).status(),
+            LengthResolutionStatus::InvalidNumeric
+        );
+    }
+
+    #[test]
+    fn value_raw_optional_resolution_rejects_invalid_bases_before_success() {
+        let px_only = LengthOf::<f32>::px(12.0);
+        let auto = LengthAutoOf::<f32>::AUTO;
+        let dimension = DimensionOf::<f32>::px(12.0);
+
+        assert_eq!(px_only.resolve_optional(Some(f32::NAN)), None);
+        assert_eq!(
+            px_only.resolve_with_status(Some(f32::NAN)).status(),
+            LengthResolutionStatus::InvalidNumeric
+        );
+        assert_eq!(
+            auto.resolve_with_status(Some(f32::INFINITY)).status(),
+            LengthResolutionStatus::InvalidNumeric
+        );
+        assert_eq!(dimension.resolve(-1.0), None);
     }
 
     #[test]
