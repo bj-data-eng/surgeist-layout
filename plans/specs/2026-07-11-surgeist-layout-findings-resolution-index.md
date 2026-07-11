@@ -45,9 +45,10 @@ product evidence.
 1. Public inputs make invalid intrinsic states unconstructable and distinguish
    authored, layout-ready, algorithm, fixture, and output phases where their
    invariants differ.
-2. Contextual resolution receives every basis, resolver identity, and revision
-   explicitly. Missing context returns a semantic result; it never panics or
-   guesses.
+2. Contextual resolution receives every influencing basis or context input
+   explicitly. Missing context returns a semantic result; it never panics,
+   guesses, or introduces an identity or revision where the normalized value has
+   no identity-bearing semantics.
 3. Cached and uncached computations are observably equivalent for every output
    field and failure state.
 4. Shared logical-axis types own writing-mode and direction mapping. Formatting
@@ -71,7 +72,7 @@ product evidence.
 
 | Initiative | Bounded outcome | Solely owned findings | Required inputs |
 | --- | --- | --- | --- |
-| `FRI-01` Compute, resolution, and diagnostic contracts | Fallible computation, explicit calc context and provenance, semantically complete caching, and validated numeric measurement boundaries | `CORE-001`, `CORE-002`, `CORE-003`, `CORE-004`, `CORE-007`, `DIAG-001` | Current public compute, cache, value, and traversal contracts |
+| `FRI-01` Compute, resolution, and diagnostic contracts | Fallible computation, normalized affine length-percentage resolution, semantically complete caching, and validated numeric measurement boundaries | `CORE-001`, `CORE-002`, `CORE-003`, `CORE-004`, `CORE-007`, `DIAG-001` | Current public compute, cache, value, and traversal contracts |
 | `FRI-02` Logical geometry and shared writing-mode substrate | One typed logical-axis model drives block, flex, grid, and scroll-direction behavior, including vertical and sideways modes, and supplies the substrate consumed by inline layout | `BLOCK-003`, `FLEX-001`, `GRID-004`, `OVERFLOW-004`, `TEST-005` | `FRI-01` result and error contract |
 | `FRI-03` Box participation contracts | Layout-ready inputs encode order, replaced behavior, and parent formatting participation without contradictory or dead fields; all affected algorithms consume those facts | `MODEL-001`, `CORE-005`, `BLOCK-007` | `FRI-01`; logical roles from `FRI-02` where axis-sensitive |
 | `FRI-04` Property-specific sizing values | Box, track, flex-basis, intrinsic sizing, and calc functions use property-appropriate typed values; invalid cross-property states such as box-size `fr` are unconstructable | `MODEL-005`, `MODEL-007` | `FRI-01`; logical axes from `FRI-02` |
