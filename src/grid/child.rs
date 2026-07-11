@@ -328,19 +328,18 @@ where
             style,
             physical_area_size,
             Size::splat(Some(physical_area_size.width)),
-            tree.calc_resolver(),
         );
         stretch_subgridded_axes(&mut item, *subgrid_item);
         let area_width_basis = Size::splat(Some(physical_area_size.width));
         let padding = child_style
             .padding
             .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+                resolve_length_or_zero(length, basis)
             });
         let border = child_style
             .border
             .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+                resolve_length_or_zero(length, basis)
             });
         let resolved_margin = item
             .unresolved_margin
@@ -365,7 +364,6 @@ where
             margin: item.unresolved_margin,
             border,
             padding,
-            resolver: tree.calc_resolver(),
         });
         let child_input = ComputeInputOf {
             run_mode: RunMode::PerformLayout,
@@ -447,7 +445,7 @@ where
                         Some(physical_area_size.width),
                         Some(physical_area_size.height),
                     ),
-                    |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
+                    |length, basis| resolve_auto_optional(length, basis),
                 ),
                 style.direction,
                 child_style.position,
@@ -579,19 +577,18 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             input.container_style,
             physical_area_size,
             Size::splat(Some(physical_area_size.width)),
-            tree.calc_resolver(),
         );
         stretch_subgridded_axes(&mut sizing, subgrid_item);
         let area_width_basis = Size::splat(Some(physical_area_size.width));
         let padding = child_style
             .padding
             .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+                resolve_length_or_zero(length, basis)
             });
         let border = child_style
             .border
             .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+                resolve_length_or_zero(length, basis)
             });
         let resolved_margin = sizing
             .unresolved_margin
@@ -616,7 +613,6 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             margin: sizing.unresolved_margin,
             border,
             padding,
-            resolver: tree.calc_resolver(),
         });
         if !child_context.has_inherited_axis() {
             continue;
@@ -1270,7 +1266,6 @@ pub(super) struct SubgridChildParentContextInput<'a, Node, S: LayoutScalar = Sca
     pub(super) margin: Edges<Option<S>>,
     pub(super) border: Edges<S>,
     pub(super) padding: Edges<S>,
-    pub(super) resolver: &'a dyn CalcResolver<S>,
 }
 
 pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
@@ -1293,7 +1288,6 @@ pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
             margin: input.margin,
             border: input.border,
             padding: input.padding,
-            resolver: input.resolver,
         }),
         rows: subgrid_child_axis_context(SubgridChildAxisContextInput {
             axis: GridAxisKind::Row,
@@ -1311,7 +1305,6 @@ pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
             margin: input.margin,
             border: input.border,
             padding: input.padding,
-            resolver: input.resolver,
         }),
     }
 }
@@ -1333,7 +1326,6 @@ struct SubgridChildAxisContextInput<'a, S: LayoutScalar = Scalar> {
     margin: Edges<Option<S>>,
     border: Edges<S>,
     padding: Edges<S>,
-    resolver: &'a dyn CalcResolver<S>,
 }
 
 fn subgrid_child_axis_context<S: LayoutScalar>(
@@ -1357,12 +1349,7 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
         start_mbp,
         end_mbp,
         parent_gap: parent_axis.gap,
-        subgrid_gap: child_subgrid_gap(
-            input.child_style,
-            input.axis,
-            input.content_box_size,
-            input.resolver,
-        ),
+        subgrid_gap: child_subgrid_gap(input.child_style, input.axis, input.content_box_size),
     })
     .ok()?;
     let parent_major =
@@ -1500,7 +1487,6 @@ pub(super) fn child_subgrid_gap<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     axis: GridAxisKind,
     area_size: Size<S>,
-    resolver: &dyn CalcResolver<S>,
 ) -> ResolvedSubgridGap<S> {
     let (gap, basis) = match axis {
         GridAxisKind::Column => (
@@ -1514,7 +1500,7 @@ pub(super) fn child_subgrid_gap<S: LayoutScalar>(
     };
     match gap {
         LengthOf::Normal => ResolvedSubgridGap::Normal,
-        gap => ResolvedSubgridGap::Length(resolve_length_or_zero_with(gap, basis, resolver)),
+        gap => ResolvedSubgridGap::Length(resolve_length_or_zero(gap, basis)),
     }
 }
 
@@ -1543,12 +1529,11 @@ pub(super) fn grid_item_sizing<S: LayoutScalar>(
     container_style: &NodeInputOf<S>,
     area_size: Size<S>,
     area_width_basis: Size<Option<S>>,
-    resolver: &dyn CalcResolver<S>,
 ) -> GridItemSizing<S> {
     let unresolved_margin = child_style
         .margin
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_auto_optional_with(length, basis, resolver)
+            resolve_auto_optional(length, basis)
         });
     let margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
     let available = Size::new(
@@ -1558,12 +1543,12 @@ pub(super) fn grid_item_sizing<S: LayoutScalar>(
     let padding = child_style
         .padding
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let border = child_style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let box_sizing_adjustment = if child_style.box_sizing == BoxSizing::ContentBox {
         (padding + border).sum_axes()
@@ -1574,14 +1559,14 @@ pub(super) fn grid_item_sizing<S: LayoutScalar>(
     let inherent_size = child_style
         .size
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension_with(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(child_style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let min_size = child_style
         .min_size
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension_with(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .add_optional(box_sizing_adjustment)
         .or((padding + border).sum_axes().map(Some))
@@ -1590,7 +1575,7 @@ pub(super) fn grid_item_sizing<S: LayoutScalar>(
     let max_size = child_style
         .max_size
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension_with(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(child_style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
@@ -1872,11 +1857,10 @@ where
         })
     };
     let area_parent = Size::new(Some(area.size.width), Some(area.size.height));
-    let resolver = tree.calc_resolver();
     let unresolved_margin = child_style
         .margin
         .zip_inline_size(Size::splat(Some(area.size.width)), |length, basis| {
-            resolve_auto_optional_with(length, basis, resolver)
+            resolve_auto_optional(length, basis)
         });
     let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let available_size = Size::new(
@@ -1887,12 +1871,12 @@ where
     let padding = child_style
         .padding
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let border = child_style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let box_sizing_adjustment = if child_style.box_sizing == BoxSizing::ContentBox {
         (padding + border).sum_axes()
@@ -1902,7 +1886,7 @@ where
     let style_size = child_style
         .size
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension_with(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(child_style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
@@ -1910,7 +1894,7 @@ where
     let min_size = child_style
         .min_size
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension_with(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .add_optional(box_sizing_adjustment)
         .or(padding_border_size.map(Some))
@@ -1919,12 +1903,12 @@ where
     let max_size = child_style
         .max_size
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension_with(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(child_style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let inset = child_style.inset.zip_size(area_parent, |length, basis| {
-        resolve_auto_optional_with(length, basis, resolver)
+        resolve_auto_optional(length, basis)
     });
     let mut known = Size::new(
         style_size.width.or_else(|| {

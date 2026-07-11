@@ -1,7 +1,7 @@
 use super::{
-    AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, CalcResolver,
-    Compute, ComputeInputOf, ComputeOutputOf, DefaultScalar, DimensionOf, Direction, Display,
-    Edges, GridAutoFlow, GridPlacement, LayoutScalar, LengthAutoOf, LengthOf, MaxTrackSizingOf,
+    AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
+    ComputeInputOf, ComputeOutputOf, DefaultScalar, DimensionOf, Direction, Display, Edges,
+    GridAutoFlow, GridPlacement, LayoutScalar, LengthAutoOf, LengthOf, MaxTrackSizingOf,
     MinTrackSizingOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode,
     Scalar, Size, SizingMode, TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
@@ -218,7 +218,7 @@ where
     Tree: Compute,
 {
     let style = tree.node_input(node).clone();
-    let constants = Constants::new(&style, input, tree.calc_resolver());
+    let constants = Constants::new(&style, input);
 
     if input.run_mode == RunMode::ComputeSize
         && let Size {
@@ -321,7 +321,6 @@ where
     );
     let mut content_size = max_size(track_content_size, cyclic_percent_content_size);
     let intrinsic_sizing_content_size = {
-        let resolver = tree.calc_resolver();
         Size::new(
             intrinsic_sizing_axis_content_size(IntrinsicSizingAxisInput {
                 run_mode: input.run_mode,
@@ -331,7 +330,6 @@ where
                 definite_size: constants.node_inner_size.width,
                 available_size: constants.available_inner_size.width,
                 tracks: &column_tracks,
-                resolver,
             }),
             intrinsic_sizing_axis_content_size(IntrinsicSizingAxisInput {
                 run_mode: input.run_mode,
@@ -341,7 +339,6 @@ where
                 definite_size: constants.node_inner_size.height,
                 available_size: constants.available_inner_size.height,
                 tracks: &row_tracks,
-                resolver,
             }),
         )
     };
@@ -406,13 +403,12 @@ fn layout_percent_track_floor<S: LayoutScalar>(
     definite_size: Option<S>,
     available_size: Option<S>,
     tracks: &[TrackSizingOf<S>],
-    resolver: &dyn CalcResolver<S>,
 ) -> S {
     if definite_size.is_some() || tracks.is_empty() {
         return S::ZERO;
     }
     available_size
-        .map(|available| available * track_percent_sum(tracks, resolver))
+        .map(|available| available * track_percent_sum(tracks))
         .unwrap_or(S::ZERO)
 }
 
@@ -424,7 +420,6 @@ struct IntrinsicSizingAxisInput<'a, S: LayoutScalar = Scalar> {
     definite_size: Option<S>,
     available_size: Option<S>,
     tracks: &'a [TrackSizingOf<S>],
-    resolver: &'a dyn CalcResolver<S>,
 }
 
 fn intrinsic_sizing_axis_content_size<S: LayoutScalar>(
@@ -438,7 +433,6 @@ fn intrinsic_sizing_axis_content_size<S: LayoutScalar>(
         definite_size,
         available_size,
         tracks,
-        resolver,
     } = input;
     if run_mode == RunMode::ComputeSize || style_size.is_auto() {
         return content_size;
@@ -447,7 +441,6 @@ fn intrinsic_sizing_axis_content_size<S: LayoutScalar>(
         definite_size,
         available_size,
         tracks,
-        resolver,
     ))
 }
 
@@ -570,14 +563,9 @@ where
     if input.run_mode.is_perform_layout() {
         let layout_content_box_size =
             (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
-        let layout_gap = {
-            let resolver = tree.calc_resolver();
-            resolved_layout_gap(&style, &constants, layout_content_box_size, gap, resolver)
-        };
+        let layout_gap = { resolved_layout_gap(&style, &constants, layout_content_box_size, gap) };
         let layout_columns = resolved_layout_columns(&constants, &columns, output_size.width, {
-            let resolver = tree.calc_resolver();
             InlineTrackInput {
-                resolver,
                 tracks: &column_tracks,
                 basis: context.column_basis,
                 definite_size: constants.node_inner_size.width,
@@ -597,7 +585,6 @@ where
             gap: layout_gap.height,
             alignment: style.align_content.unwrap_or(AlignContent::Stretch),
             intrinsic_sizes: &row_intrinsic_sizes,
-            resolver: tree.calc_resolver(),
         });
         let child_layout = layout_grid_lanes_children(
             tree,
@@ -751,10 +738,9 @@ fn initialize_grid_tracks<Tree>(
 where
     Tree: Compute,
 {
-    let resolver = tree.calc_resolver();
     let mut gap = Size::new(
-        resolve_length_or_zero_with(style.gap.width, constants.node_inner_size.width, resolver),
-        resolve_length_or_zero_with(style.gap.height, constants.node_inner_size.height, resolver),
+        resolve_length_or_zero(style.gap.width, constants.node_inner_size.width),
+        resolve_length_or_zero(style.gap.height, constants.node_inner_size.height),
     );
     if let Some(columns) = &parent_context.columns {
         gap.width = columns.gap;
@@ -788,7 +774,6 @@ where
             column_expansion_basis,
             gap.width,
             Some(visible_child_count),
-            resolver,
         )
     };
     let mut row_tracks = if let Some(rows) = &parent_context.rows {
@@ -804,7 +789,6 @@ where
             row_expansion_basis,
             gap.height,
             Some(visible_child_count),
-            resolver,
         )
     };
     if column_basis.is_none() && tracks_need_available_basis(&column_tracks) {
@@ -872,7 +856,6 @@ where
             gap.width,
             leading_columns,
             Some(visible_child_count),
-            resolver,
         );
     }
     if !inherited_rows {
@@ -883,7 +866,6 @@ where
             gap.height,
             leading_rows,
             Some(visible_child_count),
-            resolver,
         );
     }
     let track_requirement = grid_track_requirement_from_placements(&placements.items);
@@ -902,7 +884,6 @@ where
                 row_basis,
                 gap.height,
                 track_requirement.height.max(1),
-                resolver,
             );
         }
         if !inherited_columns {
@@ -920,7 +901,6 @@ where
                 column_basis,
                 gap.width,
                 required_columns,
-                resolver,
             );
         }
     } else {
@@ -934,7 +914,6 @@ where
                 column_basis,
                 gap.width,
                 required_columns,
-                resolver,
             );
         }
         if !inherited_rows {
@@ -952,7 +931,6 @@ where
                 row_basis,
                 gap.height,
                 required_rows,
-                resolver,
             );
         }
     }
@@ -1292,7 +1270,6 @@ where
         column_tracks,
         &column_min_intrinsic_sizes,
         &column_max_intrinsic_sizes,
-        tree.calc_resolver(),
     );
     let column_resolution_intrinsic_sizes = if available.width == AvailableOf::MIN_CONTENT {
         column_min_intrinsic_sizes.as_slice()
@@ -1300,9 +1277,7 @@ where
         mixed_column_intrinsic_sizes.as_slice()
     };
     let mut columns = {
-        let resolver = tree.calc_resolver();
         resolve_inline_tracks(InlineTrackInput {
-            resolver,
             tracks: column_tracks,
             basis: column_basis,
             definite_size: constants.node_inner_size.width,
@@ -1323,9 +1298,7 @@ where
             (max_width - constants.content_box_inset.horizontal_sum()).max(Tree::Scalar::ZERO);
         if track_sum(&columns, gap.width) > max_inner_width {
             columns = {
-                let resolver = tree.calc_resolver();
                 resolve_inline_tracks(InlineTrackInput {
-                    resolver,
                     tracks: column_tracks,
                     basis: column_basis,
                     definite_size: constants.node_inner_size.width,
@@ -1370,14 +1343,12 @@ where
         merge_lane_intrinsic_lower_bounds(&mut row_intrinsic_sizes, lane_rows);
     }
     let mut rows = {
-        let resolver = tree.calc_resolver();
         resolve_tracks(
             row_tracks,
             row_basis,
             gap.height,
             style.align_content.unwrap_or(AlignContent::Stretch),
             &row_intrinsic_sizes,
-            resolver,
         )
     };
     let row_constrained_column_intrinsic_sizes =
@@ -1405,7 +1376,6 @@ where
             column_tracks,
             &column_min_intrinsic_sizes,
             &column_max_intrinsic_sizes,
-            tree.calc_resolver(),
         );
         let column_resolution_intrinsic_sizes = if available.width == AvailableOf::MIN_CONTENT {
             column_min_intrinsic_sizes.as_slice()
@@ -1413,9 +1383,7 @@ where
             mixed_column_intrinsic_sizes.as_slice()
         };
         columns = {
-            let resolver = tree.calc_resolver();
             resolve_inline_tracks(InlineTrackInput {
-                resolver,
                 tracks: column_tracks,
                 basis: column_basis,
                 definite_size: constants.node_inner_size.width,
@@ -1438,14 +1406,12 @@ where
             .map(|(unconstrained, constrained)| unconstrained.max(constrained))
             .collect::<Vec<_>>();
         rows = {
-            let resolver = tree.calc_resolver();
             resolve_tracks(
                 row_tracks,
                 row_basis,
                 gap.height,
                 style.align_content.unwrap_or(AlignContent::Stretch),
                 &row_intrinsic_sizes,
-                resolver,
             )
         };
     }
@@ -1544,15 +1510,11 @@ where
     } = context;
     let layout_content_box_size =
         (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
-    let layout_gap = {
-        let resolver = tree.calc_resolver();
-        resolved_layout_gap(style, constants, layout_content_box_size, gap, resolver)
-    };
+    let layout_gap = { resolved_layout_gap(style, constants, layout_content_box_size, gap) };
     let rerun_percent_columns = constants.node_inner_size.width.is_none() && {
-        let resolver = tree.calc_resolver();
         column_tracks
             .iter()
-            .any(|track| track_has_percent_sizing(track, resolver))
+            .any(|track| track_has_percent_sizing(track))
     };
     let (layout_column_min_intrinsic_sizes, layout_column_max_intrinsic_sizes) =
         if layout_gap != gap || rerun_percent_columns {
@@ -1599,9 +1561,7 @@ where
             )
         };
     let layout_intrinsic_columns = if layout_gap != gap || rerun_percent_columns {
-        let resolver = tree.calc_resolver();
         resolve_inline_tracks(InlineTrackInput {
-            resolver,
             tracks: column_tracks,
             basis: column_basis,
             definite_size: constants.node_inner_size.width,
@@ -1617,9 +1577,7 @@ where
     };
     let layout_columns =
         resolved_layout_columns(constants, &layout_intrinsic_columns, output_size.width, {
-            let resolver = tree.calc_resolver();
             InlineTrackInput {
-                resolver,
                 tracks: column_tracks,
                 basis: column_basis,
                 definite_size: constants.node_inner_size.width,
@@ -1672,7 +1630,6 @@ where
         gap: layout_gap.height,
         alignment: style.align_content.unwrap_or(AlignContent::Stretch),
         intrinsic_sizes: &layout_row_intrinsic_sizes,
-        resolver: tree.calc_resolver(),
     });
 
     layout_grid_children(
@@ -1701,7 +1658,6 @@ where
 
 #[derive(Clone, Copy)]
 struct InlineTrackInput<'a, S: LayoutScalar = Scalar> {
-    resolver: &'a dyn CalcResolver<S>,
     tracks: &'a [TrackSizingOf<S>],
     basis: Option<S>,
     definite_size: Option<S>,
@@ -1737,21 +1693,14 @@ fn resolved_layout_gap<S: LayoutScalar>(
     constants: &Constants<S>,
     content_box_size: Size<S>,
     intrinsic_gap: Size<S>,
-    resolver: &dyn CalcResolver<S>,
 ) -> Size<S> {
     Size::new(
         constants.node_inner_size.width.map_or_else(
-            || resolve_length_or_zero_with(style.gap.width, Some(content_box_size.width), resolver),
+            || resolve_length_or_zero(style.gap.width, Some(content_box_size.width)),
             |_| intrinsic_gap.width,
         ),
         constants.node_inner_size.height.map_or_else(
-            || {
-                resolve_length_or_zero_with(
-                    style.gap.height,
-                    Some(content_box_size.height),
-                    resolver,
-                )
-            },
+            || resolve_length_or_zero(style.gap.height, Some(content_box_size.height)),
             |_| intrinsic_gap.height,
         ),
     )
@@ -1767,13 +1716,13 @@ fn resolved_layout_columns<S: LayoutScalar>(
         || !input
             .tracks
             .iter()
-            .any(|track| track_needs_layout_width_resolution(track, input.resolver))
+            .any(|track| track_needs_layout_width_resolution(track))
     {
         return intrinsic_columns.to_vec();
     }
 
     let content_width = (output_width - constants.content_box_inset.horizontal_sum()).max(S::ZERO);
-    let percent_sum = track_percent_sum(input.tracks, input.resolver);
+    let percent_sum = track_percent_sum(input.tracks);
     let percent_floor_basis = constants.available_inner_size.width.filter(|available| {
         percent_sum > S::ZERO
             && (content_width - *available * percent_sum).abs() <= S::from_f64(0.001)
@@ -1795,7 +1744,6 @@ struct ResolvedLayoutRowsInput<'a, S: LayoutScalar = Scalar> {
     gap: S,
     alignment: AlignContent,
     intrinsic_sizes: &'a [S],
-    resolver: &'a dyn CalcResolver<S>,
 }
 
 fn resolved_layout_rows<S: LayoutScalar>(input: ResolvedLayoutRowsInput<'_, S>) -> Vec<S> {
@@ -1807,12 +1755,11 @@ fn resolved_layout_rows<S: LayoutScalar>(input: ResolvedLayoutRowsInput<'_, S>) 
         gap,
         alignment,
         intrinsic_sizes,
-        resolver,
     } = input;
     if constants.node_inner_size.height.is_some()
         || !tracks
             .iter()
-            .any(|track| track_needs_layout_height_resolution(track, resolver))
+            .any(|track| track_needs_layout_height_resolution(track))
     {
         return intrinsic_rows.to_vec();
     }
@@ -1824,22 +1771,15 @@ fn resolved_layout_rows<S: LayoutScalar>(input: ResolvedLayoutRowsInput<'_, S>) 
         gap,
         alignment,
         intrinsic_sizes,
-        resolver,
     )
 }
 
-fn track_needs_layout_width_resolution<S: LayoutScalar>(
-    track: &TrackSizingOf<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> bool {
-    track.depends_on_basis_with(resolver)
+fn track_needs_layout_width_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
+    track.depends_on_basis()
 }
 
-fn track_needs_layout_height_resolution<S: LayoutScalar>(
-    track: &TrackSizingOf<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> bool {
-    track.depends_on_basis_with(resolver)
+fn track_needs_layout_height_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
+    track.depends_on_basis()
 }
 
 fn effective_content_box_left<S: LayoutScalar>(
@@ -1872,18 +1812,14 @@ struct Constants<S: LayoutScalar = Scalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
-    fn new(
-        style: &NodeInputOf<S>,
-        input: ComputeInputOf<S>,
-        resolver: &dyn CalcResolver<S>,
-    ) -> Self {
+    fn new(style: &NodeInputOf<S>, input: ComputeInputOf<S>) -> Self {
         let padding = style
             .padding
             .zip_inline_size(input.parent, |length, basis| {
-                resolve_length_or_zero_with(length, basis, resolver)
+                resolve_length_or_zero(length, basis)
             });
         let border = style.border.zip_inline_size(input.parent, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
@@ -1903,7 +1839,7 @@ impl<S: LayoutScalar> Constants<S> {
             style
                 .size
                 .zip_map(input.parent, |dimension, basis| {
-                    resolve_dimension_with(dimension, basis, resolver)
+                    resolve_dimension(dimension, basis)
                 })
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment)
@@ -1913,14 +1849,14 @@ impl<S: LayoutScalar> Constants<S> {
         let min_size = style
             .min_size
             .zip_map(input.parent, |dimension, basis| {
-                resolve_dimension_with(dimension, basis, resolver)
+                resolve_dimension(dimension, basis)
             })
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let max_size = style
             .max_size
             .zip_map(input.parent, |dimension, basis| {
-                resolve_dimension_with(dimension, basis, resolver)
+                resolve_dimension(dimension, basis)
             })
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
@@ -1949,36 +1885,20 @@ impl<S: LayoutScalar> Constants<S> {
     }
 }
 
-fn resolve_length_or_zero_with<S: LayoutScalar>(
-    length: LengthOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> S {
-    length.resolve_with(basis, resolver).unwrap_or(S::ZERO)
+fn resolve_length_or_zero<S: LayoutScalar>(length: LengthOf<S>, basis: Option<S>) -> S {
+    length.resolve_with(basis).unwrap_or(S::ZERO)
 }
 
-fn resolve_auto_or_zero_with<S: LayoutScalar>(
-    length: LengthAutoOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> S {
-    length.resolve_with(basis, resolver).unwrap_or(S::ZERO)
+fn resolve_auto_or_zero<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> S {
+    length.resolve_with(basis).unwrap_or(S::ZERO)
 }
 
-fn resolve_auto_optional_with<S: LayoutScalar>(
-    length: LengthAutoOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> Option<S> {
-    length.resolve_with(basis, resolver)
+fn resolve_auto_optional<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> Option<S> {
+    length.resolve_with(basis)
 }
 
-fn resolve_dimension_with<S: LayoutScalar>(
-    dimension: DimensionOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> Option<S> {
-    dimension.resolve_with(basis, resolver)
+fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
+    dimension.resolve_with(basis)
 }
 
 trait SizeOptionExt {

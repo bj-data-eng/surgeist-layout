@@ -1,12 +1,17 @@
 use std::collections::HashMap;
 
 use crate::block::resolve_in_flow_margin;
-use crate::compute::compute_leaf_with_resolver;
 use crate::*;
-use crate::{
-    CalcExpression, CalcExpressionOf, CalcResolver, CalcTerm, CalcTermOf, LayoutCalcStore,
-    LayoutCalcStoreOf,
-};
+
+fn lp(absolute_px: Scalar, percent_fraction: Scalar) -> LengthPercentageOf {
+    LengthPercentageOf::from_coefficients(absolute_px, percent_fraction)
+        .expect("test coefficients are finite")
+}
+
+fn lp64(absolute_px: f64, percent_fraction: f64) -> LengthPercentageOf<f64> {
+    LengthPercentageOf::from_coefficients(absolute_px, percent_fraction)
+        .expect("test coefficients are finite")
+}
 
 #[derive(Default)]
 struct ScrollBlockTree {
@@ -1014,7 +1019,6 @@ struct CalcBlockTree {
     styles: HashMap<u32, NodeInput>,
     layouts: HashMap<u32, NodeOutput>,
     inputs: HashMap<u32, Vec<ComputeInput>>,
-    calcs: LayoutCalcStore,
 }
 
 impl Traverse for CalcBlockTree {
@@ -1059,10 +1063,6 @@ impl Compute for CalcBlockTree {
             input.known.width.unwrap_or(0.0),
             input.known.height.unwrap_or(10.0),
         ))
-    }
-
-    fn calc_resolver(&self) -> &dyn CalcResolver {
-        &self.calcs
     }
 }
 
@@ -1166,18 +1166,11 @@ fn f64_block_layout_preserves_fractional_child_offsets() {
 }
 
 #[test]
-fn f64_block_layout_resolves_calc_through_tree_resolver_without_narrowing() {
+fn f64_block_layout_resolves_affine_values_without_narrowing() {
     let large = 16_777_217.25_f64;
     let container_width = 16_777_220.5_f64;
-    let mut calcs = LayoutCalcStoreOf::<f64>::new();
-    let margin_left = calcs.push(CalcExpressionOf::sum([
-        CalcTermOf::percent(0.10),
-        CalcTermOf::px(large),
-    ]));
-    let width = calcs.push(CalcExpressionOf::sum([
-        CalcTermOf::percent(0.50),
-        CalcTermOf::px(large + 0.25),
-    ]));
+    let margin_left = lp64(large, 0.10);
+    let width = lp64(large + 0.25, 0.50);
     let mut tree = crate::test_support::layout_tree::OracleTreeOf::<f64>::new()
         .children(0, [1])
         .style(
@@ -1192,15 +1185,14 @@ fn f64_block_layout_resolves_calc_through_tree_resolver_without_narrowing() {
             1,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::calc(width), DimensionOf::px(4.5)),
+                size: Size::new(DimensionOf::value(width), DimensionOf::px(4.5)),
                 margin: Edges {
-                    left: LengthAutoOf::calc(margin_left),
+                    left: LengthAutoOf::value(margin_left),
                     ..Edges::all(LengthAutoOf::ZERO)
                 },
                 ..NodeInputOf::<f64>::default()
             },
-        )
-        .calcs(calcs);
+        );
 
     compute_root(
         &mut tree,
@@ -3604,16 +3596,10 @@ fn block_layout_stacks_in_flow_children_vertically() {
 }
 
 #[test]
-fn block_in_flow_calc_margin_resolves_against_containing_block_width() {
+fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
     let mut tree = CalcBlockTree::default();
-    let margin_left = tree.calcs.push(CalcExpression::sum([
-        CalcTerm::percent(0.1),
-        CalcTerm::px(-4.0),
-    ]));
-    let width = tree.calcs.push(CalcExpression::sum([
-        CalcTerm::percent(0.5),
-        CalcTerm::px(20.0),
-    ]));
+    let margin_left = lp(-4.0, 0.1);
+    let width = lp(20.0, 0.5);
     tree.children.insert(1, vec![2]);
     tree.children.insert(2, vec![]);
     tree.styles.insert(
@@ -3628,9 +3614,9 @@ fn block_in_flow_calc_margin_resolves_against_containing_block_width() {
         2,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::calc(width), Dimension::AUTO),
+            size: Size::new(Dimension::value(width), Dimension::AUTO),
             margin: Edges {
-                left: LengthAuto::calc(margin_left),
+                left: LengthAuto::value(margin_left),
                 right: LengthAuto::ZERO,
                 top: LengthAuto::ZERO,
                 bottom: LengthAuto::ZERO,
@@ -3659,18 +3645,15 @@ fn block_in_flow_calc_margin_resolves_against_containing_block_width() {
 }
 
 #[test]
-fn block_container_calc_padding_uses_tree_resolver() {
+fn block_container_affine_padding_uses_parent_basis() {
     let mut tree = CalcBlockTree::default();
-    let padding = tree.calcs.push(CalcExpression::sum([
-        CalcTerm::percent(0.1),
-        CalcTerm::px(2.0),
-    ]));
+    let padding = lp(2.0, 0.1);
     tree.children.insert(0, vec![1]);
     tree.children.insert(1, vec![]);
     tree.styles.insert(
         0,
         NodeInput {
-            padding: Edges::all(Length::calc(padding)),
+            padding: Edges::all(Length::value(padding)),
             ..NodeInput::default()
         },
     );
@@ -7035,7 +7018,6 @@ struct CalcLeafTree {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInput>,
     layouts: HashMap<u32, NodeOutput>,
-    calcs: LayoutCalcStore,
 }
 
 impl Traverse for CalcLeafTree {
@@ -7079,7 +7061,7 @@ impl Compute for CalcLeafTree {
         }
 
         let style = self.styles[&node].clone();
-        compute_leaf_with_resolver(input, &style, &self.calcs, |known, available| {
+        compute_leaf(input, &style, |known, available| {
             Size::new(
                 known
                     .width
@@ -7089,19 +7071,12 @@ impl Compute for CalcLeafTree {
             )
         })
     }
-
-    fn calc_resolver(&self) -> &dyn CalcResolver {
-        &self.calcs
-    }
 }
 
 #[test]
-fn block_inline_calc_leaf_uses_private_resolver_aware_leaf_path() {
+fn block_inline_affine_leaf_uses_public_leaf_path() {
     let mut tree = CalcLeafTree::default();
-    let width = tree.calcs.push(CalcExpression::sum([
-        CalcTerm::percent(0.5),
-        CalcTerm::px(10.0),
-    ]));
+    let width = lp(10.0, 0.5);
     tree.children.insert(0, vec![1]);
     tree.children.insert(1, vec![]);
     tree.styles.insert(
@@ -7115,7 +7090,7 @@ fn block_inline_calc_leaf_uses_private_resolver_aware_leaf_path() {
         1,
         NodeInput {
             display: Display::InlineBlock,
-            size: Size::new(Dimension::calc(width), Dimension::AUTO),
+            size: Size::new(Dimension::value(width), Dimension::AUTO),
             ..NodeInput::default()
         },
     );
@@ -7140,14 +7115,12 @@ fn block_inline_calc_leaf_uses_private_resolver_aware_leaf_path() {
 #[test]
 fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
     let mut tree = CalcLeafTree::default();
-    let margin = tree
-        .calcs
-        .push(CalcExpression::sum([CalcTerm::percent(0.25)]));
+    let margin = lp(0.0, 0.25);
     tree.styles.insert(
         1,
         NodeInput {
             margin: Edges {
-                top: LengthAuto::calc(margin),
+                top: LengthAuto::value(margin),
                 ..Edges::<Scalar>::ZERO.map(|_| LengthAuto::px(0.0))
             },
             ..NodeInput::default()
@@ -7157,7 +7130,7 @@ fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
     let resolved = tree.styles[&1]
         .margin
         .zip_inline_size(Size::new(None, None), |length, basis| {
-            length.resolve_auto_with_status(basis, &tree.calcs)
+            length.resolve_auto_with_status(basis)
         });
     let resolved = resolve_in_flow_margin(resolved, Size::new(10.0, 10.0), None);
 
@@ -7165,27 +7138,12 @@ fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
 }
 
 #[test]
-#[should_panic(expected = "calc resolution requires an explicit resolver")]
-fn missing_resolver_margin_keeps_explicit_failure() {
-    let margin = LengthAuto::calc(CalcId::from_raw_for_tests(0))
-        .resolve_auto_with_status(Some(10.0), &NoCalcResolver);
-
-    let _ = resolve_in_flow_margin(
-        Edges {
-            top: margin,
-            ..Edges::<Scalar>::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
-        },
-        Size::new(10.0, 10.0),
-        Some(10.0),
-    );
-}
-
-#[test]
-#[should_panic(expected = "calc expression is missing")]
-fn missing_expression_margin_keeps_explicit_failure() {
-    let store = LayoutCalcStore::new();
-    let margin = LengthAuto::calc(CalcId::from_raw_for_tests(99))
-        .resolve_auto_with_status(Some(10.0), &store);
+#[should_panic(expected = "invalid numeric length resolution")]
+fn invalid_numeric_margin_keeps_explicit_failure() {
+    let margin = LengthAuto::value(
+        LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX).expect("finite coefficients"),
+    )
+    .resolve_auto_with_status(Some(10.0));
 
     let _ = resolve_in_flow_margin(
         Edges {

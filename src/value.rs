@@ -200,7 +200,7 @@ impl<S: LayoutScalar> LengthPercentageOf<S> {
         })
     }
 
-    pub fn percent_fraction(value: S) -> Result<Self, FiniteScalarErrorOf<S>> {
+    pub fn from_percent_fraction(value: S) -> Result<Self, FiniteScalarErrorOf<S>> {
         let percent_fraction = finite_scalar(value)?;
         Ok(Self {
             absolute_px: S::ZERO,
@@ -226,7 +226,7 @@ impl<S: LayoutScalar> LengthPercentageOf<S> {
     }
 
     #[must_use]
-    pub const fn percent_fraction_coefficient(self) -> S {
+    pub const fn percent_fraction(self) -> S {
         self.percent_fraction
     }
 
@@ -303,67 +303,45 @@ fn canonical_zero<S: LayoutScalar>(value: S) -> S {
     if value == S::ZERO { S::ZERO } else { value }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct CalcId(u32);
-
-impl CalcId {
-    pub(crate) const fn from_store_index(index: u32) -> Self {
-        Self(index)
-    }
-
-    #[cfg(test)]
-    #[must_use]
-    pub const fn from_raw_for_tests(index: u32) -> Self {
-        Self(index)
-    }
-
-    #[must_use]
-    pub const fn index(self) -> u32 {
-        self.0
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum CalcResolutionStatus {
+pub enum LengthResolutionStatus {
     Resolved,
     MissingBasis,
-    MissingResolver,
-    MissingExpression,
+    InvalidNumeric,
     NonNumeric,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum CalcUnresolvedReason {
+pub enum UnresolvedLengthReason {
     Basis,
-    Resolver,
-    Expression,
+    InvalidNumeric,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ResolvedLengthAutoOf<S: LayoutScalar = DefaultScalar> {
     Auto,
     Resolved(S),
-    Unresolved(CalcUnresolvedReason),
+    Unresolved(UnresolvedLengthReason),
 }
 
 pub type ResolvedLengthAuto = ResolvedLengthAutoOf<DefaultScalar>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CalcResolutionOf<S: LayoutScalar = DefaultScalar> {
+pub struct LengthResolutionOf<S: LayoutScalar = DefaultScalar> {
     pub value: Option<S>,
     pub depends_on_basis: bool,
-    status: CalcResolutionStatus,
+    status: LengthResolutionStatus,
 }
 
-pub type CalcResolution = CalcResolutionOf<DefaultScalar>;
+pub type LengthResolution = LengthResolutionOf<DefaultScalar>;
 
-impl<S: LayoutScalar> CalcResolutionOf<S> {
+impl<S: LayoutScalar> LengthResolutionOf<S> {
     #[must_use]
     pub const fn definite(value: S, depends_on_basis: bool) -> Self {
         Self {
             value: Some(value),
             depends_on_basis,
-            status: CalcResolutionStatus::Resolved,
+            status: LengthResolutionStatus::Resolved,
         }
     }
 
@@ -372,25 +350,16 @@ impl<S: LayoutScalar> CalcResolutionOf<S> {
         Self {
             value: None,
             depends_on_basis,
-            status: CalcResolutionStatus::MissingBasis,
+            status: LengthResolutionStatus::MissingBasis,
         }
     }
 
     #[must_use]
-    pub const fn missing_expression() -> Self {
+    pub const fn invalid_numeric(depends_on_basis: bool) -> Self {
         Self {
             value: None,
-            depends_on_basis: false,
-            status: CalcResolutionStatus::MissingExpression,
-        }
-    }
-
-    #[must_use]
-    pub const fn missing_resolver() -> Self {
-        Self {
-            value: None,
-            depends_on_basis: false,
-            status: CalcResolutionStatus::MissingResolver,
+            depends_on_basis,
+            status: LengthResolutionStatus::InvalidNumeric,
         }
     }
 
@@ -399,277 +368,120 @@ impl<S: LayoutScalar> CalcResolutionOf<S> {
         Self {
             value: None,
             depends_on_basis: false,
-            status: CalcResolutionStatus::NonNumeric,
+            status: LengthResolutionStatus::NonNumeric,
         }
     }
 
     #[must_use]
-    pub const fn status(self) -> CalcResolutionStatus {
+    pub const fn status(self) -> LengthResolutionStatus {
         self.status
     }
 
     #[must_use]
-    pub const fn is_missing_expression(self) -> bool {
-        matches!(self.status, CalcResolutionStatus::MissingExpression)
-    }
-
-    #[must_use]
-    pub const fn unresolved_reason(self) -> Option<CalcUnresolvedReason> {
+    pub const fn unresolved_reason(self) -> Option<UnresolvedLengthReason> {
         match self.status {
-            CalcResolutionStatus::Resolved | CalcResolutionStatus::NonNumeric => None,
-            CalcResolutionStatus::MissingBasis => Some(CalcUnresolvedReason::Basis),
-            CalcResolutionStatus::MissingResolver => Some(CalcUnresolvedReason::Resolver),
-            CalcResolutionStatus::MissingExpression => Some(CalcUnresolvedReason::Expression),
+            LengthResolutionStatus::Resolved | LengthResolutionStatus::NonNumeric => None,
+            LengthResolutionStatus::MissingBasis => Some(UnresolvedLengthReason::Basis),
+            LengthResolutionStatus::InvalidNumeric => Some(UnresolvedLengthReason::InvalidNumeric),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct CalcGeneration(u64);
-
-impl CalcGeneration {
-    #[must_use]
-    pub const fn new(value: u64) -> Self {
-        Self(value)
-    }
-
-    #[must_use]
-    pub const fn static_no_calc() -> Self {
-        Self(0)
+fn optional_basis<S: LayoutScalar>(basis: Option<S>) -> PercentageBasisOf<S> {
+    match basis {
+        Some(basis) => definite_basis_unchecked(basis),
+        None => PercentageBasisOf::Missing,
     }
 }
 
-pub trait CalcResolver<S: LayoutScalar = DefaultScalar> {
-    fn resolve_calc(&self, id: CalcId, basis: Option<S>) -> CalcResolutionOf<S>;
-    fn calc_generation(&self) -> CalcGeneration;
-    fn calc_depends_on_basis(&self, id: CalcId) -> bool;
-    fn calc_percent_fraction(&self, id: CalcId) -> Option<S> {
-        Some(if self.calc_depends_on_basis(id) {
-            S::ONE
-        } else {
-            S::ZERO
-        })
-    }
+fn definite_basis_unchecked<S: LayoutScalar>(basis: S) -> PercentageBasisOf<S> {
+    PercentageBasisOf::Definite(NonNegativeFiniteOf {
+        value: canonical_zero(basis),
+    })
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct NoCalcResolver;
-
-impl<S: LayoutScalar> CalcResolver<S> for NoCalcResolver {
-    fn resolve_calc(&self, _id: CalcId, _basis: Option<S>) -> CalcResolutionOf<S> {
-        CalcResolutionOf::missing_resolver()
-    }
-
-    fn calc_generation(&self) -> CalcGeneration {
-        CalcGeneration::static_no_calc()
-    }
-
-    fn calc_depends_on_basis(&self, _id: CalcId) -> bool {
-        false
-    }
-}
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct LayoutCalcStoreOf<S: LayoutScalar = DefaultScalar> {
-    expressions: Vec<CalcExpressionOf<S>>,
-}
-
-pub type LayoutCalcStore = LayoutCalcStoreOf<DefaultScalar>;
-
-impl<S: LayoutScalar> LayoutCalcStoreOf<S> {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            expressions: Vec::new(),
+fn resolution_optional<S: LayoutScalar>(resolution: NumericResolutionOf<S>) -> Option<S> {
+    match resolution {
+        NumericResolutionOf::Resolved(value) => Some(value),
+        NumericResolutionOf::MissingBasis { .. } | NumericResolutionOf::InvalidNumeric { .. } => {
+            None
         }
     }
-
-    pub fn push(&mut self, expression: CalcExpressionOf<S>) -> CalcId {
-        let index = u32::try_from(self.expressions.len())
-            .expect("layout calc store exhausted CalcId range");
-        let id = CalcId::from_store_index(index);
-        self.expressions.push(expression);
-        id
-    }
-
-    #[must_use]
-    pub fn get(&self, id: CalcId) -> Option<&CalcExpressionOf<S>> {
-        self.expressions.get(id.index() as usize)
-    }
-
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.expressions.len()
-    }
-
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.expressions.is_empty()
-    }
 }
 
-impl<S: LayoutScalar> CalcResolver<S> for LayoutCalcStoreOf<S> {
-    fn resolve_calc(&self, id: CalcId, basis: Option<S>) -> CalcResolutionOf<S> {
-        self.get(id)
-            .map_or(CalcResolutionOf::missing_expression(), |expression| {
-                expression.resolve(basis)
-            })
-    }
-
-    fn calc_generation(&self) -> CalcGeneration {
-        CalcGeneration::new(self.len() as u64)
-    }
-
-    fn calc_depends_on_basis(&self, id: CalcId) -> bool {
-        self.get(id).is_some_and(CalcExpressionOf::depends_on_basis)
-    }
-
-    fn calc_percent_fraction(&self, id: CalcId) -> Option<S> {
-        self.get(id).map(CalcExpressionOf::percent_fraction)
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CalcExpressionOf<S: LayoutScalar = DefaultScalar> {
-    terms: Vec<CalcTermOf<S>>,
-}
-
-pub type CalcExpression = CalcExpressionOf<DefaultScalar>;
-
-impl<S: LayoutScalar> CalcExpressionOf<S> {
-    #[must_use]
-    pub fn sum(terms: impl IntoIterator<Item = CalcTermOf<S>>) -> Self {
-        Self {
-            terms: terms.into_iter().collect(),
+fn length_resolution<S: LayoutScalar>(
+    length_percentage: LengthPercentageOf<S>,
+    basis: Option<S>,
+) -> LengthResolutionOf<S> {
+    match length_percentage.resolve_against(optional_basis(basis)) {
+        NumericResolutionOf::Resolved(value) => {
+            LengthResolutionOf::definite(value, length_percentage.depends_on_basis())
         }
-    }
-
-    #[must_use]
-    pub fn depends_on_basis(&self) -> bool {
-        self.terms
-            .iter()
-            .any(|term| matches!(term, CalcTermOf::Percent(_)))
-    }
-
-    #[must_use]
-    pub fn percent_fraction(&self) -> S {
-        self.terms.iter().fold(S::ZERO, |sum, term| match *term {
-            CalcTermOf::Px(_) => sum,
-            CalcTermOf::Percent(percent) => sum + percent,
-        })
-    }
-
-    #[must_use]
-    pub fn resolve(&self, basis: Option<S>) -> CalcResolutionOf<S> {
-        let mut value = S::ZERO;
-        let mut depends_on_basis = false;
-
-        for term in &self.terms {
-            match *term {
-                CalcTermOf::Px(px) => value = value + px,
-                CalcTermOf::Percent(percent) => {
-                    depends_on_basis = true;
-                    let Some(basis) = basis else {
-                        return CalcResolutionOf::unresolved(true);
-                    };
-                    value = value + percent * basis;
-                }
-            }
+        NumericResolutionOf::MissingBasis { .. } => LengthResolutionOf::unresolved(true),
+        NumericResolutionOf::InvalidNumeric { value, .. } => {
+            LengthResolutionOf::invalid_numeric(value.depends_on_basis())
         }
-
-        CalcResolutionOf::definite(value, depends_on_basis)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum CalcTermOf<S: LayoutScalar = DefaultScalar> {
-    Px(S),
-    Percent(S),
-}
-
-pub type CalcTerm = CalcTermOf<DefaultScalar>;
-
-impl<S: LayoutScalar> CalcTermOf<S> {
-    #[must_use]
-    pub const fn px(value: S) -> Self {
-        Self::Px(value)
-    }
-
-    #[must_use]
-    pub const fn percent(value: S) -> Self {
-        Self::Percent(value)
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LengthOf<S: LayoutScalar = DefaultScalar> {
     Normal,
-    Px(S),
-    Percent(S),
-    Calc(CalcId),
+    Value(LengthPercentageOf<S>),
 }
 
 pub type Length = LengthOf<DefaultScalar>;
 
 impl<S: LayoutScalar> LengthOf<S> {
     pub const NORMAL: Self = Self::Normal;
-    pub const ZERO: Self = Self::Px(S::ZERO);
+    pub const ZERO: Self = Self::Value(LengthPercentageOf::ZERO);
 
     #[must_use]
     pub const fn px(value: S) -> Self {
-        Self::Px(value)
+        Self::Value(LengthPercentageOf {
+            absolute_px: value,
+            percent_fraction: S::ZERO,
+        })
     }
 
     #[must_use]
     pub const fn percent(value: S) -> Self {
-        Self::Percent(value)
+        Self::Value(LengthPercentageOf {
+            absolute_px: S::ZERO,
+            percent_fraction: value,
+        })
     }
 
     #[must_use]
-    pub const fn calc(id: CalcId) -> Self {
-        Self::Calc(id)
+    pub const fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::Value(value)
     }
 
     #[must_use]
-    pub const fn depends_on_basis(self) -> bool {
-        matches!(self, Self::Percent(_) | Self::Calc(_))
-    }
-
-    #[must_use]
-    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver<S>) -> bool {
+    pub fn depends_on_basis(self) -> bool {
         match self {
-            Self::Calc(id) => resolver.calc_depends_on_basis(id),
-            _ => self.depends_on_basis(),
+            Self::Value(value) => value.depends_on_basis(),
+            Self::Normal => false,
         }
     }
 
     #[must_use]
-    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver<S>) -> S {
+    pub fn percent_fraction(self) -> S {
         match self {
-            Self::Percent(value) => value,
-            Self::Calc(id) => resolver.calc_percent_fraction(id).unwrap_or_else(|| {
-                if resolver.calc_depends_on_basis(id) {
-                    S::ONE
-                } else {
-                    S::ZERO
-                }
-            }),
-            Self::Normal | Self::Px(_) => S::ZERO,
+            Self::Value(value) => value.percent_fraction(),
+            Self::Normal => S::ZERO,
         }
-    }
-
-    #[must_use]
-    pub const fn requires_resolver(self) -> bool {
-        matches!(self, Self::Calc(_))
     }
 
     #[must_use]
     pub fn resolve(self, basis: S) -> S {
         match self {
             Self::Normal => S::ZERO,
-            Self::Px(value) => value,
-            Self::Percent(value) => value * basis,
-            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Value(value) => match value.resolve_against(definite_basis_unchecked(basis)) {
+                NumericResolutionOf::Resolved(value) => value,
+                NumericResolutionOf::MissingBasis { .. } => S::ZERO,
+                NumericResolutionOf::InvalidNumeric { .. } => S::NAN,
+            },
         }
     }
 
@@ -682,30 +494,20 @@ impl<S: LayoutScalar> LengthOf<S> {
     pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
         match self {
             Self::Normal => Some(S::ZERO),
-            Self::Px(value) => Some(value),
-            Self::Percent(value) => basis.map(|basis| value * basis),
-            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Value(value) => resolution_optional(value.resolve_against(optional_basis(basis))),
         }
     }
 
     #[must_use]
-    pub fn resolve_with(self, basis: Option<S>, resolver: &dyn CalcResolver<S>) -> Option<S> {
-        self.resolve_with_status(basis, resolver).value
+    pub fn resolve_with(self, basis: Option<S>) -> Option<S> {
+        self.resolve_with_status(basis).value
     }
 
     #[must_use]
-    pub fn resolve_with_status(
-        self,
-        basis: Option<S>,
-        resolver: &dyn CalcResolver<S>,
-    ) -> CalcResolutionOf<S> {
+    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
         match self {
-            Self::Normal => CalcResolutionOf::definite(S::ZERO, false),
-            Self::Px(value) => CalcResolutionOf::definite(value, false),
-            Self::Percent(value) => basis.map_or(CalcResolutionOf::unresolved(true), |basis| {
-                CalcResolutionOf::definite(value * basis, true)
-            }),
-            Self::Calc(id) => resolver.resolve_calc(id, basis),
+            Self::Normal => LengthResolutionOf::definite(S::ZERO, false),
+            Self::Value(value) => length_resolution(value, basis),
         }
     }
 }
@@ -718,31 +520,35 @@ impl<S: LayoutScalar> Default for LengthOf<S> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LengthAutoOf<S: LayoutScalar = DefaultScalar> {
-    Px(S),
-    Percent(S),
-    Calc(CalcId),
+    Value(LengthPercentageOf<S>),
     Auto,
 }
 
 pub type LengthAuto = LengthAutoOf<DefaultScalar>;
 
 impl<S: LayoutScalar> LengthAutoOf<S> {
-    pub const ZERO: Self = Self::Px(S::ZERO);
+    pub const ZERO: Self = Self::Value(LengthPercentageOf::ZERO);
     pub const AUTO: Self = Self::Auto;
 
     #[must_use]
     pub const fn px(value: S) -> Self {
-        Self::Px(value)
+        Self::Value(LengthPercentageOf {
+            absolute_px: value,
+            percent_fraction: S::ZERO,
+        })
     }
 
     #[must_use]
     pub const fn percent(value: S) -> Self {
-        Self::Percent(value)
+        Self::Value(LengthPercentageOf {
+            absolute_px: S::ZERO,
+            percent_fraction: value,
+        })
     }
 
     #[must_use]
-    pub const fn calc(id: CalcId) -> Self {
-        Self::Calc(id)
+    pub const fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::Value(value)
     }
 
     #[must_use]
@@ -751,29 +557,19 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     }
 
     #[must_use]
-    pub const fn depends_on_basis(self) -> bool {
-        matches!(self, Self::Percent(_) | Self::Calc(_))
-    }
-
-    #[must_use]
-    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver<S>) -> bool {
+    pub fn depends_on_basis(self) -> bool {
         match self {
-            Self::Calc(id) => resolver.calc_depends_on_basis(id),
-            _ => self.depends_on_basis(),
+            Self::Value(value) => value.depends_on_basis(),
+            Self::Auto => false,
         }
-    }
-
-    #[must_use]
-    pub const fn requires_resolver(self) -> bool {
-        matches!(self, Self::Calc(_))
     }
 
     #[must_use]
     pub fn resolve(self, basis: S) -> Option<S> {
         match self {
-            Self::Px(value) => Some(value),
-            Self::Percent(value) => Some(value * basis),
-            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Value(value) => {
+                resolution_optional(value.resolve_against(definite_basis_unchecked(basis)))
+            }
             Self::Auto => None,
         }
     }
@@ -786,45 +582,31 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     #[must_use]
     pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
         match self {
-            Self::Px(value) => Some(value),
-            Self::Percent(value) => basis.map(|basis| value * basis),
-            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Value(value) => resolution_optional(value.resolve_against(optional_basis(basis))),
             Self::Auto => None,
         }
     }
 
     #[must_use]
-    pub fn resolve_with(self, basis: Option<S>, resolver: &dyn CalcResolver<S>) -> Option<S> {
-        self.resolve_with_status(basis, resolver).value
+    pub fn resolve_with(self, basis: Option<S>) -> Option<S> {
+        self.resolve_with_status(basis).value
     }
 
     #[must_use]
-    pub fn resolve_with_status(
-        self,
-        basis: Option<S>,
-        resolver: &dyn CalcResolver<S>,
-    ) -> CalcResolutionOf<S> {
+    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
         match self {
-            Self::Px(value) => CalcResolutionOf::definite(value, false),
-            Self::Percent(value) => basis.map_or(CalcResolutionOf::unresolved(true), |basis| {
-                CalcResolutionOf::definite(value * basis, true)
-            }),
-            Self::Calc(id) => resolver.resolve_calc(id, basis),
-            Self::Auto => CalcResolutionOf::non_numeric(),
+            Self::Value(value) => length_resolution(value, basis),
+            Self::Auto => LengthResolutionOf::non_numeric(),
         }
     }
 
     #[must_use]
-    pub fn resolve_auto_with_status(
-        self,
-        basis: Option<S>,
-        resolver: &dyn CalcResolver<S>,
-    ) -> ResolvedLengthAutoOf<S> {
+    pub fn resolve_auto_with_status(self, basis: Option<S>) -> ResolvedLengthAutoOf<S> {
         if self.is_auto() {
             return ResolvedLengthAutoOf::Auto;
         }
 
-        let resolution = self.resolve_with_status(basis, resolver);
+        let resolution = self.resolve_with_status(basis);
         if let Some(value) = resolution.value {
             return ResolvedLengthAutoOf::Resolved(value);
         }
@@ -851,18 +633,14 @@ impl<S: LayoutScalar> From<LengthOf<S>> for LengthAutoOf<S> {
     fn from(value: LengthOf<S>) -> Self {
         match value {
             LengthOf::Normal => Self::ZERO,
-            LengthOf::Px(value) => Self::Px(value),
-            LengthOf::Percent(value) => Self::Percent(value),
-            LengthOf::Calc(id) => Self::Calc(id),
+            LengthOf::Value(value) => Self::Value(value),
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DimensionOf<S: LayoutScalar = DefaultScalar> {
-    Px(S),
-    Percent(S),
-    Calc(CalcId),
+    Value(LengthPercentageOf<S>),
     Fr(S),
     Auto,
     MinContent,
@@ -872,24 +650,30 @@ pub enum DimensionOf<S: LayoutScalar = DefaultScalar> {
 pub type Dimension = DimensionOf<DefaultScalar>;
 
 impl<S: LayoutScalar> DimensionOf<S> {
-    pub const ZERO: Self = Self::Px(S::ZERO);
+    pub const ZERO: Self = Self::Value(LengthPercentageOf::ZERO);
     pub const AUTO: Self = Self::Auto;
     pub const MIN_CONTENT: Self = Self::MinContent;
     pub const MAX_CONTENT: Self = Self::MaxContent;
 
     #[must_use]
     pub const fn px(value: S) -> Self {
-        Self::Px(value)
+        Self::Value(LengthPercentageOf {
+            absolute_px: value,
+            percent_fraction: S::ZERO,
+        })
     }
 
     #[must_use]
     pub const fn percent(value: S) -> Self {
-        Self::Percent(value)
+        Self::Value(LengthPercentageOf {
+            absolute_px: S::ZERO,
+            percent_fraction: value,
+        })
     }
 
     #[must_use]
-    pub const fn calc(id: CalcId) -> Self {
-        Self::Calc(id)
+    pub const fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::Value(value)
     }
 
     #[must_use]
@@ -903,29 +687,19 @@ impl<S: LayoutScalar> DimensionOf<S> {
     }
 
     #[must_use]
-    pub const fn depends_on_basis(self) -> bool {
-        matches!(self, Self::Percent(_) | Self::Calc(_))
-    }
-
-    #[must_use]
-    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver<S>) -> bool {
+    pub fn depends_on_basis(self) -> bool {
         match self {
-            Self::Calc(id) => resolver.calc_depends_on_basis(id),
-            _ => self.depends_on_basis(),
+            Self::Value(value) => value.depends_on_basis(),
+            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
         }
-    }
-
-    #[must_use]
-    pub const fn requires_resolver(self) -> bool {
-        matches!(self, Self::Calc(_))
     }
 
     #[must_use]
     pub fn resolve(self, basis: S) -> Option<S> {
         match self {
-            Self::Px(value) => Some(value),
-            Self::Percent(value) => Some(value * basis),
-            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Value(value) => {
+                resolution_optional(value.resolve_against(definite_basis_unchecked(basis)))
+            }
             Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
@@ -933,32 +707,22 @@ impl<S: LayoutScalar> DimensionOf<S> {
     #[must_use]
     pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
         match self {
-            Self::Px(value) => Some(value),
-            Self::Percent(value) => basis.map(|basis| value * basis),
-            Self::Calc(_) => panic!("calc values require an explicit resolver"),
+            Self::Value(value) => resolution_optional(value.resolve_against(optional_basis(basis))),
             Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
 
     #[must_use]
-    pub fn resolve_with(self, basis: Option<S>, resolver: &dyn CalcResolver<S>) -> Option<S> {
-        self.resolve_with_status(basis, resolver).value
+    pub fn resolve_with(self, basis: Option<S>) -> Option<S> {
+        self.resolve_with_status(basis).value
     }
 
     #[must_use]
-    pub fn resolve_with_status(
-        self,
-        basis: Option<S>,
-        resolver: &dyn CalcResolver<S>,
-    ) -> CalcResolutionOf<S> {
+    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
         match self {
-            Self::Px(value) => CalcResolutionOf::definite(value, false),
-            Self::Percent(value) => basis.map_or(CalcResolutionOf::unresolved(true), |basis| {
-                CalcResolutionOf::definite(value * basis, true)
-            }),
-            Self::Calc(id) => resolver.resolve_calc(id, basis),
+            Self::Value(value) => length_resolution(value, basis),
             Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => {
-                CalcResolutionOf::non_numeric()
+                LengthResolutionOf::non_numeric()
             }
         }
     }
@@ -989,9 +753,7 @@ impl<S: LayoutScalar> From<LengthOf<S>> for DimensionOf<S> {
     fn from(value: LengthOf<S>) -> Self {
         match value {
             LengthOf::Normal => Self::ZERO,
-            LengthOf::Px(value) => Self::Px(value),
-            LengthOf::Percent(value) => Self::Percent(value),
-            LengthOf::Calc(id) => Self::Calc(id),
+            LengthOf::Value(value) => Self::Value(value),
         }
     }
 }
@@ -999,9 +761,7 @@ impl<S: LayoutScalar> From<LengthOf<S>> for DimensionOf<S> {
 impl<S: LayoutScalar> From<LengthAutoOf<S>> for DimensionOf<S> {
     fn from(value: LengthAutoOf<S>) -> Self {
         match value {
-            LengthAutoOf::Px(value) => Self::Px(value),
-            LengthAutoOf::Percent(value) => Self::Percent(value),
-            LengthAutoOf::Calc(id) => Self::Calc(id),
+            LengthAutoOf::Value(value) => Self::Value(value),
             LengthAutoOf::Auto => Self::Auto,
         }
     }
@@ -1039,7 +799,7 @@ impl<S: LayoutScalar> MinTrackSizingOf<S> {
     }
 
     #[must_use]
-    pub const fn depends_on_basis(self) -> bool {
+    pub fn depends_on_basis(self) -> bool {
         match self {
             Self::Length(length) => length.depends_on_basis(),
             Self::Auto | Self::MinContent | Self::MaxContent => false,
@@ -1047,17 +807,9 @@ impl<S: LayoutScalar> MinTrackSizingOf<S> {
     }
 
     #[must_use]
-    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver<S>) -> bool {
+    pub fn percent_fraction(self) -> S {
         match self {
-            Self::Length(length) => length.depends_on_basis_with(resolver),
-            Self::Auto | Self::MinContent | Self::MaxContent => false,
-        }
-    }
-
-    #[must_use]
-    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver<S>) -> S {
-        match self {
-            Self::Length(length) => length.percent_fraction_with(resolver),
+            Self::Length(length) => length.percent_fraction(),
             Self::Auto | Self::MinContent | Self::MaxContent => S::ZERO,
         }
     }
@@ -1080,9 +832,7 @@ impl<S: LayoutScalar> From<LengthOf<S>> for MinTrackSizingOf<S> {
 impl<S: LayoutScalar> From<DimensionOf<S>> for MinTrackSizingOf<S> {
     fn from(value: DimensionOf<S>) -> Self {
         match value {
-            DimensionOf::Px(value) => Self::px(value),
-            DimensionOf::Percent(value) => Self::percent(value),
-            DimensionOf::Calc(id) => Self::Length(LengthOf::calc(id)),
+            DimensionOf::Value(value) => Self::Length(LengthOf::value(value)),
             DimensionOf::Fr(_) | DimensionOf::Auto => Self::Auto,
             DimensionOf::MinContent => Self::MinContent,
             DimensionOf::MaxContent => Self::MaxContent,
@@ -1142,7 +892,7 @@ impl<S: LayoutScalar> MaxTrackSizingOf<S> {
     }
 
     #[must_use]
-    pub const fn depends_on_basis(self) -> bool {
+    pub fn depends_on_basis(self) -> bool {
         match self {
             Self::Length(length) | Self::FitContent(length) => length.depends_on_basis(),
             Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
@@ -1150,21 +900,9 @@ impl<S: LayoutScalar> MaxTrackSizingOf<S> {
     }
 
     #[must_use]
-    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver<S>) -> bool {
+    pub fn percent_fraction(self) -> S {
         match self {
-            Self::Length(length) | Self::FitContent(length) => {
-                length.depends_on_basis_with(resolver)
-            }
-            Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
-        }
-    }
-
-    #[must_use]
-    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver<S>) -> S {
-        match self {
-            Self::Length(length) | Self::FitContent(length) => {
-                length.percent_fraction_with(resolver)
-            }
+            Self::Length(length) | Self::FitContent(length) => length.percent_fraction(),
             Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => S::ZERO,
         }
     }
@@ -1199,9 +937,7 @@ impl<S: LayoutScalar> From<LengthOf<S>> for MaxTrackSizingOf<S> {
 impl<S: LayoutScalar> From<DimensionOf<S>> for MaxTrackSizingOf<S> {
     fn from(value: DimensionOf<S>) -> Self {
         match value {
-            DimensionOf::Px(value) => Self::px(value),
-            DimensionOf::Percent(value) => Self::percent(value),
-            DimensionOf::Calc(id) => Self::Length(LengthOf::calc(id)),
+            DimensionOf::Value(value) => Self::Length(LengthOf::value(value)),
             DimensionOf::Fr(value) => Self::fr(value),
             DimensionOf::Auto => Self::Auto,
             DimensionOf::MinContent => Self::MinContent,
@@ -1270,20 +1006,13 @@ impl<S: LayoutScalar> TrackSizingOf<S> {
     }
 
     #[must_use]
-    pub const fn depends_on_basis(self) -> bool {
+    pub fn depends_on_basis(self) -> bool {
         self.min.depends_on_basis() || self.max.depends_on_basis()
     }
 
     #[must_use]
-    pub fn depends_on_basis_with(self, resolver: &dyn CalcResolver<S>) -> bool {
-        self.min.depends_on_basis_with(resolver) || self.max.depends_on_basis_with(resolver)
-    }
-
-    #[must_use]
-    pub fn percent_fraction_with(self, resolver: &dyn CalcResolver<S>) -> S {
-        self.min
-            .percent_fraction_with(resolver)
-            .max(self.max.percent_fraction_with(resolver))
+    pub fn percent_fraction(self) -> S {
+        self.min.percent_fraction().max(self.max.percent_fraction())
     }
 }
 
@@ -1624,12 +1353,13 @@ mod value_tests {
     fn value_length_percentage_constructs_f32_px_percent_and_mixed_values() {
         let px = LengthPercentageOf::<f32>::px(12.5).expect("finite px");
         assert_eq!(px.absolute_px(), 12.5);
-        assert_eq!(px.percent_fraction_coefficient(), 0.0);
+        assert_eq!(px.percent_fraction(), 0.0);
         assert!(!px.depends_on_basis());
 
-        let percent = LengthPercentageOf::<f32>::percent_fraction(0.25).expect("finite percent");
+        let percent =
+            LengthPercentageOf::<f32>::from_percent_fraction(0.25).expect("finite percent");
         assert_eq!(percent.absolute_px(), 0.0);
-        assert_eq!(percent.percent_fraction_coefficient(), 0.25);
+        assert_eq!(percent.percent_fraction(), 0.25);
         assert!(percent.depends_on_basis());
 
         let mixed = LengthPercentageOf::<f32>::from_coefficients(10.0, 0.5).expect("finite mixed");
@@ -1647,7 +1377,7 @@ mod value_tests {
         let basis = PercentageBasisOf::<f64>::definite(40.0).expect("valid basis");
 
         assert_eq!(value.absolute_px(), 30.0);
-        assert_eq!(value.percent_fraction_coefficient(), -0.25);
+        assert_eq!(value.percent_fraction(), -0.25);
         assert!(value.depends_on_basis());
         assert_eq!(
             value.resolve_against(basis),
@@ -1660,10 +1390,7 @@ mod value_tests {
         let f32_value =
             LengthPercentageOf::<f32>::from_coefficients(-0.0, -0.0).expect("finite zeros");
         assert_eq!(f32_value.absolute_px().to_bits(), 0.0f32.to_bits());
-        assert_eq!(
-            f32_value.percent_fraction_coefficient().to_bits(),
-            0.0f32.to_bits()
-        );
+        assert_eq!(f32_value.percent_fraction().to_bits(), 0.0f32.to_bits());
         assert_eq!(
             f32_value.resolve_against(PercentageBasisOf::Missing),
             NumericResolutionOf::Resolved(0.0)
@@ -1672,10 +1399,7 @@ mod value_tests {
         let f64_value =
             LengthPercentageOf::<f64>::from_coefficients(-0.0, -0.0).expect("finite zeros");
         assert_eq!(f64_value.absolute_px().to_bits(), 0.0f64.to_bits());
-        assert_eq!(
-            f64_value.percent_fraction_coefficient().to_bits(),
-            0.0f64.to_bits()
-        );
+        assert_eq!(f64_value.percent_fraction().to_bits(), 0.0f64.to_bits());
         assert_eq!(
             f64_value.resolve_against(PercentageBasisOf::Missing),
             NumericResolutionOf::Resolved(0.0)
@@ -1685,7 +1409,7 @@ mod value_tests {
     #[test]
     fn value_length_percentage_rejects_non_finite_coefficients() {
         assert!(LengthPercentageOf::<f32>::px(f32::INFINITY).is_err());
-        assert!(LengthPercentageOf::<f32>::percent_fraction(f32::NAN).is_err());
+        assert!(LengthPercentageOf::<f32>::from_percent_fraction(f32::NAN).is_err());
         assert!(LengthPercentageOf::<f64>::from_coefficients(f64::NAN, 0.0).is_err());
         assert!(LengthPercentageOf::<f64>::from_coefficients(0.0, f64::INFINITY).is_err());
     }

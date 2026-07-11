@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use crate::{
-    AvailableOf, CalcResolutionStatus, CalcResolver, Compute, ComputeInputOf, ComputeOutputOf,
-    DefaultScalar, DimensionOf, Display, InlineBoundaryInputOf, LayoutCalcStoreOf, LayoutInputOf,
-    LayoutScalar, LineBreakInput, LineBreakInputOf, NodeInput, NodeInputOf, NodeOutput,
-    NodeOutputOf, RequestedAxis, Round, RunMode, Size, SizingMode, Traverse, compute_block,
-    compute_flex, compute_grid,
+    AvailableOf, Compute, ComputeInputOf, ComputeOutputOf, DefaultScalar, DimensionOf, Display,
+    InlineBoundaryInputOf, LayoutInputOf, LayoutScalar, LineBreakInput, LineBreakInputOf,
+    NodeInput, NodeInputOf, NodeOutput, NodeOutputOf, RequestedAxis, Round, RunMode, Size,
+    SizingMode, Traverse, compute_block, compute_flex, compute_grid,
 };
 
 pub type OracleTree = OracleTreeOf<DefaultScalar>;
@@ -19,7 +18,6 @@ pub struct OracleTreeOf<S: LayoutScalar = DefaultScalar> {
     compute_inputs: HashMap<u32, Vec<ComputeInputOf<S>>>,
     layouts: HashMap<u32, NodeOutputOf<S>>,
     final_layouts: HashMap<u32, NodeOutputOf<S>>,
-    calcs: LayoutCalcStoreOf<S>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -139,11 +137,6 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
         self
     }
 
-    pub fn calcs(mut self, calcs: LayoutCalcStoreOf<S>) -> Self {
-        self.calcs = calcs;
-        self
-    }
-
     pub fn inputs(&self, node: u32) -> &[ComputeInputOf<S>] {
         self.compute_inputs
             .get(&node)
@@ -253,10 +246,6 @@ impl Compute for OracleTree {
             }
         }
     }
-
-    fn calc_resolver(&self) -> &dyn CalcResolver<DefaultScalar> {
-        &self.calcs
-    }
 }
 
 impl Compute for OracleTreeOf<f64> {
@@ -312,21 +301,17 @@ impl Compute for OracleTreeOf<f64> {
         let width = input
             .known
             .width
-            .or_else(|| resolve_dimension(style.size.width, input.parent.width, &self.calcs));
+            .or_else(|| resolve_dimension(style.size.width, input.parent.width));
         let height = input
             .known
             .height
-            .or_else(|| resolve_dimension(style.size.height, input.parent.height, &self.calcs));
+            .or_else(|| resolve_dimension(style.size.height, input.parent.height));
         let size = Size::new(
             width.unwrap_or_else(|| input.available.width.into_option().unwrap_or(0.0)),
             height.unwrap_or_else(|| input.available.height.into_option().unwrap_or(0.0)),
         );
 
         ComputeOutputOf::from_sizes(size, size)
-    }
-
-    fn calc_resolver(&self) -> &dyn CalcResolver<f64> {
-        &self.calcs
     }
 }
 
@@ -343,20 +328,8 @@ impl<S: LayoutScalar> Round for OracleTreeOf<S> {
     }
 }
 
-fn resolve_dimension<S: LayoutScalar>(
-    dimension: DimensionOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> Option<S> {
-    let resolution = dimension.resolve_with_status(basis, resolver);
-    match resolution.status() {
-        CalcResolutionStatus::Resolved => resolution.value,
-        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => None,
-        CalcResolutionStatus::MissingResolver => {
-            panic!("calc resolution requires an explicit resolver")
-        }
-        CalcResolutionStatus::MissingExpression => panic!("calc expression is missing"),
-    }
+fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
+    dimension.resolve_with(basis)
 }
 
 #[cfg(test)]

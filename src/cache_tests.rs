@@ -1,5 +1,5 @@
+use crate::CacheKeyContext;
 use crate::*;
-use crate::{CacheKeyContext, CalcGeneration};
 
 fn cache_test_input() -> ComputeInput {
     ComputeInput {
@@ -116,22 +116,6 @@ fn cache_miss_when_parent_size_changes() {
 }
 
 #[test]
-fn cache_miss_when_calc_generation_changes() {
-    let mut cache = Cache::new();
-    let base = cache_test_input();
-    cache.store_with_context(
-        &base,
-        CacheKeyContext::new(CalcGeneration::new(1)),
-        ComputeOutput::from_outer_size(Size::new(20.0, 10.0)),
-    );
-
-    assert_eq!(
-        cache.get_with_context(&base, CacheKeyContext::new(CalcGeneration::new(2))),
-        None
-    );
-}
-
-#[test]
 fn cache_hit_when_known_width_matches_cached_size_even_if_available_width_changes() {
     let mut cache = Cache::new();
     let base = cache_test_input();
@@ -215,72 +199,10 @@ fn cached_compute_uses_tree_cache_before_running_expensive_layout() {
 }
 
 #[test]
-fn compute_cached_uses_cache_access_context_generation() {
-    struct Probe {
-        cache: Cache,
-        generation: CalcGeneration,
-        calls: usize,
-    }
-
-    impl CacheAccess for Probe {
-        type Node = u32;
-        type Scalar = Scalar;
-
-        fn cache_context(&self) -> CacheKeyContext {
-            CacheKeyContext::new(self.generation)
-        }
-
-        fn cache_get(
-            &self,
-            _node: Self::Node,
-            input: &ComputeInput,
-            context: CacheKeyContext,
-        ) -> Option<ComputeOutput> {
-            self.cache.get_with_context(input, context)
-        }
-
-        fn cache_store(
-            &mut self,
-            _node: Self::Node,
-            input: &ComputeInput,
-            context: CacheKeyContext,
-            output: ComputeOutput,
-        ) {
-            self.cache.store_with_context(input, context, output);
-        }
-
-        fn cache_clear(&mut self, _node: Self::Node) {
-            self.cache.clear();
-        }
-    }
-
-    let input = cache_test_input();
-    let mut probe = Probe {
-        cache: Cache::new(),
-        generation: CalcGeneration::new(1),
-        calls: 0,
-    };
-
-    let first = compute_cached(&mut probe, 7, input, |tree, _node, _input| {
-        tree.calls += 1;
-        ComputeOutput::from_outer_size(Size::new(20.0, 10.0))
-    });
-    probe.generation = CalcGeneration::new(2);
-    let second = compute_cached(&mut probe, 7, input, |tree, _node, _input| {
-        tree.calls += 1;
-        ComputeOutput::from_outer_size(Size::new(30.0, 10.0))
-    });
-
-    assert_eq!(first.size.width, 20.0);
-    assert_eq!(second.size.width, 30.0);
-    assert_eq!(probe.calls, 2);
-}
-
-#[test]
 fn f64_cache_context_remains_tree_context_only() {
-    let context = CacheKeyContext::new(CalcGeneration::static_no_calc());
+    let context = CacheKeyContext::new();
 
-    assert_eq!(context.calc_generation(), CalcGeneration::static_no_calc());
+    assert_eq!(context, CacheKeyContext::static_no_calc());
 }
 
 #[test]

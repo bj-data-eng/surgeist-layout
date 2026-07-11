@@ -1,8 +1,7 @@
 use super::{
-    AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CalcResolutionOf, CalcResolutionStatus,
-    CalcResolver, Compute, ComputeInputOf, ComputeOutputOf, Direction, LayoutInputOf, LayoutScalar,
-    NoCalcResolver, NodeInputOf, NodeOutputOf, Point, Position, Round, RunMode, Size, SizingMode,
-    Traverse,
+    AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, Compute, ComputeInputOf, ComputeOutputOf,
+    Direction, LayoutInputOf, LayoutScalar, LengthResolutionOf, LengthResolutionStatus,
+    NodeInputOf, NodeOutputOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
 };
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, round_scroll_geometry,
@@ -45,10 +44,7 @@ pub fn compute_root<Tree>(
     Tree: Compute,
 {
     let style = tree.node_input(root).clone();
-    let known = Size::new(
-        root_known_width(&style, available.width, tree.calc_resolver()),
-        None,
-    );
+    let known = Size::new(root_known_width(&style, available.width), None);
     let output = tree.compute_child(
         root,
         ComputeInputOf {
@@ -63,13 +59,13 @@ pub fn compute_root<Tree>(
     let parent_width = available.width.into_option();
     let inline_basis = Size::splat(parent_width);
     let padding = style.padding.zip_size(inline_basis, |length, basis| {
-        resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+        resolve_length_or_zero(length, basis)
     });
     let border = style.border.zip_size(inline_basis, |length, basis| {
-        resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+        resolve_length_or_zero(length, basis)
     });
     let margin = style.margin.zip_size(inline_basis, |length, basis| {
-        resolve_auto_or_zero_with(length, basis, tree.calc_resolver())
+        resolve_auto_or_zero(length, basis)
     });
     let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width);
     let scrollable_overflow = scrollable_overflow_from_layout_content_size(
@@ -129,11 +125,7 @@ pub fn compute_root<Tree>(
     );
 }
 
-fn root_known_width<S>(
-    style: &NodeInputOf<S>,
-    available_width: AvailableOf<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> Option<S>
+fn root_known_width<S>(style: &NodeInputOf<S>, available_width: AvailableOf<S>) -> Option<S>
 where
     S: LayoutScalar,
 {
@@ -147,10 +139,10 @@ where
     let available_width = available_width.into_option()?;
     let parent = Size::splat(Some(available_width));
     let padding = style.padding.zip_inline_size(parent, |length, basis| {
-        resolve_length_or_zero_with(length, basis, resolver)
+        resolve_length_or_zero(length, basis)
     });
     let border = style.border.zip_inline_size(parent, |length, basis| {
-        resolve_length_or_zero_with(length, basis, resolver)
+        resolve_length_or_zero(length, basis)
     });
     let padding_border_size = (padding + border).sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
@@ -161,7 +153,7 @@ where
     let max_size = style
         .max_size
         .zip_map(parent, |dimension, basis| {
-            resolve_dimension_with(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .add_optional(box_sizing_adjustment);
 
@@ -237,28 +229,16 @@ pub fn compute_leaf<S>(
 where
     S: LayoutScalar,
 {
-    compute_leaf_with_resolver(input, style, &NoCalcResolver, measure)
-}
-
-pub(crate) fn compute_leaf_with_resolver<S>(
-    input: ComputeInputOf<S>,
-    style: &NodeInputOf<S>,
-    resolver: &dyn CalcResolver<S>,
-    measure: impl FnOnce(Size<Option<S>>, Size<AvailableOf<S>>) -> Size<S>,
-) -> ComputeOutputOf<S>
-where
-    S: LayoutScalar,
-{
     let margin = style.margin.zip_inline_size(input.parent, |length, basis| {
-        resolve_auto_or_zero_with(length, basis, resolver)
+        resolve_auto_or_zero(length, basis)
     });
     let padding = style
         .padding
         .zip_inline_size(input.parent, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let border = style.border.zip_inline_size(input.parent, |length, basis| {
-        resolve_length_or_zero_with(length, basis, resolver)
+        resolve_length_or_zero(length, basis)
     });
     let padding_border = padding + border;
     let padding_border_size = padding_border.sum_axes();
@@ -282,21 +262,21 @@ where
             let style_size = style
                 .size
                 .zip_map(input.parent, |dimension, basis| {
-                    resolve_dimension_with(dimension, basis, resolver)
+                    resolve_dimension(dimension, basis)
                 })
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
             let style_min_size = style
                 .min_size
                 .zip_map(input.parent, |dimension, basis| {
-                    resolve_dimension_with(dimension, basis, resolver)
+                    resolve_dimension(dimension, basis)
                 })
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
             let style_max_size = style
                 .max_size
                 .zip_map(input.parent, |dimension, basis| {
-                    resolve_dimension_with(dimension, basis, resolver)
+                    resolve_dimension(dimension, basis)
                 })
                 .add_optional(box_sizing_adjustment);
 
@@ -394,60 +374,42 @@ where
     output
 }
 
-fn resolve_length_or_zero_with<S>(
-    length: super::LengthOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> S
+fn resolve_length_or_zero<S>(length: super::LengthOf<S>, basis: Option<S>) -> S
 where
     S: LayoutScalar,
 {
-    resolution_or_zero(length.resolve_with_status(basis, resolver))
+    resolution_or_zero(length.resolve_with_status(basis))
 }
 
-fn resolve_auto_or_zero_with<S>(
-    length: super::LengthAutoOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> S
+fn resolve_auto_or_zero<S>(length: super::LengthAutoOf<S>, basis: Option<S>) -> S
 where
     S: LayoutScalar,
 {
-    resolution_optional(length.resolve_with_status(basis, resolver)).unwrap_or(S::ZERO)
+    resolution_optional(length.resolve_with_status(basis)).unwrap_or(S::ZERO)
 }
 
-fn resolve_dimension_with<S>(
-    dimension: super::DimensionOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> Option<S>
+fn resolve_dimension<S>(dimension: super::DimensionOf<S>, basis: Option<S>) -> Option<S>
 where
     S: LayoutScalar,
 {
-    resolution_optional(dimension.resolve_with_status(basis, resolver))
+    resolution_optional(dimension.resolve_with_status(basis))
 }
 
-fn resolution_or_zero<S: LayoutScalar>(resolution: CalcResolutionOf<S>) -> S {
+fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
     match resolution.status() {
-        CalcResolutionStatus::Resolved => resolution
+        LengthResolutionStatus::Resolved => resolution
             .value
-            .expect("resolved calc resolution must carry a value"),
-        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => S::ZERO,
-        CalcResolutionStatus::MissingResolver => {
-            panic!("calc resolution requires an explicit resolver")
-        }
-        CalcResolutionStatus::MissingExpression => panic!("calc expression is missing"),
+            .expect("resolved length resolution must carry a value"),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => S::ZERO,
+        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
     }
 }
 
-fn resolution_optional<S: LayoutScalar>(resolution: CalcResolutionOf<S>) -> Option<S> {
+fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
     match resolution.status() {
-        CalcResolutionStatus::Resolved => resolution.value,
-        CalcResolutionStatus::MissingBasis | CalcResolutionStatus::NonNumeric => None,
-        CalcResolutionStatus::MissingResolver => {
-            panic!("calc resolution requires an explicit resolver")
-        }
-        CalcResolutionStatus::MissingExpression => panic!("calc expression is missing"),
+        LengthResolutionStatus::Resolved => resolution.value,
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => None,
+        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
     }
 }
 

@@ -14,6 +14,11 @@ use lts::oracle::grid::{
     TrackAlignment, TrackSizingSlice, align_tracks_report,
 };
 
+fn lp(absolute_px: Scalar, percent_fraction: Scalar) -> LengthPercentageOf {
+    LengthPercentageOf::from_coefficients(absolute_px, percent_fraction)
+        .expect("test coefficients are finite")
+}
+
 fn baseline_measure(
     width: Scalar,
     height: Scalar,
@@ -11903,14 +11908,13 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
 }
 
 #[test]
-fn grid_child_calc_size_and_margin_resolve_against_grid_area() {
+fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
         styles: HashMap<u32, NodeInput>,
         layouts: HashMap<u32, NodeOutput>,
         inputs: HashMap<u32, Vec<ComputeInput>>,
-        calcs: LayoutCalcStore,
     }
 
     impl Traverse for GridTree {
@@ -11952,21 +11956,11 @@ fn grid_child_calc_size_and_margin_resolve_against_grid_area() {
                 input.known.height.unwrap_or(10.0),
             ))
         }
-
-        fn calc_resolver(&self) -> &dyn CalcResolver {
-            &self.calcs
-        }
     }
 
     let mut tree = GridTree::default();
-    let width = tree.calcs.push(CalcExpression::sum([
-        CalcTerm::px(10.0),
-        CalcTerm::percent(0.5),
-    ]));
-    let margin = tree.calcs.push(CalcExpression::sum([
-        CalcTerm::px(5.0),
-        CalcTerm::percent(0.1),
-    ]));
+    let width = lp(10.0, 0.5);
+    let margin = lp(5.0, 0.1);
     tree.children.insert(1, vec![2]);
     tree.children.insert(2, vec![]);
     tree.styles.insert(
@@ -11982,9 +11976,9 @@ fn grid_child_calc_size_and_margin_resolve_against_grid_area() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::calc(width), Dimension::px(10.0)),
+            size: Size::new(Dimension::value(width), Dimension::px(10.0)),
             margin: Edges {
-                left: LengthAuto::calc(margin),
+                left: LengthAuto::value(margin),
                 right: LengthAuto::ZERO,
                 top: LengthAuto::ZERO,
                 bottom: LengthAuto::ZERO,
@@ -12797,15 +12791,11 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
 }
 
 #[test]
-fn lane_axis_margin_box_measurement_resolves_calc_margins_against_grid_axis() {
-    let mut store = LayoutCalcStore::new();
-    let margin = store.push(CalcExpression::sum([
-        CalcTerm::px(4.0),
-        CalcTerm::percent(0.10),
-    ]));
+fn lane_axis_margin_box_measurement_resolves_affine_margins_against_grid_axis() {
+    let margin = lp(4.0, 0.10);
     let child_style = NodeInput {
         margin: Edges {
-            left: LengthAuto::calc(margin),
+            left: LengthAuto::value(margin),
             right: LengthAuto::px(6.0),
             top: LengthAuto::ZERO,
             bottom: LengthAuto::ZERO,
@@ -12825,7 +12815,6 @@ fn lane_axis_margin_box_measurement_resolves_calc_margins_against_grid_axis() {
     };
     let mut tree = LaneMarginMeasureTree {
         child_style: child_style.clone(),
-        resolver: store,
         child_output: ComputeOutput::from_sizes_and_baselines(
             Size::new(50.0, 12.0),
             Size::new(50.0, 12.0),
@@ -12858,7 +12847,6 @@ fn lane_axis_margin_box_measurement_resolves_calc_margins_against_grid_axis() {
 
 struct LaneMarginMeasureTree {
     child_style: NodeInput,
-    resolver: LayoutCalcStore,
     child_output: ComputeOutput,
     last_input: Option<ComputeInput>,
 }
@@ -12909,10 +12897,6 @@ impl Compute for LaneMarginMeasureTree {
         self.last_input = Some(input);
         self.child_output
     }
-
-    fn calc_resolver(&self) -> &dyn CalcResolver {
-        &self.resolver
-    }
 }
 
 #[test]
@@ -12923,7 +12907,6 @@ fn resolve_inline_tracks_accepts_f64_track_inputs() {
         TrackSizingOf::<f64>::fr(0.5),
     ];
     let sizes = resolve_inline_tracks(InlineTrackInput {
-        resolver: &NoCalcResolver,
         tracks: &tracks,
         basis: Some(90.75_f64),
         definite_size: Some(90.75_f64),
@@ -12946,7 +12929,7 @@ fn auto_repeat_count_uses_f64_saturating_floor() {
         size: 10.25,
     };
 
-    let count = auto_repeat_count(&tracks, Some(43.0_f64), 0.25_f64, reserved, &NoCalcResolver);
+    let count = auto_repeat_count(&tracks, Some(43.0_f64), 0.25_f64, reserved);
 
     assert_eq!(count, 3);
 }
@@ -12962,36 +12945,31 @@ fn distribute_intrinsic_span_preserves_f64_fractional_shares() {
         IntrinsicSpanContribution::MaxContent,
         None,
         12.0_f64,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, vec![6.0_f64, 6.0_f64]);
 }
 
 #[test]
-fn px_only_calc_max_track_does_not_force_max_intrinsic_resolution() {
-    let mut resolver = LayoutCalcStore::new();
-    let calc = resolver.push(CalcExpression::sum([CalcTerm::px(24.0)]));
+fn px_only_affine_max_track_does_not_force_max_intrinsic_resolution() {
     let tracks = [TrackSizing::new(
         MinTrackSizing::MinContent,
-        MaxTrackSizing::Length(Length::calc(calc)),
+        MaxTrackSizing::Length(Length::value(lp(24.0, 0.0))),
     )];
 
-    let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0], &resolver);
+    let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0]);
 
     assert_eq!(sizes, vec![11.0]);
 }
 
 #[test]
-fn basis_dependent_calc_max_track_uses_max_intrinsic_resolution() {
-    let mut resolver = LayoutCalcStore::new();
-    let calc = resolver.push(CalcExpression::sum([CalcTerm::percent(0.5)]));
+fn basis_dependent_affine_max_track_uses_max_intrinsic_resolution() {
     let tracks = [TrackSizing::new(
         MinTrackSizing::MinContent,
-        MaxTrackSizing::Length(Length::calc(calc)),
+        MaxTrackSizing::Length(Length::value(lp(0.0, 0.5))),
     )];
 
-    let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0], &resolver);
+    let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0]);
 
     assert_eq!(sizes, vec![99.0]);
 }
@@ -13149,13 +13127,13 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
                 style
                     .size
                     .width
-                    .resolve_with(input.parent.width, &NoCalcResolver)
+                    .resolve_with(input.parent.width)
                     .or_else(|| input.available.width.into_option())
                     .unwrap_or(0.0),
                 style
                     .size
                     .height
-                    .resolve_with(input.parent.height, &NoCalcResolver)
+                    .resolve_with(input.parent.height)
                     .or_else(|| input.available.height.into_option())
                     .unwrap_or(0.0),
             ));
@@ -13576,7 +13554,6 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         margin: Edges::ZERO.map(Some),
         border: Edges::ZERO,
         padding: Edges::ZERO,
-        resolver: &NoCalcResolver,
     });
 
     let rows = parent_context.rows.expect("row subgrid should inherit");
@@ -15486,17 +15463,17 @@ fn grid_axis_mapping_maps_vertical_parent_axes_to_horizontal_child_physical_axes
 fn vertical_subgrid_percentage_gap_uses_flow_relative_axis_basis() {
     let style = NodeInput {
         writing_mode: WritingMode::VerticalLr,
-        gap: Size::new(Length::Percent(0.10), Length::Percent(0.10)),
+        gap: Size::new(Length::percent(0.10), Length::percent(0.10)),
         ..NodeInput::default()
     };
     let area_size = Size::new(300.0, 500.0);
 
     assert_eq!(
-        child_subgrid_gap(&style, GridAxisKind::Column, area_size, &NoCalcResolver),
+        child_subgrid_gap(&style, GridAxisKind::Column, area_size),
         ResolvedSubgridGap::Length(50.0)
     );
     assert_eq!(
-        child_subgrid_gap(&style, GridAxisKind::Row, area_size, &NoCalcResolver),
+        child_subgrid_gap(&style, GridAxisKind::Row, area_size),
         ResolvedSubgridGap::Length(30.0)
     );
 }
@@ -15636,7 +15613,6 @@ fn grid_item_sizing_transfers_min_block_through_aspect_ratio_to_inline_size() {
         &NodeInput::default(),
         Size::new(100.0, 100.0),
         Size::splat(Some(100.0)),
-        &NoCalcResolver,
     );
 
     assert_eq!(sizing.known, Size::new(Some(200.0), Some(100.0)));
@@ -15655,7 +15631,6 @@ fn grid_item_sizing_keeps_inline_stretch_when_min_inline_defines_aspect_ratio() 
         &NodeInput::default(),
         Size::new(100.0, 100.0),
         Size::splat(Some(100.0)),
-        &NoCalcResolver,
     );
 
     assert_eq!(sizing.known, Size::new(Some(100.0), Some(50.0)));
@@ -15834,7 +15809,6 @@ fn intrinsic_subgrid_context_is_needed_for_both_axis_subgrids() {
         &child,
         subgrid_item_report(&parent, &child),
         grid_area(0, 3, 0, 2),
-        &NoCalcResolver,
     ));
 }
 
@@ -15856,7 +15830,6 @@ fn intrinsic_subgrid_context_is_not_needed_for_single_column_both_axis_subgrid()
         &child,
         subgrid_item_report(&parent, &child),
         grid_area(0, 1, 0, 2),
-        &NoCalcResolver,
     ));
 }
 
@@ -15878,7 +15851,6 @@ fn intrinsic_subgrid_context_is_needed_for_row_subgrid_with_percent_columns() {
         &child,
         subgrid_item_report(&parent, &child),
         grid_area(0, 1, 0, 2),
-        &NoCalcResolver,
     ));
 }
 
@@ -15900,7 +15872,6 @@ fn intrinsic_subgrid_context_uses_mapped_parent_axis_for_orthogonal_subgrid() {
         &child,
         subgrid_item_report(&parent, &child),
         grid_area(0, 1, 0, 2),
-        &NoCalcResolver,
     ));
 }
 
@@ -16315,7 +16286,6 @@ fn column_subgrid_context_preserves_inherited_baseline_groups() {
         margin: Edges::all(Some(0.0)),
         border: Edges::ZERO,
         padding: Edges::ZERO,
-        resolver: &NoCalcResolver,
     });
 
     let columns = context.columns.expect("column subgrid should inherit");
@@ -16710,7 +16680,6 @@ fn fr_span_contribution_distributes_by_flex_factor() {
         IntrinsicSpanContribution::MaxContent,
         None,
         60.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [20.0, 40.0]);
@@ -16727,7 +16696,6 @@ fn fr_span_contribution_subtracts_non_flex_base_tracks() {
         IntrinsicSpanContribution::MaxContent,
         None,
         40.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [10.0, 30.0]);
@@ -16744,7 +16712,6 @@ fn fr_span_contribution_normalizes_sub_one_factors() {
         IntrinsicSpanContribution::MaxContent,
         None,
         60.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [24.0, 36.0]);
@@ -16765,7 +16732,6 @@ fn fr_span_contribution_normalizes_sub_one_factors_after_non_flex_tracks() {
         IntrinsicSpanContribution::MaxContent,
         None,
         18.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [0.0, 4.5, 4.5]);
@@ -16782,7 +16748,6 @@ fn fr_span_contribution_splits_zero_factors_evenly() {
         IntrinsicSpanContribution::MaxContent,
         None,
         60.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [30.0, 30.0]);
@@ -16808,7 +16773,6 @@ fn fr_span_contribution_keeps_indefinite_percent_tracks_for_initial_sizing() {
         IntrinsicSpanContribution::MaxContent,
         None,
         160.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 50.0, 100.0]);
@@ -16834,7 +16798,6 @@ fn fr_span_contribution_reserves_resolved_percent_tracks() {
         IntrinsicSpanContribution::MaxContent,
         Some(160.0),
         160.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 39.333332, 78.666664]);
@@ -16855,7 +16818,6 @@ fn max_content_span_prefers_max_content_track() {
         IntrinsicSpanContribution::MaxContent,
         None,
         320.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [80.0, 230.0, 0.0]);
@@ -16875,7 +16837,6 @@ fn max_content_span_prefers_max_content_track_over_min_content_maximum() {
         IntrinsicSpanContribution::MaxContent,
         None,
         80.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [60.0, 20.0]);
@@ -16899,7 +16860,6 @@ fn min_content_span_counts_indefinite_percent_tracks() {
         },
         None,
         160.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [42.666668, 42.666668, 0.0, 0.0]);
@@ -16921,7 +16881,6 @@ fn max_content_span_keeps_indefinite_percent_tracks_for_initial_sizing() {
         IntrinsicSpanContribution::MaxContent,
         None,
         320.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [42.666668, 267.3333, 0.0, 0.0]);
@@ -16943,7 +16902,6 @@ fn max_content_span_reserves_resolved_percent_tracks() {
         IntrinsicSpanContribution::MaxContent,
         Some(320.0),
         320.0,
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [42.666668, 203.33333, 0.0, 0.0]);
@@ -16952,14 +16910,7 @@ fn max_content_span_reserves_resolved_percent_tracks() {
 #[test]
 fn indefinite_flex_tracks_keep_span_resolved_bases() {
     let tracks = [TrackSizing::fr(1.0), TrackSizing::fr(2.0)];
-    let sizes = resolve_tracks(
-        &tracks,
-        None,
-        0.0,
-        AlignContent::Start,
-        &[20.0, 40.0],
-        &NoCalcResolver,
-    );
+    let sizes = resolve_tracks(&tracks, None, 0.0, AlignContent::Start, &[20.0, 40.0]);
 
     assert_eq!(sizes, [20.0, 40.0]);
 }
@@ -16972,7 +16923,6 @@ fn inline_sub_one_flex_tracks_keep_non_spanned_track_proportional_to_used_fracti
         TrackSizing::fr(0.5),
     ];
     let sizes = resolve_inline_tracks(InlineTrackInput {
-        resolver: &NoCalcResolver,
         tracks: &tracks,
         basis: None,
         definite_size: None,
@@ -17022,7 +16972,6 @@ fn inline_minmax_tracks_shrink_to_minimum_bounds() {
         TrackSizing::px(40.0),
     ];
     let sizes = resolve_inline_tracks(InlineTrackInput {
-        resolver: &NoCalcResolver,
         tracks: &tracks,
         basis: Some(90.0),
         definite_size: Some(90.0),
@@ -17045,7 +16994,6 @@ fn inline_minmax_tracks_interpolate_inside_bounds() {
         TrackSizing::px(40.0),
     ];
     let sizes = resolve_inline_tracks(InlineTrackInput {
-        resolver: &NoCalcResolver,
         tracks: &tracks,
         basis: Some(110.0),
         definite_size: Some(110.0),
@@ -17067,7 +17015,6 @@ fn inline_minmax_max_content_minimum_overrides_fixed_maximum() {
         MaxTrackSizing::px(10.0),
     )];
     let sizes = resolve_inline_tracks(InlineTrackInput {
-        resolver: &NoCalcResolver,
         tracks: &tracks,
         basis: None,
         definite_size: None,
@@ -17089,7 +17036,6 @@ fn inline_minmax_auto_minimum_allows_fixed_maximum() {
         MaxTrackSizing::px(10.0),
     )];
     let sizes = resolve_inline_tracks(InlineTrackInput {
-        resolver: &NoCalcResolver,
         tracks: &tracks,
         basis: None,
         definite_size: None,
@@ -17117,26 +17063,20 @@ fn definite_flex_tracks_respect_larger_base_tracks() {
         0.0,
         AlignContent::Start,
         &[0.0, 100.0, 0.0],
-        &NoCalcResolver,
     );
 
     assert_eq!(sizes, [40.0, 100.0, 60.0]);
 }
 
 #[test]
-fn grid_calc_percent_track_needs_layout_resolution() {
-    let mut store = LayoutCalcStore::new();
-    let id = store.push(CalcExpression::sum([
-        CalcTerm::px(20.0),
-        CalcTerm::percent(0.10),
-    ]));
+fn grid_affine_percent_track_needs_layout_resolution() {
     let track = TrackSizing::new(
-        MinTrackSizing::Length(Length::calc(id)),
+        MinTrackSizing::Length(Length::value(lp(20.0, 0.10))),
         MaxTrackSizing::Length(Length::px(100.0)),
     );
 
-    assert!(track.depends_on_basis_with(&store));
-    assert_eq!(track.percent_fraction_with(&store), 0.10);
+    assert!(track.depends_on_basis());
+    assert_eq!(track.percent_fraction(), 0.10);
 }
 
 mod root_oracle {

@@ -1,5 +1,5 @@
+use crate::DefaultScalar;
 use crate::*;
-use crate::{CalcResolver, DefaultScalar};
 
 #[test]
 fn default_scalar_remains_single_precision() {
@@ -104,14 +104,11 @@ fn f32_default_keeps_representative_layout_types_smaller_than_f64_lane() {
 }
 
 #[test]
-fn f64_calc_resolution_preserves_large_coordinate_precision() {
-    let mut store = crate::LayoutCalcStoreOf::<f64>::new();
-    let id = store.push(crate::CalcExpressionOf::sum(vec![
-        crate::CalcTermOf::px(16_777_217.0),
-        crate::CalcTermOf::percent(0.5),
-    ]));
+fn f64_affine_resolution_preserves_large_coordinate_precision() {
+    let value = crate::LengthPercentageOf::<f64>::from_coefficients(16_777_217.0, 0.5)
+        .expect("finite coefficients");
 
-    let resolution = store.resolve_calc(id, Some(21.0));
+    let resolution = crate::LengthOf::value(value).resolve_with_status(Some(21.0));
     assert_eq!(resolution.value, Some(16_777_227.5));
     assert!(resolution.depends_on_basis);
 }

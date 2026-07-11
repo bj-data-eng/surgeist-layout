@@ -1,29 +1,22 @@
 use super::{
-    AvailableOf, CalcGeneration, ComputeInputOf, ComputeOutputOf, DefaultScalar, LayoutScalar,
-    RequestedAxis, RunMode, Size, SizingMode,
+    AvailableOf, ComputeInputOf, ComputeOutputOf, DefaultScalar, LayoutScalar, RequestedAxis,
+    RunMode, Size, SizingMode,
 };
 
 const CACHE_SIZE: usize = 9;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct CacheKeyContext {
-    calc_generation: CalcGeneration,
-}
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub struct CacheKeyContext;
 
 impl CacheKeyContext {
     #[must_use]
-    pub const fn new(calc_generation: CalcGeneration) -> Self {
-        Self { calc_generation }
+    pub const fn new() -> Self {
+        Self
     }
 
     #[must_use]
     pub const fn static_no_calc() -> Self {
-        Self::new(CalcGeneration::static_no_calc())
-    }
-
-    #[must_use]
-    pub const fn calc_generation(self) -> CalcGeneration {
-        self.calc_generation
+        Self
     }
 }
 

@@ -1,6 +1,6 @@
 use super::*;
 use crate::scroll::scrollbar_size_from_overflow;
-use crate::{GridFlowToleranceOf, MaxTrackSizingOf, MinTrackSizingOf, NoCalcResolver};
+use crate::{GridFlowToleranceOf, MaxTrackSizingOf, MinTrackSizingOf};
 use std::num::NonZeroUsize;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -400,12 +400,11 @@ fn place_lanes_with_trace<Item, S: LayoutScalar>(
 pub fn lane_intrinsic_sizing<S: LayoutScalar>(
     input: LaneIntrinsicSizingInputOf<S>,
 ) -> Result<LaneIntrinsicSizingReportOf<S>, LanePlacementError> {
-    lane_intrinsic_sizing_with(input, &NoCalcResolver)
+    lane_intrinsic_sizing_with(input)
 }
 
 pub(super) fn lane_intrinsic_sizing_with<S: LayoutScalar>(
     input: LaneIntrinsicSizingInputOf<S>,
-    resolver: &dyn CalcResolver<S>,
 ) -> Result<LaneIntrinsicSizingReportOf<S>, LanePlacementError> {
     if input.content_sized_tracks.is_empty() || input.tracks.is_empty() {
         return Err(LanePlacementError::EmptyTrackList);
@@ -503,7 +502,6 @@ pub(super) fn lane_intrinsic_sizing_with<S: LayoutScalar>(
                         available: input.available,
                         gap: input.gap,
                         content_track_count,
-                        resolver,
                     },
                     group,
                 ));
@@ -514,7 +512,7 @@ pub(super) fn lane_intrinsic_sizing_with<S: LayoutScalar>(
     let mut final_track_sizes = input
         .tracks
         .iter()
-        .map(|track| initialized_track_base(*track, input.available, resolver))
+        .map(|track| initialized_track_base(*track, input.available))
         .collect::<Vec<_>>();
     for item in definite_items
         .iter()
@@ -526,7 +524,6 @@ pub(super) fn lane_intrinsic_sizing_with<S: LayoutScalar>(
             input.gap,
             input.available,
             *item,
-            resolver,
         );
     }
     for item in &sizing_items {
@@ -536,7 +533,6 @@ pub(super) fn lane_intrinsic_sizing_with<S: LayoutScalar>(
             input.gap,
             input.available,
             *item,
-            resolver,
         );
     }
 
@@ -591,7 +587,6 @@ struct MasonrySizingProjection<'a, S: LayoutScalar = Scalar> {
     available: Option<S>,
     gap: S,
     content_track_count: usize,
-    resolver: &'a dyn CalcResolver<S>,
 }
 
 fn masonry_sizing_contribution<S: LayoutScalar>(
@@ -605,7 +600,6 @@ fn masonry_sizing_contribution<S: LayoutScalar>(
         available,
         gap,
         content_track_count,
-        resolver,
     } = projection;
     let start_index = span.start - 1;
     let end_index = span.end - 1;
@@ -617,7 +611,7 @@ fn masonry_sizing_contribution<S: LayoutScalar>(
         .fold(S::ZERO, S::max);
     let full_existing = tracks[full_start_index..full_end_index]
         .iter()
-        .map(|track| initialized_track_base(*track, available, resolver))
+        .map(|track| initialized_track_base(*track, available))
         .fold(S::ZERO, |sum, size| sum + size)
         + gap
             * S::from_usize(
@@ -628,7 +622,7 @@ fn masonry_sizing_contribution<S: LayoutScalar>(
             );
     let content_existing = tracks[start_index..end_index]
         .iter()
-        .map(|track| initialized_track_base(*track, available, resolver))
+        .map(|track| initialized_track_base(*track, available))
         .fold(S::ZERO, |sum, size| sum + size)
         + gap
             * S::from_usize(
@@ -683,15 +677,9 @@ fn masonry_track_maximum_size<S: LayoutScalar>(
     }
 }
 
-fn initialized_track_base<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
-    available: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> S {
+fn initialized_track_base<S: LayoutScalar>(track: TrackSizingOf<S>, available: Option<S>) -> S {
     match track.min {
-        MinTrackSizingOf::Length(length) => {
-            length.resolve_with(available, resolver).unwrap_or(S::ZERO)
-        }
+        MinTrackSizingOf::Length(length) => length.resolve_with(available).unwrap_or(S::ZERO),
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {
             S::ZERO
         }
@@ -712,7 +700,6 @@ fn apply_lane_sizing_contribution<S: LayoutScalar>(
     gap: S,
     available: Option<S>,
     item: DefiniteLaneIntrinsicItemOf<S>,
-    resolver: &dyn CalcResolver<S>,
 ) {
     let start = item.span.start - 1;
     let end = item.span.end - 1;
@@ -728,7 +715,6 @@ fn apply_lane_sizing_contribution<S: LayoutScalar>(
             span_tracks[0],
             contribution,
             available,
-            resolver,
         ));
         return;
     }
@@ -744,7 +730,7 @@ fn apply_lane_sizing_contribution<S: LayoutScalar>(
                 if track_accepts_intrinsic_contribution(*track) {
                     S::ZERO
                 } else {
-                    initialized_track_base(*track, available, resolver)
+                    initialized_track_base(*track, available)
                 }
             })
             .fold(S::ZERO, |sum, size| sum + size);
@@ -762,13 +748,12 @@ fn lane_track_minimum_size<S: LayoutScalar>(
     track: TrackSizingOf<S>,
     contribution: LaneContributionsOf<S>,
     available: Option<S>,
-    resolver: &dyn CalcResolver<S>,
 ) -> S {
     match track.min {
         MinTrackSizingOf::MinContent => contribution.min_content,
         MinTrackSizingOf::MaxContent => contribution.max_content,
         MinTrackSizingOf::Auto => contribution.minimum,
-        MinTrackSizingOf::Length(_) => initialized_track_base(track, available, resolver),
+        MinTrackSizingOf::Length(_) => initialized_track_base(track, available),
     }
 }
 
@@ -1009,17 +994,14 @@ where
         items.push(item);
     }
 
-    lane_intrinsic_sizing_with(
-        LaneIntrinsicSizingInputOf {
-            axis,
-            available: available_basis,
-            gap,
-            tracks: tracks.to_vec(),
-            content_sized_tracks,
-            items,
-        },
-        tree.calc_resolver(),
-    )
+    lane_intrinsic_sizing_with(LaneIntrinsicSizingInputOf {
+        axis,
+        available: available_basis,
+        gap,
+        tracks: tracks.to_vec(),
+        content_sized_tracks,
+        items,
+    })
     .map(|report| report.final_track_sizes)
 }
 
@@ -1075,11 +1057,7 @@ where
             available: max_available,
         },
     );
-    let margin = intrinsic_contribution_margin(
-        child_style,
-        constants.node_inner_size.width,
-        tree.calc_resolver(),
-    );
+    let margin = intrinsic_contribution_margin(child_style, constants.node_inner_size.width);
     LaneContributionFactsOf {
         min_content: axis_size(min_output.size, axis) + axis_margin_sum(margin, axis),
         max_content: axis_size(max_output.size, axis) + axis_margin_sum(margin, axis),
@@ -1336,18 +1314,17 @@ where
             style,
             area_size,
             Size::splat(Some(area_size.width)),
-            tree.calc_resolver(),
         );
         let area_width_basis = Size::splat(Some(area_size.width));
         let padding = child_style
             .padding
             .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+                resolve_length_or_zero(length, basis)
             });
         let border = child_style
             .border
             .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero_with(length, basis, tree.calc_resolver())
+                resolve_length_or_zero(length, basis)
             });
         let resolved_margin = item
             .unresolved_margin
@@ -1373,7 +1350,6 @@ where
             margin: item.unresolved_margin,
             border,
             padding,
-            resolver: tree.calc_resolver(),
         });
         let child_input = ComputeInputOf {
             run_mode: RunMode::PerformLayout,
@@ -1409,7 +1385,7 @@ where
         let relative_offset = relative_inset_offset(
             child_style.inset.zip_size(
                 Size::new(Some(area_size.width), Some(area_size.height)),
-                |length, basis| resolve_auto_optional_with(length, basis, tree.calc_resolver()),
+                |length, basis| resolve_auto_optional(length, basis),
             ),
             style.direction,
             child_style.position,
@@ -1571,11 +1547,10 @@ where
         GridAxisKind::Row => constants.node_inner_size,
     };
     let (margin, known, parent, available) = {
-        let resolver = tree.calc_resolver();
         let unresolved_margin = child_style
             .margin
             .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_auto_optional_with(length, basis, resolver)
+                resolve_auto_optional(length, basis)
             });
         let margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
         let mut known = Size::NONE;
@@ -1597,11 +1572,8 @@ where
                     .justify_self
                     .or(container_style.justify_items)
                     .unwrap_or(AlignItems::Stretch);
-                known.width =
-                    resolve_dimension_with(child_style.size.width, Some(grid_axis_size), resolver)
-                        .or_else(|| {
-                            (justify_self == AlignItems::Stretch).then_some(available_width)
-                        });
+                known.width = resolve_dimension(child_style.size.width, Some(grid_axis_size))
+                    .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_width));
                 parent.width = Some(grid_axis_size);
                 available.width = AvailableOf::Definite(available_width);
             }
@@ -1612,13 +1584,11 @@ where
                     .align_self
                     .or(container_style.align_items)
                     .unwrap_or(AlignItems::Stretch);
-                known.height =
-                    resolve_dimension_with(child_style.size.height, Some(grid_axis_size), resolver)
-                        .or_else(|| {
-                            (align_self == AlignItems::Stretch
-                                && child_style.aspect_ratio.is_none())
+                known.height = resolve_dimension(child_style.size.height, Some(grid_axis_size))
+                    .or_else(|| {
+                        (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
                             .then_some(available_height)
-                        });
+                    });
                 parent.height = Some(grid_axis_size);
                 available.height = AvailableOf::Definite(available_height);
             }
@@ -1663,11 +1633,7 @@ fn intrinsic_available_for_dimension<S: LayoutScalar>(dimension: DimensionOf<S>)
     match dimension {
         DimensionOf::MinContent => AvailableOf::MIN_CONTENT,
         DimensionOf::MaxContent => AvailableOf::MAX_CONTENT,
-        DimensionOf::Px(_)
-        | DimensionOf::Percent(_)
-        | DimensionOf::Calc(_)
-        | DimensionOf::Fr(_)
-        | DimensionOf::Auto => AvailableOf::MAX_CONTENT,
+        DimensionOf::Value(_) | DimensionOf::Fr(_) | DimensionOf::Auto => AvailableOf::MAX_CONTENT,
     }
 }
 

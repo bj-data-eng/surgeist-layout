@@ -5899,17 +5899,13 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
     assert_eq!(tree.layouts[&2].content_size.width, 120.0);
 }
 
-use crate::{CalcExpression, CalcTerm, Dimension, LayoutCalcStore, NodeInput};
+use crate::{Dimension, LengthPercentageOf, NodeInput};
 
 #[test]
-fn flex_percent_dependent_calc_size_requests_definite_cross_rerun() {
-    let mut store = LayoutCalcStore::new();
-    let height = store.push(CalcExpression::sum([
-        CalcTerm::px(10.0),
-        CalcTerm::percent(0.50),
-    ]));
+fn flex_percent_dependent_affine_size_requests_definite_cross_rerun() {
+    let height = LengthPercentageOf::from_coefficients(10.0, 0.50).expect("finite coefficients");
     let mut child = NodeInput::default();
-    child.size.height = Dimension::calc(height);
+    child.size.height = Dimension::value(height);
 
-    assert!(child.size.height.depends_on_basis_with(&store));
+    assert!(child.size.height.depends_on_basis());
 }

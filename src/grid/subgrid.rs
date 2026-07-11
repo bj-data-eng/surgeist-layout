@@ -817,24 +817,22 @@ where
     let span_in_parent = area_span(area, parent_axis);
     let parent_axis_gap = axis_size(parent_gap, parent_axis);
     let area_width_basis = Size::splat(Some(area_size.width));
-    let resolver = tree.calc_resolver();
-    let (margins, border, padding) =
-        traversal_axis_edges(style, queried_axis, area_width_basis, resolver);
+    let (margins, border, padding) = traversal_axis_edges(style, queried_axis, area_width_basis);
     let resolved_margin = style
         .margin
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_auto_optional_with(length, basis, resolver)
+            resolve_auto_optional(length, basis)
         })
         .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let resolved_border = style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let resolved_padding = style
         .padding
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let content_box_size = (area_size
         - resolved_margin.sum_axes()
@@ -848,7 +846,6 @@ where
             item_report.column,
             parent_gap,
             content_box_size,
-            resolver,
         ),
         resolved_subgrid_axis_gap(
             style,
@@ -856,7 +853,6 @@ where
             item_report.row,
             parent_gap,
             content_box_size,
-            resolver,
         ),
     );
     let subgrid_axis_gap = axis_size(subgrid_gap, queried_axis);
@@ -872,7 +868,6 @@ where
         parent_named_columns,
         parent_named_rows,
         parent_area_facts,
-        resolver,
     );
 
     Some(SubgridTraversalChild::Subgrid(SubgridTraversalNode {
@@ -884,7 +879,7 @@ where
             .then_some(content_box_size.width)
             .filter(|width| *width > Tree::Scalar::ZERO),
         available_inline_size_is_known: queried_axis == GridAxisKind::Row
-            && track_components_have_percent_sizing(&style.grid_template_columns, resolver),
+            && track_components_have_percent_sizing(&style.grid_template_columns),
         queried_axis_fully_inherited,
         margins,
         border,
@@ -911,7 +906,6 @@ fn subgrid_traversal_children<Tree>(
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
     parent_area_facts: Option<&GridAreaNameFacts>,
-    resolver: &dyn CalcResolver<Tree::Scalar>,
 ) -> (
     SubgridTraversalChildren<<Tree as Traverse>::Node, Tree::Scalar>,
     bool,
@@ -948,7 +942,6 @@ where
             parent: Size::NONE,
             available,
         },
-        resolver,
     );
     let initialized =
         initialize_grid_tracks(tree, node, style, &constants, &parent_context, available);
@@ -966,7 +959,6 @@ where
         content_box_size.width,
         gap.width,
         style.justify_content.unwrap_or(AlignContent::Stretch),
-        resolver,
     );
     let traversal_rows = parent_context
         .rows
@@ -1081,7 +1073,6 @@ fn traversal_child_area_tracks<S: LayoutScalar>(
     content_width: S,
     gap: S,
     alignment: AlignContent,
-    resolver: &dyn CalcResolver<S>,
 ) -> Vec<S> {
     if let Some(axis) = inherited {
         return axis.tracks.clone();
@@ -1089,7 +1080,6 @@ fn traversal_child_area_tracks<S: LayoutScalar>(
 
     let intrinsic_sizes = vec![S::ZERO; tracks.len()];
     resolve_inline_tracks(InlineTrackInput {
-        resolver,
         tracks,
         basis: Some(content_width),
         definite_size: Some(content_width),
@@ -1163,7 +1153,6 @@ fn resolved_subgrid_axis_gap<S: LayoutScalar>(
     report: SubgridAxisReport,
     parent_gap: Size<S>,
     content_box_size: Size<S>,
-    resolver: &dyn CalcResolver<S>,
 ) -> S {
     let gap = match axis {
         GridAxisKind::Column => style.gap.width,
@@ -1178,7 +1167,7 @@ fn resolved_subgrid_axis_gap<S: LayoutScalar>(
                 .map_or(axis, |mapping| mapping.parent_axis);
             axis_size(parent_gap, parent_axis)
         }
-        gap => resolve_length_or_zero_with(gap, Some(axis_size(content_box_size, axis)), resolver),
+        gap => resolve_length_or_zero(gap, Some(axis_size(content_box_size, axis))),
     }
 }
 
@@ -1186,7 +1175,6 @@ fn traversal_axis_edges<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     axis: GridAxisKind,
     area_width_basis: Size<Option<S>>,
-    resolver: &dyn CalcResolver<S>,
 ) -> (
     SubgridAxisEdges<S>,
     SubgridAxisEdges<S>,
@@ -1195,18 +1183,18 @@ fn traversal_axis_edges<S: LayoutScalar>(
     let margin = style
         .margin
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_auto_optional_with(length, basis, resolver)
+            resolve_auto_optional(length, basis)
         })
         .map(|margin| margin.unwrap_or(S::ZERO));
     let border = style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let padding = style
         .padding
         .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero_with(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
 
     match axis {

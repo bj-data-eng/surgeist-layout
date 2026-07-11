@@ -1,6 +1,6 @@
 use super::{
-    CacheKeyContext, CalcResolver, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar,
-    NoCalcResolver, NodeInputOf, NodeOutputOf,
+    CacheKeyContext, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar, NodeInputOf,
+    NodeOutputOf,
 };
 
 pub trait Traverse {
@@ -24,10 +24,6 @@ pub trait Compute: Traverse {
         node: Self::Node,
         input: ComputeInputOf<Self::Scalar>,
     ) -> ComputeOutputOf<Self::Scalar>;
-
-    fn calc_resolver(&self) -> &dyn CalcResolver<Self::Scalar> {
-        &NoCalcResolver
-    }
 }
 
 pub trait Round: Traverse {

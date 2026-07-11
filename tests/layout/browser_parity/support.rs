@@ -409,7 +409,6 @@ struct TestNode {
 #[derive(Clone, Debug, Default)]
 struct TestTree {
     nodes: Vec<TestNode>,
-    calc_store: layout::LayoutCalcStore,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -424,7 +423,6 @@ struct InheritedTextContext {
 impl TestTree {
     fn from_golden(root: &Node) -> Result<Self, Error> {
         let mut tree = Self::default();
-        let mut calc_store = layout::LayoutCalcStore::new();
         tree.push_node(
             root,
             InheritedTextContext {
@@ -434,18 +432,11 @@ impl TestTree {
                 grid_lanes_text: false,
                 inline_level_text: false,
             },
-            &mut calc_store,
         )?;
-        tree.calc_store = calc_store;
         Ok(tree)
     }
 
-    fn push_node(
-        &mut self,
-        node: &Node,
-        inherited: InheritedTextContext,
-        calc_store: &mut layout::LayoutCalcStore,
-    ) -> Result<usize, Error> {
+    fn push_node(&mut self, node: &Node, inherited: InheritedTextContext) -> Result<usize, Error> {
         let id = self.nodes.len();
         let font_family = font_family(&node.style)?.unwrap_or(inherited.font_family);
         let font_size = font_size(&node.style)?.unwrap_or(inherited.font_size);
@@ -454,7 +445,7 @@ impl TestTree {
             None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
-        let layout_input = to_layout_input(&node.style, calc_store)?;
+        let layout_input = to_layout_input(&node.style)?;
         let box_display = layout_input.as_box().map(|input| input.display);
         let grid_lanes_text = inherited.grid_lanes_text
             || box_display.is_some_and(layout::Display::establishes_grid_lanes_formatting_context);
@@ -488,7 +479,6 @@ impl TestTree {
                         grid_lanes_text,
                         inline_level_text,
                     },
-                    calc_store,
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -879,28 +869,6 @@ impl layout::Compute for TestTree {
         self.cache_store(node, &input, context, output);
         output
     }
-
-    fn calc_resolver(&self) -> &dyn layout::CalcResolver {
-        self
-    }
-}
-
-impl layout::CalcResolver for TestTree {
-    fn resolve_calc(&self, id: layout::CalcId, basis: Option<Scalar>) -> layout::CalcResolution {
-        self.calc_store.resolve_calc(id, basis)
-    }
-
-    fn calc_depends_on_basis(&self, id: layout::CalcId) -> bool {
-        self.calc_store.calc_depends_on_basis(id)
-    }
-
-    fn calc_percent_fraction(&self, id: layout::CalcId) -> Option<Scalar> {
-        self.calc_store.calc_percent_fraction(id)
-    }
-
-    fn calc_generation(&self) -> layout::CalcGeneration {
-        self.calc_store.calc_generation()
-    }
 }
 
 impl layout::Round for TestTree {
@@ -919,7 +887,7 @@ impl layout::CacheAccess for TestTree {
     type Scalar = Scalar;
 
     fn cache_context(&self) -> layout::CacheKeyContext {
-        layout::CacheKeyContext::new(self.calc_resolver().calc_generation())
+        layout::CacheKeyContext::new()
     }
 
     fn cache_get(
@@ -1016,11 +984,8 @@ fn compare_optional_number(
     }
 }
 
-fn to_layout_input(
-    attrs: &StyleAttrs,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::LayoutInput, Error> {
-    let input = to_node_input(attrs, calc_store)?;
+fn to_layout_input(attrs: &StyleAttrs) -> Result<layout::LayoutInput, Error> {
+    let input = to_node_input(attrs)?;
     if attrs.get("source-tag") == Some("br") {
         let mut br = layout::LineBreakInput::new()
             .with_direction(input.direction)
@@ -1039,10 +1004,7 @@ fn to_layout_input(
     }
 }
 
-fn to_node_input(
-    attrs: &StyleAttrs,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::NodeInput, Error> {
+fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
     let mut input = layout::NodeInput::default();
     let source_tag = attrs.get("source-tag");
     input.display = match attrs.get("display") {
@@ -1097,25 +1059,25 @@ fn to_node_input(
         input.flex_shrink = parse_number(value)?;
     }
     if let Some(value) = attrs.get("flex-basis") {
-        input.flex_basis = parse_dimension_with_calc(value, calc_store)?;
+        input.flex_basis = parse_dimension_with_calc(value)?;
     }
     if let Some(value) = attrs.get("width") {
-        input.size.width = parse_dimension_with_calc(value, calc_store)?;
+        input.size.width = parse_dimension_with_calc(value)?;
     }
     if let Some(value) = attrs.get("height") {
-        input.size.height = parse_dimension_with_calc(value, calc_store)?;
+        input.size.height = parse_dimension_with_calc(value)?;
     }
     if let Some(value) = attrs.get("min-width") {
-        input.min_size.width = parse_dimension_with_calc(value, calc_store)?;
+        input.min_size.width = parse_dimension_with_calc(value)?;
     }
     if let Some(value) = attrs.get("min-height") {
-        input.min_size.height = parse_dimension_with_calc(value, calc_store)?;
+        input.min_size.height = parse_dimension_with_calc(value)?;
     }
     if let Some(value) = attrs.get("max-width") {
-        input.max_size.width = parse_dimension_with_calc(value, calc_store)?;
+        input.max_size.width = parse_dimension_with_calc(value)?;
     }
     if let Some(value) = attrs.get("max-height") {
-        input.max_size.height = parse_dimension_with_calc(value, calc_store)?;
+        input.max_size.height = parse_dimension_with_calc(value)?;
     }
     if let Some(value) = attrs.get("aspect-ratio") {
         let value = parse_number(value)?;
@@ -1125,10 +1087,10 @@ fn to_node_input(
         }
     }
     if let Some(value) = attrs.get("row-gap") {
-        input.gap.height = parse_length_with_calc(value, calc_store)?;
+        input.gap.height = parse_length_with_calc(value)?;
     }
     if let Some(value) = attrs.get("column-gap") {
-        input.gap.width = parse_length_with_calc(value, calc_store)?;
+        input.gap.width = parse_length_with_calc(value)?;
     }
 
     apply_edges_auto(
@@ -1141,7 +1103,6 @@ fn to_node_input(
             ("margin-left", 3),
         ],
         layout::LengthAuto::ZERO,
-        calc_store,
     )?;
     apply_edges(
         &mut input.padding,
@@ -1153,7 +1114,6 @@ fn to_node_input(
             ("padding-left", 3),
         ],
         layout::Length::ZERO,
-        calc_store,
     )?;
     apply_edges(
         &mut input.border,
@@ -1165,14 +1125,12 @@ fn to_node_input(
             ("border-left", 3),
         ],
         layout::Length::ZERO,
-        calc_store,
     )?;
     apply_edges_auto(
         &mut input.inset,
         attrs,
         [("top", 0), ("right", 1), ("bottom", 2), ("left", 3)],
         layout::LengthAuto::AUTO,
-        calc_store,
     )?;
 
     if let Some(value) = attrs.get("align-items") {
@@ -1197,19 +1155,19 @@ fn to_node_input(
         input.grid_auto_flow = parse_grid_auto_flow(value)?;
     }
     if let Some(value) = attrs.get("grid-template-columns") {
-        input.grid_template_columns = parse_track_component_list_with_calc(value, calc_store)?;
+        input.grid_template_columns = parse_track_component_list_with_calc(value)?;
     }
     if let Some(value) = attrs.get("grid-template-rows") {
-        input.grid_template_rows = parse_track_component_list_with_calc(value, calc_store)?;
+        input.grid_template_rows = parse_track_component_list_with_calc(value)?;
     }
     if let Some(value) = attrs.get("grid-template-areas") {
         input.grid_template_areas = parse_grid_template_areas(value)?;
     }
     if let Some(value) = attrs.get("grid-auto-columns") {
-        input.grid_auto_columns = parse_track_component_list_with_calc(value, calc_store)?;
+        input.grid_auto_columns = parse_track_component_list_with_calc(value)?;
     }
     if let Some(value) = attrs.get("grid-auto-rows") {
-        input.grid_auto_rows = parse_track_component_list_with_calc(value, calc_store)?;
+        input.grid_auto_rows = parse_track_component_list_with_calc(value)?;
     }
     let (grid_column, raw_grid_column) =
         parse_grid_placement(attrs.get("grid-column-start"), attrs.get("grid-column-end"))?;
@@ -1228,11 +1186,10 @@ fn apply_edges(
     attrs: &StyleAttrs,
     names: [(&str, usize); 4],
     default: layout::Length,
-    calc_store: &mut layout::LayoutCalcStore,
 ) -> Result<(), Error> {
     for (name, side) in names {
         if let Some(value) = attrs.get(name) {
-            set_edge(edges, side, parse_length_with_calc(value, calc_store)?);
+            set_edge(edges, side, parse_length_with_calc(value)?);
         } else {
             set_edge(edges, side, default);
         }
@@ -1245,11 +1202,10 @@ fn apply_edges_auto(
     attrs: &StyleAttrs,
     names: [(&str, usize); 4],
     default: layout::LengthAuto,
-    calc_store: &mut layout::LayoutCalcStore,
 ) -> Result<(), Error> {
     for (name, side) in names {
         if let Some(value) = attrs.get(name) {
-            set_edge(edges, side, parse_length_auto_with_calc(value, calc_store)?);
+            set_edge(edges, side, parse_length_auto_with_calc(value)?);
         } else {
             set_edge(edges, side, default);
         }
@@ -1626,7 +1582,7 @@ fn parse_grid_auto_flow(raw: &str) -> Result<layout::GridAutoFlow, Error> {
     }
 }
 
-fn parse_calc_expression(raw: &str) -> Result<layout::CalcExpression, Error> {
+fn parse_calc_expression(raw: &str) -> Result<layout::LengthPercentageOf, Error> {
     let body = raw
         .strip_prefix("calc(")
         .and_then(|value| value.strip_suffix(')'))
@@ -1634,7 +1590,7 @@ fn parse_calc_expression(raw: &str) -> Result<layout::CalcExpression, Error> {
     parse_calc_sum(body.trim(), raw)
 }
 
-fn parse_calc_sum(body: &str, raw: &str) -> Result<layout::CalcExpression, Error> {
+fn parse_calc_sum(body: &str, raw: &str) -> Result<layout::LengthPercentageOf, Error> {
     let parts = body.split_whitespace().collect::<Vec<_>>();
     let [first, operator, second] = parts.as_slice() else {
         return Err(Error::new(format!("unsupported calc expression `{raw}`")));
@@ -1647,58 +1603,51 @@ fn parse_calc_sum(body: &str, raw: &str) -> Result<layout::CalcExpression, Error
         _ => return Err(Error::new(format!("unsupported calc expression `{raw}`"))),
     };
 
-    Ok(layout::CalcExpression::sum([left, right]))
+    layout::LengthPercentageOf::from_coefficients(
+        left.absolute_px() + right.absolute_px(),
+        left.percent_fraction() + right.percent_fraction(),
+    )
+    .map_err(|error| Error::new(format!("invalid calc expression `{raw}`: {error}")))
 }
 
-fn parse_calc_term(raw: &str, sign: Scalar) -> Result<layout::CalcTerm, Error> {
+fn parse_calc_term(raw: &str, sign: Scalar) -> Result<layout::LengthPercentageOf, Error> {
     if let Some(px) = raw.strip_suffix("px") {
-        return Ok(layout::CalcTerm::px(parse_number(px)? * sign));
+        return layout::LengthPercentageOf::px(parse_number(px)? * sign)
+            .map_err(|error| Error::new(format!("invalid calc px term `{raw}`: {error}")));
     }
     if let Some(percent) = raw.strip_suffix('%') {
-        return Ok(layout::CalcTerm::percent(
+        return layout::LengthPercentageOf::from_percent_fraction(
             parse_number(percent)? / 100.0 * sign,
-        ));
+        )
+        .map_err(|error| Error::new(format!("invalid calc percent term `{raw}`: {error}")));
     }
     Err(Error::new(format!(
         "unsupported calc expression term `{raw}`"
     )))
 }
 
-fn parse_length_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::Length, Error> {
+fn parse_length_with_calc(raw: &str) -> Result<layout::Length, Error> {
     if raw.trim_start().starts_with("calc(") {
-        return Ok(layout::Length::calc(
-            calc_store.push(parse_calc_expression(raw)?),
-        ));
+        return Ok(layout::Length::value(parse_calc_expression(raw)?));
     }
     parse_length(raw)
 }
 
-fn parse_length_auto_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::LengthAuto, Error> {
+fn parse_length_auto_with_calc(raw: &str) -> Result<layout::LengthAuto, Error> {
     if raw == "auto" {
         return Ok(layout::LengthAuto::AUTO);
     }
-    Ok(parse_length_with_calc(raw, calc_store)?.into())
+    Ok(parse_length_with_calc(raw)?.into())
 }
 
-fn parse_dimension_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::Dimension, Error> {
+fn parse_dimension_with_calc(raw: &str) -> Result<layout::Dimension, Error> {
     match raw {
         "auto" => Ok(layout::Dimension::AUTO),
         "min-content" => Ok(layout::Dimension::MIN_CONTENT),
         "max-content" => Ok(layout::Dimension::MAX_CONTENT),
         _ => {
             if raw.trim_start().starts_with("calc(") {
-                return Ok(layout::Dimension::calc(
-                    calc_store.push(parse_calc_expression(raw)?),
-                ));
+                return Ok(layout::Dimension::value(parse_calc_expression(raw)?));
             }
             parse_dimension(raw)
         }
@@ -1735,45 +1684,37 @@ fn parse_dimension(raw: &str) -> Result<layout::Dimension, Error> {
 }
 
 fn parse_track_component_list(raw: &str) -> Result<Vec<layout::TrackComponent>, Error> {
-    let mut calc_store = layout::LayoutCalcStore::new();
-    parse_track_component_list_with_calc(raw, &mut calc_store)
+    parse_track_component_list_with_calc(raw)
 }
 
-fn parse_track_component_list_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<Vec<layout::TrackComponent>, Error> {
+fn parse_track_component_list_with_calc(raw: &str) -> Result<Vec<layout::TrackComponent>, Error> {
     if raw.trim_start().starts_with("subgrid") {
         return Ok(vec![parse_subgrid_track_component(raw)?]);
     }
     split_top_level_whitespace(raw)
         .into_iter()
-        .map(|part| parse_track_component_with_calc(&part, calc_store))
+        .map(|part| parse_track_component_with_calc(&part))
         .collect()
 }
 
 fn parse_track_component(raw: &str) -> Result<layout::TrackComponent, Error> {
-    let mut calc_store = layout::LayoutCalcStore::new();
-    parse_track_component_with_calc(raw, &mut calc_store)
+    parse_track_component_with_calc(raw)
 }
 
-fn parse_track_component_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::TrackComponent, Error> {
+fn parse_track_component_with_calc(raw: &str) -> Result<layout::TrackComponent, Error> {
     if let Some(body) = function_body(raw, "repeat") {
         let (count, tracks) = split_once_top_level_comma(body)?;
         let repeat = match count.trim() {
             "auto-fill" => layout::TrackRepetition::auto_fill_components(
-                parse_track_component_list_with_calc(tracks, calc_store)?,
+                parse_track_component_list_with_calc(tracks)?,
             ),
             "auto-fit" => layout::TrackRepetition::auto_fit_components(
-                parse_track_component_list_with_calc(tracks, calc_store)?,
+                parse_track_component_list_with_calc(tracks)?,
             ),
             raw => layout::TrackRepetition::count_components(
                 raw.parse()
                     .map_err(|_| Error::new(format!("invalid repeat count `{raw}`")))?,
-                parse_track_component_list_with_calc(tracks, calc_store)?,
+                parse_track_component_list_with_calc(tracks)?,
             ),
         };
         let repeat =
@@ -1786,7 +1727,7 @@ fn parse_track_component_with_calc(
         )?));
     }
     Ok(layout::TrackComponent::Track(parse_track_sizing_with_calc(
-        raw, calc_store,
+        raw,
     )?))
 }
 
@@ -1838,42 +1779,32 @@ fn parse_subgrid_line_names(raw: &str) -> Result<Vec<String>, Error> {
         .collect::<Result<Vec<_>, _>>()
 }
 
-fn parse_track_sizing_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::TrackSizing, Error> {
+fn parse_track_sizing_with_calc(raw: &str) -> Result<layout::TrackSizing, Error> {
     if let Some(body) = function_body(raw, "minmax") {
         let (min, max) = split_once_top_level_comma(body)?;
         return Ok(layout::TrackSizing::minmax(
-            parse_min_track_sizing_with_calc(min.trim(), calc_store)?,
-            parse_max_track_sizing_with_calc(max.trim(), calc_store)?,
+            parse_min_track_sizing_with_calc(min.trim())?,
+            parse_max_track_sizing_with_calc(max.trim())?,
         ));
     }
     if let Some(body) = function_body(raw, "fit-content") {
         return Ok(layout::TrackSizing::fit_content(parse_length_with_calc(
             body.trim(),
-            calc_store,
         )?));
     }
-    Ok(parse_dimension_with_calc(raw, calc_store)?.into())
+    Ok(parse_dimension_with_calc(raw)?.into())
 }
 
-fn parse_min_track_sizing_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::MinTrackSizing, Error> {
+fn parse_min_track_sizing_with_calc(raw: &str) -> Result<layout::MinTrackSizing, Error> {
     match raw {
         "auto" => Ok(layout::MinTrackSizing::AUTO),
         "min-content" => Ok(layout::MinTrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::MinTrackSizing::MAX_CONTENT),
-        _ => Ok(parse_length_with_calc(raw, calc_store)?.into()),
+        _ => Ok(parse_length_with_calc(raw)?.into()),
     }
 }
 
-fn parse_max_track_sizing_with_calc(
-    raw: &str,
-    calc_store: &mut layout::LayoutCalcStore,
-) -> Result<layout::MaxTrackSizing, Error> {
+fn parse_max_track_sizing_with_calc(raw: &str) -> Result<layout::MaxTrackSizing, Error> {
     match raw {
         "auto" => Ok(layout::MaxTrackSizing::AUTO),
         "min-content" => Ok(layout::MaxTrackSizing::MIN_CONTENT),
@@ -1882,7 +1813,7 @@ fn parse_max_track_sizing_with_calc(
             let value = raw.trim_end_matches("fr");
             Ok(layout::MaxTrackSizing::fr(parse_number(value)?))
         }
-        _ => Ok(parse_length_with_calc(raw, calc_store)?.into()),
+        _ => Ok(parse_length_with_calc(raw)?.into()),
     }
 }
 
@@ -1996,8 +1927,7 @@ mod tests {
     use super::*;
 
     fn test_node_input(attrs: StyleAttrs) -> Result<layout::NodeInput, Error> {
-        let mut calc_store = layout::LayoutCalcStore::new();
-        to_node_input(&attrs, &mut calc_store)
+        to_node_input(&attrs)
     }
 
     fn line_break_tree(input: layout::LineBreakInput) -> TestTree {
@@ -2016,7 +1946,6 @@ mod tests {
                 unrounded: layout::NodeOutput::new(),
                 final_layout: layout::NodeOutput::new(),
             }],
-            calc_store: layout::LayoutCalcStore::new(),
         }
     }
 
@@ -2143,25 +2072,31 @@ mod tests {
 
     #[test]
     fn parse_length_accepts_fixture_calc_px_plus_percent() {
-        let mut calc_store = layout::LayoutCalcStore::new();
-        let length = parse_length_with_calc("calc(12px + 25%)", &mut calc_store)
-            .expect("fixture calc should parse");
-        assert!(matches!(length, layout::Length::Calc(_)));
+        let length = parse_length_with_calc("calc(12px + 25%)").expect("fixture calc should parse");
+        let layout::Length::Value(value) = length else {
+            panic!("expected affine calc length, got {length:?}");
+        };
+        assert_eq!(value.absolute_px(), 12.0);
+        assert_eq!(value.percent_fraction(), 0.25);
+        assert_eq!(length.resolve_optional(Some(200.0)), Some(62.0));
     }
 
     #[test]
     fn parse_dimension_accepts_fixture_calc_percent_minus_px() {
-        let mut calc_store = layout::LayoutCalcStore::new();
-        let dimension = parse_dimension_with_calc("calc(50% - 8px)", &mut calc_store)
+        let dimension = parse_dimension_with_calc("calc(50% - 8px)")
             .expect("fixture calc dimension should parse");
-        assert!(matches!(dimension, layout::Dimension::Calc(_)));
+        let layout::Dimension::Value(value) = dimension else {
+            panic!("expected affine calc dimension, got {dimension:?}");
+        };
+        assert_eq!(value.absolute_px(), -8.0);
+        assert_eq!(value.percent_fraction(), 0.5);
+        assert_eq!(dimension.resolve_optional(Some(240.0)), Some(112.0));
     }
 
     #[test]
     fn parse_length_rejects_unsupported_calc_fixture_syntax() {
-        let mut calc_store = layout::LayoutCalcStore::new();
-        let error = parse_length_with_calc("calc(100% / 2)", &mut calc_store)
-            .expect_err("division is not supported yet");
+        let error =
+            parse_length_with_calc("calc(100% / 2)").expect_err("division is not supported yet");
         assert!(
             error.to_string().contains("unsupported calc expression"),
             "unexpected error: {error}"
@@ -2169,7 +2104,7 @@ mod tests {
     }
 
     #[test]
-    fn to_node_input_lowers_calc_margin_with_fixture_store() {
+    fn to_node_input_lowers_calc_margin_as_affine_value() {
         let golden = Golden::parse(
             r#"
             <test name="calc-margin" use-rounding="true">
@@ -2187,20 +2122,25 @@ mod tests {
 
         let tree = TestTree::from_golden(&golden.root).expect("calc margin should lower");
 
-        let layout::LengthAuto::Calc(id) = tree.box_node_input(0).margin.left else {
+        let layout::LengthAuto::Value(value) = tree.box_node_input(0).margin.left else {
             panic!(
-                "expected calc margin-left, got {:?}",
+                "expected affine calc margin-left, got {:?}",
                 tree.box_node_input(0).margin.left
             );
         };
+        assert_eq!(value.absolute_px(), -4.0);
+        assert_eq!(value.percent_fraction(), 0.1);
         assert_eq!(
-            layout::CalcResolver::resolve_calc(&tree.calc_store, id, Some(200.0)).value,
+            tree.box_node_input(0)
+                .margin
+                .left
+                .resolve_optional(Some(200.0)),
             Some(16.0)
         );
     }
 
     #[test]
-    fn to_node_input_lowers_calc_grid_track_with_fixture_store() {
+    fn to_node_input_lowers_calc_grid_track_as_affine_value() {
         let golden = Golden::parse(
             r#"
             <test name="calc-grid-track" use-rounding="true">
@@ -2226,14 +2166,17 @@ mod tests {
                 tree.box_node_input(0).grid_template_columns
             );
         };
-        let layout::MinTrackSizing::Length(layout::Length::Calc(min_id)) = track.min else {
-            panic!("expected calc min track, got {:?}", track.min);
+        let layout::MinTrackSizing::Length(layout::Length::Value(min)) = track.min else {
+            panic!("expected affine calc min track, got {:?}", track.min);
         };
-        let layout::MaxTrackSizing::Length(layout::Length::Calc(max_id)) = track.max else {
-            panic!("expected calc max track, got {:?}", track.max);
+        let layout::MaxTrackSizing::Length(layout::Length::Value(max)) = track.max else {
+            panic!("expected affine calc max track, got {:?}", track.max);
         };
-        assert_eq!(min_id, max_id);
-        assert_eq!(tree.calc_store.len(), 1);
+        assert_eq!(min, max);
+        assert_eq!(min.absolute_px(), 20.0);
+        assert_eq!(min.percent_fraction(), 0.25);
+        assert_eq!(track.min.definite(Some(240.0)), Some(80.0));
+        assert_eq!(track.max.definite(Some(240.0)), Some(80.0));
     }
 
     #[test]
@@ -2368,18 +2311,15 @@ mod tests {
 
     #[test]
     fn source_tag_br_lowers_to_line_break_input() {
-        let input = to_layout_input(
-            &StyleAttrs {
-                attrs: BTreeMap::from([
-                    ("source-tag".to_string(), "br".to_string()),
-                    ("direction".to_string(), "rtl".to_string()),
-                    ("writing-mode".to_string(), "vertical-rl".to_string()),
-                    ("vertical-align".to_string(), "top".to_string()),
-                    ("clear".to_string(), "both".to_string()),
-                ]),
-            },
-            &mut layout::LayoutCalcStore::new(),
-        )
+        let input = to_layout_input(&StyleAttrs {
+            attrs: BTreeMap::from([
+                ("source-tag".to_string(), "br".to_string()),
+                ("direction".to_string(), "rtl".to_string()),
+                ("writing-mode".to_string(), "vertical-rl".to_string()),
+                ("vertical-align".to_string(), "top".to_string()),
+                ("clear".to_string(), "both".to_string()),
+            ]),
+        })
         .expect("source-tag br should lower");
 
         let layout::LayoutInput::LineBreak(input) = input else {
@@ -2393,16 +2333,13 @@ mod tests {
 
     #[test]
     fn source_tag_br_display_inline_lowers_to_visible_line_break() {
-        let input = to_layout_input(
-            &StyleAttrs {
-                attrs: BTreeMap::from([
-                    ("source-tag".to_string(), "br".to_string()),
-                    ("display".to_string(), "inline".to_string()),
-                    ("direction".to_string(), "rtl".to_string()),
-                ]),
-            },
-            &mut layout::LayoutCalcStore::new(),
-        )
+        let input = to_layout_input(&StyleAttrs {
+            attrs: BTreeMap::from([
+                ("source-tag".to_string(), "br".to_string()),
+                ("display".to_string(), "inline".to_string()),
+                ("direction".to_string(), "rtl".to_string()),
+            ]),
+        })
         .expect("display inline br should lower");
 
         let layout::LayoutInput::LineBreak(input) = input else {
@@ -2414,15 +2351,12 @@ mod tests {
 
     #[test]
     fn source_tag_br_display_none_lowers_to_hidden_line_break() {
-        let input = to_layout_input(
-            &StyleAttrs {
-                attrs: BTreeMap::from([
-                    ("source-tag".to_string(), "br".to_string()),
-                    ("display".to_string(), "none".to_string()),
-                ]),
-            },
-            &mut layout::LayoutCalcStore::new(),
-        )
+        let input = to_layout_input(&StyleAttrs {
+            attrs: BTreeMap::from([
+                ("source-tag".to_string(), "br".to_string()),
+                ("display".to_string(), "none".to_string()),
+            ]),
+        })
         .expect("display none br should lower");
 
         let layout::LayoutInput::LineBreak(input) = input else {
@@ -2433,16 +2367,13 @@ mod tests {
 
     #[test]
     fn source_tag_br_lowers_explicit_inline_metrics() {
-        let input = to_layout_input(
-            &StyleAttrs {
-                attrs: BTreeMap::from([
-                    ("source-tag".to_string(), "br".to_string()),
-                    ("inline-baseline".to_string(), "15px".to_string()),
-                    ("inline-line-height".to_string(), "20px".to_string()),
-                ]),
-            },
-            &mut layout::LayoutCalcStore::new(),
-        )
+        let input = to_layout_input(&StyleAttrs {
+            attrs: BTreeMap::from([
+                ("source-tag".to_string(), "br".to_string()),
+                ("inline-baseline".to_string(), "15px".to_string()),
+                ("inline-line-height".to_string(), "20px".to_string()),
+            ]),
+        })
         .expect("source-tag br with inline metrics should lower");
 
         let layout::LayoutInput::LineBreak(input) = input else {
@@ -2455,15 +2386,12 @@ mod tests {
 
     #[test]
     fn source_tag_br_rejects_partial_inline_metrics() {
-        let error = to_layout_input(
-            &StyleAttrs {
-                attrs: BTreeMap::from([
-                    ("source-tag".to_string(), "br".to_string()),
-                    ("inline-baseline".to_string(), "15px".to_string()),
-                ]),
-            },
-            &mut layout::LayoutCalcStore::new(),
-        )
+        let error = to_layout_input(&StyleAttrs {
+            attrs: BTreeMap::from([
+                ("source-tag".to_string(), "br".to_string()),
+                ("inline-baseline".to_string(), "15px".to_string()),
+            ]),
+        })
         .expect_err("partial inline metrics should be rejected");
 
         assert!(
@@ -2632,7 +2560,6 @@ mod tests {
                 unrounded: layout::NodeOutput::new(),
                 final_layout: layout::NodeOutput::new(),
             }],
-            calc_store: layout::LayoutCalcStore::new(),
         };
 
         layout::compute_root(

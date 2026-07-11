@@ -1,8 +1,8 @@
 use super::{
-    AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, CalcResolver,
-    Compute, ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, FlexDirection,
-    LayoutScalar, LengthAutoOf, LengthOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position,
-    RequestedAxis, RunMode, Size, SizingMode, Traverse,
+    AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
+    ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, FlexDirection, LayoutScalar,
+    LengthAutoOf, LengthOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis,
+    RunMode, Size, SizingMode, Traverse,
 };
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
@@ -29,7 +29,7 @@ where
     S: LayoutScalar,
 {
     let style = tree.node_input(node).clone();
-    let constants = Constants::new(&style, input, tree.calc_resolver());
+    let constants = Constants::new(&style, input);
     if input.run_mode == RunMode::ComputeSize
         && let Size {
             width: Some(width),
@@ -102,18 +102,14 @@ struct Constants<S: LayoutScalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
-    fn new(
-        style: &NodeInputOf<S>,
-        input: ComputeInputOf<S>,
-        resolver: &dyn CalcResolver<S>,
-    ) -> Self {
+    fn new(style: &NodeInputOf<S>, input: ComputeInputOf<S>) -> Self {
         let padding = style
             .padding
             .zip_inline_size(input.parent, |length, basis| {
-                resolve_length_or_zero(length, basis, resolver)
+                resolve_length_or_zero(length, basis)
             });
         let border = style.border.zip_inline_size(input.parent, |length, basis| {
-            resolve_length_or_zero(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
@@ -140,21 +136,21 @@ impl<S: LayoutScalar> Constants<S> {
                 let style_size = style
                     .size
                     .zip_map(input.parent, |dimension, basis| {
-                        resolve_dimension(dimension, basis, resolver)
+                        resolve_dimension(dimension, basis)
                     })
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
                 let min_size = style
                     .min_size
                     .zip_map(input.parent, |dimension, basis| {
-                        resolve_dimension(dimension, basis, resolver)
+                        resolve_dimension(dimension, basis)
                     })
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
                 let max_size = style
                     .max_size
                     .zip_map(input.parent, |dimension, basis| {
-                        resolve_dimension(dimension, basis, resolver)
+                        resolve_dimension(dimension, basis)
                     })
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
@@ -176,7 +172,7 @@ impl<S: LayoutScalar> Constants<S> {
             .sub_optional(content_box_inset_size)
             .max_optional(Size::<S>::ZERO.map(Some));
         let gap = style.gap.zip_map(node_inner_size, |length, basis| {
-            resolve_length_or_zero(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
 
         Self {
@@ -358,27 +354,26 @@ fn build_item<Tree>(
 where
     Tree: Compute,
 {
-    let resolver = tree.calc_resolver();
     let padding = style
         .padding
         .zip_inline_size(constants.node_inner_size, |length, basis| {
-            resolve_length_or_zero(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let border = style
         .border
         .zip_inline_size(constants.node_inner_size, |length, basis| {
-            resolve_length_or_zero(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let margin = style
         .margin
         .zip_inline_size(constants.node_inner_size, |length, basis| {
-            resolve_auto_or_zero(length, basis, resolver)
+            resolve_auto_or_zero(length, basis)
         });
     let margin_is_auto = style.margin.map(LengthAutoOf::is_auto);
     let inset = style
         .inset
         .zip_size(constants.node_inner_size, |length, basis| {
-            resolve_auto_optional(length, basis, resolver)
+            resolve_auto_optional(length, basis)
         });
     let padding_border = padding + border;
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
@@ -389,7 +384,7 @@ where
     let authored_size = style
         .size
         .zip_map(constants.node_inner_size, |dimension, basis| {
-            resolve_dimension(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
@@ -397,7 +392,6 @@ where
     let resolved_flex_basis = resolve_dimension(
         style.flex_basis,
         constants.node_inner_size.main(constants.direction),
-        resolver,
     )
     .map(|flex_basis| {
         let padding_border = padding_border.sum_axes().main(constants.direction);
@@ -414,12 +408,12 @@ where
     let raw_min_size = style
         .min_size
         .zip_map(constants.node_inner_size, |dimension, basis| {
-            resolve_dimension(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         });
     let raw_max_size = style
         .max_size
         .zip_map(constants.node_inner_size, |dimension, basis| {
-            resolve_dimension(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         });
     let min_size = raw_min_size
         .apply_aspect_ratio(style.aspect_ratio)
@@ -638,38 +632,36 @@ where
     if !style.min_size.main(direction).is_auto() || flex_automatic_minimum_is_zero(style.overflow) {
         return None;
     }
-
-    let resolver = tree.calc_resolver();
     let authored_size = style
         .size
         .zip_map(constants.node_inner_size, |dimension, basis| {
-            resolve_dimension(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let min_size = style
         .min_size
         .zip_map(constants.node_inner_size, |dimension, basis| {
-            resolve_dimension(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let resolved_max_size = style
         .max_size
         .zip_map(constants.node_inner_size, |dimension, basis| {
-            resolve_dimension(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let padding_border = style
         .padding
         .zip_inline_size(constants.node_inner_size, |length, basis| {
-            resolve_length_or_zero(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         })
         + style
             .border
             .zip_inline_size(constants.node_inner_size, |length, basis| {
-                resolve_length_or_zero(length, basis, resolver)
+                resolve_length_or_zero(length, basis)
             });
 
     let available = Size::from_main_cross(
@@ -2071,9 +2063,8 @@ where
             .cross(constants.direction)
             .and(constants.node_inner_size.cross(constants.direction)),
     );
-    let resolver = tree.calc_resolver();
     constants.gap = style.gap.zip_map(gap_basis, |length, basis| {
-        resolve_length_or_zero(length, basis, resolver)
+        resolve_length_or_zero(length, basis)
     });
     constants
 }
@@ -2432,10 +2423,7 @@ where
     let mut final_items = Vec::with_capacity(items.len());
     for item in items {
         let style = tree.node_input(item.node).clone();
-        let known = {
-            let resolver = tree.calc_resolver();
-            final_item_size(item, &style, constants, resolver)
-        };
+        let known = { final_item_size(item, &style, constants) };
         let mut output = tree.compute_child(
             item.node,
             ComputeInputOf {
@@ -2458,14 +2446,8 @@ where
                 ),
             },
         );
-        let resolved_flex_basis = {
-            let resolver = tree.calc_resolver();
-            resolve_dimension(
-                style.flex_basis,
-                constants.node_inner_size.main(direction),
-                resolver,
-            )
-        };
+        let resolved_flex_basis =
+            { resolve_dimension(style.flex_basis, constants.node_inner_size.main(direction)) };
         suppress_padding_floor_flex_basis_content_overflow(
             tree,
             item,
@@ -2542,17 +2524,16 @@ fn final_item_size<Node, S: LayoutScalar>(
     item: &ResolvedFlexItem<Node, S>,
     style: &NodeInputOf<S>,
     constants: &Constants<S>,
-    resolver: &dyn CalcResolver<S>,
 ) -> Size<Option<S>> {
     let padding = style
         .padding
         .zip_inline_size(constants.node_inner_size, |length, basis| {
-            resolve_length_or_zero(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let border = style
         .border
         .zip_inline_size(constants.node_inner_size, |length, basis| {
-            resolve_length_or_zero(length, basis, resolver)
+            resolve_length_or_zero(length, basis)
         });
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         (padding + border).sum_axes()
@@ -2562,17 +2543,17 @@ fn final_item_size<Node, S: LayoutScalar>(
     let authored = style
         .size
         .zip_map(constants.node_inner_size, |dimension, basis| {
-            resolve_dimension(dimension, basis, resolver)
+            resolve_dimension(dimension, basis)
         })
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
 
     let mut known = Size::new(Some(item.target_size.width), Some(item.target_size.height));
     if constants.direction.is_row() {
-        if style.size.height.depends_on_basis_with(resolver) {
+        if style.size.height.depends_on_basis() {
             known.height = authored.height.or(known.height);
         }
-    } else if style.size.width.depends_on_basis_with(resolver) {
+    } else if style.size.width.depends_on_basis() {
         known.width = authored.width.or(known.width);
     }
     known
@@ -2613,22 +2594,20 @@ where
         if style.position != Position::Absolute || style.display == super::Display::None {
             continue;
         }
-
-        let resolver = tree.calc_resolver();
         let padding = style
             .padding
             .zip_inline_size(inset_relative_size, |length, basis| {
-                resolve_length_or_zero(length, basis, resolver)
+                resolve_length_or_zero(length, basis)
             });
         let border = style
             .border
             .zip_inline_size(inset_relative_size, |length, basis| {
-                resolve_length_or_zero(length, basis, resolver)
+                resolve_length_or_zero(length, basis)
             });
         let margin = style
             .margin
             .zip_inline_size(inset_relative_size, |length, basis| {
-                resolve_auto_optional(length, basis, resolver)
+                resolve_auto_optional(length, basis)
             });
         let non_auto_margin = margin.map(|value| value.unwrap_or(Tree::Scalar::ZERO));
         let padding_border = padding + border;
@@ -2640,27 +2619,27 @@ where
         let min_size = style
             .min_size
             .zip_map(inset_relative_size, |dimension, basis| {
-                resolve_dimension(dimension, basis, resolver)
+                resolve_dimension(dimension, basis)
             })
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let max_size = style
             .max_size
             .zip_map(inset_relative_size, |dimension, basis| {
-                resolve_dimension(dimension, basis, resolver)
+                resolve_dimension(dimension, basis)
             })
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let mut known_size = style
             .size
             .zip_map(inset_relative_size, |dimension, basis| {
-                resolve_dimension(dimension, basis, resolver)
+                resolve_dimension(dimension, basis)
             })
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
 
         let inset = style.inset.zip_size(inset_relative_size, |length, basis| {
-            resolve_auto_optional(length, basis, resolver)
+            resolve_auto_optional(length, basis)
         });
 
         if known_size.width.is_none()
@@ -3014,36 +2993,20 @@ fn absolute_cross_alignment<S: LayoutScalar>(
     }
 }
 
-fn resolve_length_or_zero<S: LayoutScalar>(
-    length: LengthOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> S {
-    length.resolve_with(basis, resolver).unwrap_or(S::ZERO)
+fn resolve_length_or_zero<S: LayoutScalar>(length: LengthOf<S>, basis: Option<S>) -> S {
+    length.resolve_with(basis).unwrap_or(S::ZERO)
 }
 
-fn resolve_auto_or_zero<S: LayoutScalar>(
-    length: LengthAutoOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> S {
-    length.resolve_with(basis, resolver).unwrap_or(S::ZERO)
+fn resolve_auto_or_zero<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> S {
+    length.resolve_with(basis).unwrap_or(S::ZERO)
 }
 
-fn resolve_auto_optional<S: LayoutScalar>(
-    length: LengthAutoOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> Option<S> {
-    length.resolve_with(basis, resolver)
+fn resolve_auto_optional<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> Option<S> {
+    length.resolve_with(basis)
 }
 
-fn resolve_dimension<S: LayoutScalar>(
-    dimension: DimensionOf<S>,
-    basis: Option<S>,
-    resolver: &dyn CalcResolver<S>,
-) -> Option<S> {
-    dimension.resolve_with(basis, resolver)
+fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
+    dimension.resolve_with(basis)
 }
 
 trait PointExt<S: LayoutScalar> {
