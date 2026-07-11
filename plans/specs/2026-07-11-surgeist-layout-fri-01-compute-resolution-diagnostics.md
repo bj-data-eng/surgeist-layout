@@ -240,10 +240,19 @@ pub struct LeafMeasureInputOf<S: LayoutScalar = DefaultScalar> { /* private */ }
 Known and definite available dimensions are content-box values after subtracting
 padding, border, and reserved scrollbar insets and flooring at zero. Intrinsic
 availability remains symbolic as min-content or max-content. The callback
-returns `Result<Size<S>, M>`, where `M` is the compute provider's associated
-measurement error. Layout preserves `M` as the typed safe source and rejects a
-negative or non-finite successful component before adding insets or caching the
-result.
+receives only `LeafMeasureInputOf<S>` and returns `Result<Size<S>, M>`, where
+`M` is the compute provider's associated measurement error. The direct leaf
+helper returns `Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>` in
+`FRI-01-C02`; the tree-backed root/session result envelope remains `FRI-01-C03`
+work.
+
+`LeafMeasureErrorOf<S, M>` is a C02-local public error with two closed variants:
+`Provider(M)` and `InvalidOutput(InvalidMeasurementOutputOf<S>)`.
+`InvalidMeasurementOutputOf<S>` records the physical `Axis` and a
+`NonNegativeFiniteScalarErrorOf<S>` for the rejected provider component.
+Layout preserves `M` exactly as the typed safe source and rejects a negative or
+non-finite successful component before adding padding, border, scrollbar,
+cache, or output state.
 
 ### `D-08` Numeric Properties Use Distinct Wrappers
 
@@ -379,10 +388,13 @@ contract is fixed:
   distinct validated request state;
 - every invalid root request is rejected before traversal begins.
 
-`compute_leaf` may remain as a public pure helper only if its inputs are the
-validated public leaf measurement/request contracts and it returns
-`LayoutResultOf`. It must not install an implicit no-calc context because no
-resolver context exists after this initiative.
+`compute_leaf` remains a public pure helper in `FRI-01-C02` only with the
+validated public leaf measurement contract and
+`Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>`. C03 wraps that
+leaf-local error into the tree-backed `LayoutResultOf` envelope when the helper
+is used through session/root computation. The helper must not install an
+implicit no-calc context because no resolver context exists after this
+initiative.
 
 ## FRI-01.8 Cache Contract
 
@@ -419,7 +431,28 @@ contract.
 
 The provider result is validated for finite non-negative width and height before
 the algorithm adds padding, border, scrollbar, or cache state. A provider error
-keeps the original `M` as the source of `MeasurementErrorOf<M>`.
+keeps the original `M` as `LeafMeasureErrorOf::Provider(M)`.
+
+`compute_leaf` is the only public C02 function that returns the leaf-local
+measurement error:
+
+```rust
+pub fn compute_leaf<S, M>(
+    input: ComputeInputOf<S>,
+    style: &NodeInputOf<S>,
+    measure: impl FnOnce(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
+) -> Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>
+where
+    S: LayoutScalar;
+```
+
+`LeafMeasureErrorOf::InvalidOutput` is produced only for successful provider
+output whose width or height fails `NonNegativeFiniteOf<S>` construction.
+`InvalidMeasurementOutputOf<S>` exposes `axis() -> Axis` and
+`error() -> NonNegativeFiniteScalarErrorOf<S>` accessors. It does not contain
+layout root site, node identity, operation, batch state, or partial output;
+`FRI-01-C03` wraps this leaf-local error into the tree-backed
+`LayoutErrorOf<Node, S, M>` envelope.
 
 ## FRI-01.10 Error Contract
 
