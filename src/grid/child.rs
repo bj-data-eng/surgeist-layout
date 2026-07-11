@@ -387,7 +387,7 @@ where
             tree.compute_child(child, child_input)
         };
         let scrollbar_size =
-            scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width);
+            scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
         let alignment =
             grid_item_physical_alignment(style.writing_mode, item.justify_self, item.align_self);
         let horizontal_axis = grid_item_axis(GridItemAxis {
@@ -1954,7 +1954,7 @@ where
         .unwrap_or(output.size)
         .clamp_optional(min_size, max_size);
     let scrollbar_size =
-        scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width);
+        scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
     let horizontal_axis = absolute_grid_axis(AbsoluteGridAxis {
         area_location: area.location.x,
         static_area_location: area.static_location.x,

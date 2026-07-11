@@ -530,7 +530,7 @@ impl Compute for SingleRootTree {
 fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
     let mut tree = SingleRootTree::new(NodeInput {
         overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-        scrollbar_width: 10.0,
+        scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
         size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
         ..NodeInput::default()
     });
@@ -605,7 +605,7 @@ fn root_layout_emits_clip_geometry_without_range() {
 fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
     let mut tree = SingleRootTree::new(NodeInput {
         overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
-        scrollbar_width: 10.0,
+        scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
         size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
         padding: Edges::all(Length::px(2.0)),
         border: Edges::all(Length::px(3.0)),
@@ -782,7 +782,7 @@ fn root_layout_stores_child_output_as_root_layout() {
         style: NodeInput {
             direction: Direction::Rtl,
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: 13.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(13.0).unwrap(),
             ..NodeInput::default()
         },
         ..RootTree::default()

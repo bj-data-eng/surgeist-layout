@@ -1037,7 +1037,8 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
         input.overflow.y = parse_overflow(value)?;
     }
     if let Some(value) = attrs.get("scrollbar-width") {
-        input.scrollbar_width = parse_number(value)?;
+        input.scrollbar_width = layout::ScrollbarWidth::try_new(parse_number(value)?)
+            .map_err(|source| Error::new(source.to_string()))?;
     }
     if let Some(value) = attrs.get("text-align") {
         input.text_align = parse_text_align(value)?;
@@ -1053,10 +1054,12 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
         input.flex_wrap = parse_flex_wrap(value)?;
     }
     if let Some(value) = attrs.get("flex-grow") {
-        input.flex_grow = parse_number(value)?;
+        input.flex_grow = layout::FlexGrow::try_new(parse_number(value)?)
+            .map_err(|source| Error::new(source.to_string()))?;
     }
     if let Some(value) = attrs.get("flex-shrink") {
-        input.flex_shrink = parse_number(value)?;
+        input.flex_shrink = layout::FlexShrink::try_new(parse_number(value)?)
+            .map_err(|source| Error::new(source.to_string()))?;
     }
     if let Some(value) = attrs.get("flex-basis") {
         input.flex_basis = parse_dimension_with_calc(value)?;

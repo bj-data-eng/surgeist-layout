@@ -1,6 +1,7 @@
 use super::{
     AspectRatioOf, DefaultScalar, DimensionOf, Edges, GridLine, GridSpan, GridTemplateAreas,
-    LayoutScalar, LengthAutoOf, LengthOf, Point, Size, TrackComponentOf,
+    LayoutScalar, LengthAutoOf, LengthOf, NonNegativeFiniteScalarErrorOf, Point, Size,
+    TrackComponentOf,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -814,6 +815,104 @@ impl GridAutoFlow {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollbarWidthOf<S: LayoutScalar = DefaultScalar> {
+    value: S,
+}
+
+pub type ScrollbarWidth = ScrollbarWidthOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollbarWidthOf<S> {
+    pub const ZERO: Self = Self { value: S::ZERO };
+
+    pub fn try_new(value: S) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        Ok(Self {
+            value: validate_numeric_property(value)?,
+        })
+    }
+
+    #[must_use]
+    pub const fn get(self) -> S {
+        self.value
+    }
+}
+
+impl<S: LayoutScalar> Default for ScrollbarWidthOf<S> {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlexGrowOf<S: LayoutScalar = DefaultScalar> {
+    value: S,
+}
+
+pub type FlexGrow = FlexGrowOf<DefaultScalar>;
+
+impl<S: LayoutScalar> FlexGrowOf<S> {
+    pub const ZERO: Self = Self { value: S::ZERO };
+
+    pub fn try_new(value: S) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        Ok(Self {
+            value: validate_numeric_property(value)?,
+        })
+    }
+
+    #[must_use]
+    pub const fn get(self) -> S {
+        self.value
+    }
+}
+
+impl<S: LayoutScalar> Default for FlexGrowOf<S> {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlexShrinkOf<S: LayoutScalar = DefaultScalar> {
+    value: S,
+}
+
+pub type FlexShrink = FlexShrinkOf<DefaultScalar>;
+
+impl<S: LayoutScalar> FlexShrinkOf<S> {
+    pub const ONE: Self = Self { value: S::ONE };
+
+    pub fn try_new(value: S) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        Ok(Self {
+            value: validate_numeric_property(value)?,
+        })
+    }
+
+    #[must_use]
+    pub const fn get(self) -> S {
+        self.value
+    }
+}
+
+impl<S: LayoutScalar> Default for FlexShrinkOf<S> {
+    fn default() -> Self {
+        Self::ONE
+    }
+}
+
+fn validate_numeric_property<S: LayoutScalar>(
+    value: S,
+) -> Result<S, NonNegativeFiniteScalarErrorOf<S>> {
+    if !value.is_finite() {
+        return Err(NonNegativeFiniteScalarErrorOf::NonFinite { value });
+    }
+
+    if value < S::ZERO {
+        return Err(NonNegativeFiniteScalarErrorOf::Negative { value });
+    }
+
+    Ok(if value == S::ZERO { S::ZERO } else { value })
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub display: Display,
@@ -825,7 +924,7 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub vertical_align: VerticalAlign,
     pub writing_mode: WritingMode,
     pub overflow: Point<Overflow>,
-    pub scrollbar_width: S,
+    pub scrollbar_width: self::ScrollbarWidthOf<S>,
     pub position: Position,
     pub float: Float,
     pub clear: Clear,
@@ -847,8 +946,8 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub flex_direction: FlexDirection,
     pub flex_wrap: FlexWrap,
     pub flex_basis: DimensionOf<S>,
-    pub flex_grow: S,
-    pub flex_shrink: S,
+    pub flex_grow: FlexGrowOf<S>,
+    pub flex_shrink: FlexShrinkOf<S>,
     pub grid_template_columns: Vec<TrackComponentOf<S>>,
     pub grid_template_rows: Vec<TrackComponentOf<S>>,
     pub grid_template_areas: GridTemplateAreas,
@@ -878,7 +977,7 @@ impl NodeInputOf<DefaultScalar> {
             x: Overflow::Visible,
             y: Overflow::Visible,
         },
-        scrollbar_width: DefaultScalar::ZERO,
+        scrollbar_width: self::ScrollbarWidthOf::ZERO,
         position: Position::Relative,
         float: Float::None,
         clear: Clear::None,
@@ -900,8 +999,8 @@ impl NodeInputOf<DefaultScalar> {
         flex_direction: FlexDirection::Row,
         flex_wrap: FlexWrap::NoWrap,
         flex_basis: DimensionOf::AUTO,
-        flex_grow: DefaultScalar::ZERO,
-        flex_shrink: DefaultScalar::ONE,
+        flex_grow: FlexGrowOf::ZERO,
+        flex_shrink: FlexShrinkOf::ONE,
         grid_template_columns: Vec::new(),
         grid_template_rows: Vec::new(),
         grid_template_areas: GridTemplateAreas { rows: Vec::new() },
@@ -931,7 +1030,7 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
                 x: Overflow::Visible,
                 y: Overflow::Visible,
             },
-            scrollbar_width: S::ZERO,
+            scrollbar_width: self::ScrollbarWidthOf::ZERO,
             position: Position::Relative,
             float: Float::None,
             clear: Clear::None,
@@ -953,8 +1052,8 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::NoWrap,
             flex_basis: DimensionOf::AUTO,
-            flex_grow: S::ZERO,
-            flex_shrink: S::ONE,
+            flex_grow: FlexGrowOf::ZERO,
+            flex_shrink: FlexShrinkOf::ONE,
             grid_template_columns: Vec::new(),
             grid_template_rows: Vec::new(),
             grid_template_areas: GridTemplateAreas { rows: Vec::new() },

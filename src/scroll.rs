@@ -275,10 +275,10 @@ impl<S: LayoutScalar> ScrollbarReservationOf<S> {
     #[must_use]
     pub fn from_overflow(
         overflow: Point<Overflow>,
-        scrollbar_width: S,
+        scrollbar_width_value: S,
         direction: Direction,
     ) -> Self {
-        let size = scrollbar_size_from_overflow(overflow, scrollbar_width);
+        let size = scrollbar_size_from_overflow(overflow, scrollbar_width_value);
         Self {
             size,
             inset: scrollbar_inset_from_size(size, direction),
@@ -300,16 +300,16 @@ impl<S: LayoutScalar> ScrollbarReservationOf<S> {
 #[allow(dead_code)]
 pub fn scrollbar_size_from_overflow<S: LayoutScalar>(
     overflow: Point<Overflow>,
-    scrollbar_width: S,
+    scrollbar_width_value: S,
 ) -> Size<S> {
     Size::new(
         if overflow.y == Overflow::Scroll {
-            scrollbar_width
+            scrollbar_width_value
         } else {
             S::ZERO
         },
         if overflow.x == Overflow::Scroll {
-            scrollbar_width
+            scrollbar_width_value
         } else {
             S::ZERO
         },
@@ -607,10 +607,11 @@ pub fn scrollable_overflow_from_layout_content_size<S: LayoutScalar>(
     border_box_size: Size<S>,
     padding: Edges<S>,
     border: Edges<S>,
-    scrollbar_width: S,
+    scrollbar_width_value: S,
     content_size: Size<S>,
 ) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let reservation = ScrollbarReservationOf::from_overflow(overflow, scrollbar_width, direction);
+    let reservation =
+        ScrollbarReservationOf::from_overflow(overflow, scrollbar_width_value, direction);
     let rects = scroll_box_rects_from_border_box(
         ScrollRectOf::new(Point::ZERO, border_box_size)?,
         padding,
@@ -657,11 +658,12 @@ pub fn scroll_geometry_from_layout<S: LayoutScalar>(
     border_box_size: Size<S>,
     padding: Edges<S>,
     border: Edges<S>,
-    scrollbar_width: S,
+    scrollbar_width_value: S,
     scrollable_overflow: ScrollRectOf<S>,
 ) -> Result<ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
     let container = scroll_container_facts_from_overflow(overflow)?;
-    let reservation = ScrollbarReservationOf::from_overflow(overflow, scrollbar_width, direction);
+    let reservation =
+        ScrollbarReservationOf::from_overflow(overflow, scrollbar_width_value, direction);
     let rects = scroll_box_rects_from_border_box(
         ScrollRectOf::new(Point::ZERO, border_box_size)?,
         padding,

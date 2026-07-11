@@ -287,7 +287,7 @@ fn block_scroll_geometry_uses_node_local_padding_border_and_gutter_coordinates()
             display: Display::Block,
             direction: Direction::Rtl,
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
-            scrollbar_width: 10.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
             padding: Edges::all(Length::px(2.0)),
             border: Edges::all(Length::px(3.0)),
@@ -757,7 +757,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
-            scrollbar_width: 10.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
             padding: Edges::all(Length::px(7.0)),
             border: Edges::all(Length::px(5.0)),
@@ -4705,7 +4705,7 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
             display: Display::Block,
             direction: Direction::Rtl,
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
-            scrollbar_width: 17.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(17.0).unwrap(),
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
             ..NodeInput::default()
         },

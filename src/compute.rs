@@ -67,14 +67,14 @@ pub fn compute_root<Tree>(
     let margin = style.margin.zip_size(inline_basis, |length, basis| {
         resolve_auto_or_zero(length, basis)
     });
-    let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width);
+    let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get());
     let scrollable_overflow = scrollable_overflow_from_layout_content_size(
         style.direction,
         style.overflow,
         output.size,
         padding,
         border,
-        style.scrollbar_width,
+        style.scrollbar_width.get(),
         output.content_size,
     )
     .expect("root scrollable overflow is derived from finite non-negative layout output");
@@ -93,7 +93,7 @@ pub fn compute_root<Tree>(
             output.size,
             padding,
             border,
-            style.scrollbar_width,
+            style.scrollbar_width.get(),
             scrollable_overflow,
         )
         .expect("root scroll geometry is derived from finite non-negative layout output"),
@@ -244,7 +244,7 @@ where
     let padding_border_size = padding_border.sum_axes();
     let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
         style.overflow,
-        style.scrollbar_width,
+        style.scrollbar_width.get(),
         Direction::Ltr,
     );
     let content_box_inset =

@@ -1880,7 +1880,7 @@ fn block_scroll_geometry<S: LayoutScalar>(
         output_size,
         constants.padding,
         constants.border,
-        style.scrollbar_width,
+        style.scrollbar_width.get(),
         scrollable_overflow,
     )
     .expect("block scroll geometry is derived from finite non-negative layout output")
@@ -1909,7 +1909,7 @@ fn child_node_scroll_geometry<S: LayoutScalar>(
         size,
         padding,
         border,
-        style.scrollbar_width,
+        style.scrollbar_width.get(),
         scrollable_overflow,
     )
     .expect("child scroll geometry is derived from finite non-negative layout output")
@@ -1929,7 +1929,7 @@ fn child_scrollable_overflow<S: LayoutScalar>(
         size,
         padding,
         border,
-        style.scrollbar_width,
+        style.scrollbar_width.get(),
         content_size,
     )
     .expect("child scrollable overflow is derived from finite non-negative layout output");
@@ -2025,7 +2025,7 @@ fn final_content_box_scroll_rect<S: LayoutScalar>(
 ) -> super::ScrollRectOf<S> {
     let reservation = ScrollbarReservationOf::from_overflow(
         style.overflow,
-        style.scrollbar_width,
+        style.scrollbar_width.get(),
         style.direction,
     );
     let inset = content_box_inset_with_scrollbar(padding, border, reservation);
@@ -2515,7 +2515,7 @@ impl<S: LayoutScalar> Constants<S> {
         });
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
-            style.scrollbar_width,
+            style.scrollbar_width.get(),
             style.direction,
         );
         let scrollbar_gutter = scrollbar_reservation.inset();
@@ -2618,7 +2618,7 @@ impl<S: LayoutScalar> Constants<S> {
 }
 
 fn child_scrollbar_size<S: LayoutScalar>(style: &NodeInputOf<S>) -> Size<S> {
-    scrollbar_size_from_overflow(style.overflow, style.scrollbar_width)
+    scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get())
 }
 
 fn resolve_auto_optional<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> Option<S> {

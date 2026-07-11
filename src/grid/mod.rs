@@ -1824,7 +1824,7 @@ impl<S: LayoutScalar> Constants<S> {
         });
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
-            style.scrollbar_width,
+            style.scrollbar_width.get(),
             style.direction,
         );
         let padding_border = padding + border;

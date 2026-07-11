@@ -75,7 +75,7 @@ fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
     };
     let node_input = NodeInput {
         overflow: Point::new(Overflow::Visible, Overflow::Scroll),
-        scrollbar_width: 15.0,
+        scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
         padding: Edges::all(Length::px(2.0)),
         border: Edges::all(Length::px(1.0)),
         ..NodeInput::default()
@@ -104,7 +104,7 @@ fn leaf_layout_preserves_physical_end_scrollbar_gutter_for_rtl() {
     let node_input = NodeInput {
         direction: Direction::Rtl,
         overflow: Point::new(Overflow::Visible, Overflow::Scroll),
-        scrollbar_width: 15.0,
+        scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
         padding: Edges::all(Length::px(2.0)),
         border: Edges::all(Length::px(1.0)),
         ..NodeInput::default()

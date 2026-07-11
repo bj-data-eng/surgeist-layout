@@ -113,7 +113,7 @@ impl<S: LayoutScalar> Constants<S> {
         });
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
-            style.scrollbar_width,
+            style.scrollbar_width.get(),
             style.direction,
         );
         let scrollbar_gutter = Point::new(
@@ -225,11 +225,11 @@ struct CollectedFlexItem<Node, S: LayoutScalar> {
     padding: Edges<S>,
     border: Edges<S>,
     overflow: Point<Overflow>,
-    scrollbar_width: S,
+    scrollbar_width_value: S,
     align_self: AlignItems,
     initial_baseline: S,
-    flex_grow: S,
-    flex_shrink: S,
+    flex_grow_factor: S,
+    flex_shrink_factor: S,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -254,11 +254,11 @@ struct ResolvedFlexItem<Node, S: LayoutScalar> {
     padding: Edges<S>,
     border: Edges<S>,
     overflow: Point<Overflow>,
-    scrollbar_width: S,
+    scrollbar_width_value: S,
     align_self: AlignItems,
     baseline: S,
-    flex_grow: S,
-    flex_shrink: S,
+    flex_grow_factor: S,
+    flex_shrink_factor: S,
     offset_main: S,
     offset_cross: S,
 }
@@ -308,11 +308,11 @@ impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexIte
             padding: item.padding,
             border: item.border,
             overflow: item.overflow,
-            scrollbar_width: item.scrollbar_width,
+            scrollbar_width_value: item.scrollbar_width_value,
             align_self: item.align_self,
             baseline: item.initial_baseline,
-            flex_grow: item.flex_grow,
-            flex_shrink: item.flex_shrink,
+            flex_grow_factor: item.flex_grow_factor,
+            flex_shrink_factor: item.flex_shrink_factor,
             offset_main: S::ZERO,
             offset_cross: S::ZERO,
         }
@@ -549,7 +549,7 @@ where
     let authored_main_size = authored_size.main(direction);
     let flex_basis_uses_padding_floor = resolved_flex_basis.is_some()
         && flex_basis <= padding_border_main
-        && style.flex_grow == Tree::Scalar::ZERO
+        && style.flex_grow.get() == Tree::Scalar::ZERO
         && (tree.child_count(node) > 0 || output.content_size.main(direction) <= flex_basis);
     let intrinsic_main_size = if flex_basis_uses_padding_floor {
         flex_basis
@@ -609,11 +609,11 @@ where
         padding,
         border,
         overflow: style.overflow,
-        scrollbar_width: style.scrollbar_width,
+        scrollbar_width_value: style.scrollbar_width.get(),
         align_self,
         initial_baseline: baseline,
-        flex_grow: style.flex_grow,
-        flex_shrink: style.flex_shrink,
+        flex_grow_factor: style.flex_grow.get(),
+        flex_shrink_factor: style.flex_shrink.get(),
     }
 }
 
@@ -1382,8 +1382,11 @@ fn item_vertical_baseline<S: LayoutScalar>(
     }
 }
 
-fn item_scrollbar_size<S: LayoutScalar>(overflow: Point<Overflow>, scrollbar_width: S) -> Size<S> {
-    scrollbar_size_from_overflow(overflow, scrollbar_width)
+fn item_scrollbar_size<S: LayoutScalar>(
+    overflow: Point<Overflow>,
+    scrollbar_width_value: S,
+) -> Size<S> {
+    scrollbar_size_from_overflow(overflow, scrollbar_width_value)
 }
 
 fn resolve_cross_axis_auto_margins<Node, S: LayoutScalar>(
@@ -1704,7 +1707,7 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
 
     for (item, frozen) in items.iter_mut().zip(&mut frozen) {
         item.target_size = item.target_size.with_main(direction, item.flex_basis);
-        if item.flex_grow == S::ZERO || item.flex_basis > item.hypothetical_main_size {
+        if item.flex_grow_factor == S::ZERO || item.flex_basis > item.hypothetical_main_size {
             item.target_size = item
                 .target_size
                 .with_main(direction, item.hypothetical_main_size);
@@ -1721,7 +1724,7 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
             .iter()
             .zip(&frozen)
             .filter(|(_, frozen)| !**frozen)
-            .map(|(item, _)| item.flex_grow)
+            .map(|(item, _)| item.flex_grow_factor)
             .fold(S::ZERO, |sum, value| sum + value);
         if grow_sum <= S::ZERO {
             return;
@@ -1740,7 +1743,7 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
                 continue;
             }
 
-            let grown_main_size = item.flex_basis + free_space * item.flex_grow / grow_sum;
+            let grown_main_size = item.flex_basis + free_space * item.flex_grow_factor / grow_sum;
             let clamped = clamp_main_size(item, direction, grown_main_size);
             item.target_size = item.target_size.with_main(direction, clamped);
             let violation = clamped - grown_main_size;
@@ -1768,7 +1771,7 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
 
     for (item, frozen) in items.iter_mut().zip(&mut frozen) {
         item.target_size = item.target_size.with_main(direction, item.flex_basis);
-        if item.flex_shrink == S::ZERO || item.flex_basis < item.hypothetical_main_size {
+        if item.flex_shrink_factor == S::ZERO || item.flex_basis < item.hypothetical_main_size {
             item.target_size = item
                 .target_size
                 .with_main(direction, item.hypothetical_main_size);
@@ -1785,13 +1788,13 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
             .iter()
             .zip(&frozen)
             .filter(|(_, frozen)| !**frozen)
-            .map(|(item, _)| item.flex_shrink)
+            .map(|(item, _)| item.flex_shrink_factor)
             .fold(S::ZERO, |sum, value| sum + value);
         let scaled_shrink_sum = items
             .iter()
             .zip(&frozen)
             .filter(|(_, frozen)| !**frozen)
-            .map(|(item, _)| item.flex_shrink * item.flex_basis)
+            .map(|(item, _)| item.flex_shrink_factor * item.flex_basis)
             .fold(S::ZERO, |sum, value| sum + value);
         if shrink_sum <= S::ZERO || scaled_shrink_sum <= S::ZERO {
             return;
@@ -1810,7 +1813,7 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
                 continue;
             }
 
-            let scaled_shrink = item.flex_shrink * item.flex_basis;
+            let scaled_shrink = item.flex_shrink_factor * item.flex_basis;
             let shrunken_main_size =
                 item.flex_basis + free_space * scaled_shrink / scaled_shrink_sum;
             let clamped = clamp_main_size(item, direction, S::max(S::ZERO, shrunken_main_size));
@@ -2198,9 +2201,9 @@ where
         && item.initial_output.content_size.main(direction) > item.flex_basis;
     let clamping_basis =
         Some(style_preferred.map_or(item.flex_basis, |preferred| item.flex_basis.max(preferred)));
-    let flex_basis_min = clamping_basis.filter(|_| item.flex_shrink == Tree::Scalar::ZERO);
+    let flex_basis_min = clamping_basis.filter(|_| item.flex_shrink_factor == Tree::Scalar::ZERO);
     let flex_basis_max = clamping_basis
-        .filter(|_| item.flex_grow == Tree::Scalar::ZERO && !contentful_padding_floor_item);
+        .filter(|_| item.flex_grow_factor == Tree::Scalar::ZERO && !contentful_padding_floor_item);
     let min_main = max_option(style_min, flex_basis_min)
         .unwrap_or(item.automatic_min_main_size.unwrap_or(Tree::Scalar::ZERO))
         .max(item.automatic_min_main_size.unwrap_or(Tree::Scalar::ZERO));
@@ -2209,7 +2212,7 @@ where
         .or(flex_basis_max)
         .unwrap_or(Tree::Scalar::INFINITY);
     if item.flex_basis_is_definite
-        && item.flex_grow == Tree::Scalar::ZERO
+        && item.flex_grow_factor == Tree::Scalar::ZERO
         && item.flex_basis <= padding_border
         && style_min.is_none()
         && tree.child_count(item.node) == 0
@@ -2472,7 +2475,7 @@ where
                 size: output.size,
                 content_size: output.content_size,
                 scroll_geometry: None,
-                scrollbar_size: item_scrollbar_size(item.overflow, item.scrollbar_width),
+                scrollbar_size: item_scrollbar_size(item.overflow, item.scrollbar_width_value),
                 border: item.border,
                 padding: item.padding,
                 margin: item.margin,
@@ -2507,7 +2510,7 @@ fn suppress_padding_floor_flex_basis_content_overflow<Node, S: LayoutScalar>(
         return;
     };
     let padding_border = (item.padding + item.border).sum_axes().main(direction);
-    if item.flex_grow == S::ZERO
+    if item.flex_grow_factor == S::ZERO
         && resolved_flex_basis <= padding_border
         && tree.child_count(item.node) == 0
         && output.size.main(direction) <= item.flex_basis
@@ -2702,7 +2705,7 @@ where
                 size: final_size,
                 content_size: output.content_size,
                 scroll_geometry: None,
-                scrollbar_size: item_scrollbar_size(style.overflow, style.scrollbar_width),
+                scrollbar_size: item_scrollbar_size(style.overflow, style.scrollbar_width.get()),
                 border,
                 padding,
                 margin,

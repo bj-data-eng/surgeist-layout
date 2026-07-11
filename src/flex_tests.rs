@@ -152,7 +152,7 @@ fn f64_flex_layout_preserves_fractional_growth() {
             1,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                flex_grow: 1.0,
+                flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
                 size: Size::new(DimensionOf::px(20.125), DimensionOf::px(10.0)),
                 ..NodeInputOf::<f64>::default()
             },
@@ -161,7 +161,7 @@ fn f64_flex_layout_preserves_fractional_growth() {
             2,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                flex_grow: 3.0,
+                flex_grow: FlexGrowOf::try_new(3.0).unwrap(),
                 size: Size::new(DimensionOf::px(20.125), DimensionOf::px(10.0)),
                 ..NodeInputOf::<f64>::default()
             },
@@ -388,7 +388,7 @@ fn flex_final_content_size_uses_rerun_output() {
     tree.styles.insert(
         1,
         NodeInput {
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -889,7 +889,7 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -897,7 +897,7 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
         3,
         NodeInput {
             display: Display::Block,
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -986,7 +986,7 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             display: Display::Block,
             overflow: Point::new(Overflow::Visible, Overflow::Hidden),
             flex_basis: Dimension::px(0.0),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
             aspect_ratio: AspectRatio::new(1.0),
             ..NodeInput::default()
@@ -996,7 +996,7 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
         3,
         NodeInput {
             display: Display::Block,
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -1085,7 +1085,7 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Clip),
             flex_basis: Dimension::px(0.0),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
             aspect_ratio: AspectRatio::new(1.0),
             ..NodeInput::default()
@@ -1095,7 +1095,7 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
         3,
         NodeInput {
             display: Display::Block,
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -1343,7 +1343,7 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
         NodeInput {
             size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
-            scrollbar_width: 10.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -1351,7 +1351,7 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
         2,
         NodeInput {
             size: Size::new(Dimension::px(0.0), Dimension::px(10.0)),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -1430,7 +1430,7 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
             direction: Direction::Rtl,
             size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
-            scrollbar_width: 10.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -1520,7 +1520,7 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
         NodeInput {
             size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: 7.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(7.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -1931,7 +1931,7 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
         NodeInput {
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
             flex_basis: Dimension::px(150.0),
-            flex_shrink: 1.0,
+            flex_shrink: FlexShrinkOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -2444,7 +2444,7 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             position: Position::Absolute,
             size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: 8.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(8.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -2792,7 +2792,7 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
         2,
         NodeInput {
             size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -2800,7 +2800,7 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
         3,
         NodeInput {
             size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -2895,7 +2895,7 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
         2,
         NodeInput {
             size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
-            flex_grow: 0.5,
+            flex_grow: FlexGrowOf::try_new(0.5).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -3198,7 +3198,7 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
         NodeInput {
             size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
             min_size: Size::new(Dimension::ZERO, Dimension::ZERO),
-            flex_shrink: 0.0,
+            flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -3290,7 +3290,7 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
         NodeInput {
             size: Size::new(Dimension::px(100.0), Dimension::px(10.0)),
             min_size: Size::new(Dimension::ZERO, Dimension::ZERO),
-            flex_shrink: 0.5,
+            flex_shrink: FlexShrinkOf::try_new(0.5).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -3378,7 +3378,7 @@ fn flex_row_wraps_items_into_multiple_lines() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(60.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -3469,7 +3469,7 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(60.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -3558,7 +3558,7 @@ fn flex_row_justifies_items_on_the_main_axis() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(25.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -4012,8 +4012,8 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
         NodeInput {
             size: Size::new(Dimension::AUTO, Dimension::AUTO),
             aspect_ratio: AspectRatio::new(2.0),
-            flex_grow: 0.0,
-            flex_shrink: 0.0,
+            flex_grow: FlexGrowOf::try_new(0.0).unwrap(),
+            flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -4185,8 +4185,8 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
         NodeInput {
             size: Size::new(Dimension::px(50.0), Dimension::px(100.0)),
             aspect_ratio: AspectRatio::new(2.0),
-            flex_grow: 0.0,
-            flex_shrink: 0.0,
+            flex_grow: FlexGrowOf::try_new(0.0).unwrap(),
+            flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -4273,7 +4273,7 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -4363,7 +4363,7 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(50.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -4453,7 +4453,7 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -4550,7 +4550,7 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(80.0), Dimension::AUTO),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -4643,7 +4643,7 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -4814,7 +4814,7 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
             child,
             NodeInput {
                 size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
-                flex_shrink: 0.0,
+                flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
         );
@@ -4899,7 +4899,7 @@ fn flex_row_growth_respects_max_main_size() {
         NodeInput {
             size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
             max_size: Size::new(Dimension::px(60.0), Dimension::AUTO),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -4907,7 +4907,7 @@ fn flex_row_growth_respects_max_main_size() {
         3,
         NodeInput {
             size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
-            flex_grow: 1.0,
+            flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
     );

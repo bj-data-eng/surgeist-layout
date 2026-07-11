@@ -1451,7 +1451,7 @@ where
             margin,
             scrollbar_size: scrollbar_size_from_overflow(
                 child_style.overflow,
-                child_style.scrollbar_width,
+                child_style.scrollbar_width.get(),
             ),
             border,
             padding,

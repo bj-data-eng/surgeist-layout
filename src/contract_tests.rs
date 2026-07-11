@@ -58,7 +58,7 @@ fn node_input_and_output_support_f64_scalar_lane() {
             crate::DimensionOf::percent(0.25),
         ),
         margin: crate::Edges::all(crate::LengthAutoOf::px(2.5)),
-        flex_grow: 1.0,
+        flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
         ..crate::NodeInputOf::<f64>::default()
     };
 
@@ -224,7 +224,7 @@ fn node_input_defaults_match_the_layout_contract() {
         node_input.overflow,
         crate::Point::new(Overflow::Visible, Overflow::Visible)
     );
-    assert_eq!(node_input.scrollbar_width, 0.0);
+    assert_eq!(node_input.scrollbar_width.get(), 0.0);
     assert_eq!(node_input.position, Position::Relative);
     assert_eq!(node_input.inset, Edges::all(LengthAuto::AUTO));
     assert_eq!(node_input.size, Size::new(Dimension::AUTO, Dimension::AUTO));
@@ -243,8 +243,8 @@ fn node_input_defaults_match_the_layout_contract() {
     assert_eq!(node_input.flex_direction, FlexDirection::Row);
     assert_eq!(node_input.flex_wrap, FlexWrap::NoWrap);
     assert_eq!(node_input.flex_basis, Dimension::AUTO);
-    assert_eq!(node_input.flex_grow, 0.0);
-    assert_eq!(node_input.flex_shrink, 1.0);
+    assert_eq!(node_input.flex_grow.get(), 0.0);
+    assert_eq!(node_input.flex_shrink.get(), 1.0);
     assert_eq!(
         node_input.grid_template_columns,
         Vec::<TrackComponent>::new()
@@ -253,6 +253,56 @@ fn node_input_defaults_match_the_layout_contract() {
     assert_eq!(node_input.grid_auto_columns, Vec::<TrackComponent>::new());
     assert_eq!(node_input.grid_auto_rows, Vec::<TrackComponent>::new());
     assert_eq!(node_input.grid_auto_flow, GridAutoFlow::Row);
+}
+
+#[test]
+fn node_input_numeric_wrappers_reject_negative_and_non_finite_values() {
+    fn assert_rejects_invalid<T: core::fmt::Debug + PartialEq>(
+        construct: impl Fn(f32) -> Result<T, NonNegativeFiniteScalarErrorOf<f32>>,
+    ) {
+        assert_eq!(
+            construct(-1.0),
+            Err(NonNegativeFiniteScalarErrorOf::Negative { value: -1.0 })
+        );
+        match construct(f32::NAN) {
+            Err(NonNegativeFiniteScalarErrorOf::NonFinite { value }) => assert!(value.is_nan()),
+            other => panic!("expected non-finite rejection for NaN, got {other:?}"),
+        }
+        assert_eq!(
+            construct(f32::INFINITY),
+            Err(NonNegativeFiniteScalarErrorOf::NonFinite {
+                value: f32::INFINITY
+            })
+        );
+    }
+
+    assert_eq!(ScrollbarWidth::try_new(12.0).unwrap().get(), 12.0);
+    assert_eq!(FlexGrow::try_new(2.0).unwrap().get(), 2.0);
+    assert_eq!(FlexShrink::try_new(0.5).unwrap().get(), 0.5);
+
+    assert_rejects_invalid(ScrollbarWidth::try_new);
+    assert_rejects_invalid(FlexGrow::try_new);
+    assert_rejects_invalid(FlexShrink::try_new);
+}
+
+#[test]
+fn node_input_defaults_use_property_specific_numeric_wrappers() {
+    let node_input = NodeInput::default();
+
+    assert_eq!(node_input.scrollbar_width.get(), 0.0);
+    assert_eq!(node_input.flex_grow.get(), 0.0);
+    assert_eq!(node_input.flex_shrink.get(), 1.0);
+
+    let node_input = NodeInputOf::<f64> {
+        scrollbar_width: crate::ScrollbarWidthOf::try_new(3.0).unwrap(),
+        flex_grow: FlexGrowOf::try_new(4.0).unwrap(),
+        flex_shrink: FlexShrinkOf::try_new(5.0).unwrap(),
+        ..NodeInputOf::<f64>::default()
+    };
+
+    assert_eq!(node_input.scrollbar_width.get(), 3.0);
+    assert_eq!(node_input.flex_grow.get(), 4.0);
+    assert_eq!(node_input.flex_shrink.get(), 5.0);
 }
 
 #[test]

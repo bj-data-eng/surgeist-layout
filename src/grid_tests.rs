@@ -307,7 +307,7 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
         2,
         NodeInput {
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: 10.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -4315,7 +4315,7 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             position: Position::Absolute,
             size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: 12.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(12.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -4945,7 +4945,7 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
                 x: Overflow::Visible,
                 y: Overflow::Scroll,
             },
-            scrollbar_width: 15.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -5018,7 +5018,7 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
             display: Display::Grid,
             size: Size::new(Dimension::px(2.0), Dimension::px(4.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: 15.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
             ..NodeInput::default()
         },
     );
@@ -5103,7 +5103,7 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
         2,
         NodeInput {
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
-            scrollbar_width: 11.0,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(11.0).unwrap(),
             ..NodeInput::default()
         },
     );
