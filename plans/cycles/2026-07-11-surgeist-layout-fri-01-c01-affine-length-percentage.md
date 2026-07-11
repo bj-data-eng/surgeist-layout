@@ -1,6 +1,6 @@
 # FRI-01-C01 Storeless Affine Length-Percentage Values
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-01-C01`
 
