@@ -44,16 +44,34 @@ fn layout_lengths_report_basis_dependency() {
 
 #[test]
 fn layout_lengths_resolve_optional_basis_consistently() {
-    assert_eq!(Length::px(12.0).resolve_or_zero(None), 12.0);
-    assert_eq!(Length::percent(0.25).resolve_or_zero(None), 0.0);
-    assert_eq!(Length::percent(0.25).resolve_or_zero(Some(80.0)), 20.0);
+    assert!(
+        !include_str!("value.rs").contains(concat!("pub fn ", "resolve_or_zero")),
+        "value APIs must not expose public zero fallback resolution"
+    );
+
+    let px_without_basis = Length::px(12.0).resolve_with_status(None);
+    assert_eq!(px_without_basis.value, Some(12.0));
+    assert_eq!(px_without_basis.status(), LengthResolutionStatus::Resolved);
+
+    let percent_without_basis = Length::percent(0.25).resolve_with_status(None);
+    assert_eq!(percent_without_basis.value, None);
+    assert_eq!(
+        percent_without_basis.status(),
+        LengthResolutionStatus::MissingBasis
+    );
+    assert_eq!(
+        Length::percent(0.25).resolve_with_status(Some(80.0)).value,
+        Some(20.0)
+    );
     assert_eq!(Length::percent(0.25).resolve_optional(None), None);
     assert_eq!(
         Length::percent(0.25).resolve_optional(Some(80.0)),
         Some(20.0)
     );
 
-    assert_eq!(LengthAuto::AUTO.resolve_or_zero(Some(80.0)), 0.0);
+    let auto_resolution = LengthAuto::AUTO.resolve_with_status(Some(80.0));
+    assert_eq!(auto_resolution.value, None);
+    assert_eq!(auto_resolution.status(), LengthResolutionStatus::NonNumeric);
     assert_eq!(
         LengthAuto::percent(0.25).resolve_optional(Some(80.0)),
         Some(20.0)

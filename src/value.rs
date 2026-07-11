@@ -473,30 +473,10 @@ impl<S: LayoutScalar> LengthOf<S> {
     }
 
     #[must_use]
-    pub(crate) fn resolve_scalar_or_zero_against(self, basis: PercentageBasisOf<S>) -> S {
-        match self {
-            Self::Normal => S::ZERO,
-            Self::Value(value) => match value.resolve_against(basis) {
-                NumericResolutionOf::Resolved(value) => value,
-                NumericResolutionOf::MissingBasis { .. } => S::ZERO,
-                NumericResolutionOf::InvalidNumeric { .. } => S::ZERO,
-            },
-        }
-    }
-
-    #[must_use]
     pub fn resolve(self, basis: S) -> LengthResolutionOf<S> {
         match PercentageBasisOf::definite(basis) {
             Ok(basis) => self.resolve_against(basis),
             Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
-        }
-    }
-
-    #[must_use]
-    pub fn resolve_or_zero(self, basis: Option<S>) -> S {
-        match optional_basis(basis) {
-            Ok(basis) => self.resolve_scalar_or_zero_against(basis),
-            Err(_) => S::ZERO,
         }
     }
 
@@ -595,11 +575,6 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
             Ok(basis) => self.resolve_against(basis),
             Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
         }
-    }
-
-    #[must_use]
-    pub fn resolve_or_zero(self, basis: Option<S>) -> S {
-        self.resolve_optional(basis).unwrap_or(S::ZERO)
     }
 
     #[must_use]
