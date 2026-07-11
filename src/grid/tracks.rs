@@ -1,5 +1,7 @@
 use super::*;
-use crate::{LengthOf, MaxTrackSizingOf, MinTrackSizingOf};
+use crate::{
+    LengthOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf,
+};
 #[derive(Clone, Copy)]
 pub(super) struct IntrinsicGrid<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) style: &'a NodeInputOf<S>,
@@ -1167,16 +1169,12 @@ where
         let column_span = &column_tracks[area.column..area.column_end.min(column_tracks.len())];
         let row_span = &row_tracks[area.row..area.row_end.min(row_tracks.len())];
         let spans_percent_column = constants.node_inner_size.width.is_none()
-            && {
-                column_span
-                    .iter()
-                    .any(|track| track_has_percent_sizing(track))
-            }
+            && { column_span.iter().any(track_has_percent_sizing) }
             && !column_span
                 .iter()
                 .any(|track| track_accepts_intrinsic_contribution(*track));
         let spans_percent_row = constants.node_inner_size.height.is_none()
-            && { row_span.iter().any(|track| track_has_percent_sizing(track)) }
+            && { row_span.iter().any(track_has_percent_sizing) }
             && !row_span
                 .iter()
                 .any(|track| track_accepts_intrinsic_contribution(*track));
@@ -2082,17 +2080,17 @@ pub(super) fn track_base_size_for_intrinsics<S: LayoutScalar>(
     let min = track_min_size_for_intrinsics(track.min, basis, min_intrinsic, max_intrinsic);
     let max_base = match track.max {
         MaxTrackSizingOf::Length(length) => {
-            length.resolve_with(basis).unwrap_or_else(|| match length {
+            resolution_or_else(length.resolve_with_status(basis), || match length {
                 length if length.depends_on_basis() => max_intrinsic,
                 LengthOf::Normal => S::ZERO,
-                LengthOf::Value(_) => length.resolve_with(None).unwrap_or(S::ZERO),
+                LengthOf::Value(_) => resolution_or_zero(length.resolve_with_status(None)),
             })
         }
         MaxTrackSizingOf::Flex(_) => S::ZERO,
         MaxTrackSizingOf::Auto | MaxTrackSizingOf::MaxContent => max_intrinsic,
         MaxTrackSizingOf::MinContent => min_intrinsic,
         MaxTrackSizingOf::FitContent(limit) => {
-            let limit = limit.resolve_with(basis).unwrap_or(max_intrinsic);
+            let limit = resolution_or_fallback(limit.resolve_with_status(basis), max_intrinsic);
             max_intrinsic.min(limit)
         }
     };
@@ -2106,7 +2104,7 @@ pub(super) fn track_min_size_for_intrinsics<S: LayoutScalar>(
     max_intrinsic: S,
 ) -> S {
     match min {
-        MinTrackSizingOf::Length(length) => length.resolve_with(basis).unwrap_or(S::ZERO),
+        MinTrackSizingOf::Length(length) => resolution_or_zero(length.resolve_with_status(basis)),
         MinTrackSizingOf::Auto | MinTrackSizingOf::MaxContent => max_intrinsic,
         MinTrackSizingOf::MinContent => min_intrinsic,
     }
@@ -2132,7 +2130,7 @@ pub(super) fn track_growth_limit_for_intrinsics<S: LayoutScalar>(
 ) -> Option<S> {
     match track.max {
         MaxTrackSizingOf::Length(length) | MaxTrackSizingOf::FitContent(length) => {
-            length.resolve_with(basis).or(match length {
+            resolution_optional(length.resolve_with_status(basis)).or(match length {
                 length if length.depends_on_basis() => Some(max_intrinsic),
                 LengthOf::Normal => Some(S::ZERO),
                 LengthOf::Value(_) => None,
@@ -2157,7 +2155,7 @@ pub(super) fn resolve_fit_content_tracks<S: LayoutScalar>(
             MaxTrackSizingOf::FitContent(limit) => {
                 let min_content = intrinsic_at(min_intrinsic_sizes, index);
                 let max_content = intrinsic_at(max_intrinsic_sizes, index);
-                let limit = limit.resolve_with(basis).unwrap_or(max_content);
+                let limit = resolution_or_fallback(limit.resolve_with_status(basis), max_content);
                 max_content.min(min_content.max(limit))
             }
             _ => track_base_size_for_intrinsics(
@@ -2448,13 +2446,13 @@ pub(super) fn track_base_size<S: LayoutScalar>(
 ) -> S {
     let min = track_min_size(track.min, basis, intrinsic);
     let max_base = match track.max {
-        MaxTrackSizingOf::Length(length) => length.resolve_with(basis).unwrap_or(S::ZERO),
+        MaxTrackSizingOf::Length(length) => resolution_or_zero(length.resolve_with_status(basis)),
         MaxTrackSizingOf::Flex(_) => S::ZERO,
         MaxTrackSizingOf::Auto | MaxTrackSizingOf::MinContent | MaxTrackSizingOf::MaxContent => {
             intrinsic
         }
         MaxTrackSizingOf::FitContent(limit) => {
-            let limit = limit.resolve_with(basis).unwrap_or(intrinsic);
+            let limit = resolution_or_fallback(limit.resolve_with_status(basis), intrinsic);
             intrinsic.min(limit)
         }
     };
@@ -2467,7 +2465,7 @@ pub(super) fn track_min_size<S: LayoutScalar>(
     intrinsic: S,
 ) -> S {
     match min {
-        MinTrackSizingOf::Length(length) => length.resolve_with(basis).unwrap_or(S::ZERO),
+        MinTrackSizingOf::Length(length) => resolution_or_zero(length.resolve_with_status(basis)),
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {
             intrinsic
         }
@@ -2480,19 +2478,47 @@ pub(super) fn track_growth_limit<S: LayoutScalar>(
     intrinsic: S,
 ) -> Option<S> {
     match track.max {
-        MaxTrackSizingOf::Length(length) => length.resolve_with(basis),
+        MaxTrackSizingOf::Length(length) => resolution_optional(length.resolve_with_status(basis)),
         MaxTrackSizingOf::FitContent(limit) => {
             let min = track_min_size(track.min, basis, intrinsic);
-            Some(
-                intrinsic
-                    .max(min)
-                    .min(limit.resolve_with(basis).unwrap_or(intrinsic)),
-            )
+            Some(intrinsic.max(min).min(resolution_or_fallback(
+                limit.resolve_with_status(basis),
+                intrinsic,
+            )))
         }
         MaxTrackSizingOf::Flex(_)
         | MaxTrackSizingOf::Auto
         | MaxTrackSizingOf::MinContent
         | MaxTrackSizingOf::MaxContent => None,
+    }
+}
+
+fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
+    resolution_or_fallback(resolution, S::ZERO)
+}
+
+fn resolution_or_fallback<S: LayoutScalar>(resolution: LengthResolutionOf<S>, fallback: S) -> S {
+    resolution_or_else(resolution, || fallback)
+}
+
+fn resolution_or_else<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+    fallback: impl FnOnce() -> S,
+) -> S {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution
+            .value
+            .expect("resolved length resolution must carry a value"),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => fallback(),
+        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+    }
+}
+
+fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution.value,
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => None,
+        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
     }
 }
 

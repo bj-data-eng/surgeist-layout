@@ -445,7 +445,7 @@ where
                         Some(physical_area_size.width),
                         Some(physical_area_size.height),
                     ),
-                    |length, basis| resolve_auto_optional(length, basis),
+                    resolve_auto_optional,
                 ),
                 style.direction,
                 child_style.position,

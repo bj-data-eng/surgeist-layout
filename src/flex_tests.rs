@@ -190,6 +190,49 @@ fn f64_flex_layout_preserves_fractional_growth() {
 }
 
 #[test]
+#[should_panic(expected = "invalid numeric length resolution")]
+fn flex_margin_resolution_panics_on_invalid_affine_numeric_result() {
+    let invalid_margin =
+        LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX).expect("finite coefficients");
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Flex,
+                size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                margin: Edges {
+                    left: LengthAuto::value(invalid_margin),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+                size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 20.0)));
+
+    compute_flex(
+        &mut tree,
+        1,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::NONE,
+            parent: Size::new(Some(120.0), Some(40.0)),
+            available: Size::new(Available::definite(120.0), Available::definite(40.0)),
+        },
+    );
+}
+
+#[test]
 fn flex_content_size_includes_visible_child_overflow_content() {
     #[derive(Default)]
     struct FlexTree {

@@ -13,11 +13,6 @@ impl CacheKeyContext {
     pub const fn new() -> Self {
         Self
     }
-
-    #[must_use]
-    pub const fn static_no_calc() -> Self {
-        Self
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -57,7 +57,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         type Scalar = Scalar;
 
         fn cache_context(&self) -> crate::CacheKeyContext {
-            crate::CacheKeyContext::static_no_calc()
+            crate::CacheKeyContext::new()
         }
 
         fn cache_get(
@@ -106,7 +106,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-        crate::CacheKeyContext::static_no_calc(),
+        crate::CacheKeyContext::new(),
         ComputeOutput::from_outer_size(Size::new(1.0, 1.0)),
     );
 
@@ -173,7 +173,7 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
         type Scalar = Scalar;
 
         fn cache_context(&self) -> crate::CacheKeyContext {
-            crate::CacheKeyContext::static_no_calc()
+            crate::CacheKeyContext::new()
         }
 
         fn cache_get(
@@ -282,7 +282,7 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
         type Scalar = Scalar;
 
         fn cache_context(&self) -> crate::CacheKeyContext {
-            crate::CacheKeyContext::static_no_calc()
+            crate::CacheKeyContext::new()
         }
 
         fn cache_get(
@@ -395,7 +395,7 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
         type Scalar = f64;
 
         fn cache_context(&self) -> crate::CacheKeyContext {
-            crate::CacheKeyContext::static_no_calc()
+            crate::CacheKeyContext::new()
         }
 
         fn cache_get(
@@ -441,7 +441,7 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
             parent: Size::NONE,
             available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
         },
-        crate::CacheKeyContext::static_no_calc(),
+        crate::CacheKeyContext::new(),
         ComputeOutputOf::from_outer_size(Size::new(1.25, 1.5)),
     );
 

@@ -13,7 +13,7 @@ fn cache_test_input() -> ComputeInput {
 }
 
 fn static_cache_context() -> CacheKeyContext {
-    CacheKeyContext::static_no_calc()
+    CacheKeyContext::new()
 }
 
 #[test]
@@ -202,13 +202,13 @@ fn cached_compute_uses_tree_cache_before_running_expensive_layout() {
 fn f64_cache_context_remains_tree_context_only() {
     let context = CacheKeyContext::new();
 
-    assert_eq!(context, CacheKeyContext::static_no_calc());
+    assert_eq!(context, CacheKeyContext);
 }
 
 #[test]
 fn f64_cache_key_distinguishes_available_values_that_collide_as_f32() {
     let mut cache = CacheOf::<f64>::new();
-    let context = CacheKeyContext::static_no_calc();
+    let context = CacheKeyContext::new();
     let base = ComputeInputOf {
         run_mode: RunMode::ComputeSize,
         sizing_mode: SizingMode::ContentSize,

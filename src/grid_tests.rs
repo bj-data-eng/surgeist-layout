@@ -19,6 +19,10 @@ fn lp(absolute_px: Scalar, percent_fraction: Scalar) -> LengthPercentageOf {
         .expect("test coefficients are finite")
 }
 
+fn invalid_numeric_lp() -> LengthPercentageOf {
+    LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX).expect("test coefficients are finite")
+}
+
 fn baseline_measure(
     width: Scalar,
     height: Scalar,
@@ -12972,6 +12976,61 @@ fn basis_dependent_affine_max_track_uses_max_intrinsic_resolution() {
     let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0]);
 
     assert_eq!(sizes, vec![99.0]);
+}
+
+#[test]
+#[should_panic(expected = "invalid numeric length resolution")]
+fn track_intrinsic_min_resolution_panics_on_invalid_affine_numeric_result() {
+    track_min_size_for_intrinsics(
+        MinTrackSizing::Length(Length::value(invalid_numeric_lp())),
+        Some(2.0),
+        11.0,
+        99.0,
+    );
+}
+
+#[test]
+#[should_panic(expected = "invalid numeric length resolution")]
+fn track_intrinsic_max_resolution_panics_on_invalid_affine_numeric_result() {
+    track_base_size_for_intrinsics(
+        TrackSizing::new(
+            MinTrackSizing::MinContent,
+            MaxTrackSizing::Length(Length::value(invalid_numeric_lp())),
+        ),
+        Some(2.0),
+        11.0,
+        99.0,
+    );
+}
+
+#[test]
+#[should_panic(expected = "invalid numeric length resolution")]
+fn track_fit_content_limit_panics_on_invalid_affine_numeric_result() {
+    track_growth_limit(
+        TrackSizing::new(
+            MinTrackSizing::MinContent,
+            MaxTrackSizing::FitContent(Length::value(invalid_numeric_lp())),
+        ),
+        Some(2.0),
+        99.0,
+    );
+}
+
+#[test]
+#[should_panic(expected = "invalid numeric length resolution")]
+fn grid_lane_track_base_panics_on_invalid_affine_numeric_result() {
+    lane_intrinsic_sizing(LaneIntrinsicSizingInput {
+        axis: GridAxisKind::Column,
+        available: Some(2.0),
+        gap: 0.0,
+        tracks: vec![TrackSizing::new(
+            MinTrackSizing::Length(Length::value(invalid_numeric_lp())),
+            MaxTrackSizing::Auto,
+        )],
+        content_sized_tracks: vec![0],
+        items: Vec::new(),
+    })
+    .expect("lane intrinsic sizing should not return before track initialization");
 }
 
 fn subgrid_track() -> Vec<TrackComponent> {

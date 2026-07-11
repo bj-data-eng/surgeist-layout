@@ -1,6 +1,9 @@
 use super::*;
 use crate::scroll::scrollbar_size_from_overflow;
-use crate::{GridFlowToleranceOf, MaxTrackSizingOf, MinTrackSizingOf};
+use crate::{
+    GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
+    MinTrackSizingOf,
+};
 use std::num::NonZeroUsize;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -679,10 +682,22 @@ fn masonry_track_maximum_size<S: LayoutScalar>(
 
 fn initialized_track_base<S: LayoutScalar>(track: TrackSizingOf<S>, available: Option<S>) -> S {
     match track.min {
-        MinTrackSizingOf::Length(length) => length.resolve_with(available).unwrap_or(S::ZERO),
+        MinTrackSizingOf::Length(length) => {
+            resolution_or_zero(length.resolve_with_status(available))
+        }
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {
             S::ZERO
         }
+    }
+}
+
+fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution
+            .value
+            .expect("resolved length resolution must carry a value"),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => S::ZERO,
+        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
     }
 }
 
@@ -1385,7 +1400,7 @@ where
         let relative_offset = relative_inset_offset(
             child_style.inset.zip_size(
                 Size::new(Some(area_size.width), Some(area_size.height)),
-                |length, basis| resolve_auto_optional(length, basis),
+                resolve_auto_optional,
             ),
             style.direction,
             child_style.position,

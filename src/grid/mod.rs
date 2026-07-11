@@ -1,9 +1,10 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, DefaultScalar, DimensionOf, Direction, Display, Edges,
-    GridAutoFlow, GridPlacement, LayoutScalar, LengthAutoOf, LengthOf, MaxTrackSizingOf,
-    MinTrackSizingOf, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode,
-    Scalar, Size, SizingMode, TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
+    GridAutoFlow, GridPlacement, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
+    LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf, NodeOutputOf,
+    Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size, SizingMode, TrackComponentOf,
+    TrackRepeat, TrackSizingOf, Traverse,
 };
 use crate::scroll::{ScrollbarReservationOf, content_box_inset_with_scrollbar};
 
@@ -1512,9 +1513,7 @@ where
         (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
     let layout_gap = { resolved_layout_gap(style, constants, layout_content_box_size, gap) };
     let rerun_percent_columns = constants.node_inner_size.width.is_none() && {
-        column_tracks
-            .iter()
-            .any(|track| track_has_percent_sizing(track))
+        column_tracks.iter().any(track_has_percent_sizing)
     };
     let (layout_column_min_intrinsic_sizes, layout_column_max_intrinsic_sizes) =
         if layout_gap != gap || rerun_percent_columns {
@@ -1886,19 +1885,37 @@ impl<S: LayoutScalar> Constants<S> {
 }
 
 fn resolve_length_or_zero<S: LayoutScalar>(length: LengthOf<S>, basis: Option<S>) -> S {
-    length.resolve_with(basis).unwrap_or(S::ZERO)
+    resolution_or_zero(length.resolve_with_status(basis))
 }
 
 fn resolve_auto_or_zero<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> S {
-    length.resolve_with(basis).unwrap_or(S::ZERO)
+    resolution_or_zero(length.resolve_with_status(basis))
 }
 
 fn resolve_auto_optional<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> Option<S> {
-    length.resolve_with(basis)
+    resolution_optional(length.resolve_with_status(basis))
 }
 
 fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
-    dimension.resolve_with(basis)
+    resolution_optional(dimension.resolve_with_status(basis))
+}
+
+fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution
+            .value
+            .expect("resolved length resolution must carry a value"),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => S::ZERO,
+        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+    }
+}
+
+fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => resolution.value,
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => None,
+        LengthResolutionStatus::InvalidNumeric => panic!("invalid numeric length resolution"),
+    }
 }
 
 trait SizeOptionExt {
