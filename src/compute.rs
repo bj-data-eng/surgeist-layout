@@ -1,6 +1,6 @@
 use super::{
-    AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, Compute, ComputeInputOf, ComputeOutputOf,
-    DefaultScalar, Direction, LayoutInputOf, LayoutScalar, LengthResolutionOf,
+    AspectRatioOf, AvailableOf, Axis, BoxSizing, CacheAccess, Compute, ComputeInputOf,
+    ComputeOutputOf, DefaultScalar, Direction, LayoutInputOf, LayoutScalar, LengthResolutionOf,
     LengthResolutionStatus, NodeInputOf, NodeOutputOf, NonNegativeFiniteOf,
     NonNegativeFiniteScalarErrorOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
 };
@@ -9,6 +9,120 @@ use crate::scroll::{
     scroll_geometry_from_layout, scroll_rect_union, scrollable_overflow_from_layout_content_size,
     scrollbar_size_from_overflow,
 };
+
+pub type LayoutResultOf<Node, T, S, M> = Result<T, LayoutErrorOf<Node, S, M>>;
+pub type LayoutResult<Node, T, M> = LayoutResultOf<Node, T, DefaultScalar, M>;
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayoutErrorOf<Node, S: LayoutScalar = DefaultScalar, M = core::convert::Infallible> {
+    site: LayoutErrorSiteOf<Node>,
+    operation: LayoutOperation,
+    kind: LayoutErrorKindOf<S, M>,
+}
+
+pub type LayoutError<Node, M = core::convert::Infallible> = LayoutErrorOf<Node, DefaultScalar, M>;
+
+impl<Node, S, M> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    pub const fn new(
+        site: LayoutErrorSiteOf<Node>,
+        operation: LayoutOperation,
+        kind: LayoutErrorKindOf<S, M>,
+    ) -> Self {
+        Self {
+            site,
+            operation,
+            kind,
+        }
+    }
+
+    #[must_use]
+    pub const fn site(&self) -> LayoutErrorSiteOf<Node>
+    where
+        Node: Copy,
+    {
+        self.site
+    }
+
+    #[must_use]
+    pub const fn operation(&self) -> LayoutOperation {
+        self.operation
+    }
+
+    #[must_use]
+    pub const fn kind(&self) -> &LayoutErrorKindOf<S, M> {
+        &self.kind
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LayoutErrorSiteOf<Node> {
+    Node(Node),
+    ContainerSubject { container: Node, subject: Node },
+    Standalone,
+}
+
+pub type LayoutErrorSite<Node> = LayoutErrorSiteOf<Node>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LayoutOperation {
+    RootLayout,
+    ChildLayout,
+    HiddenLayout,
+    LeafMeasurement,
+    ValueResolution,
+    CacheAccess,
+    RoundingFinalization,
+    GridLanePlacement,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum LayoutErrorKindOf<S: LayoutScalar = DefaultScalar, M = core::convert::Infallible> {
+    InvalidInput(LayoutInvalidInputOf<S>),
+    MissingContext(LayoutMissingContext),
+    UnsupportedCapability(LayoutUnsupportedCapability),
+    Measurement(M),
+    InternalInvariant(LayoutInternalInvariant),
+}
+
+pub type LayoutErrorKind<M = core::convert::Infallible> = LayoutErrorKindOf<DefaultScalar, M>;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum LayoutInvalidInputOf<S: LayoutScalar = DefaultScalar> {
+    RootAvailability {
+        axis: Axis,
+        error: NonNegativeFiniteScalarErrorOf<S>,
+    },
+    MeasurementOutput(InvalidMeasurementOutputOf<S>),
+    InvalidNumeric {
+        value: S,
+    },
+}
+
+pub type LayoutInvalidInput = LayoutInvalidInputOf<DefaultScalar>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum LayoutMissingContext {
+    RequiredBasis,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum LayoutUnsupportedCapability {
+    LaterFriBehavior,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum LayoutInternalInvariant {
+    InvalidRootScrollGeometry,
+    InvalidRoundedScrollGeometry,
+}
 
 pub fn compute_hidden<Tree>(
     tree: &mut Tree,

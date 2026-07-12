@@ -33,7 +33,10 @@ pub type Scalar = DefaultScalar;
 pub use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
 pub use compute::{
-    InvalidMeasurementOutput, InvalidMeasurementOutputOf, LeafMeasureError, LeafMeasureErrorOf,
+    InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,
+    LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSite, LayoutErrorSiteOf, LayoutInternalInvariant,
+    LayoutInvalidInput, LayoutInvalidInputOf, LayoutMissingContext, LayoutOperation, LayoutResult,
+    LayoutResultOf, LayoutUnsupportedCapability, LeafMeasureError, LeafMeasureErrorOf,
     LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable, MeasurementAvailableOf,
     compute_hidden, compute_leaf, compute_root, round_layout,
 };
@@ -60,8 +63,13 @@ pub use node_input::{
     VerticalAlign, WritingMode,
 };
 pub use output::{
-    Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, ComputeInput, ComputeInputOf,
-    ComputeOutput, ComputeOutputOf, NodeOutput, NodeOutputOf, RequestedAxis, RunMode, SizingMode,
+    Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, CompletedLayoutBatch,
+    CompletedLayoutBatchOf, ComputeInput, ComputeInputOf, ComputeOutput, ComputeOutputOf,
+    FlexItemRootContext, FlexItemRootContextOf, LayoutCacheClearEntry, LayoutCacheStoreEntry,
+    LayoutCacheStoreEntryOf, LayoutOutputEntry, LayoutOutputEntryOf, LayoutRootContext,
+    LayoutRootContextOf, LayoutRootRequest, LayoutRootRequestOf, LayoutRoundingMode, NodeOutput,
+    NodeOutputOf, RequestedAxis, RootAvailabilityError, RootAvailabilityErrorOf, RunMode,
+    SizingMode,
 };
 /// Supported scalar contract for generic layout APIs.
 pub use scalar::LayoutScalar;

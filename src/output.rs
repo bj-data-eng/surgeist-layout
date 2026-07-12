@@ -1,4 +1,7 @@
-use super::{AvailableOf, DefaultScalar, Edges, LayoutScalar, Point, ScrollGeometryOf, Size};
+use super::{
+    AvailableOf, Axis, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
+    NonNegativeFiniteScalarErrorOf, Point, ScrollGeometryOf, Size,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RunMode {
@@ -55,6 +58,154 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
         parent: Size::NONE,
         available: Size::splat(AvailableOf::MAX_CONTENT),
     };
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum LayoutRoundingMode {
+    #[default]
+    NearestCssPixel,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RootAvailabilityErrorOf<S: LayoutScalar = DefaultScalar> {
+    axis: Axis,
+    scalar: NonNegativeFiniteScalarErrorOf<S>,
+}
+
+pub type RootAvailabilityError = RootAvailabilityErrorOf<DefaultScalar>;
+
+impl<S: LayoutScalar> RootAvailabilityErrorOf<S> {
+    #[must_use]
+    pub const fn axis(&self) -> Axis {
+        self.axis
+    }
+
+    #[must_use]
+    pub const fn scalar(&self) -> NonNegativeFiniteScalarErrorOf<S> {
+        self.scalar
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FlexItemRootContextOf<S: LayoutScalar = DefaultScalar> {
+    viewport_available: Size<AvailableOf<S>>,
+}
+
+pub type FlexItemRootContext = FlexItemRootContextOf<DefaultScalar>;
+
+impl<S: LayoutScalar> FlexItemRootContextOf<S> {
+    pub fn under_viewport(
+        viewport_available: Size<AvailableOf<S>>,
+    ) -> Result<Self, RootAvailabilityErrorOf<S>> {
+        Ok(Self {
+            viewport_available: validate_root_available_size(viewport_available)?,
+        })
+    }
+
+    #[must_use]
+    pub const fn viewport_available(&self) -> Size<AvailableOf<S>> {
+        self.viewport_available
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LayoutRootContextOf<S: LayoutScalar = DefaultScalar> {
+    Viewport,
+    FlexItemUnderViewport(FlexItemRootContextOf<S>),
+}
+
+pub type LayoutRootContext = LayoutRootContextOf<DefaultScalar>;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LayoutRootRequestOf<S: LayoutScalar = DefaultScalar> {
+    available: Size<AvailableOf<S>>,
+    context: LayoutRootContextOf<S>,
+    rounding_mode: LayoutRoundingMode,
+}
+
+pub type LayoutRootRequest = LayoutRootRequestOf<DefaultScalar>;
+
+impl<S: LayoutScalar> LayoutRootRequestOf<S> {
+    pub fn viewport(available: Size<AvailableOf<S>>) -> Result<Self, RootAvailabilityErrorOf<S>> {
+        Self::new(
+            available,
+            LayoutRootContextOf::Viewport,
+            LayoutRoundingMode::NearestCssPixel,
+        )
+    }
+
+    pub fn flex_item_under_viewport(
+        available: Size<AvailableOf<S>>,
+        context: FlexItemRootContextOf<S>,
+    ) -> Result<Self, RootAvailabilityErrorOf<S>> {
+        Self::new(
+            available,
+            LayoutRootContextOf::FlexItemUnderViewport(context),
+            LayoutRoundingMode::NearestCssPixel,
+        )
+    }
+
+    pub fn with_rounding_mode(
+        self,
+        rounding_mode: LayoutRoundingMode,
+    ) -> Result<Self, RootAvailabilityErrorOf<S>> {
+        Self::new(self.available, self.context, rounding_mode)
+    }
+
+    fn new(
+        available: Size<AvailableOf<S>>,
+        context: LayoutRootContextOf<S>,
+        rounding_mode: LayoutRoundingMode,
+    ) -> Result<Self, RootAvailabilityErrorOf<S>> {
+        Ok(Self {
+            available: validate_root_available_size(available)?,
+            context,
+            rounding_mode,
+        })
+    }
+
+    #[must_use]
+    pub const fn available(&self) -> Size<AvailableOf<S>> {
+        self.available
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> LayoutRootContextOf<S> {
+        self.context
+    }
+
+    #[must_use]
+    pub const fn rounding_mode(&self) -> LayoutRoundingMode {
+        self.rounding_mode
+    }
+}
+
+fn validate_root_available_size<S>(
+    available: Size<AvailableOf<S>>,
+) -> Result<Size<AvailableOf<S>>, RootAvailabilityErrorOf<S>>
+where
+    S: LayoutScalar,
+{
+    Ok(Size::new(
+        validate_root_available_axis(Axis::Horizontal, available.width)?,
+        validate_root_available_axis(Axis::Vertical, available.height)?,
+    ))
+}
+
+fn validate_root_available_axis<S>(
+    axis: Axis,
+    available: AvailableOf<S>,
+) -> Result<AvailableOf<S>, RootAvailabilityErrorOf<S>>
+where
+    S: LayoutScalar,
+{
+    match available {
+        AvailableOf::Definite(value) => NonNegativeFiniteOf::new(value)
+            .map(|value| AvailableOf::Definite(value.get()))
+            .map_err(|scalar| RootAvailabilityErrorOf { axis, scalar }),
+        AvailableOf::MinContent => Ok(AvailableOf::MinContent),
+        AvailableOf::MaxContent => Ok(AvailableOf::MaxContent),
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -276,5 +427,133 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
 impl<S: LayoutScalar> Default for NodeOutputOf<S> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LayoutOutputEntryOf<Node, S: LayoutScalar = DefaultScalar> {
+    node: Node,
+    output: NodeOutputOf<S>,
+}
+
+pub type LayoutOutputEntry<Node> = LayoutOutputEntryOf<Node, DefaultScalar>;
+
+impl<Node, S> LayoutOutputEntryOf<Node, S>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    #[cfg(test)]
+    pub(crate) const fn new(node: Node, output: NodeOutputOf<S>) -> Self {
+        Self { node, output }
+    }
+
+    #[must_use]
+    pub const fn node(&self) -> Node {
+        self.node
+    }
+
+    #[must_use]
+    pub const fn output(&self) -> NodeOutputOf<S> {
+        self.output
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LayoutCacheStoreEntryOf<Node, S: LayoutScalar = DefaultScalar> {
+    node: Node,
+    output: ComputeOutputOf<S>,
+}
+
+pub type LayoutCacheStoreEntry<Node> = LayoutCacheStoreEntryOf<Node, DefaultScalar>;
+
+impl<Node, S> LayoutCacheStoreEntryOf<Node, S>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    #[cfg(test)]
+    pub(crate) const fn new(node: Node, output: ComputeOutputOf<S>) -> Self {
+        Self { node, output }
+    }
+
+    #[must_use]
+    pub const fn node(&self) -> Node {
+        self.node
+    }
+
+    #[must_use]
+    pub const fn output(&self) -> ComputeOutputOf<S> {
+        self.output
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LayoutCacheClearEntry<Node> {
+    node: Node,
+}
+
+impl<Node> LayoutCacheClearEntry<Node>
+where
+    Node: Copy,
+{
+    #[cfg(test)]
+    pub(crate) const fn new(node: Node) -> Self {
+        Self { node }
+    }
+
+    #[must_use]
+    pub const fn node(&self) -> Node {
+        self.node
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CompletedLayoutBatchOf<Node, S: LayoutScalar = DefaultScalar> {
+    unrounded_entries: Vec<LayoutOutputEntryOf<Node, S>>,
+    final_entries: Vec<LayoutOutputEntryOf<Node, S>>,
+    cache_store_entries: Vec<LayoutCacheStoreEntryOf<Node, S>>,
+    cache_clear_entries: Vec<LayoutCacheClearEntry<Node>>,
+}
+
+pub type CompletedLayoutBatch<Node> = CompletedLayoutBatchOf<Node, DefaultScalar>;
+
+impl<Node, S> CompletedLayoutBatchOf<Node, S>
+where
+    S: LayoutScalar,
+{
+    #[cfg(test)]
+    pub(crate) fn from_entries(
+        unrounded_entries: Vec<LayoutOutputEntryOf<Node, S>>,
+        final_entries: Vec<LayoutOutputEntryOf<Node, S>>,
+        cache_store_entries: Vec<LayoutCacheStoreEntryOf<Node, S>>,
+        cache_clear_entries: Vec<LayoutCacheClearEntry<Node>>,
+    ) -> Self {
+        Self {
+            unrounded_entries,
+            final_entries,
+            cache_store_entries,
+            cache_clear_entries,
+        }
+    }
+
+    #[must_use]
+    pub fn unrounded_entries(&self) -> &[LayoutOutputEntryOf<Node, S>] {
+        &self.unrounded_entries
+    }
+
+    #[must_use]
+    pub fn final_entries(&self) -> &[LayoutOutputEntryOf<Node, S>] {
+        &self.final_entries
+    }
+
+    #[must_use]
+    pub fn cache_store_entries(&self) -> &[LayoutCacheStoreEntryOf<Node, S>] {
+        &self.cache_store_entries
+    }
+
+    #[must_use]
+    pub fn cache_clear_entries(&self) -> &[LayoutCacheClearEntry<Node>] {
+        &self.cache_clear_entries
     }
 }

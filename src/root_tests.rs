@@ -4,6 +4,85 @@ use crate::test_support::layout_tree::OracleTreeOf;
 use crate::*;
 
 #[test]
+fn root_request_rejects_invalid_definite_availability() {
+    let cases = [
+        (
+            Size::new(Available::definite(-1.0), Available::MAX_CONTENT),
+            Axis::Horizontal,
+            NonNegativeFiniteScalarErrorOf::Negative { value: -1.0 },
+        ),
+        (
+            Size::new(Available::definite(f32::NAN), Available::MAX_CONTENT),
+            Axis::Horizontal,
+            NonNegativeFiniteScalarErrorOf::NonFinite { value: f32::NAN },
+        ),
+        (
+            Size::new(Available::MAX_CONTENT, Available::definite(f32::INFINITY)),
+            Axis::Vertical,
+            NonNegativeFiniteScalarErrorOf::NonFinite {
+                value: f32::INFINITY,
+            },
+        ),
+    ];
+
+    for (available, axis, scalar_error) in cases {
+        let error = LayoutRootRequest::viewport(available).unwrap_err();
+
+        assert_eq!(error.axis(), axis);
+        match (error.scalar(), scalar_error) {
+            (
+                NonNegativeFiniteScalarErrorOf::Negative { value },
+                NonNegativeFiniteScalarErrorOf::Negative { value: expected },
+            ) => assert_eq!(value, expected),
+            (
+                NonNegativeFiniteScalarErrorOf::NonFinite { value },
+                NonNegativeFiniteScalarErrorOf::NonFinite { value: expected },
+            ) => {
+                if expected.is_nan() {
+                    assert!(value.is_nan());
+                } else {
+                    assert_eq!(value, expected);
+                }
+            }
+            (actual, expected) => panic!("expected {expected:?}, got {actual:?}"),
+        }
+    }
+
+    let valid_viewport = Size::new(Available::definite(100.0), Available::definite(80.0));
+    let flex_context = FlexItemRootContext::under_viewport(valid_viewport).unwrap();
+    let error = LayoutRootRequest::flex_item_under_viewport(
+        Size::new(Available::definite(-2.0), Available::MAX_CONTENT),
+        flex_context,
+    )
+    .unwrap_err();
+    assert_eq!(error.axis(), Axis::Horizontal);
+    assert_eq!(
+        error.scalar(),
+        NonNegativeFiniteScalarErrorOf::Negative { value: -2.0 }
+    );
+}
+
+#[test]
+fn root_request_preserves_distinct_validated_contexts_and_rounding_policy() {
+    let available = Size::new(Available::definite(640.0), Available::definite(480.0));
+    let viewport = LayoutRootRequest::viewport(available).unwrap();
+    let flex_context = FlexItemRootContext::under_viewport(available).unwrap();
+    let flex_item = LayoutRootRequest::flex_item_under_viewport(available, flex_context).unwrap();
+
+    assert_eq!(viewport.available(), available);
+    assert_eq!(
+        viewport.rounding_mode(),
+        LayoutRoundingMode::NearestCssPixel
+    );
+    assert_eq!(viewport.context(), LayoutRootContext::Viewport);
+    assert_eq!(
+        flex_item.context(),
+        LayoutRootContext::FlexItemUnderViewport(flex_context)
+    );
+    assert_eq!(flex_context.viewport_available(), available);
+}
+
+#[test]
 fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
     #[derive(Default)]
     struct HiddenTree {
