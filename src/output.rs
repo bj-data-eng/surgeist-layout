@@ -1,10 +1,10 @@
 use super::{
-    AvailableOf, Axis, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
+    AvailableOf, Axis, CacheKeyContext, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
     NonNegativeFiniteScalarErrorOf, Point, ScrollGeometryOf, Size,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RunMode {
+pub(crate) enum RunMode {
     PerformRootLayout,
     PerformLayout,
     ComputeSize,
@@ -25,13 +25,13 @@ impl RunMode {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SizingMode {
+pub(crate) enum SizingMode {
     ContentSize,
     InherentSize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RequestedAxis {
+pub(crate) enum RequestedAxis {
     Horizontal,
     Vertical,
     Both,
@@ -39,18 +39,18 @@ pub enum RequestedAxis {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
-    pub run_mode: RunMode,
-    pub sizing_mode: SizingMode,
-    pub axis: RequestedAxis,
-    pub known: Size<Option<S>>,
-    pub parent: Size<Option<S>>,
-    pub available: Size<AvailableOf<S>>,
+    pub(crate) run_mode: RunMode,
+    pub(crate) sizing_mode: SizingMode,
+    pub(crate) axis: RequestedAxis,
+    pub(crate) known: Size<Option<S>>,
+    pub(crate) parent: Size<Option<S>>,
+    pub(crate) available: Size<AvailableOf<S>>,
 }
 
 pub type ComputeInput = ComputeInputOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ComputeInputOf<S> {
-    pub const HIDDEN: Self = Self {
+    pub(crate) const HIDDEN: Self = Self {
         run_mode: RunMode::PerformHiddenLayout,
         sizing_mode: SizingMode::InherentSize,
         axis: RequestedAxis::Both,
@@ -58,6 +58,36 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
         parent: Size::NONE,
         available: Size::splat(AvailableOf::MAX_CONTENT),
     };
+
+    pub fn leaf_layout(
+        known: Size<Option<S>>,
+        parent: Size<Option<S>>,
+        available: Size<AvailableOf<S>>,
+    ) -> Result<Self, RootAvailabilityErrorOf<S>> {
+        Ok(Self {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: validate_optional_size(known)?,
+            parent: validate_optional_size(parent)?,
+            available: validate_root_available_size(available)?,
+        })
+    }
+
+    pub fn leaf_content_size(
+        known: Size<Option<S>>,
+        parent: Size<Option<S>>,
+        available: Size<AvailableOf<S>>,
+    ) -> Result<Self, RootAvailabilityErrorOf<S>> {
+        Ok(Self {
+            run_mode: RunMode::ComputeSize,
+            sizing_mode: SizingMode::ContentSize,
+            axis: RequestedAxis::Both,
+            known: validate_optional_size(known)?,
+            parent: validate_optional_size(parent)?,
+            available: validate_root_available_size(available)?,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -190,6 +220,34 @@ where
         validate_root_available_axis(Axis::Horizontal, available.width)?,
         validate_root_available_axis(Axis::Vertical, available.height)?,
     ))
+}
+
+fn validate_optional_size<S>(
+    size: Size<Option<S>>,
+) -> Result<Size<Option<S>>, RootAvailabilityErrorOf<S>>
+where
+    S: LayoutScalar,
+{
+    Ok(Size::new(
+        validate_optional_axis(Axis::Horizontal, size.width)?,
+        validate_optional_axis(Axis::Vertical, size.height)?,
+    ))
+}
+
+fn validate_optional_axis<S>(
+    axis: Axis,
+    value: Option<S>,
+) -> Result<Option<S>, RootAvailabilityErrorOf<S>>
+where
+    S: LayoutScalar,
+{
+    value
+        .map(|value| {
+            NonNegativeFiniteOf::new(value)
+                .map(NonNegativeFiniteOf::get)
+                .map_err(|scalar| RootAvailabilityErrorOf { axis, scalar })
+        })
+        .transpose()
 }
 
 fn validate_root_available_axis<S>(
@@ -443,7 +501,6 @@ where
     Node: Copy,
     S: LayoutScalar,
 {
-    #[cfg(test)]
     pub(crate) const fn new(node: Node, output: NodeOutputOf<S>) -> Self {
         Self { node, output }
     }
@@ -462,6 +519,8 @@ where
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LayoutCacheStoreEntryOf<Node, S: LayoutScalar = DefaultScalar> {
     node: Node,
+    input: ComputeInputOf<S>,
+    context: CacheKeyContext,
     output: ComputeOutputOf<S>,
 }
 
@@ -472,14 +531,33 @@ where
     Node: Copy,
     S: LayoutScalar,
 {
-    #[cfg(test)]
-    pub(crate) const fn new(node: Node, output: ComputeOutputOf<S>) -> Self {
-        Self { node, output }
+    pub(crate) const fn new(
+        node: Node,
+        input: ComputeInputOf<S>,
+        context: CacheKeyContext,
+        output: ComputeOutputOf<S>,
+    ) -> Self {
+        Self {
+            node,
+            input,
+            context,
+            output,
+        }
     }
 
     #[must_use]
     pub const fn node(&self) -> Node {
         self.node
+    }
+
+    #[must_use]
+    pub const fn input(&self) -> &ComputeInputOf<S> {
+        &self.input
+    }
+
+    #[must_use]
+    pub const fn context(&self) -> CacheKeyContext {
+        self.context
     }
 
     #[must_use]
@@ -497,7 +575,6 @@ impl<Node> LayoutCacheClearEntry<Node>
 where
     Node: Copy,
 {
-    #[cfg(test)]
     pub(crate) const fn new(node: Node) -> Self {
         Self { node }
     }
@@ -522,7 +599,6 @@ impl<Node, S> CompletedLayoutBatchOf<Node, S>
 where
     S: LayoutScalar,
 {
-    #[cfg(test)]
     pub(crate) fn from_entries(
         unrounded_entries: Vec<LayoutOutputEntryOf<Node, S>>,
         final_entries: Vec<LayoutOutputEntryOf<Node, S>>,

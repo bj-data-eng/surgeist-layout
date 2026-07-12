@@ -182,7 +182,12 @@ fn leaf_measurement_provider_error_is_preserved() {
     })
     .unwrap_err();
 
-    assert_eq!(error, LeafMeasureErrorOf::Provider("provider failed"));
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::Measurement("provider failed")
+    );
 }
 
 #[test]
@@ -201,7 +206,10 @@ fn leaf_measurement_rejects_negative_provider_width() {
     })
     .unwrap_err();
 
-    let LeafMeasureErrorOf::InvalidOutput(error) = error else {
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    let LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(error)) = error.kind()
+    else {
         panic!("expected invalid measurement output");
     };
     assert_eq!(error.axis(), Axis::Horizontal);
@@ -227,7 +235,10 @@ fn leaf_measurement_rejects_nan_provider_height() {
     })
     .unwrap_err();
 
-    let LeafMeasureErrorOf::InvalidOutput(error) = error else {
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    let LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(error)) = error.kind()
+    else {
         panic!("expected invalid measurement output");
     };
     assert_eq!(error.axis(), Axis::Vertical);
@@ -343,7 +354,11 @@ fn f64_leaf_measurement_rejects_infinite_provider_height() {
     })
     .unwrap_err();
 
-    let LeafMeasureErrorOf::InvalidOutput(error) = error else {
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    let LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::MeasurementOutput(error)) =
+        error.kind()
+    else {
         panic!("expected invalid measurement output");
     };
     assert_eq!(error.axis(), Axis::Vertical);

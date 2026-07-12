@@ -1,16 +1,20 @@
 use super::{
     AspectRatioOf, AvailableOf, Axis, BoxSizing, CacheAccess, Compute, ComputeInputOf,
-    ComputeOutputOf, DefaultScalar, Direction, LayoutInputOf, LayoutScalar, LengthResolutionOf,
-    LengthResolutionStatus, NodeInputOf, NodeOutputOf, NonNegativeFiniteOf,
-    NonNegativeFiniteScalarErrorOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
+    ComputeOutputOf, DefaultScalar, Direction, Edges, LayoutCacheClearEntry,
+    LayoutCacheStoreEntryOf, LayoutInputOf, LayoutOutputEntryOf, LayoutRootContextOf,
+    LayoutRootRequestOf, LayoutScalar, LengthResolutionOf, LengthResolutionStatus, NodeInputOf,
+    NodeOutputOf, NonNegativeFiniteOf, NonNegativeFiniteScalarErrorOf, Point, Position, Round,
+    RunMode, Size, SizingMode, Traverse,
 };
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, round_scroll_geometry,
     scroll_geometry_from_layout, scroll_rect_union, scrollable_overflow_from_layout_content_size,
     scrollbar_size_from_overflow,
 };
+use crate::{CompletedLayoutBatchOf, LayoutTree};
 
-pub type LayoutResultOf<Node, T, S, M> = Result<T, LayoutErrorOf<Node, S, M>>;
+pub type LayoutResultOf<Node, T, S, M = core::convert::Infallible> =
+    Result<T, LayoutErrorOf<Node, S, M>>;
 pub type LayoutResult<Node, T, M> = LayoutResultOf<Node, T, DefaultScalar, M>;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -122,15 +126,315 @@ pub enum LayoutUnsupportedCapability {
 pub enum LayoutInternalInvariant {
     InvalidRootScrollGeometry,
     InvalidRoundedScrollGeometry,
+    MissingLeafMeasurementProvider,
+    MissingStagedUnroundedOutput,
+    SubgridTrackInheritance,
+    SubgridBaselineInheritance,
 }
 
-pub fn compute_hidden<Tree>(
+#[expect(
+    clippy::type_complexity,
+    reason = "the public root boundary preserves the tree node, scalar, and provider error types"
+)]
+pub fn compute_layout<Tree>(
+    tree: &Tree,
+    root: Tree::Node,
+    request: LayoutRootRequestOf<Tree::Scalar>,
+) -> LayoutResultOf<
+    Tree::Node,
+    CompletedLayoutBatchOf<Tree::Node, Tree::Scalar>,
+    Tree::Scalar,
+    Tree::MeasureError,
+>
+where
+    Tree: LayoutTree,
+{
+    let mut session = ComputeSession::new(tree);
+    match request.context() {
+        LayoutRootContextOf::Viewport => {
+            compute_root(&mut session, root, request.available())?;
+        }
+        LayoutRootContextOf::FlexItemUnderViewport(context) => {
+            compute_flex_item_root(&mut session, root, request.available(), context)?;
+        }
+    }
+
+    match request.rounding_mode() {
+        super::LayoutRoundingMode::NearestCssPixel => round_layout(&mut session, root)?,
+    }
+
+    Ok(session.complete())
+}
+
+struct ComputeSession<'a, Tree>
+where
+    Tree: LayoutTree,
+{
+    tree: &'a Tree,
+    unrounded_entries: Vec<LayoutOutputEntryOf<Tree::Node, Tree::Scalar>>,
+    final_entries: Vec<LayoutOutputEntryOf<Tree::Node, Tree::Scalar>>,
+    cache_store_entries: Vec<LayoutCacheStoreEntryOf<Tree::Node, Tree::Scalar>>,
+    cache_clear_entries: Vec<LayoutCacheClearEntry<Tree::Node>>,
+}
+
+impl<'a, Tree> ComputeSession<'a, Tree>
+where
+    Tree: LayoutTree,
+{
+    fn new(tree: &'a Tree) -> Self {
+        Self {
+            tree,
+            unrounded_entries: Vec::new(),
+            final_entries: Vec::new(),
+            cache_store_entries: Vec::new(),
+            cache_clear_entries: Vec::new(),
+        }
+    }
+
+    fn complete(self) -> CompletedLayoutBatchOf<Tree::Node, Tree::Scalar> {
+        CompletedLayoutBatchOf::from_entries(
+            self.unrounded_entries,
+            self.final_entries,
+            self.cache_store_entries,
+            self.cache_clear_entries,
+        )
+    }
+
+    fn compute_child_uncached(
+        &mut self,
+        node: Tree::Node,
+        input: ComputeInputOf<Tree::Scalar>,
+    ) -> LayoutResultOf<Tree::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, Tree::MeasureError>
+    {
+        let style = self.node_input(node).clone();
+        if self.tree.has_leaf_measurement(node) {
+            return self.compute_tree_leaf(node, input, &style);
+        }
+
+        match style.display.inner_display() {
+            super::Display::Block => crate::block::compute_block(self, node, input),
+            super::Display::Flex => crate::flex::compute_flex(self, node, input),
+            super::Display::Grid | super::Display::GridLanes => {
+                crate::grid::compute_grid(self, node, input)
+            }
+            super::Display::None => compute_hidden(self, node),
+            super::Display::InlineBlock
+            | super::Display::InlineGrid
+            | super::Display::InlineGridLanes => {
+                unreachable!("inner_display removes inline display variants")
+            }
+        }
+    }
+
+    fn compute_tree_leaf(
+        &self,
+        node: Tree::Node,
+        input: ComputeInputOf<Tree::Scalar>,
+        style: &NodeInputOf<Tree::Scalar>,
+    ) -> LayoutResultOf<Tree::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, Tree::MeasureError>
+    {
+        let resolved = resolve_leaf_values_for_input(input, style)
+            .map_err(|status| value_resolution_error(node, status))?;
+
+        let site = LayoutErrorSiteOf::Node(node);
+        compute_leaf_with_resolved_values(site, input, style, resolved, |measure_input| match self
+            .tree
+            .measure_leaf(node, measure_input)
+        {
+            Some(Ok(output)) => Ok(output),
+            Some(Err(error)) => Err(LayoutErrorOf::new(
+                site,
+                LayoutOperation::LeafMeasurement,
+                LayoutErrorKindOf::Measurement(error),
+            )),
+            None => Err(LayoutErrorOf::new(
+                site,
+                LayoutOperation::LeafMeasurement,
+                LayoutErrorKindOf::InternalInvariant(
+                    LayoutInternalInvariant::MissingLeafMeasurementProvider,
+                ),
+            )),
+        })
+    }
+}
+
+pub(crate) fn value_resolution_error<Node, S, M>(
+    node: Node,
+    status: LengthResolutionStatus<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    value_resolution_error_at_site(LayoutErrorSiteOf::Node(node), status)
+}
+
+pub(crate) fn value_resolution_error_at_site<Node, S, M>(
+    site: LayoutErrorSiteOf<Node>,
+    status: LengthResolutionStatus<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let kind = match status {
+        LengthResolutionStatus::MissingBasis => {
+            LayoutErrorKindOf::MissingContext(LayoutMissingContext::RequiredBasis)
+        }
+        LengthResolutionStatus::InvalidNumeric { value } => {
+            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric { value })
+        }
+        LengthResolutionStatus::NonNumeric => {
+            LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
+        }
+        LengthResolutionStatus::Resolved => {
+            LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry)
+        }
+    };
+
+    LayoutErrorOf::new(site, LayoutOperation::ValueResolution, kind)
+}
+
+impl<Tree> Traverse for ComputeSession<'_, Tree>
+where
+    Tree: LayoutTree,
+{
+    type Node = Tree::Node;
+    type Scalar = Tree::Scalar;
+    type Children<'b>
+        = Tree::Children<'b>
+    where
+        Self: 'b;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.tree.children(node)
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.tree.child_count(node)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.tree.child(node, index)
+    }
+}
+
+impl<Tree> Compute<Tree::MeasureError> for ComputeSession<'_, Tree>
+where
+    Tree: LayoutTree,
+{
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar> {
+        self.tree.node_input(node)
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        self.tree.layout_input(node)
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>) {
+        self.unrounded_entries
+            .push(LayoutOutputEntryOf::new(node, layout));
+    }
+
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<Self::Scalar>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, Tree::MeasureError>
+    {
+        let style = self.node_input(node).clone();
+        if input.run_mode == RunMode::PerformHiddenLayout || style.display == super::Display::None {
+            return compute_hidden(self, node);
+        }
+
+        if input.run_mode.is_perform_layout() && self.child_count(node) != 0 {
+            return self.compute_child_uncached(node, input);
+        }
+
+        crate::traits::compute_cached(self, node, input, |session, node, input| {
+            session.compute_child_uncached(node, input)
+        })
+    }
+}
+
+impl<Tree> Round<Tree::MeasureError> for ComputeSession<'_, Tree>
+where
+    Tree: LayoutTree,
+{
+    fn unrounded(
+        &self,
+        node: Self::Node,
+    ) -> LayoutResultOf<Self::Node, NodeOutputOf<Self::Scalar>, Self::Scalar, Tree::MeasureError>
+    {
+        self.unrounded_entries
+            .iter()
+            .rev()
+            .find(|entry| entry.node() == node)
+            .map(LayoutOutputEntryOf::output)
+            .ok_or_else(|| {
+                LayoutErrorOf::new(
+                    LayoutErrorSiteOf::Node(node),
+                    LayoutOperation::RoundingFinalization,
+                    LayoutErrorKindOf::InternalInvariant(
+                        LayoutInternalInvariant::MissingStagedUnroundedOutput,
+                    ),
+                )
+            })
+    }
+
+    fn set_final(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>) {
+        self.final_entries
+            .push(LayoutOutputEntryOf::new(node, layout));
+    }
+}
+
+impl<Tree> CacheAccess<Tree::MeasureError> for ComputeSession<'_, Tree>
+where
+    Tree: LayoutTree,
+{
+    type Node = Tree::Node;
+    type Scalar = Tree::Scalar;
+
+    fn cache_context(&self) -> super::CacheKeyContext {
+        self.tree.cache_context()
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<Self::Scalar>,
+        context: super::CacheKeyContext,
+    ) -> Option<ComputeOutputOf<Self::Scalar>> {
+        self.tree.cache_get(node, input, context)
+    }
+
+    fn cache_store(
+        &mut self,
+        node: Self::Node,
+        input: &ComputeInputOf<Self::Scalar>,
+        context: super::CacheKeyContext,
+        output: ComputeOutputOf<Self::Scalar>,
+    ) {
+        self.cache_store_entries
+            .push(LayoutCacheStoreEntryOf::new(node, *input, context, output));
+    }
+
+    fn cache_clear(&mut self, node: Self::Node) {
+        self.cache_clear_entries
+            .push(LayoutCacheClearEntry::new(node));
+    }
+}
+
+pub(crate) fn compute_hidden<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-) -> ComputeOutputOf<<Tree as Traverse>::Scalar>
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    ComputeOutputOf<<Tree as Traverse>::Scalar>,
+    <Tree as Traverse>::Scalar,
+    M,
+>
 where
-    Tree:
-        Compute + CacheAccess<Node = <Tree as Traverse>::Node, Scalar = <Tree as Traverse>::Scalar>,
+    Tree: Compute<M>
+        + CacheAccess<M, Node = <Tree as Traverse>::Node, Scalar = <Tree as Traverse>::Scalar>,
 {
     tree.cache_clear(node);
     tree.set_unrounded(node, NodeOutputOf::with_order(0));
@@ -139,7 +443,7 @@ where
         let child = tree.child(node, index);
         match tree.layout_input(child) {
             LayoutInputOf::Box(_) => {
-                tree.compute_child(child, ComputeInputOf::HIDDEN);
+                tree.compute_child(child, ComputeInputOf::HIDDEN)?;
             }
             LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
@@ -148,18 +452,22 @@ where
         }
     }
 
-    ComputeOutputOf::HIDDEN
+    Ok(ComputeOutputOf::HIDDEN)
 }
 
-pub fn compute_root<Tree>(
+pub(crate) fn compute_root<Tree, M>(
     tree: &mut Tree,
     root: <Tree as Traverse>::Node,
     available: Size<AvailableOf<Tree::Scalar>>,
-) where
-    Tree: Compute,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), <Tree as Traverse>::Scalar, M>
+where
+    Tree: Compute<M>,
 {
     let style = tree.node_input(root).clone();
-    let known = Size::new(root_known_width(&style, available.width), None);
+    let known = Size::new(
+        root_known_width::<Tree, M>(tree, root, &style, available.width)?,
+        None,
+    );
     let output = tree.compute_child(
         root,
         ComputeInputOf {
@@ -170,18 +478,27 @@ pub fn compute_root<Tree>(
             parent: available.map(AvailableOf::into_option),
             available,
         },
-    );
+    )?;
     let parent_width = available.width.into_option();
     let inline_basis = Size::splat(parent_width);
-    let padding = style.padding.zip_size(inline_basis, |length, basis| {
-        resolve_length_or_zero(length, basis)
-    });
-    let border = style.border.zip_size(inline_basis, |length, basis| {
-        resolve_length_or_zero(length, basis)
-    });
-    let margin = style.margin.zip_size(inline_basis, |length, basis| {
-        resolve_auto_or_zero(length, basis)
-    });
+    let padding = style
+        .padding
+        .zip_size(inline_basis, |length, basis| {
+            resolve_length_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, root)?;
+    let border = style
+        .border
+        .zip_size(inline_basis, |length, basis| {
+            resolve_length_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, root)?;
+    let margin = style
+        .margin
+        .zip_size(inline_basis, |length, basis| {
+            resolve_auto_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, root)?;
     let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get());
     let scrollable_overflow = scrollable_overflow_from_layout_content_size(
         style.direction,
@@ -238,27 +555,74 @@ pub fn compute_root<Tree>(
             margin,
         },
     );
+    Ok(())
 }
 
-fn root_known_width<S>(style: &NodeInputOf<S>, available_width: AvailableOf<S>) -> Option<S>
+fn compute_flex_item_root<Tree, M>(
+    tree: &mut Tree,
+    root: <Tree as Traverse>::Node,
+    available: Size<AvailableOf<Tree::Scalar>>,
+    context: super::FlexItemRootContextOf<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), <Tree as Traverse>::Scalar, M>
 where
-    S: LayoutScalar,
+    Tree: Compute<M>,
+{
+    let output = tree.compute_child(
+        root,
+        ComputeInputOf {
+            run_mode: RunMode::PerformRootLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: super::RequestedAxis::Both,
+            known: Size::NONE,
+            parent: context.viewport_available().map(AvailableOf::into_option),
+            available,
+        },
+    )?;
+    tree.set_unrounded(
+        root,
+        NodeOutputOf {
+            order: 0,
+            location: Point::ZERO,
+            size: output.size,
+            content_size: output.content_size,
+            ..NodeOutputOf::new()
+        },
+    );
+    Ok(())
+}
+
+fn root_known_width<Tree, M>(
+    tree: &Tree,
+    node: <Tree as Traverse>::Node,
+    style: &NodeInputOf<Tree::Scalar>,
+    available_width: AvailableOf<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, Option<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
 {
     if style.display.is_inline_level()
         || !style.size.width.is_auto()
         || !style.min_size.width.is_auto()
     {
-        return None;
+        return Ok(None);
     }
 
-    let available_width = available_width.into_option()?;
+    let Some(available_width) = available_width.into_option() else {
+        return Ok(None);
+    };
     let parent = Size::splat(Some(available_width));
-    let padding = style.padding.zip_inline_size(parent, |length, basis| {
-        resolve_length_or_zero(length, basis)
-    });
-    let border = style.border.zip_inline_size(parent, |length, basis| {
-        resolve_length_or_zero(length, basis)
-    });
+    let padding = style
+        .padding
+        .zip_inline_size(parent, |length, basis| {
+            resolve_length_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, node)?;
+    let border = style
+        .border
+        .zip_inline_size(parent, |length, basis| {
+            resolve_length_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, node)?;
     let padding_border_size = (padding + border).sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border_size
@@ -268,29 +632,34 @@ where
     let max_size = style
         .max_size
         .zip_map(parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
+            resolve_dimension_fallible(dimension, basis)
         })
+        .transpose_with_node(tree, node)?
         .add_optional(box_sizing_adjustment);
 
-    Some(available_width.clamp_optional(None, max_size.width))
+    Ok(Some(available_width.clamp_optional(None, max_size.width)))
 }
 
-pub fn round_layout<Tree>(tree: &mut Tree, root: <Tree as Traverse>::Node)
+pub(crate) fn round_layout<Tree, M>(
+    tree: &mut Tree,
+    root: <Tree as Traverse>::Node,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), <Tree as Traverse>::Scalar, M>
 where
-    Tree: Round,
+    Tree: Round<M>,
 {
-    round_layout_inner(tree, root, Tree::Scalar::ZERO, Tree::Scalar::ZERO);
+    round_layout_inner(tree, root, Tree::Scalar::ZERO, Tree::Scalar::ZERO)
 }
 
-fn round_layout_inner<Tree>(
+fn round_layout_inner<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     cumulative_x: Tree::Scalar,
     cumulative_y: Tree::Scalar,
-) where
-    Tree: Round,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), <Tree as Traverse>::Scalar, M>
+where
+    Tree: Round<M>,
 {
-    let unrounded = tree.unrounded(node);
+    let unrounded = tree.unrounded(node)?;
     let mut layout = unrounded;
     let cumulative_x = cumulative_x + unrounded.location.x;
     let cumulative_y = cumulative_y + unrounded.location.y;
@@ -321,14 +690,23 @@ fn round_layout_inner<Tree>(
         .scroll_geometry
         .map(|geometry| round_scroll_geometry(geometry, Point::new(cumulative_x, cumulative_y)))
         .transpose()
-        .expect("rounded scroll geometry remains finite and non-negative");
+        .map_err(|_| {
+            LayoutErrorOf::new(
+                LayoutErrorSiteOf::Node(node),
+                LayoutOperation::RoundingFinalization,
+                LayoutErrorKindOf::InternalInvariant(
+                    LayoutInternalInvariant::InvalidRoundedScrollGeometry,
+                ),
+            )
+        })?;
 
     tree.set_final(node, layout);
 
     for index in 0..tree.child_count(node) {
         let child = tree.child(node, index);
-        round_layout_inner(tree, child, cumulative_x, cumulative_y);
+        round_layout_inner(tree, child, cumulative_x, cumulative_y)?;
     }
+    Ok(())
 }
 
 #[inline]
@@ -390,14 +768,14 @@ impl<S: LayoutScalar> MeasurementAvailableOf<S> {
         }
     }
 
-    fn from_content_space(value: AvailableOf<S>) -> Self {
+    fn from_content_space(value: AvailableOf<S>) -> Result<Self, S> {
         match value {
-            AvailableOf::Definite(value) => Self::Definite(
-                NonNegativeFiniteOf::new(finite_floor_at_zero(value))
-                    .expect("content-space availability is finite and non-negative"),
-            ),
-            AvailableOf::MinContent => Self::MinContent,
-            AvailableOf::MaxContent => Self::MaxContent,
+            AvailableOf::Definite(value) => Ok(Self::Definite(
+                NonNegativeFiniteOf::new(finite_floor_at_zero(value)?)
+                    .expect("finite content-space availability is non-negative"),
+            )),
+            AvailableOf::MinContent => Ok(Self::MinContent),
+            AvailableOf::MaxContent => Ok(Self::MaxContent),
         }
     }
 }
@@ -430,35 +808,32 @@ impl<S: LayoutScalar> InvalidMeasurementOutputOf<S> {
     }
 }
 
-pub fn compute_leaf<S, M>(
+struct LeafResolvedValues<S: LayoutScalar> {
+    margin: Edges<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    node_size: Size<Option<S>>,
+    node_min_size: Size<Option<S>>,
+    node_max_size: Size<Option<S>>,
+    aspect_ratio: Option<AspectRatioOf<S>>,
+}
+
+fn resolve_leaf_values<S, E>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
-    measure: impl FnOnce(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
-) -> Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>
+    resolve_auto: impl Fn(super::LengthAutoOf<S>, Option<S>) -> Result<S, E>,
+    resolve_length: impl Fn(super::LengthOf<S>, Option<S>) -> Result<S, E>,
+    resolve_dimension: impl Fn(super::DimensionOf<S>, Option<S>) -> Result<Option<S>, E>,
+) -> Result<LeafResolvedValues<S>, E>
 where
     S: LayoutScalar,
 {
-    let margin = style.margin.zip_inline_size(input.parent, |length, basis| {
-        resolve_auto_or_zero(length, basis)
-    });
-    let padding = style
-        .padding
-        .zip_inline_size(input.parent, |length, basis| {
-            resolve_length_or_zero(length, basis)
-        });
-    let border = style.border.zip_inline_size(input.parent, |length, basis| {
-        resolve_length_or_zero(length, basis)
-    });
+    let margin = transpose_leaf_edges(style.margin.zip_inline_size(input.parent, resolve_auto))?;
+    let padding =
+        transpose_leaf_edges(style.padding.zip_inline_size(input.parent, &resolve_length))?;
+    let border = transpose_leaf_edges(style.border.zip_inline_size(input.parent, resolve_length))?;
     let padding_border = padding + border;
     let padding_border_size = padding_border.sum_axes();
-    let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
-        style.overflow,
-        style.scrollbar_width.get(),
-        Direction::Ltr,
-    );
-    let content_box_inset =
-        content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
-    let content_box_inset_size = content_box_inset.sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border_size
     } else {
@@ -468,25 +843,22 @@ where
     let (node_size, node_min_size, node_max_size, aspect_ratio) = match input.sizing_mode {
         SizingMode::ContentSize => (input.known, Size::NONE, Size::NONE, None),
         SizingMode::InherentSize => {
-            let style_size = style
-                .size
-                .zip_map(input.parent, |dimension, basis| {
+            let style_size =
+                transpose_leaf_size(style.size.zip_map(input.parent, |dimension, basis| {
                     resolve_dimension(dimension, basis)
-                })
+                }))?
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
-            let style_min_size = style
-                .min_size
-                .zip_map(input.parent, |dimension, basis| {
+            let style_min_size =
+                transpose_leaf_size(style.min_size.zip_map(input.parent, |dimension, basis| {
                     resolve_dimension(dimension, basis)
-                })
+                }))?
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
-            let style_max_size = style
-                .max_size
-                .zip_map(input.parent, |dimension, basis| {
+            let style_max_size =
+                transpose_leaf_size(style.max_size.zip_map(input.parent, |dimension, basis| {
                     resolve_dimension(dimension, basis)
-                })
+                }))?
                 .add_optional(box_sizing_adjustment);
 
             (
@@ -497,6 +869,100 @@ where
             )
         }
     };
+
+    Ok(LeafResolvedValues {
+        margin,
+        padding,
+        border,
+        node_size,
+        node_min_size,
+        node_max_size,
+        aspect_ratio,
+    })
+}
+
+fn resolve_leaf_values_for_input<S>(
+    input: ComputeInputOf<S>,
+    style: &NodeInputOf<S>,
+) -> Result<LeafResolvedValues<S>, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    resolve_leaf_values(
+        input,
+        style,
+        |length, basis| resolve_leaf_auto(input, length, basis),
+        |length, basis| resolve_leaf_length(input, length, basis),
+        |dimension, basis| resolve_leaf_dimension(input, dimension, basis),
+    )
+}
+
+fn transpose_leaf_edges<S, E>(edges: Edges<Result<S, E>>) -> Result<Edges<S>, E> {
+    Ok(Edges::new(
+        edges.top?,
+        edges.right?,
+        edges.bottom?,
+        edges.left?,
+    ))
+}
+
+fn transpose_leaf_size<S, E>(size: Size<Result<Option<S>, E>>) -> Result<Size<Option<S>>, E> {
+    Ok(Size::new(size.width?, size.height?))
+}
+
+pub fn compute_leaf<S, M>(
+    input: ComputeInputOf<S>,
+    style: &NodeInputOf<S>,
+    measure: impl FnOnce(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
+) -> LayoutResultOf<(), ComputeOutputOf<S>, S, M>
+where
+    S: LayoutScalar,
+{
+    let site = LayoutErrorSiteOf::Standalone;
+    let resolved = resolve_leaf_values_for_input(input, style)
+        .map_err(|status| value_resolution_error_at_site(site, status))?;
+
+    compute_leaf_with_resolved_values(site, input, style, resolved, |measure_input| {
+        measure(measure_input).map_err(|error| {
+            LayoutErrorOf::new(
+                site,
+                LayoutOperation::LeafMeasurement,
+                LayoutErrorKindOf::Measurement(error),
+            )
+        })
+    })
+}
+
+fn compute_leaf_with_resolved_values<Node, S, M>(
+    site: LayoutErrorSiteOf<Node>,
+    input: ComputeInputOf<S>,
+    style: &NodeInputOf<S>,
+    resolved: LeafResolvedValues<S>,
+    measure: impl FnOnce(LeafMeasureInputOf<S>) -> LayoutResultOf<Node, Size<S>, S, M>,
+) -> LayoutResultOf<Node, ComputeOutputOf<S>, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    let LeafResolvedValues {
+        margin,
+        padding,
+        border,
+        node_size,
+        node_min_size,
+        node_max_size,
+        aspect_ratio,
+    } = resolved;
+    let padding_border = padding + border;
+    let padding_border_size = padding_border.sum_axes();
+    let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
+        style.overflow,
+        style.scrollbar_width.get(),
+        Direction::Ltr,
+    );
+    let content_box_inset =
+        content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
+    let content_box_inset_size = content_box_inset.sum_axes();
 
     let prevents_margin_collapse = style.display != super::Display::Block
         || style.overflow.x.blocks_margin_collapse()
@@ -549,23 +1015,30 @@ where
             }),
     );
 
-    let measurement_input = LeafMeasureInputOf {
-        known_content_size: match input.run_mode {
-            RunMode::ComputeSize => input.known,
-            RunMode::PerformRootLayout | RunMode::PerformLayout => Size::NONE,
-            RunMode::PerformHiddenLayout => {
-                unreachable!("hidden layout uses ComputeOutput::HIDDEN")
-            }
+    let known_content_size = match input.run_mode {
+        RunMode::ComputeSize => input.known,
+        RunMode::PerformRootLayout | RunMode::PerformLayout => Size::NONE,
+        RunMode::PerformHiddenLayout => {
+            unreachable!("hidden layout uses ComputeOutput::HIDDEN")
         }
-        .zip_map(content_box_inset_size, |value, inset| {
-            value.map(|value| finite_floor_at_zero(value - inset))
-        }),
-        available_content_size: available.map(MeasurementAvailableOf::from_content_space),
+    }
+    .zip_map(content_box_inset_size, |value, inset| {
+        value.map(|value| finite_floor_at_zero(value - inset))
+    });
+    let known_content_size =
+        transpose_leaf_known_content_size(known_content_size).map_err(|value| {
+            invalid_numeric_error_at_site(site, LayoutOperation::LeafMeasurement, value)
+        })?;
+    let available_content_size =
+        measurement_available_content_size(available).map_err(|value| {
+            invalid_numeric_error_at_site(site, LayoutOperation::LeafMeasurement, value)
+        })?;
+    let measurement_input = LeafMeasureInputOf {
+        known_content_size,
+        available_content_size,
     };
-    let measured = match measure(measurement_input) {
-        Ok(measured) => validate_measurement_output(measured)?,
-        Err(error) => return Err(LeafMeasureErrorOf::Provider(error)),
-    };
+    let measured = validate_measurement_output(measure(measurement_input)?)
+        .map_err(|error| leaf_measurement_error_at_site(site, error))?;
     let unclamped = input
         .known
         .or(node_size)
@@ -612,55 +1085,292 @@ where
     LeafMeasureErrorOf::InvalidOutput(InvalidMeasurementOutputOf { axis, error })
 }
 
-fn finite_floor_at_zero<S>(value: S) -> S
+fn finite_floor_at_zero<S>(value: S) -> Result<S, S>
 where
     S: LayoutScalar,
 {
     if value.is_finite() {
-        value.max(S::ZERO)
+        Ok(value.max(S::ZERO))
     } else {
-        S::ZERO
+        Err(value)
     }
 }
 
-fn resolve_length_or_zero<S>(length: super::LengthOf<S>, basis: Option<S>) -> S
+fn transpose_leaf_known_content_size<S>(
+    size: Size<Option<Result<S, S>>>,
+) -> Result<Size<Option<S>>, S>
 where
     S: LayoutScalar,
 {
-    resolution_or_zero(length.resolve_with_status(basis))
+    Ok(Size::new(size.width.transpose()?, size.height.transpose()?))
 }
 
-fn resolve_auto_or_zero<S>(length: super::LengthAutoOf<S>, basis: Option<S>) -> S
+fn measurement_available_content_size<S>(
+    available: Size<AvailableOf<S>>,
+) -> Result<Size<MeasurementAvailableOf<S>>, S>
 where
     S: LayoutScalar,
 {
-    resolution_optional(length.resolve_with_status(basis)).unwrap_or(S::ZERO)
+    Ok(Size::new(
+        MeasurementAvailableOf::from_content_space(available.width)?,
+        MeasurementAvailableOf::from_content_space(available.height)?,
+    ))
 }
 
-fn resolve_dimension<S>(dimension: super::DimensionOf<S>, basis: Option<S>) -> Option<S>
+fn invalid_numeric_error_at_site<Node, S, M>(
+    site: LayoutErrorSiteOf<Node>,
+    operation: LayoutOperation,
+    value: S,
+) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
 {
-    resolution_optional(dimension.resolve_with_status(basis))
+    LayoutErrorOf::new(
+        site,
+        operation,
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric { value }),
+    )
 }
 
-fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
+fn leaf_measurement_error_at_site<Node, S, M>(
+    site: LayoutErrorSiteOf<Node>,
+    error: LeafMeasureErrorOf<S, M>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let kind = match error {
+        LeafMeasureErrorOf::Provider(error) => LayoutErrorKindOf::Measurement(error),
+        LeafMeasureErrorOf::InvalidOutput(error) => {
+            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::MeasurementOutput(error))
+        }
+    };
+    LayoutErrorOf::new(site, LayoutOperation::LeafMeasurement, kind)
+}
+
+fn resolve_length_or_zero_fallible<S>(
+    length: super::LengthOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    resolution_or_zero_fallible(length.resolve_with_status(basis))
+}
+
+fn resolve_auto_or_zero_fallible<S>(
+    length: super::LengthAutoOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    Ok(resolution_optional_fallible(length.resolve_with_status(basis))?.unwrap_or(S::ZERO))
+}
+
+fn resolve_leaf_auto<S>(
+    input: ComputeInputOf<S>,
+    length: super::LengthAutoOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    Ok(resolve_leaf_optional(input, length.resolve_with_status(basis))?.unwrap_or(S::ZERO))
+}
+
+fn resolve_leaf_length<S>(
+    input: ComputeInputOf<S>,
+    length: super::LengthOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    let resolution = length.resolve_with_status(basis);
+    if input.run_mode == RunMode::ComputeSize
+        && matches!(resolution.status(), LengthResolutionStatus::MissingBasis)
+    {
+        return Ok(S::ZERO);
+    }
+
+    resolution_or_zero_fallible(resolution)
+}
+
+fn resolve_leaf_dimension<S>(
+    input: ComputeInputOf<S>,
+    dimension: super::DimensionOf<S>,
+    basis: Option<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    resolve_leaf_optional(input, dimension.resolve_with_status(basis))
+}
+
+fn resolve_leaf_optional<S>(
+    input: ComputeInputOf<S>,
+    resolution: LengthResolutionOf<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    if input.run_mode == RunMode::ComputeSize
+        && matches!(resolution.status(), LengthResolutionStatus::MissingBasis)
+    {
+        return Ok(None);
+    }
+
+    resolution_optional_fallible(resolution)
+}
+
+fn resolve_dimension_fallible<S>(
+    dimension: super::DimensionOf<S>,
+    basis: Option<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>>
+where
+    S: LayoutScalar,
+{
+    resolution_optional_fallible(dimension.resolve_with_status(basis))
+}
+
+fn resolution_or_zero_fallible<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
     match resolution.status() {
-        LengthResolutionStatus::Resolved => resolution
+        LengthResolutionStatus::Resolved => Ok(resolution
             .value
-            .expect("resolved length resolution must carry a value"),
-        LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
-        | LengthResolutionStatus::NonNumeric => S::ZERO,
+            .expect("resolved length resolution must carry a value")),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::InvalidNumeric { .. } => {
+            Err(resolution.status())
+        }
+        LengthResolutionStatus::NonNumeric => Ok(S::ZERO),
     }
 }
 
-fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
+fn resolution_optional_fallible<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
     match resolution.status() {
-        LengthResolutionStatus::Resolved => resolution.value,
-        LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
-        | LengthResolutionStatus::NonNumeric => None,
+        LengthResolutionStatus::Resolved => Ok(resolution.value),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::InvalidNumeric { .. } => {
+            Err(resolution.status())
+        }
+        LengthResolutionStatus::NonNumeric => Ok(None),
+    }
+}
+
+pub(crate) trait SizeResultExt<S: LayoutScalar> {
+    type Output;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>;
+}
+
+impl<S: LayoutScalar> SizeResultExt<S> for Size<Result<S, LengthResolutionStatus<S>>> {
+    type Output = Size<S>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Size::new(
+            self.width
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.height
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
+    }
+}
+
+impl<S: LayoutScalar> SizeResultExt<S> for Size<Result<Option<S>, LengthResolutionStatus<S>>> {
+    type Output = Size<Option<S>>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Size::new(
+            self.width
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.height
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
+    }
+}
+
+pub(crate) trait EdgesResultExt<S: LayoutScalar> {
+    type Output;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>;
+}
+
+impl<S: LayoutScalar> EdgesResultExt<S> for super::Edges<Result<S, LengthResolutionStatus<S>>> {
+    type Output = super::Edges<S>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(super::Edges::new(
+            self.top
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.right
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.bottom
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.left
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
+    }
+}
+
+impl<S: LayoutScalar> EdgesResultExt<S>
+    for super::Edges<Result<Option<S>, LengthResolutionStatus<S>>>
+{
+    type Output = super::Edges<Option<S>>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(super::Edges::new(
+            self.top
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.right
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.bottom
+                .map_err(|status| value_resolution_error(node, status))?,
+            self.left
+                .map_err(|status| value_resolution_error(node, status))?,
+        ))
     }
 }
 
@@ -774,5 +1484,64 @@ impl<S: LayoutScalar> AvailableExt for AvailableOf<S> {
             AvailableOf::MinContent => AvailableOf::MinContent,
             AvailableOf::MaxContent => AvailableOf::MaxContent,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{LayoutInputOf, LayoutTree, NodeInput, Traverse};
+
+    struct EmptyTree {
+        input: NodeInput,
+    }
+
+    impl Traverse for EmptyTree {
+        type Node = u32;
+        type Scalar = DefaultScalar;
+        type Children<'a> = std::iter::Empty<u32>;
+
+        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+            std::iter::empty()
+        }
+
+        fn child_count(&self, _node: Self::Node) -> usize {
+            0
+        }
+
+        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+            unreachable!("empty test tree has no children")
+        }
+    }
+
+    impl LayoutTree for EmptyTree {
+        type MeasureError = ();
+
+        fn node_input(&self, _node: Self::Node) -> &NodeInput {
+            &self.input
+        }
+
+        fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+            LayoutInputOf::box_input(self.input.clone())
+        }
+    }
+
+    #[test]
+    fn compute_session_rejects_missing_staged_unrounded_output() {
+        let tree = EmptyTree {
+            input: NodeInput::default(),
+        };
+        let session = ComputeSession::new(&tree);
+
+        let error = Round::unrounded(&session, 0).unwrap_err();
+
+        assert_eq!(error.site(), LayoutErrorSite::Node(0));
+        assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InternalInvariant(
+                LayoutInternalInvariant::MissingStagedUnroundedOutput,
+            )
+        );
     }
 }

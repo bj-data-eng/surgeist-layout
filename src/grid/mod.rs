@@ -1,11 +1,13 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, DefaultScalar, DimensionOf, Direction, Display, Edges,
-    GridAutoFlow, GridPlacement, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
-    LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf, NodeOutputOf,
-    Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size, SizingMode, TrackComponentOf,
-    TrackRepeat, TrackSizingOf, Traverse,
+    GridAutoFlow, GridPlacement, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf,
+    LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
+    LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf,
+    NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size, SizingMode,
+    TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
+use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::scroll::{ScrollbarReservationOf, content_box_inset_with_scrollbar};
 
 mod alignment;
@@ -92,30 +94,30 @@ impl GridComputationReport {
     }
 }
 
-pub fn compute_grid<Tree>(
+pub(crate) fn compute_grid<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-) -> ComputeOutputOf<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
-    compute_grid_with_report(tree, node, input).into_parts().0
+    Ok(compute_grid_with_report(tree, node, input)?.into_parts().0)
 }
 
-pub fn compute_grid_with_report<Tree>(
+pub(crate) fn compute_grid_with_report<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-) -> GridComputationOf<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputationOf<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
-    let result = compute_grid_with_context_result(tree, node, input, GridParentContext::none());
-    GridComputationOf {
+    let result = compute_grid_with_context_result(tree, node, input, GridParentContext::none())?;
+    Ok(GridComputationOf {
         output: result.output,
         report: result.report,
-    }
+    })
 }
 
 struct GridComputeResult<S: LayoutScalar = Scalar> {
@@ -197,29 +199,29 @@ fn intrinsic_max_available<S: LayoutScalar>(
     )
 }
 
-fn compute_grid_with_context<Tree>(
+fn compute_grid_with_context<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     parent_context: GridParentContext<Tree::Scalar>,
-) -> ComputeOutputOf<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
-    compute_grid_with_context_result(tree, node, input, parent_context).output
+    Ok(compute_grid_with_context_result(tree, node, input, parent_context)?.output)
 }
 
-fn compute_grid_with_context_result<Tree>(
+fn compute_grid_with_context_result<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     parent_context: GridParentContext<Tree::Scalar>,
-) -> GridComputeResult<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let style = tree.node_input(node).clone();
-    let constants = Constants::new(&style, input);
+    let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
 
     if input.run_mode == RunMode::ComputeSize
         && let Size {
@@ -227,9 +229,9 @@ where
             height: Some(height),
         } = constants.node_outer_size
     {
-        return GridComputeResult::from_output(ComputeOutputOf::from_outer_size(Size::new(
-            width, height,
-        )));
+        return Ok(GridComputeResult::from_output(
+            ComputeOutputOf::from_outer_size(Size::new(width, height)),
+        ));
     }
 
     if style.display.establishes_grid_lanes_formatting_context() {
@@ -243,14 +245,14 @@ where
         );
     }
 
-    let initialized_tracks = initialize_grid_tracks(
+    let initialized_tracks = initialize_grid_tracks::<Tree, M>(
         tree,
         node,
         &style,
         &constants,
         &parent_context,
         input.available,
-    );
+    )?;
     let InitializedGridTracks {
         column_tracks,
         row_tracks,
@@ -292,7 +294,7 @@ where
             intrinsic_max_available: intrinsic_max_available(&constants, input.available),
             placements: &placements,
         },
-    );
+    )?;
     let GridTrackResolution {
         columns,
         rows,
@@ -319,7 +321,7 @@ where
             lines,
             placements: &placements,
         },
-    );
+    )?;
     let mut content_size = max_size(track_content_size, cyclic_percent_content_size);
     let intrinsic_sizing_content_size = {
         Size::new(
@@ -379,7 +381,7 @@ where
                 parent_context: &parent_context,
                 placements: &placements,
             },
-        );
+        )?;
         content_size = max_size(content_size, child_layout.visible_content_size);
         baselines = BaselinesOf {
             first: Point::new(None, child_layout.first_baseline),
@@ -393,11 +395,11 @@ where
     } else {
         ComputeOutputOf::from_sizes_and_baselines(output_size, content_size, baselines)
     };
-    GridComputeResult {
+    Ok(GridComputeResult {
         output,
         report,
         baseline_groups,
-    }
+    })
 }
 
 fn layout_percent_track_floor<S: LayoutScalar>(
@@ -445,25 +447,25 @@ fn intrinsic_sizing_axis_content_size<S: LayoutScalar>(
     ))
 }
 
-fn compute_grid_lanes_with_context_result<Tree>(
+fn compute_grid_lanes_with_context_result<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     parent_context: GridParentContext<Tree::Scalar>,
     style: NodeInputOf<Tree::Scalar>,
     constants: Constants<Tree::Scalar>,
-) -> GridComputeResult<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
-    let initialized_tracks = initialize_grid_tracks(
+    let initialized_tracks = initialize_grid_tracks::<Tree, M>(
         tree,
         node,
         &style,
         &constants,
         &parent_context,
         input.available,
-    );
+    )?;
     let InitializedGridTracks {
         column_tracks,
         row_tracks,
@@ -488,7 +490,7 @@ where
             intrinsic_max_available: intrinsic_max_available(&constants, input.available),
             placements: &placements,
         },
-    );
+    )?;
     let GridTrackResolution {
         columns,
         rows,
@@ -513,7 +515,7 @@ where
             GridAxisKind::Column => gap.width,
             GridAxisKind::Row => gap.height,
         },
-    ) {
+    )? {
         match lane_report.lane_axis {
             GridAxisKind::Column => {
                 if lane_report.content_size > Tree::Scalar::ZERO {
@@ -544,7 +546,7 @@ where
                 lines,
                 placements: &placements,
             },
-        ),
+        )?,
     );
     let padding_border_size = (constants.padding + constants.border).sum_axes();
     let intrinsic_outer_size = (content_size + constants.content_box_inset.sum_axes())
@@ -564,7 +566,8 @@ where
     if input.run_mode.is_perform_layout() {
         let layout_content_box_size =
             (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
-        let layout_gap = { resolved_layout_gap(&style, &constants, layout_content_box_size, gap) };
+        let layout_gap =
+            resolved_layout_gap(tree, node, &style, &constants, layout_content_box_size, gap)?;
         let layout_columns = resolved_layout_columns(&constants, &columns, output_size.width, {
             InlineTrackInput {
                 tracks: &column_tracks,
@@ -601,7 +604,7 @@ where
                 subgrid_report: &subgrid_report,
                 placements: &placements,
             },
-        );
+        )?;
         content_size = max_size(content_size, child_layout.visible_content_size);
         baselines = BaselinesOf {
             first: Point::new(None, child_layout.first_baseline),
@@ -615,11 +618,11 @@ where
     } else {
         ComputeOutputOf::from_sizes_and_baselines(output_size, content_size, baselines)
     };
-    GridComputeResult {
+    Ok(GridComputeResult {
         output,
         report,
         baseline_groups,
-    }
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -728,21 +731,31 @@ impl<Node: Copy + Eq> GridPlacementContext<Node> {
     }
 }
 
-fn initialize_grid_tracks<Tree>(
+#[expect(
+    clippy::type_complexity,
+    reason = "track initialization preserves the grid node, scalar, and provider error types"
+)]
+fn initialize_grid_tracks<Tree, M>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
     style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     parent_context: &GridParentContext<Tree::Scalar>,
     _available: Size<AvailableOf<Tree::Scalar>>,
-) -> InitializedGridTracks<<Tree as Traverse>::Node, Tree::Scalar>
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    InitializedGridTracks<<Tree as Traverse>::Node, Tree::Scalar>,
+    Tree::Scalar,
+    M,
+>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let mut gap = Size::new(
         resolve_length_or_zero(style.gap.width, constants.node_inner_size.width),
         resolve_length_or_zero(style.gap.height, constants.node_inner_size.height),
-    );
+    )
+    .transpose_with_node(tree, node)?;
     if let Some(columns) = &parent_context.columns {
         gap.width = columns.gap;
     }
@@ -776,6 +789,7 @@ where
             gap.width,
             Some(visible_child_count),
         )
+        .map_err(|status| crate::compute::value_resolution_error(node, status))?
     };
     let mut row_tracks = if let Some(rows) = &parent_context.rows {
         rows.tracks.iter().copied().map(TrackSizingOf::px).collect()
@@ -791,6 +805,7 @@ where
             gap.height,
             Some(visible_child_count),
         )
+        .map_err(|status| crate::compute::value_resolution_error(node, status))?
     };
     if column_basis.is_none() && tracks_need_available_basis(&column_tracks) {
         column_basis = constants.available_inner_size.width;
@@ -857,7 +872,8 @@ where
             gap.width,
             leading_columns,
             Some(visible_child_count),
-        );
+        )
+        .map_err(|status| crate::compute::value_resolution_error(node, status))?;
     }
     if !inherited_rows {
         prepend_auto_tracks(
@@ -867,7 +883,8 @@ where
             gap.height,
             leading_rows,
             Some(visible_child_count),
-        );
+        )
+        .map_err(|status| crate::compute::value_resolution_error(node, status))?;
     }
     let track_requirement = grid_track_requirement_from_placements(&placements.items);
 
@@ -885,7 +902,8 @@ where
                 row_basis,
                 gap.height,
                 track_requirement.height.max(1),
-            );
+            )
+            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
         if !inherited_columns {
             let required_columns = if row_tracks.is_empty() {
@@ -902,7 +920,8 @@ where
                 column_basis,
                 gap.width,
                 required_columns,
-            );
+            )
+            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
     } else {
         if !inherited_columns {
@@ -915,7 +934,8 @@ where
                 column_basis,
                 gap.width,
                 required_columns,
-            );
+            )
+            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
         if !inherited_rows {
             let required_rows = if column_tracks.is_empty() {
@@ -932,7 +952,8 @@ where
                 row_basis,
                 gap.height,
                 required_rows,
-            );
+            )
+            .map_err(|status| crate::compute::value_resolution_error(node, status))?;
         }
     }
 
@@ -945,7 +966,7 @@ where
 
     let subgrid_report = collect_subgrid_report(tree, node, style);
 
-    InitializedGridTracks {
+    Ok(InitializedGridTracks {
         column_tracks,
         row_tracks,
         context: GridContainerContext {
@@ -966,12 +987,12 @@ where
         placements,
         subgrid_report,
         report,
-    }
+    })
 }
 
 fn debug_invalid_named_grid_context(_error: &NamedGridError) {}
 
-fn resolve_grid_child_placements<Tree>(
+fn resolve_grid_child_placements<Tree, M>(
     children: &[<Tree as Traverse>::Node],
     tree: &Tree,
     named_context: &GridNamedContext,
@@ -982,7 +1003,7 @@ fn resolve_grid_child_placements<Tree>(
     NamedGridReport,
 )
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let mut report = NamedGridReport::default();
     let mut items = Vec::with_capacity(children.len());
@@ -1143,13 +1164,13 @@ struct GridTrackResolution<S: LayoutScalar = Scalar> {
     row_intrinsic_sizes: Vec<S>,
 }
 
-fn resolve_grid_track_sizes<Tree>(
+fn resolve_grid_track_sizes<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: GridTrackResolutionInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> GridTrackResolution<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridTrackResolution<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let GridTrackResolutionInput {
         style,
@@ -1192,7 +1213,7 @@ where
         intrinsic_grid,
         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
         IntrinsicGridLowerBounds::default(),
-    );
+    )?;
     let compute_column_min_intrinsic_sizes = available.width == AvailableOf::MIN_CONTENT
         || (constants.node_inner_size.width.is_none()
             && constants.available_inner_size.width.is_some())
@@ -1215,7 +1236,7 @@ where
             intrinsic_grid,
             Size::new(AvailableOf::MIN_CONTENT, AvailableOf::MAX_CONTENT),
             IntrinsicGridLowerBounds::default(),
-        )
+        )?
         .0
     } else {
         column_max_intrinsic_sizes.clone()
@@ -1230,7 +1251,7 @@ where
                 columns: Some(&column_min_intrinsic_sizes),
                 rows: None,
             },
-        )
+        )?
         .0;
     }
     if style.display.establishes_grid_lanes_formatting_context()
@@ -1249,7 +1270,7 @@ where
                 lines,
                 placements,
             },
-        );
+        )?;
         let lane_max = lane_intrinsic_track_sizes(
             tree,
             node,
@@ -1263,7 +1284,7 @@ where
                 lines,
                 placements,
             },
-        );
+        )?;
         merge_lane_intrinsic_lower_bounds(&mut column_min_intrinsic_sizes, lane_min);
         merge_lane_intrinsic_lower_bounds(&mut column_max_intrinsic_sizes, lane_max);
     }
@@ -1316,7 +1337,7 @@ where
     let unconstrained_row_intrinsic_sizes = row_intrinsic_sizes;
     let mut row_intrinsic_sizes = {
         let constrained_row_intrinsic_sizes =
-            constrained_row_intrinsic_sizes(tree, node, intrinsic_grid, &columns, gap);
+            constrained_row_intrinsic_sizes(tree, node, intrinsic_grid, &columns, gap)?;
         unconstrained_row_intrinsic_sizes
             .iter()
             .copied()
@@ -1340,7 +1361,7 @@ where
                 lines,
                 placements,
             },
-        );
+        )?;
         merge_lane_intrinsic_lower_bounds(&mut row_intrinsic_sizes, lane_rows);
     }
     let mut rows = {
@@ -1353,7 +1374,7 @@ where
         )
     };
     let row_constrained_column_intrinsic_sizes =
-        constrained_column_intrinsic_sizes(tree, node, intrinsic_grid, &columns, &rows, gap);
+        constrained_column_intrinsic_sizes(tree, node, intrinsic_grid, &columns, &rows, gap)?;
     let mut columns_need_resolution = false;
     for (index, contribution) in row_constrained_column_intrinsic_sizes
         .into_iter()
@@ -1399,7 +1420,7 @@ where
             })
         };
         let constrained_row_intrinsic_sizes =
-            constrained_row_intrinsic_sizes(tree, node, intrinsic_grid, &columns, gap);
+            constrained_row_intrinsic_sizes(tree, node, intrinsic_grid, &columns, gap)?;
         row_intrinsic_sizes = unconstrained_row_intrinsic_sizes
             .iter()
             .copied()
@@ -1417,13 +1438,13 @@ where
         };
     }
 
-    GridTrackResolution {
+    Ok(GridTrackResolution {
         columns,
         rows,
         column_min_intrinsic_sizes,
         column_max_intrinsic_sizes,
         row_intrinsic_sizes,
-    }
+    })
 }
 
 fn merge_intrinsic_lower_bounds<S: LayoutScalar>(sizes: &mut [S], lower_bounds: &[S]) {
@@ -1476,13 +1497,13 @@ struct GridChildLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
     placements: &'a GridPlacementContext<Node>,
 }
 
-fn layout_grid_container_children<Tree>(
+fn layout_grid_container_children<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: GridChildLayoutInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> GridChildrenLayout<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridChildrenLayout<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let GridChildLayoutInput {
         style,
@@ -1513,7 +1534,8 @@ where
     } = context;
     let layout_content_box_size =
         (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
-    let layout_gap = { resolved_layout_gap(style, constants, layout_content_box_size, gap) };
+    let layout_gap =
+        resolved_layout_gap(tree, node, style, constants, layout_content_box_size, gap)?;
     let rerun_percent_columns = constants.node_inner_size.width.is_none() && {
         column_tracks.iter().any(track_has_percent_sizing)
     };
@@ -1543,7 +1565,7 @@ where
                 intrinsic_grid,
                 Size::new(AvailableOf::MIN_CONTENT, AvailableOf::MAX_CONTENT),
                 IntrinsicGridLowerBounds::default(),
-            );
+            )?;
             let (max_columns, _) = intrinsic_track_sizes(
                 tree,
                 node,
@@ -1553,7 +1575,7 @@ where
                     columns: Some(&min_columns),
                     rows: None,
                 },
-            );
+            )?;
             (min_columns, max_columns)
         } else {
             (
@@ -1618,7 +1640,7 @@ where
                 columns: Some(&layout_columns),
                 rows: None,
             },
-        );
+        )?;
         rows
     } else {
         row_intrinsic_sizes.to_vec()
@@ -1689,22 +1711,28 @@ struct GridLayoutContext<'a, Node, S: LayoutScalar = Scalar> {
     placements: &'a GridPlacementContext<Node>,
 }
 
-fn resolved_layout_gap<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-    constants: &Constants<S>,
-    content_box_size: Size<S>,
-    intrinsic_gap: Size<S>,
-) -> Size<S> {
+fn resolved_layout_gap<Tree, M>(
+    tree: &Tree,
+    node: <Tree as Traverse>::Node,
+    style: &NodeInputOf<Tree::Scalar>,
+    constants: &Constants<Tree::Scalar>,
+    content_box_size: Size<Tree::Scalar>,
+    intrinsic_gap: Size<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
     Size::new(
         constants.node_inner_size.width.map_or_else(
             || resolve_length_or_zero(style.gap.width, Some(content_box_size.width)),
-            |_| intrinsic_gap.width,
+            |_| Ok(intrinsic_gap.width),
         ),
         constants.node_inner_size.height.map_or_else(
             || resolve_length_or_zero(style.gap.height, Some(content_box_size.height)),
-            |_| intrinsic_gap.height,
+            |_| Ok(intrinsic_gap.height),
         ),
     )
+    .transpose_with_node(tree, node)
 }
 
 fn resolved_layout_columns<S: LayoutScalar>(
@@ -1813,15 +1841,27 @@ struct Constants<S: LayoutScalar = Scalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
-    fn new(style: &NodeInputOf<S>, input: ComputeInputOf<S>) -> Self {
+    fn new<Tree, M>(
+        tree: &Tree,
+        node: <Tree as Traverse>::Node,
+        style: &NodeInputOf<S>,
+        input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
         let padding = style
             .padding
             .zip_inline_size(input.parent, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
-        let border = style.border.zip_inline_size(input.parent, |length, basis| {
-            resolve_length_or_zero(length, basis)
-        });
+            })
+            .transpose_with_node(tree, node)?;
+        let border = style
+            .border
+            .zip_inline_size(input.parent, |length, basis| {
+                resolve_length_or_zero(length, basis)
+            })
+            .transpose_with_node(tree, node)?;
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
             style.scrollbar_width.get(),
@@ -1842,6 +1882,7 @@ impl<S: LayoutScalar> Constants<S> {
                 .zip_map(input.parent, |dimension, basis| {
                     resolve_dimension(dimension, basis)
                 })
+                .transpose_with_node(tree, node)?
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment)
         } else {
@@ -1852,6 +1893,7 @@ impl<S: LayoutScalar> Constants<S> {
             .zip_map(input.parent, |dimension, basis| {
                 resolve_dimension(dimension, basis)
             })
+            .transpose_with_node(tree, node)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let max_size = style
@@ -1859,6 +1901,7 @@ impl<S: LayoutScalar> Constants<S> {
             .zip_map(input.parent, |dimension, basis| {
                 resolve_dimension(dimension, basis)
             })
+            .transpose_with_node(tree, node)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let node_outer_size = input
@@ -1873,7 +1916,7 @@ impl<S: LayoutScalar> Constants<S> {
             .max_optional(padding_border_size.map(Some));
         let available_inner_size = available_size.sub_optional(content_box_inset.sum_axes());
 
-        Self {
+        Ok(Self {
             node_outer_size,
             node_inner_size,
             node_min_size: min_size,
@@ -1882,43 +1925,57 @@ impl<S: LayoutScalar> Constants<S> {
             content_box_inset,
             padding,
             border,
-        }
+        })
     }
 }
 
-fn resolve_length_or_zero<S: LayoutScalar>(length: LengthOf<S>, basis: Option<S>) -> S {
+fn resolve_length_or_zero<S: LayoutScalar>(
+    length: LengthOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
     resolution_or_zero(length.resolve_with_status(basis))
 }
 
-fn resolve_auto_or_zero<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> S {
+fn resolve_auto_or_zero<S: LayoutScalar>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
     resolution_or_zero(length.resolve_with_status(basis))
 }
 
-fn resolve_auto_optional<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> Option<S> {
+fn resolve_auto_optional<S: LayoutScalar>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
     resolution_optional(length.resolve_with_status(basis))
 }
 
-fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
+fn resolve_dimension<S: LayoutScalar>(
+    dimension: DimensionOf<S>,
+    basis: Option<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
     resolution_optional(dimension.resolve_with_status(basis))
 }
 
-fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
+fn resolution_or_zero<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
     match resolution.status() {
-        LengthResolutionStatus::Resolved => resolution
+        LengthResolutionStatus::Resolved => Ok(resolution
             .value
-            .expect("resolved length resolution must carry a value"),
-        LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
-        | LengthResolutionStatus::NonNumeric => S::ZERO,
+            .expect("resolved length resolution must carry a value")),
+        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(S::ZERO),
     }
 }
 
-fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
+fn resolution_optional<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
     match resolution.status() {
-        LengthResolutionStatus::Resolved => resolution.value,
-        LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
-        | LengthResolutionStatus::NonNumeric => None,
+        LengthResolutionStatus::Resolved => Ok(resolution.value),
+        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(None),
     }
 }
 

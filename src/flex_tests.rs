@@ -10,6 +10,17 @@ fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
     ComputeOutput::from_sizes(size, size)
 }
 
+fn fake_leaf_error(
+    node: u32,
+    error: LayoutError<(), core::convert::Infallible>,
+) -> LayoutError<u32> {
+    LayoutError::new(
+        LayoutErrorSite::Node(node),
+        error.operation(),
+        error.kind().clone(),
+    )
+}
+
 #[test]
 fn flex_direction_reports_main_cross_and_reverse_axes() {
     assert!(FlexDirection::Row.is_row());
@@ -67,9 +78,16 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                self.outputs[&node]
+            })
         }
     }
 
@@ -121,7 +139,8 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 42.0));
     assert_eq!(output.content_size, Size::new(80.0, 30.0));
@@ -181,12 +200,31 @@ fn f64_flex_layout_preserves_fractional_growth() {
                 AvailableOf::MAX_CONTENT,
             ),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(container_width, 10.0));
-    assert_eq!(tree.output(1).size.width, 4_194_314.5);
-    assert_eq!(tree.output(2).size.width, 12_582_903.25);
-    assert_eq!(tree.output(2).location.x, 4_194_314.5);
+    assert_eq!(
+        tree.output(1)
+            .expect("flex layout must stage output for the first child")
+            .size
+            .width,
+        4_194_314.5
+    );
+    assert_eq!(
+        tree.output(2)
+            .expect("flex layout must stage output for the second child")
+            .size
+            .width,
+        12_582_903.25
+    );
+    assert_eq!(
+        tree.output(2)
+            .expect("flex layout must stage output for the second child")
+            .location
+            .x,
+        4_194_314.5
+    );
 }
 
 #[test]
@@ -217,7 +255,7 @@ fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panickin
         )
         .measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 20.0)));
 
-    compute_flex(
+    let error = compute_flex(
         &mut tree,
         1,
         ComputeInput {
@@ -228,9 +266,14 @@ fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panickin
             parent: Size::new(Some(120.0), Some(40.0)),
             available: Size::new(Available::definite(120.0), Available::definite(40.0)),
         },
-    );
+    )
+    .unwrap_err();
 
-    assert_eq!(tree.output(2).location.x, 0.0);
+    assert_eq!(error.site(), LayoutErrorSite::Node(2));
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric { .. })
+    ));
 }
 
 #[test]
@@ -275,8 +318,13 @@ fn flex_content_size_includes_visible_child_overflow_content() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -313,7 +361,8 @@ fn flex_content_size_includes_visible_child_overflow_content() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
@@ -362,15 +411,23 @@ fn flex_final_content_size_uses_rerun_output() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            let size =
-                if input.run_mode == RunMode::PerformLayout && input.known.width == Some(80.0) {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                let size = if input.run_mode == RunMode::PerformLayout
+                    && input.known.width == Some(80.0)
+                {
                     Size::new(80.0, 40.0)
                 } else {
                     Size::new(20.0, 10.0)
                 };
-            ComputeOutput::from_sizes(size, size)
+                ComputeOutput::from_sizes(size, size)
+            })
         }
     }
 
@@ -404,7 +461,8 @@ fn flex_final_content_size_uses_rerun_output() {
             parent: Size::new(Some(80.0), None),
             available: Size::new(Available::definite(80.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert!(tree.inputs[&1].iter().any(|input| {
         input.run_mode == RunMode::ComputeSize && input.known.width == Some(80.0)
@@ -456,8 +514,13 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -495,7 +558,8 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(7.0, 3.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -542,8 +606,13 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -581,7 +650,8 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(-5.0, -2.0));
 }
@@ -624,7 +694,12 @@ fn flex_compute_size_short_circuits_when_container_size_is_definite() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("definite compute-size should not measure children")
         }
     }
@@ -652,7 +727,8 @@ fn flex_compute_size_short_circuits_when_container_size_is_definite() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(output.content_size, Size::ZERO);
@@ -699,9 +775,16 @@ fn flex_compute_size_measures_children_without_perform_layout() {
             panic!("compute-size must not write child layouts")
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(20.0, 10.0))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(20.0, 10.0))
+            })
         }
     }
 
@@ -734,7 +817,8 @@ fn flex_compute_size_measures_children_without_perform_layout() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(20.0, 10.0));
     assert_eq!(tree.inputs[&2][0].run_mode, RunMode::ComputeSize);
@@ -779,9 +863,16 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(0.0, input.known.height.unwrap_or(10.0)))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(0.0, input.known.height.unwrap_or(10.0)))
+            })
         }
     }
 
@@ -814,7 +905,8 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
             parent: Size::new(Some(50.0), Some(10.0)),
             available: Size::new(Available::definite(50.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let base_input = tree.inputs[&2][0];
     assert_eq!(base_input.sizing_mode, SizingMode::ContentSize);
@@ -865,11 +957,18 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(40.0),
-                input.known.height.unwrap_or(50.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(40.0),
+                    input.known.height.unwrap_or(50.0),
+                ))
+            })
         }
     }
 
@@ -913,7 +1012,8 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
             parent: Size::new(Some(20.0), Some(50.0)),
             available: Size::new(Available::definite(20.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(0.0, 50.0));
     assert_eq!(tree.layouts[&3].size, Size::new(40.0, 50.0));
@@ -960,11 +1060,18 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(40.0),
-                input.known.height.unwrap_or(50.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(40.0),
+                    input.known.height.unwrap_or(50.0),
+                ))
+            })
         }
     }
 
@@ -1012,7 +1119,8 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             parent: Size::new(Some(20.0), Some(50.0)),
             available: Size::new(Available::definite(20.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 0.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 50.0));
@@ -1059,11 +1167,18 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(40.0),
-                input.known.height.unwrap_or(50.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(40.0),
+                    input.known.height.unwrap_or(50.0),
+                ))
+            })
         }
     }
 
@@ -1111,7 +1226,8 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             parent: Size::new(Some(20.0), Some(50.0)),
             available: Size::new(Available::definite(20.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 0.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 50.0));
@@ -1155,7 +1271,12 @@ fn flex_compute_size_uses_definite_min_max_without_measuring_children() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("definite min/max compute-size should not measure children")
         }
     }
@@ -1184,7 +1305,8 @@ fn flex_compute_size_uses_definite_min_max_without_measuring_children() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
 }
@@ -1231,16 +1353,23 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            if input.run_mode == RunMode::PerformLayout {
-                ComputeOutput::from_sizes(
-                    Size::new(input.known.width.unwrap(), input.known.height.unwrap()),
-                    Size::ZERO,
-                )
-            } else {
-                ComputeOutput::HIDDEN
-            }
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                if input.run_mode == RunMode::PerformLayout {
+                    ComputeOutput::from_sizes(
+                        Size::new(input.known.width.unwrap(), input.known.height.unwrap()),
+                        Size::ZERO,
+                    )
+                } else {
+                    ComputeOutput::HIDDEN
+                }
+            })
         }
     }
 
@@ -1282,7 +1411,8 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&3], NodeOutput::with_order(1));
@@ -1330,8 +1460,13 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -1367,7 +1502,8 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(output.content_size, Size::new(90.0, 40.0));
@@ -1416,8 +1552,13 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -1453,7 +1594,8 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -1500,8 +1642,13 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -1536,7 +1683,8 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(7.0, 7.0));
 }
@@ -1583,15 +1731,22 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            if node == 3 {
-                return ComputeOutput::from_sizes(
-                    Size::new(input.known.width.unwrap(), input.known.height.unwrap()),
-                    Size::new(80.0, 32.0),
-                );
-            }
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                if node == 3 {
+                    return Ok(ComputeOutput::from_sizes(
+                        Size::new(input.known.width.unwrap(), input.known.height.unwrap()),
+                        Size::new(80.0, 32.0),
+                    ));
+                }
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -1639,7 +1794,8 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(output.content_size, Size::new(87.0, 41.0));
@@ -1692,9 +1848,16 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -1729,7 +1892,8 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.inputs[&2][0].known,
@@ -1781,9 +1945,16 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -1825,7 +1996,8 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.inputs[&2][0].known,
@@ -1844,24 +2016,28 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
     }
 
     impl RecursiveTree {
-        fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
+        fn compute_node(
+            &mut self,
+            node: u32,
+            input: ComputeInput,
+        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
                 return compute_leaf(input, &node_input, |measure_input| {
                     let known = measure_input.known_content_size();
-                    Ok::<_, ()>(Size::new(
+                    Ok::<_, core::convert::Infallible>(Size::new(
                         known.width.unwrap_or(0.0),
                         known.height.unwrap_or(0.0),
                     ))
                 })
-                .unwrap();
+                .map_err(|error| fake_leaf_error(node, error));
             }
 
             match node_input.display.inner_display() {
                 Display::Flex => compute_flex(self, node, input),
                 Display::Block => crate::compute_block(self, node, input),
                 Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
-                Display::None => ComputeOutput::HIDDEN,
+                Display::None => Ok(ComputeOutput::HIDDEN),
                 Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                     unreachable!("inner_display removes inline display variants")
                 }
@@ -1901,7 +2077,12 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             self.compute_node(node, input)
         }
     }
@@ -1952,7 +2133,8 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
             parent: Size::new(Some(100.0), Some(200.0)),
             available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 80.0));
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 100.0));
@@ -2001,8 +2183,13 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs_for(node, input)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs_for(node, input))
         }
     }
 
@@ -2054,7 +2241,8 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
                     parent: Size::new(Some(100.0), Some(100.0)),
                     available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
                 },
-            );
+            )
+            .unwrap();
             self.layouts[&2]
         }
     }
@@ -2121,8 +2309,13 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -2165,7 +2358,8 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
             parent: Size::new(Some(100.0), Some(100.0)),
             available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(90.0, 80.0));
     assert_eq!(tree.layouts[&2].size, Size::new(10.0, 10.0));
@@ -2212,17 +2406,24 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_sizes(
-                Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ),
-                Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ),
-            )
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_sizes(
+                    Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ),
+                    Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ),
+                )
+            })
         }
     }
 
@@ -2262,7 +2463,8 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
             parent: Size::new(Some(100.0), Some(100.0)),
             available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(40.0, 30.0));
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 60.0));
@@ -2310,18 +2512,25 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_sizes(
-                Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ),
-                Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ),
-            )
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_sizes(
+                    Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ),
+                    Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ),
+                )
+            })
         }
     }
 
@@ -2346,7 +2555,8 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
                 parent: Size::NONE,
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
     }
 
     let padding = Edges {
@@ -2428,8 +2638,13 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -2465,7 +2680,8 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(8.0, 8.0));
 }
@@ -2511,8 +2727,13 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -2551,7 +2772,8 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(72.0, 34.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -2598,8 +2820,13 @@ fn flex_absolute_child_expands_auto_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -2644,7 +2871,8 @@ fn flex_absolute_child_expands_auto_margins() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].margin.left, 40.0);
     assert_eq!(tree.layouts[&2].margin.right, 40.0);
@@ -2692,8 +2920,13 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -2729,7 +2962,8 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(40.0, 15.0));
 }
@@ -2776,9 +3010,16 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -2821,7 +3062,8 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 20.0));
     assert_eq!(output.content_size, Size::new(200.0, 20.0));
@@ -2881,8 +3123,13 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -2916,7 +3163,8 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
     assert_eq!(tree.layouts[&2].location, Point::ZERO);
@@ -2965,9 +3213,16 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -3010,7 +3265,8 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
     assert!((tree.layouts[&2].size.width - 53.333).abs() < 0.01);
@@ -3062,12 +3318,19 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3103,7 +3366,8 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
             parent: Size::new(Some(730.0), Some(300.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size.width, 730.0);
     assert_eq!(
@@ -3158,24 +3422,31 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            if node == 2
-                && input.run_mode == RunMode::ComputeSize
-                && input.available.width == Available::MIN_CONTENT
-            {
-                return ComputeOutput::from_outer_size(Size::new(90.0, 20.0));
-            }
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                if node == 2
+                    && input.run_mode == RunMode::ComputeSize
+                    && input.available.width == Available::MIN_CONTENT
+                {
+                    return Ok(ComputeOutput::from_outer_size(Size::new(90.0, 20.0)));
+                }
 
-            let fallback = if node == 2 {
-                Size::new(160.0, 20.0)
-            } else {
-                Size::new(40.0, 20.0)
-            };
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(fallback.width),
-                input.known.height.unwrap_or(fallback.height),
-            ))
+                let fallback = if node == 2 {
+                    Size::new(160.0, 20.0)
+                } else {
+                    Size::new(40.0, 20.0)
+                };
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(fallback.width),
+                    input.known.height.unwrap_or(fallback.height),
+                ))
+            })
         }
     }
 
@@ -3219,7 +3490,8 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
     assert!(
@@ -3275,8 +3547,13 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -3311,7 +3588,8 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 20.0));
     assert_eq!(tree.layouts[&2].location, Point::ZERO);
@@ -3359,8 +3637,13 @@ fn flex_row_wraps_items_into_multiple_lines() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -3400,7 +3683,8 @@ fn flex_row_wraps_items_into_multiple_lines() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 38.0));
     assert_eq!(output.content_size, Size::new(60.0, 38.0));
@@ -3450,8 +3734,13 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -3491,7 +3780,8 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 38.0));
     assert_eq!(output.content_size, Size::new(60.0, 38.0));
@@ -3541,8 +3831,13 @@ fn flex_row_justifies_items_on_the_main_axis() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -3580,7 +3875,8 @@ fn flex_row_justifies_items_on_the_main_axis() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
     assert_eq!(tree.layouts[&2].location, Point::new(25.0, 0.0));
@@ -3628,8 +3924,13 @@ fn flex_row_aligns_items_on_the_cross_axis() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -3663,7 +3964,8 @@ fn flex_row_aligns_items_on_the_cross_axis() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
@@ -3707,16 +4009,23 @@ fn flex_row_reports_first_child_baseline() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            let size = Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            );
-            ComputeOutput::from_sizes_and_first_baselines(
-                size,
-                Size::ZERO,
-                Point::new(None, Some(7.0)),
-            )
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                let size = Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                );
+                ComputeOutput::from_sizes_and_first_baselines(
+                    size,
+                    Size::ZERO,
+                    Point::new(None, Some(7.0)),
+                )
+            })
         }
     }
 
@@ -3749,7 +4058,8 @@ fn flex_row_reports_first_child_baseline() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.first_baselines.y, Some(7.0));
     assert_eq!(output.last_baselines.y, Some(7.0));
@@ -3796,21 +4106,28 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            let baseline = match node {
-                2 => 15.0,
-                3 => 5.0,
-                _ => 0.0,
-            };
-            let size = Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            );
-            ComputeOutput::from_sizes_and_first_baselines(
-                size,
-                Size::ZERO,
-                Point::new(None, Some(baseline)),
-            )
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                let baseline = match node {
+                    2 => 15.0,
+                    3 => 5.0,
+                    _ => 0.0,
+                };
+                let size = Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                );
+                ComputeOutput::from_sizes_and_first_baselines(
+                    size,
+                    Size::ZERO,
+                    Point::new(None, Some(baseline)),
+                )
+            })
         }
     }
 
@@ -3852,7 +4169,8 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
     assert_eq!(tree.layouts[&2].location.y, 0.0);
@@ -3902,13 +4220,20 @@ fn flex_row_stretches_auto_cross_size_items() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            let size = Size::new(
-                input.known.width.unwrap_or(20.0),
-                input.known.height.unwrap_or(10.0),
-            );
-            ComputeOutput::from_sizes(size, size)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                let size = Size::new(
+                    input.known.width.unwrap_or(20.0),
+                    input.known.height.unwrap_or(10.0),
+                );
+                ComputeOutput::from_sizes(size, size)
+            })
         }
     }
 
@@ -3942,7 +4267,8 @@ fn flex_row_stretches_auto_cross_size_items() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -3995,9 +4321,16 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::new(20.0, 10.0))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::new(20.0, 10.0))
+            })
         }
     }
 
@@ -4034,7 +4367,8 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 50.0));
@@ -4085,8 +4419,13 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::new(0.0, 0.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::new(0.0, 0.0)))
         }
     }
 
@@ -4122,7 +4461,8 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(200.0, 100.0));
@@ -4169,8 +4509,13 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::new(20.0, 10.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::new(20.0, 10.0)))
         }
     }
 
@@ -4207,7 +4552,8 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::definite(100.0)),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 100.0));
@@ -4254,8 +4600,13 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -4295,7 +4646,8 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 60.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 18.0));
@@ -4343,8 +4695,13 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -4385,7 +4742,8 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 100.0));
     for child in 2..=6 {
@@ -4434,8 +4792,13 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -4475,7 +4838,8 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 60.0));
     assert_eq!(output.content_size, Size::new(80.0, 60.0));
@@ -4525,13 +4889,20 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            let size = Size::new(
-                input.known.width.unwrap_or(80.0),
-                input.known.height.unwrap_or(10.0),
-            );
-            ComputeOutput::from_sizes(size, size)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                let size = Size::new(
+                    input.known.width.unwrap_or(80.0),
+                    input.known.height.unwrap_or(10.0),
+                );
+                ComputeOutput::from_sizes(size, size)
+            })
         }
     }
 
@@ -4572,7 +4943,8 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(80.0, 28.0));
     assert_eq!(tree.layouts[&3].size, Size::new(80.0, 28.0));
@@ -4624,8 +4996,13 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -4665,7 +5042,8 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 50.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 36.0));
@@ -4712,8 +5090,13 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -4748,7 +5131,8 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 50.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -4795,8 +5179,13 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -4836,7 +5225,8 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 14.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 0.0));
@@ -4883,8 +5273,13 @@ fn flex_row_growth_respects_max_main_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -4928,7 +5323,8 @@ fn flex_row_growth_respects_max_main_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(60.0, 20.0));
     assert_eq!(tree.layouts[&3].location, Point::new(60.0, 0.0));
@@ -4976,8 +5372,13 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5017,7 +5418,8 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
     assert_eq!(tree.layouts[&2].margin.left, 80.0);
@@ -5064,8 +5466,13 @@ fn flex_row_distributes_cross_axis_auto_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5105,7 +5512,8 @@ fn flex_row_distributes_cross_axis_auto_margins() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
     assert_eq!(tree.layouts[&2].margin.top, 15.0);
@@ -5153,8 +5561,13 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5196,7 +5609,8 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(50.0, 0.0));
@@ -5243,8 +5657,13 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5286,7 +5705,8 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(50.0, 0.0));
@@ -5333,8 +5753,13 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5384,7 +5809,8 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(85.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(53.0, 0.0));
@@ -5431,8 +5857,13 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5474,7 +5905,8 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(74.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -5521,8 +5953,13 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5563,7 +6000,8 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].margin.right, 77.0);
     assert_eq!(tree.layouts[&2].margin.left, 3.0);
@@ -5611,8 +6049,13 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(output_from_known_or(input, Size::ZERO))
         }
     }
 
@@ -5654,7 +6097,8 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 80.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 50.0));
@@ -5702,13 +6146,20 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            let size = Size::new(
-                input.known.width.unwrap_or(10.0),
-                input.known.height.unwrap_or(10.0),
-            );
-            ComputeOutput::from_sizes(size, size)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                let size = Size::new(
+                    input.known.width.unwrap_or(10.0),
+                    input.known.height.unwrap_or(10.0),
+                );
+                ComputeOutput::from_sizes(size, size)
+            })
         }
     }
 
@@ -5742,7 +6193,8 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
     assert_eq!(
@@ -5793,9 +6245,16 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::new(34.0, 10.0))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::new(34.0, 10.0))
+            })
         }
     }
 
@@ -5849,7 +6308,8 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(22.0, 14.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -5903,8 +6363,16 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_sizes(Size::new(0.0, 10.0), Size::new(120.0, 10.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(ComputeOutput::from_sizes(
+                Size::new(0.0, 10.0),
+                Size::new(120.0, 10.0),
+            ))
         }
     }
 
@@ -5941,7 +6409,8 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size.width, 120.0);
     assert_eq!(output.content_size.width, 120.0);

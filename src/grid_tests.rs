@@ -23,6 +23,17 @@ fn invalid_numeric_lp() -> LengthPercentageOf {
     LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX).expect("test coefficients are finite")
 }
 
+fn fake_leaf_error(
+    node: u32,
+    error: LayoutError<(), core::convert::Infallible>,
+) -> LayoutError<u32> {
+    LayoutError::new(
+        LayoutErrorSite::Node(node),
+        error.operation(),
+        error.kind().clone(),
+    )
+}
+
 fn baseline_measure(
     width: Scalar,
     height: Scalar,
@@ -47,8 +58,9 @@ fn compute_oracle_grid(tree: &mut OracleTree) {
         tree,
         1,
         Size::new(Available::Definite(120.0), Available::Definite(120.0)),
-    );
-    round_layout(tree, 1);
+    )
+    .unwrap();
+    round_layout(tree, 1).unwrap();
 }
 
 fn compute_oracle_grid_output(tree: &mut OracleTree) -> ComputeOutput {
@@ -64,6 +76,7 @@ fn compute_oracle_grid_output(tree: &mut OracleTree) -> ComputeOutput {
             available: Size::new(Available::Definite(120.0), Available::Definite(120.0)),
         },
     )
+    .unwrap()
 }
 
 #[test]
@@ -206,6 +219,7 @@ fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
         &placements,
         0.0,
     )
+    .expect("layout resolution should not fail")
     .expect_err("invalid layout tolerance should not produce a placement report");
 
     assert_eq!(err, LanePlacementError::InvalidGridFlowToleranceResolution);
@@ -236,17 +250,21 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
     }
 
     impl RecursiveTree {
-        fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
+        fn compute_node(
+            &mut self,
+            node: u32,
+            input: ComputeInput,
+        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
-                return self.outputs[&node];
+                return Ok(self.outputs[&node]);
             }
 
             match node_input.display.inner_display() {
                 Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
                 Display::Block => crate::compute_block(self, node, input),
                 Display::Flex => compute_flex(self, node, input),
-                Display::None => ComputeOutput::HIDDEN,
+                Display::None => Ok(ComputeOutput::HIDDEN),
                 Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                     unreachable!("inner_display removes inline display variants")
                 }
@@ -286,7 +304,12 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             self.compute_node(node, input)
         }
     }
@@ -314,17 +337,19 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
     tree.outputs
         .insert(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
 
-    let output = tree.compute_node(
-        1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_node(
+            1,
+            ComputeInput {
+                run_mode: RunMode::PerformLayout,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.content_size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -342,17 +367,21 @@ fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
     }
 
     impl RecursiveTree {
-        fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
+        fn compute_node(
+            &mut self,
+            node: u32,
+            input: ComputeInput,
+        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
-                return self.outputs[&node];
+                return Ok(self.outputs[&node]);
             }
 
             match node_input.display.inner_display() {
                 Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
                 Display::Block => crate::compute_block(self, node, input),
                 Display::Flex => compute_flex(self, node, input),
-                Display::None => ComputeOutput::HIDDEN,
+                Display::None => Ok(ComputeOutput::HIDDEN),
                 Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                     unreachable!("inner_display removes inline display variants")
                 }
@@ -392,7 +421,12 @@ fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             self.compute_node(node, input)
         }
     }
@@ -427,17 +461,19 @@ fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
     tree.outputs
         .insert(3, ComputeOutput::from_outer_size(Size::new(20.0, 15.0)));
 
-    let output = tree.compute_node(
-        1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_node(
+            1,
+            ComputeInput {
+                run_mode: RunMode::PerformLayout,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.content_size, Size::new(20.0, 30.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -471,7 +507,8 @@ fn grid_lanes_content_size_preserves_resolved_track_sum() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(80.0, 20.0));
 }
@@ -570,7 +607,8 @@ fn named_grid_lanes_intrinsic_sizing_uses_resolved_raw_grid_axis_placement() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
     let named = tree.layout(3).expect("named lane child should be laid out");
 
     assert_eq!(output.content_size.width, 60.0);
@@ -627,7 +665,8 @@ fn named_grid_lanes_resolve_repeated_named_start_and_end_lines() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
     let child = tree.layout(2).expect("named lane child should be laid out");
 
     assert_eq!(output.size, Size::new(90.0, 0.0));
@@ -677,7 +716,8 @@ fn grid_lanes_with_rows_template_uses_columns_as_lane_axis_for_intrinsic_width()
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(145.0, 45.0));
     assert_eq!(
@@ -847,7 +887,8 @@ fn grid_lanes_lane_measurement_honors_min_content_width() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(72.0, 60.0));
     assert!(tree.inputs(2).iter().any(|input| {
@@ -1253,8 +1294,13 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -1301,7 +1347,8 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(10.0, 50.0));
     assert_eq!(tree.layouts[&6].location.y, 40.0);
@@ -1348,8 +1395,9 @@ fn both_axis_subgrid_zero_gap_auto_placement_advances_fully_auto_children() {
         &mut tree,
         1,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 1);
+    )
+    .unwrap();
+    round_layout(&mut tree, 1).unwrap();
 
     assert_eq!(
         tree.final_layout(3)
@@ -1416,7 +1464,8 @@ fn row_subgrid_intrinsic_width_uses_inherited_rows_for_column_auto_flow() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(100.0, 100.0));
     assert_eq!(tree.layout(2).unwrap().size, Size::new(100.0, 100.0));
@@ -1478,7 +1527,8 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(100.0, 30.0));
     assert_eq!(tree.layout(2).unwrap().size.height, 30.0);
@@ -1567,7 +1617,8 @@ fn row_subgrid_auto_track_sizing_fixed_then_auto_uses_descendant_contribution_on
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size.height, 120.0);
     assert_eq!(tree.layout(2).unwrap().size.height, 110.0);
@@ -1591,7 +1642,8 @@ fn row_subgrid_auto_track_sizing_auto_then_fixed_uses_descendant_contribution_on
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size.height, 120.0);
     assert_eq!(tree.layout(2).unwrap().size.height, 110.0);
@@ -1655,7 +1707,8 @@ fn row_subgrid_intrinsic_width_accumulates_standalone_percent_columns() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size.width, 200.0);
     assert_eq!(tree.layout(2).unwrap().size.width, 100.0);
@@ -2012,8 +2065,13 @@ fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -2045,7 +2103,8 @@ fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
@@ -2070,17 +2129,21 @@ fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display:
     }
 
     impl RecursiveTree {
-        fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
+        fn compute_node(
+            &mut self,
+            node: u32,
+            input: ComputeInput,
+        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
-                return ComputeOutput::from_outer_size(Size::new(30.0, 12.0));
+                return Ok(ComputeOutput::from_outer_size(Size::new(30.0, 12.0)));
             }
 
             match node_input.display.inner_display() {
                 Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
                 Display::Block => crate::compute_block(self, node, input),
                 Display::Flex => compute_flex(self, node, input),
-                Display::None => ComputeOutput::HIDDEN,
+                Display::None => Ok(ComputeOutput::HIDDEN),
                 Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                     unreachable!("inner_display removes inline display variants")
                 }
@@ -2120,7 +2183,12 @@ fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display:
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             self.compute_node(node, input)
         }
     }
@@ -2160,7 +2228,8 @@ fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display:
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size.width, 40.0);
     assert_eq!(tree.layouts[&3].size, Size::new(30.0, 12.0));
@@ -2208,8 +2277,13 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -2249,7 +2323,8 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(40.0, 20.0));
     assert_eq!(tree.layouts[&2].size, Size::new(10.0, 10.0));
@@ -2568,8 +2643,17 @@ fn column_subgrid_baseline_alignment_does_not_grow_auto_parent_row_twice() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
+    )
+    .unwrap();
+    tree.set_unrounded(
+        1,
+        NodeOutput {
+            size: output.size,
+            content_size: output.content_size,
+            ..NodeOutput::new()
+        },
     );
-    round_layout(&mut tree, 1);
+    round_layout(&mut tree, 1).unwrap();
 
     assert_eq!(output.size, Size::new(45.0, 30.0));
     assert_eq!(final_height(&tree, 2), 30.0);
@@ -2619,12 +2703,19 @@ fn grid_auto_places_children_into_declared_column_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -2657,7 +2748,8 @@ fn grid_auto_places_children_into_declared_column_tracks() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 40.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -2708,12 +2800,19 @@ fn grid_column_gap_separates_declared_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -2747,7 +2846,8 @@ fn grid_column_gap_separates_declared_tracks() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let expected = DefiniteTracks::new(210.0, 10.0)
         .track(Track::px(80.0))
@@ -2808,12 +2908,19 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -2849,7 +2956,8 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(205.0, 75.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -2903,16 +3011,23 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            if input == ComputeInput::HIDDEN {
-                self.hidden_inputs.push(node);
-            }
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                if input == ComputeInput::HIDDEN {
+                    self.hidden_inputs.push(node);
+                }
 
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -2951,7 +3066,8 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.hidden_inputs, vec![2]);
     assert_eq!(tree.layouts[&2].size, Size::ZERO);
@@ -3002,13 +3118,20 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -3049,7 +3172,8 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
@@ -3156,7 +3280,8 @@ fn vertical_grid_absolute_child_maps_rows_to_physical_x_and_columns_to_y() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
     let child = tree.layout(2).expect("absolute child should be laid out");
 
     assert_eq!(output.size, Size::new(70.0, 110.0));
@@ -3253,15 +3378,22 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            if node == 2 {
-                return ComputeOutput::from_outer_size(Size::new(36.0, 14.0));
-            }
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                if node == 2 {
+                    return Ok(ComputeOutput::from_outer_size(Size::new(36.0, 14.0)));
+                }
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3297,7 +3429,8 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(36.0, 14.0));
@@ -3350,12 +3483,19 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3397,7 +3537,8 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(8.0, 6.0));
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 44.0));
@@ -3446,9 +3587,16 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(30.0, input.known.height.unwrap_or(12.0)))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(30.0, input.known.height.unwrap_or(12.0)))
+            })
         }
     }
 
@@ -3487,7 +3635,8 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(90.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
@@ -3536,12 +3685,19 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3584,7 +3740,8 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(78.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
@@ -3633,12 +3790,19 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3680,7 +3844,8 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(45.0, 0.0));
     assert_eq!(tree.layouts[&2].margin.left, 45.0);
@@ -3730,12 +3895,19 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3782,7 +3954,8 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
     assert_eq!(tree.layouts[&2].margin.top, 40.0);
@@ -3832,12 +4005,19 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3875,7 +4055,8 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(120.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 20.0));
@@ -3923,11 +4104,18 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -3967,7 +4155,8 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(120.0, 0.0));
     assert_eq!(tree.layouts[&2].padding, Edges::all(8.0));
@@ -4016,12 +4205,19 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -4059,7 +4255,8 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 15.0));
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(30.0), Some(15.0)));
@@ -4107,12 +4304,19 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -4151,7 +4355,8 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 30.0));
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(50.0), Some(30.0)));
@@ -4199,12 +4404,19 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -4244,7 +4456,8 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(42.0, 32.0));
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(42.0), Some(32.0)));
@@ -4291,8 +4504,15 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+            })
         }
     }
 
@@ -4331,7 +4551,8 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(12.0, 12.0));
 }
@@ -4378,12 +4599,19 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -4422,7 +4650,8 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(12.0, 12.0));
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(12.0), Some(12.0)));
@@ -4470,12 +4699,19 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -4518,7 +4754,8 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(90.0, 45.0));
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(90.0), Some(45.0)));
@@ -4566,12 +4803,19 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(8.0),
-                input.known.height.unwrap_or(6.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(8.0),
+                    input.known.height.unwrap_or(6.0),
+                ))
+            })
         }
     }
 
@@ -4613,7 +4857,8 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.inputs[&2][0].available,
@@ -4667,12 +4912,19 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -4709,7 +4961,8 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 75.0));
     assert_eq!(output.content_size, Size::new(200.0, 75.0));
@@ -4763,12 +5016,19 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -4802,7 +5062,8 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(50.0, 75.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -4853,7 +5114,12 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("definite grid compute-size should not measure children")
         }
     }
@@ -4882,7 +5148,8 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(50.0, 25.0));
     assert_eq!(output.content_size, Size::ZERO);
@@ -4926,7 +5193,12 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("definite grid compute-size should not measure children")
         }
     }
@@ -4961,7 +5233,8 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(42.0, 32.0));
     assert_eq!(output.content_size, Size::ZERO);
@@ -5005,8 +5278,13 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::HIDDEN
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(ComputeOutput::HIDDEN)
         }
     }
 
@@ -5034,7 +5312,8 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(2.0, 4.0));
     assert_eq!(output.content_size, Size::ZERO);
@@ -5081,8 +5360,15 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+            })
         }
     }
 
@@ -5119,7 +5405,8 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(11.0, 11.0));
 }
@@ -5162,7 +5449,12 @@ fn grid_content_size_mode_ignores_authored_size() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("empty grid content-size should not measure children")
         }
     }
@@ -5191,7 +5483,8 @@ fn grid_content_size_mode_ignores_authored_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(30.0, 20.0));
     assert_eq!(output.content_size, Size::ZERO);
@@ -5240,13 +5533,20 @@ fn grid_item_margins_reduce_stretched_grid_area() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -5288,7 +5588,8 @@ fn grid_item_margins_reduce_stretched_grid_area() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let layout_input = tree.inputs[&2]
         .iter()
@@ -5345,12 +5646,19 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -5386,7 +5694,8 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let layout_input = tree.inputs[&2]
         .iter()
@@ -5440,9 +5749,16 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                self.outputs[&node]
+            })
         }
     }
 
@@ -5485,7 +5801,8 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let layout_input = tree.inputs[&2]
         .iter()
@@ -5539,12 +5856,19 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -5579,7 +5903,8 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size, Size::new(120.0, 50.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -5632,12 +5957,19 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -5677,7 +6009,8 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let columns = DefiniteTracks::new(200.0, 0.0)
         .track(Track::px(80.0))
@@ -5745,12 +6078,19 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -5790,7 +6130,8 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 20.0));
     assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
@@ -5840,12 +6181,19 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -5883,7 +6231,8 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(210.0, 40.0));
@@ -5931,12 +6280,19 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -5974,7 +6330,8 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(80.0, 70.0));
@@ -6022,12 +6379,19 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -6070,7 +6434,8 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let columns = DefiniteTracks::new(150.0, 0.0)
         .track(Track::px(40.0))
@@ -6149,12 +6514,19 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -6206,7 +6578,8 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let columns = DefiniteTracks::new(90.0, 0.0)
         .track(Track::px(30.0))
@@ -6303,11 +6676,18 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -6373,7 +6753,8 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
             parent: Size::new(Some(120.0), Some(120.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(80.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 40.0));
@@ -6424,12 +6805,19 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -6468,7 +6856,8 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 20.0));
@@ -6516,12 +6905,19 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -6563,7 +6959,8 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let columns = DefiniteTracks::new(150.0, 5.0)
         .track(Track::px(30.0))
@@ -6630,12 +7027,19 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -6677,7 +7081,8 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let columns = DefiniteTracks::new(150.0, 5.0)
         .track(Track::px(30.0))
@@ -6786,12 +7191,19 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -6833,7 +7245,8 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 70.0));
@@ -6881,12 +7294,19 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -6925,7 +7345,8 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(60.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
@@ -6973,12 +7394,19 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7020,7 +7448,8 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(25.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
@@ -7068,12 +7497,19 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7115,7 +7551,8 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 20.0));
@@ -7163,12 +7600,19 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7200,7 +7644,8 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let expected = align_tracks_report(
         200.0,
@@ -7259,12 +7704,19 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7296,7 +7748,8 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 30.0));
     assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
@@ -7343,11 +7796,18 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -7382,7 +7842,8 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let expected = align_tracks_report(
         100.0,
@@ -7442,12 +7903,19 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7482,7 +7950,8 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(150.0, 0.0));
@@ -7530,12 +7999,19 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7571,7 +8047,8 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
                 parent: Size::new(Some(300.0), Some(200.0)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         (tree.layouts[&2].location, tree.layouts[&3].location)
     }
@@ -7628,12 +8105,19 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7673,7 +8157,8 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let expected = TrackSizingSlice::definite_columns(300.0, 10.0)
         .track(GridTrack::fixed(50.0))
@@ -7737,12 +8222,19 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7775,7 +8267,8 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
             parent: Size::new(Some(500.0), Some(200.0)),
             available: Size::new(Available::definite(120.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(36.0, 20.0));
@@ -7825,12 +8318,19 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7864,7 +8364,8 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
             parent: Size::new(Some(500.0), Some(200.0)),
             available: Size::new(Available::definite(120.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(56.0, 20.0));
@@ -7914,12 +8415,19 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -7958,7 +8466,8 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
             parent: Size::new(Some(200.0), Some(100.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(60.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(140.0, 20.0));
@@ -8006,12 +8515,19 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -8045,7 +8561,8 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
             parent: Size::new(Some(220.0), Some(100.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let expected = TrackSizingSlice::definite_columns(220.0, 20.0)
         .track(GridTrack::auto())
@@ -8114,9 +8631,16 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                self.outputs[&node]
+            })
         }
     }
 
@@ -8150,7 +8674,8 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let expected_columns = TrackSizingSlice::indefinite_columns(0.0)
         .track(GridTrack::auto())
@@ -8259,12 +8784,19 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(80.0),
-                    input.known.height.unwrap_or(10.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(80.0),
+                        input.known.height.unwrap_or(10.0),
+                    ))
+                })
             })
         }
     }
@@ -8296,7 +8828,8 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
             parent: Size::new(Some(400.0), None),
             available: Size::new(Available::definite(400.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(160.0, 10.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -8347,12 +8880,19 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(10.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(10.0),
+                    ))
+                })
             })
         }
     }
@@ -8389,7 +8929,8 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
             parent: Size::new(None, None),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(260.0, 10.0));
     assert_eq!(tree.layouts[&2].location, Point::new(160.0, 0.0));
@@ -8438,14 +8979,21 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            match input.available.width {
-                Available::Definite(width) if width <= 30.0 => {
-                    ComputeOutput::from_outer_size(Size::new(30.0, 20.0))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                match input.available.width {
+                    Available::Definite(width) if width <= 30.0 => {
+                        ComputeOutput::from_outer_size(Size::new(30.0, 20.0))
+                    }
+                    _ => ComputeOutput::from_outer_size(Size::new(40.0, 10.0)),
                 }
-                _ => ComputeOutput::from_outer_size(Size::new(40.0, 10.0)),
-            }
+            })
         }
     }
 
@@ -8476,7 +9024,8 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(30.0, 20.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 20.0));
@@ -8532,15 +9081,22 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            match input.known.width {
-                Some(width) if width <= 80.0 => {
-                    ComputeOutput::from_outer_size(Size::new(width, 96.0))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                match input.known.width {
+                    Some(width) if width <= 80.0 => {
+                        ComputeOutput::from_outer_size(Size::new(width, 96.0))
+                    }
+                    Some(width) => ComputeOutput::from_outer_size(Size::new(width, 64.0)),
+                    None => ComputeOutput::from_outer_size(Size::new(100.0, 64.0)),
                 }
-                Some(width) => ComputeOutput::from_outer_size(Size::new(width, 64.0)),
-                None => ComputeOutput::from_outer_size(Size::new(100.0, 64.0)),
-            }
+            })
         }
     }
 
@@ -8572,7 +9128,8 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 96.0));
     assert_eq!(tree.layouts[&2].size, Size::new(80.0, 96.0));
@@ -8669,8 +9226,17 @@ fn nested_subgrid_percent_columns_rerun_rows_after_inherited_width_and_margin() 
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
+    )
+    .unwrap();
+    tree.set_unrounded(
+        1,
+        NodeOutput {
+            size: output.size,
+            content_size: output.content_size,
+            ..NodeOutput::new()
+        },
     );
-    round_layout(&mut tree, 1);
+    round_layout(&mut tree, 1).unwrap();
 
     assert_eq!(output.size.height, 96.0);
     assert_eq!(tree.final_layout(2).unwrap().size, Size::new(85.0, 96.0));
@@ -8740,8 +9306,17 @@ fn row_subgrid_percent_column_leaf_uses_spanned_inline_size_for_row_contribution
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
+    )
+    .unwrap();
+    tree.set_unrounded(
+        1,
+        NodeOutput {
+            size: output.size,
+            content_size: output.content_size,
+            ..NodeOutput::new()
+        },
     );
-    round_layout(&mut tree, 1);
+    round_layout(&mut tree, 1).unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 90.0));
     assert_eq!(tree.final_layout(2).unwrap().size, Size::new(100.0, 90.0));
@@ -8831,7 +9406,8 @@ fn orthogonal_nested_subgrid_width_includes_full_horizontal_leaf_contribution() 
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size.width, 238.0);
 }
@@ -8873,7 +9449,8 @@ fn vertical_rl_grid_places_distinct_rows_on_physical_x_axis() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(70.0, 110.0));
     assert_eq!(tree.layout(2).unwrap().location, Point::new(60.0, 0.0));
@@ -8922,9 +9499,16 @@ fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(50.0, 10.0))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(50.0, 10.0))
+            })
         }
     }
 
@@ -8964,7 +9548,8 @@ fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
             parent: Size::new(Some(50.0), Some(100.0)),
             available: Size::new(Available::definite(50.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(50.0, 20.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
@@ -9013,12 +9598,19 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(40.0),
-                input.known.height.unwrap_or(10.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(40.0),
+                    input.known.height.unwrap_or(10.0),
+                ))
+            })
         }
     }
 
@@ -9052,7 +9644,8 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(40.0, 40.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
@@ -9100,17 +9693,24 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            match input.run_mode {
-                RunMode::ComputeSize => self.outputs[&node],
-                RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
-                    ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                match input.run_mode {
+                    RunMode::ComputeSize => self.outputs[&node],
+                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
+                        ComputeOutput::from_outer_size(Size::new(
+                            input.known.width.unwrap_or(0.0),
+                            input.known.height.unwrap_or(0.0),
+                        ))
+                    }
+                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
                 }
-                RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-            }
+            })
         }
     }
 
@@ -9148,7 +9748,8 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(110.0, 20.0));
     assert_eq!(output.content_size, Size::new(110.0, 20.0));
@@ -9200,17 +9801,24 @@ fn grid_intrinsic_column_sizing_treats_horizontal_percent_margins_as_zero() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            match input.run_mode {
-                RunMode::ComputeSize => self.outputs[&node],
-                RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
-                    ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                match input.run_mode {
+                    RunMode::ComputeSize => self.outputs[&node],
+                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
+                        ComputeOutput::from_outer_size(Size::new(
+                            input.known.width.unwrap_or(0.0),
+                            input.known.height.unwrap_or(0.0),
+                        ))
+                    }
+                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
                 }
-                RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-            }
+            })
         }
     }
 
@@ -9255,7 +9863,8 @@ fn grid_intrinsic_column_sizing_treats_horizontal_percent_margins_as_zero() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size.width, 20.0);
 }
@@ -9270,24 +9879,28 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
     }
 
     impl RecursiveTree {
-        fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
+        fn compute_node(
+            &mut self,
+            node: u32,
+            input: ComputeInput,
+        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
                 return compute_leaf(input, &node_input, |measure_input| {
                     let known = measure_input.known_content_size();
-                    Ok::<_, ()>(Size::new(
+                    Ok::<_, core::convert::Infallible>(Size::new(
                         known.width.unwrap_or(0.0),
                         known.height.unwrap_or(0.0),
                     ))
                 })
-                .unwrap();
+                .map_err(|error| fake_leaf_error(node, error));
             }
 
             match node_input.display.inner_display() {
                 Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
                 Display::Block => crate::compute_block(self, node, input),
                 Display::Flex => compute_flex(self, node, input),
-                Display::None => ComputeOutput::HIDDEN,
+                Display::None => Ok(ComputeOutput::HIDDEN),
                 Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                     unreachable!("inner_display removes inline display variants")
                 }
@@ -9327,7 +9940,12 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             self.compute_node(node, input)
         }
     }
@@ -9379,7 +9997,8 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 40.0));
     assert_eq!(tree.layouts[&2].size, Size::new(200.0, 40.0));
@@ -9396,24 +10015,28 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
     }
 
     impl RecursiveTree {
-        fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
+        fn compute_node(
+            &mut self,
+            node: u32,
+            input: ComputeInput,
+        ) -> LayoutResultOf<u32, ComputeOutput, Scalar> {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
                 return compute_leaf(input, &node_input, |measure_input| {
                     let known = measure_input.known_content_size();
-                    Ok::<_, ()>(Size::new(
+                    Ok::<_, core::convert::Infallible>(Size::new(
                         known.width.unwrap_or(0.0),
                         known.height.unwrap_or(0.0),
                     ))
                 })
-                .unwrap();
+                .map_err(|error| fake_leaf_error(node, error));
             }
 
             match node_input.display.inner_display() {
                 Display::Grid | Display::GridLanes => crate::compute_grid(self, node, input),
                 Display::Block => crate::compute_block(self, node, input),
                 Display::Flex => compute_flex(self, node, input),
-                Display::None => ComputeOutput::HIDDEN,
+                Display::None => Ok(ComputeOutput::HIDDEN),
                 Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                     unreachable!("inner_display removes inline display variants")
                 }
@@ -9453,7 +10076,12 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             self.compute_node(node, input)
         }
     }
@@ -9502,7 +10130,8 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 10.0));
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 10.0));
@@ -9551,11 +10180,16 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let node_input = self.styles[&node].clone();
             compute_leaf(input, &node_input, |measure_input| {
                 let known = measure_input.known_content_size();
-                Ok::<_, ()>(match node {
+                Ok::<_, core::convert::Infallible>(match node {
                     2 => Size::new(
                         if known.height == Some(40.0) {
                             40.0
@@ -9568,7 +10202,7 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
                     _ => Size::ZERO,
                 })
             })
-            .unwrap()
+            .map_err(|error| fake_leaf_error(node, error))
         }
     }
 
@@ -9605,7 +10239,8 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(40.0, 60.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
@@ -9654,21 +10289,26 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let node_input = self.styles[&node].clone();
             compute_leaf(input, &node_input, |measure_input| {
                 let available = measure_input
                     .available_content_size()
                     .map(MeasurementAvailable::into_available);
                 if node == 4 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, ()>(Size::new(40.0, 40.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(40.0, 40.0))
                 } else if node == 4 {
-                    Ok::<_, ()>(Size::new(80.0, 40.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 40.0))
                 } else {
-                    Ok::<_, ()>(Size::ZERO)
+                    Ok::<_, core::convert::Infallible>(Size::ZERO)
                 }
             })
-            .unwrap()
+            .map_err(|error| fake_leaf_error(node, error))
         }
     }
 
@@ -9731,7 +10371,8 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 40.0));
     assert_eq!(tree.layouts[&2].size, Size::new(60.0, 40.0));
@@ -9781,21 +10422,26 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let node_input = self.styles[&node].clone();
             compute_leaf(input, &node_input, |measure_input| {
                 let available = measure_input
                     .available_content_size()
                     .map(MeasurementAvailable::into_available);
                 if node == 4 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, ()>(Size::new(40.0, 10.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(40.0, 10.0))
                 } else if node == 4 {
-                    Ok::<_, ()>(Size::new(80.0, 10.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 10.0))
                 } else {
-                    Ok::<_, ()>(Size::ZERO)
+                    Ok::<_, core::convert::Infallible>(Size::ZERO)
                 }
             })
-            .unwrap()
+            .map_err(|error| fake_leaf_error(node, error))
         }
     }
 
@@ -9834,7 +10480,8 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 50.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 40.0));
@@ -9885,21 +10532,26 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let node_input = self.styles[&node].clone();
             compute_leaf(input, &node_input, |measure_input| {
                 let available = measure_input
                     .available_content_size()
                     .map(MeasurementAvailable::into_available);
                 if node == 4 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, ()>(Size::new(40.0, 10.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(40.0, 10.0))
                 } else if node == 4 {
-                    Ok::<_, ()>(Size::new(80.0, 10.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 10.0))
                 } else {
-                    Ok::<_, ()>(Size::ZERO)
+                    Ok::<_, core::convert::Infallible>(Size::ZERO)
                 }
             })
-            .unwrap()
+            .map_err(|error| fake_leaf_error(node, error))
         }
     }
 
@@ -9939,7 +10591,8 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 50.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 40.0));
@@ -9990,9 +10643,17 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_input| Ok::<_, ()>(Size::ZERO)).unwrap()
+            compute_leaf(input, &node_input, |_input| {
+                Ok::<_, core::convert::Infallible>(Size::ZERO)
+            })
+            .map_err(|error| fake_leaf_error(node, error))
         }
     }
 
@@ -10059,7 +10720,8 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(320.0, 640.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -10112,27 +10774,35 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
             self.unrounded.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let node_input = self.styles[&node].clone();
             compute_leaf(input, &node_input, |measure_input| {
                 let available = measure_input
                     .available_content_size()
                     .map(MeasurementAvailable::into_available);
                 if node == 2 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, ()>(Size::new(80.0, 40.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(80.0, 40.0))
                 } else if node == 2 {
-                    Ok::<_, ()>(Size::new(160.0, 40.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(160.0, 40.0))
                 } else {
-                    Ok::<_, ()>(Size::ZERO)
+                    Ok::<_, core::convert::Infallible>(Size::ZERO)
                 }
             })
-            .unwrap()
+            .map_err(|error| fake_leaf_error(node, error))
         }
     }
 
     impl Round for GridTree {
-        fn unrounded(&self, node: Self::Node) -> NodeOutput {
-            self.unrounded[&node]
+        fn unrounded(
+            &self,
+            node: Self::Node,
+        ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
+            Ok(self.unrounded[&node])
         }
 
         fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -10183,14 +10853,15 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
     assert_eq!(output.size, Size::new(160.0, 80.0));
     let mut root_layout = NodeOutput::new();
     root_layout.size = output.size;
     root_layout.content_size = output.content_size;
     tree.unrounded.insert(1, root_layout);
 
-    round_layout(&mut tree, 1);
+    round_layout(&mut tree, 1).unwrap();
     assert_eq!(tree.rounded[&3].size, Size::new(10.0, 40.0));
     assert_eq!(tree.rounded[&4].location, Point::new(10.0, 40.0));
     assert_eq!(tree.rounded[&4].size, Size::new(89.0, 40.0));
@@ -10246,27 +10917,35 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
             self.unrounded.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             let node_input = self.styles[&node].clone();
             compute_leaf(input, &node_input, |measure_input| {
                 let available = measure_input
                     .available_content_size()
                     .map(MeasurementAvailable::into_available);
                 if node == 2 && available.width == Available::MIN_CONTENT {
-                    Ok::<_, ()>(Size::new(160.0, 40.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(160.0, 40.0))
                 } else if node == 2 {
-                    Ok::<_, ()>(Size::new(320.0, 40.0))
+                    Ok::<_, core::convert::Infallible>(Size::new(320.0, 40.0))
                 } else {
-                    Ok::<_, ()>(Size::ZERO)
+                    Ok::<_, core::convert::Infallible>(Size::ZERO)
                 }
             })
-            .unwrap()
+            .map_err(|error| fake_leaf_error(node, error))
         }
     }
 
     impl Round for GridTree {
-        fn unrounded(&self, node: Self::Node) -> NodeOutput {
-            self.unrounded[&node]
+        fn unrounded(
+            &self,
+            node: Self::Node,
+        ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
+            Ok(self.unrounded[&node])
         }
 
         fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -10324,13 +11003,14 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
     let mut root_layout = NodeOutput::new();
     root_layout.size = output.size;
     root_layout.content_size = output.content_size;
     tree.unrounded.insert(1, root_layout);
 
-    round_layout(&mut tree, 1);
+    round_layout(&mut tree, 1).unwrap();
     let widths = (3..=15)
         .map(|node| tree.rounded[&node].size.width)
         .collect::<Vec<_>>();
@@ -10385,8 +11065,13 @@ fn grid_content_size_includes_visible_child_overflow_content() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -10428,7 +11113,8 @@ fn grid_content_size_includes_visible_child_overflow_content() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
@@ -10477,8 +11163,13 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -10521,7 +11212,8 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(50.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 10.0));
@@ -10569,11 +11261,18 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(100.0),
-                input.known.height.unwrap_or(100.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(100.0),
+                    input.known.height.unwrap_or(100.0),
+                ))
+            })
         }
     }
 
@@ -10633,7 +11332,8 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 100.0));
     assert_eq!(tree.layouts[&3].location, Point::new(40.0, 0.0));
@@ -10680,11 +11380,18 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(100.0),
-                input.known.height.unwrap_or(100.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(100.0),
+                    input.known.height.unwrap_or(100.0),
+                ))
+            })
         }
     }
 
@@ -10731,7 +11438,8 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size.width, 100.0);
 }
@@ -10777,11 +11485,18 @@ fn grid_percent_rows_resolve_against_known_layout_height() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -10812,7 +11527,8 @@ fn grid_percent_rows_resolve_against_known_layout_height() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 3.0));
@@ -10865,17 +11581,24 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            match input.run_mode {
-                RunMode::ComputeSize => self.outputs[&node],
-                RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
-                    ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                match input.run_mode {
+                    RunMode::ComputeSize => self.outputs[&node],
+                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
+                        ComputeOutput::from_outer_size(Size::new(
+                            input.known.width.unwrap_or(0.0),
+                            input.known.height.unwrap_or(0.0),
+                        ))
+                    }
+                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
                 }
-                RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-            }
+            })
         }
     }
 
@@ -10907,7 +11630,8 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(70.0, 18.0));
     assert_eq!(output.content_size, Size::new(70.0, 18.0));
@@ -10957,17 +11681,24 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            match input.run_mode {
-                RunMode::ComputeSize => self.outputs[&node],
-                RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
-                    ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                match input.run_mode {
+                    RunMode::ComputeSize => self.outputs[&node],
+                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
+                        ComputeOutput::from_outer_size(Size::new(
+                            input.known.width.unwrap_or(0.0),
+                            input.known.height.unwrap_or(0.0),
+                        ))
+                    }
+                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
                 }
-                RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-            }
+            })
         }
     }
 
@@ -11007,7 +11738,8 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let expected_columns = TrackSizingSlice::indefinite_columns(0.0)
         .track(GridTrack::auto())
@@ -11077,17 +11809,24 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            match input.run_mode {
-                RunMode::ComputeSize => self.outputs[&node],
-                RunMode::PerformRootLayout | RunMode::PerformLayout => {
-                    ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
-                    ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                match input.run_mode {
+                    RunMode::ComputeSize => self.outputs[&node],
+                    RunMode::PerformRootLayout | RunMode::PerformLayout => {
+                        ComputeOutput::from_outer_size(Size::new(
+                            input.known.width.unwrap_or(0.0),
+                            input.known.height.unwrap_or(0.0),
+                        ))
+                    }
+                    RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
                 }
-                RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
-            }
+            })
         }
     }
 
@@ -11122,7 +11861,8 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
                 parent: Size::new(Some(300.0), Some(200.0)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         (output, tree.layouts[&2])
     }
@@ -11177,12 +11917,19 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -11216,7 +11963,8 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 15.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
@@ -11264,12 +12012,19 @@ fn grid_align_self_overrides_parent_align_items() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -11309,7 +12064,8 @@ fn grid_align_self_overrides_parent_align_items() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 30.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
@@ -11988,12 +12744,19 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -12027,7 +12790,8 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(25.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
@@ -12075,12 +12839,19 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(10.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(10.0),
+                ))
+            })
         }
     }
 
@@ -12124,7 +12895,8 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
             parent: Size::new(Some(100.0), Some(40.0)),
             available: Size::new(Available::Definite(100.0), Available::Definite(40.0)),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.inputs[&2].last().map(|input| input.known),
@@ -12176,12 +12948,19 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -12219,7 +12998,8 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(150.0, 50.0));
@@ -12267,12 +13047,19 @@ fn grid_justify_self_overrides_parent_justify_items() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.outputs.get(&node).copied().unwrap_or_else(|| {
-                ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
-                ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.outputs.get(&node).copied().unwrap_or_else(|| {
+                    ComputeOutput::from_outer_size(Size::new(
+                        input.known.width.unwrap_or(0.0),
+                        input.known.height.unwrap_or(0.0),
+                    ))
+                })
             })
         }
     }
@@ -12312,7 +13099,8 @@ fn grid_justify_self_overrides_parent_justify_items() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(50.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
@@ -12536,7 +13324,8 @@ fn invalid_named_grid_context_is_reported() {
             parent: Size::new(Some(120.0), Some(20.0)),
             available: Size::new(Available::Definite(120.0), Available::Definite(20.0)),
         },
-    );
+    )
+    .unwrap();
 
     assert!(result.report().named_grid_errors().contains(
         &NamedGridErrorReport::TemplateAreaRowLengthMismatch {
@@ -12574,7 +13363,8 @@ fn invalid_named_grid_context_fallback_is_reported() {
             parent: Size::new(Some(40.0), Some(20.0)),
             available: Size::new(Available::Definite(40.0), Available::Definite(20.0)),
         },
-    );
+    )
+    .unwrap();
 
     assert!(result.report().named_grid_errors().contains(
         &NamedGridErrorReport::ReservedLineName {
@@ -12616,7 +13406,8 @@ fn invalid_grid_item_placement_reports_one_authored_fallback_once() {
             parent: Size::new(Some(40.0), Some(20.0)),
             available: Size::new(Available::Definite(40.0), Available::Definite(20.0)),
         },
-    );
+    )
+    .unwrap();
 
     let zero_line_count = result
         .report()
@@ -12907,8 +13698,9 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
         &mut tree,
         1,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 1);
+    )
+    .unwrap();
+    round_layout(&mut tree, 1).unwrap();
     let child = tree.final_layout(2).expect("child grid should be laid out");
     let subgrid = tree.final_layout(3).expect("subgrid should be laid out");
 
@@ -12962,7 +13754,7 @@ fn lane_axis_margin_box_measurement_resolves_affine_margins_against_grid_axis() 
         },
     );
 
-    assert_eq!(measured, 80.0);
+    assert_eq!(measured, Ok(80.0));
     let input = tree
         .last_input
         .expect("measurement should compute the child");
@@ -13018,10 +13810,16 @@ impl Compute for LaneMarginMeasureTree {
         unreachable!("lane margin measurement should not write layout output");
     }
 
-    fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-        assert_eq!(node, Self::CHILD);
-        self.last_input = Some(input);
-        self.child_output
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInput,
+    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
+        Ok({
+            assert_eq!(node, Self::CHILD);
+            self.last_input = Some(input);
+            self.child_output
+        })
     }
 }
 
@@ -13142,8 +13940,8 @@ fn track_fit_content_limit_handles_invalid_affine_numeric_result() {
 }
 
 #[test]
-fn grid_lane_track_base_handles_invalid_affine_numeric_result() {
-    let report = lane_intrinsic_sizing(LaneIntrinsicSizingInput {
+fn grid_lane_track_base_rejects_positive_invalid_affine_numeric_result() {
+    let outcome = lane_intrinsic_sizing(LaneIntrinsicSizingInput {
         axis: GridAxisKind::Column,
         available: Some(2.0),
         gap: 0.0,
@@ -13153,10 +13951,83 @@ fn grid_lane_track_base_handles_invalid_affine_numeric_result() {
         )],
         content_sized_tracks: vec![0],
         items: Vec::new(),
-    })
-    .expect("lane intrinsic sizing should not return before track initialization");
+    });
 
-    assert_eq!(report.final_track_sizes, vec![0.0]);
+    let error = outcome.expect_err("invalid lane track sizing must not produce output");
+
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+            value: f32::INFINITY,
+        })
+    );
+}
+
+#[test]
+fn grid_lane_track_base_rejects_signed_invalid_affine_numeric_result() {
+    let outcome = lane_intrinsic_sizing(LaneIntrinsicSizingInput {
+        axis: GridAxisKind::Column,
+        available: Some(f32::MAX),
+        gap: 0.0,
+        tracks: vec![TrackSizing::new(
+            MinTrackSizing::Length(Length::value(lp(-f32::MAX, -1.0))),
+            MaxTrackSizing::Auto,
+        )],
+        content_sized_tracks: vec![0],
+        items: Vec::new(),
+    });
+
+    let error = outcome.expect_err("invalid lane track sizing must not produce output");
+
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+            value: f32::NEG_INFINITY,
+        })
+    );
+}
+
+#[test]
+fn grid_lane_track_base_rejects_positive_and_signed_invalid_f64_affine_numeric_results() {
+    for (label, absolute, percent, expected) in [
+        ("positive", f64::MAX, 1.0_f64, f64::INFINITY),
+        ("signed", -f64::MAX, -1.0_f64, f64::NEG_INFINITY),
+    ] {
+        let outcome = lane_intrinsic_sizing(LaneIntrinsicSizingInputOf::<f64> {
+            axis: GridAxisKind::Column,
+            available: Some(f64::MAX),
+            gap: 0.0,
+            tracks: vec![TrackSizingOf::new(
+                MinTrackSizingOf::Length(LengthOf::value(
+                    LengthPercentageOf::from_coefficients(absolute, percent)
+                        .expect("test coefficients are finite"),
+                )),
+                MaxTrackSizingOf::Auto,
+            )],
+            content_sized_tracks: vec![0],
+            items: Vec::new(),
+        });
+
+        let error = outcome.expect_err("invalid lane track sizing must not produce output");
+
+        assert_eq!(error.site(), LayoutErrorSite::Standalone, "{label} site");
+        assert_eq!(
+            error.operation(),
+            LayoutOperation::ValueResolution,
+            "{label} operation"
+        );
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric {
+                value: expected,
+            }),
+            "{label} numeric detail"
+        );
+    }
 }
 
 fn subgrid_track() -> Vec<TrackComponent> {
@@ -13257,7 +14128,8 @@ fn lane_public_helpers_compute_with_non_default_scalar() {
             .expect("span is valid"),
         ],
     })
-    .expect("f64 lane intrinsic sizing should compute");
+    .expect("f64 lane intrinsic sizing should not fail")
+    .expect("f64 lane intrinsic sizing should produce a report");
 
     assert_eq!(intrinsic.final_track_sizes, vec![9.5]);
 }
@@ -13306,23 +14178,26 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
             &mut self,
             node: Self::Node,
             input: ComputeInputOf<f64>,
-        ) -> ComputeOutputOf<f64> {
-            let style = &self.styles[node];
-            let size = input.known.unwrap_or(Size::new(
-                style
-                    .size
-                    .width
-                    .resolve_optional(input.parent.width)
-                    .or_else(|| input.available.width.into_option())
-                    .unwrap_or(0.0),
-                style
-                    .size
-                    .height
-                    .resolve_optional(input.parent.height)
-                    .or_else(|| input.available.height.into_option())
-                    .unwrap_or(0.0),
-            ));
-            ComputeOutputOf::from_sizes(size, size)
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                let style = &self.styles[node];
+                let size = input.known.unwrap_or(Size::new(
+                    style
+                        .size
+                        .width
+                        .resolve_optional(input.parent.width)
+                        .or_else(|| input.available.width.into_option())
+                        .unwrap_or(0.0),
+                    style
+                        .size
+                        .height
+                        .resolve_optional(input.parent.height)
+                        .or_else(|| input.available.height.into_option())
+                        .unwrap_or(0.0),
+                ));
+                ComputeOutputOf::from_sizes(size, size)
+            })
         }
     }
 
@@ -13354,7 +14229,8 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
             parent: Size::NONE,
             available: Size::splat(AvailableOf::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
     let (output, report) = computation.into_parts();
 
     assert!(report.is_empty());
@@ -13739,7 +14615,8 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         margin: Edges::ZERO.map(Some),
         border: Edges::ZERO,
         padding: Edges::ZERO,
-    });
+    })
+    .unwrap();
 
     let rows = parent_context.rows.expect("row subgrid should inherit");
     assert_eq!(rows.tracks, vec![20.0, 30.0]);
@@ -15655,11 +16532,11 @@ fn vertical_subgrid_percentage_gap_uses_flow_relative_axis_basis() {
 
     assert_eq!(
         child_subgrid_gap(&style, GridAxisKind::Column, area_size),
-        ResolvedSubgridGap::Length(50.0)
+        Ok(ResolvedSubgridGap::Length(50.0))
     );
     assert_eq!(
         child_subgrid_gap(&style, GridAxisKind::Row, area_size),
-        ResolvedSubgridGap::Length(30.0)
+        Ok(ResolvedSubgridGap::Length(30.0))
     );
 }
 
@@ -15793,12 +16670,13 @@ fn grid_item_sizing_transfers_min_block_through_aspect_ratio_to_inline_size() {
         ..NodeInput::default()
     };
 
-    let sizing = grid_item_sizing(
+    let sizing = grid_item_sizing_with_status(
         &child_style,
         &NodeInput::default(),
         Size::new(100.0, 100.0),
         Size::splat(Some(100.0)),
-    );
+    )
+    .unwrap();
 
     assert_eq!(sizing.known, Size::new(Some(200.0), Some(100.0)));
 }
@@ -15811,12 +16689,13 @@ fn grid_item_sizing_keeps_inline_stretch_when_min_inline_defines_aspect_ratio() 
         ..NodeInput::default()
     };
 
-    let sizing = grid_item_sizing(
+    let sizing = grid_item_sizing_with_status(
         &child_style,
         &NodeInput::default(),
         Size::new(100.0, 100.0),
         Size::splat(Some(100.0)),
-    );
+    )
+    .unwrap();
 
     assert_eq!(sizing.known, Size::new(Some(100.0), Some(50.0)));
 }
@@ -16471,7 +17350,8 @@ fn column_subgrid_context_preserves_inherited_baseline_groups() {
         margin: Edges::all(Some(0.0)),
         border: Edges::ZERO,
         padding: Edges::ZERO,
-    });
+    })
+    .unwrap();
 
     let columns = context.columns.expect("column subgrid should inherit");
     assert_eq!(columns.major_baselines, vec![Some(8.0), Some(14.0)]);
@@ -16515,6 +17395,77 @@ fn subgrid_track_inheritance_rejects_invalid_parent_spans() {
 
         assert_eq!(err, SubgridTrackInheritanceError::SpanOutOfRange);
     }
+}
+
+#[test]
+fn subgrid_child_context_rejects_inheritable_axis_without_parent_tracks() {
+    let parent_style = NodeInput {
+        display: Display::Grid,
+        ..NodeInput::default()
+    };
+    let child_style = NodeInput {
+        display: Display::Grid,
+        grid_template_columns: subgrid_track(),
+        ..NodeInput::default()
+    };
+    let parent_baseline_groups = GridBaselineGroups {
+        rows: vec![TrackBaselineGroup::default()],
+        columns: Vec::new(),
+    };
+    let parent_named_columns = named::NamedGridLines::new(GridAxisKind::Column, 0);
+    let parent_named_rows = named::NamedGridLines::new(GridAxisKind::Row, 1);
+
+    let result = subgrid_child_parent_context(SubgridChildParentContextInput {
+        item: SubgridItemReport {
+            node: (),
+            column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+        },
+        child_style: &child_style,
+        area: GridArea {
+            row: 0,
+            column: 0,
+            row_end: 1,
+            column_end: 1,
+            size: Size::new(0.0, 20.0),
+        },
+        content_box_size: Size::new(0.0, 20.0),
+        columns: &[],
+        rows: &[20.0],
+        gap: Size::ZERO,
+        parent_named_columns: &parent_named_columns,
+        parent_named_rows: &parent_named_rows,
+        parent_area_facts: None,
+        parent_baseline_groups: &parent_baseline_groups,
+        margin: Edges::all(Some(0.0)),
+        border: Edges::ZERO,
+        padding: Edges::ZERO,
+    });
+
+    assert!(matches!(
+        result,
+        Err(SubgridChildContextError::TrackInheritance(
+            SubgridTrackInheritanceError::EmptyTrackList
+        ))
+    ));
+
+    let error: LayoutError<u32> = subgrid_child_context_container_error(
+        10,
+        20,
+        SubgridChildContextError::TrackInheritance(SubgridTrackInheritanceError::EmptyTrackList),
+    );
+    assert_eq!(
+        error.site(),
+        LayoutErrorSite::ContainerSubject {
+            container: 10,
+            subject: 20,
+        }
+    );
+    assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InternalInvariant(LayoutInternalInvariant::SubgridTrackInheritance)
+    );
 }
 
 fn traversal_leaf(node: u32, start: usize, end: usize) -> SubgridTraversalChild<u32> {
@@ -19884,7 +20835,8 @@ mod root_oracle {
                 parent: Size::new(Some(300.0), Some(200.0)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         assert_eq!(output.size, Size::new(expected.size(0), 20.0));
         assert_eq!(
@@ -20040,7 +20992,8 @@ mod root_oracle {
                 parent: Size::new(Some(300.0), Some(200.0)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         assert_eq!(output.size, Size::new(120.0, 20.0));
         assert_eq!(
@@ -22269,8 +23222,9 @@ mod root_layout_oracle {
             &mut tree,
             1,
             Size::new(Available::Definite(200.0), Available::Definite(20.0)),
-        );
-        round_layout(&mut tree, 1);
+        )
+        .unwrap();
+        round_layout(&mut tree, 1).unwrap();
         let actual = tree.final_layout(2).expect("child layout");
 
         assert_layout_close(
@@ -22321,8 +23275,9 @@ mod root_layout_oracle {
                 &mut tree,
                 1,
                 Size::new(Available::Definite(200.0), Available::Definite(20.0)),
-            );
-            round_layout(&mut tree, 1);
+            )
+            .unwrap();
+            round_layout(&mut tree, 1).unwrap();
             tree.final_layout(2).expect("child layout")
         };
 
@@ -22624,8 +23579,9 @@ mod root_layout_oracle {
             &mut tree,
             1,
             Size::new(Available::Definite(120.0), Available::Definite(20.0)),
-        );
-        round_layout(&mut tree, 1);
+        )
+        .unwrap();
+        round_layout(&mut tree, 1).unwrap();
         let child = tree.final_layout(2).expect("child layout");
 
         assert_layout_close(
@@ -22757,8 +23713,9 @@ mod root_layout_oracle {
             &mut tree,
             1,
             Size::new(Available::Definite(160.0), Available::Definite(40.0)),
-        );
-        round_layout(&mut tree, 1);
+        )
+        .unwrap();
+        round_layout(&mut tree, 1).unwrap();
 
         for (node, expected, label) in [
             (3, expected_local, "local area"),
@@ -22857,8 +23814,9 @@ mod root_layout_oracle {
             &mut tree,
             1,
             Size::new(Available::Definite(160.0), Available::Definite(20.0)),
-        );
-        round_layout(&mut tree, 1);
+        )
+        .unwrap();
+        round_layout(&mut tree, 1).unwrap();
         let child = tree.final_layout(3).expect("child layout");
 
         assert_layout_close(
@@ -24077,8 +25035,9 @@ mod root_layout_oracle {
             &mut tree,
             1,
             Size::new(Available::Definite(40.0), Available::Definite(20.0)),
-        );
-        round_layout(&mut tree, 1);
+        )
+        .unwrap();
+        round_layout(&mut tree, 1).unwrap();
 
         let child = tree
             .final_layout(3)
@@ -24561,7 +25520,11 @@ mod root_layout_oracle {
             )],
         });
 
-        assert!(production.is_err());
+        assert!(
+            production
+                .expect("nested subgrid rejection should not be a value-resolution error")
+                .is_err()
+        );
     }
 
     #[test]
@@ -24669,7 +25632,8 @@ mod root_layout_oracle {
                 parent: Size::new(Some(100.0), Some(100.0)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         assert_eq!(output.size, Size::new(100.0, 100.0));
         let child = tree.layout(2).expect("lane child layout must be recorded");
@@ -24841,7 +25805,8 @@ mod root_layout_oracle {
                 parent: Size::new(Some(140.0), Some(140.0)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         let first = tree.layout(2).expect("first child layout");
         let second = tree.layout(3).expect("second child layout");
@@ -24934,7 +25899,8 @@ mod root_layout_oracle {
                 parent: Size::new(Some(120.0), Some(120.0)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         let child = tree.layout(2).expect("spanning lane child layout");
         assert_eq!(child.location, Point::new(0.0, 0.0));
@@ -25203,7 +26169,9 @@ mod root_layout_oracle {
         production_input: ProductionLaneIntrinsicSizingInput,
         oracle_input: LaneIntrinsicSizingInput,
     ) {
-        let production = production_lane_intrinsic_sizing(production_input).unwrap();
+        let production = production_lane_intrinsic_sizing(production_input)
+            .unwrap()
+            .unwrap();
         let oracle = grid::lane_intrinsic_sizing(oracle_input).unwrap();
 
         assert_eq!(

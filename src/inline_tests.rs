@@ -1309,8 +1309,8 @@ mod root_layout_oracle {
             tree = tree.style(node, atomic_inline_node_input(display, size));
         }
 
-        compute_root(&mut tree, 0, Size::splat(Available::definite(50.0)));
-        round_layout(&mut tree, 0);
+        compute_root(&mut tree, 0, Size::splat(Available::definite(50.0))).unwrap();
+        round_layout(&mut tree, 0).unwrap();
 
         let expected = inline::layout_atomic_inline(inline::AtomicInlineInput {
             available_width: inline::InlineAvailable::Definite(50.0),

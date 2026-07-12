@@ -253,7 +253,8 @@ impl GridLayoutComparison {
                 parent: Size::new(Some(self.container.width), Some(self.container.height)),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         assert_size_close(output.size, self.container);
         tree.set_unrounded(
@@ -288,7 +289,7 @@ impl GridLayoutComparison {
             .iter()
             .any(GridLayoutNode::has_expected_final_layout)
         {
-            round_layout(&mut tree, 1);
+            round_layout(&mut tree, 1).unwrap();
             let mut next_node = 2 + self.children.len() as u32;
             for child in &self.children {
                 assert_nested_expected_final_layouts(&tree, child, &mut next_node);
@@ -309,7 +310,8 @@ impl GridLayoutComparison {
                 parent: Size::new(None, None),
                 available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         assert_size_close(output.size, expected_size);
         for (index, child) in self.children.iter().enumerate() {

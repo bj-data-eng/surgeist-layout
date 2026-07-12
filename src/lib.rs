@@ -30,7 +30,8 @@ pub type DefaultScalar = f32;
 /// needs to run end-to-end with a different supported precision such as `f64`.
 pub type Scalar = DefaultScalar;
 
-pub use block::compute_block;
+#[cfg(test)]
+pub(crate) use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
 pub use compute::{
     InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,
@@ -38,9 +39,12 @@ pub use compute::{
     LayoutInvalidInput, LayoutInvalidInputOf, LayoutMissingContext, LayoutOperation, LayoutResult,
     LayoutResultOf, LayoutUnsupportedCapability, LeafMeasureError, LeafMeasureErrorOf,
     LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable, MeasurementAvailableOf,
-    compute_hidden, compute_leaf, compute_root, round_layout,
+    compute_layout, compute_leaf,
 };
-pub use flex::compute_flex;
+#[cfg(test)]
+pub(crate) use compute::{compute_hidden, compute_root, round_layout};
+#[cfg(test)]
+pub(crate) use flex::compute_flex;
 pub use geometry::{Axis, Edges, Point, Size};
 pub use grid::{
     DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, GridAxisKind, GridComputation,
@@ -50,9 +54,11 @@ pub use grid::{
     LaneIntrinsicSizingInputOf, LaneIntrinsicSizingReport, LaneIntrinsicSizingReportOf, LaneItem,
     LaneItemOf, LaneItemOffset, LaneItemOffsetOf, LanePlacementError, LanePlacementInput,
     LanePlacementInputOf, LanePlacementReport, LanePlacementReportOf, LaneTrackSpan,
-    LaneTrackSpanLength, NamedGridErrorReport, NamedGridReport, compute_grid,
-    compute_grid_with_report, grid_axis_for_lanes, lane_axis, lane_intrinsic_sizing, place_lanes,
+    LaneTrackSpanLength, NamedGridErrorReport, NamedGridReport, grid_axis_for_lanes, lane_axis,
+    lane_intrinsic_sizing, place_lanes,
 };
+#[cfg(test)]
+pub(crate) use grid::{compute_grid, compute_grid_with_report};
 pub use node_input::{
     AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexGrow,
     FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float, GridAutoFlow, GridFlowTolerance,
@@ -68,9 +74,9 @@ pub use output::{
     FlexItemRootContext, FlexItemRootContextOf, LayoutCacheClearEntry, LayoutCacheStoreEntry,
     LayoutCacheStoreEntryOf, LayoutOutputEntry, LayoutOutputEntryOf, LayoutRootContext,
     LayoutRootContextOf, LayoutRootRequest, LayoutRootRequestOf, LayoutRoundingMode, NodeOutput,
-    NodeOutputOf, RequestedAxis, RootAvailabilityError, RootAvailabilityErrorOf, RunMode,
-    SizingMode,
+    NodeOutputOf, RootAvailabilityError, RootAvailabilityErrorOf,
 };
+pub(crate) use output::{RequestedAxis, RunMode, SizingMode};
 /// Supported scalar contract for generic layout APIs.
 pub use scalar::LayoutScalar;
 pub use scroll::{
@@ -79,7 +85,10 @@ pub use scroll::{
     ScrollRangeOf, ScrollRect, ScrollRectOf, ScrollUnsupportedFeature, ScrollbarGutterRects,
     ScrollbarGutterRectsOf,
 };
-pub use traits::{CacheAccess, Compute, Round, Traverse, compute_cached};
+#[cfg(test)]
+pub(crate) use traits::compute_cached;
+pub(crate) use traits::{CacheAccess, Compute, Round};
+pub use traits::{LayoutTree, Traverse};
 pub use value::{
     AspectRatio, AspectRatioOf, Available, AvailableOf, Dimension, DimensionOf,
     FiniteScalarErrorOf, Length, LengthAuto, LengthAutoOf, LengthOf, LengthPercentageErrorOf,

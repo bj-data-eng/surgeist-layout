@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
 use crate::{
-    AvailableOf, Compute, ComputeInputOf, ComputeOutputOf, DefaultScalar, DimensionOf, Display,
-    InlineBoundaryInputOf, LayoutInputOf, LayoutScalar, LineBreakInput, LineBreakInputOf,
+    AvailableOf, Compute, ComputeInputOf, ComputeOutputOf, DefaultScalar, Display,
+    InlineBoundaryInputOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf,
+    LayoutInternalInvariant, LayoutOperation, LayoutScalar, LineBreakInput, LineBreakInputOf,
     NodeInput, NodeInputOf, NodeOutput, NodeOutputOf, RequestedAxis, Round, RunMode, Size,
     SizingMode, Traverse, compute_block, compute_flex, compute_grid,
 };
@@ -152,10 +153,8 @@ impl<S: LayoutScalar> OracleTreeOf<S> {
         self.final_layouts.get(&node).copied()
     }
 
-    pub fn output(&self, node: u32) -> NodeOutputOf<S> {
-        self.final_layout(node)
-            .or_else(|| self.layout(node))
-            .unwrap_or_default()
+    pub fn output(&self, node: u32) -> Option<NodeOutputOf<S>> {
+        self.final_layout(node).or_else(|| self.layout(node))
     }
 
     fn recorded_measurement(
@@ -226,11 +225,11 @@ impl Compute for OracleTree {
         &mut self,
         node: Self::Node,
         input: ComputeInputOf<DefaultScalar>,
-    ) -> ComputeOutputOf<DefaultScalar> {
+    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
         self.compute_inputs.entry(node).or_default().push(input);
 
         if let Some(output) = self.recorded_measurement(node, input) {
-            return output;
+            return Ok(output);
         }
 
         match self.node_input(node).display.inner_display() {
@@ -239,7 +238,7 @@ impl Compute for OracleTree {
             Display::Grid | Display::GridLanes => compute_grid(self, node, input),
             Display::None => {
                 self.set_unrounded(node, NodeOutput::with_order(0));
-                ComputeOutputOf::HIDDEN
+                Ok(ComputeOutputOf::HIDDEN)
             }
             Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                 unreachable!("inner_display removes inline display variants")
@@ -273,54 +272,39 @@ impl Compute for OracleTreeOf<f64> {
         &mut self,
         node: Self::Node,
         input: ComputeInputOf<f64>,
-    ) -> ComputeOutputOf<f64> {
+    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
         self.compute_inputs.entry(node).or_default().push(input);
 
         if let Some(output) = self.recorded_measurement(node, input) {
-            return output;
+            return Ok(output);
         }
 
         match self.node_input(node).display.inner_display() {
-            Display::Block => return compute_block(self, node, input),
-            Display::Flex => return compute_flex(self, node, input),
-            Display::Grid | Display::GridLanes => {
-                panic!("f64 oracle grid support is reserved for Task 7")
+            Display::Block => compute_block(self, node, input),
+            Display::Flex => compute_flex(self, node, input),
+            Display::Grid | Display::GridLanes => compute_grid(self, node, input),
+            Display::None => {
+                self.set_unrounded(node, NodeOutputOf::with_order(0));
+                Ok(ComputeOutputOf::HIDDEN)
             }
-            Display::None => {}
             Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
                 unreachable!("inner_display removes inline display variants")
             }
         }
-
-        let style = self.node_input(node);
-        if style.display == Display::None {
-            self.set_unrounded(node, NodeOutputOf::with_order(0));
-            return ComputeOutputOf::HIDDEN;
-        }
-
-        let width = input
-            .known
-            .width
-            .or_else(|| resolve_dimension(style.size.width, input.parent.width));
-        let height = input
-            .known
-            .height
-            .or_else(|| resolve_dimension(style.size.height, input.parent.height));
-        let size = Size::new(
-            width.unwrap_or_else(|| input.available.width.into_option().unwrap_or(0.0)),
-            height.unwrap_or_else(|| input.available.height.into_option().unwrap_or(0.0)),
-        );
-
-        ComputeOutputOf::from_sizes(size, size)
     }
 }
 
 impl<S: LayoutScalar> Round for OracleTreeOf<S> {
-    fn unrounded(&self, node: Self::Node) -> NodeOutputOf<S> {
-        self.layouts
-            .get(&node)
-            .copied()
-            .unwrap_or_else(NodeOutputOf::new)
+    fn unrounded(&self, node: Self::Node) -> crate::LayoutResultOf<Self::Node, NodeOutputOf<S>, S> {
+        self.layouts.get(&node).copied().ok_or_else(|| {
+            LayoutErrorOf::new(
+                LayoutErrorSiteOf::Node(node),
+                LayoutOperation::RoundingFinalization,
+                LayoutErrorKindOf::InternalInvariant(
+                    LayoutInternalInvariant::MissingStagedUnroundedOutput,
+                ),
+            )
+        })
     }
 
     fn set_final(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
@@ -328,14 +312,38 @@ impl<S: LayoutScalar> Round for OracleTreeOf<S> {
     }
 }
 
-fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
-    dimension.resolve_optional(basis)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LayoutInput, LineBreakDisplay};
+    use crate::{
+        LayoutErrorKind, LayoutErrorSite, LayoutInput, LayoutInternalInvariant, LayoutOperation,
+        LineBreakDisplay,
+    };
+
+    #[test]
+    fn output_returns_none_without_a_staged_layout() {
+        let tree = OracleTree::new();
+
+        assert_eq!(tree.output(41), None);
+    }
+
+    #[test]
+    fn rounding_missing_unrounded_output_returns_typed_error() {
+        let mut tree = OracleTree::new();
+
+        let error = crate::round_layout(&mut tree, 41)
+            .expect_err("rounding without staged output must fail instead of synthesizing output");
+
+        assert_eq!(error.site(), LayoutErrorSite::Node(41));
+        assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKind::InternalInvariant(
+                LayoutInternalInvariant::MissingStagedUnroundedOutput,
+            )
+        );
+        assert_eq!(tree.final_layout(41), None);
+    }
 
     #[test]
     fn layout_input_returns_declared_line_break() {

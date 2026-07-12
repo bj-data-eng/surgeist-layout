@@ -1,7 +1,196 @@
-use std::collections::HashMap;
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
 
 use crate::test_support::layout_tree::OracleTreeOf;
 use crate::*;
+
+#[derive(Clone, Debug, Default)]
+struct RootSessionTree<M = &'static str> {
+    children: HashMap<u32, Vec<u32>>,
+    inputs: HashMap<u32, LayoutInput>,
+    measurements: HashMap<u32, Result<Size, M>>,
+    leaf_nodes: HashSet<u32>,
+    measured_nodes: RefCell<Vec<u32>>,
+    caches: RefCell<HashMap<u32, Cache>>,
+}
+
+impl<M> RootSessionTree<M> {
+    fn children(mut self, node: u32, children: impl IntoIterator<Item = u32>) -> Self {
+        self.children.insert(node, children.into_iter().collect());
+        self
+    }
+
+    fn style(mut self, node: u32, style: NodeInput) -> Self {
+        self.inputs.insert(node, LayoutInput::box_input(style));
+        self
+    }
+
+    fn measure(mut self, node: u32, output: Result<Size, M>) -> Self {
+        self.leaf_nodes.insert(node);
+        self.measurements.insert(node, output);
+        self
+    }
+
+    fn leaf_without_provider(mut self, node: u32) -> Self {
+        self.leaf_nodes.insert(node);
+        self
+    }
+
+    fn measured_nodes(&self) -> Vec<u32> {
+        self.measured_nodes.borrow().clone()
+    }
+}
+
+impl<M> Traverse for RootSessionTree<M> {
+    type Node = u32;
+    type Scalar = Scalar;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<M: Clone> LayoutTree for RootSessionTree<M> {
+    type MeasureError = M;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInput {
+        self.inputs[&node]
+            .as_box()
+            .expect("test root session node is a box")
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        self.inputs[&node].clone()
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        self.leaf_nodes.contains(&node)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        _input: LeafMeasureInputOf<Self::Scalar>,
+    ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
+        self.measured_nodes.borrow_mut().push(node);
+        self.measurements.get(&node).cloned()
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<Self::Scalar>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<Self::Scalar>> {
+        self.caches
+            .borrow()
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context))
+    }
+}
+
+fn root_cache_input(available: Size<Available>) -> ComputeInput {
+    ComputeInput {
+        run_mode: RunMode::PerformRootLayout,
+        sizing_mode: SizingMode::InherentSize,
+        axis: RequestedAxis::Both,
+        known: Size::NONE,
+        parent: available.map(Available::into_option),
+        available,
+    }
+}
+
+struct ConstraintOverflowTree<S: LayoutScalar> {
+    style: NodeInputOf<S>,
+    measure_calls: Cell<usize>,
+}
+
+impl<S: LayoutScalar> Traverse for ConstraintOverflowTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Empty<u32>
+    where
+        Self: 'a;
+
+    fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+        std::iter::empty()
+    }
+
+    fn child_count(&self, _node: Self::Node) -> usize {
+        0
+    }
+
+    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+        unreachable!("constraint overflow test tree has no children")
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for ConstraintOverflowTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, _node: Self::Node) -> &NodeInputOf<Self::Scalar> {
+        &self.style
+    }
+
+    fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::box_input(self.style.clone())
+    }
+
+    fn has_leaf_measurement(&self, _node: Self::Node) -> bool {
+        true
+    }
+
+    fn measure_leaf(
+        &self,
+        _node: Self::Node,
+        _input: LeafMeasureInputOf<Self::Scalar>,
+    ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
+        self.measure_calls.set(self.measure_calls.get() + 1);
+        Some(Ok(Size::ZERO))
+    }
+}
+
+fn assert_tree_leaf_constraint_overflow<S: LayoutScalar>(largest_finite: S) {
+    let tree = ConstraintOverflowTree {
+        style: NodeInputOf {
+            padding: Edges::all(LengthOf::px(largest_finite)),
+            ..NodeInputOf::default()
+        },
+        measure_calls: Cell::new(0),
+    };
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(largest_finite)))
+        .expect("largest finite root availability is valid");
+
+    let error = compute_layout(&tree, 0, request)
+        .expect_err("overflowing content-space arithmetic must return no completed batch");
+
+    assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidNumeric { value })
+            if *value == -S::INFINITY
+    ));
+    assert_eq!(tree.measure_calls.get(), 0);
+}
 
 #[test]
 fn root_request_rejects_invalid_definite_availability() {
@@ -83,6 +272,611 @@ fn root_request_preserves_distinct_validated_contexts_and_rounding_policy() {
 }
 
 #[test]
+fn compute_layout_success_returns_completed_batch_without_tree_mutation() {
+    let style = NodeInput {
+        size: Size::new(Dimension::px(10.25), Dimension::px(20.5)),
+        ..NodeInput::default()
+    };
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(0, style);
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let batch = compute_layout(&tree, 0, request).expect("root layout succeeds");
+
+    assert_eq!(batch.unrounded_entries().len(), 1);
+    assert_eq!(batch.unrounded_entries()[0].node(), 0);
+    assert_eq!(
+        batch.unrounded_entries()[0].output().size,
+        Size::new(10.25, 20.5)
+    );
+    assert_eq!(batch.final_entries().len(), 1);
+    assert_eq!(batch.final_entries()[0].node(), 0);
+    assert_eq!(
+        batch.final_entries()[0].output().size,
+        Size::new(10.0, 21.0)
+    );
+}
+
+#[test]
+fn compute_layout_stages_cache_store_with_the_cold_root_output() {
+    let style = NodeInput {
+        size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+        ..NodeInput::default()
+    };
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(0, style);
+    let available = Size::new(Available::definite(100.0), Available::definite(80.0));
+    let request = LayoutRootRequest::viewport(available).unwrap();
+
+    let batch = compute_layout(&tree, 0, request).expect("cold root layout succeeds");
+
+    assert_eq!(batch.cache_store_entries().len(), 1);
+    let entry = &batch.cache_store_entries()[0];
+    assert_eq!(entry.node(), 0);
+    assert_eq!(entry.output().size, Size::new(10.0, 20.0));
+    let mut applied_cache = Cache::new();
+    applied_cache.store_with_context(entry.input(), entry.context(), entry.output());
+    assert_eq!(
+        applied_cache.get_with_context(entry.input(), entry.context()),
+        Some(entry.output())
+    );
+}
+
+#[test]
+fn compute_layout_uses_a_matching_root_cache_hit_without_staging_a_store() {
+    let style = NodeInput {
+        size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+        ..NodeInput::default()
+    };
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(0, style);
+    let available = Size::new(Available::definite(100.0), Available::definite(80.0));
+    let input = root_cache_input(available);
+    let cached = ComputeOutput::from_outer_size(Size::new(33.0, 44.0));
+    let mut cache = Cache::new();
+    cache.store_with_context(&input, CacheKeyContext::new(), cached);
+    tree.caches.borrow_mut().insert(0, cache);
+    let request = LayoutRootRequest::viewport(available).unwrap();
+
+    let batch = compute_layout(&tree, 0, request).expect("cached root layout succeeds");
+
+    assert_eq!(
+        batch.unrounded_entries()[0].output().size,
+        Size::new(33.0, 44.0)
+    );
+    assert!(batch.cache_store_entries().is_empty());
+}
+
+#[test]
+fn compute_layout_ignores_cached_container_output_until_the_subtree_is_complete() {
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(1, NodeInput::default())
+        .measure(1, Ok(Size::new(12.0, 8.0)));
+    let available = Size::new(Available::definite(100.0), Available::definite(80.0));
+    let input = root_cache_input(available);
+    let cached = ComputeOutput::from_outer_size(Size::new(33.0, 44.0));
+    let mut cache = Cache::new();
+    cache.store_with_context(&input, CacheKeyContext::new(), cached);
+    tree.caches.borrow_mut().insert(0, cache);
+    let request = LayoutRootRequest::viewport(available).unwrap();
+
+    let batch = compute_layout(&tree, 0, request)
+        .expect("a cached container request must return a complete layout batch");
+
+    for node in [0, 1] {
+        assert!(
+            batch
+                .unrounded_entries()
+                .iter()
+                .any(|entry| entry.node() == node)
+        );
+        assert!(
+            batch
+                .final_entries()
+                .iter()
+                .any(|entry| entry.node() == node)
+        );
+    }
+    assert_ne!(
+        batch
+            .unrounded_entries()
+            .iter()
+            .find(|entry| entry.node() == 0)
+            .expect("root output must be staged")
+            .output()
+            .size,
+        cached.size
+    );
+    let measured_nodes = tree.measured_nodes();
+    assert!(!measured_nodes.is_empty());
+    assert!(measured_nodes.iter().all(|node| *node == 1));
+}
+
+#[test]
+fn compute_layout_cached_container_failure_returns_no_batch() {
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(1, NodeInput::default())
+        .measure(1, Err("measure failed"));
+    let available = Size::new(Available::definite(100.0), Available::definite(80.0));
+    let input = root_cache_input(available);
+    let mut cache = Cache::new();
+    cache.store_with_context(
+        &input,
+        CacheKeyContext::new(),
+        ComputeOutput::from_outer_size(Size::new(33.0, 44.0)),
+    );
+    tree.caches.borrow_mut().insert(0, cache);
+    let before = tree.caches.borrow().clone();
+    let request = LayoutRootRequest::viewport(available).unwrap();
+
+    let error = compute_layout(&tree, 0, request)
+        .expect_err("a cached container must not hide a descendant provider failure");
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::Measurement("measure failed")
+    );
+    assert_eq!(tree.measured_nodes(), vec![1]);
+    assert_eq!(*tree.caches.borrow(), before);
+}
+
+#[test]
+fn f32_tree_leaf_constraint_overflow_returns_typed_error_before_measurement() {
+    assert_tree_leaf_constraint_overflow(f32::MAX);
+}
+
+#[test]
+fn f64_tree_leaf_constraint_overflow_returns_typed_error_before_measurement() {
+    assert_tree_leaf_constraint_overflow(f64::MAX);
+}
+
+#[test]
+fn compute_layout_stages_hidden_root_cache_clear_without_a_store() {
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::None,
+            ..NodeInput::default()
+        },
+    );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let batch = compute_layout(&tree, 0, request).expect("hidden root layout succeeds");
+
+    assert!(batch.cache_store_entries().is_empty());
+    assert_eq!(batch.cache_clear_entries().len(), 1);
+    assert_eq!(batch.cache_clear_entries()[0].node(), 0);
+}
+
+#[test]
+fn compute_layout_failure_drops_staged_cache_effects_without_mutating_tree_cache() {
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(1, NodeInput::default())
+        .measure(1, Err("measure failed"));
+    let available = Size::new(Available::definite(100.0), Available::definite(80.0));
+    let input = root_cache_input(available);
+    let mut cache = Cache::new();
+    cache.store_with_context(
+        &input,
+        CacheKeyContext::new(),
+        ComputeOutput::from_outer_size(Size::new(7.0, 9.0)),
+    );
+    tree.caches.borrow_mut().insert(0, cache);
+    let before = tree.caches.borrow().clone();
+    let request = LayoutRootRequest::viewport(available).unwrap();
+
+    let result = compute_layout(&tree, 0, request);
+
+    assert!(result.is_err());
+    assert_eq!(*tree.caches.borrow(), before);
+}
+
+#[test]
+fn compute_layout_provider_error_returns_no_completed_batch() {
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(1, NodeInput::default())
+        .measure(1, Err("measure failed"));
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::Measurement("measure failed")
+    );
+}
+
+#[test]
+fn compute_layout_rejects_claimed_leaf_without_provider() {
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(1, NodeInput::default())
+        .leaf_without_provider(1);
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InternalInvariant(
+            LayoutInternalInvariant::MissingLeafMeasurementProvider
+        )
+    );
+    assert_eq!(tree.measured_nodes(), vec![1]);
+}
+
+#[test]
+fn compute_layout_rejects_invalid_provider_output_without_batch() {
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(1, NodeInput::default())
+        .measure(1, Ok(Size::new(f32::NAN, 10.0)));
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let result = compute_layout(&tree, 0, request);
+    let error = match result {
+        Ok(_) => panic!("invalid provider output must not complete a layout batch"),
+        Err(error) => error,
+    };
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output))
+            if output.axis() == Axis::Horizontal
+    ));
+}
+
+#[test]
+fn compute_layout_stops_after_first_recursive_child_error() {
+    let tree = RootSessionTree::default()
+        .children(0, [1, 2])
+        .children(1, [])
+        .children(2, [])
+        .style(0, NodeInput::default())
+        .style(1, NodeInput::default())
+        .style(2, NodeInput::default())
+        .measure(1, Err("first child failed"))
+        .measure(2, Ok(Size::new(20.0, 10.0)));
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::Measurement("first child failed")
+    );
+    assert_eq!(tree.measured_nodes(), vec![1]);
+}
+
+#[test]
+fn compute_layout_reports_consumed_invalid_numeric_resolution() {
+    let invalid_padding =
+        LengthPercentageOf::from_coefficients(-f32::MAX, -1.0).expect("finite coefficients");
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+            padding: Edges::new(
+                Length::value(invalid_padding),
+                Length::ZERO,
+                Length::ZERO,
+                Length::ZERO,
+            ),
+            ..NodeInput::default()
+        },
+    );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(f32::MAX),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+            value: f32::NEG_INFINITY,
+        })
+    );
+}
+
+#[test]
+fn compute_layout_rejects_measured_child_invalid_affine_width_without_batch() {
+    let overflowing =
+        LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                size: Size::new(Dimension::value(overflowing), Dimension::AUTO),
+                ..NodeInput::default()
+            },
+        )
+        .measure(1, Ok(Size::new(12.0, 8.0)));
+    let before = tree.caches.borrow().clone();
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(f32::MAX),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+            value: f32::INFINITY,
+        })
+    );
+    assert!(tree.measured_nodes().is_empty());
+    assert_eq!(*tree.caches.borrow(), before);
+}
+
+#[test]
+fn compute_layout_rejects_measured_child_invalid_affine_padding_without_batch() {
+    let overflowing =
+        LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(
+            1,
+            NodeInput {
+                display: Display::InlineBlock,
+                padding: Edges::all(Length::value(overflowing)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(1, Ok(Size::new(12.0, 8.0)));
+    let before = tree.caches.borrow().clone();
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(f32::MAX),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+            value: f32::INFINITY,
+        })
+    );
+    assert!(tree.measured_nodes().is_empty());
+    assert_eq!(*tree.caches.borrow(), before);
+}
+
+#[test]
+fn compute_layout_rejects_root_measured_leaf_invalid_affine_width_without_batch() {
+    let overflowing =
+        LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [])
+        .style(
+            0,
+            NodeInput {
+                size: Size::new(Dimension::value(overflowing), Dimension::AUTO),
+                ..NodeInput::default()
+            },
+        )
+        .measure(0, Ok(Size::new(12.0, 8.0)));
+    let before = tree.caches.borrow().clone();
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(f32::MAX),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+            value: f32::INFINITY,
+        })
+    );
+    assert!(tree.measured_nodes().is_empty());
+    assert_eq!(*tree.caches.borrow(), before);
+}
+
+#[test]
+fn compute_layout_rejects_root_measured_leaf_invalid_affine_padding_without_batch() {
+    let overflowing =
+        LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [])
+        .style(
+            0,
+            NodeInput {
+                padding: Edges::all(Length::value(overflowing)),
+                ..NodeInput::default()
+            },
+        )
+        .measure(0, Ok(Size::new(12.0, 8.0)));
+    let before = tree.caches.borrow().clone();
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(f32::MAX),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+            value: f32::INFINITY,
+        })
+    );
+    assert!(tree.measured_nodes().is_empty());
+    assert_eq!(*tree.caches.borrow(), before);
+}
+
+#[test]
+fn compute_layout_uses_flex_root_viewport_context_as_parent_basis() {
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::Flex,
+            size: Size::new(Dimension::percent(0.5), Dimension::px(20.0)),
+            ..NodeInput::default()
+        },
+    );
+    let viewport = Size::new(Available::definite(200.0), Available::definite(80.0));
+    let request = LayoutRootRequest::flex_item_under_viewport(
+        Size::splat(Available::MAX_CONTENT),
+        FlexItemRootContext::under_viewport(viewport).unwrap(),
+    )
+    .unwrap();
+
+    let batch = compute_layout(&tree, 0, request).expect("flex-item root layout succeeds");
+
+    assert_eq!(
+        batch.unrounded_entries()[0].output().size,
+        Size::new(100.0, 20.0)
+    );
+    assert_eq!(batch.unrounded_entries()[0].output().padding, Edges::ZERO);
+    assert_eq!(batch.unrounded_entries()[0].output().border, Edges::ZERO);
+}
+
+#[test]
+fn compute_layout_rejects_overflowing_affine_grid_auto_fit_track() {
+    let overflowing =
+        LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
+    let track = TrackSizing::from(Length::value(overflowing));
+    let repeat = TrackRepetition::auto_fit(vec![track]).expect("nonempty repeated track list");
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::Grid,
+            grid_template_columns: vec![TrackComponent::Repeat(repeat)],
+            ..NodeInput::default()
+        },
+    );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(f32::MAX),
+        Available::definite(20.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric { .. })
+    ));
+}
+
+#[test]
+fn compute_layout_preserves_nested_subgrid_resolution_failure() {
+    let overflowing =
+        LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::from(Length::px(20.0))],
+                grid_template_rows: vec![TrackComponent::from(Length::px(20.0))],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponent::Subgrid(SubgridTrack::new(vec![]))],
+                grid_template_rows: vec![TrackComponent::from(Length::value(overflowing))],
+                size: Size::new(Dimension::AUTO, Dimension::px(f32::MAX)),
+                ..NodeInput::default()
+            },
+        );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(20.0),
+        Available::definite(20.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric { .. })
+    ));
+}
+
+#[test]
 fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
     #[derive(Default)]
     struct HiddenTree {
@@ -124,10 +918,17 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            assert_eq!(input, ComputeInput::HIDDEN);
-            self.hidden_children.push(node);
-            ComputeOutput::HIDDEN
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                assert_eq!(input, ComputeInput::HIDDEN);
+                self.hidden_children.push(node);
+                ComputeOutput::HIDDEN
+            })
         }
     }
 
@@ -189,7 +990,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         ComputeOutput::from_outer_size(Size::new(1.0, 1.0)),
     );
 
-    assert_eq!(compute_hidden(&mut tree, 1), ComputeOutput::HIDDEN);
+    assert_eq!(compute_hidden(&mut tree, 1).unwrap(), ComputeOutput::HIDDEN);
     assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
     assert_eq!(tree.hidden_children, vec![2, 3]);
     assert!(tree.caches[&1].is_empty());
@@ -239,11 +1040,18 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            assert_eq!(input, ComputeInput::HIDDEN);
-            let _ = self.node_input(node);
-            self.hidden_children.push(node);
-            ComputeOutput::HIDDEN
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                assert_eq!(input, ComputeInput::HIDDEN);
+                let _ = self.node_input(node);
+                self.hidden_children.push(node);
+                ComputeOutput::HIDDEN
+            })
         }
     }
 
@@ -296,7 +1104,7 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
     tree.caches.insert(2, Cache::new());
     tree.caches.insert(3, Cache::new());
 
-    assert_eq!(compute_hidden(&mut tree, 1), ComputeOutput::HIDDEN);
+    assert_eq!(compute_hidden(&mut tree, 1).unwrap(), ComputeOutput::HIDDEN);
     assert_eq!(tree.hidden_children, vec![2]);
     assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
     assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
@@ -348,11 +1156,18 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            assert_eq!(input, ComputeInput::HIDDEN);
-            let _ = self.node_input(node);
-            self.hidden_children.push(node);
-            ComputeOutput::HIDDEN
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                assert_eq!(input, ComputeInput::HIDDEN);
+                let _ = self.node_input(node);
+                self.hidden_children.push(node);
+                ComputeOutput::HIDDEN
+            })
         }
     }
 
@@ -408,7 +1223,7 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
     tree.caches.insert(2, Cache::new());
     tree.caches.insert(3, Cache::new());
 
-    assert_eq!(compute_hidden(&mut tree, 1), ComputeOutput::HIDDEN);
+    assert_eq!(compute_hidden(&mut tree, 1).unwrap(), ComputeOutput::HIDDEN);
     assert_eq!(tree.hidden_children, vec![2]);
     assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
     assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
@@ -462,10 +1277,13 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
             &mut self,
             node: Self::Node,
             input: ComputeInputOf<f64>,
-        ) -> ComputeOutputOf<f64> {
-            assert_eq!(input, ComputeInputOf::HIDDEN);
-            self.hidden_children.push(node);
-            ComputeOutputOf::HIDDEN
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                assert_eq!(input, ComputeInputOf::HIDDEN);
+                self.hidden_children.push(node);
+                ComputeOutputOf::HIDDEN
+            })
         }
     }
 
@@ -524,7 +1342,10 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
         ComputeOutputOf::from_outer_size(Size::new(1.25, 1.5)),
     );
 
-    assert_eq!(compute_hidden(&mut tree, 1), ComputeOutputOf::HIDDEN);
+    assert_eq!(
+        compute_hidden(&mut tree, 1).unwrap(),
+        ComputeOutputOf::HIDDEN
+    );
     assert_eq!(tree.layouts[&1], NodeOutputOf::with_order(0));
     assert_eq!(tree.hidden_children, vec![2]);
     assert!(tree.caches[&1].is_empty());
@@ -545,9 +1366,15 @@ fn f64_tree_can_run_root_layout_smoke_test() {
         &mut tree,
         0,
         Size::new(AvailableOf::definite(100.0), AvailableOf::definite(50.0)),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(tree.output(0).size, Size::new(100.0, 50.0));
+    assert_eq!(
+        tree.output(0)
+            .expect("root layout must stage output for the root node")
+            .size,
+        Size::new(100.0, 50.0)
+    );
 }
 
 struct SingleRootTree {
@@ -599,9 +1426,15 @@ impl Compute for SingleRootTree {
         self.layouts.insert(node, layout);
     }
 
-    fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-        self.input = Some(input);
-        self.output
+    fn compute_child(
+        &mut self,
+        _node: Self::Node,
+        input: ComputeInput,
+    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
+        Ok({
+            self.input = Some(input);
+            self.output
+        })
     }
 }
 
@@ -619,7 +1452,8 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
         &mut tree,
         1,
         Size::new(Available::definite(100.0), Available::definite(40.0)),
-    );
+    )
+    .unwrap();
 
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(
@@ -649,7 +1483,8 @@ fn root_layout_emits_visible_scroll_geometry_without_range() {
         &mut tree,
         1,
         Size::new(Available::definite(100.0), Available::definite(40.0)),
-    );
+    )
+    .unwrap();
 
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(geometry.overflow_clip(), None);
@@ -673,7 +1508,8 @@ fn root_layout_emits_clip_geometry_without_range() {
         &mut tree,
         1,
         Size::new(Available::definite(100.0), Available::definite(40.0)),
-    );
+    )
+    .unwrap();
 
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
@@ -696,7 +1532,8 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
         &mut tree,
         1,
         Size::new(Available::definite(100.0), Available::definite(40.0)),
-    );
+    )
+    .unwrap();
 
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(
@@ -742,7 +1579,8 @@ fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
         &mut tree,
         1,
         Size::new(Available::definite(100.0), Available::definite(40.0)),
-    );
+    )
+    .unwrap();
 
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(geometry.scrollable_overflow(), child_overflow);
@@ -763,9 +1601,11 @@ fn f64_round_layout_preserves_large_coordinates() {
             },
         );
 
-    round_layout(&mut tree, 0);
+    round_layout(&mut tree, 0).unwrap();
 
-    let final_layout = tree.output(0);
+    let final_layout = tree
+        .output(0)
+        .expect("rounding must stage final output for the root node");
     assert_eq!(final_layout.location.x, large.round());
     assert_eq!(final_layout.location.y, (large + 0.5).round());
 }
@@ -795,9 +1635,13 @@ fn round_layout_rounds_scroll_geometry_with_node_output() {
         },
     );
 
-    round_layout(&mut tree, 0);
+    round_layout(&mut tree, 0).unwrap();
 
-    let geometry = tree.output(0).scroll_geometry.unwrap();
+    let geometry = tree
+        .output(0)
+        .expect("rounding must stage final output for the root node")
+        .scroll_geometry
+        .unwrap();
     assert_eq!(geometry.scrollport().origin(), Point::new(1.0, 1.0));
     assert_eq!(geometry.scrollport().size(), Size::new(100.0, 40.0));
     assert_eq!(
@@ -851,9 +1695,16 @@ fn root_layout_stores_child_output_as_root_layout() {
             self.layout = Some(layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.input = Some(input);
-            ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.input = Some(input);
+                ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0))
+            })
         }
     }
 
@@ -871,7 +1722,8 @@ fn root_layout_stores_child_output_as_root_layout() {
         &mut tree,
         1,
         Size::new(Available::definite(200.0), Available::definite(100.0)),
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.input,
@@ -931,9 +1783,16 @@ fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
             self.layout = Some(layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.input = Some(input);
-            ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.input = Some(input);
+                ComputeOutput::from_sizes(Size::new(80.0, 20.0), Size::new(80.0, 20.0))
+            })
         }
     }
 
@@ -949,7 +1808,8 @@ fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
         &mut tree,
         1,
         Size::new(Available::definite(200.0), Available::definite(100.0)),
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.input.expect("root should be computed").known,
@@ -1001,10 +1861,17 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
             self.layout = Some(layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.input = Some(input);
-            let width = input.known.width.unwrap_or(272.0);
-            ComputeOutput::from_sizes(Size::new(width, 72.0), Size::new(width, 72.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.input = Some(input);
+                let width = input.known.width.unwrap_or(272.0);
+                ComputeOutput::from_sizes(Size::new(width, 72.0), Size::new(width, 72.0))
+            })
         }
     }
 
@@ -1021,7 +1888,8 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
         &mut tree,
         1,
         Size::new(Available::definite(800.0), Available::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.input.expect("root should be computed").known,
@@ -1073,12 +1941,19 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
             self.layout = Some(layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.input = Some(input);
-            ComputeOutput::from_sizes(
-                Size::new(input.known.width.unwrap_or(112.0), 20.0),
-                Size::new(input.known.width.unwrap_or(112.0), 20.0),
-            )
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.input = Some(input);
+                ComputeOutput::from_sizes(
+                    Size::new(input.known.width.unwrap_or(112.0), 20.0),
+                    Size::new(input.known.width.unwrap_or(112.0), 20.0),
+                )
+            })
         }
     }
 
@@ -1103,7 +1978,8 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
         &mut tree,
         1,
         Size::new(Available::definite(800.0), Available::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 
     assert_eq!(
         tree.input.expect("root should be computed").known.width,
@@ -1146,8 +2022,11 @@ fn round_layout_uses_cumulative_viewport_edges() {
     }
 
     impl Round for RoundTree {
-        fn unrounded(&self, node: Self::Node) -> NodeOutput {
-            self.unrounded[&node]
+        fn unrounded(
+            &self,
+            node: Self::Node,
+        ) -> crate::LayoutResultOf<Self::Node, NodeOutput, Self::Scalar> {
+            Ok(self.unrounded[&node])
         }
 
         fn set_final(&mut self, node: Self::Node, layout: NodeOutput) {
@@ -1182,7 +2061,7 @@ fn round_layout_uses_cumulative_viewport_edges() {
         },
     );
 
-    round_layout(&mut tree, 1);
+    round_layout(&mut tree, 1).unwrap();
 
     assert_eq!(tree.final_layouts[&1].location, Point::new(0.0, 0.0));
     assert_eq!(tree.final_layouts[&1].size.width, 11.0);

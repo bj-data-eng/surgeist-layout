@@ -269,14 +269,17 @@ fn cached_compute_uses_tree_cache_before_running_expensive_layout() {
 
     let first = compute_cached(&mut probe, 7, input, |tree, _node, _input| {
         tree.calls += 1;
-        ComputeOutput::from_outer_size(Size::new(80.0, 24.0))
+        Ok(ComputeOutput::from_outer_size(Size::new(80.0, 24.0)))
     });
     let second = compute_cached(&mut probe, 7, input, |tree, _node, _input| {
         tree.calls += 1;
-        ComputeOutput::from_outer_size(Size::new(10.0, 10.0))
+        Ok(ComputeOutput::from_outer_size(Size::new(10.0, 10.0)))
     });
 
-    assert_eq!(first, ComputeOutput::from_outer_size(Size::new(80.0, 24.0)));
+    assert_eq!(
+        first,
+        Ok(ComputeOutput::from_outer_size(Size::new(80.0, 24.0)))
+    );
     assert_eq!(second, first);
     assert_eq!(probe.calls, 1);
 }

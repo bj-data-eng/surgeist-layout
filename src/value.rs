@@ -252,6 +252,7 @@ impl<S: LayoutScalar> LengthPercentageOf<S> {
             NumericResolutionOf::InvalidNumeric {
                 value: self,
                 basis: PercentageBasisOf::Definite(basis),
+                resolved,
             }
         }
     }
@@ -288,6 +289,7 @@ pub enum NumericResolutionOf<S: LayoutScalar = DefaultScalar> {
     InvalidNumeric {
         value: LengthPercentageOf<S>,
         basis: PercentageBasisOf<S>,
+        resolved: S,
     },
 }
 
@@ -303,11 +305,11 @@ fn canonical_zero<S: LayoutScalar>(value: S) -> S {
     if value == S::ZERO { S::ZERO } else { value }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum LengthResolutionStatus {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LengthResolutionStatus<S: LayoutScalar = DefaultScalar> {
     Resolved,
     MissingBasis,
-    InvalidNumeric,
+    InvalidNumeric { value: S },
     NonNumeric,
 }
 
@@ -330,7 +332,7 @@ pub type ResolvedLengthAuto = ResolvedLengthAutoOf<DefaultScalar>;
 pub struct LengthResolutionOf<S: LayoutScalar = DefaultScalar> {
     pub value: Option<S>,
     pub depends_on_basis: bool,
-    status: LengthResolutionStatus,
+    status: LengthResolutionStatus<S>,
 }
 
 pub type LengthResolution = LengthResolutionOf<DefaultScalar>;
@@ -355,11 +357,11 @@ impl<S: LayoutScalar> LengthResolutionOf<S> {
     }
 
     #[must_use]
-    pub const fn invalid_numeric(depends_on_basis: bool) -> Self {
+    pub const fn invalid_numeric(value: S, depends_on_basis: bool) -> Self {
         Self {
             value: None,
             depends_on_basis,
-            status: LengthResolutionStatus::InvalidNumeric,
+            status: LengthResolutionStatus::InvalidNumeric { value },
         }
     }
 
@@ -373,7 +375,7 @@ impl<S: LayoutScalar> LengthResolutionOf<S> {
     }
 
     #[must_use]
-    pub const fn status(self) -> LengthResolutionStatus {
+    pub const fn status(self) -> LengthResolutionStatus<S> {
         self.status
     }
 
@@ -382,7 +384,9 @@ impl<S: LayoutScalar> LengthResolutionOf<S> {
         match self.status {
             LengthResolutionStatus::Resolved | LengthResolutionStatus::NonNumeric => None,
             LengthResolutionStatus::MissingBasis => Some(UnresolvedLengthReason::Basis),
-            LengthResolutionStatus::InvalidNumeric => Some(UnresolvedLengthReason::InvalidNumeric),
+            LengthResolutionStatus::InvalidNumeric { .. } => {
+                Some(UnresolvedLengthReason::InvalidNumeric)
+            }
         }
     }
 }
@@ -414,9 +418,16 @@ fn length_resolution_against<S: LayoutScalar>(
             LengthResolutionOf::definite(value, length_percentage.depends_on_basis())
         }
         NumericResolutionOf::MissingBasis { .. } => LengthResolutionOf::unresolved(true),
-        NumericResolutionOf::InvalidNumeric { value, .. } => {
-            LengthResolutionOf::invalid_numeric(value.depends_on_basis())
-        }
+        NumericResolutionOf::InvalidNumeric {
+            value, resolved, ..
+        } => LengthResolutionOf::invalid_numeric(resolved, value.depends_on_basis()),
+    }
+}
+
+fn invalid_basis_value<S: LayoutScalar>(error: NonNegativeFiniteScalarErrorOf<S>) -> S {
+    match error {
+        NonNegativeFiniteScalarErrorOf::NonFinite { value }
+        | NonNegativeFiniteScalarErrorOf::Negative { value } => value,
     }
 }
 
@@ -476,7 +487,10 @@ impl<S: LayoutScalar> LengthOf<S> {
     pub fn resolve(self, basis: S) -> LengthResolutionOf<S> {
         match PercentageBasisOf::definite(basis) {
             Ok(basis) => self.resolve_against(basis),
-            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
+            Err(error) => LengthResolutionOf::invalid_numeric(
+                invalid_basis_value(error),
+                self.depends_on_basis(),
+            ),
         }
     }
 
@@ -508,7 +522,10 @@ impl<S: LayoutScalar> LengthOf<S> {
     pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
         match optional_basis(basis) {
             Ok(basis) => self.resolve_with_status_against(basis),
-            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
+            Err(error) => LengthResolutionOf::invalid_numeric(
+                invalid_basis_value(error),
+                self.depends_on_basis(),
+            ),
         }
     }
 }
@@ -573,7 +590,10 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     pub fn resolve(self, basis: S) -> LengthResolutionOf<S> {
         match PercentageBasisOf::definite(basis) {
             Ok(basis) => self.resolve_against(basis),
-            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
+            Err(error) => LengthResolutionOf::invalid_numeric(
+                invalid_basis_value(error),
+                self.depends_on_basis(),
+            ),
         }
     }
 
@@ -605,7 +625,10 @@ impl<S: LayoutScalar> LengthAutoOf<S> {
     pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
         match optional_basis(basis) {
             Ok(basis) => self.resolve_with_status_against(basis),
-            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
+            Err(error) => LengthResolutionOf::invalid_numeric(
+                invalid_basis_value(error),
+                self.depends_on_basis(),
+            ),
         }
     }
 
@@ -722,7 +745,10 @@ impl<S: LayoutScalar> DimensionOf<S> {
     pub fn resolve(self, basis: S) -> LengthResolutionOf<S> {
         match PercentageBasisOf::definite(basis) {
             Ok(basis) => self.resolve_against(basis),
-            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
+            Err(error) => LengthResolutionOf::invalid_numeric(
+                invalid_basis_value(error),
+                self.depends_on_basis(),
+            ),
         }
     }
 
@@ -756,7 +782,10 @@ impl<S: LayoutScalar> DimensionOf<S> {
     pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
         match optional_basis(basis) {
             Ok(basis) => self.resolve_with_status_against(basis),
-            Err(_) => LengthResolutionOf::invalid_numeric(self.depends_on_basis()),
+            Err(error) => LengthResolutionOf::invalid_numeric(
+                invalid_basis_value(error),
+                self.depends_on_basis(),
+            ),
         }
     }
 
@@ -1484,7 +1513,12 @@ mod value_tests {
         assert_eq!(missing_basis.value, None);
         assert_eq!(missing_basis.status(), LengthResolutionStatus::MissingBasis);
         assert_eq!(overflow.value, None);
-        assert_eq!(overflow.status(), LengthResolutionStatus::InvalidNumeric);
+        assert_eq!(
+            overflow.status(),
+            LengthResolutionStatus::InvalidNumeric {
+                value: f32::INFINITY,
+            }
+        );
     }
 
     #[test]
@@ -1497,7 +1531,12 @@ mod value_tests {
         let resolution = length.resolve_with_status(Some(f32::MAX));
 
         assert_eq!(resolution.value, None);
-        assert_eq!(resolution.status(), LengthResolutionStatus::InvalidNumeric);
+        assert_eq!(
+            resolution.status(),
+            LengthResolutionStatus::InvalidNumeric {
+                value: f32::INFINITY,
+            }
+        );
     }
 
     #[test]
@@ -1528,20 +1567,22 @@ mod value_tests {
 
         assert_eq!(
             length.resolve(-1.0).status(),
-            LengthResolutionStatus::InvalidNumeric
+            LengthResolutionStatus::InvalidNumeric { value: -1.0 }
         );
         assert_eq!(length.resolve_optional(Some(-1.0)), None);
         assert_eq!(
             length.resolve_with_status(Some(-1.0)).status(),
-            LengthResolutionStatus::InvalidNumeric
+            LengthResolutionStatus::InvalidNumeric { value: -1.0 }
         );
-        assert_eq!(
+        assert!(matches!(
             length.resolve_with_status(Some(f32::NAN)).status(),
-            LengthResolutionStatus::InvalidNumeric
-        );
+            LengthResolutionStatus::InvalidNumeric { value } if value.is_nan()
+        ));
         assert_eq!(
             length.resolve_with_status(Some(f32::INFINITY)).status(),
-            LengthResolutionStatus::InvalidNumeric
+            LengthResolutionStatus::InvalidNumeric {
+                value: f32::INFINITY,
+            }
         );
     }
 
@@ -1552,17 +1593,19 @@ mod value_tests {
         let dimension = DimensionOf::<f32>::px(12.0);
 
         assert_eq!(px_only.resolve_optional(Some(f32::NAN)), None);
-        assert_eq!(
+        assert!(matches!(
             px_only.resolve_with_status(Some(f32::NAN)).status(),
-            LengthResolutionStatus::InvalidNumeric
-        );
+            LengthResolutionStatus::InvalidNumeric { value } if value.is_nan()
+        ));
         assert_eq!(
             auto.resolve_with_status(Some(f32::INFINITY)).status(),
-            LengthResolutionStatus::InvalidNumeric
+            LengthResolutionStatus::InvalidNumeric {
+                value: f32::INFINITY,
+            }
         );
         assert_eq!(
             dimension.resolve(-1.0).status(),
-            LengthResolutionStatus::InvalidNumeric
+            LengthResolutionStatus::InvalidNumeric { value: -1.0 }
         );
     }
 
@@ -1595,6 +1638,7 @@ mod value_tests {
             NumericResolutionOf::InvalidNumeric {
                 value: f32_value,
                 basis: f32_basis,
+                resolved: f32::INFINITY,
             }
         );
 
@@ -1606,6 +1650,7 @@ mod value_tests {
             NumericResolutionOf::InvalidNumeric {
                 value: f64_value,
                 basis: f64_basis,
+                resolved: f64::INFINITY,
             }
         );
     }

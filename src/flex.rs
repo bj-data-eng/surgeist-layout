@@ -1,73 +1,77 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
-    ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, FlexDirection, LayoutScalar,
-    LengthAutoOf, LengthOf, LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf,
-    Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
+    ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, FlexDirection, LayoutResultOf,
+    LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf, LengthResolutionStatus, NodeInputOf,
+    NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
+use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
 };
 
-pub fn compute_flex<Tree>(
+pub(crate) fn compute_flex<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-) -> ComputeOutputOf<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
-    compute_flex_inner::<Tree, Tree::Scalar>(tree, node, input)
+    compute_flex_inner::<Tree, Tree::Scalar, M>(tree, node, input)
 }
 
-fn compute_flex_inner<Tree, S>(
+fn compute_flex_inner<Tree, S, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<S>,
-) -> ComputeOutputOf<S>
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<S>, S, M>
 where
-    Tree: Compute<Scalar = S>,
+    Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
     let style = tree.node_input(node).clone();
-    let constants = Constants::new(&style, input);
+    let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
     if input.run_mode == RunMode::ComputeSize
         && let Size {
             width: Some(width),
             height: Some(height),
         } = constants.node_outer_size
     {
-        return ComputeOutputOf::<S>::from_outer_size(Size::new(width, height));
+        return Ok(ComputeOutputOf::<S>::from_outer_size(Size::new(
+            width, height,
+        )));
     }
 
-    let mut collected_items = collect_items(tree, node, &constants, input.run_mode);
+    let mut collected_items = collect_items(tree, node, &constants, input.run_mode)?;
     let mut lines = collect_flex_lines(&collected_items, &constants);
 
     let mut layout_constants = resolved_layout_constants(
         tree,
+        node,
         input,
         &style,
         &constants,
         &mut collected_items,
         &lines,
-    );
-    let mut resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants);
+    )?;
+    let mut resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
     let cross_layout_constants = resolved_cross_layout_constants(&layout_constants, &lines);
     if cross_layout_constants.node_inner_size != layout_constants.node_inner_size {
         layout_constants = cross_layout_constants;
-        resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants);
+        resolved_items = resolve_lines(tree, &collected_items, &mut lines, &layout_constants)?;
     } else {
         layout_constants = cross_layout_constants;
     }
     let (absolute_content_size, final_items) = if input.run_mode.is_perform_layout() {
-        let final_items = final_layout(tree, &resolved_items, &layout_constants);
-        let absolute_content_size = layout_absolute_children(tree, node, &layout_constants);
-        layout_hidden_children(tree, node);
+        let final_items = final_layout(tree, &resolved_items, &layout_constants)?;
+        let absolute_content_size = layout_absolute_children(tree, node, &layout_constants)?;
+        layout_hidden_children(tree, node)?;
         (absolute_content_size, Some(final_items))
     } else {
         (Size::<S>::ZERO, None)
     };
 
-    container_output(
+    Ok(container_output(
         input,
         &style,
         &layout_constants,
@@ -75,7 +79,7 @@ where
         final_items.as_deref(),
         &lines,
         absolute_content_size,
-    )
+    ))
 }
 
 #[derive(Clone, Copy)]
@@ -102,15 +106,27 @@ struct Constants<S: LayoutScalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
-    fn new(style: &NodeInputOf<S>, input: ComputeInputOf<S>) -> Self {
+    fn new<Tree, M>(
+        tree: &Tree,
+        node: <Tree as Traverse>::Node,
+        style: &NodeInputOf<S>,
+        input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
         let padding = style
             .padding
             .zip_inline_size(input.parent, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
-        let border = style.border.zip_inline_size(input.parent, |length, basis| {
-            resolve_length_or_zero(length, basis)
-        });
+            })
+            .transpose_with_node(tree, node)?;
+        let border = style
+            .border
+            .zip_inline_size(input.parent, |length, basis| {
+                resolve_length_or_zero(length, basis)
+            })
+            .transpose_with_node(tree, node)?;
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
             style.scrollbar_width.get(),
@@ -138,6 +154,7 @@ impl<S: LayoutScalar> Constants<S> {
                     .zip_map(input.parent, |dimension, basis| {
                         resolve_dimension(dimension, basis)
                     })
+                    .transpose_with_node(tree, node)?
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
                 let min_size = style
@@ -145,6 +162,7 @@ impl<S: LayoutScalar> Constants<S> {
                     .zip_map(input.parent, |dimension, basis| {
                         resolve_dimension(dimension, basis)
                     })
+                    .transpose_with_node(tree, node)?
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
                 let max_size = style
@@ -152,6 +170,7 @@ impl<S: LayoutScalar> Constants<S> {
                     .zip_map(input.parent, |dimension, basis| {
                         resolve_dimension(dimension, basis)
                     })
+                    .transpose_with_node(tree, node)?
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
                 (style_size, min_size, max_size)
@@ -171,11 +190,14 @@ impl<S: LayoutScalar> Constants<S> {
         let max_inner_size = max_size
             .sub_optional(content_box_inset_size)
             .max_optional(Size::<S>::ZERO.map(Some));
-        let gap = style.gap.zip_map(node_inner_size, |length, basis| {
-            resolve_length_or_zero(length, basis)
-        });
+        let gap = style
+            .gap
+            .zip_map(node_inner_size, |length, basis| {
+                resolve_length_or_zero(length, basis)
+            })
+            .transpose_with_node(tree, node)?;
 
-        Self {
+        Ok(Self {
             direction: style.flex_direction,
             layout_direction: style.direction,
             node_outer_size,
@@ -198,7 +220,7 @@ impl<S: LayoutScalar> Constants<S> {
             wrap_reverse: style.flex_wrap == super::FlexWrap::WrapReverse,
             available: input.available,
             available_main: input.available.main(style.flex_direction),
-        }
+        })
     }
 }
 
@@ -319,14 +341,23 @@ impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexIte
     }
 }
 
-fn collect_items<Tree>(
+#[expect(
+    clippy::type_complexity,
+    reason = "the private flex collector preserves node, scalar, and provider error types"
+)]
+fn collect_items<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     constants: &Constants<Tree::Scalar>,
     run_mode: RunMode,
-) -> Vec<CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    Vec<CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>,
+    Tree::Scalar,
+    M,
+>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let children = tree.children(node).collect::<Vec<_>>();
     let mut items = Vec::with_capacity(children.len());
@@ -337,44 +368,57 @@ where
             continue;
         }
 
-        let child = build_item(tree, child, order as u32, &child_style, constants, run_mode);
+        let child = build_item(tree, child, order as u32, &child_style, constants, run_mode)?;
         items.push(child);
     }
-    items
+    Ok(items)
 }
 
-fn build_item<Tree>(
+#[expect(
+    clippy::type_complexity,
+    reason = "the private flex item builder preserves node, scalar, and provider error types"
+)]
+fn build_item<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     order: u32,
     style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     run_mode: RunMode,
-) -> CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>,
+    Tree::Scalar,
+    M,
+>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let padding = style
         .padding
         .zip_inline_size(constants.node_inner_size, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, node)?;
     let border = style
         .border
         .zip_inline_size(constants.node_inner_size, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, node)?;
     let margin = style
         .margin
         .zip_inline_size(constants.node_inner_size, |length, basis| {
             resolve_auto_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, node)?;
     let margin_is_auto = style.margin.map(LengthAutoOf::is_auto);
     let inset = style
         .inset
         .zip_size(constants.node_inner_size, |length, basis| {
             resolve_auto_optional(length, basis)
-        });
+        })
+        .transpose_with_node(tree, node)?;
     let padding_border = padding + border;
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border.sum_axes()
@@ -386,6 +430,7 @@ where
         .zip_map(constants.node_inner_size, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, node)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let size = authored_size;
@@ -393,6 +438,7 @@ where
         style.flex_basis,
         constants.node_inner_size.main(constants.direction),
     )
+    .map_err(|status| crate::compute::value_resolution_error(node, status))?
     .map(|flex_basis| {
         let padding_border = padding_border.sum_axes().main(constants.direction);
         if style.box_sizing == BoxSizing::ContentBox {
@@ -409,12 +455,14 @@ where
         .min_size
         .zip_map(constants.node_inner_size, |dimension, basis| {
             resolve_dimension(dimension, basis)
-        });
+        })
+        .transpose_with_node(tree, node)?;
     let raw_max_size = style
         .max_size
         .zip_map(constants.node_inner_size, |dimension, basis| {
             resolve_dimension(dimension, basis)
-        });
+        })
+        .transpose_with_node(tree, node)?;
     let min_size = raw_min_size
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
@@ -507,7 +555,7 @@ where
             parent: available_inner_size,
             available: child_available,
         },
-    );
+    )?;
     let automatic_min_main_size = automatic_min_main_size(
         tree,
         node,
@@ -515,31 +563,31 @@ where
         constants,
         box_sizing_adjustment,
         child_known_for_base,
-    );
-    let flex_basis = resolved_flex_basis
-        .or_else(|| size.main(direction))
-        .unwrap_or_else(|| {
-            if let Some(ratio) = style.aspect_ratio {
-                if let Some(cross) = child_known_for_base.cross(direction) {
-                    return main_size_from_cross_aspect(direction, cross, ratio);
-                }
-
-                return output.size.main(direction);
-            }
-            tree.compute_child(
-                node,
-                ComputeInputOf {
-                    run_mode: RunMode::ComputeSize,
-                    sizing_mode: SizingMode::ContentSize,
-                    axis: requested_axis(direction),
-                    known: child_known_for_base,
-                    parent: available_inner_size.with_main(direction, None),
-                    available: child_available.with_main(direction, AvailableOf::MAX_CONTENT),
-                },
-            )
-            .size
-            .main(direction)
-        });
+    )?;
+    let flex_basis = if let Some(flex_basis) = resolved_flex_basis.or_else(|| size.main(direction))
+    {
+        flex_basis
+    } else if let Some(ratio) = style.aspect_ratio {
+        if let Some(cross) = child_known_for_base.cross(direction) {
+            main_size_from_cross_aspect(direction, cross, ratio)
+        } else {
+            output.size.main(direction)
+        }
+    } else {
+        tree.compute_child(
+            node,
+            ComputeInputOf {
+                run_mode: RunMode::ComputeSize,
+                sizing_mode: SizingMode::ContentSize,
+                axis: requested_axis(direction),
+                known: child_known_for_base,
+                parent: available_inner_size.with_main(direction, None),
+                available: child_available.with_main(direction, AvailableOf::MAX_CONTENT),
+            },
+        )?
+        .size
+        .main(direction)
+    };
     let hypothetical_main_size = clamp_main_size_axes(
         flex_basis,
         automatic_min_main_size,
@@ -587,7 +635,7 @@ where
     let baseline = output.baselines().first_or_synthesize_block(output.size)
         + margin.cross_start(constants.direction, constants.layout_direction);
 
-    CollectedFlexItem {
+    Ok(CollectedFlexItem {
         node,
         order,
         size: authored_size,
@@ -614,29 +662,30 @@ where
         initial_baseline: baseline,
         flex_grow_factor: style.flex_grow.get(),
         flex_shrink_factor: style.flex_shrink.get(),
-    }
+    })
 }
 
-fn automatic_min_main_size<Tree>(
+fn automatic_min_main_size<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     box_sizing_adjustment: Size<Tree::Scalar>,
     child_known: Size<Option<Tree::Scalar>>,
-) -> Option<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Option<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let direction = constants.direction;
     if !style.min_size.main(direction).is_auto() || flex_automatic_minimum_is_zero(style.overflow) {
-        return None;
+        return Ok(None);
     }
     let authored_size = style
         .size
         .zip_map(constants.node_inner_size, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, node)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let min_size = style
@@ -644,6 +693,7 @@ where
         .zip_map(constants.node_inner_size, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, node)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let resolved_max_size = style
@@ -651,18 +701,22 @@ where
         .zip_map(constants.node_inner_size, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, node)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-    let padding_border = style
+    let padding = style
         .padding
         .zip_inline_size(constants.node_inner_size, |length, basis| {
             resolve_length_or_zero(length, basis)
         })
-        + style
-            .border
-            .zip_inline_size(constants.node_inner_size, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            });
+        .transpose_with_node(tree, node)?;
+    let border = style
+        .border
+        .zip_inline_size(constants.node_inner_size, |length, basis| {
+            resolve_length_or_zero(length, basis)
+        })
+        .transpose_with_node(tree, node)?;
+    let padding_border = padding + border;
 
     let available = Size::from_main_cross(
         direction,
@@ -687,7 +741,7 @@ where
             parent: constants.node_inner_size.with_main(direction, None),
             available,
         },
-    );
+    )?;
 
     let mut min_content = output
         .size
@@ -702,7 +756,9 @@ where
             .clamp_optional(None, resolved_max_size.main(direction));
         min_content = min_content.max(transferred);
     }
-    Some(min_content.max(padding_border.sum_axes().main(direction)))
+    Ok(Some(
+        min_content.max(padding_border.sum_axes().main(direction)),
+    ))
 }
 
 fn flex_automatic_minimum_is_zero(overflow: Point<Overflow>) -> bool {
@@ -825,14 +881,23 @@ fn flex_line_collection_size<S: LayoutScalar>(constants: &Constants<S>) -> Optio
         .or_else(|| constants.max_inner_size.main(constants.direction))
 }
 
-fn resolve_lines<Tree>(
+#[expect(
+    clippy::type_complexity,
+    reason = "the private flex resolver preserves node, scalar, and provider error types"
+)]
+fn resolve_lines<Tree, M>(
     tree: &mut Tree,
     items: &[CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     lines: &mut [FlexLine<Tree::Scalar>],
     constants: &Constants<Tree::Scalar>,
-) -> Vec<ResolvedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    Vec<ResolvedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>,
+    Tree::Scalar,
+    M,
+>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let mut resolved_items = items
         .iter()
@@ -880,7 +945,7 @@ where
             }
 
             let item = &mut resolved_items[item_index];
-            determine_hypothetical_cross_size(tree, item, constants);
+            determine_hypothetical_cross_size(tree, item, constants)?;
             item.offset_main = main_cursor + item.margin_main_start(constants);
             item.offset_cross = cross_cursor
                 + item
@@ -920,7 +985,7 @@ where
 
     stretch_lines_on_cross_axis(&mut resolved_items, lines, constants);
     align_lines_on_cross_axis(&mut resolved_items, lines, constants);
-    resolved_items
+    Ok(resolved_items)
 }
 
 fn align_lines_on_cross_axis<Node, S: LayoutScalar>(
@@ -974,12 +1039,13 @@ fn align_lines_on_cross_axis<Node, S: LayoutScalar>(
     }
 }
 
-fn determine_hypothetical_cross_size<Tree>(
+fn determine_hypothetical_cross_size<Tree, M>(
     tree: &mut Tree,
     item: &mut ResolvedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
-) where
-    Tree: Compute,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), Tree::Scalar, M>
+where
+    Tree: Compute<M>,
 {
     let direction = constants.direction;
     let padding_border_cross = (item.padding + item.border).sum_axes().cross(direction);
@@ -1006,59 +1072,61 @@ fn determine_hypothetical_cross_size<Tree>(
         AvailableOf::Definite(value) => AvailableOf::Definite(value.max(padding_border_cross)),
         other => other,
     };
-    let measured_cross = authored_cross.unwrap_or_else(|| {
+    let measured_cross = if let Some(authored_cross) = authored_cross {
+        authored_cross
+    } else {
         let main_size_changed =
             (item.target_size.main(direction) - item.initial_output.size.main(direction)).abs()
                 > Tree::Scalar::from_f64(0.001);
         if item.initial_output.content_size == item.initial_output.size && !main_size_changed {
-            return item
-                .initial_output
+            item.initial_output
                 .size
                 .cross(direction)
                 .clamp_optional(
                     item.min_size.cross(direction),
                     item.max_size.cross(direction),
                 )
-                .max(padding_border_cross);
-        }
-
-        tree.compute_child(
-            item.node,
-            ComputeInputOf {
-                run_mode: RunMode::ComputeSize,
-                sizing_mode: SizingMode::ContentSize,
-                axis: if direction.is_row() {
-                    RequestedAxis::Vertical
-                } else {
-                    RequestedAxis::Horizontal
+                .max(padding_border_cross)
+        } else {
+            tree.compute_child(
+                item.node,
+                ComputeInputOf {
+                    run_mode: RunMode::ComputeSize,
+                    sizing_mode: SizingMode::ContentSize,
+                    axis: if direction.is_row() {
+                        RequestedAxis::Vertical
+                    } else {
+                        RequestedAxis::Horizontal
+                    },
+                    known: Size::from_main_cross(
+                        direction,
+                        Some(item.target_size.main(direction)),
+                        authored_cross,
+                    ),
+                    parent: constants.node_inner_size,
+                    available: Size::from_main_cross(
+                        direction,
+                        constants
+                            .node_inner_size
+                            .main(direction)
+                            .map(AvailableOf::definite)
+                            .unwrap_or(AvailableOf::MAX_CONTENT),
+                        available_cross,
+                    ),
                 },
-                known: Size::from_main_cross(
-                    direction,
-                    Some(item.target_size.main(direction)),
-                    authored_cross,
-                ),
-                parent: constants.node_inner_size,
-                available: Size::from_main_cross(
-                    direction,
-                    constants
-                        .node_inner_size
-                        .main(direction)
-                        .map(AvailableOf::definite)
-                        .unwrap_or(AvailableOf::MAX_CONTENT),
-                    available_cross,
-                ),
-            },
-        )
-        .size
-        .cross(direction)
-        .clamp_optional(
-            item.min_size.cross(direction),
-            item.max_size.cross(direction),
-        )
-        .max(padding_border_cross)
-    });
+            )?
+            .size
+            .cross(direction)
+            .clamp_optional(
+                item.min_size.cross(direction),
+                item.max_size.cross(direction),
+            )
+            .max(padding_border_cross)
+        }
+    };
 
     item.target_size = item.target_size.with_cross(direction, measured_cross);
+    Ok(())
 }
 
 fn stretch_lines_on_cross_axis<Node, S: LayoutScalar>(
@@ -2044,20 +2112,21 @@ fn max_content_line_main_size<Node, S: LayoutScalar>(
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
-fn resolved_layout_constants<Tree>(
+fn resolved_layout_constants<Tree, M>(
     tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
     style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     items: &mut [CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     lines: &[FlexLine<Tree::Scalar>],
-) -> Constants<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Constants<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let original_inner_size = constants.node_inner_size;
     let mut constants = *constants;
-    determine_container_main_size(tree, input, &mut constants, items, lines);
+    determine_container_main_size(tree, input, &mut constants, items, lines)?;
     constants.max_inner_size = constants.max_inner_size.or(constants.node_inner_size);
     let gap_basis = Size::from_main_cross(
         constants.direction,
@@ -2066,23 +2135,27 @@ where
             .cross(constants.direction)
             .and(constants.node_inner_size.cross(constants.direction)),
     );
-    constants.gap = style.gap.zip_map(gap_basis, |length, basis| {
-        resolve_length_or_zero(length, basis)
-    });
-    constants
+    constants.gap = style
+        .gap
+        .zip_map(gap_basis, |length, basis| {
+            resolve_length_or_zero(length, basis)
+        })
+        .transpose_with_node(tree, node)?;
+    Ok(constants)
 }
 
-fn determine_container_main_size<Tree>(
+fn determine_container_main_size<Tree, M>(
     tree: &mut Tree,
     input: ComputeInputOf<Tree::Scalar>,
     constants: &mut Constants<Tree::Scalar>,
     items: &mut [CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     lines: &[FlexLine<Tree::Scalar>],
-) where
-    Tree: Compute,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), Tree::Scalar, M>
+where
+    Tree: Compute<M>,
 {
     let direction = constants.direction;
-    let Some(outer_main_size) = constants.node_outer_size.main(direction).or_else(|| {
+    let fallback_outer_main_size = if constants.node_outer_size.main(direction).is_none() {
         let content_main = match input.available.main(direction) {
             AvailableOf::Definite(available_main) => {
                 let longest = lines
@@ -2102,12 +2175,19 @@ fn determine_container_main_size<Tree>(
                 .max_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal))
                 .unwrap_or(Tree::Scalar::ZERO),
             AvailableOf::MinContent | AvailableOf::MaxContent => {
-                intrinsic_container_main_size(tree, input, constants, items, lines)
+                intrinsic_container_main_size(tree, input, constants, items, lines)?
             }
         };
         Some(content_main + constants.content_box_inset.sum_axes().main(direction))
-    }) else {
-        return;
+    } else {
+        None
+    };
+    let Some(outer_main_size) = constants
+        .node_outer_size
+        .main(direction)
+        .or(fallback_outer_main_size)
+    else {
+        return Ok(());
     };
 
     let outer_main_size = outer_main_size
@@ -2130,6 +2210,7 @@ fn determine_container_main_size<Tree>(
         .node_inner_size
         .with_main(direction, Some(inner_main_size));
     constants.available_main = AvailableOf::definite(inner_main_size);
+    Ok(())
 }
 
 fn flex_basis_line_main_size<Node, S: LayoutScalar>(
@@ -2154,41 +2235,39 @@ fn flex_basis_line_main_size<Node, S: LayoutScalar>(
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
-fn intrinsic_container_main_size<Tree>(
+fn intrinsic_container_main_size<Tree, M>(
     tree: &mut Tree,
     input: ComputeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     items: &mut [CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     lines: &[FlexLine<Tree::Scalar>],
-) -> Tree::Scalar
+) -> LayoutResultOf<<Tree as Traverse>::Node, Tree::Scalar, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
-    lines
-        .iter()
-        .map(|line| {
-            let gap = constants.gap.main(constants.direction);
-            items[line.start..line.end]
-                .iter_mut()
-                .enumerate()
-                .map(|(index, item)| {
-                    let gap = if index == 0 { Tree::Scalar::ZERO } else { gap };
-                    gap + intrinsic_item_main_contribution(tree, input, constants, item)
-                })
-                .fold(Tree::Scalar::ZERO, |sum, value| sum + value)
-        })
-        .max_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal))
-        .unwrap_or(Tree::Scalar::ZERO)
+    let mut largest = Tree::Scalar::ZERO;
+    for line in lines {
+        let gap = constants.gap.main(constants.direction);
+        let mut sum = Tree::Scalar::ZERO;
+        for (index, item) in items[line.start..line.end].iter_mut().enumerate() {
+            let gap = if index == 0 { Tree::Scalar::ZERO } else { gap };
+            sum = sum + gap + intrinsic_item_main_contribution(tree, input, constants, item)?;
+        }
+        if sum > largest {
+            largest = sum;
+        }
+    }
+    Ok(largest)
 }
 
-fn intrinsic_item_main_contribution<Tree>(
+fn intrinsic_item_main_contribution<Tree, M>(
     tree: &mut Tree,
     input: ComputeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     item: &CollectedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>,
-) -> Tree::Scalar
+) -> LayoutResultOf<<Tree as Traverse>::Node, Tree::Scalar, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let direction = constants.direction;
     let style_min = item.min_size.main(direction);
@@ -2219,7 +2298,7 @@ where
         && item.initial_output.size.main(direction) <= item.flex_basis
         && item.initial_output.content_size.main(direction) <= item.flex_basis
     {
-        return item.flex_basis + item.margin.main_sum(direction);
+        return Ok(item.flex_basis + item.margin.main_sum(direction));
     }
 
     let cross_available = intrinsic_item_cross_available(input, constants, item);
@@ -2258,7 +2337,7 @@ where
                         parent: constants.node_inner_size,
                         available: child_available,
                     },
-                )
+                )?
                 .size
                 .main(direction);
 
@@ -2272,7 +2351,7 @@ where
         }
     };
 
-    contribution + item.margin.main_sum(direction)
+    Ok(contribution + item.margin.main_sum(direction))
 }
 
 fn intrinsic_item_cross_available<Node, S: LayoutScalar>(
@@ -2414,19 +2493,28 @@ fn content_size_contribution<S: LayoutScalar>(
     Size::new(max_x - min_x, max_y - min_y)
 }
 
-fn final_layout<Tree>(
+#[expect(
+    clippy::type_complexity,
+    reason = "the private flex finalizer preserves node, scalar, and provider error types"
+)]
+fn final_layout<Tree, M>(
     tree: &mut Tree,
     items: &[ResolvedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     constants: &Constants<Tree::Scalar>,
-) -> Vec<FinalFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>
+) -> LayoutResultOf<
+    <Tree as Traverse>::Node,
+    Vec<FinalFlexItem<<Tree as Traverse>::Node, Tree::Scalar>>,
+    Tree::Scalar,
+    M,
+>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let direction = constants.direction;
     let mut final_items = Vec::with_capacity(items.len());
     for item in items {
         let style = tree.node_input(item.node).clone();
-        let known = { final_item_size(item, &style, constants) };
+        let known = final_item_size::<Tree, M>(tree, item, &style, constants)?;
         let mut output = tree.compute_child(
             item.node,
             ComputeInputOf {
@@ -2448,9 +2536,10 @@ where
                         .unwrap_or(AvailableOf::MAX_CONTENT),
                 ),
             },
-        );
+        )?;
         let resolved_flex_basis =
-            { resolve_dimension(style.flex_basis, constants.node_inner_size.main(direction)) };
+            resolve_dimension(style.flex_basis, constants.node_inner_size.main(direction))
+                .map_err(|status| crate::compute::value_resolution_error(item.node, status))?;
         suppress_padding_floor_flex_basis_content_overflow(
             tree,
             item,
@@ -2493,7 +2582,7 @@ where
             location,
         });
     }
-    final_items
+    Ok(final_items)
 }
 
 fn suppress_padding_floor_flex_basis_content_overflow<Node, S: LayoutScalar>(
@@ -2523,31 +2612,42 @@ fn suppress_padding_floor_flex_basis_content_overflow<Node, S: LayoutScalar>(
     }
 }
 
-fn final_item_size<Node, S: LayoutScalar>(
-    item: &ResolvedFlexItem<Node, S>,
-    style: &NodeInputOf<S>,
-    constants: &Constants<S>,
-) -> Size<Option<S>> {
+#[expect(
+    clippy::type_complexity,
+    reason = "the private flex size helper preserves the session's generic error envelope"
+)]
+fn final_item_size<Tree, M>(
+    tree: &Tree,
+    item: &ResolvedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>,
+    style: &NodeInputOf<Tree::Scalar>,
+    constants: &Constants<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Option<Tree::Scalar>>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
     let padding = style
         .padding
         .zip_inline_size(constants.node_inner_size, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, item.node)?;
     let border = style
         .border
         .zip_inline_size(constants.node_inner_size, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, item.node)?;
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         (padding + border).sum_axes()
     } else {
-        Size::<S>::ZERO
+        Size::<Tree::Scalar>::ZERO
     };
     let authored = style
         .size
         .zip_map(constants.node_inner_size, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, item.node)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
 
@@ -2559,16 +2659,16 @@ fn final_item_size<Node, S: LayoutScalar>(
     } else if style.size.width.depends_on_basis() {
         known.width = authored.width.or(known.width);
     }
-    known
+    Ok(known)
 }
 
-fn layout_absolute_children<Tree>(
+fn layout_absolute_children<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     constants: &Constants<Tree::Scalar>,
-) -> Size<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let children = tree.children(node).collect::<Vec<_>>();
     let mut content_size: Size<Tree::Scalar> = Size::ZERO;
@@ -2601,17 +2701,20 @@ where
             .padding
             .zip_inline_size(inset_relative_size, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
+            })
+            .transpose_with_node(tree, child)?;
         let border = style
             .border
             .zip_inline_size(inset_relative_size, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
+            })
+            .transpose_with_node(tree, child)?;
         let margin = style
             .margin
             .zip_inline_size(inset_relative_size, |length, basis| {
                 resolve_auto_optional(length, basis)
-            });
+            })
+            .transpose_with_node(tree, child)?;
         let non_auto_margin = margin.map(|value| value.unwrap_or(Tree::Scalar::ZERO));
         let padding_border = padding + border;
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
@@ -2624,6 +2727,7 @@ where
             .zip_map(inset_relative_size, |dimension, basis| {
                 resolve_dimension(dimension, basis)
             })
+            .transpose_with_node(tree, child)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let max_size = style
@@ -2631,6 +2735,7 @@ where
             .zip_map(inset_relative_size, |dimension, basis| {
                 resolve_dimension(dimension, basis)
             })
+            .transpose_with_node(tree, child)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let mut known_size = style
@@ -2638,12 +2743,16 @@ where
             .zip_map(inset_relative_size, |dimension, basis| {
                 resolve_dimension(dimension, basis)
             })
+            .transpose_with_node(tree, child)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
 
-        let inset = style.inset.zip_size(inset_relative_size, |length, basis| {
-            resolve_auto_optional(length, basis)
-        });
+        let inset = style
+            .inset
+            .zip_size(inset_relative_size, |length, basis| {
+                resolve_auto_optional(length, basis)
+            })
+            .transpose_with_node(tree, child)?;
 
         if known_size.width.is_none()
             && let (Some(left), Some(right), Some(container_width)) =
@@ -2683,7 +2792,7 @@ where
                 parent: constants.node_inner_size,
                 available,
             },
-        );
+        )?;
         let final_size = known_size
             .unwrap_or(output.size)
             .clamp_optional(min_size, max_size)
@@ -2725,12 +2834,15 @@ where
             content_size.height.max(contribution.height),
         );
     }
-    content_size
+    Ok(content_size)
 }
 
-fn layout_hidden_children<Tree>(tree: &mut Tree, node: <Tree as Traverse>::Node)
+fn layout_hidden_children<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let children = tree.children(node).collect::<Vec<_>>();
     for (order, child) in children.into_iter().enumerate() {
@@ -2739,8 +2851,9 @@ where
         }
 
         tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-        tree.compute_child(child, ComputeInputOf::HIDDEN);
+        tree.compute_child(child, ComputeInputOf::HIDDEN)?;
     }
+    Ok(())
 }
 
 fn resolve_absolute_margins<S: LayoutScalar>(
@@ -2996,39 +3109,53 @@ fn absolute_cross_alignment<S: LayoutScalar>(
     }
 }
 
-fn resolve_length_or_zero<S: LayoutScalar>(length: LengthOf<S>, basis: Option<S>) -> S {
+fn resolve_length_or_zero<S: LayoutScalar>(
+    length: LengthOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
     resolution_or_zero(length.resolve_with_status(basis))
 }
 
-fn resolve_auto_or_zero<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> S {
+fn resolve_auto_or_zero<S: LayoutScalar>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
     resolution_or_zero(length.resolve_with_status(basis))
 }
 
-fn resolve_auto_optional<S: LayoutScalar>(length: LengthAutoOf<S>, basis: Option<S>) -> Option<S> {
+fn resolve_auto_optional<S: LayoutScalar>(
+    length: LengthAutoOf<S>,
+    basis: Option<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
     resolution_optional(length.resolve_with_status(basis))
 }
 
-fn resolve_dimension<S: LayoutScalar>(dimension: DimensionOf<S>, basis: Option<S>) -> Option<S> {
+fn resolve_dimension<S: LayoutScalar>(
+    dimension: DimensionOf<S>,
+    basis: Option<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
     resolution_optional(dimension.resolve_with_status(basis))
 }
 
-fn resolution_or_zero<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> S {
+fn resolution_or_zero<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<S, LengthResolutionStatus<S>> {
     match resolution.status() {
-        LengthResolutionStatus::Resolved => resolution
+        LengthResolutionStatus::Resolved => Ok(resolution
             .value
-            .expect("resolved length resolution must carry a value"),
-        LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
-        | LengthResolutionStatus::NonNumeric => S::ZERO,
+            .expect("resolved length resolution must carry a value")),
+        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(S::ZERO),
     }
 }
 
-fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Option<S> {
+fn resolution_optional<S: LayoutScalar>(
+    resolution: LengthResolutionOf<S>,
+) -> Result<Option<S>, LengthResolutionStatus<S>> {
     match resolution.status() {
-        LengthResolutionStatus::Resolved => resolution.value,
-        LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
-        | LengthResolutionStatus::NonNumeric => None,
+        LengthResolutionStatus::Resolved => Ok(resolution.value),
+        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::NonNumeric => Ok(None),
     }
 }
 

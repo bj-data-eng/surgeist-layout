@@ -35,15 +35,19 @@ struct RowIntrinsicContribution<S: LayoutScalar = Scalar> {
     geometry: BaselineGeometry<S>,
 }
 
-pub(super) fn intrinsic_track_sizes<Tree>(
+#[expect(
+    clippy::type_complexity,
+    reason = "intrinsic sizing returns both grid axes through the session error envelope"
+)]
+pub(super) fn intrinsic_track_sizes<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
     available: Size<AvailableOf<Tree::Scalar>>,
     lower_bounds: IntrinsicGridLowerBounds<'_, Tree::Scalar>,
-) -> (Vec<Tree::Scalar>, Vec<Tree::Scalar>)
+) -> LayoutResultOf<<Tree as Traverse>::Node, (Vec<Tree::Scalar>, Vec<Tree::Scalar>), Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let style = grid.style;
     let constants = grid.constants;
@@ -96,7 +100,7 @@ where
             column_sizes: &column_area_sizes,
             row_sizes: &row_area_sizes,
         },
-    );
+    )?;
     let column_area_sizes = columns.clone();
     let row_area_sizes = rows.clone();
     apply_subgrid_intrinsic_contributions(
@@ -119,7 +123,7 @@ where
             column_sizes: &column_area_sizes,
             row_sizes: &row_area_sizes,
         },
-    );
+    )?;
 
     for (index, (child, area)) in children.into_iter().zip(placed_areas).enumerate() {
         let child_style = tree.node_input(child).clone();
@@ -184,12 +188,14 @@ where
                         .iter()
                         .any(|track| track_accepts_min_content_span_priority(*track))
                 });
-        let sizing = grid_item_sizing(
+        let sizing = grid_item_sizing::<Tree, M>(
+            tree,
+            child,
             &child_style,
             style,
             area.size,
             Size::splat(Some(area.size.width)),
-        );
+        )?;
         let output = if available.width == AvailableOf::MIN_CONTENT
             && child_style.overflow.x.clips_contents()
             && !spans_min_content_column
@@ -226,9 +232,10 @@ where
                         available,
                     },
                 },
-            )
+            )?
         };
-        let margin = intrinsic_contribution_margin(&child_style, constants.node_inner_size.width);
+        let margin = intrinsic_contribution_margin(&child_style, constants.node_inner_size.width)
+            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
 
         if contributes_column {
             let contribution_kind =
@@ -272,7 +279,8 @@ where
                 IntrinsicSpanContribution::for_axis(available.height, child_style.overflow.y);
             let baselines = output.baselines();
             let block_auto_margins =
-                block_auto_margins_for_intrinsic_contribution(&child_style, constants);
+                block_auto_margins_for_intrinsic_contribution(&child_style, constants)
+                    .map_err(|status| crate::compute::value_resolution_error(child, status))?;
             let participation = baseline_participation(
                 align_self,
                 block_auto_margins,
@@ -314,7 +322,7 @@ where
         }
     }
 
-    (columns, rows)
+    Ok((columns, rows))
 }
 
 fn row_baseline_groups_for_intrinsic_contributions<S: LayoutScalar>(
@@ -379,12 +387,12 @@ fn baseline_geometry_for_intrinsic_contribution<S: LayoutScalar>(
 fn block_auto_margins_for_intrinsic_contribution<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     constants: &Constants<S>,
-) -> bool {
+) -> Result<bool, LengthResolutionStatus<S>> {
     let margin = style.margin.zip_inline_size(
         Size::splat(constants.node_inner_size.width),
         |length, basis| resolve_auto_optional(length, basis),
     );
-    margin.top.is_none() || margin.bottom.is_none()
+    Ok(margin.top?.is_none() || margin.bottom?.is_none())
 }
 
 struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
@@ -398,13 +406,13 @@ struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
     input: ComputeInputOf<S>,
 }
 
-fn compute_intrinsic_grid_child<Tree>(
+fn compute_intrinsic_grid_child<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     args: IntrinsicGridChildInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> ComputeOutputOf<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let IntrinsicGridChildInput {
         child_style,
@@ -437,12 +445,14 @@ where
         .padding
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, child)?;
     let border = child_style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, child)?;
     let margin = sizing
         .unresolved_margin
         .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
@@ -467,7 +477,8 @@ where
         margin: sizing.unresolved_margin,
         border,
         padding,
-    });
+    })
+    .map_err(|error| subgrid_child_context_error(child, error))?;
     if !child_context.has_inherited_axis() {
         return tree.compute_child(child, input);
     }
@@ -494,7 +505,7 @@ where
         available,
         ..input
     };
-    compute_grid_with_context_result(tree, child, child_input, child_context).output
+    Ok(compute_grid_with_context_result(tree, child, child_input, child_context)?.output)
 }
 
 pub(super) fn needs_intrinsic_subgrid_context<Node, S: LayoutScalar>(
@@ -585,15 +596,15 @@ struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
     row_sizes: &'a [S],
 }
 
-fn apply_subgrid_intrinsic_contributions<Tree>(
+fn apply_subgrid_intrinsic_contributions<Tree, M>(
     tree: &mut Tree,
     input: SubgridIntrinsicContributionInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> Vec<<Tree as Traverse>::Node>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Vec<<Tree as Traverse>::Node>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     if input.tracks.is_empty() || input.subgrid_report.items.is_empty() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let intrinsic_min_track_facts = input
@@ -617,8 +628,9 @@ where
             container_size: input.constants.node_inner_size,
             intrinsic_min_track_facts: IntrinsicMinTrackFacts::Known(&intrinsic_min_track_facts),
         },
-    ) else {
-        return Vec::new();
+    )?
+    else {
+        return Ok(Vec::new());
     };
 
     for (index, lower_bound) in report.edge_lower_bounds.into_iter().enumerate() {
@@ -688,9 +700,10 @@ where
                 ),
                 available,
             },
-        );
+        )?;
         let margin =
-            intrinsic_contribution_margin(&child_style, input.constants.node_inner_size.width);
+            intrinsic_contribution_margin(&child_style, input.constants.node_inner_size.width)
+                .map_err(|status| crate::compute::value_resolution_error(leaf.node, status))?;
         let contribution = axis_size(output.size, input.axis)
             + axis_margin_sum(margin, input.axis)
             + adjustment_sum(&leaf.accumulated_edge_adjustment, start, end)
@@ -733,7 +746,7 @@ where
             );
         }
     }
-    contributing_roots
+    Ok(contributing_roots)
 }
 
 fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
@@ -834,20 +847,20 @@ fn adjustment_sum<S: LayoutScalar>(adjustments: &[S], start: usize, end: usize) 
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
-pub(super) fn constrained_row_intrinsic_sizes<Tree>(
+pub(super) fn constrained_row_intrinsic_sizes<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
     columns: &[Tree::Scalar],
     gap: Size<Tree::Scalar>,
-) -> Vec<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Vec<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let row_count = grid.row_tracks.len();
     let mut rows: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; row_count];
     if columns.is_empty() || row_count == 0 {
-        return rows;
+        return Ok(rows);
     }
     let mut row_contributions = Vec::new();
 
@@ -893,7 +906,7 @@ where
                 column_sizes: columns,
                 row_sizes: &zero_rows,
             },
-        )
+        )?
     } else {
         Vec::new()
     };
@@ -922,13 +935,16 @@ where
         {
             continue;
         }
-        let sizing = grid_item_sizing(
+        let sizing = grid_item_sizing::<Tree, M>(
+            tree,
+            child,
             &child_style,
             grid.style,
             area.size,
             Size::splat(Some(area.size.width)),
-        );
-        let margin = intrinsic_contribution_margin(&child_style, Some(area.size.width));
+        )?;
+        let margin = intrinsic_contribution_margin(&child_style, Some(area.size.width))
+            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
         let output = compute_intrinsic_grid_child(
             tree,
             child,
@@ -959,10 +975,11 @@ where
                     ),
                 },
             },
-        );
+        )?;
         let baselines = output.baselines();
         let block_auto_margins =
-            block_auto_margins_for_intrinsic_contribution(&child_style, grid.constants);
+            block_auto_margins_for_intrinsic_contribution(&child_style, grid.constants)
+                .map_err(|status| crate::compute::value_resolution_error(child, status))?;
         let row_span_tracks = grid.row_tracks.get(area.row..area.row_end).unwrap_or(&[]);
         let participation = baseline_participation(
             sizing.align_self,
@@ -1013,24 +1030,24 @@ where
         }
     }
 
-    rows
+    Ok(rows)
 }
 
-pub(super) fn constrained_column_intrinsic_sizes<Tree>(
+pub(super) fn constrained_column_intrinsic_sizes<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
     columns: &[Tree::Scalar],
     rows: &[Tree::Scalar],
     gap: Size<Tree::Scalar>,
-) -> Vec<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Vec<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let column_count = grid.column_tracks.len();
     let mut column_sizes: Vec<Tree::Scalar> = vec![Tree::Scalar::ZERO; column_count];
     if column_count == 0 || rows.is_empty() {
-        return column_sizes;
+        return Ok(column_sizes);
     }
 
     let children = tree.children(node).collect::<Vec<_>>();
@@ -1066,12 +1083,14 @@ where
             continue;
         }
 
-        let sizing = grid_item_sizing(
+        let sizing = grid_item_sizing::<Tree, M>(
+            tree,
+            child,
             &child_style,
             grid.style,
             area.size,
             Size::splat(Some(area.size.width)),
-        );
+        )?;
         let margin = sizing
             .unresolved_margin
             .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
@@ -1088,12 +1107,12 @@ where
                     AvailableOf::definite(sizing.available.height),
                 ),
             },
-        );
+        )?;
         column_sizes[area.column] =
             column_sizes[area.column].max(output.size.width + margin.horizontal_sum());
     }
 
-    column_sizes
+    Ok(column_sizes)
 }
 
 #[derive(Clone, Copy)]
@@ -1110,13 +1129,13 @@ pub(super) struct PercentTrackContent<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) placements: &'a GridPlacementContext<Node>,
 }
 
-pub(super) fn cyclic_percent_track_content_size<Tree>(
+pub(super) fn cyclic_percent_track_content_size<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: PercentTrackContent<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> Size<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let PercentTrackContent {
         style,
@@ -1132,7 +1151,7 @@ where
     } = input;
 
     if constants.node_inner_size.width.is_some() && constants.node_inner_size.height.is_some() {
-        return Size::ZERO;
+        return Ok(Size::ZERO);
     }
 
     let children = tree.children(node).collect::<Vec<_>>();
@@ -1195,7 +1214,7 @@ where
                 ),
                 available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
             },
-        );
+        )?;
         let location = Point::new(column_offsets[area.column], row_offsets[area.row]);
         let contribution = content_size_contribution(
             location,
@@ -1245,7 +1264,7 @@ where
         content_size.height = content_size.height.max(track_sum(&row_content, gap.height));
     }
 
-    content_size
+    Ok(content_size)
 }
 
 fn inherits_opposite_subgrid_axis<S: LayoutScalar>(
@@ -1667,13 +1686,13 @@ pub(super) fn track_accepts_percent_min_content_span<S: LayoutScalar>(
 pub(super) fn intrinsic_contribution_margin<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     inner_node_width: Option<S>,
-) -> Edges<S> {
-    Edges {
-        top: resolve_auto_or_zero(style.margin.top, inner_node_width),
-        right: resolve_auto_or_zero(style.margin.right, Some(S::ZERO)),
-        bottom: resolve_auto_or_zero(style.margin.bottom, inner_node_width),
-        left: resolve_auto_or_zero(style.margin.left, Some(S::ZERO)),
-    }
+) -> Result<Edges<S>, LengthResolutionStatus<S>> {
+    Ok(Edges {
+        top: resolve_auto_or_zero(style.margin.top, inner_node_width)?,
+        right: resolve_auto_or_zero(style.margin.right, Some(S::ZERO))?,
+        bottom: resolve_auto_or_zero(style.margin.bottom, inner_node_width)?,
+        left: resolve_auto_or_zero(style.margin.left, Some(S::ZERO))?,
+    })
 }
 
 pub(super) fn resolve_tracks<S: LayoutScalar>(
@@ -2208,8 +2227,8 @@ pub(super) fn extend_auto_tracks<S: LayoutScalar>(
     basis: Option<S>,
     gap: S,
     required_count: usize,
-) {
-    let auto_tracks = expand_track_components(auto_tracks, basis, gap, None);
+) -> Result<(), LengthResolutionStatus<S>> {
+    let auto_tracks = expand_track_components(auto_tracks, basis, gap, None)?;
     let mut index = 0;
     while tracks.len() < required_count {
         let track = if auto_tracks.is_empty() {
@@ -2222,6 +2241,7 @@ pub(super) fn extend_auto_tracks<S: LayoutScalar>(
             index = (index + 1) % auto_tracks.len();
         }
     }
+    Ok(())
 }
 
 pub(super) fn prepend_auto_tracks<S: LayoutScalar>(
@@ -2231,12 +2251,12 @@ pub(super) fn prepend_auto_tracks<S: LayoutScalar>(
     gap: S,
     required_count: usize,
     auto_fit_limit: Option<usize>,
-) {
+) -> Result<(), LengthResolutionStatus<S>> {
     if required_count == 0 {
-        return;
+        return Ok(());
     }
 
-    let auto_tracks = expand_track_components(auto_tracks, basis, gap, auto_fit_limit);
+    let auto_tracks = expand_track_components(auto_tracks, basis, gap, auto_fit_limit)?;
     let generated = if auto_tracks.is_empty() {
         vec![TrackSizingOf::AUTO; required_count]
     } else {
@@ -2250,6 +2270,7 @@ pub(super) fn prepend_auto_tracks<S: LayoutScalar>(
             .collect::<Vec<_>>()
     };
     tracks.splice(0..0, generated);
+    Ok(())
 }
 
 pub(super) fn expand_track_components<S: LayoutScalar>(
@@ -2257,11 +2278,12 @@ pub(super) fn expand_track_components<S: LayoutScalar>(
     basis: Option<S>,
     gap: S,
     auto_fit_limit: Option<usize>,
-) -> Vec<TrackSizingOf<S>> {
+) -> Result<Vec<TrackSizingOf<S>>, LengthResolutionStatus<S>> {
     if subgrid_components(components) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
+    validate_track_components(components, basis)?;
     let mut tracks = Vec::new();
     let reserved = reserved_track_space(components, basis, gap);
     for component in components {
@@ -2290,7 +2312,55 @@ pub(super) fn expand_track_components<S: LayoutScalar>(
             }
         }
     }
-    tracks
+    Ok(tracks)
+}
+
+fn validate_track_components<S: LayoutScalar>(
+    components: &[TrackComponentOf<S>],
+    basis: Option<S>,
+) -> Result<(), LengthResolutionStatus<S>> {
+    for component in components {
+        match component {
+            TrackComponentOf::Track(track) => validate_track_sizing(*track, basis)?,
+            TrackComponentOf::Repeat(repetition) => {
+                validate_track_components(repetition.components(), basis)?;
+            }
+            TrackComponentOf::LineNames(_) | TrackComponentOf::Subgrid(_) => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_track_sizing<S: LayoutScalar>(
+    track: TrackSizingOf<S>,
+    basis: Option<S>,
+) -> Result<(), LengthResolutionStatus<S>> {
+    if let MinTrackSizingOf::Length(length) = track.min {
+        validate_track_length(length, basis)?;
+    }
+    match track.max {
+        MaxTrackSizingOf::Length(length) | MaxTrackSizingOf::FitContent(length) => {
+            validate_track_length(length, basis)?;
+        }
+        MaxTrackSizingOf::Flex(_)
+        | MaxTrackSizingOf::Auto
+        | MaxTrackSizingOf::MinContent
+        | MaxTrackSizingOf::MaxContent => {}
+    }
+    Ok(())
+}
+
+fn validate_track_length<S: LayoutScalar>(
+    length: LengthOf<S>,
+    basis: Option<S>,
+) -> Result<(), LengthResolutionStatus<S>> {
+    let resolution = length.resolve_with_status(basis);
+    match resolution.status() {
+        LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
+        LengthResolutionStatus::Resolved
+        | LengthResolutionStatus::MissingBasis
+        | LengthResolutionStatus::NonNumeric => Ok(()),
+    }
 }
 
 pub(super) fn track_expansion_basis<S: LayoutScalar>(
@@ -2510,7 +2580,7 @@ fn resolution_or_else<S: LayoutScalar>(
             .value
             .expect("resolved length resolution must carry a value"),
         LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::InvalidNumeric { .. }
         | LengthResolutionStatus::NonNumeric => fallback(),
     }
 }
@@ -2519,7 +2589,7 @@ fn resolution_optional<S: LayoutScalar>(resolution: LengthResolutionOf<S>) -> Op
     match resolution.status() {
         LengthResolutionStatus::Resolved => resolution.value,
         LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::InvalidNumeric
+        | LengthResolutionStatus::InvalidNumeric { .. }
         | LengthResolutionStatus::NonNumeric => None,
     }
 }

@@ -57,8 +57,12 @@ impl Compute for ScrollBlockTree {
         self.layouts.insert(node, layout);
     }
 
-    fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-        self.outputs[&node]
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        _input: ComputeInput,
+    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
+        Ok(self.outputs[&node])
     }
 }
 
@@ -75,6 +79,7 @@ fn perform_scroll_block(tree: &mut ScrollBlockTree) -> ComputeOutput {
             available: Size::new(Available::definite(100.0), Available::definite(40.0)),
         },
     )
+    .unwrap()
 }
 
 fn child_scroll_geometry(
@@ -387,7 +392,8 @@ fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
             parent: Size::new(Some(60.0), Some(40.0)),
             available: Size::new(Available::definite(60.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
@@ -578,7 +584,12 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
             self.inner.set_unrounded(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             self.inner.compute_child(node, input)
         }
     }
@@ -601,7 +612,8 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
             parent: Size::new(Some(100.0), Some(80.0)),
             available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
@@ -1057,12 +1069,18 @@ impl Compute for CalcBlockTree {
         self.layouts.insert(node, layout);
     }
 
-    fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-        self.inputs.entry(node).or_default().push(input);
-        ComputeOutput::from_outer_size(Size::new(
-            input.known.width.unwrap_or(0.0),
-            input.known.height.unwrap_or(10.0),
-        ))
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInput,
+    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
+        Ok({
+            self.inputs.entry(node).or_default().push(input);
+            ComputeOutput::from_outer_size(Size::new(
+                input.known.width.unwrap_or(0.0),
+                input.known.height.unwrap_or(10.0),
+            ))
+        })
     }
 }
 
@@ -1095,8 +1113,8 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -1152,15 +1170,25 @@ fn f64_block_layout_preserves_fractional_child_offsets() {
         &mut tree,
         0,
         Size::new(AvailableOf::definite(100.0), AvailableOf::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(tree.output(1).location, Point::new(0.0, large));
     assert_eq!(
-        tree.output(2).location,
+        tree.output(1)
+            .expect("block layout must stage output for the first child")
+            .location,
+        Point::new(0.0, large)
+    );
+    assert_eq!(
+        tree.output(2)
+            .expect("block layout must stage output for the second child")
+            .location,
         Point::new(0.0, large + 5.25 + 0.375)
     );
     assert_eq!(
-        tree.output(0).size,
+        tree.output(0)
+            .expect("block layout must stage output for the root node")
+            .size,
         Size::new(100.0, large + 5.25 + 0.375 + 7.5)
     );
 }
@@ -1201,10 +1229,21 @@ fn f64_block_layout_resolves_affine_values_without_narrowing() {
             AvailableOf::definite(container_width),
             AvailableOf::MAX_CONTENT,
         ),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(tree.output(1).location, Point::new(18_454_939.3, 0.0));
-    assert_eq!(tree.output(1).size, Size::new(25_165_827.75, 4.5));
+    assert_eq!(
+        tree.output(1)
+            .expect("block layout must stage output for the child")
+            .location,
+        Point::new(18_454_939.3, 0.0)
+    );
+    assert_eq!(
+        tree.output(1)
+            .expect("block layout must stage output for the child")
+            .size,
+        Size::new(25_165_827.75, 4.5)
+    );
 }
 
 #[test]
@@ -1244,11 +1283,27 @@ fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
             AvailableOf::definite(large + 20.0),
             AvailableOf::MAX_CONTENT,
         ),
-    );
+    )
+    .unwrap();
 
-    assert_eq!(tree.output(1).location, Point::new(0.0, 9.75));
-    assert_eq!(tree.output(2).location, Point::new(large, 0.0));
-    assert_eq!(tree.output(0).size, Size::new(large + 20.0, 20.25));
+    assert_eq!(
+        tree.output(1)
+            .expect("block layout must stage output for the first child")
+            .location,
+        Point::new(0.0, 9.75)
+    );
+    assert_eq!(
+        tree.output(2)
+            .expect("block layout must stage output for the second child")
+            .location,
+        Point::new(large, 0.0)
+    );
+    assert_eq!(
+        tree.output(0)
+            .expect("block layout must stage output for the root node")
+            .size,
+        Size::new(large + 20.0, 20.25)
+    );
 }
 
 #[test]
@@ -1283,8 +1338,8 @@ fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(2).unwrap().location,
@@ -1322,8 +1377,8 @@ fn inline_grid_uses_grid_tracks_and_participates_as_atomic_inline() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().size, Size::new(40.0, 20.0));
     assert_eq!(tree.final_layout(2).unwrap().size, Size::new(10.0, 30.0));
@@ -1361,8 +1416,8 @@ fn inline_grid_lanes_uses_lanes_tracks_and_participates_as_atomic_inline() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().size, Size::new(40.0, 20.0));
     assert_eq!(tree.final_layout(2).unwrap().size, Size::new(10.0, 30.0));
@@ -1410,8 +1465,9 @@ fn block_wraps_atomic_inline_children_between_items() {
         &mut tree,
         0,
         Size::new(Available::definite(40.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -1458,8 +1514,9 @@ fn block_atomic_inline_run_honors_line_break_child() {
         &mut tree,
         0,
         Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 2.0));
     assert_eq!(
@@ -1517,8 +1574,9 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
         &mut tree,
         0,
         Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.inputs(2), &[]);
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
@@ -1555,7 +1613,8 @@ fn block_line_break_metrics_create_empty_line_height() {
             parent: Size::NONE,
             available: Size::splat(Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size.height, 40.0);
     assert_eq!(output.first_baselines.y, Some(15.0));
@@ -1606,8 +1665,9 @@ fn block_inline_boundaries_are_reported_as_zero_size_inline_controls() {
         &mut tree,
         0,
         Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.inputs(1), &[]);
     assert_eq!(tree.inputs(3), &[]);
@@ -1659,8 +1719,9 @@ fn block_inline_boundaries_before_overwide_first_inline_block_do_not_create_lead
         &mut tree,
         0,
         Size::new(Available::definite(20.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -1712,8 +1773,9 @@ fn vertical_block_inline_boundaries_use_parent_flow() {
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -1769,8 +1831,9 @@ fn vertical_lr_block_inline_boundaries_use_parent_flow() {
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -1818,8 +1881,9 @@ fn hidden_line_break_does_not_split_atomic_inline_run() {
         &mut tree,
         0,
         Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
@@ -1864,7 +1928,8 @@ fn block_atomic_inline_run_never_computes_line_break_as_box() {
         &mut tree,
         0,
         Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs(2), &[]);
 }
@@ -1912,8 +1977,9 @@ fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
     assert_eq!(
@@ -1966,8 +2032,9 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
     assert_eq!(
@@ -2001,7 +2068,8 @@ fn vertical_line_break_clear_panics_until_vertical_clear_is_modeled() {
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 }
 
 #[test]
@@ -2023,7 +2091,8 @@ fn vertical_parent_rejects_clear_even_when_line_break_input_defaults_horizontal(
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 }
 
 #[test]
@@ -2046,7 +2115,8 @@ fn vertical_parent_rejects_default_line_break_flow_until_input_is_layout_ready()
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 }
 
 #[test]
@@ -2073,7 +2143,8 @@ fn vertical_parent_rejects_default_inline_boundary_flow_until_input_is_layout_re
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
+    )
+    .unwrap();
 }
 
 #[test]
@@ -2118,8 +2189,9 @@ fn hidden_vertical_line_break_does_not_create_inline_control() {
         &mut tree,
         0,
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
     assert_eq!(
@@ -2184,8 +2256,9 @@ fn line_break_clear_left_moves_following_inline_segment_below_left_float() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -2208,8 +2281,9 @@ fn line_break_clear_right_moves_following_inline_segment_below_right_float() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -2281,8 +2355,9 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(3).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -2345,8 +2420,9 @@ fn line_break_clear_at_run_end_moves_following_block_below_float() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -2376,8 +2452,9 @@ fn line_break_clear_left_ignores_right_float_and_preserves_alignment() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(2).unwrap().location,
@@ -2410,8 +2487,9 @@ fn line_break_clear_right_ignores_left_float_and_preserves_alignment() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(2).unwrap().location,
@@ -2478,8 +2556,9 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(2).unwrap().location,
@@ -2504,8 +2583,9 @@ fn line_break_clear_none_preserves_existing_single_run_layout_near_float() {
         &mut tree,
         0,
         Size::new(Available::definite(200.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -2559,8 +2639,9 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
         &mut tree,
         0,
         Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(60.0, 30.0));
     assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
@@ -2600,8 +2681,8 @@ fn atomic_inline_auto_margins_resolve_to_zero() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     let child = tree.final_layout(1).unwrap();
     assert_eq!(child.location, Point::new(0.0, 0.0));
@@ -2637,8 +2718,8 @@ fn inline_block_intrinsic_width_shrink_wraps_children() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::MAX_CONTENT));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::MAX_CONTENT)).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().size, Size::new(70.0, 20.0));
     assert_eq!(tree.final_layout(0).unwrap().size.width, 70.0);
@@ -2672,8 +2753,8 @@ fn inline_block_uses_bottom_synthesized_baseline_when_child_has_no_baseline() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location.y, 10.0);
     assert_eq!(tree.final_layout(2).unwrap().location.y, 0.0);
@@ -2715,8 +2796,8 @@ fn inline_block_uses_inner_last_baseline_for_atomic_alignment() {
         )
         .measure(1, measured_inline_block);
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location.y, 0.0);
     assert_eq!(tree.final_layout(2).unwrap().location.y, 0.0);
@@ -2755,8 +2836,8 @@ fn inline_block_keeps_child_margins_inside_atomic_wrapper() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::MAX_CONTENT));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::MAX_CONTENT)).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().size, Size::new(20.0, 15.0));
     assert_eq!(tree.final_layout(2).unwrap().location.y, 5.0);
@@ -2800,17 +2881,19 @@ fn inline_grid_can_host_subgrid_descendant() {
             },
         );
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::PerformLayout,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.size, Size::new(80.0, 30.0));
 }
@@ -2872,8 +2955,9 @@ fn block_positions_block_children_around_atomic_inline_run() {
         &mut tree,
         0,
         Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -2938,8 +3022,8 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(tree.final_layout(3).unwrap().location, Point::new(0.0, 0.0));
@@ -2980,8 +3064,8 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -3024,8 +3108,8 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -3073,8 +3157,8 @@ fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -3108,8 +3192,8 @@ fn block_atomic_inline_run_alignment_uses_resolved_inner_width() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::MAX_CONTENT));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::MAX_CONTENT)).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location.x, 25.0);
 }
@@ -3144,8 +3228,8 @@ fn block_legacy_center_aligns_atomic_inline_run() {
             },
         );
 
-    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0)));
-    round_layout(&mut tree, 0);
+    compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -3186,17 +3270,19 @@ fn block_inline_run_content_size_includes_visible_overflow_and_relative_inset() 
             ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(80.0, 30.0)),
         );
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::PerformLayout,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::splat(Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.content_size, Size::new(95.0, 35.0));
 }
@@ -3237,17 +3323,19 @@ fn block_inline_run_content_size_accounts_for_negative_relative_inset_after_cont
             ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 30.0)),
         );
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::PerformLayout,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::splat(Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.content_size.height, 45.0);
 }
@@ -3280,17 +3368,19 @@ fn block_reports_inline_run_first_and_last_baselines() {
             },
         );
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::definite(100.0)),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::PerformLayout,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::splat(Available::definite(100.0)),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.first_baselines.y, Some(20.0));
     assert_eq!(output.last_baselines.y, Some(20.0));
@@ -3320,17 +3410,19 @@ fn block_reports_inline_run_baseline_including_padding() {
             },
         );
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::PerformLayout,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::splat(Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.first_baselines.y, Some(30.0));
     assert_eq!(output.last_baselines.y, Some(30.0));
@@ -3357,17 +3449,19 @@ fn block_definite_compute_size_keeps_inline_run_baselines() {
             },
         );
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::ComputeSize,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::splat(Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 50.0));
     assert_eq!(output.first_baselines.y, Some(20.0));
@@ -3403,17 +3497,19 @@ fn block_definite_compute_size_keeps_block_child_baselines() {
         )
         .measure(1, child_output);
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::ComputeSize,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::splat(Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 50.0));
     assert_eq!(output.first_baselines.y, Some(7.0));
@@ -3451,17 +3547,19 @@ fn block_definite_compute_size_keeps_non_empty_flex_child_baselines() {
         .style(2, NodeInput::DEFAULT)
         .measure(1, child_output);
 
-    let output = tree.compute_child(
-        0,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::MAX_CONTENT),
-        },
-    );
+    let output = tree
+        .compute_child(
+            0,
+            ComputeInput {
+                run_mode: RunMode::ComputeSize,
+                sizing_mode: SizingMode::InherentSize,
+                axis: RequestedAxis::Both,
+                known: Size::NONE,
+                parent: Size::NONE,
+                available: Size::splat(Available::MAX_CONTENT),
+            },
+        )
+        .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 50.0));
     assert_eq!(output.first_baselines.y, Some(9.0));
@@ -3511,9 +3609,16 @@ fn block_layout_stacks_in_flow_children_vertically() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                self.outputs[&node]
+            })
         }
     }
 
@@ -3582,7 +3687,8 @@ fn block_layout_stacks_in_flow_children_vertically() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 41.0));
     assert_eq!(output.content_size, Size::new(30.0, 29.0));
@@ -3636,7 +3742,8 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
             parent: Size::new(Some(200.0), None),
             available: Size::new(Available::Definite(200.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(120.0), None));
     assert_eq!(tree.layouts[&2].location, Point::new(16.0, 0.0));
@@ -3670,7 +3777,8 @@ fn block_container_affine_padding_uses_parent_basis() {
             parent: Size::new(Some(100.0), None),
             available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.content_size.width, 76.0);
 }
@@ -3717,8 +3825,13 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -3763,7 +3876,8 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(3.0, 0.0));
     assert_eq!(output.size, Size::new(32.0, 10.0));
@@ -3812,8 +3926,13 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -3858,7 +3977,8 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(154.0, 80.0));
     assert_eq!(tree.layouts[&2].location, Point::new(102.0, 2.0));
@@ -3910,8 +4030,9 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats() {
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(1).unwrap().location, Point::new(0.0, 0.0));
     assert_eq!(
@@ -3977,8 +4098,9 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(3).unwrap().location,
@@ -4034,8 +4156,9 @@ fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clea
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(tree.final_layout(3).unwrap().location, Point::new(0.0, 0.0));
 }
@@ -4067,8 +4190,9 @@ fn block_bfc_hidden_child_keeps_legacy_right_alignment_without_float_exclusion()
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -4103,8 +4227,9 @@ fn block_bfc_hidden_child_keeps_legacy_center_alignment_without_float_exclusion(
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -4146,8 +4271,9 @@ fn block_bfc_float_content_size_height_excludes_container_top_inset() {
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(1).unwrap().location,
@@ -4210,8 +4336,9 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(3).unwrap().location,
@@ -4277,8 +4404,9 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(4).unwrap().location,
@@ -4340,8 +4468,9 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
         &mut tree,
         0,
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    );
-    round_layout(&mut tree, 0);
+    )
+    .unwrap();
+    round_layout(&mut tree, 0).unwrap();
 
     assert_eq!(
         tree.final_layout(4).unwrap().location,
@@ -4391,8 +4520,13 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -4450,7 +4584,8 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 20.0));
@@ -4500,8 +4635,13 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -4543,7 +4683,8 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(output.size, Size::new(100.0, 5.0));
@@ -4593,8 +4734,13 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -4637,7 +4783,8 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
     assert_eq!(output.size, Size::new(100.0, 15.0));
@@ -4688,11 +4835,18 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(10.0),
-            ))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(10.0),
+                ))
+            })
         }
     }
 
@@ -4729,7 +4883,8 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(17.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(83.0, 10.0));
@@ -4777,8 +4932,13 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -4820,7 +4980,8 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(output.size, Size::new(100.0, 5.0));
@@ -4869,8 +5030,13 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(50.0, 20.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(ComputeOutput::from_outer_size(Size::new(50.0, 20.0)))
         }
     }
 
@@ -4908,7 +5074,8 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
             parent: Size::NONE,
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(50.0, 30.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
@@ -4957,8 +5124,13 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -5022,7 +5194,8 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 11.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 11.0));
@@ -5068,7 +5241,12 @@ fn block_empty_auto_height_can_collapse_through() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("empty block should not measure children")
         }
     }
@@ -5095,7 +5273,8 @@ fn block_empty_auto_height_can_collapse_through() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 0.0));
     assert!(output.margins_can_collapse_through);
@@ -5139,7 +5318,12 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("empty block should not measure children")
         }
     }
@@ -5176,7 +5360,8 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 2.0));
     assert_eq!(output.top_margin.resolve(), 8.0);
@@ -5226,8 +5411,13 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -5279,7 +5469,8 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
     assert_eq!(tree.layouts[&2].location, Point::new(67.0, 1.0));
@@ -5329,8 +5520,13 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -5374,7 +5570,8 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 10.0));
     assert_eq!(output.content_size, Size::new(100.0, 10.0));
@@ -5426,8 +5623,13 @@ fn block_content_size_includes_visible_child_overflow_content() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -5466,7 +5668,8 @@ fn block_content_size_includes_visible_child_overflow_content() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 10.0));
@@ -5515,8 +5718,13 @@ fn block_relative_child_inset_offsets_final_layout_location() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -5565,7 +5773,8 @@ fn block_relative_child_inset_offsets_final_layout_location() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 10.0));
     assert_eq!(tree.layouts[&2].location, Point::new(13.0, 3.0));
@@ -5614,12 +5823,19 @@ fn block_layout_stretches_auto_width_in_flow_children() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_sizes(
-                Size::new(input.known.width.unwrap(), 10.0),
-                Size::new(input.known.width.unwrap(), 10.0),
-            )
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_sizes(
+                    Size::new(input.known.width.unwrap(), 10.0),
+                    Size::new(input.known.width.unwrap(), 10.0),
+                )
+            })
         }
     }
 
@@ -5664,7 +5880,8 @@ fn block_layout_stretches_auto_width_in_flow_children() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs[&2][0].known.width, Some(76.0));
     assert_eq!(tree.layouts[&2].size, Size::new(76.0, 10.0));
@@ -5715,12 +5932,19 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_sizes(
-                Size::new(input.known.width.unwrap(), 10.0),
-                Size::new(input.known.width.unwrap(), 10.0),
-            )
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_sizes(
+                    Size::new(input.known.width.unwrap(), 10.0),
+                    Size::new(input.known.width.unwrap(), 10.0),
+                )
+            })
         }
     }
 
@@ -5766,7 +5990,8 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs[&2][0].run_mode, RunMode::ComputeSize);
     assert_eq!(tree.inputs[&2][0].known.width, Some(76.0));
@@ -5813,7 +6038,12 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("definite min/max compute-size should not measure children")
         }
     }
@@ -5843,7 +6073,8 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
     assert_eq!(output.content_size, Size::ZERO);
@@ -5887,7 +6118,12 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
             panic!("definite grid compute-size should stay on the fast path")
         }
     }
@@ -5926,7 +6162,8 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
                 parent: Size::new(Some(500.0), Some(400.0)),
                 available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         assert_eq!(output.size, Size::new(100.0, 40.0));
         assert_eq!(output.content_size, Size::ZERO);
@@ -5975,8 +6212,13 @@ fn block_auto_height_clamps_to_max_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -6015,7 +6257,8 @@ fn block_auto_height_clamps_to_max_size() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
     assert_eq!(output.content_size, Size::new(100.0, 20.0));
@@ -6061,8 +6304,13 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
 
         fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutput) {}
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -6101,7 +6349,8 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
             parent: Size::new(Some(500.0), Some(400.0)),
             available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(50.0, 25.0));
 }
@@ -6147,8 +6396,13 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, _node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            ComputeOutput::from_outer_size(Size::new(60.0, 10.0))
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(ComputeOutput::from_outer_size(Size::new(60.0, 10.0)))
         }
     }
 
@@ -6186,7 +6440,8 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
                 parent: Size::new(Some(300.0), Some(200.0)),
                 available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
             },
-        );
+        )
+        .unwrap();
 
         tree.layouts[&2]
     }
@@ -6249,13 +6504,20 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            if input.run_mode == RunMode::PerformHiddenLayout {
-                ComputeOutput::HIDDEN
-            } else {
-                self.outputs[&node]
-            }
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                if input.run_mode == RunMode::PerformHiddenLayout {
+                    ComputeOutput::HIDDEN
+                } else {
+                    self.outputs[&node]
+                }
+            })
         }
     }
 
@@ -6322,7 +6584,8 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
     assert_eq!(output.content_size, Size::new(87.0, 41.0));
@@ -6375,8 +6638,13 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -6429,7 +6697,8 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
     assert_eq!(tree.layouts[&2].location, Point::new(1.0, 1.0));
@@ -6479,8 +6748,13 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, _input: ComputeInput) -> ComputeOutput {
-            self.outputs[&node]
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            _input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok(self.outputs[&node])
         }
     }
 
@@ -6521,7 +6795,8 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 25.0));
 }
@@ -6568,9 +6843,16 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -6613,7 +6895,8 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 50.0));
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(74.0), Some(24.0)));
@@ -6663,12 +6946,19 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(0.0),
-            ))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_outer_size(Size::new(
+                    input.known.width.unwrap_or(0.0),
+                    input.known.height.unwrap_or(0.0),
+                ))
+            })
         }
     }
 
@@ -6710,7 +7000,8 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(80.0), Some(40.0)));
     assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
@@ -6758,9 +7049,16 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -6808,7 +7106,8 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(20.0), Some(10.0)));
     assert_eq!(tree.layouts[&2].margin.left, 40.0);
@@ -6859,9 +7158,16 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0))
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0))
+            })
         }
     }
 
@@ -6909,7 +7215,8 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(70.0), Some(10.0)));
     assert_eq!(tree.layouts[&2].margin.left, 0.0);
@@ -6960,9 +7267,16 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             self.layouts.insert(node, layout);
         }
 
-        fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
-            self.inputs.entry(node).or_default().push(input);
-            output_from_known_or(input, Size::ZERO)
+        fn compute_child(
+            &mut self,
+            node: Self::Node,
+            input: ComputeInput,
+        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
+        {
+            Ok({
+                self.inputs.entry(node).or_default().push(input);
+                output_from_known_or(input, Size::ZERO)
+            })
         }
     }
 
@@ -7006,7 +7320,8 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             parent: Size::new(Some(300.0), Some(200.0)),
             available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.inputs[&2][0].known, Size::new(Some(20.0), Some(10.0)));
     assert_eq!(tree.layouts[&2].location, Point::new(62.0, 1.0));
@@ -7018,6 +7333,7 @@ struct CalcLeafTree {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInput>,
     layouts: HashMap<u32, NodeOutput>,
+    invalid_leaf_measurement: bool,
 }
 
 impl Traverse for CalcLeafTree {
@@ -7055,27 +7371,76 @@ impl Compute for CalcLeafTree {
         self.layouts.insert(node, layout);
     }
 
-    fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInput,
+    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
         if self.child_count(node) > 0 {
             return compute_block(self, node, input);
         }
 
         let style = self.styles[&node].clone();
+        let invalid_leaf_measurement = self.invalid_leaf_measurement;
         compute_leaf(input, &style, |measure_input| {
             let known = measure_input.known_content_size();
             let available = measure_input
                 .available_content_size()
                 .map(MeasurementAvailable::into_available);
-            Ok::<_, ()>(Size::new(
-                known
-                    .width
-                    .or_else(|| available.width.into_option())
-                    .unwrap_or(0.0),
+            Ok::<_, core::convert::Infallible>(Size::new(
+                if invalid_leaf_measurement {
+                    f32::NAN
+                } else {
+                    known
+                        .width
+                        .or_else(|| available.width.into_option())
+                        .unwrap_or(0.0)
+                },
                 known.height.unwrap_or(10.0),
             ))
         })
-        .unwrap()
+        .map_err(|error| {
+            LayoutErrorOf::new(
+                LayoutErrorSiteOf::Node(node),
+                error.operation(),
+                error.kind().clone(),
+            )
+        })
     }
+}
+
+#[test]
+fn calc_leaf_tree_propagates_leaf_measurement_error_instead_of_panicking() {
+    let mut tree = CalcLeafTree {
+        invalid_leaf_measurement: true,
+        ..CalcLeafTree::default()
+    };
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(0, NodeInput::default());
+    tree.styles.insert(1, NodeInput::default());
+
+    let error = compute_block(
+        &mut tree,
+        0,
+        ComputeInput {
+            run_mode: RunMode::PerformLayout,
+            sizing_mode: SizingMode::InherentSize,
+            axis: RequestedAxis::Both,
+            known: Size::new(Some(100.0), None),
+            parent: Size::new(Some(100.0), None),
+            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        },
+    )
+    .unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output))
+            if output.axis() == Axis::Horizontal
+    ));
 }
 
 #[test]
@@ -7111,7 +7476,8 @@ fn block_inline_affine_leaf_uses_public_leaf_path() {
             parent: Size::new(Some(100.0), None),
             available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         },
-    );
+    )
+    .unwrap();
 
     assert_eq!(tree.layouts[&1].size.width, 60.0);
     assert_eq!(output.content_size.width, 60.0);

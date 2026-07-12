@@ -159,13 +159,13 @@ pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
     Some(margin_box_offset + item.vertical_axis.margin_start)
 }
 
-pub(super) fn layout_grid_children<Tree>(
+pub(super) fn layout_grid_children<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     context: GridLayoutContext<'_, <Tree as Traverse>::Node, Tree::Scalar>,
-) -> GridChildrenLayout<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridChildrenLayout<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let GridLayoutContext {
         style,
@@ -194,9 +194,9 @@ where
             .enumerate()
         {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN);
+            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
         }
-        return GridChildrenLayout {
+        return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
             first_baseline: None,
             last_baseline: None,
@@ -204,7 +204,7 @@ where
                 rows: Vec::new(),
                 columns: Vec::new(),
             },
-        };
+        });
     }
 
     let logical_content_size =
@@ -284,7 +284,7 @@ where
         let child_style = tree.node_input(child).clone();
         if child_style.display == super::Display::None {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN);
+            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
             continue;
         }
         if child_style.position == Position::Absolute {
@@ -308,7 +308,7 @@ where
                         row: placement.absolute_row,
                         column_line_offset_adjustment: inherited_rtl_column_line_adjustment,
                     },
-                ),
+                )?,
             );
             continue;
         }
@@ -318,29 +318,33 @@ where
         };
         if area.row >= rows.len() || area.column >= columns.len() {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN);
+            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
             continue;
         }
 
         let physical_area_size = grid_area_physical_size(style.writing_mode, area.size);
-        let mut item = grid_item_sizing(
+        let mut item = grid_item_sizing::<Tree, M>(
+            tree,
+            child,
             &child_style,
             style,
             physical_area_size,
             Size::splat(Some(physical_area_size.width)),
-        );
+        )?;
         stretch_subgridded_axes(&mut item, *subgrid_item);
         let area_width_basis = Size::splat(Some(physical_area_size.width));
         let padding = child_style
             .padding
             .zip_inline_size(area_width_basis, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
+            })
+            .transpose_with_node(tree, child)?;
         let border = child_style
             .border
             .zip_inline_size(area_width_basis, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
+            })
+            .transpose_with_node(tree, child)?;
         let resolved_margin = item
             .unresolved_margin
             .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
@@ -364,7 +368,8 @@ where
             margin: item.unresolved_margin,
             border,
             padding,
-        });
+        })
+        .map_err(|error| subgrid_child_context_container_error(node, child, error))?;
         let child_input = ComputeInputOf {
             run_mode: RunMode::PerformLayout,
             sizing_mode: SizingMode::InherentSize,
@@ -382,9 +387,9 @@ where
             // Subgrid layout depends on the parent grid's used tracks, so this
             // intentionally bypasses the generic child layout cache until that
             // cache can include context-sensitive grid keys.
-            compute_grid_with_context(tree, child, child_input, child_context)
+            compute_grid_with_context(tree, child, child_input, child_context)?
         } else {
-            tree.compute_child(child, child_input)
+            tree.compute_child(child, child_input)?
         };
         let scrollbar_size =
             scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
@@ -440,13 +445,16 @@ where
             horizontal_axis,
             vertical_axis,
             relative_offset: relative_inset_offset(
-                child_style.inset.zip_size(
-                    Size::new(
-                        Some(physical_area_size.width),
-                        Some(physical_area_size.height),
-                    ),
-                    resolve_auto_optional,
-                ),
+                child_style
+                    .inset
+                    .zip_size(
+                        Size::new(
+                            Some(physical_area_size.width),
+                            Some(physical_area_size.height),
+                        ),
+                        resolve_auto_optional,
+                    )
+                    .transpose_with_node(tree, child)?,
                 style.direction,
                 child_style.position,
             ),
@@ -471,6 +479,7 @@ where
         refresh_subgrid_items_with_baselines(
             tree,
             SubgridBaselineRefreshInput {
+                node,
                 container_style: style,
                 columns,
                 rows,
@@ -483,7 +492,7 @@ where
                 baseline_groups: &baseline_group_set,
             },
             &mut pending_items,
-        );
+        )?;
         let next_published_group_set = baseline_groups(&pending_items, rows.len(), columns.len());
         if next_published_group_set == published_group_set {
             break;
@@ -532,15 +541,16 @@ where
     let baselines =
         grid_container_baselines(&pending_items, &baseline_group_set, &row_offsets, rows);
 
-    GridChildrenLayout {
+    Ok(GridChildrenLayout {
         visible_content_size,
         first_baseline: baselines.first,
         last_baseline: baselines.last,
         baseline_groups: published_group_set,
-    }
+    })
 }
 
 struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
+    node: Node,
     container_style: &'a NodeInputOf<S>,
     columns: &'a [S],
     rows: &'a [S],
@@ -553,12 +563,13 @@ struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
     baseline_groups: &'a GridBaselineGroups<S>,
 }
 
-fn refresh_subgrid_items_with_baselines<Tree>(
+fn refresh_subgrid_items_with_baselines<Tree, M>(
     tree: &mut Tree,
     input: SubgridBaselineRefreshInput<'_, <Tree as Traverse>::Node, Tree::Scalar>,
     pending_items: &mut [PendingGridItem<<Tree as Traverse>::Node, Tree::Scalar>],
-) where
-    Tree: Compute,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), Tree::Scalar, M>
+where
+    Tree: Compute<M>,
 {
     for item in pending_items.iter_mut() {
         let Some(subgrid_item) = input.subgrid_report.items.get(item.order as usize).copied()
@@ -572,24 +583,28 @@ fn refresh_subgrid_items_with_baselines<Tree>(
         let child_style = tree.node_input(item.node).clone();
         let physical_area_size =
             grid_area_physical_size(input.container_style.writing_mode, item.area.size);
-        let mut sizing = grid_item_sizing(
+        let mut sizing = grid_item_sizing::<Tree, M>(
+            tree,
+            item.node,
             &child_style,
             input.container_style,
             physical_area_size,
             Size::splat(Some(physical_area_size.width)),
-        );
+        )?;
         stretch_subgridded_axes(&mut sizing, subgrid_item);
         let area_width_basis = Size::splat(Some(physical_area_size.width));
         let padding = child_style
             .padding
             .zip_inline_size(area_width_basis, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
+            })
+            .transpose_with_node(tree, item.node)?;
         let border = child_style
             .border
             .zip_inline_size(area_width_basis, |length, basis| {
                 resolve_length_or_zero(length, basis)
-            });
+            })
+            .transpose_with_node(tree, item.node)?;
         let resolved_margin = sizing
             .unresolved_margin
             .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
@@ -613,7 +628,8 @@ fn refresh_subgrid_items_with_baselines<Tree>(
             margin: sizing.unresolved_margin,
             border,
             padding,
-        });
+        })
+        .map_err(|error| subgrid_child_context_container_error(input.node, item.node, error))?;
         if !child_context.has_inherited_axis() {
             continue;
         }
@@ -632,7 +648,7 @@ fn refresh_subgrid_items_with_baselines<Tree>(
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         };
         let row_axis = child_context.rows.clone();
-        let result = compute_grid_with_context_result(tree, item.node, child_input, child_context);
+        let result = compute_grid_with_context_result(tree, item.node, child_input, child_context)?;
         let output = result.output;
         let alignment = grid_item_physical_alignment(
             input.container_style.writing_mode,
@@ -699,6 +715,7 @@ fn refresh_subgrid_items_with_baselines<Tree>(
         item.border = border;
         item.padding = padding;
     }
+    Ok(())
 }
 
 pub(super) fn grid_area_inline_offset<S: LayoutScalar>(offsets: &[S], area: GridArea<S>) -> S {
@@ -1270,8 +1287,8 @@ pub(super) struct SubgridChildParentContextInput<'a, Node, S: LayoutScalar = Sca
 
 pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
     input: SubgridChildParentContextInput<'_, Node, S>,
-) -> GridParentContext<S> {
-    GridParentContext {
+) -> Result<GridParentContext<S>, SubgridChildContextError<S>> {
+    Ok(GridParentContext {
         columns: subgrid_child_axis_context(SubgridChildAxisContextInput {
             axis: GridAxisKind::Column,
             report: input.item.column,
@@ -1288,7 +1305,7 @@ pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
             margin: input.margin,
             border: input.border,
             padding: input.padding,
-        }),
+        })?,
         rows: subgrid_child_axis_context(SubgridChildAxisContextInput {
             axis: GridAxisKind::Row,
             report: input.item.row,
@@ -1305,8 +1322,8 @@ pub(super) fn subgrid_child_parent_context<Node, S: LayoutScalar>(
             margin: input.margin,
             border: input.border,
             padding: input.padding,
-        }),
-    }
+        })?,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -1328,13 +1345,22 @@ struct SubgridChildAxisContextInput<'a, S: LayoutScalar = Scalar> {
     padding: Edges<S>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum SubgridChildContextError<S: LayoutScalar> {
+    ValueResolution(LengthResolutionStatus<S>),
+    TrackInheritance(SubgridTrackInheritanceError),
+    BaselineInheritance(SubgridTrackInheritanceError),
+}
+
 fn subgrid_child_axis_context<S: LayoutScalar>(
     input: SubgridChildAxisContextInput<'_, S>,
-) -> Option<InheritedGridAxis<S>> {
+) -> Result<Option<InheritedGridAxis<S>>, SubgridChildContextError<S>> {
     if !input.report.can_inherit() {
-        return None;
+        return Ok(None);
     }
-    let mapping = input.report.mapping.ok()?;
+    let Ok(mapping) = input.report.mapping else {
+        return Ok(None);
+    };
     let (start_line, end_line) = match mapping.parent_axis {
         GridAxisKind::Column => (input.area.column + 1, input.area.column_end + 1),
         GridAxisKind::Row => (input.area.row + 1, input.area.row_end + 1),
@@ -1349,9 +1375,10 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
         start_mbp,
         end_mbp,
         parent_gap: parent_axis.gap,
-        subgrid_gap: child_subgrid_gap(input.child_style, input.axis, input.content_box_size),
+        subgrid_gap: child_subgrid_gap(input.child_style, input.axis, input.content_box_size)
+            .map_err(SubgridChildContextError::ValueResolution)?,
     })
-    .ok()?;
+    .map_err(SubgridChildContextError::TrackInheritance)?;
     let parent_major =
         parent_baseline_groups(parent_axis.baseline_groups, parent_axis.tracks.len(), true);
     let parent_minor =
@@ -1366,11 +1393,11 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
         parent_gap: parent_axis.gap,
         subgrid_gap: inherited.resolved_subgrid_gap,
     })
-    .ok()?;
+    .map_err(SubgridChildContextError::BaselineInheritance)?;
 
     let (layout_tracks, layout_gap) = inherited_subgrid_layout_tracks(input.axis, &inherited);
 
-    Some(InheritedGridAxis {
+    Ok(Some(InheritedGridAxis {
         offset: S::ZERO,
         gap: layout_gap,
         tracks: layout_tracks,
@@ -1387,7 +1414,62 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
         start_mbp,
         end_mbp,
         gap_difference: inherited.gap_difference,
-    })
+    }))
+}
+
+pub(super) fn subgrid_child_context_error<Node, S, M>(
+    subject: Node,
+    error: SubgridChildContextError<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    match error {
+        SubgridChildContextError::ValueResolution(status) => {
+            crate::compute::value_resolution_error(subject, status)
+        }
+        SubgridChildContextError::TrackInheritance(_) => LayoutErrorOf::new(
+            LayoutErrorSiteOf::Node(subject),
+            LayoutOperation::ChildLayout,
+            LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::SubgridTrackInheritance),
+        ),
+        SubgridChildContextError::BaselineInheritance(_) => LayoutErrorOf::new(
+            LayoutErrorSiteOf::Node(subject),
+            LayoutOperation::ChildLayout,
+            LayoutErrorKindOf::InternalInvariant(
+                LayoutInternalInvariant::SubgridBaselineInheritance,
+            ),
+        ),
+    }
+}
+
+pub(super) fn subgrid_child_context_container_error<Node, S, M>(
+    container: Node,
+    subject: Node,
+    error: SubgridChildContextError<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    match error {
+        SubgridChildContextError::ValueResolution(status) => {
+            crate::compute::value_resolution_error(subject, status)
+        }
+        SubgridChildContextError::TrackInheritance(_) => LayoutErrorOf::new(
+            LayoutErrorSiteOf::ContainerSubject { container, subject },
+            LayoutOperation::ChildLayout,
+            LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::SubgridTrackInheritance),
+        ),
+        SubgridChildContextError::BaselineInheritance(_) => LayoutErrorOf::new(
+            LayoutErrorSiteOf::ContainerSubject { container, subject },
+            LayoutOperation::ChildLayout,
+            LayoutErrorKindOf::InternalInvariant(
+                LayoutInternalInvariant::SubgridBaselineInheritance,
+            ),
+        ),
+    }
 }
 
 struct SubgridParentAxisData<'a, S: LayoutScalar = Scalar> {
@@ -1487,7 +1569,7 @@ pub(super) fn child_subgrid_gap<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     axis: GridAxisKind,
     area_size: Size<S>,
-) -> ResolvedSubgridGap<S> {
+) -> Result<ResolvedSubgridGap<S>, LengthResolutionStatus<S>> {
     let (gap, basis) = match axis {
         GridAxisKind::Column => (
             style.gap.width,
@@ -1499,8 +1581,10 @@ pub(super) fn child_subgrid_gap<S: LayoutScalar>(
         ),
     };
     match gap {
-        LengthOf::Normal => ResolvedSubgridGap::Normal,
-        gap => ResolvedSubgridGap::Length(resolve_length_or_zero(gap, basis)),
+        LengthOf::Normal => Ok(ResolvedSubgridGap::Normal),
+        gap => Ok(ResolvedSubgridGap::Length(resolve_length_or_zero(
+            gap, basis,
+        )?)),
     }
 }
 
@@ -1524,61 +1608,85 @@ pub(super) struct GridItemSizing<S: LayoutScalar = Scalar> {
     pub(super) align_self: AlignItems,
 }
 
-pub(super) fn grid_item_sizing<S: LayoutScalar>(
+pub(super) fn grid_item_sizing<Tree, M>(
+    _tree: &Tree,
+    child: <Tree as Traverse>::Node,
+    child_style: &NodeInputOf<Tree::Scalar>,
+    container_style: &NodeInputOf<Tree::Scalar>,
+    area_size: Size<Tree::Scalar>,
+    area_width_basis: Size<Option<Tree::Scalar>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridItemSizing<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    grid_item_sizing_with_status(child_style, container_style, area_size, area_width_basis)
+        .map_err(|status| crate::compute::value_resolution_error(child, status))
+}
+
+pub(super) fn grid_item_sizing_with_status<S: LayoutScalar>(
     child_style: &NodeInputOf<S>,
     container_style: &NodeInputOf<S>,
     area_size: Size<S>,
     area_width_basis: Size<Option<S>>,
-) -> GridItemSizing<S> {
-    let unresolved_margin = child_style
-        .margin
-        .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_auto_optional(length, basis)
-        });
+) -> Result<GridItemSizing<S>, LengthResolutionStatus<S>> {
+    let unresolved_margin = transpose_edges_result(
+        child_style
+            .margin
+            .zip_inline_size(area_width_basis, |length, basis| {
+                resolve_auto_optional(length, basis)
+            }),
+    )?;
     let margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
     let available = Size::new(
         (area_size.width - margin.horizontal_sum()).max(S::ZERO),
         (area_size.height - margin.vertical_sum()).max(S::ZERO),
     );
-    let padding = child_style
-        .padding
-        .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero(length, basis)
-        });
-    let border = child_style
-        .border
-        .zip_inline_size(area_width_basis, |length, basis| {
-            resolve_length_or_zero(length, basis)
-        });
+    let padding = transpose_edges_result(
+        child_style
+            .padding
+            .zip_inline_size(area_width_basis, |length, basis| {
+                resolve_length_or_zero(length, basis)
+            }),
+    )?;
+    let border = transpose_edges_result(
+        child_style
+            .border
+            .zip_inline_size(area_width_basis, |length, basis| {
+                resolve_length_or_zero(length, basis)
+            }),
+    )?;
     let box_sizing_adjustment = if child_style.box_sizing == BoxSizing::ContentBox {
         (padding + border).sum_axes()
     } else {
         Size::ZERO
     };
     let area_parent = Size::new(Some(area_size.width), Some(area_size.height));
-    let inherent_size = child_style
-        .size
-        .zip_map(area_parent, |dimension, basis| {
+    let inherent_size =
+        transpose_size_result(child_style.size.zip_map(area_parent, |dimension, basis| {
             resolve_dimension(dimension, basis)
-        })
+        }))?
         .apply_aspect_ratio(child_style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-    let min_size = child_style
-        .min_size
-        .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
-        })
-        .add_optional(box_sizing_adjustment)
-        .or((padding + border).sum_axes().map(Some))
-        .max_optional((padding + border).sum_axes().map(Some))
-        .apply_aspect_ratio(child_style.aspect_ratio);
-    let max_size = child_style
-        .max_size
-        .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
-        })
-        .apply_aspect_ratio(child_style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
+    let min_size = transpose_size_result(
+        child_style
+            .min_size
+            .zip_map(area_parent, |dimension, basis| {
+                resolve_dimension(dimension, basis)
+            }),
+    )?
+    .add_optional(box_sizing_adjustment)
+    .or((padding + border).sum_axes().map(Some))
+    .max_optional((padding + border).sum_axes().map(Some))
+    .apply_aspect_ratio(child_style.aspect_ratio);
+    let max_size = transpose_size_result(
+        child_style
+            .max_size
+            .zip_map(area_parent, |dimension, basis| {
+                resolve_dimension(dimension, basis)
+            }),
+    )?
+    .apply_aspect_ratio(child_style.aspect_ratio)
+    .add_optional(box_sizing_adjustment);
     let justify_self = child_style
         .justify_self
         .or(container_style.justify_items)
@@ -1625,13 +1733,30 @@ pub(super) fn grid_item_sizing<S: LayoutScalar>(
     }
     .clamp_optional(min_size, max_size);
 
-    GridItemSizing {
+    Ok(GridItemSizing {
         known,
         available,
         unresolved_margin,
         justify_self,
         align_self,
-    }
+    })
+}
+
+fn transpose_size_result<T, S: LayoutScalar>(
+    size: Size<Result<T, LengthResolutionStatus<S>>>,
+) -> Result<Size<T>, LengthResolutionStatus<S>> {
+    Ok(Size::new(size.width?, size.height?))
+}
+
+fn transpose_edges_result<T, S: LayoutScalar>(
+    edges: Edges<Result<T, LengthResolutionStatus<S>>>,
+) -> Result<Edges<T>, LengthResolutionStatus<S>> {
+    Ok(Edges::new(
+        edges.top?,
+        edges.right?,
+        edges.bottom?,
+        edges.left?,
+    ))
 }
 
 pub(super) fn stretch_subgridded_axes<Node, S: LayoutScalar>(
@@ -1799,15 +1924,15 @@ pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
     pub(super) reverse_positive_line_offset_adjustment: S,
 }
 
-pub(super) fn layout_absolute_grid_child<Tree>(
+pub(super) fn layout_absolute_grid_child<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     order: u32,
     child_style: &NodeInputOf<Tree::Scalar>,
     context: AbsoluteGridContext<'_, Tree::Scalar>,
-) -> Size<Tree::Scalar>
+) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: Compute,
+    Tree: Compute<M>,
 {
     let AbsoluteGridContext {
         container_style,
@@ -1861,7 +1986,8 @@ where
         .margin
         .zip_inline_size(Size::splat(Some(area.size.width)), |length, basis| {
             resolve_auto_optional(length, basis)
-        });
+        })
+        .transpose_with_node(tree, child)?;
     let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let available_size = Size::new(
         (area.size.width - non_auto_margin.horizontal_sum()).max(Tree::Scalar::ZERO),
@@ -1872,12 +1998,14 @@ where
         .padding
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, child)?;
     let border = child_style
         .border
         .zip_inline_size(area_width_basis, |length, basis| {
             resolve_length_or_zero(length, basis)
-        });
+        })
+        .transpose_with_node(tree, child)?;
     let box_sizing_adjustment = if child_style.box_sizing == BoxSizing::ContentBox {
         (padding + border).sum_axes()
     } else {
@@ -1888,6 +2016,7 @@ where
         .zip_map(area_parent, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, child)?
         .apply_aspect_ratio(child_style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let padding_border_size = (padding + border).sum_axes();
@@ -1896,6 +2025,7 @@ where
         .zip_map(area_parent, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, child)?
         .add_optional(box_sizing_adjustment)
         .or(padding_border_size.map(Some))
         .max_optional(padding_border_size.map(Some))
@@ -1905,11 +2035,15 @@ where
         .zip_map(area_parent, |dimension, basis| {
             resolve_dimension(dimension, basis)
         })
+        .transpose_with_node(tree, child)?
         .apply_aspect_ratio(child_style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-    let inset = child_style.inset.zip_size(area_parent, |length, basis| {
-        resolve_auto_optional(length, basis)
-    });
+    let inset = child_style
+        .inset
+        .zip_size(area_parent, |length, basis| {
+            resolve_auto_optional(length, basis)
+        })
+        .transpose_with_node(tree, child)?;
     let mut known = Size::new(
         style_size.width.or_else(|| {
             inset.left.zip(inset.right).map(|(left, right)| {
@@ -1949,7 +2083,7 @@ where
                 AvailableOf::definite(available_size.height),
             ),
         },
-    );
+    )?;
     let final_size = known
         .unwrap_or(output.size)
         .clamp_optional(min_size, max_size);
@@ -2016,7 +2150,7 @@ where
         },
     );
 
-    content_size_contribution(
+    Ok(content_size_contribution(
         Point::new(
             location.x - constants.content_box_inset.left,
             location.y - constants.content_box_inset.top,
@@ -2024,7 +2158,7 @@ where
         final_size,
         output.content_size,
         child_style.overflow,
-    )
+    ))
 }
 
 #[derive(Clone, Copy)]

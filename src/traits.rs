@@ -1,7 +1,8 @@
 use super::{
     CacheKeyContext, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar, NodeInputOf,
-    NodeOutputOf,
+    NodeOutputOf, Size,
 };
+use crate::compute::{LayoutResultOf, LeafMeasureInputOf};
 
 pub trait Traverse {
     type Node: Copy + Eq;
@@ -15,7 +16,39 @@ pub trait Traverse {
     fn child(&self, node: Self::Node, index: usize) -> Self::Node;
 }
 
-pub trait Compute: Traverse {
+pub trait LayoutTree: Traverse {
+    type MeasureError;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar>;
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar>;
+
+    fn has_leaf_measurement(&self, _node: Self::Node) -> bool {
+        false
+    }
+
+    fn measure_leaf(
+        &self,
+        _node: Self::Node,
+        _input: LeafMeasureInputOf<Self::Scalar>,
+    ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
+        None
+    }
+
+    fn cache_context(&self) -> CacheKeyContext {
+        CacheKeyContext::new()
+    }
+
+    fn cache_get(
+        &self,
+        _node: Self::Node,
+        _input: &ComputeInputOf<Self::Scalar>,
+        _context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<Self::Scalar>> {
+        None
+    }
+}
+
+pub(crate) trait Compute<M = core::convert::Infallible>: Traverse {
     fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar>;
     fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar>;
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>);
@@ -23,15 +56,18 @@ pub trait Compute: Traverse {
         &mut self,
         node: Self::Node,
         input: ComputeInputOf<Self::Scalar>,
-    ) -> ComputeOutputOf<Self::Scalar>;
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, M>;
 }
 
-pub trait Round: Traverse {
-    fn unrounded(&self, node: Self::Node) -> NodeOutputOf<Self::Scalar>;
+pub(crate) trait Round<M = core::convert::Infallible>: Traverse {
+    fn unrounded(
+        &self,
+        node: Self::Node,
+    ) -> LayoutResultOf<Self::Node, NodeOutputOf<Self::Scalar>, Self::Scalar, M>;
     fn set_final(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>);
 }
 
-pub trait CacheAccess {
+pub(crate) trait CacheAccess<M = core::convert::Infallible> {
     type Node: Copy + Eq;
     type Scalar: LayoutScalar;
 
@@ -52,26 +88,27 @@ pub trait CacheAccess {
     fn cache_clear(&mut self, node: Self::Node);
 }
 
-pub fn compute_cached<Tree, ComputeFn>(
+pub(crate) fn compute_cached<Tree, ComputeFn, M>(
     tree: &mut Tree,
     node: Tree::Node,
     input: ComputeInputOf<Tree::Scalar>,
     compute: ComputeFn,
-) -> ComputeOutputOf<Tree::Scalar>
+) -> LayoutResultOf<Tree::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
-    Tree: CacheAccess + ?Sized,
+    Tree: CacheAccess<M> + ?Sized,
     ComputeFn: FnOnce(
         &mut Tree,
         Tree::Node,
         ComputeInputOf<Tree::Scalar>,
-    ) -> ComputeOutputOf<Tree::Scalar>,
+    )
+        -> LayoutResultOf<Tree::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>,
 {
     let context = tree.cache_context();
     if let Some(output) = tree.cache_get(node, &input, context) {
-        return output;
+        return Ok(output);
     }
 
-    let output = compute(tree, node, input);
+    let output = compute(tree, node, input)?;
     tree.cache_store(node, &input, context, output);
-    output
+    Ok(output)
 }
