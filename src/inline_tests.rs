@@ -60,18 +60,17 @@ fn inline_boundary_participant(
 
 #[test]
 fn inline_axis_mapping_maps_horizontal_tb_ltr() {
-    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let flow_axes = crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
 
     assert_eq!(
-        mapping.physical_size(crate::inline::LogicalInlineSizeOf::new(30.0, 12.0)),
+        flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(30.0, 12.0)),
         Size::new(30.0, 12.0)
     );
     assert_eq!(
-        mapping.physical_item_origin(
-            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
-            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
-            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
-            80.0,
+        flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(5.0, 7.0),
+            crate::geometry::LogicalSizeOf::new(10.0, 4.0),
+            Size::new(30.0, 80.0),
         ),
         Point::new(5.0, 7.0)
     );
@@ -79,14 +78,13 @@ fn inline_axis_mapping_maps_horizontal_tb_ltr() {
 
 #[test]
 fn inline_axis_mapping_maps_horizontal_tb_rtl() {
-    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::HorizontalTb, Direction::Rtl);
+    let flow_axes = crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl);
 
     assert_eq!(
-        mapping.physical_item_origin(
-            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
-            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
-            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
-            80.0,
+        flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(5.0, 7.0),
+            crate::geometry::LogicalSizeOf::new(10.0, 4.0),
+            Size::new(30.0, 80.0),
         ),
         Point::new(15.0, 7.0)
     );
@@ -94,18 +92,17 @@ fn inline_axis_mapping_maps_horizontal_tb_rtl() {
 
 #[test]
 fn inline_axis_mapping_maps_vertical_rl_ltr() {
-    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalRl, Direction::Ltr);
+    let flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
 
     assert_eq!(
-        mapping.physical_size(crate::inline::LogicalInlineSizeOf::new(30.0, 12.0)),
+        flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(30.0, 12.0)),
         Size::new(12.0, 30.0)
     );
     assert_eq!(
-        mapping.physical_item_origin(
-            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
-            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
-            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
-            80.0,
+        flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(5.0, 7.0),
+            crate::geometry::LogicalSizeOf::new(10.0, 4.0),
+            Size::new(80.0, 30.0),
         ),
         Point::new(69.0, 5.0)
     );
@@ -113,14 +110,13 @@ fn inline_axis_mapping_maps_vertical_rl_ltr() {
 
 #[test]
 fn inline_axis_mapping_maps_vertical_rl_rtl() {
-    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalRl, Direction::Rtl);
+    let flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
 
     assert_eq!(
-        mapping.physical_item_origin(
-            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
-            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
-            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
-            80.0,
+        flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(5.0, 7.0),
+            crate::geometry::LogicalSizeOf::new(10.0, 4.0),
+            Size::new(80.0, 30.0),
         ),
         Point::new(69.0, 15.0)
     );
@@ -128,18 +124,17 @@ fn inline_axis_mapping_maps_vertical_rl_rtl() {
 
 #[test]
 fn inline_axis_mapping_maps_vertical_lr_ltr() {
-    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalLr, Direction::Ltr);
+    let flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
 
     assert_eq!(
-        mapping.physical_size(crate::inline::LogicalInlineSizeOf::new(30.0, 12.0)),
+        flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(30.0, 12.0)),
         Size::new(12.0, 30.0)
     );
     assert_eq!(
-        mapping.physical_item_origin(
-            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
-            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
-            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
-            80.0,
+        flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(5.0, 7.0),
+            crate::geometry::LogicalSizeOf::new(10.0, 4.0),
+            Size::new(80.0, 30.0),
         ),
         Point::new(7.0, 5.0)
     );
@@ -147,14 +142,13 @@ fn inline_axis_mapping_maps_vertical_lr_ltr() {
 
 #[test]
 fn inline_axis_mapping_maps_vertical_lr_rtl() {
-    let mapping = crate::inline::InlineAxisMapping::new(WritingMode::VerticalLr, Direction::Rtl);
+    let flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl);
 
     assert_eq!(
-        mapping.physical_item_origin(
-            crate::inline::LogicalInlinePointOf::new(5.0, 7.0),
-            crate::inline::LogicalInlineSizeOf::new(10.0, 4.0),
-            crate::inline::LogicalInlineSizeOf::new(30.0, 12.0),
-            80.0,
+        flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(5.0, 7.0),
+            crate::geometry::LogicalSizeOf::new(10.0, 4.0),
+            Size::new(80.0, 30.0),
         ),
         Point::new(7.0, 15.0)
     );
@@ -668,6 +662,22 @@ fn atomic_inline_vertical_rl_places_line_against_right_edge() {
 }
 
 #[test]
+fn atomic_inline_sideways_lr_ltr_maps_inline_progression_bottom_to_top() {
+    let report = layout_inline_run(InlineRunInput {
+        available_width: Available::definite(70.0),
+        writing_mode: WritingMode::SidewaysLr,
+        direction: Direction::Ltr,
+        items: vec![
+            InlineParticipant::new(0, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
+            InlineParticipant::new(1, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
+        ],
+    });
+
+    assert_eq!(report.items[0].location, Point::new(0.0, 20.0));
+    assert_eq!(report.items[1].location, Point::new(0.0, 0.0));
+}
+
+#[test]
 fn atomic_inline_vertical_rl_rtl_maps_inline_progression_bottom_to_top() {
     let report = layout_inline_run(InlineRunInput {
         available_width: Available::definite(70.0),
@@ -736,6 +746,74 @@ fn atomic_inline_vertical_lr_forced_break_starts_next_line() {
     assert_eq!(report.items[2].location, Point::new(20.0, 0.0));
     assert_eq!(report.first_baseline, Some(24.0));
     assert_eq!(report.last_baseline, Some(12.0));
+}
+
+#[test]
+fn atomic_inline_sideways_lr_forced_break_projects_without_clearing() {
+    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
+    let report = layout_inline_run(InlineRunInput {
+        available_width: Available::definite(80.0),
+        writing_mode: WritingMode::SidewaysLr,
+        direction: Direction::Ltr,
+        items: vec![
+            InlineParticipant::new(0, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
+            forced_line_break_for(1, WritingMode::SidewaysLr, Direction::Ltr, metrics),
+            InlineParticipant::new(2, Size::new(12.0, 16.0), Edges::ZERO, Some(12.0)),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(32.0, 30.0));
+    assert_eq!(report.items[0].location, Point::new(0.0, 0.0));
+    assert_eq!(
+        report.items[1].kind,
+        InlineParticipantLayoutKind::ForcedLineBreak
+    );
+    assert_eq!(report.items[1].location, Point::new(14.0, 0.0));
+    assert_eq!(report.items[1].size, Size::ZERO);
+    assert_eq!(report.items[2].location, Point::new(20.0, 14.0));
+}
+
+#[test]
+fn inline_boundaries_project_sideways_lr_without_clearing() {
+    let start_metrics = InlineMetrics::from_line_height_and_baseline(12.0, 8.0).unwrap();
+    let end_metrics = InlineMetrics::from_line_height_and_baseline(26.0, 18.0).unwrap();
+    let report = layout_inline_run(InlineRunInput {
+        available_width: Available::MAX_CONTENT,
+        writing_mode: WritingMode::SidewaysLr,
+        direction: Direction::Ltr,
+        items: vec![
+            inline_boundary_participant(
+                0,
+                InlineBoundaryKind::Start,
+                WritingMode::SidewaysLr,
+                Direction::Ltr,
+                start_metrics,
+            ),
+            InlineParticipant::new(1, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
+            inline_boundary_participant(
+                2,
+                InlineBoundaryKind::End,
+                WritingMode::SidewaysLr,
+                Direction::Ltr,
+                end_metrics,
+            ),
+        ],
+    });
+
+    assert_eq!(report.size, Size::new(26.0, 30.0));
+    assert_eq!(
+        report.items[0].kind,
+        InlineParticipantLayoutKind::InlineBoundaryStart
+    );
+    assert_eq!(report.items[0].location, Point::new(8.0, 30.0));
+    assert_eq!(report.items[0].size, Size::ZERO);
+    assert_eq!(report.items[1].location, Point::new(0.0, 0.0));
+    assert_eq!(
+        report.items[2].kind,
+        InlineParticipantLayoutKind::InlineBoundaryEnd
+    );
+    assert_eq!(report.items[2].location, Point::new(18.0, 0.0));
+    assert_eq!(report.items[2].size, Size::ZERO);
 }
 
 #[test]

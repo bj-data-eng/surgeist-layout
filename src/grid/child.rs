@@ -1,5 +1,6 @@
 use super::*;
 use crate::BaselinesOf;
+use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalProgression};
 use crate::scroll::scrollbar_size_from_overflow;
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
@@ -395,28 +396,28 @@ where
             scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
         let alignment =
             grid_item_physical_alignment(style.writing_mode, item.justify_self, item.align_self);
-        let horizontal_axis = grid_item_axis(GridItemAxis {
+        let horizontal_axis = physical_grid_item_axis(PhysicalGridItemAxis {
             area_size: physical_area_size.width,
             size: output.size.width,
             margin_start: item.unresolved_margin.left,
             margin_end: item.unresolved_margin.right,
             alignment: alignment.horizontal,
-            direction: grid_physical_axis_direction(
+            progression: grid_physical_axis_progression(
                 style.writing_mode,
                 style.direction,
-                PhysicalGridAxis::Horizontal,
+                PhysicalAxis::Horizontal,
             ),
         });
-        let vertical_axis = grid_item_axis(GridItemAxis {
+        let vertical_axis = physical_grid_item_axis(PhysicalGridItemAxis {
             area_size: physical_area_size.height,
             size: output.size.height,
             margin_start: item.unresolved_margin.top,
             margin_end: item.unresolved_margin.bottom,
             alignment: alignment.vertical,
-            direction: grid_physical_axis_direction(
+            progression: grid_physical_axis_progression(
                 style.writing_mode,
                 style.direction,
-                PhysicalGridAxis::Vertical,
+                PhysicalAxis::Vertical,
             ),
         });
         let margin = Edges {
@@ -655,28 +656,28 @@ where
             sizing.justify_self,
             sizing.align_self,
         );
-        let horizontal_axis = grid_item_axis(GridItemAxis {
+        let horizontal_axis = physical_grid_item_axis(PhysicalGridItemAxis {
             area_size: physical_area_size.width,
             size: output.size.width,
             margin_start: sizing.unresolved_margin.left,
             margin_end: sizing.unresolved_margin.right,
             alignment: alignment.horizontal,
-            direction: grid_physical_axis_direction(
+            progression: grid_physical_axis_progression(
                 input.container_style.writing_mode,
                 input.container_style.direction,
-                PhysicalGridAxis::Horizontal,
+                PhysicalAxis::Horizontal,
             ),
         });
-        let vertical_axis = grid_item_axis(GridItemAxis {
+        let vertical_axis = physical_grid_item_axis(PhysicalGridItemAxis {
             area_size: physical_area_size.height,
             size: output.size.height,
             margin_start: sizing.unresolved_margin.top,
             margin_end: sizing.unresolved_margin.bottom,
             alignment: alignment.vertical,
-            direction: grid_physical_axis_direction(
+            progression: grid_physical_axis_progression(
                 input.container_style.writing_mode,
                 input.container_style.direction,
-                PhysicalGridAxis::Vertical,
+                PhysicalAxis::Vertical,
             ),
         });
         let margin = Edges {
@@ -886,27 +887,12 @@ fn horizontal_grid_axis_offsets<S: LayoutScalar>(input: GridAxisOffsetsInput<'_,
     }
 }
 
-#[derive(Clone, Copy)]
-enum PhysicalGridAxis {
-    Horizontal,
-    Vertical,
-}
-
-fn grid_physical_axis_direction(
+fn grid_physical_axis_progression(
     writing_mode: crate::WritingMode,
     direction: Direction,
-    axis: PhysicalGridAxis,
-) -> Direction {
-    match (writing_mode, axis) {
-        (crate::WritingMode::HorizontalTb, PhysicalGridAxis::Horizontal) => direction,
-        (crate::WritingMode::VerticalRl, PhysicalGridAxis::Horizontal) => Direction::Rtl,
-        (crate::WritingMode::VerticalLr, PhysicalGridAxis::Horizontal) => Direction::Ltr,
-        (
-            crate::WritingMode::VerticalRl | crate::WritingMode::VerticalLr,
-            PhysicalGridAxis::Vertical,
-        ) => direction,
-        _ => Direction::Ltr,
-    }
+    axis: PhysicalAxis,
+) -> PhysicalProgression {
+    FlowAxes::new(writing_mode, direction).physical_axis_progression(axis)
 }
 
 fn grid_item_block_axis_offset<Node, S: LayoutScalar>(
@@ -1800,6 +1786,16 @@ pub(super) struct GridItemAxis<S: LayoutScalar = Scalar> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct PhysicalGridItemAxis<S: LayoutScalar = Scalar> {
+    pub(super) area_size: S,
+    pub(super) size: S,
+    pub(super) margin_start: Option<S>,
+    pub(super) margin_end: Option<S>,
+    pub(super) alignment: AlignItems,
+    pub(super) progression: PhysicalProgression,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct ResolvedGridItemAxis<S: LayoutScalar = Scalar> {
     pub(super) offset: S,
     pub(super) margin_start: S,
@@ -1839,6 +1835,50 @@ pub(super) fn grid_item_axis<S: LayoutScalar>(axis: GridItemAxis<S>) -> Resolved
         alignment,
         direction,
     } = axis;
+    let progression = if direction.is_rtl() {
+        PhysicalProgression::Decreasing
+    } else {
+        PhysicalProgression::Increasing
+    };
+    resolve_grid_item_axis(
+        area_size,
+        size,
+        margin_start,
+        margin_end,
+        alignment,
+        progression,
+    )
+}
+
+pub(super) fn physical_grid_item_axis<S: LayoutScalar>(
+    axis: PhysicalGridItemAxis<S>,
+) -> ResolvedGridItemAxis<S> {
+    let PhysicalGridItemAxis {
+        area_size,
+        size,
+        margin_start,
+        margin_end,
+        alignment,
+        progression,
+    } = axis;
+    resolve_grid_item_axis(
+        area_size,
+        size,
+        margin_start,
+        margin_end,
+        alignment,
+        progression,
+    )
+}
+
+fn resolve_grid_item_axis<S: LayoutScalar>(
+    area_size: S,
+    size: S,
+    margin_start: Option<S>,
+    margin_end: Option<S>,
+    alignment: AlignItems,
+    progression: PhysicalProgression,
+) -> ResolvedGridItemAxis<S> {
     let non_auto_start = margin_start.unwrap_or(S::ZERO);
     let non_auto_end = margin_end.unwrap_or(S::ZERO);
     let raw_free_space = area_size - size - non_auto_start - non_auto_end;
@@ -1854,14 +1894,14 @@ pub(super) fn grid_item_axis<S: LayoutScalar>(axis: GridItemAxis<S>) -> Resolved
     let alignment = alignment.safe_fallback(raw_free_space);
     let offset = match alignment {
         AlignItems::Start | AlignItems::FlexStart | AlignItems::Baseline | AlignItems::Stretch => {
-            if direction.is_rtl() {
+            if progression.is_decreasing() {
                 area_size - size - resolved_end
             } else {
                 resolved_start
             }
         }
         AlignItems::End | AlignItems::FlexEnd | AlignItems::LastBaseline => {
-            if direction.is_rtl() {
+            if progression.is_decreasing() {
                 resolved_start
             } else {
                 area_size - size - resolved_end
@@ -2102,10 +2142,10 @@ where
         alignment: child_style
             .justify_self
             .unwrap_or(container_style.justify_items.unwrap_or(AlignItems::Start)),
-        direction: grid_physical_axis_direction(
+        progression: grid_physical_axis_progression(
             container_style.writing_mode,
             container_style.direction,
-            PhysicalGridAxis::Horizontal,
+            PhysicalAxis::Horizontal,
         ),
     });
     let vertical_axis = absolute_grid_axis(AbsoluteGridAxis {
@@ -2121,10 +2161,10 @@ where
         alignment: child_style
             .align_self
             .unwrap_or(container_style.align_items.unwrap_or(AlignItems::Start)),
-        direction: grid_physical_axis_direction(
+        progression: grid_physical_axis_progression(
             container_style.writing_mode,
             container_style.direction,
-            PhysicalGridAxis::Vertical,
+            PhysicalAxis::Vertical,
         ),
     });
     let location = Point::new(horizontal_axis.location, vertical_axis.location);
@@ -2187,7 +2227,7 @@ pub(super) struct AbsoluteGridAxis<S: LayoutScalar = Scalar> {
     pub(super) inset_start: Option<S>,
     pub(super) inset_end: Option<S>,
     pub(super) alignment: AlignItems,
-    pub(super) direction: Direction,
+    pub(super) progression: PhysicalProgression,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -2211,7 +2251,7 @@ pub(super) fn absolute_grid_axis<S: LayoutScalar>(
         inset_start,
         inset_end,
         alignment,
-        direction,
+        progression,
     } = axis;
     let non_auto_start = margin_start.unwrap_or(S::ZERO);
     let non_auto_end = margin_end.unwrap_or(S::ZERO);
@@ -2227,7 +2267,9 @@ pub(super) fn absolute_grid_axis<S: LayoutScalar>(
     let resolved_end = margin_end.unwrap_or(auto_margin);
     let uses_static_area = inset_start.is_none() && inset_end.is_none();
     let offset = match (inset_start, inset_end) {
-        (Some(_), Some(end)) if direction.is_rtl() => area_size - end - size - non_auto_end,
+        (Some(_), Some(end)) if progression.is_decreasing() => {
+            area_size - end - size - non_auto_end
+        }
         (Some(start), _) => start + non_auto_start,
         (None, Some(end)) => area_size - end - size - non_auto_end,
         (None, None) => match alignment.safe_fallback(raw_free_space) {
@@ -2235,12 +2277,12 @@ pub(super) fn absolute_grid_axis<S: LayoutScalar>(
             | AlignItems::FlexStart
             | AlignItems::Baseline
             | AlignItems::Stretch
-                if direction.is_rtl() =>
+                if progression.is_decreasing() =>
             {
                 static_area_size - size - resolved_end
             }
             AlignItems::End | AlignItems::FlexEnd | AlignItems::LastBaseline
-                if direction.is_rtl() =>
+                if progression.is_decreasing() =>
             {
                 resolved_start
             }

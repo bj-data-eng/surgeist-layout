@@ -14423,7 +14423,7 @@ fn grid_child_pure_helpers_accept_non_default_scalar() {
             inset_start: None,
             inset_end: None,
             alignment: AlignItems::End,
-            direction: Direction::Ltr,
+            progression: crate::geometry::PhysicalProgression::Increasing,
         }),
         ResolvedAbsoluteGridAxis::<f64> {
             location: 62.5,
@@ -16466,6 +16466,27 @@ fn grid_axis_mapping_supports_horizontal_rtl_reversal() {
 }
 
 #[test]
+fn grid_item_axis_uses_physical_progression_for_reversed_start_alignment() {
+    let resolved = physical_grid_item_axis(PhysicalGridItemAxis {
+        area_size: 100.0,
+        size: 20.0,
+        margin_start: Some(5.0),
+        margin_end: Some(7.0),
+        alignment: AlignItems::Start,
+        progression: crate::geometry::PhysicalProgression::Decreasing,
+    });
+
+    assert_eq!(
+        resolved,
+        ResolvedGridItemAxis {
+            offset: 73.0,
+            margin_start: 5.0,
+            margin_end: 7.0,
+        }
+    );
+}
+
+#[test]
 fn grid_axis_mapping_maps_child_vertical_axes_to_parent_physical_axes() {
     let column = map_grid_axis(GridAxisMappingInput {
         queried_axis: GridAxisKind::Column,
@@ -16519,6 +16540,28 @@ fn grid_axis_mapping_maps_vertical_parent_axes_to_horizontal_child_physical_axes
     assert_eq!(row.parent_axis, GridAxisKind::Column);
     assert_eq!(row.child_axis, GridAxisKind::Row);
     assert!(!row.reversed);
+}
+
+#[test]
+fn grid_axis_mapping_supports_sideways_lr_used_direction_inversion() {
+    let report = map_grid_axis(GridAxisMappingInput {
+        queried_axis: GridAxisKind::Column,
+        parent_style: &NodeInput {
+            writing_mode: WritingMode::SidewaysLr,
+            direction: Direction::Ltr,
+            ..NodeInput::default()
+        },
+        child_style: &NodeInput {
+            writing_mode: WritingMode::SidewaysLr,
+            direction: Direction::Rtl,
+            ..NodeInput::default()
+        },
+    })
+    .unwrap();
+
+    assert_eq!(report.parent_axis, GridAxisKind::Column);
+    assert_eq!(report.child_axis, GridAxisKind::Column);
+    assert!(report.reversed);
 }
 
 #[test]

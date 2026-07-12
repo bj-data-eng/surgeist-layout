@@ -1,4 +1,5 @@
 use super::*;
+use crate::geometry::{FlowAxes, LogicalAxis};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GridAxisKind {
@@ -33,32 +34,34 @@ pub(super) struct GridAxisMappingReport {
 pub(super) fn map_grid_axis<S: LayoutScalar>(
     input: GridAxisMappingInput<'_, S>,
 ) -> Result<GridAxisMappingReport, GridAxisMappingError> {
-    let parent_axis = if input.parent_style.writing_mode.is_vertical()
-        != input.child_style.writing_mode.is_vertical()
-    {
-        match input.queried_axis {
-            GridAxisKind::Column => GridAxisKind::Row,
-            GridAxisKind::Row => GridAxisKind::Column,
-        }
+    let parent_flow = FlowAxes::new(
+        input.parent_style.writing_mode,
+        input.parent_style.direction,
+    );
+    let child_flow = FlowAxes::new(input.child_style.writing_mode, input.child_style.direction);
+    let logical_axis = logical_axis(input.queried_axis);
+    let physical_axis = match logical_axis {
+        LogicalAxis::Inline => child_flow.inline_axis(),
+        LogicalAxis::Block => child_flow.block_axis(),
+    };
+    let parent_axis = if parent_flow.inline_axis() == physical_axis {
+        GridAxisKind::Column
     } else {
-        input.queried_axis
+        GridAxisKind::Row
     };
 
     Ok(GridAxisMappingReport {
         queried_axis: input.queried_axis,
         parent_axis,
         child_axis: input.queried_axis,
-        reversed: axis_flipped(input.parent_style, parent_axis)
-            != axis_flipped(input.child_style, input.queried_axis),
+        reversed: parent_flow.physical_axis_progression(physical_axis)
+            != child_flow.physical_axis_progression(physical_axis),
     })
 }
 
-const fn axis_flipped<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> bool {
-    match (style.writing_mode, axis) {
-        (crate::WritingMode::HorizontalTb, GridAxisKind::Column) => style.direction.is_rtl(),
-        (crate::WritingMode::VerticalLr, GridAxisKind::Column)
-        | (crate::WritingMode::VerticalRl, GridAxisKind::Column) => style.direction.is_rtl(),
-        (crate::WritingMode::VerticalRl, GridAxisKind::Row) => true,
-        _ => false,
+const fn logical_axis(axis: GridAxisKind) -> LogicalAxis {
+    match axis {
+        GridAxisKind::Column => LogicalAxis::Inline,
+        GridAxisKind::Row => LogicalAxis::Block,
     }
 }

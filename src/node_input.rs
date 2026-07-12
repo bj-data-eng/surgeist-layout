@@ -164,14 +164,16 @@ pub enum VerticalAlign {
 pub enum WritingMode {
     #[default]
     HorizontalTb,
-    VerticalLr,
     VerticalRl,
+    VerticalLr,
+    SidewaysRl,
+    SidewaysLr,
 }
 
 impl WritingMode {
     #[must_use]
     pub const fn is_vertical(self) -> bool {
-        matches!(self, Self::VerticalLr | Self::VerticalRl)
+        !matches!(self, Self::HorizontalTb)
     }
 }
 

@@ -2,6 +2,7 @@ use super::{
     AvailableOf, Clear, DefaultScalar, Direction, Edges, InlineBoundaryKind, InlineMetricsOf,
     LayoutScalar, Point, Size, VerticalAlign, WritingMode,
 };
+use crate::geometry::{FlowAxes, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct InlineRunInput<S: LayoutScalar = DefaultScalar> {
@@ -9,81 +10,6 @@ pub(super) struct InlineRunInput<S: LayoutScalar = DefaultScalar> {
     pub writing_mode: WritingMode,
     pub direction: Direction,
     pub items: Vec<InlineParticipant<S>>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct LogicalInlinePointOf<S: LayoutScalar = DefaultScalar> {
-    pub inline: S,
-    pub block: S,
-}
-
-impl<S: LayoutScalar> LogicalInlinePointOf<S> {
-    #[must_use]
-    pub(super) const fn new(inline: S, block: S) -> Self {
-        Self { inline, block }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(super) struct LogicalInlineSizeOf<S: LayoutScalar = DefaultScalar> {
-    pub inline: S,
-    pub block: S,
-}
-
-impl<S: LayoutScalar> LogicalInlineSizeOf<S> {
-    #[must_use]
-    pub(super) const fn new(inline: S, block: S) -> Self {
-        Self { inline, block }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct InlineAxisMapping {
-    writing_mode: WritingMode,
-    direction: Direction,
-}
-
-impl InlineAxisMapping {
-    #[must_use]
-    pub(super) const fn new(writing_mode: WritingMode, direction: Direction) -> Self {
-        Self {
-            writing_mode,
-            direction,
-        }
-    }
-
-    #[cfg(test)]
-    #[must_use]
-    pub(super) fn physical_size<S: LayoutScalar>(self, logical: LogicalInlineSizeOf<S>) -> Size<S> {
-        match self.writing_mode {
-            WritingMode::HorizontalTb => Size::new(logical.inline, logical.block),
-            WritingMode::VerticalRl | WritingMode::VerticalLr => {
-                Size::new(logical.block, logical.inline)
-            }
-        }
-    }
-
-    #[must_use]
-    pub(super) fn physical_item_origin<S: LayoutScalar>(
-        self,
-        logical_origin: LogicalInlinePointOf<S>,
-        item_size: LogicalInlineSizeOf<S>,
-        line_size: LogicalInlineSizeOf<S>,
-        container_block_extent: S,
-    ) -> Point<S> {
-        let physical_inline = match self.direction {
-            Direction::Ltr => logical_origin.inline,
-            Direction::Rtl => line_size.inline - logical_origin.inline - item_size.inline,
-        };
-        match self.writing_mode {
-            WritingMode::HorizontalTb => Point::new(physical_inline, logical_origin.block),
-            WritingMode::VerticalRl => Point::new(
-                container_block_extent - logical_origin.block - item_size.block,
-                physical_inline,
-            ),
-            WritingMode::VerticalLr => Point::new(logical_origin.block, physical_inline),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -100,8 +26,7 @@ pub(super) struct AtomicInlineBoxParticipant<S: LayoutScalar = DefaultScalar> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct InlineFlowOf<S: LayoutScalar = DefaultScalar> {
-    writing_mode: WritingMode,
-    direction: Direction,
+    flow_axes: FlowAxes,
     available_inline_extent: AvailableOf<S>,
 }
 
@@ -113,8 +38,7 @@ impl<S: LayoutScalar> InlineFlowOf<S> {
         available_inline_extent: AvailableOf<S>,
     ) -> Self {
         Self {
-            writing_mode,
-            direction,
+            flow_axes: FlowAxes::new(writing_mode, direction),
             available_inline_extent,
         }
     }
@@ -122,13 +46,13 @@ impl<S: LayoutScalar> InlineFlowOf<S> {
     #[allow(dead_code)]
     #[must_use]
     pub(super) const fn writing_mode(self) -> WritingMode {
-        self.writing_mode
+        self.flow_axes.writing_mode()
     }
 
     #[allow(dead_code)]
     #[must_use]
     pub(super) const fn direction(self) -> Direction {
-        self.direction
+        self.flow_axes.direction()
     }
 
     #[allow(dead_code)]
@@ -525,22 +449,10 @@ fn inline_boundary_layout_kind(kind: InlineBoundaryKind) -> InlineParticipantLay
 
 #[must_use]
 pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> InlineRunReport<S> {
-    if matches!(
-        input.writing_mode,
-        WritingMode::VerticalRl | WritingMode::VerticalLr
-    ) {
+    let flow_axes = FlowAxes::new(input.writing_mode, input.direction);
+    if flow_axes.inline_axis() == PhysicalAxis::Vertical {
         return layout_vertical_inline_run(input);
     }
-
-    let axis_mapping = match input.writing_mode {
-        WritingMode::HorizontalTb => {
-            InlineAxisMapping::new(WritingMode::HorizontalTb, input.direction)
-        }
-        WritingMode::VerticalLr => unreachable!("vertical inline layout uses the vertical path"),
-        WritingMode::VerticalRl => {
-            unreachable!("vertical-rl layout is handled before line construction")
-        }
-    };
 
     let available_width = match input.available_width {
         AvailableOf::Definite(width) => Some(width),
@@ -599,11 +511,13 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::Box,
                         order: item.order,
-                        location: axis_mapping.physical_item_origin(
-                            LogicalInlinePointOf::new(x, y + line.baseline - item.baseline()),
-                            LogicalInlineSizeOf::new(item.size.width, item.size.height),
-                            LogicalInlineSizeOf::new(report_inline_extent, line_height),
-                            line_height,
+                        location: flow_axes.physical_point(
+                            LogicalPointOf::new(x, y + line.baseline - item.baseline()),
+                            LogicalSizeOf::new(item.size.width, item.size.height),
+                            flow_axes.physical_size(LogicalSizeOf::new(
+                                report_inline_extent,
+                                line_height,
+                            )),
                         ),
                         size: item.size,
                         content_size: item.content_size,
@@ -617,11 +531,13 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::ForcedLineBreak,
                         order,
-                        location: axis_mapping.physical_item_origin(
-                            LogicalInlinePointOf::new(x, line_baseline),
-                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
-                            LogicalInlineSizeOf::new(report_inline_extent, line_height),
-                            line_height,
+                        location: flow_axes.physical_point(
+                            LogicalPointOf::new(x, line_baseline),
+                            LogicalSizeOf::new(S::ZERO, S::ZERO),
+                            flow_axes.physical_size(LogicalSizeOf::new(
+                                report_inline_extent,
+                                line_height,
+                            )),
                         ),
                         size: Size::ZERO,
                         content_size: Size::ZERO,
@@ -635,11 +551,13 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                     items.push(InlineParticipantLayoutItem {
                         kind: inline_boundary_layout_kind(control.kind()),
                         order: control.order(),
-                        location: axis_mapping.physical_item_origin(
-                            LogicalInlinePointOf::new(x, line_baseline),
-                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
-                            LogicalInlineSizeOf::new(report_inline_extent, line_height),
-                            line_height,
+                        location: flow_axes.physical_point(
+                            LogicalPointOf::new(x, line_baseline),
+                            LogicalSizeOf::new(S::ZERO, S::ZERO),
+                            flow_axes.physical_size(LogicalSizeOf::new(
+                                report_inline_extent,
+                                line_height,
+                            )),
                         ),
                         size: Size::ZERO,
                         content_size: Size::ZERO,
@@ -667,10 +585,8 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
 }
 
 fn layout_vertical_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> InlineRunReport<S> {
-    debug_assert!(matches!(
-        input.writing_mode,
-        WritingMode::VerticalRl | WritingMode::VerticalLr
-    ));
+    let flow_axes = FlowAxes::new(input.writing_mode, input.direction);
+    debug_assert_eq!(flow_axes.inline_axis(), PhysicalAxis::Vertical);
 
     let mut lines = Vec::new();
     let mut line = VerticalInlineLine::<S>::default();
@@ -695,17 +611,11 @@ fn layout_vertical_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> Inli
         lines.push(line);
     }
 
-    layout_vertical_inline_lines(
-        input.writing_mode,
-        input.direction,
-        input.available_width,
-        lines,
-    )
+    layout_vertical_inline_lines(flow_axes, input.available_width, lines)
 }
 
 fn layout_vertical_inline_lines<S: LayoutScalar>(
-    writing_mode: WritingMode,
-    direction: Direction,
+    flow_axes: FlowAxes,
     available_width: AvailableOf<S>,
     lines: Vec<VerticalInlineLine<S>>,
 ) -> InlineRunReport<S> {
@@ -717,17 +627,14 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
         .iter()
         .map(|line| line.block_extent)
         .fold(S::ZERO, |sum, extent| sum + extent);
-    let container_block_extent = match writing_mode {
-        WritingMode::VerticalRl => match available_width {
+    let container_block_extent = if flow_axes.block_start() == PhysicalSide::Right {
+        match available_width {
             AvailableOf::Definite(width) => width.max(logical_block_extent),
             AvailableOf::MinContent | AvailableOf::MaxContent => logical_block_extent,
-        },
-        WritingMode::VerticalLr => logical_block_extent,
-        WritingMode::HorizontalTb => {
-            unreachable!("horizontal inline layout uses the horizontal path")
         }
+    } else {
+        logical_block_extent
     };
-    let axis_mapping = InlineAxisMapping::new(writing_mode, direction);
     let mut logical_block_start = S::ZERO;
     let mut items = Vec::new();
     let mut first_baseline = None;
@@ -756,14 +663,13 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::Box,
                         order: item.order,
-                        location: axis_mapping.physical_item_origin(
-                            LogicalInlinePointOf::new(
-                                logical_inline_start,
-                                logical_block_start_for_item,
-                            ),
-                            LogicalInlineSizeOf::new(item.size.height, item.size.width),
-                            LogicalInlineSizeOf::new(line_inline_extent, line_block_extent),
-                            container_block_extent,
+                        location: flow_axes.physical_point(
+                            LogicalPointOf::new(logical_inline_start, logical_block_start_for_item),
+                            LogicalSizeOf::new(item.size.height, item.size.width),
+                            flow_axes.physical_size(LogicalSizeOf::new(
+                                line_inline_extent,
+                                container_block_extent,
+                            )),
                         ),
                         size: item.size,
                         content_size: item.content_size,
@@ -781,14 +687,16 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::ForcedLineBreak,
                         order,
-                        location: axis_mapping.physical_item_origin(
-                            LogicalInlinePointOf::new(
+                        location: flow_axes.physical_point(
+                            LogicalPointOf::new(
                                 logical_inline_start,
                                 logical_block_start + baseline,
                             ),
-                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
-                            LogicalInlineSizeOf::new(line_inline_extent, line_block_extent),
-                            container_block_extent,
+                            LogicalSizeOf::new(S::ZERO, S::ZERO),
+                            flow_axes.physical_size(LogicalSizeOf::new(
+                                line_inline_extent,
+                                container_block_extent,
+                            )),
                         ),
                         size: Size::ZERO,
                         content_size: Size::ZERO,
@@ -806,14 +714,16 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                     items.push(InlineParticipantLayoutItem {
                         kind: inline_boundary_layout_kind(control.kind()),
                         order: control.order(),
-                        location: axis_mapping.physical_item_origin(
-                            LogicalInlinePointOf::new(
+                        location: flow_axes.physical_point(
+                            LogicalPointOf::new(
                                 logical_inline_start,
                                 logical_block_start + baseline,
                             ),
-                            LogicalInlineSizeOf::new(S::ZERO, S::ZERO),
-                            LogicalInlineSizeOf::new(line_inline_extent, line_block_extent),
-                            container_block_extent,
+                            LogicalSizeOf::new(S::ZERO, S::ZERO),
+                            flow_axes.physical_size(LogicalSizeOf::new(
+                                line_inline_extent,
+                                container_block_extent,
+                            )),
                         ),
                         size: Size::ZERO,
                         content_size: Size::ZERO,
@@ -829,7 +739,10 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
         logical_block_start = logical_block_start + line_block_extent;
     }
 
-    let content_size = Size::new(container_block_extent, line_inline_extent);
+    let content_size = flow_axes.physical_size(LogicalSizeOf::new(
+        line_inline_extent,
+        container_block_extent,
+    ));
 
     InlineRunReport {
         size: content_size,
