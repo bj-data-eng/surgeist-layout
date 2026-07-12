@@ -19,16 +19,32 @@ Browser parity XML and its generator remain a default-precision fixture
 boundary. Use those fixtures to check the default `f32` contract; add separate
 crate-local tests when a behavior specifically needs `f64` coverage.
 
-Layout owns algorithm inputs, traversal contracts, caches, reports, and box
-output. Retained tree identity, root ownership, and sibling coordination belong
-to the retained/root integration layers that provide the tree implementation to
-this crate.
+Layout owns normalized layout values, algorithm inputs, traversal contracts,
+caches, reports, and box output. Retained tree identity and sibling coordination
+belong to the root integration layer that provides the tree implementation.
 
 ## Modeling Contracts
 
 `surgeist-layout` exposes layout-ready contracts rather than authored CSS syntax.
-Public placement, aspect ratio, track repetition, lane, and calc values preserve
-their invariants through typed constructors and resolver-aware APIs.
+`LengthPercentageOf<S>` is a normalized finite affine value: px plus a percentage
+coefficient. Resolve it only against an explicit `PercentageBasisOf<S>`;
+`PercentageBasisOf::definite` rejects invalid values at construction. Resolution
+reports `MissingBasis` for a required missing basis and `InvalidNumeric` for a
+non-finite evaluation; no value is guessed.
+
+`LayoutRootRequestOf<S>` validates root input for the public
+`compute_layout` front door. A successful call returns a
+`CompletedLayoutBatchOf<Node, S>` containing the staged layout and cache updates;
+a `LayoutErrorOf<Node, S, M>` returns no partial public result. Recursive
+algorithm modes remain internal.
+
+`compute_leaf` is the direct, fallible leaf-measurement boundary. Its provider
+receives non-negative content-space constraints, and invalid provider output or a
+provider error becomes a typed layout error.
+
+Root `surgeist` owns cross-crate adapters, including lowering authored style
+values into these layout contracts, and owns generated API artifacts. This crate
+does not carry root adapters or API artifact copies.
 
 ## Inline Metrics Contract
 

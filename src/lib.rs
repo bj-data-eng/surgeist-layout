@@ -1,8 +1,21 @@
 //! Native layout algorithm boundary for Surgeist.
 //!
-//! This module owns layout input values, algorithm-facing geometry, layout
-//! traversal contracts, layout caches, and final box output. It is being ported
-//! into Surgeist-shaped types and public boundaries.
+//! This crate owns normalized layout-ready values, algorithm-facing geometry,
+//! traversal contracts, layout caches, and final box output. It does not parse
+//! authored CSS or own retained tree identity, cross-crate adapters, or generated
+//! API artifacts; root `surgeist` owns those integration concerns.
+//!
+//! `LengthPercentageOf<S>` is a normalized finite affine value (px plus a
+//! percentage coefficient) resolved explicitly with `PercentageBasisOf<S>`.
+//! `LayoutRootRequestOf<S>` validates root input for `compute_layout`, which
+//! returns either a complete `CompletedLayoutBatchOf<Node, S>` or a typed
+//! `LayoutErrorOf<Node, S, M>` with no partial public result. Recursive compute
+//! modes are internal.
+//!
+//! `compute_leaf` is the direct fallible measurement boundary: providers receive
+//! non-negative content-space constraints and provider failures or invalid output
+//! become typed layout errors. `DefaultScalar` and `Scalar` use `f32`; generic
+//! `*Of<S>` contracts support end-to-end `f32` and `f64` scalar lanes.
 
 mod block;
 mod cache;
