@@ -6363,7 +6363,8 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
             browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
         };
         let metadata = generation_report_metadata(&config).expect("metadata");
-        for (name, filter) in [("all.json", Value::Null)] {
+        {
+            let (name, filter) = ("all.json", Value::Null);
             let raw = serde_json::json!({
                 "metadata": metadata.clone(),
                 "filter": filter,
@@ -6424,7 +6425,8 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
             browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
         };
         let metadata = generation_report_metadata(&config).expect("metadata");
-        for (name, filter) in [("all.json", Value::Null)] {
+        {
+            let (name, filter) = ("all.json", Value::Null);
             let raw = serde_json::json!({
                 "metadata": metadata.clone(),
                 "filter": filter,
