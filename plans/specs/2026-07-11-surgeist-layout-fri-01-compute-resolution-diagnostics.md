@@ -71,6 +71,8 @@ This specification does not:
   identity, painting, or live scroll state;
 - add a dependency on `surgeist-style`, `surgeist-retained`, root `surgeist`, or
   any new third-party crate;
+- select, declare, or verify a minimum supported Rust version while the project
+  has not established an MSRV commitment;
 - edit root adapters, root facade exports, root API artifacts, or sibling crates;
   those changes are a root-owned integration handoff; or
 - make the full browser corpus green when a fixture still exercises a finding
@@ -90,7 +92,7 @@ This specification does not:
 | `E-DIAG-1` | `Compute::compute_child` and public compute functions return plain outputs while invalid and unsupported cases use panics, reports, silent fallback, or unrelated error types. | Return one site-aware result envelope and compose typed domain details and provider sources. |
 | `E-WRITE-1` | Block, flex, grid, hidden, root computation, caches, and rounding mutate caller storage before the containing request is known to succeed. | Compute into one owned batch and expose completed state only after validation succeeds. |
 | `E-ROOT-1` | Root owns style-to-layout lowering and previously constructed layout calc IDs while building `NodeInput`. | Root later lowers style calc into layout affine coefficients and uses the validated public request contracts. |
-| `E-MSRV-1` | Root workspace policy declares Rust 1.89; this leaf manifest has no independent `rust-version`. | Declare `rust-version = "1.89"` in this leaf and keep implementation compatible with it. |
+| `E-MSRV-1` | This leaf manifest declares no `rust-version`, carries no repository toolchain pin, and root integration is outside this initiative. | Preserve the absence of an MSRV commitment; record the active compiler used for verification without treating it as a supported minimum. |
 
 ## FRI-01.4 Resolved Design Decisions
 
@@ -531,8 +533,12 @@ No new third-party dependency is allowed or required. The default feature remain
 the normal layout engine. Browser-parity and generator feature behavior remains
 owned by the existing layout test infrastructure.
 
-This leaf declares `rust-version = "1.89"` to match root policy. The
-implementation must not use language or library features newer than that MSRV.
+This initiative makes no MSRV commitment and does not add `rust-version` or a
+repository toolchain pin. Verification records the exact active, already-installed
+compiler with `rustc --version`; that evidence proves the candidate on that
+toolchain only and does not establish a supported minimum. Selecting and
+verifying an MSRV requires a later explicit project release-readiness decision
+and is not inferred from an out-of-scope root manifest.
 
 Generated XML is not regenerated solely for API migration. Existing calc XML is
 part of the verification surface. If generator execution reveals fixture-schema
@@ -696,8 +702,9 @@ unsafe scan.
    `FRI-01`-owned paths;
 9. all three calc browser fixture families pass every checked-in direction and
    box-sizing variant that is not blocked by a later-FRI finding;
-10. leaf documentation, public reexports, MSRV, feature behavior, and root
-    handoff match the implemented contract; and
+10. leaf documentation, public reexports, explicit absence of an MSRV
+    commitment, feature behavior, and root handoff match the implemented
+    contract; and
 11. required tests, generator-feature test, Clippy with unsafe-code denied,
     format, diff check, unsafe scan, task reviews, and final holistic review are
     clean.
