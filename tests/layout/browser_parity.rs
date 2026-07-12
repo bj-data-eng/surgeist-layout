@@ -77,6 +77,128 @@ fn runs_grid_multiline_baseline_fixture_against_surgeist_layout() {
 }
 
 #[test]
+fn runs_block_calc_width_margin_fixture_family_against_surgeist_layout() {
+    assert_calc_fixture_family_matches("block/block_calc_width_margin");
+}
+
+#[test]
+fn runs_flex_calc_basis_margin_gap_fixture_family_against_surgeist_layout() {
+    assert_calc_fixture_family_matches("flex/flex_calc_basis_margin_gap");
+}
+
+#[test]
+fn runs_grid_calc_track_and_item_margin_fixture_family_against_surgeist_layout() {
+    assert_calc_fixture_family_matches("grid/grid_calc_track_and_item_margin");
+}
+
+#[test]
+fn calc_fixture_family_rejects_misplaced_duplicate_variant() {
+    let family = "block/block_calc_width_margin";
+    let candidates = [
+        "xml/block/block_calc_width_margin__border_box_ltr.xml",
+        "xml/block/block_calc_width_margin__border_box_rtl.xml",
+        "xml/block/block_calc_width_margin__content_box_ltr.xml",
+        "xml/block/block_calc_width_margin__content_box_rtl.xml",
+        "xml/other/block_calc_width_margin__border_box_ltr.xml",
+    ]
+    .map(PathBuf::from);
+
+    assert!(
+        calc_fixture_family_paths(family, candidates).is_err(),
+        "a misplaced duplicate variant must be rejected"
+    );
+}
+
+fn assert_calc_fixture_family_matches(family: &str) {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity")
+        .canonicalize()
+        .expect("browser parity fixture root should exist");
+    let fixtures = support::fixture_files("xml")
+        .expect("fixtures should load")
+        .into_iter()
+        .map(|fixture| {
+            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
+                panic!("{} should canonicalize: {error}", fixture.display())
+            });
+            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
+                panic!(
+                    "{} should be under {}: {error}",
+                    fixture.display(),
+                    corpus_root.display()
+                )
+            });
+            (relative.to_path_buf(), fixture)
+        })
+        .collect::<Vec<_>>();
+    let paths = calc_fixture_family_paths(
+        family,
+        fixtures.iter().map(|(relative, _)| relative.clone()),
+    )
+    .unwrap_or_else(|error| panic!("{error}"));
+
+    for fixture in fixtures
+        .into_iter()
+        .filter_map(|(relative, fixture)| paths.contains(&relative).then_some(fixture))
+    {
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} failed layout comparison: {error}", fixture.display())
+        });
+    }
+}
+
+fn calc_fixture_family_paths(
+    family: &str,
+    candidate_paths: impl IntoIterator<Item = PathBuf>,
+) -> Result<BTreeSet<PathBuf>, String> {
+    const EXPECTED_VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    let family_basename = Path::new(family)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("{family} must have a UTF-8 basename"))?;
+    let fixture_prefix = format!("{family_basename}__");
+    let fixtures = candidate_paths
+        .into_iter()
+        .filter(|candidate| {
+            candidate
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("xml")
+                && candidate
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .is_some_and(|stem| stem.starts_with(&fixture_prefix))
+        })
+        .collect::<Vec<_>>();
+    let discovered = fixtures.iter().cloned().collect::<BTreeSet<_>>();
+    let expected = EXPECTED_VARIANTS
+        .into_iter()
+        .map(|suffix| PathBuf::from("xml").join(format!("{family}__{suffix}.xml")))
+        .collect::<BTreeSet<_>>();
+
+    if fixtures.len() != discovered.len() {
+        return Err(format!(
+            "{family} fixture discovery must not contain duplicate relative paths: {discovered:#?}"
+        ));
+    }
+    if discovered != expected {
+        return Err(format!(
+            "{family} fixture family must contain exactly the required relative variants: {discovered:#?}"
+        ));
+    }
+
+    Ok(discovered)
+}
+
+#[test]
 fn parses_all_checked_in_browser_parity_xml() {
     let fixtures = support::fixture_files("xml").expect("fixtures should load");
     assert!(
