@@ -1,6 +1,6 @@
 # FRI-02-C01 Shared Flow And Compute Context
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-02-C01`
 
