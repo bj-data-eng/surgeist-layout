@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use surgeist_layout as layout;
-use surgeist_layout::{CacheAccess as _, Compute as _, GridSpan};
+use surgeist_layout::{ComputeInput, ComputeOutput, GridSpan, LayoutTree as _};
 
 type Scalar = layout::Scalar;
 
@@ -104,44 +104,33 @@ pub fn assert_surgeist_matches(golden: &Golden) -> Result<(), Error> {
         to_layout_available(golden.viewport.height),
     );
 
-    match golden.viewport.root_context {
-        RootContext::Root => layout::compute_root(&mut tree, 0, available),
-        RootContext::FlexItem => compute_viewport_flex_item_root(&mut tree, available),
-    }
-    if golden.use_rounding {
-        layout::round_layout(&mut tree, 0);
-    } else {
-        tree.copy_unrounded_to_final();
-    }
+    let request = root_request(available, golden.viewport.root_context)?;
+    let batch = layout::compute_layout(&tree, 0, request)
+        .map_err(|error| Error::new(format!("{}: layout failed: {error:?}", golden.name)))?;
+    tree.apply_completed_batch(&batch);
 
-    compare_expectation(&tree, 0, &golden.expectations, &golden.name)
+    compare_expectation(
+        &tree,
+        0,
+        &golden.expectations,
+        &golden.name,
+        golden.use_rounding,
+    )
 }
 
-fn compute_viewport_flex_item_root(
-    tree: &mut TestTree,
+fn root_request(
     available: layout::Size<layout::Available>,
-) {
-    let output = tree.compute_child(
-        0,
-        layout::ComputeInput {
-            run_mode: layout::RunMode::PerformRootLayout,
-            sizing_mode: layout::SizingMode::InherentSize,
-            axis: layout::RequestedAxis::Both,
-            known: layout::Size::NONE,
-            parent: available.map(layout::Available::into_option),
-            available,
-        },
-    );
-    tree.set_unrounded(
-        0,
-        layout::NodeOutput {
-            order: 0,
-            location: layout::Point::ZERO,
-            size: output.size,
-            content_size: output.content_size,
-            ..layout::NodeOutput::new()
-        },
-    );
+    root_context: RootContext,
+) -> Result<layout::LayoutRootRequest, Error> {
+    match root_context {
+        RootContext::Root => layout::LayoutRootRequest::viewport(available),
+        RootContext::FlexItem => {
+            let context = layout::FlexItemRootContext::under_viewport(available)
+                .map_err(|error| Error::new(format!("invalid flex viewport: {error:?}")))?;
+            layout::LayoutRootRequest::flex_item_under_viewport(available, context)
+        }
+    }
+    .map_err(|error| Error::new(format!("invalid layout root request: {error:?}")))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -526,59 +515,6 @@ impl TestTree {
         Ok(id)
     }
 
-    fn compute_uncached(
-        &mut self,
-        node: usize,
-        input: layout::ComputeInput,
-    ) -> layout::ComputeOutput {
-        let node_input = self.box_node_input(node).clone();
-        if node_input.display == layout::Display::None
-            || input.run_mode == layout::RunMode::PerformHiddenLayout
-        {
-            return layout::compute_hidden(self, node);
-        }
-
-        if can_use_leaf_measurement(
-            node_input.display,
-            self.nodes[node].children.len(),
-            self.nodes[node].text.is_some(),
-        ) {
-            let mut output = layout::compute_leaf(input, &node_input, |measure_input| {
-                Ok::<_, std::convert::Infallible>(self.measure(node, measure_input))
-            })
-            .expect("browser parity leaf measurement returns valid non-negative finite sizes");
-            if let Some(text) = &self.nodes[node].text {
-                let baseline = TextMeasure::new(
-                    text,
-                    self.nodes[node].font_family,
-                    self.nodes[node].font_size,
-                    self.nodes[node].line_height,
-                    self.nodes[node].preserve_fractional_min_content,
-                    self.nodes[node].use_tighter_monospace_wrap,
-                )
-                .baseline()
-                .min(output.size.height);
-                output.first_baselines.y = Some(baseline);
-                output.last_baselines.y = Some(baseline);
-            }
-            return output;
-        }
-
-        match node_input.display.inner_display() {
-            layout::Display::Block => layout::compute_block(self, node, input),
-            layout::Display::Flex => layout::compute_flex(self, node, input),
-            layout::Display::Grid | layout::Display::GridLanes => {
-                layout::compute_grid(self, node, input)
-            }
-            layout::Display::None => layout::compute_hidden(self, node),
-            layout::Display::InlineBlock
-            | layout::Display::InlineGrid
-            | layout::Display::InlineGridLanes => {
-                unreachable!("inner_display removes inline display variants")
-            }
-        }
-    }
-
     fn measure(&self, node: usize, input: layout::LeafMeasureInput) -> layout::Size {
         let known = input.known_content_size();
         let available = input
@@ -618,9 +554,22 @@ impl TestTree {
         layout::Size::new(known.width.unwrap_or(0.0), known.height.unwrap_or(0.0))
     }
 
-    fn copy_unrounded_to_final(&mut self) {
-        for node in &mut self.nodes {
-            node.final_layout = node.unrounded;
+    fn apply_completed_batch(&mut self, batch: &layout::CompletedLayoutBatch<usize>) {
+        for entry in batch.unrounded_entries() {
+            self.nodes[entry.node()].unrounded = entry.output();
+        }
+        for entry in batch.final_entries() {
+            self.nodes[entry.node()].final_layout = entry.output();
+        }
+        for entry in batch.cache_store_entries() {
+            self.nodes[entry.node()].cache.store_with_context(
+                entry.input(),
+                entry.context(),
+                entry.output(),
+            );
+        }
+        for entry in batch.cache_clear_entries() {
+            self.nodes[entry.node()].cache.clear();
         }
     }
 
@@ -744,10 +693,6 @@ impl<'a> TextMeasure<'a> {
         self.line_height
     }
 
-    fn baseline(self) -> Scalar {
-        self.font_size * 0.8
-    }
-
     fn wrap_words(self) -> Vec<WrapWord> {
         let mut words = Vec::new();
         let mut chars = 0;
@@ -843,7 +788,9 @@ impl layout::Traverse for TestTree {
     }
 }
 
-impl layout::Compute for TestTree {
+impl layout::LayoutTree for TestTree {
+    type MeasureError = std::convert::Infallible;
+
     fn node_input(&self, node: Self::Node) -> &layout::NodeInput {
         self.box_node_input(node)
     }
@@ -852,67 +799,29 @@ impl layout::Compute for TestTree {
         self.nodes[node].layout_input.clone()
     }
 
-    fn set_unrounded(&mut self, node: Self::Node, layout: layout::NodeOutput) {
-        self.nodes[node].unrounded = layout;
-    }
-
-    fn compute_child(
-        &mut self,
-        node: Self::Node,
-        input: layout::ComputeInput,
-    ) -> layout::ComputeOutput {
-        let context = self.cache_context();
-        if let Some(output) = self.cache_get(node, &input, context) {
-            return output;
-        }
-        let output = self.compute_uncached(node, input);
-        self.cache_store(node, &input, context, output);
-        output
-    }
-}
-
-impl layout::Round for TestTree {
-    fn unrounded(&self, node: Self::Node) -> layout::NodeOutput {
-        self.nodes[node].unrounded
-    }
-
-    fn set_final(&mut self, node: Self::Node, layout: layout::NodeOutput) {
-        self.nodes[node].final_layout = layout;
-    }
-}
-
-impl layout::CacheAccess for TestTree {
-    type Node = usize;
-
-    type Scalar = Scalar;
-
-    fn cache_context(&self) -> layout::CacheKeyContext {
-        layout::CacheKeyContext::new()
-    }
-
     fn cache_get(
         &self,
         node: Self::Node,
-        input: &layout::ComputeInput,
+        input: &ComputeInput,
         context: layout::CacheKeyContext,
-    ) -> Option<layout::ComputeOutput> {
+    ) -> Option<ComputeOutput> {
         self.nodes[node].cache.get_with_context(input, context)
     }
 
-    fn cache_store(
-        &mut self,
-        node: Self::Node,
-        input: &layout::ComputeInput,
-        context: layout::CacheKeyContext,
-        output: layout::ComputeOutput,
-    ) {
-        self.nodes[node]
-            .cache
-            .store_with_context(input, context, output);
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        can_use_leaf_measurement(
+            self.box_node_input(node).display,
+            self.nodes[node].children.len(),
+            self.nodes[node].text.is_some(),
+        )
     }
 
-    fn cache_clear(&mut self, node: Self::Node) {
-        self.nodes[node].cache.clear();
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        input: layout::LeafMeasureInput,
+    ) -> Option<Result<layout::Size, Self::MeasureError>> {
+        Some(Ok(self.measure(node, input)))
     }
 }
 
@@ -921,6 +830,7 @@ fn compare_expectation(
     node: usize,
     expected: &Expectation,
     path: &str,
+    use_rounding: bool,
 ) -> Result<(), Error> {
     // The browser reports a rect for `<br>`, while layout models it as a zero-size
     // inline control carrying flow and metrics data rather than box geometry.
@@ -931,7 +841,11 @@ fn compare_expectation(
         return Ok(());
     }
 
-    let actual = tree.nodes[node].final_layout;
+    let actual = if use_rounding {
+        tree.nodes[node].final_layout
+    } else {
+        tree.nodes[node].unrounded
+    };
     compare_optional_number(path, "x", actual.location.x, expected.x)?;
     compare_optional_number(path, "y", actual.location.y, expected.y)?;
     compare_optional_number(path, "width", actual.size.width, expected.width)?;
@@ -956,7 +870,13 @@ fn compare_expectation(
         .zip(expected.children.iter())
         .enumerate()
     {
-        compare_expectation(tree, child, expected_child, &format!("{path}/{index}"))?;
+        compare_expectation(
+            tree,
+            child,
+            expected_child,
+            &format!("{path}/{index}"),
+            use_rounding,
+        )?;
     }
 
     Ok(())
@@ -2073,6 +1993,86 @@ mod tests {
     }
 
     #[test]
+    fn flex_item_root_uses_the_public_compute_request() {
+        let golden = Golden::parse(
+            r#"
+            <test name="viewport-flex-item" use-rounding="true">
+                <viewport width="400px" height="80px" root-context="flex-item" />
+                <input>
+                    <div display="flex" width="50%" height="20px" />
+                </input>
+                <expectations>
+                    <node x="0" y="0" width="200" height="20" />
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("flex-item root fixture should parse");
+
+        assert_surgeist_matches(&golden)
+            .expect("flex-item root should be computed through the public request");
+    }
+
+    #[test]
+    fn completed_batch_application_stages_outputs_and_cache_changes() {
+        let golden = Golden::parse(
+            r#"
+            <test name="batch-application" use-rounding="false">
+                <viewport width="100px" height="80px" />
+                <input>
+                    <div width="10.25px" height="20.5px" />
+                </input>
+                <expectations>
+                    <node x="0" y="0" width="10.25" height="20.5" />
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("batch fixture should parse");
+        let mut tree = TestTree::from_golden(&golden.root).expect("test tree should build");
+        let available = layout::Size::new(
+            to_layout_available(golden.viewport.width),
+            to_layout_available(golden.viewport.height),
+        );
+        let request = root_request(available, golden.viewport.root_context)
+            .expect("root request should be valid");
+        let batch = layout::compute_layout(&tree, 0, request)
+            .expect("layout should produce a completed batch");
+
+        assert_eq!(batch.unrounded_entries().len(), 1);
+        assert_eq!(batch.final_entries().len(), 1);
+        assert_eq!(batch.cache_store_entries().len(), 1);
+        tree.apply_completed_batch(&batch);
+        assert_eq!(tree.nodes[0].unrounded.size, layout::Size::new(10.25, 20.5));
+        assert_eq!(
+            tree.nodes[0].final_layout.size,
+            layout::Size::new(10.0, 21.0)
+        );
+        assert!(!tree.nodes[0].cache.is_empty());
+
+        let cached_batch = layout::compute_layout(&tree, 0, request)
+            .expect("identical layout should produce a completed batch");
+
+        assert_eq!(cached_batch.unrounded_entries().len(), 1);
+        assert_eq!(cached_batch.final_entries().len(), 1);
+        assert!(cached_batch.cache_store_entries().is_empty());
+        assert_surgeist_matches(&golden).expect("unrounded expectations should remain observable");
+
+        tree.nodes[0].layout_input = layout::LayoutInput::box_input(layout::NodeInput {
+            display: layout::Display::None,
+            ..layout::NodeInput::default()
+        });
+        let hidden_request = root_request(available, RootContext::Root)
+            .expect("hidden root request should be valid");
+        let hidden_batch = layout::compute_layout(&tree, 0, hidden_request)
+            .expect("hidden root should produce a completed batch");
+
+        assert_eq!(hidden_batch.cache_clear_entries().len(), 1);
+        tree.apply_completed_batch(&hidden_batch);
+        assert!(tree.nodes[0].cache.is_empty());
+    }
+
+    #[test]
     fn parses_partial_geometry_expectations() {
         let golden = Golden::parse(
             r#"
@@ -2640,12 +2640,14 @@ mod tests {
             }],
         };
 
-        layout::compute_root(
-            &mut tree,
-            0,
+        let request = root_request(
             layout::Size::splat(layout::Available::MaxContent),
-        );
-        layout::round_layout(&mut tree, 0);
+            RootContext::Root,
+        )
+        .expect("root request should be valid");
+        let batch =
+            layout::compute_layout(&tree, 0, request).expect("inline grid layout should complete");
+        tree.apply_completed_batch(&batch);
 
         assert_eq!(
             tree.nodes[0].final_layout.size,
