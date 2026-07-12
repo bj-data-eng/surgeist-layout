@@ -105,6 +105,21 @@ fn layout_error_accessors_preserve_typed_site_operation_kind_and_source() {
     );
 }
 
+#[test]
+fn value_resolution_diagnostics_classify_represented_non_numeric_values_as_unsupported() {
+    let error: LayoutErrorOf<u32, f32> = crate::compute::value_resolution_error_at_site(
+        LayoutErrorSite::Node(3),
+        LengthResolutionStatus::NonNumeric,
+    );
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(3));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
+    );
+}
+
 #[derive(Clone, Copy, Debug)]
 enum InvalidLeafInputScalar {
     Negative,

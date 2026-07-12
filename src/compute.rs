@@ -7,9 +7,9 @@ use super::{
     RunMode, Size, SizingMode, Traverse,
 };
 use crate::scroll::{
-    ScrollbarReservationOf, content_box_inset_with_scrollbar, round_scroll_geometry,
-    scroll_geometry_from_layout, scroll_rect_union, scrollable_overflow_from_layout_content_size,
-    scrollbar_size_from_overflow,
+    ScrollUnsupportedFeature, ScrollbarReservationOf, content_box_inset_with_scrollbar,
+    round_scroll_geometry, scroll_geometry_from_layout, scroll_rect_union,
+    scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
 };
 use crate::{CompletedLayoutBatchOf, LayoutTree};
 
@@ -293,6 +293,26 @@ where
     LayoutErrorOf::new(site, LayoutOperation::ValueResolution, kind)
 }
 
+fn root_scroll_error<Node, S, M>(
+    node: Node,
+    error: ScrollUnsupportedFeature,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let kind = if error.is_phase_one_deferred() {
+        LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
+    } else {
+        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry)
+    };
+
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        LayoutOperation::RoundingFinalization,
+        kind,
+    )
+}
+
 impl<Tree> Traverse for ComputeSession<'_, Tree>
 where
     Tree: LayoutTree,
@@ -509,13 +529,12 @@ where
         style.scrollbar_width.get(),
         output.content_size,
     )
-    .expect("root scrollable overflow is derived from finite non-negative layout output");
+    .map_err(|error| root_scroll_error(root, error))?;
     let scrollable_overflow = output
         .scroll_geometry
-        .map(|geometry| {
-            scroll_rect_union(scrollable_overflow, geometry.scrollable_overflow())
-                .expect("root scrollable overflow union remains valid")
-        })
+        .map(|geometry| scroll_rect_union(scrollable_overflow, geometry.scrollable_overflow()))
+        .transpose()
+        .map_err(|error| root_scroll_error(root, error))?
         .unwrap_or(scrollable_overflow);
     let scroll_geometry = Some(
         scroll_geometry_from_layout(
@@ -528,7 +547,7 @@ where
             style.scrollbar_width.get(),
             scrollable_overflow,
         )
-        .expect("root scroll geometry is derived from finite non-negative layout output"),
+        .map_err(|error| root_scroll_error(root, error))?,
     );
     let location = super::Point::new(
         if style.direction.is_rtl() {

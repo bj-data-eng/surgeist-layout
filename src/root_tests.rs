@@ -349,6 +349,37 @@ fn compute_layout_uses_a_matching_root_cache_hit_without_staging_a_store() {
 }
 
 #[test]
+fn compute_layout_root_diagnostics_reject_invalid_cached_scroll_geometry_without_batch() {
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
+        0,
+        NodeInput {
+            size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+            ..NodeInput::default()
+        },
+    );
+    let available = Size::new(Available::definite(100.0), Available::definite(80.0));
+    let input = root_cache_input(available);
+    let mut cache = Cache::new();
+    cache.store_with_context(
+        &input,
+        CacheKeyContext::new(),
+        ComputeOutput::from_outer_size(Size::new(f32::NAN, 20.0)),
+    );
+    tree.caches.borrow_mut().insert(0, cache);
+    let request = LayoutRootRequest::viewport(available).unwrap();
+
+    let error = compute_layout(&tree, 0, request)
+        .expect_err("invalid cached root output must not complete a layout batch");
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry)
+    );
+}
+
+#[test]
 fn compute_layout_ignores_cached_container_output_until_the_subtree_is_complete() {
     let tree: RootSessionTree = RootSessionTree::default()
         .children(0, [1])
@@ -565,6 +596,14 @@ fn compute_layout_rejects_invalid_provider_output_without_batch() {
         LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output))
             if output.axis() == Axis::Horizontal
     ));
+    let LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output)) = error.kind()
+    else {
+        panic!("invalid provider output must retain its measurement diagnostic");
+    };
+    let NonNegativeFiniteScalarErrorOf::NonFinite { value } = output.error() else {
+        panic!("invalid provider output must retain the rejected scalar");
+    };
+    assert!(value.is_nan());
 }
 
 #[test]
@@ -1653,6 +1692,41 @@ fn round_layout_rounds_scroll_geometry_with_node_output() {
         Size::new(120.0, 70.0)
     );
     assert_eq!(geometry.range().maximum_offset(), Size::new(20.0, 30.0));
+}
+
+#[test]
+fn round_layout_diagnostics_rejects_invalid_rounded_scroll_geometry() {
+    let scrollable_overflow = ScrollRect::new(Point::new(f32::MAX, 0.0), Size::ZERO).unwrap();
+    let scroll_geometry = crate::scroll::scroll_geometry_from_layout(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(Overflow::Hidden, Overflow::Hidden),
+        Size::new(1.0, 1.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        scrollable_overflow,
+    )
+    .unwrap();
+    let mut tree = OracleTreeOf::<f32>::new().unrounded(
+        0,
+        NodeOutput {
+            location: Point::new(f32::MAX, 0.0),
+            scroll_geometry: Some(scroll_geometry),
+            ..NodeOutput::new()
+        },
+    );
+
+    let error = round_layout(&mut tree, 0)
+        .expect_err("invalid rounded scroll geometry must not stage final output");
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InternalInvariant(LayoutInternalInvariant::InvalidRoundedScrollGeometry)
+    );
+    assert_eq!(tree.final_layout(0), None);
 }
 
 #[test]
