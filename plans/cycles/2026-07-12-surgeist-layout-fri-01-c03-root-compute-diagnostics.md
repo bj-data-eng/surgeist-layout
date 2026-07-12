@@ -1,6 +1,6 @@
 # FRI-01-C03 Root Compute Request And Diagnostics
 
-Status: reviewed
+Status: in_progress
 
 Cycle ID: `FRI-01-C03`
 
