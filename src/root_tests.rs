@@ -107,14 +107,15 @@ impl<M: Clone> LayoutTree for RootSessionTree<M> {
 }
 
 fn root_cache_input(available: Size<Available>) -> ComputeInput {
-    ComputeInput {
-        run_mode: RunMode::PerformRootLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: available.map(Available::into_option),
+    ComputeInput::for_child(
+        RunMode::PerformRootLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        available.map(Available::into_option),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         available,
-    }
+    )
 }
 
 struct ConstraintOverflowTree<S: LayoutScalar> {
@@ -924,6 +925,8 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         caches: HashMap<u32, Cache>,
         styles: HashMap<u32, NodeInput>,
         hidden_children: Vec<u32>,
+        cache_get_calls: Cell<usize>,
+        cache_store_calls: usize,
     }
 
     impl Traverse for HiddenTree {
@@ -964,7 +967,10 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                assert_eq!(input, ComputeInput::HIDDEN);
+                assert_eq!(
+                    input.containing_flow_axes(),
+                    crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl)
+                );
                 self.hidden_children.push(node);
                 ComputeOutput::HIDDEN
             })
@@ -985,6 +991,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             input: &ComputeInput,
             context: crate::CacheKeyContext,
         ) -> Option<ComputeOutput> {
+            self.cache_get_calls.set(self.cache_get_calls.get() + 1);
             self.caches[&node].get_with_context(input, context)
         }
 
@@ -995,6 +1002,7 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             context: crate::CacheKeyContext,
             output: ComputeOutput,
         ) {
+            self.cache_store_calls += 1;
             self.caches
                 .get_mut(&node)
                 .unwrap()
@@ -1017,22 +1025,33 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
     tree.caches.insert(2, Cache::new());
     tree.caches.insert(3, Cache::new());
     tree.caches.get_mut(&1).unwrap().store_with_context(
-        &ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::new(Some(1.0), Some(1.0)),
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        &ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(1.0), Some(1.0)),
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Rtl),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
         crate::CacheKeyContext::new(),
         ComputeOutput::from_outer_size(Size::new(1.0, 1.0)),
     );
 
-    assert_eq!(compute_hidden(&mut tree, 1).unwrap(), ComputeOutput::HIDDEN);
+    assert_eq!(
+        compute_hidden(
+            &mut tree,
+            1,
+            crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        )
+        .unwrap(),
+        ComputeOutput::HIDDEN
+    );
     assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
     assert_eq!(tree.hidden_children, vec![2, 3]);
     assert!(tree.caches[&1].is_empty());
+    assert_eq!(tree.cache_get_calls.get(), 0);
+    assert_eq!(tree.cache_store_calls, 0);
 }
 
 #[test]
@@ -1086,7 +1105,13 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                assert_eq!(input, ComputeInput::HIDDEN);
+                assert_eq!(
+                    input,
+                    ComputeInput::hidden(crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ))
+                );
                 let _ = self.node_input(node);
                 self.hidden_children.push(node);
                 ComputeOutput::HIDDEN
@@ -1143,7 +1168,15 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
     tree.caches.insert(2, Cache::new());
     tree.caches.insert(3, Cache::new());
 
-    assert_eq!(compute_hidden(&mut tree, 1).unwrap(), ComputeOutput::HIDDEN);
+    assert_eq!(
+        compute_hidden(
+            &mut tree,
+            1,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        )
+        .unwrap(),
+        ComputeOutput::HIDDEN
+    );
     assert_eq!(tree.hidden_children, vec![2]);
     assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
     assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
@@ -1202,7 +1235,13 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                assert_eq!(input, ComputeInput::HIDDEN);
+                assert_eq!(
+                    input,
+                    ComputeInput::hidden(crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ))
+                );
                 let _ = self.node_input(node);
                 self.hidden_children.push(node);
                 ComputeOutput::HIDDEN
@@ -1262,7 +1301,15 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
     tree.caches.insert(2, Cache::new());
     tree.caches.insert(3, Cache::new());
 
-    assert_eq!(compute_hidden(&mut tree, 1).unwrap(), ComputeOutput::HIDDEN);
+    assert_eq!(
+        compute_hidden(
+            &mut tree,
+            1,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        )
+        .unwrap(),
+        ComputeOutput::HIDDEN
+    );
     assert_eq!(tree.hidden_children, vec![2]);
     assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
     assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
@@ -1319,7 +1366,13 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                assert_eq!(input, ComputeInputOf::HIDDEN);
+                assert_eq!(
+                    input,
+                    ComputeInputOf::hidden(crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ))
+                );
                 self.hidden_children.push(node);
                 ComputeOutputOf::HIDDEN
             })
@@ -1369,20 +1422,26 @@ fn f64_compute_hidden_clears_layout_with_f64_output_type() {
     tree.caches.insert(1, CacheOf::<f64>::new());
     tree.caches.insert(2, CacheOf::<f64>::new());
     tree.caches.get_mut(&1).unwrap().store_with_context(
-        &ComputeInputOf::<f64> {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::new(Some(1.25), Some(1.5)),
-            parent: Size::NONE,
-            available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
-        },
+        &ComputeInputOf::<f64>::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(1.25), Some(1.5)),
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+        ),
         crate::CacheKeyContext::new(),
         ComputeOutputOf::from_outer_size(Size::new(1.25, 1.5)),
     );
 
     assert_eq!(
-        compute_hidden(&mut tree, 1).unwrap(),
+        compute_hidden(
+            &mut tree,
+            1,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        )
+        .unwrap(),
         ComputeOutputOf::HIDDEN
     );
     assert_eq!(tree.layouts[&1], NodeOutputOf::with_order(0));
@@ -1801,14 +1860,15 @@ fn root_layout_stores_child_output_as_root_layout() {
 
     assert_eq!(
         tree.input,
-        Some(ComputeInput {
-            run_mode: RunMode::PerformRootLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::new(Some(200.0), None),
-            parent: Size::new(Some(200.0), Some(100.0)),
-            available: Size::new(Available::definite(200.0), Available::definite(100.0)),
-        })
+        Some(ComputeInput::for_child(
+            RunMode::PerformRootLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(200.0), None),
+            Size::new(Some(200.0), Some(100.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Rtl),
+            Size::new(Available::definite(200.0), Available::definite(100.0))
+        ))
     );
     let layout = tree.layout.expect("root layout should be stored");
     assert_eq!(layout.location, crate::Point::new(120.0, 0.0));
@@ -1886,7 +1946,7 @@ fn inline_level_root_keeps_intrinsic_width_under_definite_viewport() {
     .unwrap();
 
     assert_eq!(
-        tree.input.expect("root should be computed").known,
+        tree.input.expect("root should be computed").known(),
         Size::NONE
     );
     assert_eq!(
@@ -1943,7 +2003,7 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
         {
             Ok({
                 self.input = Some(input);
-                let width = input.known.width.unwrap_or(272.0);
+                let width = input.known().width.unwrap_or(272.0);
                 ComputeOutput::from_sizes(Size::new(width, 72.0), Size::new(width, 72.0))
             })
         }
@@ -1966,7 +2026,7 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
     .unwrap();
 
     assert_eq!(
-        tree.input.expect("root should be computed").known,
+        tree.input.expect("root should be computed").known(),
         Size::new(Some(260.0), None)
     );
     assert_eq!(
@@ -2024,8 +2084,8 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
             Ok({
                 self.input = Some(input);
                 ComputeOutput::from_sizes(
-                    Size::new(input.known.width.unwrap_or(112.0), 20.0),
-                    Size::new(input.known.width.unwrap_or(112.0), 20.0),
+                    Size::new(input.known().width.unwrap_or(112.0), 20.0),
+                    Size::new(input.known().width.unwrap_or(112.0), 20.0),
                 )
             })
         }
@@ -2056,7 +2116,7 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
     .unwrap();
 
     assert_eq!(
-        tree.input.expect("root should be computed").known.width,
+        tree.input.expect("root should be computed").known().width,
         Some(272.0)
     );
     assert_eq!(

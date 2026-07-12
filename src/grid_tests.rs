@@ -67,14 +67,15 @@ fn compute_oracle_grid_output(tree: &mut OracleTree) -> ComputeOutput {
     crate::compute_grid(
         tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(120.0), Some(120.0)),
-            available: Size::new(Available::Definite(120.0), Available::Definite(120.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(120.0), Some(120.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::Definite(120.0), Available::Definite(120.0)),
+        ),
     )
     .unwrap()
 }
@@ -175,6 +176,10 @@ fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
         ..NodeInput::default()
     };
     let constants = Constants {
+        flow_axes: crate::geometry::FlowAxes::new(
+            crate::WritingMode::HorizontalTb,
+            crate::Direction::Ltr,
+        ),
         node_outer_size: Size::splat(Some(10.0)),
         node_inner_size: Size::splat(Some(10.0)),
         node_min_size: Size::NONE,
@@ -340,14 +345,18 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
     let output = tree
         .compute_node(
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -464,14 +473,18 @@ fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
     let output = tree
         .compute_node(
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -499,14 +512,15 @@ fn grid_lanes_content_size_preserves_resolved_track_sum() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -599,14 +613,15 @@ fn named_grid_lanes_intrinsic_sizing_uses_resolved_raw_grid_axis_placement() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     let named = tree.layout(3).expect("named lane child should be laid out");
@@ -657,14 +672,15 @@ fn named_grid_lanes_resolve_repeated_named_start_and_end_lines() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     let child = tree.layout(2).expect("named lane child should be laid out");
@@ -708,14 +724,15 @@ fn grid_lanes_with_rows_template_uses_columns_as_lane_axis_for_intrinsic_width()
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -879,21 +896,22 @@ fn grid_lanes_lane_measurement_honors_min_content_width() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(output.size, Size::new(72.0, 60.0));
     assert!(tree.inputs(2).iter().any(|input| {
-        input.run_mode == RunMode::ComputeSize
-            && input.available == Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)
+        input.run_mode() == RunMode::ComputeSize
+            && input.available() == Size::new(Available::MIN_CONTENT, Available::MAX_CONTENT)
     }));
 }
 
@@ -1339,14 +1357,15 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1456,14 +1475,15 @@ fn row_subgrid_intrinsic_width_uses_inherited_rows_for_column_auto_flow() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1519,14 +1539,15 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1609,14 +1630,15 @@ fn row_subgrid_auto_track_sizing_fixed_then_auto_uses_descendant_contribution_on
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1634,14 +1656,15 @@ fn row_subgrid_auto_track_sizing_auto_then_fixed_uses_descendant_contribution_on
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1699,14 +1722,15 @@ fn row_subgrid_intrinsic_width_accumulates_standalone_percent_columns() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2095,14 +2119,15 @@ fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2220,14 +2245,15 @@ fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display:
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2315,14 +2341,15 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2635,14 +2662,15 @@ fn column_subgrid_baseline_alignment_does_not_grow_auto_parent_row_twice() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     tree.set_unrounded(
@@ -2712,8 +2740,8 @@ fn grid_auto_places_children_into_declared_column_tracks() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -2740,14 +2768,15 @@ fn grid_auto_places_children_into_declared_column_tracks() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2809,8 +2838,8 @@ fn grid_column_gap_separates_declared_tracks() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -2838,14 +2867,15 @@ fn grid_column_gap_separates_declared_tracks() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2917,8 +2947,8 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -2948,14 +2978,15 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3018,14 +3049,14 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                if input == ComputeInput::HIDDEN {
+                if input.run_mode() == RunMode::PerformHiddenLayout {
                     self.hidden_inputs.push(node);
                 }
 
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -3058,14 +3089,15 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3128,8 +3160,8 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
                 self.inputs.entry(node).or_default().push(input);
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -3164,14 +3196,15 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3181,17 +3214,20 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
     assert_eq!(tree.layouts[&3].size, Size::new(80.0, 40.0));
     let absolute_layout_input = tree.inputs[&2]
         .iter()
-        .find(|input| input.run_mode == RunMode::PerformLayout)
+        .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("absolute grid child should be laid out");
     let normal_layout_input = tree.inputs[&3]
         .iter()
-        .find(|input| input.run_mode == RunMode::PerformLayout)
+        .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("normal grid child should be laid out");
     assert_eq!(
-        absolute_layout_input.known,
+        absolute_layout_input.known(),
         Size::new(Some(30.0), Some(12.0))
     );
-    assert_eq!(normal_layout_input.known, Size::new(Some(80.0), Some(40.0)));
+    assert_eq!(
+        normal_layout_input.known(),
+        Size::new(Some(80.0), Some(40.0))
+    );
 }
 
 #[test]
@@ -3272,14 +3308,15 @@ fn vertical_grid_absolute_child_maps_rows_to_physical_x_and_columns_to_y() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     let child = tree.layout(2).expect("absolute child should be laid out");
@@ -3390,8 +3427,8 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
                     return Ok(ComputeOutput::from_outer_size(Size::new(36.0, 14.0)));
                 }
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -3421,22 +3458,23 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(36.0, 14.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::NONE);
+    assert_eq!(tree.inputs[&2][0].known(), Size::NONE);
     assert_eq!(
-        tree.inputs[&2][0].available,
+        tree.inputs[&2][0].available(),
         Size::new(Available::definite(120.0), Available::definite(60.0))
     );
 }
@@ -3492,8 +3530,8 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -3529,20 +3567,24 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(8.0, 6.0));
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 44.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(100.0), Some(44.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(100.0), Some(44.0))
+    );
 }
 
 #[test]
@@ -3595,7 +3637,10 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
         {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(30.0, input.known.height.unwrap_or(12.0)))
+                ComputeOutput::from_outer_size(Size::new(
+                    30.0,
+                    input.known().height.unwrap_or(12.0),
+                ))
             })
         }
     }
@@ -3627,20 +3672,21 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(90.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(None, Some(12.0)));
+    assert_eq!(tree.inputs[&2][0].known(), Size::new(None, Some(12.0)));
 }
 
 #[test]
@@ -3694,8 +3740,8 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -3732,20 +3778,24 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(78.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 12.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(30.0), Some(12.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(30.0), Some(12.0))
+    );
 }
 
 #[test]
@@ -3799,8 +3849,8 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -3836,14 +3886,15 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3904,8 +3955,8 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -3946,14 +3997,15 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4014,8 +4066,8 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -4047,20 +4099,24 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(120.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 20.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(40.0), Some(20.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(40.0), Some(20.0))
+    );
 }
 
 #[test]
@@ -4112,8 +4168,8 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -4147,14 +4203,15 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4214,8 +4271,8 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -4247,19 +4304,23 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 15.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(30.0), Some(15.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(30.0), Some(15.0))
+    );
 }
 
 #[test]
@@ -4313,8 +4374,8 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -4347,19 +4408,23 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 30.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(50.0), Some(30.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(50.0), Some(30.0))
+    );
 }
 
 #[test]
@@ -4413,8 +4478,8 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -4448,19 +4513,23 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(42.0, 32.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(42.0), Some(32.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(42.0), Some(32.0))
+    );
 }
 
 #[test]
@@ -4511,7 +4580,10 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+                ComputeOutput::from_sizes(
+                    input.known().map(|value| value.unwrap_or(0.0)),
+                    Size::ZERO,
+                )
             })
         }
     }
@@ -4543,14 +4615,15 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4608,8 +4681,8 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -4642,19 +4715,23 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(12.0, 12.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(12.0), Some(12.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(12.0), Some(12.0))
+    );
 }
 
 #[test]
@@ -4708,8 +4785,8 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -4746,19 +4823,23 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(90.0, 45.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(90.0), Some(45.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(90.0), Some(45.0))
+    );
 }
 
 #[test]
@@ -4812,8 +4893,8 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(8.0),
-                    input.known.height.unwrap_or(6.0),
+                    input.known().width.unwrap_or(8.0),
+                    input.known().height.unwrap_or(6.0),
                 ))
             })
         }
@@ -4849,23 +4930,24 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2][0].available,
+        tree.inputs[&2][0].available(),
         Size::new(Available::definite(90.0), Available::definite(70.0))
     );
     assert_eq!(
-        tree.inputs[&2][0].parent,
+        tree.inputs[&2][0].parent(),
         Size::new(Some(120.0), Some(80.0))
     );
 }
@@ -4921,8 +5003,8 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -4953,14 +5035,15 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5025,8 +5108,8 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -5054,14 +5137,15 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5140,14 +5224,15 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5225,14 +5310,15 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5304,14 +5390,15 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5367,7 +5454,10 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                ComputeOutput::from_sizes(input.known.map(|value| value.unwrap_or(0.0)), Size::ZERO)
+                ComputeOutput::from_sizes(
+                    input.known().map(|value| value.unwrap_or(0.0)),
+                    Size::ZERO,
+                )
             })
         }
     }
@@ -5397,14 +5487,15 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5475,14 +5566,15 @@ fn grid_content_size_mode_ignores_authored_size() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::ContentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::ContentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5543,8 +5635,8 @@ fn grid_item_margins_reduce_stretched_grid_area() {
                 self.inputs.entry(node).or_default().push(input);
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -5580,22 +5672,23 @@ fn grid_item_margins_reduce_stretched_grid_area() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     let layout_input = tree.inputs[&2]
         .iter()
-        .find(|input| input.run_mode == RunMode::PerformLayout)
+        .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out");
-    assert_eq!(layout_input.known, Size::new(Some(82.0), Some(32.0)));
+    assert_eq!(layout_input.known(), Size::new(Some(82.0), Some(32.0)));
     assert_eq!(tree.layouts[&2].location, Point::new(11.0, 3.0));
     assert_eq!(tree.layouts[&2].size, Size::new(82.0, 32.0));
     assert_eq!(tree.layouts[&2].margin.left, 11.0);
@@ -5655,8 +5748,8 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -5686,22 +5779,23 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     let layout_input = tree.inputs[&2]
         .iter()
-        .find(|input| input.run_mode == RunMode::PerformLayout)
+        .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out");
-    assert_eq!(layout_input.known, Size::new(Some(100.0), Some(50.0)));
+    assert_eq!(layout_input.known(), Size::new(Some(100.0), Some(50.0)));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 50.0));
 }
@@ -5793,22 +5887,23 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     let layout_input = tree.inputs[&2]
         .iter()
-        .find(|input| input.run_mode == RunMode::PerformLayout)
+        .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out");
-    assert_eq!(layout_input.known.width, None);
+    assert_eq!(layout_input.known().width, None);
     assert_eq!(tree.layouts[&2].location, Point::new(40.0, 0.0));
     assert_eq!(tree.layouts[&2].margin.left, 40.0);
     assert_eq!(tree.layouts[&2].margin.right, 40.0);
@@ -5865,8 +5960,8 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -5895,14 +5990,15 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5966,8 +6062,8 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6001,14 +6097,15 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6087,8 +6184,8 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6122,14 +6219,15 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6190,8 +6288,8 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6223,14 +6321,15 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6289,8 +6388,8 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6322,14 +6421,15 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6388,8 +6488,8 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6426,14 +6526,15 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6523,8 +6624,8 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6570,14 +6671,15 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6684,8 +6786,8 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -6745,14 +6847,15 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(120.0), Some(120.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(120.0), Some(120.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6814,8 +6917,8 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6848,14 +6951,15 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6914,8 +7018,8 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -6951,14 +7055,15 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7036,8 +7141,8 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7073,14 +7178,15 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7200,8 +7306,8 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7237,14 +7343,15 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7303,8 +7410,8 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7337,14 +7444,15 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7403,8 +7511,8 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7440,14 +7548,15 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7506,8 +7615,8 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7543,14 +7652,15 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7609,8 +7719,8 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7636,14 +7746,15 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7713,8 +7824,8 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7740,14 +7851,15 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7804,8 +7916,8 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -7834,14 +7946,15 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7912,8 +8025,8 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -7942,14 +8055,15 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8008,8 +8122,8 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -8039,14 +8153,18 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
         crate::compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(300.0), Some(200.0)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(300.0), Some(200.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -8114,8 +8232,8 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -8149,14 +8267,15 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8231,8 +8350,8 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -8259,14 +8378,15 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(200.0)),
-            available: Size::new(Available::definite(120.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(120.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8327,8 +8447,8 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -8356,14 +8476,15 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(200.0)),
-            available: Size::new(Available::definite(120.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(120.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8424,8 +8545,8 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -8458,14 +8579,15 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(200.0), Some(100.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(200.0), Some(100.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8524,8 +8646,8 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -8553,14 +8675,15 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(220.0), Some(100.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(220.0), Some(100.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8666,14 +8789,15 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8728,13 +8852,13 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
             expected_rows.final_tracks[0].size
         )
     );
-    assert_eq!(tree.inputs[&2][0].run_mode, RunMode::ComputeSize);
+    assert_eq!(tree.inputs[&2][0].run_mode(), RunMode::ComputeSize);
     let layout_input = tree.inputs[&2]
         .iter()
-        .find(|input| input.run_mode == RunMode::PerformLayout)
+        .find(|input| input.run_mode() == RunMode::PerformLayout)
         .expect("grid item should be laid out after intrinsic measurement");
     assert_eq!(
-        layout_input.known,
+        layout_input.known(),
         Size::new(
             Some(expected_columns.final_tracks[0].size),
             Some(expected_rows.final_tracks[0].size)
@@ -8793,8 +8917,8 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(80.0),
-                        input.known.height.unwrap_or(10.0),
+                        input.known().width.unwrap_or(80.0),
+                        input.known().height.unwrap_or(10.0),
                     ))
                 })
             })
@@ -8820,14 +8944,15 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(400.0), None),
-            available: Size::new(Available::definite(400.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(400.0), None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(400.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8889,8 +9014,8 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(10.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(10.0),
                     ))
                 })
             })
@@ -8921,14 +9046,15 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(None, None),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(None, None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -8987,7 +9113,7 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
         {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
-                match input.available.width {
+                match input.available().width {
                     Available::Definite(width) if width <= 30.0 => {
                         ComputeOutput::from_outer_size(Size::new(30.0, 20.0))
                     }
@@ -9016,14 +9142,15 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -9032,9 +9159,9 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
     assert!(
         tree.inputs[&2]
             .iter()
-            .any(|input| input.run_mode == RunMode::ComputeSize
-                && input.known.width == Some(30.0)
-                && input.available.width == Available::Definite(30.0)),
+            .any(|input| input.run_mode() == RunMode::ComputeSize
+                && input.known().width == Some(30.0)
+                && input.available().width == Available::Definite(30.0)),
         "grid row sizing should measure the item against the resolved column width"
     );
 }
@@ -9089,7 +9216,7 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
         {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
-                match input.known.width {
+                match input.known().width {
                     Some(width) if width <= 80.0 => {
                         ComputeOutput::from_outer_size(Size::new(width, 96.0))
                     }
@@ -9120,14 +9247,15 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -9136,9 +9264,9 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
     assert!(
         tree.inputs[&2]
             .iter()
-            .any(|input| input.run_mode == RunMode::ComputeSize
-                && input.known.width == Some(80.0)
-                && input.available.width == Available::Definite(80.0)),
+            .any(|input| input.run_mode() == RunMode::ComputeSize
+                && input.known().width == Some(80.0)
+                && input.available().width == Available::Definite(80.0)),
         "layout-time row sizing should be rerun against the resolved percent column width"
     );
 }
@@ -9218,14 +9346,15 @@ fn nested_subgrid_percent_columns_rerun_rows_after_inherited_width_and_margin() 
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     tree.set_unrounded(
@@ -9298,14 +9427,15 @@ fn row_subgrid_percent_column_leaf_uses_spanned_inline_size_for_row_contribution
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     tree.set_unrounded(
@@ -9323,9 +9453,9 @@ fn row_subgrid_percent_column_leaf_uses_spanned_inline_size_for_row_contribution
     assert!(
         tree.inputs(3)
             .iter()
-            .any(|input| input.run_mode == RunMode::ComputeSize
-                && input.known.width == Some(50.0)
-                && input.available.width == Available::Definite(50.0)),
+            .any(|input| input.run_mode() == RunMode::ComputeSize
+                && input.known().width == Some(50.0)
+                && input.available().width == Available::Definite(50.0)),
         "row contribution should measure the leaf against its 50px column span"
     );
 }
@@ -9398,14 +9528,15 @@ fn orthogonal_nested_subgrid_width_includes_full_horizontal_leaf_contribution() 
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -9441,14 +9572,15 @@ fn vertical_rl_grid_places_distinct_rows_on_physical_x_axis() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -9540,14 +9672,15 @@ fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(50.0), Some(100.0)),
-            available: Size::new(Available::definite(50.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(50.0), Some(100.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(50.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -9607,8 +9740,8 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(40.0),
-                    input.known.height.unwrap_or(10.0),
+                    input.known().width.unwrap_or(40.0),
+                    input.known().height.unwrap_or(10.0),
                 ))
             })
         }
@@ -9636,14 +9769,15 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -9700,12 +9834,12 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                match input.run_mode {
+                match input.run_mode() {
                     RunMode::ComputeSize => self.outputs[&node],
                     RunMode::PerformRootLayout | RunMode::PerformLayout => {
                         ComputeOutput::from_outer_size(Size::new(
-                            input.known.width.unwrap_or(0.0),
-                            input.known.height.unwrap_or(0.0),
+                            input.known().width.unwrap_or(0.0),
+                            input.known().height.unwrap_or(0.0),
                         ))
                     }
                     RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
@@ -9740,14 +9874,15 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -9760,7 +9895,8 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
 }
 
 #[test]
-fn grid_intrinsic_column_sizing_treats_horizontal_percent_margins_as_zero() {
+fn grid_intrinsic_column_sizing_resolves_horizontal_percent_margins_against_containing_inline_size()
+{
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -9808,12 +9944,12 @@ fn grid_intrinsic_column_sizing_treats_horizontal_percent_margins_as_zero() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                match input.run_mode {
+                match input.run_mode() {
                     RunMode::ComputeSize => self.outputs[&node],
                     RunMode::PerformRootLayout | RunMode::PerformLayout => {
                         ComputeOutput::from_outer_size(Size::new(
-                            input.known.width.unwrap_or(0.0),
-                            input.known.height.unwrap_or(0.0),
+                            input.known().width.unwrap_or(0.0),
+                            input.known().height.unwrap_or(0.0),
                         ))
                     }
                     RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
@@ -9855,18 +9991,19 @@ fn grid_intrinsic_column_sizing_treats_horizontal_percent_margins_as_zero() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(output.content_size.width, 20.0);
+    assert_eq!(output.content_size.width, 220.0);
 }
 
 #[test]
@@ -9989,14 +10126,15 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -10122,14 +10260,15 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -10231,14 +10370,15 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -10363,14 +10503,15 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -10472,14 +10613,15 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -10583,14 +10725,15 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -10712,14 +10855,15 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -10845,14 +10989,15 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     assert_eq!(output.size, Size::new(160.0, 80.0));
@@ -10995,14 +11140,15 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
     let mut root_layout = NodeOutput::new();
@@ -11105,14 +11251,15 @@ fn grid_content_size_includes_visible_child_overflow_content() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -11204,14 +11351,15 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -11269,8 +11417,8 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(100.0),
-                    input.known.height.unwrap_or(100.0),
+                    input.known().width.unwrap_or(100.0),
+                    input.known().height.unwrap_or(100.0),
                 ))
             })
         }
@@ -11324,14 +11472,15 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -11388,8 +11537,8 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(100.0),
-                    input.known.height.unwrap_or(100.0),
+                    input.known().width.unwrap_or(100.0),
+                    input.known().height.unwrap_or(100.0),
                 ))
             })
         }
@@ -11430,14 +11579,15 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -11493,8 +11643,8 @@ fn grid_percent_rows_resolve_against_known_layout_height() {
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -11519,14 +11669,15 @@ fn grid_percent_rows_resolve_against_known_layout_height() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::new(Some(20.0), Some(10.0)),
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(20.0), Some(10.0)),
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -11588,12 +11739,12 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                match input.run_mode {
+                match input.run_mode() {
                     RunMode::ComputeSize => self.outputs[&node],
                     RunMode::PerformRootLayout | RunMode::PerformLayout => {
                         ComputeOutput::from_outer_size(Size::new(
-                            input.known.width.unwrap_or(0.0),
-                            input.known.height.unwrap_or(0.0),
+                            input.known().width.unwrap_or(0.0),
+                            input.known().height.unwrap_or(0.0),
                         ))
                     }
                     RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
@@ -11622,14 +11773,15 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -11688,12 +11840,12 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                match input.run_mode {
+                match input.run_mode() {
                     RunMode::ComputeSize => self.outputs[&node],
                     RunMode::PerformRootLayout | RunMode::PerformLayout => {
                         ComputeOutput::from_outer_size(Size::new(
-                            input.known.width.unwrap_or(0.0),
-                            input.known.height.unwrap_or(0.0),
+                            input.known().width.unwrap_or(0.0),
+                            input.known().height.unwrap_or(0.0),
                         ))
                     }
                     RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
@@ -11730,14 +11882,15 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
     let output = crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -11816,12 +11969,12 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             Ok({
-                match input.run_mode {
+                match input.run_mode() {
                     RunMode::ComputeSize => self.outputs[&node],
                     RunMode::PerformRootLayout | RunMode::PerformLayout => {
                         ComputeOutput::from_outer_size(Size::new(
-                            input.known.width.unwrap_or(0.0),
-                            input.known.height.unwrap_or(0.0),
+                            input.known().width.unwrap_or(0.0),
+                            input.known().height.unwrap_or(0.0),
                         ))
                     }
                     RunMode::PerformHiddenLayout => ComputeOutput::HIDDEN,
@@ -11853,14 +12006,18 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
         let output = crate::compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(300.0), Some(200.0)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(300.0), Some(200.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -11926,8 +12083,8 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -11955,14 +12112,15 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -12021,8 +12179,8 @@ fn grid_align_self_overrides_parent_align_items() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -12056,14 +12214,15 @@ fn grid_align_self_overrides_parent_align_items() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -12753,8 +12912,8 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -12782,14 +12941,15 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -12848,8 +13008,8 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(10.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(10.0),
                 ))
             })
         }
@@ -12887,19 +13047,20 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(100.0), Some(40.0)),
-            available: Size::new(Available::Definite(100.0), Available::Definite(40.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(40.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::Definite(100.0), Available::Definite(40.0)),
+        ),
     )
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2].last().map(|input| input.known),
+        tree.inputs[&2].last().map(|input| input.known()),
         Some(Size::new(Some(60.0), Some(10.0)))
     );
     assert_eq!(tree.layouts[&2].location, Point::new(15.0, 0.0));
@@ -12957,8 +13118,8 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -12990,14 +13151,15 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -13056,8 +13218,8 @@ fn grid_justify_self_overrides_parent_justify_items() {
             Ok({
                 self.outputs.get(&node).copied().unwrap_or_else(|| {
                     ComputeOutput::from_outer_size(Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ))
                 })
             })
@@ -13091,14 +13253,15 @@ fn grid_justify_self_overrides_parent_justify_items() {
     crate::compute_grid(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -13316,14 +13479,15 @@ fn invalid_named_grid_context_is_reported() {
     let result = crate::compute_grid_with_report(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(120.0), Some(20.0)),
-            available: Size::new(Available::Definite(120.0), Available::Definite(20.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(120.0), Some(20.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::Definite(120.0), Available::Definite(20.0)),
+        ),
     )
     .unwrap();
 
@@ -13355,14 +13519,15 @@ fn invalid_named_grid_context_fallback_is_reported() {
     let result = crate::compute_grid_with_report(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(40.0), Some(20.0)),
-            available: Size::new(Available::Definite(40.0), Available::Definite(20.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(40.0), Some(20.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::Definite(40.0), Available::Definite(20.0)),
+        ),
     )
     .unwrap();
 
@@ -13398,14 +13563,15 @@ fn invalid_grid_item_placement_reports_one_authored_fallback_once() {
     let result = crate::compute_grid_with_report(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(40.0), Some(20.0)),
-            available: Size::new(Available::Definite(40.0), Available::Definite(20.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(40.0), Some(20.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::Definite(40.0), Available::Definite(20.0)),
+        ),
     )
     .unwrap();
 
@@ -13722,6 +13888,10 @@ fn lane_axis_margin_box_measurement_resolves_affine_margins_against_grid_axis() 
     };
     let container_style = NodeInput::default();
     let constants = Constants {
+        flow_axes: crate::geometry::FlowAxes::new(
+            container_style.writing_mode,
+            container_style.direction,
+        ),
         node_outer_size: Size::new(Some(200.0), Some(80.0)),
         node_inner_size: Size::new(Some(200.0), Some(80.0)),
         node_min_size: Size::NONE,
@@ -13758,9 +13928,9 @@ fn lane_axis_margin_box_measurement_resolves_affine_margins_against_grid_axis() 
     let input = tree
         .last_input
         .expect("measurement should compute the child");
-    assert_eq!(input.known.width, Some(170.0));
-    assert_eq!(input.parent.width, Some(200.0));
-    assert_eq!(input.available.width, Available::Definite(170.0));
+    assert_eq!(input.known().width, Some(170.0));
+    assert_eq!(input.parent().width, Some(200.0));
+    assert_eq!(input.available().width, Available::Definite(170.0));
 }
 
 struct LaneMarginMeasureTree {
@@ -14182,18 +14352,18 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
         {
             Ok({
                 let style = &self.styles[node];
-                let size = input.known.unwrap_or(Size::new(
+                let size = input.known().unwrap_or(Size::new(
                     style
                         .size
                         .width
-                        .resolve_optional(input.parent.width)
-                        .or_else(|| input.available.width.into_option())
+                        .resolve_optional(input.parent().width)
+                        .or_else(|| input.available().width.into_option())
                         .unwrap_or(0.0),
                     style
                         .size
                         .height
-                        .resolve_optional(input.parent.height)
-                        .or_else(|| input.available.height.into_option())
+                        .resolve_optional(input.parent().height)
+                        .or_else(|| input.available().height.into_option())
                         .unwrap_or(0.0),
                 ));
                 ComputeOutputOf::from_sizes(size, size)
@@ -14221,14 +14391,15 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
     let computation = compute_grid_with_report(
         &mut tree,
         0,
-        ComputeInputOf {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(AvailableOf::MAX_CONTENT),
-        },
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        ),
     )
     .unwrap();
     let (output, report) = computation.into_parts();
@@ -14284,6 +14455,10 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         inherited_row_offset: None,
     };
     let constants = Constants::<f64> {
+        flow_axes: crate::geometry::FlowAxes::new(
+            crate::WritingMode::HorizontalTb,
+            crate::Direction::Ltr,
+        ),
         node_outer_size: Size::splat(Some(120.0)),
         node_inner_size: Size::splat(Some(100.0)),
         node_min_size: Size::NONE,
@@ -16584,6 +16759,379 @@ fn vertical_subgrid_percentage_gap_uses_flow_relative_axis_basis() {
 }
 
 #[test]
+fn vertical_grid_child_percentage_padding_uses_unequal_physical_area_height_basis() {
+    let mut tree = OracleTree::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+                grid_template_columns: vec![TrackComponent::from(Length::px(200.0))],
+                grid_template_rows: vec![TrackComponent::from(Length::px(100.0))],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                size: Size::new(Dimension::px(1.0), Dimension::px(1.0)),
+                padding: Edges::all(Length::percent(0.1)),
+                ..NodeInput::default()
+            },
+        );
+
+    compute_grid(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::definite(200.0)),
+        ),
+    )
+    .unwrap();
+
+    let child = tree.layout(2).expect("grid child layout must be recorded");
+    assert_eq!(child.padding, Edges::all(20.0));
+    assert_eq!(child.size, Size::new(40.0, 40.0));
+}
+
+#[test]
+fn vertical_subgrid_percentage_edges_use_physical_area_basis() {
+    let parent_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        ..NodeInput::default()
+    };
+    let child_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        grid_template_columns: subgrid_track(),
+        padding: Edges::all(Length::percent(0.1)),
+        ..NodeInput::default()
+    };
+    let tree = OracleTree::new()
+        .children(2, [3])
+        .children(3, [])
+        .style(2, child_style.clone())
+        .style(3, NodeInput::default());
+    let area = GridArea {
+        column: 0,
+        column_end: 1,
+        row: 0,
+        row_end: 1,
+        size: Size::new(200.0, 100.0),
+    };
+    let named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
+    let named_rows = named::NamedGridLines::new(GridAxisKind::Row, 2);
+
+    let children = [2];
+    let placed_areas = [Some(area)];
+    let subgrid_report = GridSubgridReport {
+        items: vec![SubgridItemReport {
+            node: 2,
+            column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+        }],
+    };
+    let report = collect_grid_subgrid_intrinsic_traversal::<OracleTree, core::convert::Infallible>(
+        &tree,
+        GridSubgridIntrinsicTraversalInput {
+            axis: GridAxisKind::Column,
+            containing_flow_axes: crate::geometry::FlowAxes::new(
+                parent_style.writing_mode,
+                parent_style.direction,
+            ),
+            children: &children,
+            placed_areas: &placed_areas,
+            subgrid_report: &subgrid_report,
+            named_columns: &named_columns,
+            named_rows: &named_rows,
+            area_facts: None,
+            parent_gap: Size::ZERO,
+            column_sizes: &[200.0, 1.0],
+            row_sizes: &[100.0, 1.0],
+            container_size: Size::new(Some(100.0), Some(200.0)),
+            intrinsic_min_track_facts: IntrinsicMinTrackFacts::Known(&[true, false]),
+        },
+    )
+    .unwrap()
+    .expect("eligible subgrid traversal must produce a report");
+
+    assert_eq!(report.edge_lower_bounds, vec![40.0, 0.0]);
+    assert_eq!(
+        report.leaves[0].accumulated_edge_adjustment,
+        vec![40.0, 0.0]
+    );
+}
+
+#[test]
+fn orthogonal_subgrid_percentage_edges_use_containing_physical_area_basis() {
+    let parent_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        ..NodeInput::default()
+    };
+    let child_style = NodeInput {
+        display: Display::Grid,
+        grid_template_rows: subgrid_track(),
+        padding: Edges::all(Length::percent(0.1)),
+        ..NodeInput::default()
+    };
+    let tree = OracleTree::new()
+        .children(2, [3])
+        .children(3, [])
+        .style(2, child_style.clone())
+        .style(3, NodeInput::default());
+    let area = GridArea {
+        column: 0,
+        column_end: 1,
+        row: 0,
+        row_end: 1,
+        size: Size::new(200.0, 100.0),
+    };
+    let named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
+    let named_rows = named::NamedGridLines::new(GridAxisKind::Row, 2);
+
+    let children = [2];
+    let placed_areas = [Some(area)];
+    let subgrid_report = GridSubgridReport {
+        items: vec![SubgridItemReport {
+            node: 2,
+            column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+        }],
+    };
+    let report = collect_grid_subgrid_intrinsic_traversal::<OracleTree, core::convert::Infallible>(
+        &tree,
+        GridSubgridIntrinsicTraversalInput {
+            axis: GridAxisKind::Column,
+            containing_flow_axes: crate::geometry::FlowAxes::new(
+                parent_style.writing_mode,
+                parent_style.direction,
+            ),
+            children: &children,
+            placed_areas: &placed_areas,
+            subgrid_report: &subgrid_report,
+            named_columns: &named_columns,
+            named_rows: &named_rows,
+            area_facts: None,
+            parent_gap: Size::ZERO,
+            column_sizes: &[200.0, 1.0],
+            row_sizes: &[100.0, 1.0],
+            container_size: Size::new(Some(100.0), Some(200.0)),
+            intrinsic_min_track_facts: IntrinsicMinTrackFacts::Known(&[true, false]),
+        },
+    )
+    .unwrap()
+    .expect("eligible subgrid traversal must produce a report");
+
+    assert_eq!(report.edge_lower_bounds, vec![40.0, 0.0]);
+    assert_eq!(
+        report.leaves[0].accumulated_edge_adjustment,
+        vec![40.0, 0.0]
+    );
+}
+
+#[test]
+fn nested_subgrid_same_flow_projects_physical_edge_sums_before_local_track_sizing() {
+    let parent_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        ..NodeInput::default()
+    };
+    let outer_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        grid_template_rows: subgrid_track(),
+        grid_template_columns: vec![TrackComponent::percent(1.0)],
+        margin: Edges::new(
+            LengthAuto::px(3.0),
+            LengthAuto::px(5.0),
+            LengthAuto::px(7.0),
+            LengthAuto::px(11.0),
+        ),
+        border: Edges::new(
+            Length::px(13.0),
+            Length::px(17.0),
+            Length::px(19.0),
+            Length::px(23.0),
+        ),
+        padding: Edges::new(
+            Length::px(29.0),
+            Length::px(31.0),
+            Length::px(37.0),
+            Length::px(41.0),
+        ),
+        ..NodeInput::default()
+    };
+    let inner_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        grid_template_rows: subgrid_track(),
+        grid_template_columns: vec![TrackComponent::percent(1.0)],
+        padding: Edges::new(
+            Length::percent(0.1),
+            Length::percent(0.2),
+            Length::percent(0.3),
+            Length::percent(0.4),
+        ),
+        ..NodeInput::default()
+    };
+    let tree = OracleTree::new()
+        .children(2, [3])
+        .children(3, [4])
+        .children(4, [])
+        .style(2, outer_style.clone())
+        .style(3, inner_style)
+        .style(4, NodeInput::default());
+    let area = GridArea {
+        column: 0,
+        column_end: 1,
+        row: 0,
+        row_end: 1,
+        size: Size::new(200.0, 100.0),
+    };
+    let children = [2];
+    let placed_areas = [Some(area)];
+    let subgrid_report = GridSubgridReport {
+        items: vec![SubgridItemReport {
+            node: 2,
+            column: subgrid_axis_report(&parent_style, &outer_style, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_style, &outer_style, GridAxisKind::Row),
+        }],
+    };
+    let report = collect_grid_subgrid_intrinsic_traversal::<OracleTree, core::convert::Infallible>(
+        &tree,
+        GridSubgridIntrinsicTraversalInput {
+            axis: GridAxisKind::Row,
+            containing_flow_axes: crate::geometry::FlowAxes::new(
+                parent_style.writing_mode,
+                parent_style.direction,
+            ),
+            children: &children,
+            placed_areas: &placed_areas,
+            subgrid_report: &subgrid_report,
+            named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 2),
+            named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
+            area_facts: None,
+            parent_gap: Size::ZERO,
+            column_sizes: &[200.0, 1.0],
+            row_sizes: &[100.0, 1.0],
+            container_size: Size::new(Some(100.0), Some(200.0)),
+            intrinsic_min_track_facts: IntrinsicMinTrackFacts::Known(&[true, false]),
+        },
+    )
+    .unwrap()
+    .expect("eligible nested same-flow traversal must produce a report");
+
+    assert_eq!(
+        report.leaves[0].available_inline_size,
+        Some(55.2),
+        "physical vertical edge sums must reduce the local inline track before nesting"
+    );
+}
+
+#[test]
+fn orthogonal_subgrid_grandchild_percentage_edges_use_immediate_containing_flow() {
+    let parent_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        ..NodeInput::default()
+    };
+    let outer_style = NodeInput {
+        display: Display::Grid,
+        grid_template_columns: subgrid_track(),
+        grid_template_rows: vec![TrackComponent::percent(1.0)],
+        ..NodeInput::default()
+    };
+    let grandchild_style = NodeInput {
+        display: Display::Grid,
+        writing_mode: WritingMode::VerticalRl,
+        grid_template_columns: vec![TrackComponent::percent(1.0)],
+        grid_template_rows: subgrid_track(),
+        margin: Edges::new(
+            LengthAuto::percent(0.01),
+            LengthAuto::percent(0.02),
+            LengthAuto::percent(0.03),
+            LengthAuto::percent(0.04),
+        ),
+        border: Edges::new(
+            Length::percent(0.05),
+            Length::percent(0.06),
+            Length::percent(0.07),
+            Length::percent(0.08),
+        ),
+        padding: Edges::new(
+            Length::percent(0.09),
+            Length::percent(0.10),
+            Length::percent(0.11),
+            Length::percent(0.12),
+        ),
+        ..NodeInput::default()
+    };
+    let tree = OracleTree::new()
+        .children(2, [3])
+        .children(3, [4])
+        .children(4, [])
+        .style(2, outer_style.clone())
+        .style(3, grandchild_style)
+        .style(4, NodeInput::default());
+    let area = GridArea {
+        column: 0,
+        column_end: 1,
+        row: 0,
+        row_end: 1,
+        size: Size::new(200.0, 100.0),
+    };
+    let children = [2];
+    let placed_areas = [Some(area)];
+    let subgrid_report = GridSubgridReport {
+        items: vec![SubgridItemReport {
+            node: 2,
+            column: subgrid_axis_report(&parent_style, &outer_style, GridAxisKind::Column),
+            row: subgrid_axis_report(&parent_style, &outer_style, GridAxisKind::Row),
+        }],
+    };
+    let report = collect_grid_subgrid_intrinsic_traversal::<OracleTree, core::convert::Infallible>(
+        &tree,
+        GridSubgridIntrinsicTraversalInput {
+            axis: GridAxisKind::Row,
+            containing_flow_axes: crate::geometry::FlowAxes::new(
+                parent_style.writing_mode,
+                parent_style.direction,
+            ),
+            children: &children,
+            placed_areas: &placed_areas,
+            subgrid_report: &subgrid_report,
+            named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 2),
+            named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
+            area_facts: None,
+            parent_gap: Size::ZERO,
+            column_sizes: &[200.0, 1.0],
+            row_sizes: &[100.0, 1.0],
+            container_size: Size::new(Some(100.0), Some(200.0)),
+            intrinsic_min_track_facts: IntrinsicMinTrackFacts::Known(&[true, false]),
+        },
+    )
+    .unwrap()
+    .expect("eligible orthogonal traversal must produce a report");
+
+    assert_eq!(
+        report.leaves[0].available_inline_size,
+        Some(164.0),
+        "grandchild percentage edges must use the immediate horizontal subgrid flow"
+    );
+}
+
+#[test]
 fn grid_area_physical_origin_maps_vertical_grid_tracks_without_collapsing_rows() {
     let style = NodeInput {
         writing_mode: WritingMode::VerticalRl,
@@ -16717,7 +17265,7 @@ fn grid_item_sizing_transfers_min_block_through_aspect_ratio_to_inline_size() {
         &child_style,
         &NodeInput::default(),
         Size::new(100.0, 100.0),
-        Size::splat(Some(100.0)),
+        Size::new(Some(100.0), Some(100.0)),
     )
     .unwrap();
 
@@ -16736,7 +17284,7 @@ fn grid_item_sizing_keeps_inline_stretch_when_min_inline_defines_aspect_ratio() 
         &child_style,
         &NodeInput::default(),
         Size::new(100.0, 100.0),
-        Size::splat(Some(100.0)),
+        Size::new(Some(100.0), Some(100.0)),
     )
     .unwrap();
 
@@ -20870,20 +21418,24 @@ mod root_oracle {
         let output = crate::compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(300.0), Some(200.0)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(300.0), Some(200.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
         assert_eq!(output.size, Size::new(expected.size(0), 20.0));
         assert_eq!(
-            tree.inputs(2).last().unwrap().known,
+            tree.inputs(2).last().unwrap().known(),
             Size::new(Some(expected.size(0)), Some(20.0))
         );
         assert_eq!(
@@ -21027,24 +21579,28 @@ mod root_oracle {
         let output = crate::compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(300.0), Some(200.0)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(300.0), Some(200.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
         assert_eq!(output.size, Size::new(120.0, 20.0));
         assert_eq!(
-            tree.inputs(2).last().unwrap().run_mode,
+            tree.inputs(2).last().unwrap().run_mode(),
             RunMode::PerformLayout
         );
         assert_eq!(
-            tree.inputs(2).last().unwrap().known,
+            tree.inputs(2).last().unwrap().known(),
             Size::new(Some(120.0), Some(20.0))
         );
         assert_eq!(tree.layout(2).unwrap().size, Size::new(40.0, 10.0));
@@ -25667,14 +26223,18 @@ mod root_layout_oracle {
         let output = crate::compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(100.0), Some(100.0)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(100.0), Some(100.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -25685,13 +26245,13 @@ mod root_layout_oracle {
         let compute_size_inputs = tree
             .inputs(2)
             .iter()
-            .filter(|input| input.run_mode == RunMode::ComputeSize)
+            .filter(|input| input.run_mode() == RunMode::ComputeSize)
             .collect::<Vec<_>>();
         assert!(
             compute_size_inputs.iter().any(|input| {
-                input.known == Size::new(Some(100.0), None)
-                    && input.parent == Size::new(Some(100.0), None)
-                    && input.available
+                input.known() == Size::new(Some(100.0), None)
+                    && input.parent() == Size::new(Some(100.0), None)
+                    && input.available()
                         == Size::new(Available::Definite(100.0), Available::MAX_CONTENT)
             }),
             "lane placement should measure child against resolved grid-axis span: {compute_size_inputs:#?}"
@@ -25840,14 +26400,18 @@ mod root_layout_oracle {
         crate::compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(140.0), Some(140.0)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(140.0), Some(140.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -25864,12 +26428,12 @@ mod root_layout_oracle {
         let third_compute_size_inputs = tree
             .inputs(4)
             .iter()
-            .filter(|input| input.run_mode == RunMode::ComputeSize)
+            .filter(|input| input.run_mode() == RunMode::ComputeSize)
             .collect::<Vec<_>>();
         assert!(
             third_compute_size_inputs
                 .iter()
-                .any(|input| input.available.width == Available::Definite(100.0)),
+                .any(|input| input.available().width == Available::Definite(100.0)),
             "third auto lane item should be measured against its final 100px column: {third_compute_size_inputs:#?}"
         );
     }
@@ -25934,14 +26498,18 @@ mod root_layout_oracle {
         crate::compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(120.0), Some(120.0)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(120.0), Some(120.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -25951,12 +26519,12 @@ mod root_layout_oracle {
         let compute_size_inputs = tree
             .inputs(2)
             .iter()
-            .filter(|input| input.run_mode == RunMode::ComputeSize)
+            .filter(|input| input.run_mode() == RunMode::ComputeSize)
             .collect::<Vec<_>>();
         assert!(
             compute_size_inputs
                 .iter()
-                .any(|input| input.available.width == Available::Definite(120.0)),
+                .any(|input| input.available().width == Available::Definite(120.0)),
             "spanning lane child should be measured against distributed 120px grid-axis span: {compute_size_inputs:#?}"
         );
     }

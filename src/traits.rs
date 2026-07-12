@@ -1,6 +1,6 @@
 use super::{
     CacheKeyContext, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar, NodeInputOf,
-    NodeOutputOf, Size,
+    NodeOutputOf, RunMode, Size,
 };
 use crate::compute::{LayoutResultOf, LeafMeasureInputOf};
 
@@ -103,6 +103,10 @@ where
     )
         -> LayoutResultOf<Tree::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>,
 {
+    if input.run_mode() == RunMode::PerformHiddenLayout {
+        return compute(tree, node, input);
+    }
+
     let context = tree.cache_context();
     if let Some(output) = tree.cache_get(node, &input, context) {
         return Ok(output);

@@ -4,8 +4,8 @@ use crate::*;
 
 fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
     let size = Size::new(
-        input.known.width.unwrap_or(fallback.width),
-        input.known.height.unwrap_or(fallback.height),
+        input.known().width.unwrap_or(fallback.width),
+        input.known().height.unwrap_or(fallback.height),
     );
     ComputeOutput::from_sizes(size, size)
 }
@@ -131,14 +131,15 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -150,8 +151,14 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
     assert_eq!(tree.layouts[&3].location, Point::new(56.0, 6.0));
     assert_eq!(tree.layouts[&3].size, Size::new(30.0, 30.0));
 
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(40.0), Some(20.0)));
-    assert_eq!(tree.inputs[&3][0].known, Size::new(Some(30.0), Some(30.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(40.0), Some(20.0))
+    );
+    assert_eq!(
+        tree.inputs[&3][0].known(),
+        Size::new(Some(30.0), Some(30.0))
+    );
 }
 
 #[test]
@@ -189,17 +196,18 @@ fn f64_flex_layout_preserves_fractional_growth() {
     let output = compute_flex(
         &mut tree,
         0,
-        ComputeInputOf::<f64> {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(container_width), None),
-            available: Size::new(
+        ComputeInputOf::<f64>::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(container_width), None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(
                 AvailableOf::definite(container_width),
                 AvailableOf::MAX_CONTENT,
             ),
-        },
+        ),
     )
     .unwrap();
 
@@ -258,14 +266,15 @@ fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panickin
     let error = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(120.0), Some(40.0)),
-            available: Size::new(Available::definite(120.0), Available::definite(40.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(120.0), Some(40.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(120.0), Available::definite(40.0)),
+        ),
     )
     .unwrap_err();
 
@@ -353,14 +362,15 @@ fn flex_content_size_includes_visible_child_overflow_content() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -419,8 +429,8 @@ fn flex_final_content_size_uses_rerun_output() {
         {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
-                let size = if input.run_mode == RunMode::PerformLayout
-                    && input.known.width == Some(80.0)
+                let size = if input.run_mode() == RunMode::PerformLayout
+                    && input.known().width == Some(80.0)
                 {
                     Size::new(80.0, 40.0)
                 } else {
@@ -453,22 +463,23 @@ fn flex_final_content_size_uses_rerun_output() {
     let output = compute_flex(
         &mut tree,
         0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(80.0), None),
-            available: Size::new(Available::definite(80.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(80.0), None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(80.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert!(tree.inputs[&1].iter().any(|input| {
-        input.run_mode == RunMode::ComputeSize && input.known.width == Some(80.0)
+        input.run_mode() == RunMode::ComputeSize && input.known().width == Some(80.0)
     }));
     assert!(tree.inputs[&1].iter().any(|input| {
-        input.run_mode == RunMode::PerformLayout && input.known.width == Some(80.0)
+        input.run_mode() == RunMode::PerformLayout && input.known().width == Some(80.0)
     }));
     assert_eq!(output.content_size.height, 40.0);
 }
@@ -550,14 +561,15 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -642,14 +654,15 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -719,14 +732,15 @@ fn flex_compute_size_short_circuits_when_container_size_is_definite() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -809,19 +823,20 @@ fn flex_compute_size_measures_children_without_perform_layout() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(output.size, Size::new(20.0, 10.0));
-    assert_eq!(tree.inputs[&2][0].run_mode, RunMode::ComputeSize);
+    assert_eq!(tree.inputs[&2][0].run_mode(), RunMode::ComputeSize);
 }
 
 #[test]
@@ -871,7 +886,7 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
         {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
-                ComputeOutput::from_outer_size(Size::new(0.0, input.known.height.unwrap_or(10.0)))
+                ComputeOutput::from_outer_size(Size::new(0.0, input.known().height.unwrap_or(10.0)))
             })
         }
     }
@@ -897,23 +912,24 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(50.0), Some(10.0)),
-            available: Size::new(Available::definite(50.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(50.0), Some(10.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(50.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     let base_input = tree.inputs[&2][0];
-    assert_eq!(base_input.sizing_mode, SizingMode::ContentSize);
-    assert_eq!(base_input.known.width, None);
-    assert_eq!(base_input.known.height, Some(10.0));
-    assert_eq!(base_input.available.width, Available::MAX_CONTENT);
-    assert_eq!(base_input.available.height, Available::definite(10.0));
+    assert_eq!(base_input.sizing_mode(), SizingMode::ContentSize);
+    assert_eq!(base_input.known().width, None);
+    assert_eq!(base_input.known().height, Some(10.0));
+    assert_eq!(base_input.available().width, Available::MAX_CONTENT);
+    assert_eq!(base_input.available().height, Available::definite(10.0));
 }
 
 #[test]
@@ -965,8 +981,8 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(40.0),
-                    input.known.height.unwrap_or(50.0),
+                    input.known().width.unwrap_or(40.0),
+                    input.known().height.unwrap_or(50.0),
                 ))
             })
         }
@@ -1004,14 +1020,15 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(20.0), Some(50.0)),
-            available: Size::new(Available::definite(20.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(20.0), Some(50.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(20.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1068,8 +1085,8 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(40.0),
-                    input.known.height.unwrap_or(50.0),
+                    input.known().width.unwrap_or(40.0),
+                    input.known().height.unwrap_or(50.0),
                 ))
             })
         }
@@ -1111,14 +1128,15 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(20.0), Some(50.0)),
-            available: Size::new(Available::definite(20.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(20.0), Some(50.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(20.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1175,8 +1193,8 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(40.0),
-                    input.known.height.unwrap_or(50.0),
+                    input.known().width.unwrap_or(40.0),
+                    input.known().height.unwrap_or(50.0),
                 ))
             })
         }
@@ -1218,14 +1236,15 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(20.0), Some(50.0)),
-            available: Size::new(Available::definite(20.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(20.0), Some(50.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(20.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1297,14 +1316,15 @@ fn flex_compute_size_uses_definite_min_max_without_measuring_children() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1361,9 +1381,9 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
         {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
-                if input.run_mode == RunMode::PerformLayout {
+                if input.run_mode() == RunMode::PerformLayout {
                     ComputeOutput::from_sizes(
-                        Size::new(input.known.width.unwrap(), input.known.height.unwrap()),
+                        Size::new(input.known().width.unwrap(), input.known().height.unwrap()),
                         Size::ZERO,
                     )
                 } else {
@@ -1403,20 +1423,27 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&3], NodeOutput::with_order(1));
-    assert_eq!(tree.inputs[&3], vec![ComputeInput::HIDDEN]);
+    assert_eq!(
+        tree.inputs[&3],
+        vec![ComputeInput::hidden(crate::geometry::FlowAxes::new(
+            crate::WritingMode::HorizontalTb,
+            crate::Direction::Ltr,
+        ))]
+    );
 }
 
 #[test]
@@ -1494,14 +1521,15 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1586,14 +1614,15 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1675,14 +1704,15 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1741,7 +1771,7 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
                 self.inputs.entry(node).or_default().push(input);
                 if node == 3 {
                     return Ok(ComputeOutput::from_sizes(
-                        Size::new(input.known.width.unwrap(), input.known.height.unwrap()),
+                        Size::new(input.known().width.unwrap(), input.known().height.unwrap()),
                         Size::new(80.0, 32.0),
                     ));
                 }
@@ -1786,14 +1816,15 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1803,7 +1834,10 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
     assert_eq!(tree.layouts[&2].size, Size::new(25.0, 10.0));
     assert_eq!(tree.layouts[&3].location, Point::new(7.0, 9.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 12.0));
-    assert_eq!(tree.inputs[&3][0].known, Size::new(Some(20.0), Some(12.0)));
+    assert_eq!(
+        tree.inputs[&3][0].known(),
+        Size::new(Some(20.0), Some(12.0))
+    );
 }
 
 #[test]
@@ -1884,19 +1918,20 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2][0].known,
+        tree.inputs[&2][0].known(),
         Size::new(Some(360.0), Some(120.0))
     );
     assert_eq!(tree.layouts[&2].location, Point::new(20.0, 15.0));
@@ -1988,19 +2023,20 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(
-        tree.inputs[&2][0].known,
+        tree.inputs[&2][0].known(),
         Size::new(Some(160.0), Some(160.0 / 3.0))
     );
     assert_eq!(tree.layouts[&2].location, Point::new(200.0, 15.0));
@@ -2125,14 +2161,15 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(100.0), Some(200.0)),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2233,14 +2270,18 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
             compute_flex(
                 self,
                 1,
-                ComputeInput {
-                    run_mode: RunMode::PerformLayout,
-                    sizing_mode: SizingMode::InherentSize,
-                    axis: RequestedAxis::Both,
-                    known: Size::NONE,
-                    parent: Size::new(Some(100.0), Some(100.0)),
-                    available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-                },
+                ComputeInput::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    Size::NONE,
+                    Size::new(Some(100.0), Some(100.0)),
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+                ),
             )
             .unwrap();
             self.layouts[&2]
@@ -2350,14 +2391,15 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(100.0), Some(100.0)),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(100.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2415,12 +2457,12 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
             Ok({
                 ComputeOutput::from_sizes(
                     Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ),
                     Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ),
                 )
             })
@@ -2455,14 +2497,15 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(100.0), Some(100.0)),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(100.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2522,12 +2565,12 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_sizes(
                     Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ),
                     Size::new(
-                        input.known.width.unwrap_or(0.0),
-                        input.known.height.unwrap_or(0.0),
+                        input.known().width.unwrap_or(0.0),
+                        input.known().height.unwrap_or(0.0),
                     ),
                 )
             })
@@ -2547,14 +2590,18 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
         compute_flex(
             tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
     }
@@ -2581,7 +2628,7 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
     });
     run(&mut authored_size);
     assert_eq!(
-        authored_size.inputs[&2][0].known,
+        authored_size.inputs[&2][0].known(),
         Size::new(Some(22.0), Some(14.0))
     );
     assert_eq!(authored_size.layouts[&2].size, Size::new(22.0, 14.0));
@@ -2672,14 +2719,15 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2764,14 +2812,15 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2863,14 +2912,15 @@ fn flex_absolute_child_expands_auto_margins() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2954,14 +3004,15 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3054,14 +3105,15 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3073,11 +3125,11 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
     assert_eq!(tree.layouts[&3].size, Size::new(95.0, 20.0));
 
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known,
+        tree.inputs[&2].last().unwrap().known(),
         Size::new(Some(105.0), Some(20.0))
     );
     assert_eq!(
-        tree.inputs[&3].last().unwrap().known,
+        tree.inputs[&3].last().unwrap().known(),
         Size::new(Some(95.0), Some(20.0))
     );
 }
@@ -3155,14 +3207,15 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3257,14 +3310,15 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3327,8 +3381,8 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -3358,14 +3412,15 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(730.0), Some(300.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(730.0), Some(300.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3374,7 +3429,7 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
         tree.inputs[&2]
             .last()
             .expect("child should be laid out")
-            .known
+            .known()
             .width,
         Some(730.0)
     );
@@ -3431,8 +3486,8 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 if node == 2
-                    && input.run_mode == RunMode::ComputeSize
-                    && input.available.width == Available::MIN_CONTENT
+                    && input.run_mode() == RunMode::ComputeSize
+                    && input.available().width == Available::MIN_CONTENT
                 {
                     return Ok(ComputeOutput::from_outer_size(Size::new(90.0, 20.0)));
                 }
@@ -3443,8 +3498,8 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
                     Size::new(40.0, 20.0)
                 };
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(fallback.width),
-                    input.known.height.unwrap_or(fallback.height),
+                    input.known().width.unwrap_or(fallback.width),
+                    input.known().height.unwrap_or(fallback.height),
                 ))
             })
         }
@@ -3482,22 +3537,23 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 20.0));
     assert!(
         tree.inputs[&2].iter().any(|input| {
-            input.run_mode == RunMode::ComputeSize
-                && input.available.width == Available::MIN_CONTENT
+            input.run_mode() == RunMode::ComputeSize
+                && input.available().width == Available::MIN_CONTENT
         }),
         "visible flex item should be measured with min-content for its automatic minimum"
     );
@@ -3580,14 +3636,15 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3675,14 +3732,15 @@ fn flex_row_wraps_items_into_multiple_lines() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3772,14 +3830,15 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3867,14 +3926,15 @@ fn flex_row_justifies_items_on_the_main_axis() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3956,14 +4016,15 @@ fn flex_row_aligns_items_on_the_cross_axis() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4017,8 +4078,8 @@ fn flex_row_reports_first_child_baseline() {
         {
             Ok({
                 let size = Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 );
                 ComputeOutput::from_sizes_and_first_baselines(
                     size,
@@ -4050,14 +4111,15 @@ fn flex_row_reports_first_child_baseline() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4119,8 +4181,8 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
                     _ => 0.0,
                 };
                 let size = Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 );
                 ComputeOutput::from_sizes_and_first_baselines(
                     size,
@@ -4161,14 +4223,15 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4229,8 +4292,8 @@ fn flex_row_stretches_auto_cross_size_items() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 let size = Size::new(
-                    input.known.width.unwrap_or(20.0),
-                    input.known.height.unwrap_or(10.0),
+                    input.known().width.unwrap_or(20.0),
+                    input.known().height.unwrap_or(10.0),
                 );
                 ComputeOutput::from_sizes(size, size)
             })
@@ -4259,14 +4322,15 @@ fn flex_row_stretches_auto_cross_size_items() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4274,7 +4338,7 @@ fn flex_row_stretches_auto_cross_size_items() {
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 40.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known,
+        tree.inputs[&2].last().unwrap().known(),
         Size::new(Some(20.0), Some(40.0))
     );
 }
@@ -4359,21 +4423,22 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(100.0, 50.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known,
+        tree.inputs[&2].last().unwrap().known(),
         Size::new(Some(100.0), Some(50.0))
     );
 }
@@ -4453,14 +4518,15 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4544,14 +4610,15 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::definite(100.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::definite(100.0)),
+        ),
     )
     .unwrap();
 
@@ -4638,14 +4705,15 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4734,14 +4802,15 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4830,14 +4899,15 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4898,8 +4968,8 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 let size = Size::new(
-                    input.known.width.unwrap_or(80.0),
-                    input.known.height.unwrap_or(10.0),
+                    input.known().width.unwrap_or(80.0),
+                    input.known().height.unwrap_or(10.0),
                 );
                 ComputeOutput::from_sizes(size, size)
             })
@@ -4935,14 +5005,15 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4950,7 +5021,7 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
     assert_eq!(tree.layouts[&3].size, Size::new(80.0, 28.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 32.0));
     assert_eq!(
-        tree.inputs[&3].last().unwrap().known,
+        tree.inputs[&3].last().unwrap().known(),
         Size::new(Some(80.0), Some(28.0))
     );
 }
@@ -5034,14 +5105,15 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5123,14 +5195,15 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5217,14 +5290,15 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5315,14 +5389,15 @@ fn flex_row_growth_respects_max_main_size() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5410,14 +5485,15 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5504,14 +5580,15 @@ fn flex_row_distributes_cross_axis_auto_margins() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5601,14 +5678,15 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5697,14 +5775,15 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5801,14 +5880,15 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5897,14 +5977,15 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5992,14 +6073,15 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6089,14 +6171,15 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6155,8 +6238,8 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 let size = Size::new(
-                    input.known.width.unwrap_or(10.0),
-                    input.known.height.unwrap_or(10.0),
+                    input.known().width.unwrap_or(10.0),
+                    input.known().height.unwrap_or(10.0),
                 );
                 ComputeOutput::from_sizes(size, size)
             })
@@ -6185,20 +6268,21 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
     compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(30.0, 10.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known,
+        tree.inputs[&2].last().unwrap().known(),
         Size::new(Some(30.0), Some(10.0))
     );
 }
@@ -6300,14 +6384,15 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6317,7 +6402,7 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
     assert_eq!(tree.layouts[&3].location, Point::new(22.0, 0.0));
     assert_eq!(tree.layouts[&3].size, Size::new(0.0, 12.0));
     assert_eq!(
-        tree.inputs[&2].last().unwrap().known,
+        tree.inputs[&2].last().unwrap().known(),
         Size::new(Some(22.0), Some(14.0))
     );
 }
@@ -6401,14 +6486,15 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
     let output = compute_flex(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 

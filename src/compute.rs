@@ -217,7 +217,7 @@ where
             super::Display::Grid | super::Display::GridLanes => {
                 crate::grid::compute_grid(self, node, input)
             }
-            super::Display::None => compute_hidden(self, node),
+            super::Display::None => compute_hidden(self, node, input.containing_flow_axes()),
             super::Display::InlineBlock
             | super::Display::InlineGrid
             | super::Display::InlineGridLanes => {
@@ -361,11 +361,12 @@ where
     ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, Tree::MeasureError>
     {
         let style = self.node_input(node).clone();
-        if input.run_mode == RunMode::PerformHiddenLayout || style.display == super::Display::None {
-            return compute_hidden(self, node);
+        if input.run_mode() == RunMode::PerformHiddenLayout || style.display == super::Display::None
+        {
+            return compute_hidden(self, node, input.containing_flow_axes());
         }
 
-        if input.run_mode.is_perform_layout() && self.child_count(node) != 0 {
+        if input.run_mode().is_perform_layout() && self.child_count(node) != 0 {
             return self.compute_child_uncached(node, input);
         }
 
@@ -446,6 +447,7 @@ where
 pub(crate) fn compute_hidden<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
+    containing_flow_axes: crate::geometry::FlowAxes,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
     ComputeOutputOf<<Tree as Traverse>::Scalar>,
@@ -463,7 +465,7 @@ where
         let child = tree.child(node, index);
         match tree.layout_input(child) {
             LayoutInputOf::Box(_) => {
-                tree.compute_child(child, ComputeInputOf::HIDDEN)?;
+                tree.compute_child(child, ComputeInputOf::hidden(containing_flow_axes))?;
             }
             LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
@@ -484,20 +486,19 @@ where
     Tree: Compute<M>,
 {
     let style = tree.node_input(root).clone();
+    let containing_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
     let known = Size::new(
         root_known_width::<Tree, M>(tree, root, &style, available.width)?,
         None,
     );
     let output = tree.compute_child(
         root,
-        ComputeInputOf {
-            run_mode: RunMode::PerformRootLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: super::RequestedAxis::Both,
+        ComputeInputOf::root_layout(
             known,
-            parent: available.map(AvailableOf::into_option),
+            available.map(AvailableOf::into_option),
+            containing_flow_axes,
             available,
-        },
+        ),
     )?;
     let parent_width = available.width.into_option();
     let inline_basis = Size::splat(parent_width);
@@ -586,16 +587,15 @@ fn compute_flex_item_root<Tree, M>(
 where
     Tree: Compute<M>,
 {
+    let style = tree.node_input(root).clone();
+    let containing_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
     let output = tree.compute_child(
         root,
-        ComputeInputOf {
-            run_mode: RunMode::PerformRootLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: super::RequestedAxis::Both,
-            known: Size::NONE,
-            parent: context.viewport_available().map(AvailableOf::into_option),
+        ComputeInputOf::flex_item_root(
+            context.viewport_available().map(AvailableOf::into_option),
+            containing_flow_axes,
             available,
-        },
+        ),
     )?;
     tree.set_unrounded(
         root,
@@ -630,15 +630,13 @@ where
         return Ok(None);
     };
     let parent = Size::splat(Some(available_width));
-    let padding = style
-        .padding
-        .zip_inline_size(parent, |length, basis| {
+    let padding = crate::geometry::FlowAxes::new(style.writing_mode, style.direction)
+        .zip_physical_edges_with_inline_extent(style.padding, parent, |length, basis| {
             resolve_length_or_zero_fallible(length, basis)
         })
         .transpose_with_node(tree, node)?;
-    let border = style
-        .border
-        .zip_inline_size(parent, |length, basis| {
+    let border = crate::geometry::FlowAxes::new(style.writing_mode, style.direction)
+        .zip_physical_edges_with_inline_extent(style.border, parent, |length, basis| {
             resolve_length_or_zero_fallible(length, basis)
         })
         .transpose_with_node(tree, node)?;
@@ -847,10 +845,21 @@ fn resolve_leaf_values<S, E>(
 where
     S: LayoutScalar,
 {
-    let margin = transpose_leaf_edges(style.margin.zip_inline_size(input.parent, resolve_auto))?;
-    let padding =
-        transpose_leaf_edges(style.padding.zip_inline_size(input.parent, &resolve_length))?;
-    let border = transpose_leaf_edges(style.border.zip_inline_size(input.parent, resolve_length))?;
+    let margin = transpose_leaf_edges(
+        input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(style.margin, input.parent(), resolve_auto),
+    )?;
+    let padding = transpose_leaf_edges(
+        input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(style.padding, input.parent(), &resolve_length),
+    )?;
+    let border = transpose_leaf_edges(
+        input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(style.border, input.parent(), resolve_length),
+    )?;
     let padding_border = padding + border;
     let padding_border_size = padding_border.sum_axes();
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
@@ -859,29 +868,29 @@ where
         Size::ZERO
     };
 
-    let (node_size, node_min_size, node_max_size, aspect_ratio) = match input.sizing_mode {
-        SizingMode::ContentSize => (input.known, Size::NONE, Size::NONE, None),
+    let (node_size, node_min_size, node_max_size, aspect_ratio) = match input.sizing_mode() {
+        SizingMode::ContentSize => (input.known(), Size::NONE, Size::NONE, None),
         SizingMode::InherentSize => {
             let style_size =
-                transpose_leaf_size(style.size.zip_map(input.parent, |dimension, basis| {
+                transpose_leaf_size(style.size.zip_map(input.parent(), |dimension, basis| {
                     resolve_dimension(dimension, basis)
                 }))?
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
             let style_min_size =
-                transpose_leaf_size(style.min_size.zip_map(input.parent, |dimension, basis| {
+                transpose_leaf_size(style.min_size.zip_map(input.parent(), |dimension, basis| {
                     resolve_dimension(dimension, basis)
                 }))?
                 .apply_aspect_ratio(style.aspect_ratio)
                 .add_optional(box_sizing_adjustment);
             let style_max_size =
-                transpose_leaf_size(style.max_size.zip_map(input.parent, |dimension, basis| {
+                transpose_leaf_size(style.max_size.zip_map(input.parent(), |dimension, basis| {
                     resolve_dimension(dimension, basis)
                 }))?
                 .add_optional(box_sizing_adjustment);
 
             (
-                input.known.or(style_size),
+                input.known().or(style_size),
                 style_min_size,
                 style_max_size,
                 style.aspect_ratio,
@@ -994,7 +1003,7 @@ where
         || matches!(node_size.height, Some(height) if height > S::ZERO)
         || matches!(node_min_size.height, Some(height) if height > S::ZERO);
 
-    if input.run_mode == RunMode::ComputeSize
+    if input.run_mode() == RunMode::ComputeSize
         && prevents_margin_collapse
         && let Size {
             width: Some(width),
@@ -1009,24 +1018,24 @@ where
 
     let available = Size::new(
         input
-            .known
+            .known()
             .width
             .map(AvailableOf::definite)
-            .unwrap_or(input.available.width)
+            .unwrap_or(input.available().width)
             .sub_margin(margin.horizontal_sum())
-            .set_optional(input.known.width)
+            .set_optional(input.known().width)
             .set_optional(node_size.width)
             .map_definite(|value| {
                 value.clamp_optional(node_min_size.width, node_max_size.width)
                     - content_box_inset.horizontal_sum()
             }),
         input
-            .known
+            .known()
             .height
             .map(AvailableOf::definite)
-            .unwrap_or(input.available.height)
+            .unwrap_or(input.available().height)
             .sub_margin(margin.vertical_sum())
-            .set_optional(input.known.height)
+            .set_optional(input.known().height)
             .set_optional(node_size.height)
             .map_definite(|value| {
                 value.clamp_optional(node_min_size.height, node_max_size.height)
@@ -1034,8 +1043,8 @@ where
             }),
     );
 
-    let known_content_size = match input.run_mode {
-        RunMode::ComputeSize => input.known,
+    let known_content_size = match input.run_mode() {
+        RunMode::ComputeSize => input.known(),
         RunMode::PerformRootLayout | RunMode::PerformLayout => Size::NONE,
         RunMode::PerformHiddenLayout => {
             unreachable!("hidden layout uses ComputeOutput::HIDDEN")
@@ -1059,10 +1068,10 @@ where
     let measured = validate_measurement_output(measure(measurement_input)?)
         .map_err(|error| leaf_measurement_error_at_site(site, error))?;
     let unclamped = input
-        .known
+        .known()
         .or(node_size)
         .unwrap_or(measured + content_box_inset_size);
-    let height_is_definite = input.known.height.is_some() || node_size.height.is_some();
+    let height_is_definite = input.known().height.is_some() || node_size.height.is_some();
     let aspect_height = if height_is_definite {
         unclamped.height
     } else {
@@ -1207,7 +1216,7 @@ where
     S: LayoutScalar,
 {
     let resolution = length.resolve_with_status(basis);
-    if input.run_mode == RunMode::ComputeSize
+    if input.run_mode() == RunMode::ComputeSize
         && matches!(resolution.status(), LengthResolutionStatus::MissingBasis)
     {
         return Ok(S::ZERO);
@@ -1234,7 +1243,7 @@ fn resolve_leaf_optional<S>(
 where
     S: LayoutScalar,
 {
-    if input.run_mode == RunMode::ComputeSize
+    if input.run_mode() == RunMode::ComputeSize
         && matches!(resolution.status(), LengthResolutionStatus::MissingBasis)
     {
         return Ok(None);

@@ -76,12 +76,12 @@ impl<S: LayoutScalar> OracleMeasurementOf<S> {
     }
 
     fn matches(self, input: ComputeInputOf<S>) -> bool {
-        matches_or_any(self.run_mode, input.run_mode)
-            && matches_or_any(self.sizing_mode, input.sizing_mode)
-            && matches_or_any(self.axis, input.axis)
-            && matches_or_any(self.known, input.known)
-            && matches_or_any(self.parent, input.parent)
-            && matches_or_any(self.available, input.available)
+        matches_or_any(self.run_mode, input.run_mode())
+            && matches_or_any(self.sizing_mode, input.sizing_mode())
+            && matches_or_any(self.axis, input.requested_axis())
+            && matches_or_any(self.known, input.known())
+            && matches_or_any(self.parent, input.parent())
+            && matches_or_any(self.available, input.available())
     }
 }
 

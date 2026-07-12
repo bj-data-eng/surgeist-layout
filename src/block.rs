@@ -43,7 +43,7 @@ where
     let children = tree.children(node).collect::<Vec<_>>();
 
     if children.is_empty()
-        && input.run_mode == RunMode::ComputeSize
+        && input.run_mode() == RunMode::ComputeSize
         && let Size {
             width: Some(width),
             height: Some(height),
@@ -53,7 +53,7 @@ where
             width, height,
         )));
     }
-    if input.run_mode == RunMode::ComputeSize
+    if input.run_mode() == RunMode::ComputeSize
         && let Size {
             width: Some(width),
             height: Some(height),
@@ -71,7 +71,7 @@ where
         &constants,
         input,
         constants.node_inner_size.width,
-        input.run_mode.is_perform_layout() && constants.node_inner_size.width.is_some(),
+        input.run_mode().is_perform_layout() && constants.node_inner_size.width.is_some(),
     )?;
     let auto_height = intrinsic_pass.auto_height(&constants);
     let intrinsic_outer_size = Size::new(
@@ -85,12 +85,12 @@ where
         .unwrap_or(intrinsic_outer_size)
         .max_optional(constants.padding_border_size.map(Some));
     let output_size = input
-        .known
+        .known()
         .or(constants.node_outer_size)
         .unwrap_or(outer_size)
         .max_optional(constants.padding_border_size.map(Some));
     let final_pass =
-        if input.run_mode.is_perform_layout() && constants.node_inner_size.width.is_none() {
+        if input.run_mode().is_perform_layout() && constants.node_inner_size.width.is_none() {
             let inner_width =
                 (output_size.width - constants.content_box_inset.horizontal_sum()).max(S::ZERO);
             layout_in_flow_children(tree, &children, &constants, input, Some(inner_width), true)?
@@ -101,7 +101,7 @@ where
     let output_size = Size::new(
         output_size.width,
         input
-            .known
+            .known()
             .height
             .or(constants.node_outer_size.height)
             .unwrap_or(auto_height)
@@ -116,7 +116,7 @@ where
     let margins_can_collapse_through =
         constants.can_collapse_through && final_pass.all_in_flow_children_can_collapse_through;
 
-    if input.run_mode == RunMode::ComputeSize {
+    if input.run_mode() == RunMode::ComputeSize {
         let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
             output_size,
             Size::ZERO,
@@ -560,16 +560,16 @@ where
     let mut float_intrinsics = FloatIntrinsics::new(
         inner_width
             .map(AvailableOf::<S>::definite)
-            .unwrap_or(input.available.width),
+            .unwrap_or(input.available().width),
     );
     let content_width = inner_width
-        .or(input.available.width.into_option())
+        .or(input.available().width.into_option())
         .unwrap_or(S::ZERO);
     let mut float_exclusions = FloatExclusions::new(content_width, constants.content_box_inset);
     let content_box_size = Size::new(
         inner_width
             .or(constants.node_inner_size.width)
-            .or(input.available.width.into_option())
+            .or(input.available().width.into_option())
             .unwrap_or(S::ZERO),
         constants.node_inner_size.height.unwrap_or(S::ZERO),
     );
@@ -695,7 +695,7 @@ where
         if child_style.display == super::Display::None {
             if set_layout {
                 tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order as u32));
-                tree.compute_child(child, ComputeInputOf::<S>::HIDDEN)?;
+                tree.compute_child(child, ComputeInputOf::<S>::hidden(constants.flow_axes))?;
             }
             index += 1;
             continue;
@@ -752,27 +752,31 @@ where
             continue;
         }
 
-        let unresolved_margin = child_style
-            .margin
-            .zip_inline_size(node_inner_size, |length, basis| {
-                length.resolve_auto_with_status(basis)
-            });
-        let child_padding = child_style
-            .padding
-            .zip_inline_size(node_inner_size, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let unresolved_margin = constants.flow_axes.zip_physical_edges_with_inline_extent(
+            child_style.margin,
+            node_inner_size,
+            |length, basis| length.resolve_auto_with_status(basis),
+        );
+        let child_padding = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.padding,
+                node_inner_size,
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, child)?;
-        let child_border = child_style
-            .border
-            .zip_inline_size(node_inner_size, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let child_border = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.border,
+                node_inner_size,
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, child)?;
         let child_non_auto_margin = unresolved_margin.map(resolved_length_auto_fallback_zero);
         let available_child_width = node_inner_size
             .width
-            .or(input.available.width.into_option())
+            .or(input.available().width.into_option())
             .map(|width| (width - child_non_auto_margin.horizontal_sum()).max(S::ZERO));
         let child_known = in_flow_child_known_size::<Tree, M>(
             tree,
@@ -784,21 +788,22 @@ where
         )?;
         let output = tree.compute_child(
             child,
-            ComputeInputOf::<S> {
-                run_mode: input.run_mode.for_child(),
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: child_known,
-                parent: Size::new(node_inner_size.width, None),
-                available: Size::new(
+            ComputeInputOf::<S>::for_child(
+                input.run_mode().for_child(),
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                child_known,
+                Size::new(node_inner_size.width, None),
+                constants.flow_axes,
+                Size::new(
                     in_flow_child_available_width(
                         &child_style,
                         available_child_width,
-                        input.available.width,
+                        input.available().width,
                     ),
                     AvailableOf::<S>::MAX_CONTENT,
                 ),
-            },
+            ),
         )?;
 
         let child_margin = resolve_in_flow_margin(
@@ -806,7 +811,7 @@ where
             output.size,
             node_inner_size
                 .width
-                .or(input.available.width.into_option()),
+                .or(input.available().width.into_option()),
         );
         if !child_style.float.is_none() {
             let margin_box = output.size + child_margin.sum_axes();
@@ -1292,7 +1297,7 @@ where
                         node_inner_size
                             .width
                             .map(AvailableOf::<S>::definite)
-                            .unwrap_or(input.available.width),
+                            .unwrap_or(input.available().width),
                     ),
                 ));
                 continue;
@@ -1313,7 +1318,7 @@ where
                     node_inner_size
                         .width
                         .map(AvailableOf::<S>::definite)
-                        .unwrap_or(input.available.width),
+                        .unwrap_or(input.available().width),
                 )));
                 continue;
             }
@@ -1321,7 +1326,7 @@ where
         if child_style.display == super::Display::None {
             if set_layout {
                 tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order));
-                tree.compute_child(child, ComputeInputOf::<S>::HIDDEN)?;
+                tree.compute_child(child, ComputeInputOf::<S>::hidden(constants.flow_axes))?;
             }
             continue;
         }
@@ -1329,40 +1334,47 @@ where
             static_positions.push((child, absolute_static_position(cursor_y, constants)));
             continue;
         }
-        let child_padding = child_style
-            .padding
-            .zip_inline_size(node_inner_size, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let child_padding = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.padding,
+                node_inner_size,
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, child)?;
-        let child_border = child_style
-            .border
-            .zip_inline_size(node_inner_size, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let child_border = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.border,
+                node_inner_size,
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, child)?;
         let output = tree.compute_child(
             child,
-            ComputeInputOf::<S> {
-                run_mode: input.run_mode.for_child(),
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(node_inner_size.width, None),
-                available: Size::new(
+            ComputeInputOf::<S>::for_child(
+                input.run_mode().for_child(),
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(node_inner_size.width, None),
+                constants.flow_axes,
+                Size::new(
                     node_inner_size
                         .width
                         .map(AvailableOf::<S>::definite)
-                        .unwrap_or(input.available.width),
+                        .unwrap_or(input.available().width),
                     AvailableOf::<S>::MAX_CONTENT,
                 ),
-            },
+            ),
         )?;
-        let unresolved_margin = child_style
-            .margin
-            .zip_inline_size(node_inner_size, |length, basis| {
-                resolve_auto_optional(length, basis)
-            })
+        let unresolved_margin = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.margin,
+                node_inner_size,
+                |length, basis| resolve_auto_optional(length, basis),
+            )
             .transpose_with_node(tree, child)?;
         let child_margin = resolve_atomic_inline_margin(unresolved_margin);
 
@@ -1393,7 +1405,7 @@ where
         available_width: node_inner_size
             .width
             .map(AvailableOf::<S>::definite)
-            .unwrap_or(input.available.width),
+            .unwrap_or(input.available().width),
         writing_mode: constants.writing_mode,
         direction: constants.direction,
         items,
@@ -2179,23 +2191,29 @@ where
             continue;
         }
 
-        let padding = style
-            .padding
-            .zip_inline_size(area_size.map(Some), |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let padding = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                style.padding,
+                area_size.map(Some),
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, child)?;
-        let border = style
-            .border
-            .zip_inline_size(area_size.map(Some), |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let border = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                style.border,
+                area_size.map(Some),
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, child)?;
-        let unresolved_margin = style
-            .margin
-            .zip_inline_size(area_size.map(Some), |length, basis| {
-                resolve_auto_optional(length, basis)
-            })
+        let unresolved_margin = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                style.margin,
+                area_size.map(Some),
+                |length, basis| resolve_auto_optional(length, basis),
+            )
             .transpose_with_node(tree, child)?;
         let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
         let padding_border = padding + border;
@@ -2276,14 +2294,15 @@ where
 
         let output = tree.compute_child(
             child,
-            ComputeInputOf::<S> {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::ContentSize,
-                axis: RequestedAxis::Both,
-                known: known_size,
-                parent: area_size.map(Some),
+            ComputeInputOf::<S>::for_child(
+                RunMode::PerformLayout,
+                SizingMode::ContentSize,
+                RequestedAxis::Both,
+                known_size,
+                area_size.map(Some),
+                constants.flow_axes,
                 available,
-            },
+            ),
         )?;
         let final_size = known_size
             .unwrap_or(output.size)
@@ -2515,6 +2534,7 @@ fn auto_margin_size<S: LayoutScalar>(axis: AutoMarginAxis<S>) -> S {
 
 #[derive(Clone, Copy, Debug)]
 struct Constants<S: LayoutScalar> {
+    flow_axes: crate::geometry::FlowAxes,
     node_outer_size: Size<Option<S>>,
     node_inner_size: Size<Option<S>>,
     node_min_size: Size<Option<S>>,
@@ -2552,15 +2572,17 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
-        let padding = style
-            .padding
-            .zip_inline_size(input.parent, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let padding = input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(
+                style.padding,
+                input.parent(),
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, node)?;
-        let border = style
-            .border
-            .zip_inline_size(input.parent, |length, basis| {
+        let border = input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(style.border, input.parent(), |length, basis| {
                 resolve_length_or_zero(length, basis)
             })
             .transpose_with_node(tree, node)?;
@@ -2579,12 +2601,12 @@ impl<S: LayoutScalar> Constants<S> {
         } else {
             Size::ZERO
         };
-        let (style_size, min_size, max_size) = match input.sizing_mode {
+        let (style_size, min_size, max_size) = match input.sizing_mode() {
             SizingMode::ContentSize => (Size::NONE, Size::NONE, Size::NONE),
             SizingMode::InherentSize => {
                 let style_size = style
                     .size
-                    .zip_map(input.parent, |dimension, basis| {
+                    .zip_map(input.parent(), |dimension, basis| {
                         resolve_dimension(dimension, basis)
                     })
                     .transpose_with_node(tree, node)?
@@ -2592,7 +2614,7 @@ impl<S: LayoutScalar> Constants<S> {
                     .add_optional(box_sizing_adjustment);
                 let min_size = style
                     .min_size
-                    .zip_map(input.parent, |dimension, basis| {
+                    .zip_map(input.parent(), |dimension, basis| {
                         resolve_dimension(dimension, basis)
                     })
                     .transpose_with_node(tree, node)?
@@ -2600,7 +2622,7 @@ impl<S: LayoutScalar> Constants<S> {
                     .add_optional(box_sizing_adjustment);
                 let max_size = style
                     .max_size
-                    .zip_map(input.parent, |dimension, basis| {
+                    .zip_map(input.parent(), |dimension, basis| {
                         resolve_dimension(dimension, basis)
                     })
                     .transpose_with_node(tree, node)?
@@ -2613,7 +2635,7 @@ impl<S: LayoutScalar> Constants<S> {
             (Some(min), Some(max)) if max <= min => Some(min),
             _ => None,
         });
-        let is_root = input.run_mode == RunMode::PerformRootLayout;
+        let is_root = input.run_mode() == RunMode::PerformRootLayout;
         let blocks_margin_collapse =
             style.overflow.x.blocks_margin_collapse() || style.overflow.y.blocks_margin_collapse();
         let is_margin_collapsing_block = style.display == super::Display::Block;
@@ -2628,13 +2650,14 @@ impl<S: LayoutScalar> Constants<S> {
             && !matches!(style_size.height, Some(height) if height > S::ZERO)
             && !matches!(min_size.height, Some(height) if height > S::ZERO);
         let node_outer_size = input
-            .known
+            .known()
             .or(min_max_definite_size)
             .or(style_size.clamp_optional(min_size, max_size))
             .max_optional(padding_border_size.map(Some));
         let node_inner_size = node_outer_size.sub_optional(content_box_inset_size);
 
         Ok(Self {
+            flow_axes: crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             node_outer_size,
             node_inner_size,
             node_min_size: min_size,
@@ -2648,12 +2671,12 @@ impl<S: LayoutScalar> Constants<S> {
             scrollbar_gutter,
             content_box_inset,
             own_top_margin: CollapsibleMarginOf::<S>::from_margin(
-                resolve_auto_optional(style.margin.top, input.parent.width)
+                resolve_auto_optional(style.margin.top, input.parent().width)
                     .map_err(|status| crate::compute::value_resolution_error(node, status))?
                     .unwrap_or(S::ZERO),
             ),
             own_bottom_margin: CollapsibleMarginOf::<S>::from_margin(
-                resolve_auto_optional(style.margin.bottom, input.parent.width)
+                resolve_auto_optional(style.margin.bottom, input.parent().width)
                     .map_err(|status| crate::compute::value_resolution_error(node, status))?
                     .unwrap_or(S::ZERO),
             ),

@@ -245,14 +245,18 @@ impl GridLayoutComparison {
         let output = compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(self.container.width), Some(self.container.height)),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(self.container.width), Some(self.container.height)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -302,14 +306,18 @@ impl GridLayoutComparison {
         let output = compute_grid(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(None, None),
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(None, None),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 

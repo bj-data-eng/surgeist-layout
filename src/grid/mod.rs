@@ -223,7 +223,7 @@ where
     let style = tree.node_input(node).clone();
     let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
 
-    if input.run_mode == RunMode::ComputeSize
+    if input.run_mode() == RunMode::ComputeSize
         && let Size {
             width: Some(width),
             height: Some(height),
@@ -251,7 +251,7 @@ where
         &style,
         &constants,
         &parent_context,
-        input.available,
+        input.available(),
     )?;
     let InitializedGridTracks {
         column_tracks,
@@ -279,7 +279,7 @@ where
     debug_assert_eq!(lines.column_explicit_count, context.explicit_columns);
     debug_assert_eq!(lines.row_explicit_start, context.leading_rows);
     debug_assert_eq!(lines.row_explicit_count, context.explicit_rows);
-    let track_available = intrinsic_container_available(&style, &constants, input.available);
+    let track_available = intrinsic_container_available(&style, &constants, input.available());
     let track_resolution = resolve_grid_track_sizes(
         tree,
         node,
@@ -291,7 +291,7 @@ where
             context: context.clone(),
             subgrid_report: &subgrid_report,
             available: track_available,
-            intrinsic_max_available: intrinsic_max_available(&constants, input.available),
+            intrinsic_max_available: intrinsic_max_available(&constants, input.available()),
             placements: &placements,
         },
     )?;
@@ -326,7 +326,7 @@ where
     let intrinsic_sizing_content_size = {
         Size::new(
             intrinsic_sizing_axis_content_size(IntrinsicSizingAxisInput {
-                run_mode: input.run_mode,
+                run_mode: input.run_mode(),
                 style_size: style.size.width,
                 content_size: content_size.width,
                 track_content_size: track_content_size.width,
@@ -335,7 +335,7 @@ where
                 tracks: &column_tracks,
             }),
             intrinsic_sizing_axis_content_size(IntrinsicSizingAxisInput {
-                run_mode: input.run_mode,
+                run_mode: input.run_mode(),
                 style_size: style.size.height,
                 content_size: content_size.height,
                 track_content_size: track_content_size.height,
@@ -351,7 +351,7 @@ where
     .clamp_optional(constants.node_min_size, constants.node_max_size)
     .max(padding_border_size);
     let output_size = input
-        .known
+        .known()
         .or(constants.node_outer_size)
         .unwrap_or(intrinsic_outer_size)
         .max(padding_border_size);
@@ -361,7 +361,7 @@ where
         rows: Vec::new(),
         columns: Vec::new(),
     };
-    if input.run_mode.is_perform_layout() {
+    if input.run_mode().is_perform_layout() {
         let child_layout = layout_grid_container_children(
             tree,
             node,
@@ -390,7 +390,7 @@ where
         baseline_groups = child_layout.baseline_groups;
     }
 
-    let output = if input.run_mode == RunMode::ComputeSize {
+    let output = if input.run_mode() == RunMode::ComputeSize {
         ComputeOutputOf::from_outer_size(output_size)
     } else {
         ComputeOutputOf::from_sizes_and_baselines(output_size, content_size, baselines)
@@ -464,7 +464,7 @@ where
         &style,
         &constants,
         &parent_context,
-        input.available,
+        input.available(),
     )?;
     let InitializedGridTracks {
         column_tracks,
@@ -475,7 +475,7 @@ where
         report,
     } = initialized_tracks;
     let GridContainerContext { gap, lines, .. } = context.clone();
-    let track_available = intrinsic_container_available(&style, &constants, input.available);
+    let track_available = intrinsic_container_available(&style, &constants, input.available());
     let track_resolution = resolve_grid_track_sizes(
         tree,
         node,
@@ -487,7 +487,7 @@ where
             context: context.clone(),
             subgrid_report: &subgrid_report,
             available: track_available,
-            intrinsic_max_available: intrinsic_max_available(&constants, input.available),
+            intrinsic_max_available: intrinsic_max_available(&constants, input.available()),
             placements: &placements,
         },
     )?;
@@ -553,7 +553,7 @@ where
         .clamp_optional(constants.node_min_size, constants.node_max_size)
         .max(padding_border_size);
     let output_size = input
-        .known
+        .known()
         .or(constants.node_outer_size)
         .unwrap_or(intrinsic_outer_size)
         .max(padding_border_size);
@@ -563,7 +563,7 @@ where
         rows: Vec::new(),
         columns: Vec::new(),
     };
-    if input.run_mode.is_perform_layout() {
+    if input.run_mode().is_perform_layout() {
         let layout_content_box_size =
             (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
         let layout_gap =
@@ -613,7 +613,7 @@ where
         baseline_groups = child_layout.baseline_groups;
     }
 
-    let output = if input.run_mode == RunMode::ComputeSize {
+    let output = if input.run_mode() == RunMode::ComputeSize {
         ComputeOutputOf::from_outer_size(output_size)
     } else {
         ComputeOutputOf::from_sizes_and_baselines(output_size, content_size, baselines)
@@ -1830,6 +1830,7 @@ fn effective_content_box_left<S: LayoutScalar>(
 
 #[derive(Clone, Copy)]
 struct Constants<S: LayoutScalar = Scalar> {
+    pub(super) flow_axes: crate::geometry::FlowAxes,
     node_outer_size: Size<Option<S>>,
     node_inner_size: Size<Option<S>>,
     node_min_size: Size<Option<S>>,
@@ -1850,15 +1851,17 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
-        let padding = style
-            .padding
-            .zip_inline_size(input.parent, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let padding = input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(
+                style.padding,
+                input.parent(),
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
             .transpose_with_node(tree, node)?;
-        let border = style
-            .border
-            .zip_inline_size(input.parent, |length, basis| {
+        let border = input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(style.border, input.parent(), |length, basis| {
                 resolve_length_or_zero(length, basis)
             })
             .transpose_with_node(tree, node)?;
@@ -1876,10 +1879,10 @@ impl<S: LayoutScalar> Constants<S> {
         } else {
             Size::ZERO
         };
-        let style_size = if input.sizing_mode == SizingMode::InherentSize {
+        let style_size = if input.sizing_mode() == SizingMode::InherentSize {
             style
                 .size
-                .zip_map(input.parent, |dimension, basis| {
+                .zip_map(input.parent(), |dimension, basis| {
                     resolve_dimension(dimension, basis)
                 })
                 .transpose_with_node(tree, node)?
@@ -1890,7 +1893,7 @@ impl<S: LayoutScalar> Constants<S> {
         };
         let min_size = style
             .min_size
-            .zip_map(input.parent, |dimension, basis| {
+            .zip_map(input.parent(), |dimension, basis| {
                 resolve_dimension(dimension, basis)
             })
             .transpose_with_node(tree, node)?
@@ -1898,25 +1901,26 @@ impl<S: LayoutScalar> Constants<S> {
             .add_optional(box_sizing_adjustment);
         let max_size = style
             .max_size
-            .zip_map(input.parent, |dimension, basis| {
+            .zip_map(input.parent(), |dimension, basis| {
                 resolve_dimension(dimension, basis)
             })
             .transpose_with_node(tree, node)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let node_outer_size = input
-            .known
+            .known()
             .or(style_size.clamp_optional(min_size, max_size))
             .max_optional(padding_border_size.map(Some));
         let node_inner_size = node_outer_size.sub_optional(content_box_inset.sum_axes());
         let available_size = input
-            .available
+            .available()
             .zip_map(max_size, intrinsic_available_size_for_axis)
             .clamp_optional(min_size, max_size)
             .max_optional(padding_border_size.map(Some));
         let available_inner_size = available_size.sub_optional(content_box_inset.sum_axes());
 
         Ok(Self {
+            flow_axes: crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             node_outer_size,
             node_inner_size,
             node_min_size: min_size,

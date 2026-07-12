@@ -2,6 +2,7 @@ use super::{
     AvailableOf, Axis, CacheKeyContext, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
     NonNegativeFiniteScalarErrorOf, Point, ScrollGeometryOf, Size,
 };
+use crate::geometry::FlowAxes;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RunMode {
@@ -39,29 +40,22 @@ pub(crate) enum RequestedAxis {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
-    pub(crate) run_mode: RunMode,
-    pub(crate) sizing_mode: SizingMode,
-    pub(crate) axis: RequestedAxis,
-    pub(crate) known: Size<Option<S>>,
-    pub(crate) parent: Size<Option<S>>,
-    pub(crate) available: Size<AvailableOf<S>>,
+    run_mode: RunMode,
+    sizing_mode: SizingMode,
+    axis: RequestedAxis,
+    known: Size<Option<S>>,
+    parent: Size<Option<S>>,
+    containing_flow_axes: FlowAxes,
+    available: Size<AvailableOf<S>>,
 }
 
 pub type ComputeInput = ComputeInputOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ComputeInputOf<S> {
-    pub(crate) const HIDDEN: Self = Self {
-        run_mode: RunMode::PerformHiddenLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::NONE,
-        available: Size::splat(AvailableOf::MAX_CONTENT),
-    };
-
     pub fn leaf_layout(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
+        containing_flow_axes: FlowAxes,
         available: Size<AvailableOf<S>>,
     ) -> Result<Self, RootAvailabilityErrorOf<S>> {
         Ok(Self {
@@ -70,6 +64,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             axis: RequestedAxis::Both,
             known: validate_optional_size(known)?,
             parent: validate_optional_size(parent)?,
+            containing_flow_axes,
             available: validate_root_available_size(available)?,
         })
     }
@@ -77,6 +72,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
     pub fn leaf_content_size(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
+        containing_flow_axes: FlowAxes,
         available: Size<AvailableOf<S>>,
     ) -> Result<Self, RootAvailabilityErrorOf<S>> {
         Ok(Self {
@@ -85,8 +81,105 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             axis: RequestedAxis::Both,
             known: validate_optional_size(known)?,
             parent: validate_optional_size(parent)?,
+            containing_flow_axes,
             available: validate_root_available_size(available)?,
         })
+    }
+
+    #[must_use]
+    pub const fn containing_flow_axes(&self) -> FlowAxes {
+        self.containing_flow_axes
+    }
+
+    #[must_use]
+    pub(crate) const fn root_layout(
+        known: Size<Option<S>>,
+        parent: Size<Option<S>>,
+        containing_flow_axes: FlowAxes,
+        available: Size<AvailableOf<S>>,
+    ) -> Self {
+        Self::for_child(
+            RunMode::PerformRootLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            known,
+            parent,
+            containing_flow_axes,
+            available,
+        )
+    }
+
+    #[must_use]
+    pub(crate) const fn flex_item_root(
+        parent: Size<Option<S>>,
+        containing_flow_axes: FlowAxes,
+        available: Size<AvailableOf<S>>,
+    ) -> Self {
+        Self::root_layout(Size::NONE, parent, containing_flow_axes, available)
+    }
+
+    #[must_use]
+    pub(crate) const fn for_child(
+        run_mode: RunMode,
+        sizing_mode: SizingMode,
+        axis: RequestedAxis,
+        known: Size<Option<S>>,
+        parent: Size<Option<S>>,
+        containing_flow_axes: FlowAxes,
+        available: Size<AvailableOf<S>>,
+    ) -> Self {
+        Self {
+            run_mode,
+            sizing_mode,
+            axis,
+            known,
+            parent,
+            containing_flow_axes,
+            available,
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn hidden(containing_flow_axes: FlowAxes) -> Self {
+        Self::for_child(
+            RunMode::PerformHiddenLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            containing_flow_axes,
+            Size::splat(AvailableOf::MAX_CONTENT),
+        )
+    }
+
+    #[must_use]
+    pub(crate) const fn run_mode(&self) -> RunMode {
+        self.run_mode
+    }
+
+    #[must_use]
+    pub(crate) const fn sizing_mode(&self) -> SizingMode {
+        self.sizing_mode
+    }
+
+    #[must_use]
+    pub(crate) const fn requested_axis(&self) -> RequestedAxis {
+        self.axis
+    }
+
+    #[must_use]
+    pub(crate) const fn known(&self) -> Size<Option<S>> {
+        self.known
+    }
+
+    #[must_use]
+    pub(crate) const fn parent(&self) -> Size<Option<S>> {
+        self.parent
+    }
+
+    #[must_use]
+    pub(crate) const fn available(&self) -> Size<AvailableOf<S>> {
+        self.available
     }
 }
 

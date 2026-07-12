@@ -2,14 +2,15 @@ use crate::*;
 
 #[test]
 fn leaf_layout_returns_known_size_without_calling_measure() {
-    let input = ComputeInput {
-        run_mode: RunMode::ComputeSize,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::new(Some(120.0), Some(48.0)),
-        parent: Size::new(Some(500.0), Some(400.0)),
-        available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::new(Some(120.0), Some(48.0)),
+        Size::new(Some(500.0), Some(400.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+    );
 
     let output = compute_leaf(input, &NodeInput::default(), |_input| -> Result<Size, ()> {
         panic!("known dimensions should not require measurement")
@@ -21,14 +22,15 @@ fn leaf_layout_returns_known_size_without_calling_measure() {
 
 #[test]
 fn leaf_layout_uses_measure_for_auto_dimensions() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::new(None, None),
-        parent: Size::new(Some(500.0), Some(400.0)),
-        available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::new(None, None),
+        Size::new(Some(500.0), Some(400.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+    );
 
     let output = compute_leaf(input, &NodeInput::default(), |measure_input| {
         let known = measure_input.known_content_size();
@@ -48,14 +50,15 @@ fn leaf_layout_uses_measure_for_auto_dimensions() {
 
 #[test]
 fn leaf_layout_adds_padding_and_border_to_measured_outer_size() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::new(None, None),
-        parent: Size::new(Some(200.0), Some(100.0)),
-        available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::new(None, None),
+        Size::new(Some(200.0), Some(100.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+    );
     let node_input = NodeInput {
         padding: Edges::all(Length::px(3.0)),
         border: Edges::all(Length::px(2.0)),
@@ -73,14 +76,15 @@ fn leaf_layout_adds_padding_and_border_to_measured_outer_size() {
 
 #[test]
 fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(200.0), Some(100.0)),
-        available: Size::new(Available::definite(100.0), Available::definite(50.0)),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(200.0), Some(100.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(100.0), Available::definite(50.0)),
+    );
     let node_input = NodeInput {
         overflow: Point::new(Overflow::Visible, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
@@ -109,14 +113,15 @@ fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
 
 #[test]
 fn leaf_measurement_available_size_floors_below_insets_at_zero() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(200.0), Some(100.0)),
-        available: Size::new(Available::definite(8.0), Available::definite(6.0)),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(200.0), Some(100.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(8.0), Available::definite(6.0)),
+    );
     let node_input = NodeInput {
         overflow: Point::new(Overflow::Visible, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
@@ -142,14 +147,15 @@ fn leaf_measurement_available_size_floors_below_insets_at_zero() {
 
 #[test]
 fn leaf_measurement_known_size_is_content_space_and_floored() {
-    let input = ComputeInput {
-        run_mode: RunMode::ComputeSize,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::new(Some(4.0), None),
-        parent: Size::new(Some(200.0), Some(100.0)),
-        available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::new(Some(4.0), None),
+        Size::new(Some(200.0), Some(100.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+    );
     let node_input = NodeInput {
         padding: Edges::all(Length::px(3.0)),
         border: Edges::all(Length::px(2.0)),
@@ -168,14 +174,15 @@ fn leaf_measurement_known_size_is_content_space_and_floored() {
 
 #[test]
 fn leaf_measurement_provider_error_is_preserved() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::NONE,
-        available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+    );
 
     let error = compute_leaf(input, &NodeInput::default(), |_input| {
         Err::<Size, _>("provider failed")
@@ -192,14 +199,15 @@ fn leaf_measurement_provider_error_is_preserved() {
 
 #[test]
 fn leaf_measurement_rejects_negative_provider_width() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(200.0), Some(100.0)),
-        available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(200.0), Some(100.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+    );
 
     let error = compute_leaf(input, &NodeInput::default(), |_input| {
         Ok::<_, ()>(Size::new(-1.0, 10.0))
@@ -221,14 +229,15 @@ fn leaf_measurement_rejects_negative_provider_width() {
 
 #[test]
 fn leaf_measurement_rejects_nan_provider_height() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::NONE,
-        available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+    );
 
     let error = compute_leaf(input, &NodeInput::default(), |_input| {
         Ok::<_, ()>(Size::new(10.0, f32::NAN))
@@ -250,14 +259,15 @@ fn leaf_measurement_rejects_nan_provider_height() {
 
 #[test]
 fn leaf_layout_preserves_physical_end_scrollbar_gutter_for_rtl() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(200.0), Some(100.0)),
-        available: Size::new(Available::definite(100.0), Available::definite(50.0)),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(200.0), Some(100.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(100.0), Available::definite(50.0)),
+    );
     let node_input = NodeInput {
         direction: Direction::Rtl,
         overflow: Point::new(Overflow::Visible, Overflow::Scroll),
@@ -287,14 +297,15 @@ fn leaf_layout_preserves_physical_end_scrollbar_gutter_for_rtl() {
 
 #[test]
 fn leaf_uses_validated_aspect_ratio() {
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(120.0), Some(80.0)),
-        available: Size::new(Available::definite(120.0), Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(120.0), Some(80.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(120.0), Available::MAX_CONTENT),
+    );
     let style = NodeInput {
         size: Size::new(Dimension::px(60.0), Dimension::AUTO),
         aspect_ratio: AspectRatio::new(2.0),
@@ -308,14 +319,15 @@ fn leaf_uses_validated_aspect_ratio() {
 
 #[test]
 fn f64_leaf_layout_preserves_fractional_precision() {
-    let input = ComputeInputOf::<f64> {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(200.0), Some(100.0)),
-        available: Size::new(AvailableOf::definite(123.125), AvailableOf::MAX_CONTENT),
-    };
+    let input = ComputeInputOf::<f64>::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(200.0), Some(100.0)),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(AvailableOf::definite(123.125), AvailableOf::MAX_CONTENT),
+    );
     let style = NodeInputOf::<f64> {
         padding: Edges::all(LengthOf::px(0.125)),
         border: Edges::all(LengthOf::px(0.0625)),
@@ -340,14 +352,15 @@ fn f64_leaf_layout_preserves_fractional_precision() {
 
 #[test]
 fn f64_leaf_measurement_rejects_infinite_provider_height() {
-    let input = ComputeInputOf::<f64> {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::NONE,
-        available: Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
-    };
+    let input = ComputeInputOf::<f64>::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+    );
 
     let error = compute_leaf(input, &NodeInputOf::<f64>::default(), |_input| {
         Ok::<_, ()>(Size::new(10.0, f64::INFINITY))

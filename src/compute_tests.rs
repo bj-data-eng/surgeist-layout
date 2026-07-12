@@ -8,14 +8,15 @@ fn invalid_numeric_affine_value() -> LengthPercentageOf {
 }
 
 fn invalid_numeric_affine_input() -> ComputeInput {
-    ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(f32::MAX), None),
-        available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    }
+    ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(f32::MAX), None),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    )
 }
 
 #[test]
@@ -32,6 +33,7 @@ fn completed_batch_exposes_read_only_layout_and_cache_entries() {
     let cache_input = ComputeInput::leaf_layout(
         Size::NONE,
         Size::NONE,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         Size::new(Available::definite(40.0), Available::definite(30.0)),
     )
     .expect("test availability is valid");
@@ -131,6 +133,7 @@ enum InvalidLeafInputScalar {
 type LeafInputConstructor<S> = fn(
     Size<Option<S>>,
     Size<Option<S>>,
+    crate::geometry::FlowAxes,
     Size<AvailableOf<S>>,
 ) -> Result<ComputeInputOf<S>, RootAvailabilityErrorOf<S>>;
 
@@ -153,6 +156,7 @@ fn assert_leaf_input_error<S: LayoutScalar>(
     let error = constructor(
         known,
         parent,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         Size::new(AvailableOf::MinContent, AvailableOf::MaxContent),
     )
     .unwrap_err();
@@ -185,13 +189,21 @@ fn assert_leaf_input_constructors_validate_all_scalars<S: LayoutScalar>() {
     let valid_known = Size::new(None, Some(S::ZERO));
     let valid_parent = Size::new(Some(S::ZERO), None);
     let valid_available = Size::new(AvailableOf::MinContent, AvailableOf::MaxContent);
+    let containing_flow_axes =
+        crate::geometry::FlowAxes::new(crate::WritingMode::VerticalRl, crate::Direction::Rtl);
 
     for constructor in constructors {
-        let input = constructor(valid_known, valid_parent, valid_available)
-            .expect("zero definite and indefinite leaf inputs are valid");
-        assert_eq!(input.known, valid_known);
-        assert_eq!(input.parent, valid_parent);
-        assert_eq!(input.available, valid_available);
+        let input = constructor(
+            valid_known,
+            valid_parent,
+            containing_flow_axes,
+            valid_available,
+        )
+        .expect("zero definite and indefinite leaf inputs are valid");
+        assert_eq!(input.known(), valid_known);
+        assert_eq!(input.parent(), valid_parent);
+        assert_eq!(input.containing_flow_axes(), containing_flow_axes);
+        assert_eq!(input.available(), valid_available);
 
         for case in [
             InvalidLeafInputScalar::Negative,
@@ -233,12 +245,12 @@ fn assert_leaf_input_constructors_validate_all_scalars<S: LayoutScalar>() {
 }
 
 #[test]
-fn leaf_input_constructors_validate_f32_known_parent_and_indefinite_boundaries() {
+fn compute_input_leaf_constructors_retain_non_horizontal_flow_for_f32() {
     assert_leaf_input_constructors_validate_all_scalars::<f32>();
 }
 
 #[test]
-fn leaf_input_constructors_validate_f64_known_parent_and_indefinite_boundaries() {
+fn compute_input_leaf_constructors_retain_non_horizontal_flow_for_f64() {
     assert_leaf_input_constructors_validate_all_scalars::<f64>();
 }
 
@@ -249,14 +261,15 @@ fn leaf_affine_width_resolves_against_parent_basis() {
         size: Size::new(Dimension::value(width), Dimension::AUTO),
         ..NodeInput::default()
     };
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(100.0), None),
-        available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(100.0), None),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    );
 
     let output = compute_leaf(input, &style, |_input| Ok::<_, ()>(Size::new(12.0, 8.0))).unwrap();
 
@@ -270,14 +283,15 @@ fn public_leaf_affine_px_width_needs_no_resolver() {
         size: Size::new(Dimension::value(width), Dimension::AUTO),
         ..NodeInput::default()
     };
-    let input = ComputeInput {
-        run_mode: RunMode::PerformLayout,
-        sizing_mode: SizingMode::InherentSize,
-        axis: RequestedAxis::Both,
-        known: Size::NONE,
-        parent: Size::new(Some(100.0), None),
-        available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(100.0), None),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+    );
 
     let output = compute_leaf(input, &style, |_input| Ok::<_, ()>(Size::new(12.0, 8.0))).unwrap();
 
@@ -345,6 +359,7 @@ fn public_f64_leaf_invalid_numeric_affine_width_returns_typed_error() {
     let input = ComputeInputOf::leaf_layout(
         Size::NONE,
         Size::new(Some(f64::MAX), None),
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         Size::new(AvailableOf::definite(100.0), AvailableOf::MAX_CONTENT),
     )
     .expect("finite leaf input is valid");
@@ -370,6 +385,7 @@ fn assert_public_leaf_missing_basis_returns_typed_error<S: LayoutScalar>() {
     let input = ComputeInputOf::leaf_layout(
         Size::NONE,
         Size::NONE,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
     )
     .expect("indefinite leaf input is valid");
@@ -405,6 +421,7 @@ fn assert_public_leaf_intrinsic_percent_padding_is_valid_without_basis<S: Layout
     let input = ComputeInputOf::leaf_content_size(
         Size::NONE,
         Size::NONE,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
     )
     .expect("indefinite intrinsic leaf input is valid");
@@ -446,6 +463,7 @@ fn assert_public_leaf_basis_independent_width_is_valid<S: LayoutScalar>() {
     let input = ComputeInputOf::leaf_layout(
         Size::NONE,
         Size::NONE,
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
     )
     .expect("indefinite leaf input is valid");

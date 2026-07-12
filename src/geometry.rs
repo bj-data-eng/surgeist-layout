@@ -79,13 +79,6 @@ pub enum PhysicalSide {
 }
 
 impl PhysicalSide {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages physical-side axis selection for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
     pub const fn axis(self) -> PhysicalAxis {
         match self {
@@ -94,13 +87,6 @@ impl PhysicalSide {
         }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages physical-side inversion for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
     pub const fn opposite(self) -> Self {
         match self {
@@ -130,13 +116,6 @@ struct FlowMapping {
     inline_axis: PhysicalAxis,
     inline_start: PhysicalSide,
     block_start: PhysicalSide,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages line-over mapping for later baseline migrations."
-        )
-    )]
     line_over: PhysicalSide,
 }
 
@@ -174,13 +153,6 @@ impl FlowAxes {
         self.mapping().inline_start
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages inline-end selection for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
     pub const fn inline_end(self) -> PhysicalSide {
         self.inline_start().opposite()
@@ -191,37 +163,16 @@ impl FlowAxes {
         self.mapping().block_start
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages block-end selection for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
     pub const fn block_end(self) -> PhysicalSide {
         self.block_start().opposite()
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages line-over selection for later baseline migrations."
-        )
-    )]
     #[must_use]
     pub const fn line_over(self) -> PhysicalSide {
         self.mapping().line_over
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages line-under selection for later baseline migrations."
-        )
-    )]
     #[must_use]
     pub const fn line_under(self) -> PhysicalSide {
         self.line_over().opposite()
@@ -262,19 +213,26 @@ impl FlowAxes {
         }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages physical-to-logical size projection for later flow-aware migrations."
-        )
-    )]
     #[must_use]
     pub(crate) fn logical_size<S: LayoutScalar>(self, physical: Size<S>) -> LogicalSizeOf<S> {
         match self.inline_axis() {
             PhysicalAxis::Horizontal => LogicalSizeOf::new(physical.width, physical.height),
             PhysicalAxis::Vertical => LogicalSizeOf::new(physical.height, physical.width),
         }
+    }
+
+    #[must_use]
+    pub(crate) fn zip_physical_edges_with_inline_extent<T, U: Copy, R>(
+        self,
+        edges: Edges<T>,
+        containing_physical_size: Size<U>,
+        f: impl Fn(T, U) -> R,
+    ) -> Edges<R> {
+        let inline_extent = match self.inline_axis() {
+            PhysicalAxis::Horizontal => containing_physical_size.width,
+            PhysicalAxis::Vertical => containing_physical_size.height,
+        };
+        edges.map(|edge| f(edge, inline_extent))
     }
 
     #[must_use]
@@ -941,19 +899,6 @@ impl<T> Edges<T> {
             left: f(self.left, size.width),
         }
     }
-
-    #[must_use]
-    pub fn zip_inline_size<U, R>(self, size: Size<U>, f: impl Fn(T, U) -> R) -> Edges<R>
-    where
-        U: Copy,
-    {
-        Edges {
-            top: f(self.top, size.width),
-            right: f(self.right, size.width),
-            bottom: f(self.bottom, size.width),
-            left: f(self.left, size.width),
-        }
-    }
 }
 
 impl<U, T: Add<U>> Add<Edges<U>> for Edges<T> {
@@ -1290,6 +1235,21 @@ mod tests {
         assert_eq!(
             edges.map(|value| value * 2.0),
             LogicalEdgesOf::new(4.0, 6.0, 10.0, 14.0)
+        );
+    }
+
+    #[test]
+    fn containing_flow_uses_its_logical_inline_extent_for_every_physical_edge() {
+        let axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
+        let edges = Edges::new(1.0, 2.0, 3.0, 4.0);
+
+        assert_eq!(
+            axes.zip_physical_edges_with_inline_extent(
+                edges,
+                Size::new(40.0, 60.0),
+                |edge, basis| edge * basis,
+            ),
+            Edges::new(60.0, 120.0, 180.0, 240.0)
         );
     }
 }

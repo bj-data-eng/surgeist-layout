@@ -702,6 +702,7 @@ where
 
 pub(super) struct GridSubgridIntrinsicTraversalInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) axis: GridAxisKind,
+    pub(super) containing_flow_axes: crate::geometry::FlowAxes,
     pub(super) children: &'a [Node],
     pub(super) placed_areas: &'a [Option<GridArea<S>>],
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
@@ -769,6 +770,7 @@ where
             area_size,
             item_report,
             child_axis,
+            input.containing_flow_axes,
             input.parent_gap,
             input.named_columns,
             input.named_rows,
@@ -802,6 +804,7 @@ fn subgrid_traversal_child<Tree, M>(
     area_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
     queried_axis: GridAxisKind,
+    containing_flow_axes: crate::geometry::FlowAxes,
     parent_gap: Size<Tree::Scalar>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
@@ -845,23 +848,21 @@ where
     let parent_axis = mapping.parent_axis;
     let span_in_parent = area_span(area, parent_axis);
     let parent_axis_gap = axis_size(parent_gap, parent_axis);
-    let area_width_basis = Size::splat(Some(area_size.width));
-    let resolved_margin = style
-        .margin
-        .zip_inline_size(area_width_basis, |length, basis| {
+    let physical_area_size = grid_area_physical_size(containing_flow_axes, area_size);
+    let area_basis = physical_area_size.map(Some);
+    let resolved_margin = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(style.margin, area_basis, |length, basis| {
             resolve_auto_optional(length, basis)
         })
         .transpose_with_node(tree, node)?
         .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
-    let resolved_border = style
-        .border
-        .zip_inline_size(area_width_basis, |length, basis| {
+    let resolved_border = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(style.border, area_basis, |length, basis| {
             resolve_length_or_zero(length, basis)
         })
         .transpose_with_node(tree, node)?;
-    let resolved_padding = style
-        .padding
-        .zip_inline_size(area_width_basis, |length, basis| {
+    let resolved_padding = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(style.padding, area_basis, |length, basis| {
             resolve_length_or_zero(length, basis)
         })
         .transpose_with_node(tree, node)?;
@@ -871,11 +872,17 @@ where
         resolved_border,
         resolved_padding,
     );
-    let content_box_size = (area_size
+    let physical_content_box_size = (physical_area_size
         - resolved_margin.sum_axes()
         - resolved_border.sum_axes()
         - resolved_padding.sum_axes())
     .max(Size::ZERO);
+    let current_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
+    let logical_content_box_size = current_flow_axes.logical_size(physical_content_box_size);
+    let content_box_size = Size::new(
+        logical_content_box_size.inline,
+        logical_content_box_size.block,
+    );
     let subgrid_gap = Size::new(
         resolved_subgrid_axis_gap(
             style,
@@ -903,6 +910,7 @@ where
         content_box_size,
         item_report,
         queried_axis,
+        containing_flow_axes,
         subgrid_gap,
         parent_named_columns,
         parent_named_rows,
@@ -948,6 +956,7 @@ fn subgrid_traversal_children<Tree, M>(
     content_box_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
     queried_axis: GridAxisKind,
+    containing_flow_axes: crate::geometry::FlowAxes,
     gap: Size<Tree::Scalar>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
@@ -987,14 +996,15 @@ where
         tree,
         node,
         style,
-        ComputeInputOf {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            containing_flow_axes,
             available,
-        },
+        ),
     )?;
     let initialized = initialize_grid_tracks::<Tree, M>(
         tree,
@@ -1083,6 +1093,7 @@ where
             child_area_size,
             child_report,
             child_axis,
+            crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             gap,
             &initialized.context.named_columns,
             &initialized.context.named_rows,
@@ -1494,6 +1505,7 @@ mod tests {
             Size::new(20.0, 20.0),
             item_report,
             GridAxisKind::Column,
+            crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             Size::ZERO,
             &named_columns,
             &named_rows,

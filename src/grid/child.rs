@@ -1,6 +1,6 @@
 use super::*;
 use crate::BaselinesOf;
-use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalProgression};
+use crate::geometry::{FlowAxes, LogicalSizeOf, PhysicalAxis, PhysicalProgression};
 use crate::scroll::scrollbar_size_from_overflow;
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
@@ -195,7 +195,13 @@ where
             .enumerate()
         {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
+            tree.compute_child(
+                child,
+                ComputeInputOf::hidden(crate::geometry::FlowAxes::new(
+                    style.writing_mode,
+                    style.direction,
+                )),
+            )?;
         }
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
@@ -210,7 +216,7 @@ where
 
     let logical_content_size =
         Size::new(track_sum(columns, gap.width), track_sum(rows, gap.height));
-    let physical_content_size = grid_area_physical_size(style.writing_mode, logical_content_size);
+    let physical_content_size = grid_area_physical_size(constants.flow_axes, logical_content_size);
     let content_box_size =
         constants
             .node_inner_size
@@ -285,7 +291,7 @@ where
         let child_style = tree.node_input(child).clone();
         if child_style.display == super::Display::None {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
+            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
             continue;
         }
         if child_style.position == Position::Absolute {
@@ -319,32 +325,36 @@ where
         };
         if area.row >= rows.len() || area.column >= columns.len() {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
+            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
             continue;
         }
 
-        let physical_area_size = grid_area_physical_size(style.writing_mode, area.size);
+        let physical_area_size = grid_area_physical_size(constants.flow_axes, area.size);
         let mut item = grid_item_sizing::<Tree, M>(
             tree,
             child,
             &child_style,
             style,
             physical_area_size,
-            Size::splat(Some(physical_area_size.width)),
+            physical_area_size.map(Some),
         )?;
         stretch_subgridded_axes(&mut item, *subgrid_item);
-        let area_width_basis = Size::splat(Some(physical_area_size.width));
-        let padding = child_style
-            .padding
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let area_parent = physical_area_size.map(Some);
+        let padding = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.padding,
+                area_parent,
+                resolve_length_or_zero,
+            )
             .transpose_with_node(tree, child)?;
-        let border = child_style
-            .border
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let border = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.border,
+                area_parent,
+                resolve_length_or_zero,
+            )
             .transpose_with_node(tree, child)?;
         let resolved_margin = item
             .unresolved_margin
@@ -371,19 +381,19 @@ where
             padding,
         })
         .map_err(|error| subgrid_child_context_container_error(node, child, error))?;
-        let child_input = ComputeInputOf {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: item.known,
-            parent: Size::new(
+        let child_input = ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            item.known,
+            Size::new(
                 Some(physical_area_size.width),
                 Some(physical_area_size.height),
             ),
-            available: item
-                .available
+            crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+            item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
-        };
+        );
         let output = if child_context.has_inherited_axis() {
             // Subgrid layout depends on the parent grid's used tracks, so this
             // intentionally bypasses the generic child layout cache until that
@@ -582,30 +592,43 @@ where
         }
 
         let child_style = tree.node_input(item.node).clone();
-        let physical_area_size =
-            grid_area_physical_size(input.container_style.writing_mode, item.area.size);
+        let physical_area_size = grid_area_physical_size(
+            FlowAxes::new(
+                input.container_style.writing_mode,
+                input.container_style.direction,
+            ),
+            item.area.size,
+        );
         let mut sizing = grid_item_sizing::<Tree, M>(
             tree,
             item.node,
             &child_style,
             input.container_style,
             physical_area_size,
-            Size::splat(Some(physical_area_size.width)),
+            physical_area_size.map(Some),
         )?;
         stretch_subgridded_axes(&mut sizing, subgrid_item);
-        let area_width_basis = Size::splat(Some(physical_area_size.width));
-        let padding = child_style
-            .padding
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
-            .transpose_with_node(tree, item.node)?;
-        let border = child_style
-            .border
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
-            .transpose_with_node(tree, item.node)?;
+        let area_parent = physical_area_size.map(Some);
+        let padding = crate::geometry::FlowAxes::new(
+            input.container_style.writing_mode,
+            input.container_style.direction,
+        )
+        .zip_physical_edges_with_inline_extent(
+            child_style.padding,
+            area_parent,
+            resolve_length_or_zero,
+        )
+        .transpose_with_node(tree, item.node)?;
+        let border = crate::geometry::FlowAxes::new(
+            input.container_style.writing_mode,
+            input.container_style.direction,
+        )
+        .zip_physical_edges_with_inline_extent(
+            child_style.border,
+            area_parent,
+            resolve_length_or_zero,
+        )
+        .transpose_with_node(tree, item.node)?;
         let resolved_margin = sizing
             .unresolved_margin
             .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
@@ -635,19 +658,23 @@ where
             continue;
         }
 
-        let child_input = ComputeInputOf {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: sizing.known,
-            parent: Size::new(
+        let child_input = ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            sizing.known,
+            Size::new(
                 Some(physical_area_size.width),
                 Some(physical_area_size.height),
             ),
-            available: sizing
+            crate::geometry::FlowAxes::new(
+                input.container_style.writing_mode,
+                input.container_style.direction,
+            ),
+            sizing
                 .available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
-        };
+        );
         let row_axis = child_context.rows.clone();
         let result = compute_grid_with_context_result(tree, item.node, child_input, child_context)?;
         let output = result.output;
@@ -749,15 +776,11 @@ pub(super) fn grid_area_physical_origin<S: LayoutScalar>(
     }
 }
 
-fn grid_area_physical_size<S: LayoutScalar>(
-    writing_mode: crate::WritingMode,
+pub(super) fn grid_area_physical_size<S: LayoutScalar>(
+    containing_flow_axes: FlowAxes,
     size: Size<S>,
 ) -> Size<S> {
-    if writing_mode.is_vertical() {
-        Size::new(size.height, size.width)
-    } else {
-        size
-    }
+    containing_flow_axes.physical_size(LogicalSizeOf::new(size.width, size.height))
 }
 
 fn grid_area_logical_size<S: LayoutScalar>(
@@ -1600,53 +1623,57 @@ pub(super) fn grid_item_sizing<Tree, M>(
     child_style: &NodeInputOf<Tree::Scalar>,
     container_style: &NodeInputOf<Tree::Scalar>,
     area_size: Size<Tree::Scalar>,
-    area_width_basis: Size<Option<Tree::Scalar>>,
+    containing_physical_size: Size<Option<Tree::Scalar>>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, GridItemSizing<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
-    grid_item_sizing_with_status(child_style, container_style, area_size, area_width_basis)
-        .map_err(|status| crate::compute::value_resolution_error(child, status))
+    grid_item_sizing_with_status(
+        child_style,
+        container_style,
+        area_size,
+        containing_physical_size,
+    )
+    .map_err(|status| crate::compute::value_resolution_error(child, status))
 }
 
 pub(super) fn grid_item_sizing_with_status<S: LayoutScalar>(
     child_style: &NodeInputOf<S>,
     container_style: &NodeInputOf<S>,
     area_size: Size<S>,
-    area_width_basis: Size<Option<S>>,
+    containing_physical_size: Size<Option<S>>,
 ) -> Result<GridItemSizing<S>, LengthResolutionStatus<S>> {
-    let unresolved_margin = transpose_edges_result(
-        child_style
-            .margin
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_auto_optional(length, basis)
-            }),
-    )?;
+    let container_flow_axes =
+        crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction);
+    let unresolved_margin =
+        transpose_edges_result(container_flow_axes.zip_physical_edges_with_inline_extent(
+            child_style.margin,
+            containing_physical_size,
+            |length, basis| resolve_auto_optional(length, basis),
+        ))?;
     let margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
     let available = Size::new(
         (area_size.width - margin.horizontal_sum()).max(S::ZERO),
         (area_size.height - margin.vertical_sum()).max(S::ZERO),
     );
-    let padding = transpose_edges_result(
-        child_style
-            .padding
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            }),
-    )?;
-    let border = transpose_edges_result(
-        child_style
-            .border
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            }),
-    )?;
+    let padding =
+        transpose_edges_result(container_flow_axes.zip_physical_edges_with_inline_extent(
+            child_style.padding,
+            containing_physical_size,
+            |length, basis| resolve_length_or_zero(length, basis),
+        ))?;
+    let border =
+        transpose_edges_result(container_flow_axes.zip_physical_edges_with_inline_extent(
+            child_style.border,
+            containing_physical_size,
+            |length, basis| resolve_length_or_zero(length, basis),
+        ))?;
     let box_sizing_adjustment = if child_style.box_sizing == BoxSizing::ContentBox {
         (padding + border).sum_axes()
     } else {
         Size::ZERO
     };
-    let area_parent = Size::new(Some(area_size.width), Some(area_size.height));
+    let area_parent = area_size.map(Some);
     let inherent_size =
         transpose_size_result(child_style.size.zip_map(area_parent, |dimension, basis| {
             resolve_dimension(dimension, basis)
@@ -2022,9 +2049,10 @@ where
         })
     };
     let area_parent = Size::new(Some(area.size.width), Some(area.size.height));
-    let unresolved_margin = child_style
-        .margin
-        .zip_inline_size(Size::splat(Some(area.size.width)), |length, basis| {
+    let containing_flow_axes =
+        crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction);
+    let unresolved_margin = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(child_style.margin, area_parent, |length, basis| {
             resolve_auto_optional(length, basis)
         })
         .transpose_with_node(tree, child)?;
@@ -2033,16 +2061,13 @@ where
         (area.size.width - non_auto_margin.horizontal_sum()).max(Tree::Scalar::ZERO),
         (area.size.height - non_auto_margin.vertical_sum()).max(Tree::Scalar::ZERO),
     );
-    let area_width_basis = Size::splat(Some(area.size.width));
-    let padding = child_style
-        .padding
-        .zip_inline_size(area_width_basis, |length, basis| {
+    let padding = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(child_style.padding, area_parent, |length, basis| {
             resolve_length_or_zero(length, basis)
         })
         .transpose_with_node(tree, child)?;
-    let border = child_style
-        .border
-        .zip_inline_size(area_width_basis, |length, basis| {
+    let border = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(child_style.border, area_parent, |length, basis| {
             resolve_length_or_zero(length, basis)
         })
         .transpose_with_node(tree, child)?;
@@ -2112,17 +2137,18 @@ where
         .clamp_optional(min_size, max_size);
     let output = tree.compute_child(
         child,
-        ComputeInputOf {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
             known,
-            parent: area_parent,
-            available: Size::new(
+            area_parent,
+            crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction),
+            Size::new(
                 AvailableOf::definite(available_size.width),
                 AvailableOf::definite(available_size.height),
             ),
-        },
+        ),
     )?;
     let final_size = known
         .unwrap_or(output.size)

@@ -70,14 +70,15 @@ fn perform_scroll_block(tree: &mut ScrollBlockTree) -> ComputeOutput {
     crate::compute_block(
         tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(100.0), Some(40.0)),
-            available: Size::new(Available::definite(100.0), Available::definite(40.0)),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(40.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::definite(40.0)),
+        ),
     )
     .unwrap()
 }
@@ -384,14 +385,15 @@ fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(60.0), Some(40.0)),
-            available: Size::new(Available::definite(60.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(60.0), Some(40.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(60.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -604,14 +606,15 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
     let output = crate::compute_block(
         &mut segmented,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(100.0), Some(80.0)),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(80.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -1019,8 +1022,8 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
 
 fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
     let size = Size::new(
-        input.known.width.unwrap_or(fallback.width),
-        input.known.height.unwrap_or(fallback.height),
+        input.known().width.unwrap_or(fallback.width),
+        input.known().height.unwrap_or(fallback.height),
     );
     ComputeOutput::from_sizes(size, size)
 }
@@ -1077,8 +1080,8 @@ impl Compute for CalcBlockTree {
         Ok({
             self.inputs.entry(node).or_default().push(input);
             ComputeOutput::from_outer_size(Size::new(
-                input.known.width.unwrap_or(0.0),
-                input.known.height.unwrap_or(10.0),
+                input.known().width.unwrap_or(0.0),
+                input.known().height.unwrap_or(10.0),
             ))
         })
     }
@@ -1532,6 +1535,46 @@ fn block_atomic_inline_run_honors_line_break_child() {
 }
 
 #[test]
+fn ordinary_block_child_receives_parent_non_horizontal_containing_flow() {
+    let parent_flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                size: Size::new(Dimension::px(100.0), Dimension::px(80.0)),
+                ..NodeInput::default()
+            },
+        )
+        .style(1, NodeInput::default());
+
+    crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(80.0)),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::definite(80.0)),
+        ),
+    )
+    .unwrap();
+
+    assert!(
+        tree.inputs(1)
+            .iter()
+            .all(|input| input.containing_flow_axes() == parent_flow_axes)
+    );
+}
+
+#[test]
 fn block_line_break_conversion_with_metadata_preserves_current_output() {
     let metrics = InlineMetrics::from_line_height_and_baseline(24.0, 18.0).unwrap();
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
@@ -1605,14 +1648,15 @@ fn block_line_break_metrics_create_empty_line_height() {
     let output = crate::compute_block(
         &mut tree,
         0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::splat(Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::splat(Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -2884,14 +2928,18 @@ fn inline_grid_can_host_subgrid_descendant() {
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -3273,14 +3321,18 @@ fn block_inline_run_content_size_includes_visible_overflow_and_relative_inset() 
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::splat(Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::splat(Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -3326,14 +3378,18 @@ fn block_inline_run_content_size_accounts_for_negative_relative_inset_after_cont
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::splat(Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::splat(Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -3371,14 +3427,18 @@ fn block_reports_inline_run_first_and_last_baselines() {
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::splat(Available::definite(100.0)),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::splat(Available::definite(100.0)),
+            ),
         )
         .unwrap();
 
@@ -3413,14 +3473,18 @@ fn block_reports_inline_run_baseline_including_padding() {
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::splat(Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::splat(Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -3452,14 +3516,18 @@ fn block_definite_compute_size_keeps_inline_run_baselines() {
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::ComputeSize,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::splat(Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::ComputeSize,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::splat(Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -3500,14 +3568,18 @@ fn block_definite_compute_size_keeps_block_child_baselines() {
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::ComputeSize,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::splat(Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::ComputeSize,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::splat(Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -3550,14 +3622,18 @@ fn block_definite_compute_size_keeps_non_empty_flex_child_baselines() {
     let output = tree
         .compute_child(
             0,
-            ComputeInput {
-                run_mode: RunMode::ComputeSize,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::NONE,
-                available: Size::splat(Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::ComputeSize,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::splat(Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -3679,14 +3755,15 @@ fn block_layout_stacks_in_flow_children_vertically() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformRootLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformRootLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3697,8 +3774,8 @@ fn block_layout_stacks_in_flow_children_vertically() {
     assert_eq!(tree.layouts[&2].margin.left, 6.0);
     assert_eq!(tree.layouts[&3].location, Point::new(12.0, 21.0));
     assert_eq!(tree.layouts[&3].size, Size::new(30.0, 12.0));
-    assert_eq!(tree.inputs[&2][0].parent, Size::new(Some(82.0), None));
-    assert_eq!(tree.inputs[&3][0].parent, Size::new(Some(82.0), None));
+    assert_eq!(tree.inputs[&2][0].parent(), Size::new(Some(82.0), None));
+    assert_eq!(tree.inputs[&3][0].parent(), Size::new(Some(82.0), None));
 }
 
 #[test]
@@ -3734,18 +3811,19 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
     crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(200.0), None),
-            available: Size::new(Available::Definite(200.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(200.0), None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::Definite(200.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(120.0), None));
+    assert_eq!(tree.inputs[&2][0].known(), Size::new(Some(120.0), None));
     assert_eq!(tree.layouts[&2].location, Point::new(16.0, 0.0));
     assert_eq!(tree.layouts[&2].margin.left, 16.0);
     assert_eq!(tree.layouts[&2].size, Size::new(120.0, 10.0));
@@ -3769,14 +3847,15 @@ fn block_container_affine_padding_uses_parent_basis() {
     let output = crate::compute_block(
         &mut tree,
         0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::new(Some(100.0), None),
-            parent: Size::new(Some(100.0), None),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(100.0), None),
+            Size::new(Some(100.0), None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3868,14 +3947,15 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformRootLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformRootLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -3969,14 +4049,15 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4576,14 +4657,15 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4675,14 +4757,15 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4775,14 +4858,15 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4843,8 +4927,8 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
         {
             Ok({
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(10.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(10.0),
                 ))
             })
         }
@@ -4875,14 +4959,15 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
     crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -4972,14 +5057,15 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5066,14 +5152,15 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::NONE,
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5186,14 +5273,15 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5265,14 +5353,15 @@ fn block_empty_auto_height_can_collapse_through() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5352,14 +5441,15 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5461,14 +5551,15 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5562,14 +5653,15 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5660,14 +5752,15 @@ fn block_content_size_includes_visible_child_overflow_content() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5765,14 +5858,15 @@ fn block_relative_child_inset_offsets_final_layout_location() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -5832,8 +5926,8 @@ fn block_layout_stretches_auto_width_in_flow_children() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_sizes(
-                    Size::new(input.known.width.unwrap(), 10.0),
-                    Size::new(input.known.width.unwrap(), 10.0),
+                    Size::new(input.known().width.unwrap(), 10.0),
+                    Size::new(input.known().width.unwrap(), 10.0),
                 )
             })
         }
@@ -5872,18 +5966,19 @@ fn block_layout_stretches_auto_width_in_flow_children() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known.width, Some(76.0));
+    assert_eq!(tree.inputs[&2][0].known().width, Some(76.0));
     assert_eq!(tree.layouts[&2].size, Size::new(76.0, 10.0));
     assert_eq!(tree.layouts[&2].location, Point::new(8.0, 0.0));
     assert_eq!(output.content_size, Size::new(88.0, 10.0));
@@ -5941,8 +6036,8 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_sizes(
-                    Size::new(input.known.width.unwrap(), 10.0),
-                    Size::new(input.known.width.unwrap(), 10.0),
+                    Size::new(input.known().width.unwrap(), 10.0),
+                    Size::new(input.known().width.unwrap(), 10.0),
                 )
             })
         }
@@ -5982,19 +6077,20 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].run_mode, RunMode::ComputeSize);
-    assert_eq!(tree.inputs[&2][0].known.width, Some(76.0));
+    assert_eq!(tree.inputs[&2][0].run_mode(), RunMode::ComputeSize);
+    assert_eq!(tree.inputs[&2][0].known().width, Some(76.0));
     assert_eq!(output.size, Size::new(100.0, 26.0));
     assert_eq!(output.content_size, Size::ZERO);
     assert!(tree.layouts.is_empty());
@@ -6065,14 +6161,15 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6154,14 +6251,18 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
         let output = crate::compute_block(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::ComputeSize,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(500.0), Some(400.0)),
-                available: Size::new(Available::definite(500.0), Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::ComputeSize,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(500.0), Some(400.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::definite(500.0), Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -6249,14 +6350,15 @@ fn block_auto_height_clamps_to_max_size() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6341,14 +6443,15 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(500.0), Some(400.0)),
-            available: Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(500.0), Some(400.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6432,14 +6535,18 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
         crate::compute_block(
             &mut tree,
             1,
-            ComputeInput {
-                run_mode: RunMode::PerformLayout,
-                sizing_mode: SizingMode::InherentSize,
-                axis: RequestedAxis::Both,
-                known: Size::NONE,
-                parent: Size::new(Some(300.0), Some(200.0)),
-                available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-            },
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(300.0), Some(200.0)),
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+            ),
         )
         .unwrap();
 
@@ -6512,7 +6619,7 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
         {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
-                if input.run_mode == RunMode::PerformHiddenLayout {
+                if input.run_mode() == RunMode::PerformHiddenLayout {
                     ComputeOutput::HIDDEN
                 } else {
                     self.outputs[&node]
@@ -6576,14 +6683,15 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6593,7 +6701,13 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
     assert_eq!(tree.layouts[&3].location, Point::new(8.0, 10.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&4], NodeOutput::with_order(2));
-    assert_eq!(tree.inputs[&4], vec![ComputeInput::HIDDEN]);
+    assert_eq!(
+        tree.inputs[&4],
+        vec![ComputeInput::hidden(crate::geometry::FlowAxes::new(
+            crate::WritingMode::HorizontalTb,
+            crate::Direction::Ltr,
+        ))]
+    );
 }
 
 #[test]
@@ -6689,14 +6803,15 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6787,14 +6902,15 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
     crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -6887,19 +7003,23 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
     let output = crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 50.0));
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(74.0), Some(24.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(74.0), Some(24.0))
+    );
     assert_eq!(tree.layouts[&2].location, Point::new(8.0, 14.0));
     assert_eq!(tree.layouts[&2].size, Size::new(74.0, 24.0));
 }
@@ -6955,8 +7075,8 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             Ok({
                 self.inputs.entry(node).or_default().push(input);
                 ComputeOutput::from_outer_size(Size::new(
-                    input.known.width.unwrap_or(0.0),
-                    input.known.height.unwrap_or(0.0),
+                    input.known().width.unwrap_or(0.0),
+                    input.known().height.unwrap_or(0.0),
                 ))
             })
         }
@@ -6992,18 +7112,22 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(80.0), Some(40.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(80.0), Some(40.0))
+    );
     assert_eq!(tree.layouts[&2].size, Size::new(80.0, 40.0));
 }
 
@@ -7098,18 +7222,22 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
     crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(20.0), Some(10.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(20.0), Some(10.0))
+    );
     assert_eq!(tree.layouts[&2].margin.left, 40.0);
     assert_eq!(tree.layouts[&2].margin.right, 40.0);
     assert_eq!(tree.layouts[&2].location, Point::new(40.0, 0.0));
@@ -7207,18 +7335,22 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
     crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(70.0), Some(10.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(70.0), Some(10.0))
+    );
     assert_eq!(tree.layouts[&2].margin.left, 0.0);
     assert_eq!(tree.layouts[&2].margin.right, 0.0);
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
@@ -7312,18 +7444,22 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
     crate::compute_block(
         &mut tree,
         1,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(Some(300.0), Some(200.0)),
-            available: Size::new(Available::definite(300.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(200.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(300.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
-    assert_eq!(tree.inputs[&2][0].known, Size::new(Some(20.0), Some(10.0)));
+    assert_eq!(
+        tree.inputs[&2][0].known(),
+        Size::new(Some(20.0), Some(10.0))
+    );
     assert_eq!(tree.layouts[&2].location, Point::new(62.0, 1.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
 }
@@ -7423,14 +7559,15 @@ fn calc_leaf_tree_propagates_leaf_measurement_error_instead_of_panicking() {
     let error = compute_block(
         &mut tree,
         0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::new(Some(100.0), None),
-            parent: Size::new(Some(100.0), None),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(100.0), None),
+            Size::new(Some(100.0), None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap_err();
 
@@ -7468,14 +7605,15 @@ fn block_inline_affine_leaf_uses_public_leaf_path() {
     let output = compute_block(
         &mut tree,
         0,
-        ComputeInput {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::new(Some(100.0), None),
-            parent: Size::new(Some(100.0), None),
-            available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
-        },
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(100.0), None),
+            Size::new(Some(100.0), None),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
     )
     .unwrap();
 
@@ -7498,11 +7636,13 @@ fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
         },
     );
 
-    let resolved = tree.styles[&1]
-        .margin
-        .zip_inline_size(Size::new(None, None), |length, basis| {
-            length.resolve_auto_with_status(basis)
-        });
+    let resolved =
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr)
+            .zip_physical_edges_with_inline_extent(
+                tree.styles[&1].margin,
+                Size::new(None, None),
+                |length, basis| length.resolve_auto_with_status(basis),
+            );
     let resolved = resolve_in_flow_margin(resolved, Size::new(10.0, 10.0), None);
 
     assert_eq!(resolved.top, 0.0);

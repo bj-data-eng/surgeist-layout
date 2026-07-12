@@ -2,6 +2,7 @@ use super::{
     AvailableOf, ComputeInputOf, ComputeOutputOf, DefaultScalar, LayoutScalar, RequestedAxis,
     RunMode, Size, SizingMode,
 };
+use crate::geometry::FlowAxes;
 
 const CACHE_SIZE: usize = 9;
 
@@ -22,6 +23,7 @@ struct CacheKeyOf<S: LayoutScalar = DefaultScalar> {
     axis: RequestedAxis,
     known: Size<Option<S>>,
     parent: Size<Option<S>>,
+    containing_flow_axes: FlowAxes,
     available: Size<AvailableOf<S>>,
     context: CacheKeyContext,
 }
@@ -29,12 +31,13 @@ struct CacheKeyOf<S: LayoutScalar = DefaultScalar> {
 impl<S: LayoutScalar> CacheKeyOf<S> {
     fn from_input(input: &ComputeInputOf<S>, context: CacheKeyContext) -> Self {
         Self {
-            run_mode: input.run_mode,
-            sizing_mode: input.sizing_mode,
-            axis: input.axis,
-            known: input.known,
-            parent: input.parent,
-            available: input.available,
+            run_mode: input.run_mode(),
+            sizing_mode: input.sizing_mode(),
+            axis: input.requested_axis(),
+            known: input.known(),
+            parent: input.parent(),
+            containing_flow_axes: input.containing_flow_axes(),
+            available: input.available(),
             context,
         }
     }
@@ -71,7 +74,7 @@ impl<S: LayoutScalar> CacheOf<S> {
         input: &ComputeInputOf<S>,
         context: CacheKeyContext,
     ) -> Option<ComputeOutputOf<S>> {
-        match input.run_mode {
+        match input.run_mode() {
             RunMode::PerformRootLayout | RunMode::PerformLayout => self
                 .final_layout
                 .filter(|entry| matches_output(input, context, entry, entry.content.size))
@@ -95,7 +98,7 @@ impl<S: LayoutScalar> CacheOf<S> {
         output: ComputeOutputOf<S>,
     ) {
         let key = CacheKeyOf::from_input(input, context);
-        match input.run_mode {
+        match input.run_mode() {
             RunMode::PerformRootLayout | RunMode::PerformLayout => {
                 self.empty = false;
                 self.final_layout = Some(EntryOf {
@@ -105,7 +108,7 @@ impl<S: LayoutScalar> CacheOf<S> {
             }
             RunMode::ComputeSize => {
                 self.empty = false;
-                let slot = cache_slot(input.known, input.available);
+                let slot = cache_slot(input.known(), input.available());
                 self.measures[slot] = Some(EntryOf {
                     key,
                     content: output,
@@ -177,17 +180,18 @@ fn matches_output<S: LayoutScalar, T>(
     cached_size: Size<S>,
 ) -> bool {
     let key = CacheKeyOf::from_input(input, context);
-    input.run_mode == entry.key.run_mode
-        && input.sizing_mode == entry.key.sizing_mode
-        && input.axis == entry.key.axis
-        && input.parent == entry.key.parent
+    input.run_mode() == entry.key.run_mode
+        && input.sizing_mode() == entry.key.sizing_mode
+        && input.requested_axis() == entry.key.axis
+        && input.parent() == entry.key.parent
+        && input.containing_flow_axes() == entry.key.containing_flow_axes
         && context == entry.key.context
-        && (input.known.width == entry.key.known.width
-            || input.known.width == Some(cached_size.width))
-        && (input.known.height == entry.key.known.height
-            || input.known.height == Some(cached_size.height))
-        && (input.known.width.is_some()
+        && (input.known().width == entry.key.known.width
+            || input.known().width == Some(cached_size.width))
+        && (input.known().height == entry.key.known.height
+            || input.known().height == Some(cached_size.height))
+        && (input.known().width.is_some()
             || entry.key.available.width.roughly_eq(key.available.width))
-        && (input.known.height.is_some()
+        && (input.known().height.is_some()
             || entry.key.available.height.roughly_eq(key.available.height))
 }

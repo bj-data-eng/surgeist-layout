@@ -1124,34 +1124,37 @@ where
     let max_available = lane_child_intrinsic_available(axis, child_style, AvailableOf::MAX_CONTENT);
     let min_output = tree.compute_child(
         child,
-        ComputeInputOf {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(
                 constants.node_inner_size.width,
                 constants.node_inner_size.height,
             ),
-            available: min_available,
-        },
+            constants.flow_axes,
+            min_available,
+        ),
     )?;
     let max_output = tree.compute_child(
         child,
-        ComputeInputOf {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: Size::NONE,
-            parent: Size::new(
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(
                 constants.node_inner_size.width,
                 constants.node_inner_size.height,
             ),
-            available: max_available,
-        },
+            constants.flow_axes,
+            max_available,
+        ),
     )?;
-    let margin = intrinsic_contribution_margin(child_style, constants.node_inner_size.width)
-        .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+    let margin =
+        intrinsic_contribution_margin(child_style, constants.flow_axes, constants.node_inner_size)
+            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
     Ok(LaneContributionFactsOf {
         min_content: axis_size(min_output.size, axis) + axis_margin_sum(margin, axis),
         max_content: axis_size(max_output.size, axis) + axis_margin_sum(margin, axis),
@@ -1220,7 +1223,7 @@ where
             .enumerate()
         {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
+            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
         }
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
@@ -1313,7 +1316,7 @@ where
         let child_style = tree.node_input(child).clone();
         if child_style.display == Display::None {
             tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
-            tree.compute_child(child, ComputeInputOf::HIDDEN)?;
+            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
             continue;
         }
         if child_style.position == Position::Absolute {
@@ -1410,20 +1413,24 @@ where
             &child_style,
             style,
             area_size,
-            Size::splat(Some(area_size.width)),
+            area_size.map(Some),
         )?;
-        let area_width_basis = Size::splat(Some(area_size.width));
-        let padding = child_style
-            .padding
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let area_parent = area_size.map(Some);
+        let padding = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.padding,
+                area_parent,
+                resolve_length_or_zero,
+            )
             .transpose_with_node(tree, child)?;
-        let border = child_style
-            .border
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_length_or_zero(length, basis)
-            })
+        let border = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.border,
+                area_parent,
+                resolve_length_or_zero,
+            )
             .transpose_with_node(tree, child)?;
         let resolved_margin = item
             .unresolved_margin
@@ -1451,16 +1458,16 @@ where
             padding,
         })
         .map_err(|error| subgrid_child_context_container_error(node, child, error))?;
-        let child_input = ComputeInputOf {
-            run_mode: RunMode::PerformLayout,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
-            known: item.known,
-            parent: Size::new(Some(area_size.width), Some(area_size.height)),
-            available: item
-                .available
+        let child_input = ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            item.known,
+            Size::new(Some(area_size.width), Some(area_size.height)),
+            constants.flow_axes,
+            item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
-        };
+        );
         let output = if child_context.has_inherited_axis() {
             compute_grid_with_context(tree, child, child_input, child_context)?
         } else {
@@ -1645,16 +1652,18 @@ where
         grid_axis,
         grid_axis_size,
     } = input;
-    let area_width_basis = match grid_axis {
-        GridAxisKind::Column => Size::splat(Some(grid_axis_size)),
+    let containing_physical_size = match grid_axis {
+        GridAxisKind::Column => Size::new(Some(grid_axis_size), None),
         GridAxisKind::Row => constants.node_inner_size,
     };
     let (margin, known, parent, available) = {
-        let unresolved_margin = child_style
-            .margin
-            .zip_inline_size(area_width_basis, |length, basis| {
-                resolve_auto_optional(length, basis)
-            })
+        let unresolved_margin = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.margin,
+                containing_physical_size,
+                resolve_auto_optional,
+            )
             .transpose_with_node(tree, child)?;
         let margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
         let mut known = Size::NONE;
@@ -1703,14 +1712,15 @@ where
     };
     let output = tree.compute_child(
         child,
-        ComputeInputOf {
-            run_mode: RunMode::ComputeSize,
-            sizing_mode: SizingMode::InherentSize,
-            axis: RequestedAxis::Both,
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
             known,
             parent,
+            constants.flow_axes,
             available,
-        },
+        ),
     )?;
     Ok(match lane_axis {
         GridAxisKind::Column => output.size.width + margin.horizontal_sum(),
