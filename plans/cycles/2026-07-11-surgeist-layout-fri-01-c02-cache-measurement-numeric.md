@@ -1,6 +1,6 @@
 # FRI-01-C02 Cache, Measurement, And Numeric Property Contracts
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-01-C02`
 
