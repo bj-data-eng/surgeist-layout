@@ -7858,7 +7858,7 @@ fn calc_leaf_tree_propagates_leaf_measurement_error_instead_of_panicking() {
     assert!(matches!(
         error.kind(),
         LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output))
-            if output.axis() == Axis::Horizontal
+            if output.axis() == PhysicalAxis::Horizontal
     ));
 }
 

@@ -261,7 +261,7 @@ fn leaf_measurement_rejects_negative_provider_width() {
     else {
         panic!("expected invalid measurement output");
     };
-    assert_eq!(error.axis(), Axis::Horizontal);
+    assert_eq!(error.axis(), PhysicalAxis::Horizontal);
     assert_eq!(
         error.error(),
         NonNegativeFiniteScalarErrorOf::Negative { value: -1.0 }
@@ -291,7 +291,7 @@ fn leaf_measurement_rejects_nan_provider_height() {
     else {
         panic!("expected invalid measurement output");
     };
-    assert_eq!(error.axis(), Axis::Vertical);
+    assert_eq!(error.axis(), PhysicalAxis::Vertical);
     let NonNegativeFiniteScalarErrorOf::NonFinite { value } = error.error() else {
         panic!("expected non-finite scalar error");
     };
@@ -415,7 +415,7 @@ fn f64_leaf_measurement_rejects_infinite_provider_height() {
     else {
         panic!("expected invalid measurement output");
     };
-    assert_eq!(error.axis(), Axis::Vertical);
+    assert_eq!(error.axis(), PhysicalAxis::Vertical);
     assert_eq!(
         error.error(),
         NonNegativeFiniteScalarErrorOf::NonFinite {

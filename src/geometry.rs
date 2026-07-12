@@ -2,22 +2,12 @@ use core::ops::{Add, Sub};
 
 use super::{Direction, FlexDirection, LayoutScalar, Scalar, WritingMode};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Axis {
-    Horizontal,
-    Vertical,
-}
-
-impl Axis {
-    #[must_use]
-    pub const fn other(self) -> Self {
-        match self {
-            Self::Horizontal => Self::Vertical,
-            Self::Vertical => Self::Horizontal,
-        }
-    }
-}
-
+/// A physical x/y coordinate axis.
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalAxis;
+/// let _ = PhysicalAxis::default();
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PhysicalAxis {
     Horizontal,
@@ -34,6 +24,12 @@ impl PhysicalAxis {
     }
 }
 
+/// A flow-relative axis used by crate-private layout algorithms.
+///
+/// ```compile_fail
+/// use surgeist_layout::LogicalAxis;
+/// let _ = LogicalAxis::default();
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LogicalAxis {
     Inline,
@@ -49,7 +45,7 @@ impl LogicalAxis {
         )
     )]
     #[must_use]
-    pub const fn other(self) -> Self {
+    pub(crate) const fn other(self) -> Self {
         match self {
             Self::Inline => Self::Block,
             Self::Block => Self::Inline,
@@ -70,6 +66,12 @@ impl PhysicalProgression {
     }
 }
 
+/// A side of a physical rectangle.
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalSide;
+/// let _ = PhysicalSide::default();
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PhysicalSide {
     Top,
@@ -105,6 +107,15 @@ impl PhysicalSide {
     }
 }
 
+/// Resolved physical axes and sides for one writing mode and used direction.
+///
+/// `FlowAxes` is constructed explicitly from a `WritingMode` and the already-
+/// resolved used inline `Direction`; it has no context-free fallback.
+///
+/// ```compile_fail
+/// use surgeist_layout::FlowAxes;
+/// let _ = FlowAxes::default();
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FlowAxes {
     writing_mode: WritingMode,
@@ -120,6 +131,7 @@ struct FlowMapping {
 }
 
 impl FlowAxes {
+    /// Resolves the physical mapping for `writing_mode` and used `direction`.
     #[must_use]
     pub const fn new(writing_mode: WritingMode, direction: Direction) -> Self {
         Self {
@@ -128,21 +140,25 @@ impl FlowAxes {
         }
     }
 
+    /// Returns the writing mode used to construct this mapping.
     #[must_use]
     pub const fn writing_mode(self) -> WritingMode {
         self.writing_mode
     }
 
+    /// Returns the used inline direction used to construct this mapping.
     #[must_use]
     pub const fn direction(self) -> Direction {
         self.direction
     }
 
+    /// Returns the physical axis containing the logical inline axis.
     #[must_use]
     pub const fn inline_axis(self) -> PhysicalAxis {
         self.mapping().inline_axis
     }
 
+    /// Returns the physical axis containing the logical block axis.
     #[must_use]
     pub const fn block_axis(self) -> PhysicalAxis {
         self.inline_axis().other()
@@ -174,31 +190,37 @@ impl FlowAxes {
         edge_at_side(edges, self.line_under())
     }
 
+    /// Returns the physical side at logical inline start.
     #[must_use]
     pub const fn inline_start(self) -> PhysicalSide {
         self.mapping().inline_start
     }
 
+    /// Returns the physical side at logical inline end.
     #[must_use]
     pub const fn inline_end(self) -> PhysicalSide {
         self.inline_start().opposite()
     }
 
+    /// Returns the physical side at logical block start.
     #[must_use]
     pub const fn block_start(self) -> PhysicalSide {
         self.mapping().block_start
     }
 
+    /// Returns the physical side at logical block end.
     #[must_use]
     pub const fn block_end(self) -> PhysicalSide {
         self.block_start().opposite()
     }
 
+    /// Returns the physical side at the line-over edge.
     #[must_use]
     pub const fn line_over(self) -> PhysicalSide {
         self.mapping().line_over
     }
 
+    /// Returns the physical side at the line-under edge.
     #[must_use]
     pub const fn line_under(self) -> PhysicalSide {
         self.line_over().opposite()

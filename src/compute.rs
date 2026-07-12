@@ -1,10 +1,9 @@
 use super::{
-    AspectRatioOf, AvailableOf, Axis, BoxSizing, CacheAccess, Compute, ComputeInputOf,
-    ComputeOutputOf, DefaultScalar, Direction, Edges, LayoutCacheClearEntry,
-    LayoutCacheStoreEntryOf, LayoutInputOf, LayoutOutputEntryOf, LayoutRootContextOf,
-    LayoutRootRequestOf, LayoutScalar, LengthResolutionOf, LengthResolutionStatus, NodeInputOf,
-    NodeOutputOf, NonNegativeFiniteOf, NonNegativeFiniteScalarErrorOf, Point, Position, Round,
-    RunMode, Size, SizingMode, Traverse,
+    AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, Compute, ComputeInputOf, ComputeOutputOf,
+    DefaultScalar, Direction, Edges, LayoutCacheClearEntry, LayoutCacheStoreEntryOf, LayoutInputOf,
+    LayoutOutputEntryOf, LayoutRootContextOf, LayoutRootRequestOf, LayoutScalar,
+    LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, NonNegativeFiniteOf,
+    NonNegativeFiniteScalarErrorOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
@@ -99,7 +98,7 @@ pub type LayoutErrorKind<M = core::convert::Infallible> = LayoutErrorKindOf<Defa
 #[non_exhaustive]
 pub enum LayoutInvalidInputOf<S: LayoutScalar = DefaultScalar> {
     RootAvailability {
-        axis: Axis,
+        axis: PhysicalAxis,
         error: NonNegativeFiniteScalarErrorOf<S>,
     },
     MeasurementOutput(InvalidMeasurementOutputOf<S>),
@@ -884,15 +883,16 @@ pub type LeafMeasureError<M> = LeafMeasureErrorOf<DefaultScalar, M>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InvalidMeasurementOutputOf<S: LayoutScalar = DefaultScalar> {
-    axis: super::Axis,
+    axis: PhysicalAxis,
     error: NonNegativeFiniteScalarErrorOf<S>,
 }
 
 pub type InvalidMeasurementOutput = InvalidMeasurementOutputOf<DefaultScalar>;
 
 impl<S: LayoutScalar> InvalidMeasurementOutputOf<S> {
+    /// Returns the physical axis of the rejected measurement output.
     #[must_use]
-    pub const fn axis(self) -> super::Axis {
+    pub const fn axis(self) -> PhysicalAxis {
         self.axis
     }
 
@@ -1173,15 +1173,15 @@ where
     S: LayoutScalar,
 {
     let width = NonNegativeFiniteOf::new(measured.width)
-        .map_err(|error| invalid_measurement_output(super::Axis::Horizontal, error))?;
+        .map_err(|error| invalid_measurement_output(PhysicalAxis::Horizontal, error))?;
     let height = NonNegativeFiniteOf::new(measured.height)
-        .map_err(|error| invalid_measurement_output(super::Axis::Vertical, error))?;
+        .map_err(|error| invalid_measurement_output(PhysicalAxis::Vertical, error))?;
 
     Ok(Size::new(width.get(), height.get()))
 }
 
 fn invalid_measurement_output<S, M>(
-    axis: super::Axis,
+    axis: PhysicalAxis,
     error: NonNegativeFiniteScalarErrorOf<S>,
 ) -> LeafMeasureErrorOf<S, M>
 where

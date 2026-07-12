@@ -613,17 +613,17 @@ fn root_request_rejects_invalid_definite_availability() {
     let cases = [
         (
             Size::new(Available::definite(-1.0), Available::MAX_CONTENT),
-            Axis::Horizontal,
+            PhysicalAxis::Horizontal,
             NonNegativeFiniteScalarErrorOf::Negative { value: -1.0 },
         ),
         (
             Size::new(Available::definite(f32::NAN), Available::MAX_CONTENT),
-            Axis::Horizontal,
+            PhysicalAxis::Horizontal,
             NonNegativeFiniteScalarErrorOf::NonFinite { value: f32::NAN },
         ),
         (
             Size::new(Available::MAX_CONTENT, Available::definite(f32::INFINITY)),
-            Axis::Vertical,
+            PhysicalAxis::Vertical,
             NonNegativeFiniteScalarErrorOf::NonFinite {
                 value: f32::INFINITY,
             },
@@ -660,7 +660,7 @@ fn root_request_rejects_invalid_definite_availability() {
         flex_context,
     )
     .unwrap_err();
-    assert_eq!(error.axis(), Axis::Horizontal);
+    assert_eq!(error.axis(), PhysicalAxis::Horizontal);
     assert_eq!(
         error.scalar(),
         NonNegativeFiniteScalarErrorOf::Negative { value: -2.0 }
@@ -1010,7 +1010,7 @@ fn compute_layout_rejects_invalid_provider_output_without_batch() {
     assert!(matches!(
         error.kind(),
         LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output))
-            if output.axis() == Axis::Horizontal
+            if output.axis() == PhysicalAxis::Horizontal
     ));
     let LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output)) = error.kind()
     else {

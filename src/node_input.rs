@@ -73,6 +73,11 @@ pub enum BoxSizing {
     BorderBox,
 }
 
+/// The already-resolved used inline direction for layout input.
+///
+/// This is not an authored CSS `direction` token. Root style and text
+/// integration resolve authored direction effects before constructing a layout
+/// input.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Direction {
     #[default]
@@ -160,6 +165,10 @@ pub enum VerticalAlign {
     Top,
 }
 
+/// The writing-mode state supplied to layout.
+///
+/// The five supported values are `HorizontalTb`, `VerticalRl`, `VerticalLr`,
+/// `SidewaysRl`, and `SidewaysLr`.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum WritingMode {
     #[default]
@@ -581,18 +590,18 @@ impl FlexDirection {
     }
 
     #[must_use]
-    pub const fn main_axis(self) -> super::Axis {
+    pub const fn main_axis(self) -> super::PhysicalAxis {
         match self {
-            Self::Row | Self::RowReverse => super::Axis::Horizontal,
-            Self::Column | Self::ColumnReverse => super::Axis::Vertical,
+            Self::Row | Self::RowReverse => super::PhysicalAxis::Horizontal,
+            Self::Column | Self::ColumnReverse => super::PhysicalAxis::Vertical,
         }
     }
 
     #[must_use]
-    pub const fn cross_axis(self) -> super::Axis {
+    pub const fn cross_axis(self) -> super::PhysicalAxis {
         match self {
-            Self::Row | Self::RowReverse => super::Axis::Vertical,
-            Self::Column | Self::ColumnReverse => super::Axis::Horizontal,
+            Self::Row | Self::RowReverse => super::PhysicalAxis::Vertical,
+            Self::Column | Self::ColumnReverse => super::PhysicalAxis::Horizontal,
         }
     }
 }

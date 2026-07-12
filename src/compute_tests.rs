@@ -93,7 +93,7 @@ fn layout_error_accessors_preserve_typed_site_operation_kind_and_source() {
         LayoutErrorSite::Node(3),
         LayoutOperation::RootLayout,
         LayoutErrorKind::InvalidInput(LayoutInvalidInput::RootAvailability {
-            axis: Axis::Horizontal,
+            axis: PhysicalAxis::Horizontal,
             error: NonNegativeFiniteScalarErrorOf::Negative { value: -2.0 },
         }),
     );
@@ -101,7 +101,7 @@ fn layout_error_accessors_preserve_typed_site_operation_kind_and_source() {
     assert_eq!(
         scalar_error.kind(),
         &LayoutErrorKind::InvalidInput(LayoutInvalidInput::RootAvailability {
-            axis: Axis::Horizontal,
+            axis: PhysicalAxis::Horizontal,
             error: NonNegativeFiniteScalarErrorOf::Negative { value: -2.0 },
         })
     );
@@ -150,7 +150,7 @@ fn assert_leaf_input_error<S: LayoutScalar>(
     constructor: LeafInputConstructor<S>,
     known: Size<Option<S>>,
     parent: Size<Option<S>>,
-    axis: Axis,
+    axis: PhysicalAxis,
     case: InvalidLeafInputScalar,
 ) {
     let error = constructor(
@@ -216,28 +216,28 @@ fn assert_leaf_input_constructors_validate_all_scalars<S: LayoutScalar>() {
                 constructor,
                 Size::new(Some(value), Some(S::ZERO)),
                 Size::new(Some(S::ZERO), Some(S::ZERO)),
-                Axis::Horizontal,
+                PhysicalAxis::Horizontal,
                 case,
             );
             assert_leaf_input_error(
                 constructor,
                 Size::new(Some(S::ZERO), Some(value)),
                 Size::new(Some(S::ZERO), Some(S::ZERO)),
-                Axis::Vertical,
+                PhysicalAxis::Vertical,
                 case,
             );
             assert_leaf_input_error(
                 constructor,
                 Size::new(Some(S::ZERO), Some(S::ZERO)),
                 Size::new(Some(value), Some(S::ZERO)),
-                Axis::Horizontal,
+                PhysicalAxis::Horizontal,
                 case,
             );
             assert_leaf_input_error(
                 constructor,
                 Size::new(Some(S::ZERO), Some(S::ZERO)),
                 Size::new(Some(S::ZERO), Some(value)),
-                Axis::Vertical,
+                PhysicalAxis::Vertical,
                 case,
             );
         }

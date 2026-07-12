@@ -29,10 +29,10 @@ fn flex_direction_reports_main_cross_and_reverse_axes() {
     assert!(FlexDirection::ColumnReverse.is_column());
     assert!(!FlexDirection::Row.is_reverse());
     assert!(FlexDirection::RowReverse.is_reverse());
-    assert_eq!(FlexDirection::Row.main_axis(), Axis::Horizontal);
-    assert_eq!(FlexDirection::Row.cross_axis(), Axis::Vertical);
-    assert_eq!(FlexDirection::Column.main_axis(), Axis::Vertical);
-    assert_eq!(FlexDirection::Column.cross_axis(), Axis::Horizontal);
+    assert_eq!(FlexDirection::Row.main_axis(), PhysicalAxis::Horizontal);
+    assert_eq!(FlexDirection::Row.cross_axis(), PhysicalAxis::Vertical);
+    assert_eq!(FlexDirection::Column.main_axis(), PhysicalAxis::Vertical);
+    assert_eq!(FlexDirection::Column.cross_axis(), PhysicalAxis::Horizontal);
 }
 
 #[test]

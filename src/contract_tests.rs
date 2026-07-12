@@ -487,3 +487,170 @@ fn collapsible_margins_preserve_css_block_collapse_rules() {
 
     assert_eq!(margins.resolve(), 4.0);
 }
+
+#[test]
+fn public_flow_axes_cover_every_writing_mode_and_direction() {
+    let cases = [
+        (
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            PhysicalAxis::Horizontal,
+            PhysicalAxis::Vertical,
+            PhysicalSide::Left,
+            PhysicalSide::Top,
+            PhysicalSide::Top,
+        ),
+        (
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            PhysicalAxis::Horizontal,
+            PhysicalAxis::Vertical,
+            PhysicalSide::Right,
+            PhysicalSide::Top,
+            PhysicalSide::Top,
+        ),
+        (
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Top,
+            PhysicalSide::Right,
+            PhysicalSide::Right,
+        ),
+        (
+            WritingMode::VerticalRl,
+            Direction::Rtl,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Bottom,
+            PhysicalSide::Right,
+            PhysicalSide::Right,
+        ),
+        (
+            WritingMode::VerticalLr,
+            Direction::Ltr,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Top,
+            PhysicalSide::Left,
+            PhysicalSide::Right,
+        ),
+        (
+            WritingMode::VerticalLr,
+            Direction::Rtl,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Bottom,
+            PhysicalSide::Left,
+            PhysicalSide::Right,
+        ),
+        (
+            WritingMode::SidewaysRl,
+            Direction::Ltr,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Top,
+            PhysicalSide::Right,
+            PhysicalSide::Right,
+        ),
+        (
+            WritingMode::SidewaysRl,
+            Direction::Rtl,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Bottom,
+            PhysicalSide::Right,
+            PhysicalSide::Right,
+        ),
+        (
+            WritingMode::SidewaysLr,
+            Direction::Ltr,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Bottom,
+            PhysicalSide::Left,
+            PhysicalSide::Left,
+        ),
+        (
+            WritingMode::SidewaysLr,
+            Direction::Rtl,
+            PhysicalAxis::Vertical,
+            PhysicalAxis::Horizontal,
+            PhysicalSide::Top,
+            PhysicalSide::Left,
+            PhysicalSide::Left,
+        ),
+    ];
+
+    for (writing_mode, direction, inline_axis, block_axis, inline_start, block_start, line_over) in
+        cases
+    {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+
+        assert_eq!(flow_axes.writing_mode(), writing_mode);
+        assert_eq!(flow_axes.direction(), direction);
+        assert_eq!(flow_axes.inline_axis(), inline_axis);
+        assert_eq!(flow_axes.block_axis(), block_axis);
+        assert_eq!(flow_axes.inline_start(), inline_start);
+        assert_eq!(flow_axes.inline_end(), inline_start.opposite());
+        assert_eq!(flow_axes.block_start(), block_start);
+        assert_eq!(flow_axes.block_end(), block_start.opposite());
+        assert_eq!(flow_axes.line_over(), line_over);
+        assert_eq!(flow_axes.line_under(), line_over.opposite());
+    }
+}
+
+#[test]
+fn public_leaf_construction_retains_explicit_containing_flow() {
+    let flow_axes = FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr);
+    let known = Size::new(Some(120.0), None);
+    let parent = Size::new(Some(640.0), Some(480.0));
+    let available = Size::new(Available::definite(640.0), Available::definite(480.0));
+
+    let layout = ComputeInput::leaf_layout(known, parent, flow_axes, available)
+        .expect("finite direct leaf layout input");
+    let content_size = ComputeInput::leaf_content_size(known, parent, flow_axes, available)
+        .expect("finite direct leaf content-size input");
+
+    assert_eq!(layout.containing_flow_axes(), flow_axes);
+    assert_eq!(content_size.containing_flow_axes(), flow_axes);
+}
+
+#[test]
+fn public_diagnostics_report_physical_axes() {
+    let root_error =
+        LayoutRootRequest::viewport(Size::new(Available::definite(-1.0), Available::MAX_CONTENT))
+            .expect_err("negative physical width is rejected");
+    assert_eq!(root_error.axis(), PhysicalAxis::Horizontal);
+
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let input = ComputeInput::leaf_layout(
+        Size::NONE,
+        Size::new(Some(640.0), Some(480.0)),
+        flow_axes,
+        Size::new(Available::definite(640.0), Available::definite(480.0)),
+    )
+    .expect("finite direct leaf input");
+    let error = compute_leaf(input, &NodeInput::default(), |_| {
+        Ok::<_, ()>(Size::new(-1.0, 0.0))
+    })
+    .expect_err("negative measurement output is rejected");
+    let LayoutErrorKind::InvalidInput(LayoutInvalidInput::MeasurementOutput(output)) = error.kind()
+    else {
+        panic!("expected an invalid measurement output diagnostic");
+    };
+    assert_eq!(output.axis(), PhysicalAxis::Horizontal);
+}
+
+#[test]
+fn node_input_default_retains_horizontal_tb_ltr_for_both_scalar_lanes() {
+    fn assert_default_flow<S: LayoutScalar>() {
+        let input = NodeInputOf::<S>::default();
+        assert_eq!(input.writing_mode, WritingMode::HorizontalTb);
+        assert_eq!(input.direction, Direction::Ltr);
+    }
+
+    assert_default_flow::<f32>();
+    assert_default_flow::<f64>();
+}

@@ -1,8 +1,8 @@
 use super::{
-    AvailableOf, Axis, CacheKeyContext, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
-    NonNegativeFiniteScalarErrorOf, Point, ScrollGeometryOf, Size,
+    AvailableOf, CacheKeyContext, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
+    NonNegativeFiniteScalarErrorOf, PhysicalAxis, Point, ScrollGeometryOf, Size,
 };
-use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
+use crate::geometry::{FlowAxes, PhysicalSide};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RunMode {
@@ -38,6 +38,10 @@ pub(crate) enum RequestedAxis {
     Both,
 }
 
+/// Direct and recursive compute state.
+///
+/// Direct leaf callers construct this state with `leaf_layout` or
+/// `leaf_content_size` and must supply the containing `FlowAxes` explicitly.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
     run_mode: RunMode,
@@ -52,6 +56,10 @@ pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
 pub type ComputeInput = ComputeInputOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ComputeInputOf<S> {
+    /// Constructs direct leaf input for a full layout operation.
+    ///
+    /// `containing_flow_axes` describes the containing block and is never
+    /// inferred from the measured leaf.
     pub fn leaf_layout(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
@@ -69,6 +77,10 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
         })
     }
 
+    /// Constructs direct leaf input for a content-size operation.
+    ///
+    /// `containing_flow_axes` describes the containing block and is never
+    /// inferred from the measured leaf.
     pub fn leaf_content_size(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
@@ -86,6 +98,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
         })
     }
 
+    /// Returns the explicitly supplied containing flow mapping.
     #[must_use]
     pub const fn containing_flow_axes(&self) -> FlowAxes {
         self.containing_flow_axes
@@ -192,15 +205,16 @@ pub enum LayoutRoundingMode {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RootAvailabilityErrorOf<S: LayoutScalar = DefaultScalar> {
-    axis: Axis,
+    axis: PhysicalAxis,
     scalar: NonNegativeFiniteScalarErrorOf<S>,
 }
 
 pub type RootAvailabilityError = RootAvailabilityErrorOf<DefaultScalar>;
 
 impl<S: LayoutScalar> RootAvailabilityErrorOf<S> {
+    /// Returns the rejected physical availability axis.
     #[must_use]
-    pub const fn axis(&self) -> Axis {
+    pub const fn axis(&self) -> PhysicalAxis {
         self.axis
     }
 
@@ -311,8 +325,8 @@ where
     S: LayoutScalar,
 {
     Ok(Size::new(
-        validate_root_available_axis(Axis::Horizontal, available.width)?,
-        validate_root_available_axis(Axis::Vertical, available.height)?,
+        validate_root_available_axis(PhysicalAxis::Horizontal, available.width)?,
+        validate_root_available_axis(PhysicalAxis::Vertical, available.height)?,
     ))
 }
 
@@ -323,13 +337,13 @@ where
     S: LayoutScalar,
 {
     Ok(Size::new(
-        validate_optional_axis(Axis::Horizontal, size.width)?,
-        validate_optional_axis(Axis::Vertical, size.height)?,
+        validate_optional_axis(PhysicalAxis::Horizontal, size.width)?,
+        validate_optional_axis(PhysicalAxis::Vertical, size.height)?,
     ))
 }
 
 fn validate_optional_axis<S>(
-    axis: Axis,
+    axis: PhysicalAxis,
     value: Option<S>,
 ) -> Result<Option<S>, RootAvailabilityErrorOf<S>>
 where
@@ -345,7 +359,7 @@ where
 }
 
 fn validate_root_available_axis<S>(
-    axis: Axis,
+    axis: PhysicalAxis,
     available: AvailableOf<S>,
 ) -> Result<AvailableOf<S>, RootAvailabilityErrorOf<S>>
 where

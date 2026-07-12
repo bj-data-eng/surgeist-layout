@@ -16,6 +16,10 @@
 //! non-negative content-space constraints and provider failures or invalid output
 //! become typed layout errors. `DefaultScalar` and `Scalar` use `f32`; generic
 //! `*Of<S>` contracts support end-to-end `f32` and `f64` scalar lanes.
+//!
+//! ```compile_fail
+//! use surgeist_layout::{LogicalEdgesOf, LogicalPointOf, LogicalRectOf, LogicalSizeOf};
+//! ```
 
 mod block;
 mod cache;
@@ -58,7 +62,7 @@ pub use compute::{
 pub(crate) use compute::{compute_hidden, compute_root, round_layout};
 #[cfg(test)]
 pub(crate) use flex::compute_flex;
-pub use geometry::{Axis, Edges, Point, Size};
+pub use geometry::{Edges, FlowAxes, LogicalAxis, PhysicalAxis, PhysicalSide, Point, Size};
 pub use grid::{
     DefiniteLaneIntrinsicItem, DefiniteLaneIntrinsicItemOf, GridAxisKind, GridComputation,
     GridComputationOf, GridComputationReport, IndefiniteLaneContributionGroup,
