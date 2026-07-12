@@ -1,6 +1,6 @@
 # FRI-01-C04 Initiative Closure
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-01-C04`
 
