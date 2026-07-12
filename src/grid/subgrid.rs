@@ -1,4 +1,6 @@
 use super::*;
+use crate::geometry::PhysicalAxis;
+use crate::output::PhysicalBaseline;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct GridSubgridReport<Node> {
@@ -471,8 +473,9 @@ pub(super) struct SubgridTrackInheritanceReport<S: LayoutScalar = Scalar> {
 
 #[derive(Clone, Copy)]
 pub(super) struct SubgridBaselineInheritanceInput<'a, S: LayoutScalar = Scalar> {
-    pub(super) parent_major: &'a [Option<S>],
-    pub(super) parent_minor: &'a [Option<S>],
+    pub(super) parent_major: &'a [Option<PhysicalBaseline<S>>],
+    pub(super) parent_minor: &'a [Option<PhysicalBaseline<S>>],
+    pub(super) physical_axis: PhysicalAxis,
     pub(super) parent_span: GridTrackSpan,
     pub(super) reversed: bool,
     pub(super) start_mbp: S,
@@ -490,14 +493,14 @@ pub(super) struct SubgridBaselineInheritanceReport<S: LayoutScalar = Scalar> {
     pub(super) parent_gap: S,
     pub(super) subgrid_gap: S,
     pub(super) gap_difference: S,
-    pub(super) sliced_major: Vec<Option<S>>,
-    pub(super) sliced_minor: Vec<Option<S>>,
-    pub(super) after_reversal_major: Vec<Option<S>>,
-    pub(super) after_reversal_minor: Vec<Option<S>>,
-    pub(super) after_mbp_major: Vec<Option<S>>,
-    pub(super) after_mbp_minor: Vec<Option<S>>,
-    pub(super) final_major: Vec<Option<S>>,
-    pub(super) final_minor: Vec<Option<S>>,
+    pub(super) sliced_major: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) sliced_minor: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) after_reversal_major: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) after_reversal_minor: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) after_mbp_major: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) after_mbp_minor: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) final_major: Vec<Option<PhysicalBaseline<S>>>,
+    pub(super) final_minor: Vec<Option<PhysicalBaseline<S>>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -537,20 +540,20 @@ pub(super) fn inherit_subgrid_baselines<S: LayoutScalar>(
     }
 
     let mut after_mbp_major = after_reversal_major.clone();
-    if let Some(first_major) = after_mbp_major.first_mut().and_then(Option::as_mut) {
-        *first_major = *first_major - input.start_mbp;
+    if let Some(first_major) = after_mbp_major.first_mut() {
+        subtract_baseline(first_major, input.start_mbp, input.physical_axis);
     }
 
     let mut after_mbp_minor = after_reversal_minor.clone();
-    if let Some(last_minor) = after_mbp_minor.last_mut().and_then(Option::as_mut) {
-        *last_minor = *last_minor - input.end_mbp;
+    if let Some(last_minor) = after_mbp_minor.last_mut() {
+        subtract_baseline(last_minor, input.end_mbp, input.physical_axis);
     }
 
     let gap_difference = (input.subgrid_gap - input.parent_gap) / S::from_f64(2.0);
     let mut final_major = after_mbp_major.clone();
     let mut final_minor = after_mbp_minor.clone();
-    subtract_internal_gap_difference(&mut final_major, gap_difference);
-    subtract_internal_gap_difference(&mut final_minor, gap_difference);
+    subtract_internal_gap_difference(&mut final_major, gap_difference, input.physical_axis);
+    subtract_internal_gap_difference(&mut final_minor, gap_difference, input.physical_axis);
 
     Ok(SubgridBaselineInheritanceReport {
         parent_span: input.parent_span,
@@ -631,18 +634,35 @@ pub(super) fn inherit_subgrid_tracks<S: LayoutScalar>(
     })
 }
 
-fn subtract_internal_gap_difference<S: LayoutScalar>(groups: &mut [Option<S>], gap_difference: S) {
+fn subtract_baseline<S: LayoutScalar>(
+    baseline: &mut Option<PhysicalBaseline<S>>,
+    amount: S,
+    expected_axis: PhysicalAxis,
+) {
+    if let Some(current) = baseline
+        .as_ref()
+        .filter(|baseline| baseline.axis() == expected_axis)
+        .copied()
+    {
+        *baseline = Some(PhysicalBaseline::new(
+            current.axis(),
+            current.coordinate() - amount,
+        ));
+    }
+}
+
+fn subtract_internal_gap_difference<S: LayoutScalar>(
+    groups: &mut [Option<PhysicalBaseline<S>>],
+    gap_difference: S,
+    expected_axis: PhysicalAxis,
+) {
     if groups.len() < 2 {
         return;
     }
 
     for edge in 0..(groups.len() - 1) {
-        if let Some(baseline) = &mut groups[edge] {
-            *baseline = *baseline - gap_difference;
-        }
-        if let Some(baseline) = &mut groups[edge + 1] {
-            *baseline = *baseline - gap_difference;
-        }
+        subtract_baseline(&mut groups[edge], gap_difference, expected_axis);
+        subtract_baseline(&mut groups[edge + 1], gap_difference, expected_axis);
     }
 }
 

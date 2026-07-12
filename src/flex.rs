@@ -5,6 +5,8 @@ use super::{
     NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
+use crate::geometry::{FlowAxes, PhysicalAxis};
+use crate::output::PhysicalBaseline;
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
 };
@@ -229,6 +231,54 @@ impl<S: LayoutScalar> Constants<S> {
 }
 
 #[derive(Clone, Copy, Debug)]
+struct FlexItemBaseline<S: LayoutScalar> {
+    flow_axes: FlowAxes,
+    measured: Option<PhysicalBaseline<S>>,
+}
+
+impl<S: LayoutScalar> FlexItemBaseline<S> {
+    fn from_output(output: ComputeOutputOf<S>, flow_axes: FlowAxes) -> Self {
+        Self {
+            flow_axes,
+            measured: output.baselines().first_block_baseline(flow_axes),
+        }
+    }
+
+    fn refresh(&mut self, output: ComputeOutputOf<S>) {
+        self.measured = output.baselines().first_block_baseline(self.flow_axes);
+    }
+
+    fn physical(self, size: Size<S>) -> PhysicalBaseline<S> {
+        self.measured.unwrap_or_else(|| {
+            BaselinesOf::NONE.first_or_synthesize_block_baseline(self.flow_axes, size)
+        })
+    }
+
+    fn axis(self, size: Size<S>) -> PhysicalAxis {
+        self.physical(size).axis()
+    }
+
+    fn value(self, size: Size<S>, margin: Edges<S>) -> S {
+        self.physical(size).coordinate() + self.flow_axes.line_over_edge(margin)
+    }
+
+    fn margin_box_size(self, size: Size<S>, margin: Edges<S>) -> S {
+        self.flow_axes.block_axis_extent(size)
+            + self.flow_axes.line_over_edge(margin)
+            + self.flow_axes.line_under_edge(margin)
+    }
+
+    fn has_auto_line_margin(self, margin_is_auto: Edges<bool>) -> bool {
+        self.flow_axes.line_over_edge(margin_is_auto)
+            || self.flow_axes.line_under_edge(margin_is_auto)
+    }
+
+    fn translated(self, size: Size<S>, location: Point<S>) -> Point<Option<S>> {
+        self.physical(size).translated(location)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 struct CollectedFlexItem<Node, S: LayoutScalar> {
     node: Node,
     order: u32,
@@ -253,7 +303,7 @@ struct CollectedFlexItem<Node, S: LayoutScalar> {
     overflow: Point<Overflow>,
     scrollbar_width_value: S,
     align_self: AlignItems,
-    initial_baseline: S,
+    initial_baseline: FlexItemBaseline<S>,
     flex_grow_factor: S,
     flex_shrink_factor: S,
 }
@@ -282,7 +332,7 @@ struct ResolvedFlexItem<Node, S: LayoutScalar> {
     overflow: Point<Overflow>,
     scrollbar_width_value: S,
     align_self: AlignItems,
-    baseline: S,
+    baseline: FlexItemBaseline<S>,
     flex_grow_factor: S,
     flex_shrink_factor: S,
     offset_main: S,
@@ -293,12 +343,9 @@ struct ResolvedFlexItem<Node, S: LayoutScalar> {
 struct FinalFlexItem<Node, S: LayoutScalar> {
     _node: core::marker::PhantomData<Node>,
     output: ComputeOutputOf<S>,
-    margin: Edges<S>,
     overflow: Point<Overflow>,
     align_self: AlignItems,
-    baseline: S,
-    offset_main: S,
-    offset_cross: S,
+    baseline: FlexItemBaseline<S>,
     location: Point<S>,
 }
 
@@ -644,8 +691,8 @@ where
             .clamp_optional(raw_min_size.cross(direction), raw_max_size.cross(direction))
             .max(padding_border.sum_axes().cross(direction)),
     );
-    let baseline = output.baselines().first_or_synthesize_block(output.size)
-        + margin.cross_start(constants.direction, constants.layout_direction);
+    let child_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let baseline = FlexItemBaseline::from_output(output, child_flow_axes);
 
     Ok(CollectedFlexItem {
         node,
@@ -1105,7 +1152,7 @@ where
                 )
                 .max(padding_border_cross)
         } else {
-            tree.compute_child(
+            let measured = tree.compute_child(
                 item.node,
                 ComputeInputOf::for_child(
                     RunMode::ComputeSize,
@@ -1132,14 +1179,16 @@ where
                         available_cross,
                     ),
                 ),
-            )?
-            .size
-            .cross(direction)
-            .clamp_optional(
-                item.min_size.cross(direction),
-                item.max_size.cross(direction),
-            )
-            .max(padding_border_cross)
+            )?;
+            item.baseline.refresh(measured);
+            measured
+                .size
+                .cross(direction)
+                .clamp_optional(
+                    item.min_size.cross(direction),
+                    item.max_size.cross(direction),
+                )
+                .max(padding_border_cross)
         }
     };
 
@@ -1258,7 +1307,8 @@ fn align_items_on_cross_axis<Node, S: LayoutScalar>(
     constants: &Constants<S>,
 ) {
     let direction = constants.direction;
-    let max_baseline = max_line_baseline(items);
+    let cross_axis = flex_cross_axis(direction);
+    let max_baseline = max_line_baseline(items, cross_axis);
     for item in items {
         resolve_cross_axis_auto_margins(item, line_cross_size, constants);
         let outer_cross_size = item.target_size.cross(direction) + item.margin.cross_sum(direction);
@@ -1287,7 +1337,11 @@ fn align_items_on_cross_axis<Node, S: LayoutScalar>(
                     free_space
                 }
             }
-            AlignItems::Baseline if direction.is_row() => max_baseline - item.baseline,
+            AlignItems::Baseline
+                if direction.is_row() && item.baseline.axis(item.target_size) == cross_axis =>
+            {
+                max_baseline - item.baseline.value(item.target_size, item.margin)
+            }
             AlignItems::Baseline
                 if constants.wraps && constants.layout_direction == Direction::Rtl =>
             {
@@ -1298,11 +1352,15 @@ fn align_items_on_cross_axis<Node, S: LayoutScalar>(
                 unreachable!("safe_fallback returns unsafe item alignment")
             }
         };
-        item.offset_cross = line_cross_offset
-            + item
-                .margin
+        let line_over_margin = if item.align_self == AlignItems::Baseline
+            && item.baseline.axis(item.target_size) == cross_axis
+        {
+            item.baseline.flow_axes.line_over_edge(item.margin)
+        } else {
+            item.margin
                 .cross_start(direction, constants.layout_direction)
-            + alignment_offset;
+        };
+        item.offset_cross = line_cross_offset + line_over_margin + alignment_offset;
     }
 }
 
@@ -1310,7 +1368,8 @@ fn line_cross_size<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) -> S {
-    let max_baseline = max_line_baseline(items);
+    let cross_axis = flex_cross_axis(constants.direction);
+    let max_baseline = max_line_baseline(items, cross_axis);
     items
         .iter()
         .map(|item| line_item_cross_size(item, max_baseline, constants))
@@ -1326,61 +1385,69 @@ fn line_item_cross_size<Node, S: LayoutScalar>(
     let outer_cross_size = item.target_size.cross(direction) + item.margin.cross_sum(direction);
     if item.align_self == AlignItems::Baseline
         && direction.is_row()
-        && !item
-            .margin_is_auto
-            .cross_start(direction, constants.layout_direction)
-        && !item
-            .margin_is_auto
-            .cross_end(direction, constants.layout_direction)
+        && item.baseline.axis(item.target_size) == flex_cross_axis(direction)
+        && !item.baseline.has_auto_line_margin(item.margin_is_auto)
     {
-        return max_baseline - item.baseline + outer_cross_size;
+        return max_baseline - item.baseline.value(item.target_size, item.margin)
+            + item.baseline.margin_box_size(item.target_size, item.margin);
     }
 
     outer_cross_size
 }
 
-fn max_line_baseline<Node, S: LayoutScalar>(items: &[ResolvedFlexItem<Node, S>]) -> S {
+fn max_line_baseline<Node, S: LayoutScalar>(
+    items: &[ResolvedFlexItem<Node, S>],
+    cross_axis: PhysicalAxis,
+) -> S {
     items
         .iter()
-        .filter(|item| item.align_self == AlignItems::Baseline)
-        .map(|item| item.baseline)
+        .filter(|item| {
+            item.align_self == AlignItems::Baseline
+                && item.baseline.axis(item.target_size) == cross_axis
+        })
+        .map(|item| item.baseline.value(item.target_size, item.margin))
         .fold(S::ZERO, S::max)
+}
+
+fn flex_cross_axis(direction: FlexDirection) -> PhysicalAxis {
+    if direction.is_row() {
+        PhysicalAxis::Vertical
+    } else {
+        PhysicalAxis::Horizontal
+    }
 }
 
 fn first_vertical_baseline<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     lines: &[FlexLine<S>],
     constants: &Constants<S>,
-) -> Option<S> {
+) -> Option<Point<Option<S>>> {
     let line = lines.first()?;
     let line_items = &items[line.start..line.end];
     let item = line_items
         .iter()
         .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
         .or_else(|| line_items.first())?;
-    let baseline_cross_offset = constants
-        .content_box_inset
-        .cross_start(constants.direction, constants.layout_direction)
-        + item.offset_cross
-        + item.baseline
-        - item
-            .margin
-            .cross_start(constants.direction, constants.layout_direction);
-    Some(if constants.direction.is_row() {
-        baseline_cross_offset
-    } else {
-        constants.content_box_inset.main_start(constants.direction)
-            + item.offset_main
-            + item.baseline
-            - item.margin_main_start(constants)
-    })
+    let location = Point::from_main_cross(
+        constants.direction,
+        constants.content_box_inset.main_start(constants.direction) + item.offset_main,
+        constants
+            .content_box_inset
+            .cross_start(constants.direction, constants.layout_direction)
+            + item.offset_cross,
+    );
+    Some(item_physical_baseline(
+        location,
+        item.target_size,
+        item.baseline,
+    ))
 }
 
 fn last_vertical_baseline<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     lines: &[FlexLine<S>],
     constants: &Constants<S>,
-) -> Option<S> {
+) -> Option<Point<Option<S>>> {
     let line = lines.last()?;
     let line_items = &items[line.start..line.end];
     let item = line_items
@@ -1388,41 +1455,36 @@ fn last_vertical_baseline<Node, S: LayoutScalar>(
         .rev()
         .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
         .or_else(|| line_items.last())?;
-    let baseline_cross_offset = constants
-        .content_box_inset
-        .cross_start(constants.direction, constants.layout_direction)
-        + item.offset_cross
-        + item.baseline
-        - item
-            .margin
-            .cross_start(constants.direction, constants.layout_direction);
-    Some(if constants.direction.is_row() {
-        baseline_cross_offset
-    } else {
-        constants.content_box_inset.main_start(constants.direction)
-            + item.offset_main
-            + item.baseline
-            - item.margin_main_start(constants)
-    })
+    let location = Point::from_main_cross(
+        constants.direction,
+        constants.content_box_inset.main_start(constants.direction) + item.offset_main,
+        constants
+            .content_box_inset
+            .cross_start(constants.direction, constants.layout_direction)
+            + item.offset_cross,
+    );
+    Some(item_physical_baseline(
+        location,
+        item.target_size,
+        item.baseline,
+    ))
 }
 
 fn first_final_vertical_baseline<Node, S: LayoutScalar>(
     items: &[FinalFlexItem<Node, S>],
     lines: &[FlexLine<S>],
     constants: &Constants<S>,
-) -> Option<S> {
+) -> Option<Point<Option<S>>> {
     let line = lines.first()?;
     let line_items = &items[line.start..line.end];
     let item = line_items
         .iter()
         .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
         .or_else(|| line_items.first())?;
-    Some(item_vertical_baseline(
-        item.offset_main,
-        item.offset_cross,
+    Some(item_physical_baseline(
+        item.location,
+        item.output.size,
         item.baseline,
-        item.margin,
-        constants,
     ))
 }
 
@@ -1430,7 +1492,7 @@ fn last_final_vertical_baseline<Node, S: LayoutScalar>(
     items: &[FinalFlexItem<Node, S>],
     lines: &[FlexLine<S>],
     constants: &Constants<S>,
-) -> Option<S> {
+) -> Option<Point<Option<S>>> {
     let line = lines.last()?;
     let line_items = &items[line.start..line.end];
     let item = line_items
@@ -1438,34 +1500,19 @@ fn last_final_vertical_baseline<Node, S: LayoutScalar>(
         .rev()
         .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
         .or_else(|| line_items.last())?;
-    Some(item_vertical_baseline(
-        item.offset_main,
-        item.offset_cross,
+    Some(item_physical_baseline(
+        item.location,
+        item.output.size,
         item.baseline,
-        item.margin,
-        constants,
     ))
 }
 
-fn item_vertical_baseline<S: LayoutScalar>(
-    offset_main: S,
-    offset_cross: S,
-    baseline: S,
-    margin: Edges<S>,
-    constants: &Constants<S>,
-) -> S {
-    let baseline_cross_offset = constants
-        .content_box_inset
-        .cross_start(constants.direction, constants.layout_direction)
-        + offset_cross
-        + baseline
-        - margin.cross_start(constants.direction, constants.layout_direction);
-    if constants.direction.is_row() {
-        baseline_cross_offset
-    } else {
-        constants.content_box_inset.main_start(constants.direction) + offset_main + baseline
-            - margin.main_start(constants.direction)
-    }
+fn item_physical_baseline<S: LayoutScalar>(
+    location: Point<S>,
+    size: Size<S>,
+    baseline: FlexItemBaseline<S>,
+) -> Point<Option<S>> {
+    baseline.translated(size, location)
 }
 
 fn item_scrollbar_size<S: LayoutScalar>(
@@ -2082,8 +2129,8 @@ fn container_output<Node, S: LayoutScalar>(
         output_size,
         content_size,
         BaselinesOf {
-            first: Point::new(None, first_baseline),
-            last: Point::new(None, last_baseline),
+            first: first_baseline.unwrap_or(Point::NONE),
+            last: last_baseline.unwrap_or(Point::NONE),
         },
     )
 }
@@ -2567,10 +2614,8 @@ where
             resolved_flex_basis,
             constants,
         );
-        let baseline = output.baselines().first_or_synthesize_block(output.size)
-            + item
-                .margin
-                .cross_start(direction, constants.layout_direction);
+        let child_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+        let baseline = FlexItemBaseline::from_output(output, child_flow_axes);
         let location = Point::from_main_cross(
             direction,
             item.final_main_location(constants, output.size),
@@ -2593,12 +2638,9 @@ where
         final_items.push(FinalFlexItem {
             _node: core::marker::PhantomData,
             output,
-            margin: item.margin,
             overflow: item.overflow,
             align_self: item.align_self,
             baseline,
-            offset_main: item.offset_main,
-            offset_cross: item.offset_cross,
             location,
         });
     }

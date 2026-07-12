@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use super::lanes::*;
 use super::tracks::*;
 use super::*;
+use crate::geometry::PhysicalAxis;
 use crate::test_support::{
     self as lts,
     layout_tree::{OracleMeasurement, OracleTree},
@@ -1186,6 +1187,95 @@ fn grid_lanes_reports_synthesized_container_baselines() {
 
     assert_eq!(output.first_baselines.y, Some(20.0));
     assert_eq!(output.last_baselines.y, Some(0.0));
+}
+
+fn assert_physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x<S: LayoutScalar>()
+where
+    lts::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    for display in [Display::Grid, Display::GridLanes] {
+        let child_baselines = ComputeOutputOf::from_sizes_and_baselines(
+            Size::new(S::from_f64(70.0), S::from_f64(20.0)),
+            Size::new(S::from_f64(70.0), S::from_f64(20.0)),
+            BaselinesOf {
+                first: Point::new(Some(S::from_f64(7.0)), None),
+                last: Point::new(Some(S::from_f64(11.0)), None),
+            },
+        );
+        let mut tree = lts::layout_tree::OracleTreeOf::<S>::new()
+            .children(1, [2])
+            .children(2, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display,
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(120.0)),
+                        DimensionOf::px(S::from_f64(80.0)),
+                    ),
+                    grid_template_columns: vec![TrackComponentOf::px(S::from_f64(120.0))],
+                    grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    writing_mode: WritingMode::VerticalRl,
+                    align_self: Some(AlignItems::Start),
+                    margin: Edges::new(
+                        LengthAutoOf::px(S::from_f64(17.0)),
+                        LengthAutoOf::px(S::from_f64(5.0)),
+                        LengthAutoOf::px(S::from_f64(13.0)),
+                        LengthAutoOf::px(S::from_f64(11.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(2, child_baselines);
+
+        let output = compute_grid(
+            &mut tree,
+            1,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(80.0))),
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                Size::new(
+                    AvailableOf::definite(S::from_f64(120.0)),
+                    AvailableOf::definite(S::from_f64(80.0)),
+                ),
+            ),
+        )
+        .expect("grid layout succeeds");
+        let child = tree.layout(2).expect("grid child layout is staged");
+
+        assert_eq!(
+            child.location,
+            Point::new(S::from_f64(11.0), S::from_f64(17.0))
+        );
+        assert_eq!(
+            output.first_baselines,
+            Point::new(Some(child.location.x + S::from_f64(7.0)), None)
+        );
+        assert_eq!(
+            output.last_baselines,
+            Point::new(Some(child.location.x + S::from_f64(11.0)), None)
+        );
+    }
+}
+
+#[test]
+fn physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x_for_f32() {
+    assert_physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x::<f32>();
+}
+
+#[test]
+fn physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x_for_f64() {
+    assert_physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x::<f64>();
 }
 
 #[test]
@@ -2405,6 +2495,67 @@ fn row_subgrid_child_inherits_parent_baseline_group() {
 }
 
 #[test]
+fn orthogonal_baseline_subgrid_does_not_group_incompatible_physical_axes() {
+    let vertical_child_baselines = ComputeOutput::from_sizes_and_baselines(
+        Size::new(30.0, 20.0),
+        Size::new(30.0, 20.0),
+        Baselines {
+            first: Point::new(Some(15.0), None),
+            last: Point::new(Some(21.0), None),
+        },
+    );
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [4])
+        .children(4, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+                grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
+                grid_template_rows: vec![TrackComponent::px(80.0)],
+                align_items: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_template_columns: vec![TrackComponent::px(60.0)],
+                grid_template_rows: vec![empty_subgrid_track()],
+                align_items: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                writing_mode: WritingMode::VerticalRl,
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInput::default()
+            },
+        )
+        .measure(2, baseline_measure(30.0, 20.0, Some(45.0), None))
+        .measure(4, vertical_child_baselines);
+
+    compute_oracle_grid(&mut tree);
+
+    assert_eq!(final_y(&tree, 3), 0.0);
+}
+
+#[test]
 fn row_subgrid_inherited_baseline_accounts_for_margin_border_padding() {
     let mut tree = OracleTree::new()
         .children(1, [2, 3])
@@ -2611,6 +2762,130 @@ fn sibling_row_subgrids_revisit_inherited_published_baselines() {
     compute_oracle_grid(&mut tree);
 
     assert_eq!(final_y(&tree, 5), 62.0);
+}
+
+fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
+    incompatible_first: bool,
+) where
+    lts::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let root_children = if incompatible_first { [2, 3] } else { [3, 2] };
+    let incompatible_baselines = ComputeOutputOf::from_sizes_and_baselines(
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        BaselinesOf {
+            first: Point::new(Some(S::from_f64(15.0)), None),
+            last: Point::NONE,
+        },
+    );
+    let compatible_baselines = ComputeOutputOf::from_sizes_and_baselines(
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        BaselinesOf {
+            first: Point::new(None, Some(S::from_f64(14.0))),
+            last: Point::NONE,
+        },
+    );
+    let mut tree = lts::layout_tree::OracleTreeOf::<S>::new()
+        .children(1, root_children)
+        .children(2, [4])
+        .children(3, [5])
+        .children(4, [])
+        .children(5, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    DimensionOf::px(S::from_f64(120.0)),
+                    DimensionOf::px(S::from_f64(80.0)),
+                ),
+                grid_template_columns: vec![
+                    TrackComponentOf::px(S::from_f64(60.0)),
+                    TrackComponentOf::px(S::from_f64(60.0)),
+                ],
+                grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
+                align_items: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            3,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            4,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalRl,
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            5,
+            NodeInputOf {
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(4, incompatible_baselines)
+        .measure(5, compatible_baselines);
+
+    let output = compute_grid(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(80.0))),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(120.0)),
+                AvailableOf::definite(S::from_f64(80.0)),
+            ),
+        ),
+    )
+    .expect("sibling subgrid layout succeeds");
+
+    assert_eq!(
+        output.first_baselines,
+        Point::new(Some(S::from_f64(15.0)), Some(S::from_f64(14.0)))
+    );
+    assert_eq!(output.last_baselines, Point::new(None, Some(S::ZERO)));
+}
+
+#[test]
+fn baseline_group_order_rejects_incompatible_published_baselines_for_f32() {
+    assert_published_baseline_group_order_keeps_compatible_axis::<f32>(true);
+    assert_published_baseline_group_order_keeps_compatible_axis::<f32>(false);
+}
+
+#[test]
+fn baseline_group_order_rejects_incompatible_published_baselines_for_f64() {
+    assert_published_baseline_group_order_keeps_compatible_axis::<f64>(true);
+    assert_published_baseline_group_order_keeps_compatible_axis::<f64>(false);
 }
 
 #[test]
@@ -14418,7 +14693,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         tracks: vec![10.0, 20.0],
         named_lines: named_lines.clone(),
         area_facts: None,
-        major_baselines: vec![Some(2.0)],
+        major_baselines: vec![Some(tagged_baseline(PhysicalAxis::Horizontal, 2.0))],
         minor_baselines: vec![None],
         parent_start: 0,
         parent_end: 2,
@@ -14537,16 +14812,8 @@ fn shared_grid_contexts_accept_non_default_scalar() {
 
 #[test]
 fn grid_child_pure_helpers_accept_non_default_scalar() {
-    let geometry = BaselineGeometry::<f64> {
-        available_span_size: 80.0,
-        margin_box_size: 30.0,
-        major_baseline: 12.5,
-        minor_baseline: 7.25,
-    };
-    let shared = TrackBaselineGroup::<f64> {
-        first: Some(20.0),
-        last: Some(10.0),
-    };
+    let geometry = tagged_geometry(PhysicalAxis::Vertical, 80.0, 30.0, 12.5, 7.25);
+    let shared = tagged_group(PhysicalAxis::Vertical, Some(20.0), Some(10.0));
 
     assert_eq!(
         baseline_shim_for_intrinsic_contribution(
@@ -14558,6 +14825,7 @@ fn grid_child_pure_helpers_accept_non_default_scalar() {
             },
             geometry,
             shared,
+            PhysicalAxis::Vertical,
         ),
         BaselineShim::<f64> {
             before: 7.5,
@@ -14565,8 +14833,13 @@ fn grid_child_pure_helpers_accept_non_default_scalar() {
         }
     );
     assert_eq!(
-        baseline_offset(BaselineGroupKind::Minor, 10.0_f64, geometry),
-        47.25
+        baseline_offset(
+            BaselineGroupKind::Minor,
+            tagged_baseline(PhysicalAxis::Vertical, 10.0_f64),
+            geometry,
+            PhysicalAxis::Vertical,
+        ),
+        Some(47.25)
     );
     assert_eq!(spanned_track_size(&[10.0_f64, 20.0, 30.0], 0, 3, 2.5), 65.0);
 
@@ -14639,9 +14912,27 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
             margin_start: 3.0,
             margin_end: 5.0,
         },
+        child_flow_axes: crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         relative_offset: Point::<f64>::ZERO,
-        first_baseline: 8.0,
-        last_baseline: 22.0,
+        first_baseline: BaselinesOf {
+            first: Point::new(None, Some(8.0)),
+            last: Point::NONE,
+        }
+        .first_block_baseline(crate::geometry::FlowAxes::new(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+        ))
+        .expect("the test baseline is present"),
+        last_baseline: BaselinesOf {
+            first: Point::NONE,
+            last: Point::new(None, Some(22.0)),
+        }
+        .last_block_baseline(crate::geometry::FlowAxes::new(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+        ))
+        .expect("the test baseline is present"),
+        location: Point::ZERO,
         published_row_baselines: None,
         block_offset: 0.0,
         block_auto_margins: false,
@@ -14651,17 +14942,26 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
             synthesized: false,
             fallback_alignment: None,
         },
-        margin: Edges::new(0.0, 0.0, 3.0, 5.0),
+        margin: Edges::new(3.0, 0.0, 5.0, 0.0),
         scrollbar_size: Size::ZERO,
         border: Edges::ZERO,
         padding: Edges::ZERO,
         overflow: Point::new(Overflow::Visible, Overflow::Visible),
     };
 
-    let groups = baseline_groups(std::slice::from_ref(&item), 2, 1);
-    assert_eq!(groups.rows[0].first, Some(11.0));
+    let groups = baseline_groups(std::slice::from_ref(&item), 2, 1, PhysicalAxis::Vertical);
     assert_eq!(
-        baseline_aligned_block_offset(&item, &groups, &[40.0_f64, 40.0], 10.0),
+        groups.rows[0].first,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 11.0))
+    );
+    assert_eq!(
+        baseline_aligned_block_offset(
+            &item,
+            &groups,
+            &[40.0_f64, 40.0],
+            10.0,
+            PhysicalAxis::Vertical,
+        ),
         Some(3.0)
     );
 
@@ -14680,15 +14980,12 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         end_mbp: 2.5,
         gap_difference: 0.25,
     };
-    let published = publish_row_baseline_groups(&groups.rows, &axis);
+    let published = publish_row_baseline_groups(&groups.rows, &axis, PhysicalAxis::Vertical);
     assert_eq!(
         published,
         vec![PublishedTrackBaselineGroup::<f64> {
             parent_index: 0,
-            group: TrackBaselineGroup {
-                first: Some(12.75),
-                last: None,
-            },
+            group: tagged_group(PhysicalAxis::Vertical, Some(12.75), None),
         }]
     );
 
@@ -14706,8 +15003,15 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     assert_eq!(inherited.final_tracks, vec![16.0, 24.0]);
 
     let inherited_baselines = inherit_subgrid_baselines(SubgridBaselineInheritanceInput::<f64> {
-        parent_major: &[Some(9.0), Some(17.0)],
-        parent_minor: &[Some(4.0), Some(6.0)],
+        parent_major: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 9.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 17.0)),
+        ],
+        parent_minor: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 4.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
+        ],
+        physical_axis: PhysicalAxis::Vertical,
         parent_span: GridTrackSpan::new(1, 3),
         reversed: false,
         start_mbp: 2.0,
@@ -14717,8 +15021,20 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     })
     .unwrap();
     assert_eq!(inherited_baselines.gap_difference, 2.0);
-    assert_eq!(inherited_baselines.final_major, vec![Some(5.0), Some(15.0)]);
-    assert_eq!(inherited_baselines.final_minor, vec![Some(2.0), Some(0.0)]);
+    assert_eq!(
+        inherited_baselines.final_major,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 5.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 15.0)),
+        ]
+    );
+    assert_eq!(
+        inherited_baselines.final_minor,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 2.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 0.0)),
+        ]
+    );
 
     let (layout_tracks, layout_gap) =
         inherited_subgrid_layout_tracks(GridAxisKind::Row, &inherited);
@@ -16063,9 +16379,27 @@ fn baseline_test_item(
             margin_start: 0.0,
             margin_end: 0.0,
         },
+        child_flow_axes: crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         relative_offset: Point::ZERO,
-        first_baseline: first,
-        last_baseline: last,
+        first_baseline: Baselines {
+            first: Point::new(None, Some(first)),
+            last: Point::NONE,
+        }
+        .first_block_baseline(crate::geometry::FlowAxes::new(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+        ))
+        .expect("the test baseline is present"),
+        last_baseline: Baselines {
+            first: Point::NONE,
+            last: Point::new(None, Some(last)),
+        }
+        .last_block_baseline(crate::geometry::FlowAxes::new(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+        ))
+        .expect("the test baseline is present"),
+        location: Point::ZERO,
         published_row_baselines: None,
         block_offset: 0.0,
         block_auto_margins: false,
@@ -16162,9 +16496,12 @@ fn row_baselines_choose_first_baseline_for_first_group() {
         baseline_test_item(0, 1, 1, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 2);
+    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
 
-    assert_eq!(groups.rows[0].first, Some(14.0));
+    assert_eq!(
+        groups.rows[0].first,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 14.0))
+    );
 }
 
 #[test]
@@ -16174,9 +16511,12 @@ fn row_baselines_choose_last_baseline_for_last_group() {
         baseline_test_item(0, 1, 2, AlignItems::LastBaseline, 8.0, 18.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 2);
+    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
 
-    assert_eq!(groups.rows[1].last, Some(12.0));
+    assert_eq!(
+        groups.rows[1].last,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 12.0))
+    );
 }
 
 #[test]
@@ -16186,10 +16526,16 @@ fn row_baselines_keep_first_groups_per_start_row() {
         baseline_test_item(1, 0, 1, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 1);
+    let groups = baseline_groups(&items, 2, 1, PhysicalAxis::Vertical);
 
-    assert_eq!(groups.rows[0].first, Some(8.0));
-    assert_eq!(groups.rows[1].first, Some(14.0));
+    assert_eq!(
+        groups.rows[0].first,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 8.0))
+    );
+    assert_eq!(
+        groups.rows[1].first,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 14.0))
+    );
 }
 
 #[test]
@@ -16199,10 +16545,16 @@ fn row_baselines_keep_last_groups_per_end_row() {
         baseline_test_item(1, 0, 1, AlignItems::LastBaseline, 8.0, 18.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 1);
+    let groups = baseline_groups(&items, 2, 1, PhysicalAxis::Vertical);
 
-    assert_eq!(groups.rows[0].last, Some(8.0));
-    assert_eq!(groups.rows[1].last, Some(12.0));
+    assert_eq!(
+        groups.rows[0].last,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 8.0))
+    );
+    assert_eq!(
+        groups.rows[1].last,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 12.0))
+    );
 }
 
 #[test]
@@ -16224,20 +16576,12 @@ fn published_row_baselines_map_reversed_subgrid_back_to_parent_rows() {
     };
     let published = publish_row_baseline_groups(
         &[
-            TrackBaselineGroup {
-                first: Some(10.0),
-                last: None,
-            },
-            TrackBaselineGroup {
-                first: Some(20.0),
-                last: Some(6.0),
-            },
-            TrackBaselineGroup {
-                first: None,
-                last: Some(12.0),
-            },
+            tagged_group(PhysicalAxis::Vertical, Some(10.0), None),
+            tagged_group(PhysicalAxis::Vertical, Some(20.0), Some(6.0)),
+            tagged_group(PhysicalAxis::Vertical, None, Some(12.0)),
         ],
         &axis,
+        PhysicalAxis::Vertical,
     );
 
     assert_eq!(
@@ -16245,24 +16589,15 @@ fn published_row_baselines_map_reversed_subgrid_back_to_parent_rows() {
         vec![
             PublishedTrackBaselineGroup {
                 parent_index: 3,
-                group: TrackBaselineGroup {
-                    first: Some(11.0),
-                    last: None,
-                },
+                group: tagged_group(PhysicalAxis::Vertical, Some(11.0), None),
             },
             PublishedTrackBaselineGroup {
                 parent_index: 2,
-                group: TrackBaselineGroup {
-                    first: Some(16.0),
-                    last: Some(2.0),
-                },
+                group: tagged_group(PhysicalAxis::Vertical, Some(16.0), Some(2.0)),
             },
             PublishedTrackBaselineGroup {
                 parent_index: 1,
-                group: TrackBaselineGroup {
-                    first: None,
-                    last: Some(17.0),
-                },
+                group: tagged_group(PhysicalAxis::Vertical, None, Some(17.0)),
             },
         ]
     );
@@ -16273,9 +16608,12 @@ fn empty_published_row_baselines_do_not_suppress_item_fallback() {
     let mut item = baseline_test_item(0, 0, 1, AlignItems::Baseline, 9.0, 11.0, 20.0);
     item.published_row_baselines = Some(Vec::new());
 
-    let groups = baseline_groups(&[item], 1, 1);
+    let groups = baseline_groups(&[item], 1, 1, PhysicalAxis::Vertical);
 
-    assert_eq!(groups.rows[0].first, Some(9.0));
+    assert_eq!(
+        groups.rows[0].first,
+        Some(tagged_baseline(PhysicalAxis::Vertical, 9.0))
+    );
 }
 
 #[test]
@@ -16290,7 +16628,7 @@ fn baseline_groups_columns_are_default_filled_to_grid_width() {
         30.0,
     )];
 
-    let groups = baseline_groups(&items, 1, 3);
+    let groups = baseline_groups(&items, 1, 3, PhysicalAxis::Vertical);
 
     assert_eq!(groups.columns, vec![TrackBaselineGroup::default(); 3],);
 }
@@ -16306,64 +16644,48 @@ fn spanned_track_size_counts_tracks_and_internal_gaps() {
 fn baseline_offset_major_uses_margin_box_baseline() {
     let offset = baseline_offset(
         BaselineGroupKind::Major,
-        20.0,
-        BaselineGeometry {
-            available_span_size: 70.0,
-            margin_box_size: 40.0,
-            major_baseline: 14.0,
-            minor_baseline: 12.0,
-        },
+        tagged_baseline(PhysicalAxis::Vertical, 20.0),
+        tagged_geometry(PhysicalAxis::Vertical, 70.0, 40.0, 14.0, 12.0),
+        PhysicalAxis::Vertical,
     );
 
-    assert_eq!(offset, 6.0);
+    assert_eq!(offset, Some(6.0));
 }
 
 #[test]
 fn baseline_offset_minor_uses_alignment_context_end() {
     let offset = baseline_offset(
         BaselineGroupKind::Minor,
-        18.0,
-        BaselineGeometry {
-            available_span_size: 70.0,
-            margin_box_size: 40.0,
-            major_baseline: 14.0,
-            minor_baseline: 12.0,
-        },
+        tagged_baseline(PhysicalAxis::Vertical, 18.0),
+        tagged_geometry(PhysicalAxis::Vertical, 70.0, 40.0, 14.0, 12.0),
+        PhysicalAxis::Vertical,
     );
 
-    assert_eq!(offset, 24.0);
+    assert_eq!(offset, Some(24.0));
 }
 
 #[test]
 fn baseline_offset_major_allows_row_spanning_gap_area() {
     let offset = baseline_offset(
         BaselineGroupKind::Major,
-        14.0,
-        BaselineGeometry {
-            available_span_size: 90.0,
-            margin_box_size: 30.0,
-            major_baseline: 8.0,
-            minor_baseline: 10.0,
-        },
+        tagged_baseline(PhysicalAxis::Vertical, 14.0),
+        tagged_geometry(PhysicalAxis::Vertical, 90.0, 30.0, 8.0, 10.0),
+        PhysicalAxis::Vertical,
     );
 
-    assert_eq!(offset, 6.0);
+    assert_eq!(offset, Some(6.0));
 }
 
 #[test]
 fn baseline_offset_minor_allows_row_spanning_gap_area() {
     let offset = baseline_offset(
         BaselineGroupKind::Minor,
-        14.0,
-        BaselineGeometry {
-            available_span_size: 90.0,
-            margin_box_size: 30.0,
-            major_baseline: 8.0,
-            minor_baseline: 10.0,
-        },
+        tagged_baseline(PhysicalAxis::Vertical, 14.0),
+        tagged_geometry(PhysicalAxis::Vertical, 90.0, 30.0, 8.0, 10.0),
+        PhysicalAxis::Vertical,
     );
 
-    assert_eq!(offset, 56.0);
+    assert_eq!(offset, Some(56.0));
 }
 
 #[test]
@@ -16375,16 +16697,9 @@ fn baseline_shim_for_intrinsic_contribution_first_grows_before_item() {
             synthesized: false,
             fallback_alignment: Some(AlignItems::Start),
         },
-        BaselineGeometry {
-            available_span_size: 40.0,
-            margin_box_size: 30.0,
-            major_baseline: 6.0,
-            minor_baseline: 8.0,
-        },
-        TrackBaselineGroup {
-            first: Some(18.0),
-            last: Some(12.0),
-        },
+        tagged_geometry(PhysicalAxis::Vertical, 40.0, 30.0, 6.0, 8.0),
+        tagged_group(PhysicalAxis::Vertical, Some(18.0), Some(12.0)),
+        PhysicalAxis::Vertical,
     );
 
     assert_eq!(
@@ -16405,16 +16720,9 @@ fn baseline_shim_for_intrinsic_contribution_last_grows_after_item() {
             synthesized: false,
             fallback_alignment: Some(AlignItems::End),
         },
-        BaselineGeometry {
-            available_span_size: 40.0,
-            margin_box_size: 30.0,
-            major_baseline: 6.0,
-            minor_baseline: 2.0,
-        },
-        TrackBaselineGroup {
-            first: Some(18.0),
-            last: Some(12.0),
-        },
+        tagged_geometry(PhysicalAxis::Vertical, 40.0, 30.0, 6.0, 2.0),
+        tagged_group(PhysicalAxis::Vertical, Some(18.0), Some(12.0)),
+        PhysicalAxis::Vertical,
     );
 
     assert_eq!(
@@ -16435,16 +16743,9 @@ fn baseline_shim_for_intrinsic_contribution_nonparticipant_is_zero() {
             synthesized: false,
             fallback_alignment: None,
         },
-        BaselineGeometry {
-            available_span_size: 40.0,
-            margin_box_size: 30.0,
-            major_baseline: 6.0,
-            minor_baseline: 2.0,
-        },
-        TrackBaselineGroup {
-            first: Some(18.0),
-            last: Some(12.0),
-        },
+        tagged_geometry(PhysicalAxis::Vertical, 40.0, 30.0, 6.0, 2.0),
+        tagged_group(PhysicalAxis::Vertical, Some(18.0), Some(12.0)),
+        PhysicalAxis::Vertical,
     );
 
     assert_eq!(shim, BaselineShim::default());
@@ -16452,20 +16753,19 @@ fn baseline_shim_for_intrinsic_contribution_nonparticipant_is_zero() {
 
 #[test]
 fn baseline_shim_for_intrinsic_contribution_synthesized_baseline_participates() {
-    let participation = baseline_participation(AlignItems::Baseline, false, false, Baselines::NONE);
+    let participation = baseline_participation(
+        AlignItems::Baseline,
+        false,
+        false,
+        Baselines::NONE,
+        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    );
 
     let shim = baseline_shim_for_intrinsic_contribution(
         participation,
-        BaselineGeometry {
-            available_span_size: 40.0,
-            margin_box_size: 30.0,
-            major_baseline: 6.0,
-            minor_baseline: 2.0,
-        },
-        TrackBaselineGroup {
-            first: Some(18.0),
-            last: Some(12.0),
-        },
+        tagged_geometry(PhysicalAxis::Vertical, 40.0, 30.0, 6.0, 2.0),
+        tagged_group(PhysicalAxis::Vertical, Some(18.0), Some(12.0)),
+        PhysicalAxis::Vertical,
     );
 
     assert_eq!(
@@ -16483,14 +16783,14 @@ fn baseline_aligned_block_offset_first_single_row_item() {
         baseline_test_item(0, 0, 1, AlignItems::Baseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 1, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 1, 2);
+    let groups = baseline_groups(&items, 1, 2, PhysicalAxis::Vertical);
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0),
+        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
         Some(6.0)
     );
     assert_eq!(
-        baseline_aligned_block_offset(&items[1], &groups, &[40.0], 0.0),
+        baseline_aligned_block_offset(&items[1], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
         Some(0.0)
     );
 }
@@ -16501,10 +16801,16 @@ fn baseline_aligned_block_offset_first_spanning_item() {
         baseline_test_item(0, 0, 2, AlignItems::Baseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 2, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 2, 2);
+    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0, 40.0], 7.0),
+        baseline_aligned_block_offset(
+            &items[0],
+            &groups,
+            &[40.0, 40.0],
+            7.0,
+            PhysicalAxis::Vertical,
+        ),
         Some(6.0)
     );
 }
@@ -16515,14 +16821,14 @@ fn baseline_aligned_block_offset_last_single_row_item() {
         baseline_test_item(0, 0, 1, AlignItems::LastBaseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 1, AlignItems::LastBaseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 1, 2);
+    let groups = baseline_groups(&items, 1, 2, PhysicalAxis::Vertical);
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0),
+        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
         Some(14.0)
     );
     assert_eq!(
-        baseline_aligned_block_offset(&items[1], &groups, &[40.0], 0.0),
+        baseline_aligned_block_offset(&items[1], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
         Some(10.0)
     );
 }
@@ -16533,10 +16839,16 @@ fn baseline_aligned_block_offset_last_spanning_item() {
         baseline_test_item(0, 0, 2, AlignItems::LastBaseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 2, AlignItems::LastBaseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 2, 2);
+    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0, 40.0], 7.0),
+        baseline_aligned_block_offset(
+            &items[0],
+            &groups,
+            &[40.0, 40.0],
+            7.0,
+            PhysicalAxis::Vertical,
+        ),
         Some(61.0)
     );
 }
@@ -16549,10 +16861,16 @@ fn baseline_aligned_block_offset_first_and_last_include_margins() {
     ];
     first_items[0].vertical_axis.margin_start = 3.0;
     first_items[0].vertical_axis.margin_end = 5.0;
-    let first_groups = baseline_groups(&first_items, 1, 2);
+    let first_groups = baseline_groups(&first_items, 1, 2, PhysicalAxis::Vertical);
 
     assert_eq!(
-        baseline_aligned_block_offset(&first_items[0], &first_groups, &[40.0], 0.0),
+        baseline_aligned_block_offset(
+            &first_items[0],
+            &first_groups,
+            &[40.0],
+            0.0,
+            PhysicalAxis::Vertical,
+        ),
         Some(6.0)
     );
 
@@ -16562,10 +16880,16 @@ fn baseline_aligned_block_offset_first_and_last_include_margins() {
     ];
     last_items[0].vertical_axis.margin_start = 3.0;
     last_items[0].vertical_axis.margin_end = 5.0;
-    let last_groups = baseline_groups(&last_items, 1, 2);
+    let last_groups = baseline_groups(&last_items, 1, 2, PhysicalAxis::Vertical);
 
     assert_eq!(
-        baseline_aligned_block_offset(&last_items[0], &last_groups, &[40.0], 0.0),
+        baseline_aligned_block_offset(
+            &last_items[0],
+            &last_groups,
+            &[40.0],
+            0.0,
+            PhysicalAxis::Vertical,
+        ),
         Some(14.0)
     );
 }
@@ -16587,14 +16911,20 @@ fn baseline_aligned_block_offset_returns_none_without_group_baseline() {
     };
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0),
+        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
         None
     );
 }
 
 #[test]
 fn baseline_participation_rejects_block_auto_margins() {
-    let participation = baseline_participation(AlignItems::Baseline, true, false, Baselines::NONE);
+    let participation = baseline_participation(
+        AlignItems::Baseline,
+        true,
+        false,
+        Baselines::NONE,
+        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    );
 
     assert_eq!(
         participation,
@@ -16609,8 +16939,13 @@ fn baseline_participation_rejects_block_auto_margins() {
 
 #[test]
 fn baseline_participation_accepts_synthesized_baselines() {
-    let participation =
-        baseline_participation(AlignItems::LastBaseline, false, false, Baselines::NONE);
+    let participation = baseline_participation(
+        AlignItems::LastBaseline,
+        false,
+        false,
+        Baselines::NONE,
+        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    );
 
     assert_eq!(
         participation,
@@ -16620,6 +16955,513 @@ fn baseline_participation_accepts_synthesized_baselines() {
             synthesized: true,
             fallback_alignment: Some(AlignItems::End),
         }
+    );
+}
+
+fn tagged_baseline<S: LayoutScalar>(
+    axis: PhysicalAxis,
+    coordinate: S,
+) -> crate::output::PhysicalBaseline<S> {
+    let flow_axes = match axis {
+        PhysicalAxis::Horizontal => {
+            crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr)
+        }
+        PhysicalAxis::Vertical => {
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr)
+        }
+    };
+    let baselines = match axis {
+        PhysicalAxis::Horizontal => BaselinesOf {
+            first: Point::new(Some(coordinate), None),
+            last: Point::NONE,
+        },
+        PhysicalAxis::Vertical => BaselinesOf {
+            first: Point::new(None, Some(coordinate)),
+            last: Point::NONE,
+        },
+    };
+
+    baselines
+        .first_block_baseline(flow_axes)
+        .expect("the tagged physical baseline is present")
+}
+
+fn tagged_group<S: LayoutScalar>(
+    axis: PhysicalAxis,
+    first: Option<S>,
+    last: Option<S>,
+) -> TrackBaselineGroup<S> {
+    TrackBaselineGroup {
+        first: first.map(|coordinate| tagged_baseline(axis, coordinate)),
+        last: last.map(|coordinate| tagged_baseline(axis, coordinate)),
+    }
+}
+
+fn tagged_geometry<S: LayoutScalar>(
+    axis: PhysicalAxis,
+    available_span_size: S,
+    margin_box_size: S,
+    major_baseline: S,
+    minor_baseline: S,
+) -> BaselineGeometry<S> {
+    BaselineGeometry {
+        available_span_size,
+        margin_box_size,
+        major_baseline: tagged_baseline(axis, major_baseline),
+        minor_baseline: tagged_baseline(axis, minor_baseline),
+    }
+}
+
+fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
+    let child_flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
+    PendingGridItem {
+        node: (),
+        order: 0,
+        area: GridArea {
+            column: 0,
+            row: 0,
+            column_end: 1,
+            row_end: 1,
+            size: Size::new(S::from_f64(70.0), S::from_f64(80.0)),
+        },
+        output: ComputeOutputOf::from_sizes_and_baselines(
+            Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+            Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+            BaselinesOf {
+                first: Point::new(Some(S::from_f64(7.0)), None),
+                last: Point::new(Some(S::from_f64(11.0)), None),
+            },
+        ),
+        horizontal_axis: ResolvedGridItemAxis {
+            offset: S::ZERO,
+            margin_start: S::ZERO,
+            margin_end: S::ZERO,
+        },
+        vertical_axis: ResolvedGridItemAxis {
+            offset: S::ZERO,
+            margin_start: S::ZERO,
+            margin_end: S::ZERO,
+        },
+        child_flow_axes,
+        relative_offset: Point::ZERO,
+        first_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(7.0)),
+        last_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(11.0)),
+        location: Point::new(S::from_f64(17.0), S::from_f64(19.0)),
+        published_row_baselines: None,
+        block_offset: S::ZERO,
+        block_auto_margins: false,
+        baseline_participation: BaselineParticipation {
+            participates: true,
+            group: Some(BaselineGroupKind::Major),
+            synthesized: false,
+            fallback_alignment: Some(AlignItems::Start),
+        },
+        margin: Edges::ZERO,
+        scrollbar_size: Size::ZERO,
+        border: Edges::ZERO,
+        padding: Edges::ZERO,
+        overflow: Point::new(Overflow::Visible, Overflow::Visible),
+    }
+}
+
+fn assert_baseline_group_axis_rejects_incompatible_application<S: LayoutScalar>() {
+    let item = axis_baseline_item::<S>();
+    let groups = GridBaselineGroups {
+        rows: vec![TrackBaselineGroup {
+            first: Some(tagged_baseline(PhysicalAxis::Vertical, S::from_f64(45.0))),
+            last: None,
+        }],
+        columns: vec![TrackBaselineGroup::default()],
+    };
+
+    assert_eq!(
+        baseline_aligned_block_offset(
+            &item,
+            &groups,
+            &[S::from_f64(80.0)],
+            S::ZERO,
+            PhysicalAxis::Horizontal,
+        ),
+        None
+    );
+    assert_eq!(
+        item.location,
+        Point::new(S::from_f64(17.0), S::from_f64(19.0))
+    );
+
+    let baselines = grid_container_baselines(
+        std::slice::from_ref(&item),
+        &groups,
+        &[S::ZERO],
+        &[S::from_f64(80.0)],
+        crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+    )
+    .baselines;
+    assert_eq!(baselines.first, Point::new(Some(S::from_f64(24.0)), None));
+    assert_eq!(baselines.last, Point::new(Some(S::from_f64(28.0)), None));
+}
+
+fn assert_baseline_group_axis_preserves_compatible_application<S: LayoutScalar>() {
+    let item = axis_baseline_item::<S>();
+    let groups = GridBaselineGroups {
+        rows: vec![TrackBaselineGroup {
+            first: Some(tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(45.0))),
+            last: None,
+        }],
+        columns: vec![TrackBaselineGroup::default()],
+    };
+
+    assert_eq!(
+        baseline_aligned_block_offset(
+            &item,
+            &groups,
+            &[S::from_f64(80.0)],
+            S::ZERO,
+            PhysicalAxis::Horizontal,
+        ),
+        Some(S::from_f64(38.0))
+    );
+    let baselines = grid_container_baselines(
+        std::slice::from_ref(&item),
+        &groups,
+        &[S::ZERO],
+        &[S::from_f64(80.0)],
+        crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+    )
+    .baselines;
+    assert_eq!(baselines.first, Point::new(Some(S::from_f64(45.0)), None));
+    assert_eq!(baselines.last, Point::new(Some(S::from_f64(28.0)), None));
+}
+
+fn assert_baseline_group_axis_rejects_incompatible_intrinsic_shim<S: LayoutScalar>() {
+    let geometry = BaselineGeometry {
+        available_span_size: S::from_f64(80.0),
+        margin_box_size: S::from_f64(30.0),
+        major_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(7.0)),
+        minor_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(19.0)),
+    };
+    let shared = TrackBaselineGroup {
+        first: Some(tagged_baseline(PhysicalAxis::Vertical, S::from_f64(45.0))),
+        last: Some(tagged_baseline(PhysicalAxis::Vertical, S::from_f64(61.0))),
+    };
+    let participation = BaselineParticipation {
+        participates: true,
+        group: Some(BaselineGroupKind::Major),
+        synthesized: false,
+        fallback_alignment: Some(AlignItems::Start),
+    };
+
+    assert_eq!(
+        baseline_shim_for_intrinsic_contribution(
+            participation,
+            geometry,
+            shared,
+            PhysicalAxis::Horizontal,
+        ),
+        BaselineShim::default()
+    );
+}
+
+#[test]
+fn baseline_group_axis_rejects_incompatible_subgrid_application_for_f32() {
+    assert_baseline_group_axis_rejects_incompatible_application::<f32>();
+    assert_baseline_group_axis_preserves_compatible_application::<f32>();
+    assert_baseline_group_axis_rejects_incompatible_intrinsic_shim::<f32>();
+}
+
+#[test]
+fn baseline_group_axis_rejects_incompatible_subgrid_application_for_f64() {
+    assert_baseline_group_axis_rejects_incompatible_application::<f64>();
+    assert_baseline_group_axis_preserves_compatible_application::<f64>();
+    assert_baseline_group_axis_rejects_incompatible_intrinsic_shim::<f64>();
+}
+
+fn assert_orthogonal_baseline_subgrid_rejects_inherited_physical_y<S: LayoutScalar>()
+where
+    lts::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let child_baselines = ComputeOutputOf::from_sizes_and_baselines(
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+        BaselinesOf {
+            first: Point::new(Some(S::from_f64(7.0)), None),
+            last: Point::new(Some(S::from_f64(11.0)), None),
+        },
+    );
+    let mut tree = lts::layout_tree::OracleTreeOf::<S>::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(
+                    DimensionOf::px(S::from_f64(80.0)),
+                    DimensionOf::px(S::from_f64(60.0)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalRl,
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(2, child_baselines);
+    let parent_context = GridParentContext {
+        columns: None,
+        rows: Some(InheritedGridAxis {
+            offset: S::ZERO,
+            gap: S::ZERO,
+            tracks: vec![S::from_f64(80.0)],
+            named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
+            area_facts: None,
+            major_baselines: vec![Some(tagged_baseline(
+                PhysicalAxis::Vertical,
+                S::from_f64(45.0),
+            ))],
+            minor_baselines: vec![Some(tagged_baseline(
+                PhysicalAxis::Vertical,
+                S::from_f64(61.0),
+            ))],
+            parent_start: 0,
+            parent_end: 1,
+            reversed: false,
+            start_mbp: S::ZERO,
+            end_mbp: S::ZERO,
+            gap_difference: S::ZERO,
+        }),
+    };
+
+    let output = compute_grid_with_context(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(80.0)), Some(S::from_f64(60.0))),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(80.0)),
+                AvailableOf::definite(S::from_f64(60.0)),
+            ),
+        ),
+        parent_context,
+    )
+    .expect("orthogonal subgrid layout succeeds");
+    let child = tree.layout(2).expect("subgrid child layout is staged");
+
+    assert_eq!(child.location, Point::new(S::from_f64(50.0), S::ZERO));
+    assert_eq!(
+        output.first_baselines,
+        Point::new(Some(S::from_f64(57.0)), None)
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(Some(S::from_f64(61.0)), None)
+    );
+}
+
+#[test]
+fn orthogonal_baseline_subgrid_rejects_inherited_physical_y_for_f32() {
+    assert_orthogonal_baseline_subgrid_rejects_inherited_physical_y::<f32>();
+}
+
+#[test]
+fn orthogonal_baseline_subgrid_rejects_inherited_physical_y_for_f64() {
+    assert_orthogonal_baseline_subgrid_rejects_inherited_physical_y::<f64>();
+}
+
+fn assert_inherited_baseline_group_applies_on_the_same_physical_axis<S: LayoutScalar>()
+where
+    lts::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let mut tree = lts::layout_tree::OracleTreeOf::<S>::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    DimensionOf::px(S::from_f64(70.0)),
+                    DimensionOf::px(S::from_f64(80.0)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(S::from_f64(70.0))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                align_self: Some(AlignItems::Baseline),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_sizes_and_baselines(
+                Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+                Size::new(S::from_f64(30.0), S::from_f64(20.0)),
+                BaselinesOf {
+                    first: Point::new(None, Some(S::from_f64(7.0))),
+                    last: Point::new(None, Some(S::from_f64(11.0))),
+                },
+            ),
+        );
+    let parent_context = GridParentContext {
+        columns: None,
+        rows: Some(InheritedGridAxis {
+            offset: S::ZERO,
+            gap: S::ZERO,
+            tracks: vec![S::from_f64(80.0)],
+            named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
+            area_facts: None,
+            major_baselines: vec![Some(tagged_baseline(
+                PhysicalAxis::Vertical,
+                S::from_f64(45.0),
+            ))],
+            minor_baselines: vec![None],
+            parent_start: 0,
+            parent_end: 1,
+            reversed: false,
+            start_mbp: S::ZERO,
+            end_mbp: S::ZERO,
+            gap_difference: S::ZERO,
+        }),
+    };
+
+    let output = compute_grid_with_context(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(70.0)), Some(S::from_f64(80.0))),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(70.0)),
+                AvailableOf::definite(S::from_f64(80.0)),
+            ),
+        ),
+        parent_context,
+    )
+    .expect("parallel subgrid layout succeeds");
+    let child = tree.layout(2).expect("subgrid child layout is staged");
+
+    assert_eq!(child.location, Point::new(S::ZERO, S::from_f64(38.0)));
+    assert_eq!(
+        output.first_baselines,
+        Point::new(None, Some(S::from_f64(45.0)))
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(None, Some(S::from_f64(49.0)))
+    );
+}
+
+#[test]
+fn baseline_group_axis_applies_compatible_inherited_group_for_f32() {
+    assert_inherited_baseline_group_applies_on_the_same_physical_axis::<f32>();
+}
+
+#[test]
+fn baseline_group_axis_applies_compatible_inherited_group_for_f64() {
+    assert_inherited_baseline_group_applies_on_the_same_physical_axis::<f64>();
+}
+
+fn assert_intrinsic_baseline_geometry_uses_child_flow_axes<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    available_span_size: S,
+    margin_box_size: S,
+    major_baseline: S,
+    minor_baseline: S,
+) {
+    let output = ComputeOutputOf::from_sizes_and_baselines(
+        Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+        Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+        match writing_mode {
+            WritingMode::HorizontalTb => BaselinesOf {
+                first: Point::new(None, Some(S::from_f64(23.0))),
+                last: Point::new(None, Some(S::from_f64(31.0))),
+            },
+            WritingMode::VerticalRl | WritingMode::SidewaysLr => BaselinesOf {
+                first: Point::new(Some(S::from_f64(17.0)), None),
+                last: Point::new(Some(S::from_f64(29.0)), None),
+            },
+            WritingMode::VerticalLr | WritingMode::SidewaysRl => {
+                unreachable!("the regression covers one child flow per physical block axis")
+            }
+        },
+    );
+    let margin = Edges::new(
+        S::from_f64(3.0),
+        S::from_f64(7.0),
+        S::from_f64(13.0),
+        S::from_f64(19.0),
+    );
+
+    let flow_axes = crate::geometry::FlowAxes::new(writing_mode, Direction::Ltr);
+    assert_eq!(
+        baseline_geometry_for_intrinsic_contribution(output, margin, flow_axes,),
+        tagged_geometry(
+            flow_axes.block_axis(),
+            available_span_size,
+            margin_box_size,
+            major_baseline,
+            minor_baseline,
+        )
+    );
+}
+
+#[test]
+fn orthogonal_baseline_intrinsic_geometry_uses_child_block_extent_and_line_margins_for_f32() {
+    assert_intrinsic_baseline_geometry_uses_child_flow_axes::<f32>(
+        WritingMode::HorizontalTb,
+        0.0,
+        126.0,
+        26.0,
+        92.0,
+    );
+    assert_intrinsic_baseline_geometry_uses_child_flow_axes::<f32>(
+        WritingMode::VerticalRl,
+        0.0,
+        96.0,
+        24.0,
+        60.0,
+    );
+}
+
+#[test]
+fn orthogonal_baseline_intrinsic_geometry_uses_child_block_extent_and_line_margins_for_f64() {
+    assert_intrinsic_baseline_geometry_uses_child_flow_axes::<f64>(
+        WritingMode::HorizontalTb,
+        0.0,
+        126.0,
+        26.0,
+        92.0,
+    );
+    assert_intrinsic_baseline_geometry_uses_child_flow_axes::<f64>(
+        WritingMode::SidewaysLr,
+        0.0,
+        96.0,
+        36.0,
+        48.0,
     );
 }
 
@@ -17850,8 +18692,15 @@ fn subgrid_track_inheritance_expands_tracks_for_smaller_subgrid_gap() {
 #[test]
 fn subgrid_baselines_apply_negative_gap_difference_to_internal_edges() {
     let report = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
-        parent_major: &[Some(13.0), Some(20.0)],
-        parent_minor: &[Some(5.0), Some(20.0)],
+        parent_major: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 13.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 20.0)),
+        ],
+        parent_minor: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 5.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 20.0)),
+        ],
+        physical_axis: PhysicalAxis::Vertical,
         parent_span: GridTrackSpan::new(1, 3),
         reversed: false,
         start_mbp: 0.0,
@@ -17862,15 +18711,36 @@ fn subgrid_baselines_apply_negative_gap_difference_to_internal_edges() {
     .unwrap();
 
     assert_eq!(report.gap_difference, -5.0);
-    assert_eq!(report.final_major, vec![Some(18.0), Some(25.0)]);
-    assert_eq!(report.final_minor, vec![Some(10.0), Some(25.0)]);
+    assert_eq!(
+        report.final_major,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 18.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 25.0)),
+        ]
+    );
+    assert_eq!(
+        report.final_minor,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 10.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 25.0)),
+        ]
+    );
 }
 
 #[test]
 fn subgrid_baselines_reverse_and_adjust_edges() {
     let report = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
-        parent_major: &[Some(6.0), None, Some(14.0)],
-        parent_minor: &[Some(3.0), Some(8.0), None],
+        parent_major: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
+            None,
+            Some(tagged_baseline(PhysicalAxis::Vertical, 14.0)),
+        ],
+        parent_minor: &[
+            Some(tagged_baseline(PhysicalAxis::Vertical, 3.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, 8.0)),
+            None,
+        ],
+        physical_axis: PhysicalAxis::Vertical,
         parent_span: GridTrackSpan::new(1, 4),
         reversed: true,
         start_mbp: 2.0,
@@ -17882,10 +18752,28 @@ fn subgrid_baselines_reverse_and_adjust_edges() {
 
     assert_eq!(
         report.after_reversal_major,
-        vec![Some(14.0), None, Some(6.0)]
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 14.0)),
+            None,
+            Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
+        ]
     );
-    assert_eq!(report.final_major, vec![Some(12.0), None, Some(6.0)]);
-    assert_eq!(report.final_minor, vec![None, Some(8.0), Some(-2.0)]);
+    assert_eq!(
+        report.final_major,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Vertical, 12.0)),
+            None,
+            Some(tagged_baseline(PhysicalAxis::Vertical, 6.0)),
+        ]
+    );
+    assert_eq!(
+        report.final_minor,
+        vec![
+            None,
+            Some(tagged_baseline(PhysicalAxis::Vertical, 8.0)),
+            Some(tagged_baseline(PhysicalAxis::Vertical, -2.0)),
+        ]
+    );
 }
 
 #[test]
@@ -17903,14 +18791,8 @@ fn column_subgrid_context_preserves_inherited_baseline_groups() {
     let parent_baseline_groups = GridBaselineGroups {
         rows: vec![TrackBaselineGroup::default()],
         columns: vec![
-            TrackBaselineGroup {
-                first: Some(8.0),
-                last: Some(3.0),
-            },
-            TrackBaselineGroup {
-                first: Some(14.0),
-                last: Some(5.0),
-            },
+            tagged_group(PhysicalAxis::Horizontal, Some(8.0), Some(3.0)),
+            tagged_group(PhysicalAxis::Horizontal, Some(14.0), Some(5.0)),
         ],
     };
     let parent_named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
@@ -17945,8 +18827,20 @@ fn column_subgrid_context_preserves_inherited_baseline_groups() {
     .unwrap();
 
     let columns = context.columns.expect("column subgrid should inherit");
-    assert_eq!(columns.major_baselines, vec![Some(8.0), Some(14.0)]);
-    assert_eq!(columns.minor_baselines, vec![Some(3.0), Some(5.0)]);
+    assert_eq!(
+        columns.major_baselines,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Horizontal, 8.0)),
+            Some(tagged_baseline(PhysicalAxis::Horizontal, 14.0)),
+        ]
+    );
+    assert_eq!(
+        columns.minor_baselines,
+        vec![
+            Some(tagged_baseline(PhysicalAxis::Horizontal, 3.0)),
+            Some(tagged_baseline(PhysicalAxis::Horizontal, 5.0)),
+        ]
+    );
 }
 
 #[test]

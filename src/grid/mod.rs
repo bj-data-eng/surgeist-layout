@@ -8,6 +8,7 @@ use super::{
     TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
+use crate::output::PhysicalBaseline;
 use crate::scroll::{ScrollbarReservationOf, content_box_inset_with_scrollbar};
 
 mod alignment;
@@ -383,10 +384,7 @@ where
             },
         )?;
         content_size = max_size(content_size, child_layout.visible_content_size);
-        baselines = BaselinesOf {
-            first: Point::new(None, child_layout.first_baseline),
-            last: Point::new(None, child_layout.last_baseline),
-        };
+        baselines = child_layout.baselines;
         baseline_groups = child_layout.baseline_groups;
     }
 
@@ -606,10 +604,7 @@ where
             },
         )?;
         content_size = max_size(content_size, child_layout.visible_content_size);
-        baselines = BaselinesOf {
-            first: Point::new(None, child_layout.first_baseline),
-            last: Point::new(None, child_layout.last_baseline),
-        };
+        baselines = child_layout.baselines;
         baseline_groups = child_layout.baseline_groups;
     }
 
@@ -651,8 +646,8 @@ struct InheritedGridAxis<S: LayoutScalar = Scalar> {
     tracks: Vec<S>,
     named_lines: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
-    major_baselines: Vec<Option<S>>,
-    minor_baselines: Vec<Option<S>>,
+    major_baselines: Vec<Option<PhysicalBaseline<S>>>,
+    minor_baselines: Vec<Option<PhysicalBaseline<S>>>,
     parent_start: usize,
     parent_end: usize,
     reversed: bool,

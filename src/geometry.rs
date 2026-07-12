@@ -149,6 +149,32 @@ impl FlowAxes {
     }
 
     #[must_use]
+    pub(crate) fn block_axis_extent<T: Copy>(self, size: Size<T>) -> T {
+        match self.block_axis() {
+            PhysicalAxis::Horizontal => size.width,
+            PhysicalAxis::Vertical => size.height,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn block_axis_coordinate<T: Copy>(self, point: Point<T>) -> T {
+        match self.block_axis() {
+            PhysicalAxis::Horizontal => point.x,
+            PhysicalAxis::Vertical => point.y,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn line_over_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edge_at_side(edges, self.line_over())
+    }
+
+    #[must_use]
+    pub(crate) fn line_under_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edge_at_side(edges, self.line_under())
+    }
+
+    #[must_use]
     pub const fn inline_start(self) -> PhysicalSide {
         self.mapping().inline_start
     }
@@ -476,6 +502,15 @@ fn physical_extent<S: LayoutScalar>(size: Size<S>, axis: PhysicalAxis) -> S {
     match axis {
         PhysicalAxis::Horizontal => size.width,
         PhysicalAxis::Vertical => size.height,
+    }
+}
+
+fn edge_at_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
+    match side {
+        PhysicalSide::Top => edges.top,
+        PhysicalSide::Right => edges.right,
+        PhysicalSide::Bottom => edges.bottom,
+        PhysicalSide::Left => edges.left,
     }
 }
 

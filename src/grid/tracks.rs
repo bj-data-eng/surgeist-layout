@@ -1,4 +1,5 @@
 use super::*;
+use crate::geometry::FlowAxes;
 use crate::{
     LengthOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf,
 };
@@ -281,16 +282,22 @@ where
             let contribution_kind =
                 IntrinsicSpanContribution::for_axis(available.height, child_style.overflow.y);
             let baselines = output.baselines();
-            let block_auto_margins =
-                block_auto_margins_for_intrinsic_contribution(&child_style, constants)
-                    .map_err(|status| crate::compute::value_resolution_error(child, status))?;
-            let participation = baseline_participation(
+            let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+            let block_auto_margins = block_auto_margins_for_intrinsic_contribution(
+                &child_style,
+                constants,
+                child_flow_axes,
+            )
+            .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+            let participation = baseline_participation_for_container(
                 align_self,
                 block_auto_margins,
                 row_span_tracks.is_some_and(|tracks| {
-                    synthesized_baseline_would_cycle(align_self, baselines, tracks)
+                    synthesized_baseline_would_cycle(align_self, baselines, child_flow_axes, tracks)
                 }),
                 baselines,
+                child_flow_axes,
+                constants.flow_axes,
             );
             row_contributions.push(RowIntrinsicContribution {
                 start: row_start,
@@ -299,18 +306,25 @@ where
                 contribution_kind,
                 contribution: output.size.height + margin.vertical_sum(),
                 participation,
-                geometry: baseline_geometry_for_intrinsic_contribution(output, margin),
+                geometry: baseline_geometry_for_intrinsic_contribution(
+                    output,
+                    margin,
+                    child_flow_axes,
+                ),
             });
         }
     }
 
-    let row_baseline_groups =
-        row_baseline_groups_for_intrinsic_contributions(&row_contributions, row_count);
+    let row_baseline_groups = row_baseline_groups_for_intrinsic_contributions(
+        &row_contributions,
+        row_count,
+        constants.flow_axes.block_axis(),
+    );
     for item in row_contributions {
         if !item.contributes_to_row_size {
             continue;
         }
-        let shim = row_baseline_shim(item, &row_baseline_groups);
+        let shim = row_baseline_shim(item, &row_baseline_groups, constants.flow_axes.block_axis());
         let contribution = item.contribution + shim.before + shim.after;
         if item.end == item.start + 1 {
             rows[item.start] = rows[item.start].max(contribution);
@@ -331,6 +345,7 @@ where
 fn row_baseline_groups_for_intrinsic_contributions<S: LayoutScalar>(
     contributions: &[RowIntrinsicContribution<S>],
     row_count: usize,
+    expected_axis: crate::geometry::PhysicalAxis,
 ) -> Vec<TrackBaselineGroup<S>> {
     let mut groups = vec![TrackBaselineGroup::default(); row_count];
     for item in contributions {
@@ -341,14 +356,14 @@ fn row_baseline_groups_for_intrinsic_contributions<S: LayoutScalar>(
         match item.participation.group {
             Some(BaselineGroupKind::Major) => {
                 if let Some(group) = groups.get_mut(item.start).map(|group| &mut group.first) {
-                    *group = Some(group.unwrap_or(S::ZERO).max(item.geometry.major_baseline));
+                    merge_expected_baseline(group, item.geometry.major_baseline, expected_axis);
                 }
             }
             Some(BaselineGroupKind::Minor) => {
                 if let Some(row) = item.end.checked_sub(1)
                     && let Some(group) = groups.get_mut(row).map(|group| &mut group.last)
                 {
-                    *group = Some(group.unwrap_or(S::ZERO).max(item.geometry.minor_baseline));
+                    merge_expected_baseline(group, item.geometry.minor_baseline, expected_axis);
                 }
             }
             None => {}
@@ -360,6 +375,7 @@ fn row_baseline_groups_for_intrinsic_contributions<S: LayoutScalar>(
 fn row_baseline_shim<S: LayoutScalar>(
     item: RowIntrinsicContribution<S>,
     groups: &[TrackBaselineGroup<S>],
+    expected_axis: crate::geometry::PhysicalAxis,
 ) -> BaselineShim<S> {
     let Some(group_kind) = item.participation.group else {
         return BaselineShim::default();
@@ -369,34 +385,51 @@ fn row_baseline_shim<S: LayoutScalar>(
         BaselineGroupKind::Minor => item.end.saturating_sub(1),
     };
     let shared = groups.get(group_index).copied().unwrap_or_default();
-    baseline_shim_for_intrinsic_contribution(item.participation, item.geometry, shared)
+    baseline_shim_for_intrinsic_contribution(
+        item.participation,
+        item.geometry,
+        shared,
+        expected_axis,
+    )
 }
 
-fn baseline_geometry_for_intrinsic_contribution<S: LayoutScalar>(
+pub(super) fn baseline_geometry_for_intrinsic_contribution<S: LayoutScalar>(
     output: ComputeOutputOf<S>,
     margin: Edges<S>,
+    flow_axes: FlowAxes,
 ) -> BaselineGeometry<S> {
     let baselines = output.baselines();
-    let first_baseline = baselines.first_or_synthesize_block(output.size);
-    let last_baseline = baselines.last_or_synthesize_block(output.size);
+    let first_baseline = baselines.first_or_synthesize_block_baseline(flow_axes, output.size);
+    let last_baseline = baselines.last_or_synthesize_block_baseline(flow_axes, output.size);
     BaselineGeometry {
         available_span_size: S::ZERO,
-        margin_box_size: output.size.height + margin.vertical_sum(),
-        major_baseline: margin.top + first_baseline,
-        minor_baseline: margin.bottom + output.size.height - last_baseline,
+        margin_box_size: flow_axes.block_axis_extent(output.size)
+            + flow_axes.line_over_edge(margin)
+            + flow_axes.line_under_edge(margin),
+        major_baseline: crate::output::PhysicalBaseline::new(
+            first_baseline.axis(),
+            flow_axes.line_over_edge(margin) + first_baseline.coordinate(),
+        ),
+        minor_baseline: crate::output::PhysicalBaseline::new(
+            last_baseline.axis(),
+            flow_axes.line_under_edge(margin) + flow_axes.block_axis_extent(output.size)
+                - last_baseline.coordinate(),
+        ),
     }
 }
 
 fn block_auto_margins_for_intrinsic_contribution<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     constants: &Constants<S>,
+    child_flow_axes: FlowAxes,
 ) -> Result<bool, LengthResolutionStatus<S>> {
     let margin = constants.flow_axes.zip_physical_edges_with_inline_extent(
         style.margin,
         constants.node_inner_size,
         |length, basis| resolve_auto_optional(length, basis),
     );
-    Ok(margin.top?.is_none() || margin.bottom?.is_none())
+    Ok(child_flow_axes.line_over_edge(margin)?.is_none()
+        || child_flow_axes.line_under_edge(margin)?.is_none())
 }
 
 struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
@@ -1028,15 +1061,26 @@ where
             },
         )?;
         let baselines = output.baselines();
-        let block_auto_margins =
-            block_auto_margins_for_intrinsic_contribution(&child_style, grid.constants)
-                .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+        let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+        let block_auto_margins = block_auto_margins_for_intrinsic_contribution(
+            &child_style,
+            grid.constants,
+            child_flow_axes,
+        )
+        .map_err(|status| crate::compute::value_resolution_error(child, status))?;
         let row_span_tracks = grid.row_tracks.get(area.row..area.row_end).unwrap_or(&[]);
-        let participation = baseline_participation(
+        let participation = baseline_participation_for_container(
             sizing.align_self,
             block_auto_margins,
-            synthesized_baseline_would_cycle(sizing.align_self, baselines, row_span_tracks),
+            synthesized_baseline_would_cycle(
+                sizing.align_self,
+                baselines,
+                child_flow_axes,
+                row_span_tracks,
+            ),
             baselines,
+            child_flow_axes,
+            grid.constants.flow_axes,
         );
         row_contributions.push(RowIntrinsicContribution {
             start: area.row,
@@ -1045,12 +1089,15 @@ where
             contribution_kind: IntrinsicSpanContribution::MaxContent,
             contribution: output.size.height + margin.vertical_sum(),
             participation,
-            geometry: baseline_geometry_for_intrinsic_contribution(output, margin),
+            geometry: baseline_geometry_for_intrinsic_contribution(output, margin, child_flow_axes),
         });
     }
 
-    let row_baseline_groups =
-        row_baseline_groups_for_intrinsic_contributions(&row_contributions, row_count);
+    let row_baseline_groups = row_baseline_groups_for_intrinsic_contributions(
+        &row_contributions,
+        row_count,
+        grid.constants.flow_axes.block_axis(),
+    );
     for item in row_contributions {
         if !item.contributes_to_row_size {
             continue;
@@ -1063,7 +1110,11 @@ where
                     .iter()
                     .any(|track| track_accepts_intrinsic_contribution(*track))
             }) {
-            row_baseline_shim(item, &row_baseline_groups)
+            row_baseline_shim(
+                item,
+                &row_baseline_groups,
+                grid.constants.flow_axes.block_axis(),
+            )
         } else {
             BaselineShim::default()
         };

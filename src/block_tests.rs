@@ -3588,6 +3588,288 @@ fn block_definite_compute_size_keeps_block_child_baselines() {
     assert_eq!(output.last_baselines.y, Some(17.0));
 }
 
+fn assert_block_translates_orthogonal_child_baselines_on_the_child_block_axis<S: LayoutScalar>(
+    writing_mode: WritingMode,
+) where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let child_output = ComputeOutputOf::from_sizes_and_baselines(
+        Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+        Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+        BaselinesOf {
+            first: Point::new(Some(S::from_f64(7.0)), None),
+            last: Point::new(Some(S::from_f64(11.0)), None),
+        },
+    );
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(0, [1])
+        .style(
+            0,
+            NodeInputOf::<S> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(S::from_f64(120.0)), DimensionOf::AUTO),
+                padding: Edges {
+                    top: LengthOf::px(S::from_f64(5.0)),
+                    left: LengthOf::px(S::from_f64(3.0)),
+                    ..Edges::all(LengthOf::ZERO)
+                },
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf::<S> {
+                display: Display::Block,
+                writing_mode,
+                margin: Edges {
+                    top: LengthAutoOf::px(S::from_f64(17.0)),
+                    left: LengthAutoOf::px(S::from_f64(11.0)),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(1, child_output);
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(160.0))),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(120.0)),
+                AvailableOf::definite(S::from_f64(160.0)),
+            ),
+        ),
+    )
+    .expect("block layout succeeds");
+
+    assert_eq!(
+        tree.layout(1).expect("child layout is staged").location,
+        Point::new(S::from_f64(14.0), S::from_f64(22.0))
+    );
+    assert_eq!(
+        output.first_baselines,
+        Point::new(Some(S::from_f64(21.0)), None)
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(Some(S::from_f64(25.0)), None)
+    );
+}
+
+#[test]
+fn orthogonal_baseline_block_translation_uses_physical_x_for_f32() {
+    assert_block_translates_orthogonal_child_baselines_on_the_child_block_axis::<f32>(
+        WritingMode::VerticalRl,
+    );
+    assert_block_translates_orthogonal_child_baselines_on_the_child_block_axis::<f32>(
+        WritingMode::SidewaysLr,
+    );
+}
+
+#[test]
+fn orthogonal_baseline_block_translation_uses_physical_x_for_f64() {
+    assert_block_translates_orthogonal_child_baselines_on_the_child_block_axis::<f64>(
+        WritingMode::VerticalRl,
+    );
+    assert_block_translates_orthogonal_child_baselines_on_the_child_block_axis::<f64>(
+        WritingMode::SidewaysLr,
+    );
+}
+
+fn assert_block_aggregates_physical_baselines_on_both_axes<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(0, [1, 2])
+        .style(
+            0,
+            NodeInputOf::<S> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(S::from_f64(140.0)), DimensionOf::AUTO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf::<S> {
+                writing_mode: WritingMode::VerticalRl,
+                margin: Edges::new(
+                    LengthAutoOf::px(S::from_f64(17.0)),
+                    LengthAutoOf::px(S::from_f64(5.0)),
+                    LengthAutoOf::px(S::from_f64(13.0)),
+                    LengthAutoOf::px(S::from_f64(11.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<S> {
+                margin: Edges::new(
+                    LengthAutoOf::px(S::from_f64(19.0)),
+                    LengthAutoOf::px(S::from_f64(7.0)),
+                    LengthAutoOf::px(S::from_f64(23.0)),
+                    LengthAutoOf::px(S::from_f64(13.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutputOf::from_sizes_and_baselines(
+                Size::new(S::from_f64(70.0), S::from_f64(20.0)),
+                Size::new(S::from_f64(70.0), S::from_f64(20.0)),
+                BaselinesOf {
+                    first: Point::new(Some(S::from_f64(7.0)), None),
+                    last: Point::new(Some(S::from_f64(11.0)), None),
+                },
+            ),
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_sizes_and_baselines(
+                Size::new(S::from_f64(30.0), S::from_f64(40.0)),
+                Size::new(S::from_f64(30.0), S::from_f64(40.0)),
+                BaselinesOf {
+                    first: Point::new(None, Some(S::from_f64(9.0))),
+                    last: Point::new(None, Some(S::from_f64(15.0))),
+                },
+            ),
+        );
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(140.0)), Some(S::from_f64(200.0))),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(140.0)),
+                AvailableOf::definite(S::from_f64(200.0)),
+            ),
+        ),
+    )
+    .expect("block layout succeeds");
+    let first_child = tree.layout(1).expect("first child layout is staged");
+    let second_child = tree.layout(2).expect("second child layout is staged");
+
+    assert_eq!(
+        output.first_baselines,
+        Point::new(
+            Some(first_child.location.x + S::from_f64(7.0)),
+            Some(second_child.location.y + S::from_f64(9.0)),
+        )
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(
+            Some(first_child.location.x + S::from_f64(11.0)),
+            Some(second_child.location.y + S::from_f64(15.0)),
+        )
+    );
+}
+
+#[test]
+fn physical_baseline_block_aggregates_both_axes_for_f32() {
+    assert_block_aggregates_physical_baselines_on_both_axes::<f32>();
+}
+
+#[test]
+fn physical_baseline_block_aggregates_both_axes_for_f64() {
+    assert_block_aggregates_physical_baselines_on_both_axes::<f64>();
+}
+
+fn assert_block_preserves_a_child_y_baseline<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(0, [1])
+        .style(
+            0,
+            NodeInputOf::<S> {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(DimensionOf::px(S::from_f64(120.0)), DimensionOf::AUTO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf::<S> {
+                writing_mode: WritingMode::HorizontalTb,
+                margin: Edges::new(
+                    LengthAutoOf::px(S::from_f64(17.0)),
+                    LengthAutoOf::px(S::from_f64(5.0)),
+                    LengthAutoOf::px(S::from_f64(13.0)),
+                    LengthAutoOf::px(S::from_f64(11.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutputOf::from_sizes_and_baselines(
+                Size::new(S::from_f64(70.0), S::from_f64(40.0)),
+                Size::new(S::from_f64(70.0), S::from_f64(40.0)),
+                BaselinesOf {
+                    first: Point::new(None, Some(S::from_f64(9.0))),
+                    last: Point::new(None, Some(S::from_f64(15.0))),
+                },
+            ),
+        );
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(160.0))),
+            crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(120.0)),
+                AvailableOf::definite(S::from_f64(160.0)),
+            ),
+        ),
+    )
+    .expect("block layout succeeds");
+    let child = tree.layout(1).expect("child layout is staged");
+
+    assert_eq!(
+        output.first_baselines,
+        Point::new(None, Some(child.location.y + S::from_f64(9.0)))
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(None, Some(child.location.y + S::from_f64(15.0)))
+    );
+}
+
+#[test]
+fn physical_baseline_block_preserves_y_for_f32() {
+    assert_block_preserves_a_child_y_baseline::<f32>();
+}
+
+#[test]
+fn physical_baseline_block_preserves_y_for_f64() {
+    assert_block_preserves_a_child_y_baseline::<f64>();
+}
+
 #[test]
 fn block_definite_compute_size_keeps_non_empty_flex_child_baselines() {
     let child_output = ComputeOutput::from_sizes_and_baselines(

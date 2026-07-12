@@ -1227,8 +1227,7 @@ where
         }
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
-            first_baseline: None,
-            last_baseline: None,
+            baselines: BaselinesOf::NONE,
             baseline_groups: GridBaselineGroups {
                 rows: Vec::new(),
                 columns: Vec::new(),
@@ -1270,8 +1269,7 @@ where
     else {
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
-            first_baseline: None,
-            last_baseline: None,
+            baselines: BaselinesOf::NONE,
             baseline_groups: GridBaselineGroups {
                 rows: Vec::new(),
                 columns: Vec::new(),
@@ -1507,12 +1505,26 @@ where
             bottom: vertical_axis.margin_end,
         };
         let baselines = output.baselines();
-        let first_baseline = baselines.first_or_synthesize_block(output.size);
-        let last_baseline = baselines.last_or_synthesize_block(output.size);
-        let block_auto_margins =
-            item.unresolved_margin.top.is_none() || item.unresolved_margin.bottom.is_none();
-        let baseline_participation =
-            baseline_participation(item.align_self, block_auto_margins, false, baselines);
+        let child_flow_axes =
+            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
+        let first_baseline =
+            baselines.first_or_synthesize_block_baseline(child_flow_axes, output.size);
+        let last_baseline =
+            baselines.last_or_synthesize_block_baseline(child_flow_axes, output.size);
+        let block_auto_margins = child_flow_axes
+            .line_over_edge(item.unresolved_margin)
+            .is_none()
+            || child_flow_axes
+                .line_under_edge(item.unresolved_margin)
+                .is_none();
+        let baseline_participation = baseline_participation_for_container(
+            item.align_self,
+            block_auto_margins,
+            false,
+            baselines,
+            child_flow_axes,
+            constants.flow_axes,
+        );
         let location = Point::new(
             area_origin.x + horizontal_axis.offset + relative_offset.x,
             area_origin.y + vertical_axis.offset + relative_offset.y,
@@ -1533,9 +1545,11 @@ where
             output,
             horizontal_axis,
             vertical_axis,
+            child_flow_axes,
             relative_offset,
             first_baseline,
             last_baseline,
+            location: Point::ZERO,
             published_row_baselines: None,
             block_offset: vertical_axis.offset,
             block_auto_margins,
@@ -1597,6 +1611,7 @@ where
             },
         );
         item.block_offset = location.y - row_offsets[item.area.row];
+        item.location = location;
         tree.set_unrounded(
             item.node,
             NodeOutputOf {
@@ -1616,12 +1631,17 @@ where
         rows: vec![TrackBaselineGroup::default(); rows.len()],
         columns: vec![TrackBaselineGroup::default(); columns.len()],
     };
-    let baselines = grid_container_baselines(&pending_items, &baseline_groups, &row_offsets, rows);
+    let baselines = grid_container_baselines(
+        &pending_items,
+        &baseline_groups,
+        &row_offsets,
+        rows,
+        constants.flow_axes,
+    );
 
     Ok(GridChildrenLayout {
         visible_content_size,
-        first_baseline: baselines.first,
-        last_baseline: baselines.last,
+        baselines: baselines.baselines,
         baseline_groups,
     })
 }

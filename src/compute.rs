@@ -6,6 +6,7 @@ use super::{
     NodeOutputOf, NonNegativeFiniteOf, NonNegativeFiniteScalarErrorOf, Point, Position, Round,
     RunMode, Size, SizingMode, Traverse,
 };
+use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
     ScrollUnsupportedFeature, ScrollbarReservationOf, content_box_inset_with_scrollbar,
     round_scroll_geometry, scroll_geometry_from_layout, scroll_rect_union,
@@ -486,47 +487,22 @@ where
     Tree: Compute<M>,
 {
     let style = tree.node_input(root).clone();
-    let containing_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
-    let known = Size::new(
-        root_known_width::<Tree, M>(tree, root, &style, available.width)?,
-        None,
-    );
+    let containing_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let parent = available.map(AvailableOf::into_option);
+    let known =
+        root_known_inline::<Tree, M>(tree, root, &style, containing_flow_axes, available, parent)?;
     let output = tree.compute_child(
         root,
-        ComputeInputOf::root_layout(
-            known,
-            available.map(AvailableOf::into_option),
-            containing_flow_axes,
-            available,
-        ),
+        ComputeInputOf::root_layout(known, parent, containing_flow_axes, available),
     )?;
-    let parent_width = available.width.into_option();
-    let inline_basis = Size::splat(parent_width);
-    let padding = style
-        .padding
-        .zip_size(inline_basis, |length, basis| {
-            resolve_length_or_zero_fallible(length, basis)
-        })
-        .transpose_with_node(tree, root)?;
-    let border = style
-        .border
-        .zip_size(inline_basis, |length, basis| {
-            resolve_length_or_zero_fallible(length, basis)
-        })
-        .transpose_with_node(tree, root)?;
-    let margin = style
-        .margin
-        .zip_size(inline_basis, |length, basis| {
-            resolve_auto_or_zero_fallible(length, basis)
-        })
-        .transpose_with_node(tree, root)?;
+    let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
     let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get());
     let scrollable_overflow = scrollable_overflow_from_layout_content_size(
         style.direction,
         style.overflow,
         output.size,
-        padding,
-        border,
+        root_edges.padding,
+        root_edges.border,
         style.scrollbar_width.get(),
         output.content_size,
     )
@@ -543,23 +519,14 @@ where
             style.direction,
             style.overflow,
             output.size,
-            padding,
-            border,
+            root_edges.padding,
+            root_edges.border,
             style.scrollbar_width.get(),
             scrollable_overflow,
         )
         .map_err(|error| root_scroll_error(root, error))?,
     );
-    let location = super::Point::new(
-        if style.direction.is_rtl() {
-            parent_width.map_or(<Tree as Traverse>::Scalar::ZERO, |width| {
-                width - output.size.width
-            })
-        } else {
-            <Tree as Traverse>::Scalar::ZERO
-        },
-        <Tree as Traverse>::Scalar::ZERO,
-    );
+    let location = root_start_location(containing_flow_axes, output.size, available);
 
     tree.set_unrounded(
         root,
@@ -570,9 +537,9 @@ where
             content_size: output.content_size,
             scroll_geometry,
             scrollbar_size,
-            padding,
-            border,
-            margin,
+            padding: root_edges.padding,
+            border: root_edges.border,
+            margin: root_edges.margin,
         },
     );
     Ok(())
@@ -588,15 +555,15 @@ where
     Tree: Compute<M>,
 {
     let style = tree.node_input(root).clone();
-    let containing_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
+    let containing_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let parent = context.viewport_available().map(AvailableOf::into_option);
+    let known =
+        root_known_inline::<Tree, M>(tree, root, &style, containing_flow_axes, available, parent)?;
     let output = tree.compute_child(
         root,
-        ComputeInputOf::flex_item_root(
-            context.viewport_available().map(AvailableOf::into_option),
-            containing_flow_axes,
-            available,
-        ),
+        ComputeInputOf::flex_item_root(known, parent, containing_flow_axes, available),
     )?;
+    let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
     tree.set_unrounded(
         root,
         NodeOutputOf {
@@ -604,39 +571,87 @@ where
             location: Point::ZERO,
             size: output.size,
             content_size: output.content_size,
+            padding: root_edges.padding,
+            border: root_edges.border,
+            margin: root_edges.margin,
             ..NodeOutputOf::new()
         },
     );
     Ok(())
 }
 
-fn root_known_width<Tree, M>(
+struct RootEdges<S: LayoutScalar> {
+    padding: Edges<S>,
+    border: Edges<S>,
+    margin: Edges<S>,
+}
+
+type RootKnownInlineResult<Node, S, M> = LayoutResultOf<Node, Size<Option<S>>, S, M>;
+
+fn resolve_root_edges<Tree, M>(
     tree: &Tree,
     node: <Tree as Traverse>::Node,
     style: &NodeInputOf<Tree::Scalar>,
-    available_width: AvailableOf<Tree::Scalar>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, Option<Tree::Scalar>, Tree::Scalar, M>
+    containing_flow_axes: FlowAxes,
+    parent: Size<Option<Tree::Scalar>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, RootEdges<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
-    if style.display.is_inline_level()
-        || !style.size.width.is_auto()
-        || !style.min_size.width.is_auto()
-    {
-        return Ok(None);
-    }
-
-    let Some(available_width) = available_width.into_option() else {
-        return Ok(None);
-    };
-    let parent = Size::splat(Some(available_width));
-    let padding = crate::geometry::FlowAxes::new(style.writing_mode, style.direction)
+    let padding = containing_flow_axes
         .zip_physical_edges_with_inline_extent(style.padding, parent, |length, basis| {
             resolve_length_or_zero_fallible(length, basis)
         })
         .transpose_with_node(tree, node)?;
-    let border = crate::geometry::FlowAxes::new(style.writing_mode, style.direction)
+    let border = containing_flow_axes
         .zip_physical_edges_with_inline_extent(style.border, parent, |length, basis| {
+            resolve_length_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, node)?;
+    let margin = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(style.margin, parent, |length, basis| {
+            resolve_auto_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, node)?;
+
+    Ok(RootEdges {
+        padding,
+        border,
+        margin,
+    })
+}
+
+fn root_known_inline<Tree, M>(
+    tree: &Tree,
+    node: <Tree as Traverse>::Node,
+    style: &NodeInputOf<Tree::Scalar>,
+    containing_flow_axes: FlowAxes,
+    fill_available: Size<AvailableOf<Tree::Scalar>>,
+    percentage_parent: Size<Option<Tree::Scalar>>,
+) -> RootKnownInlineResult<<Tree as Traverse>::Node, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let inline_axis = containing_flow_axes.inline_axis();
+    if style.display.is_inline_level()
+        || !root_physical_axis_value(style.size, inline_axis).is_auto()
+        || !root_physical_axis_value(style.min_size, inline_axis).is_auto()
+    {
+        return Ok(Size::NONE);
+    }
+
+    let Some(available_inline) =
+        root_physical_axis_value(fill_available, inline_axis).into_option()
+    else {
+        return Ok(Size::NONE);
+    };
+    let padding = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(style.padding, percentage_parent, |length, basis| {
+            resolve_length_or_zero_fallible(length, basis)
+        })
+        .transpose_with_node(tree, node)?;
+    let border = containing_flow_axes
+        .zip_physical_edges_with_inline_extent(style.border, percentage_parent, |length, basis| {
             resolve_length_or_zero_fallible(length, basis)
         })
         .transpose_with_node(tree, node)?;
@@ -648,13 +663,75 @@ where
     };
     let max_size = style
         .max_size
-        .zip_map(parent, |dimension, basis| {
+        .zip_map(percentage_parent, |dimension, basis| {
             resolve_dimension_fallible(dimension, basis)
         })
         .transpose_with_node(tree, node)?
         .add_optional(box_sizing_adjustment);
 
-    Ok(Some(available_width.clamp_optional(None, max_size.width)))
+    Ok(root_known_on_axis(
+        inline_axis,
+        available_inline.clamp_optional(None, root_physical_axis_value(max_size, inline_axis)),
+    ))
+}
+
+fn root_physical_axis_value<T: Copy>(size: Size<T>, axis: PhysicalAxis) -> T {
+    match axis {
+        PhysicalAxis::Horizontal => size.width,
+        PhysicalAxis::Vertical => size.height,
+    }
+}
+
+fn root_known_on_axis<S: LayoutScalar>(axis: PhysicalAxis, value: S) -> Size<Option<S>> {
+    match axis {
+        PhysicalAxis::Horizontal => Size::new(Some(value), None),
+        PhysicalAxis::Vertical => Size::new(None, Some(value)),
+    }
+}
+
+fn root_start_location<S: LayoutScalar>(
+    containing_flow_axes: FlowAxes,
+    root_size: Size<S>,
+    available: Size<AvailableOf<S>>,
+) -> Point<S> {
+    Point::new(
+        root_start_coordinate(
+            containing_flow_axes.inline_start(),
+            containing_flow_axes.block_start(),
+            root_size,
+            available,
+            PhysicalAxis::Horizontal,
+        ),
+        root_start_coordinate(
+            containing_flow_axes.inline_start(),
+            containing_flow_axes.block_start(),
+            root_size,
+            available,
+            PhysicalAxis::Vertical,
+        ),
+    )
+}
+
+fn root_start_coordinate<S: LayoutScalar>(
+    inline_start: PhysicalSide,
+    block_start: PhysicalSide,
+    root_size: Size<S>,
+    available: Size<AvailableOf<S>>,
+    axis: PhysicalAxis,
+) -> S {
+    let start_side = if inline_start.axis() == axis {
+        inline_start
+    } else {
+        block_start
+    };
+    match start_side {
+        PhysicalSide::Top | PhysicalSide::Left => S::ZERO,
+        PhysicalSide::Right | PhysicalSide::Bottom => root_physical_axis_value(available, axis)
+            .into_option()
+            .map_or(S::ZERO, |extent| {
+                extent - root_physical_axis_value(root_size, axis)
+            }),
+    }
 }
 
 pub(crate) fn round_layout<Tree, M>(

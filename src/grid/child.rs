@@ -1,12 +1,12 @@
 use super::*;
 use crate::BaselinesOf;
 use crate::geometry::{FlowAxes, LogicalSizeOf, PhysicalAxis, PhysicalProgression};
+use crate::output::PhysicalBaseline;
 use crate::scroll::scrollbar_size_from_overflow;
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
     pub(super) visible_content_size: Size<S>,
-    pub(super) first_baseline: Option<S>,
-    pub(super) last_baseline: Option<S>,
+    pub(super) baselines: BaselinesOf<S>,
     pub(super) baseline_groups: GridBaselineGroups<S>,
 }
 
@@ -40,14 +40,14 @@ pub(super) struct BaselineGeometry<S: LayoutScalar = Scalar> {
     // fields are the margin-box contributions used by shared baseline groups:
     // block-start margin plus first baseline for major groups, and block-end
     // margin plus distance from last baseline to block-end for minor groups.
-    pub(super) major_baseline: S,
-    pub(super) minor_baseline: S,
+    pub(super) major_baseline: PhysicalBaseline<S>,
+    pub(super) minor_baseline: PhysicalBaseline<S>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(super) struct TrackBaselineGroup<S: LayoutScalar = Scalar> {
-    pub(super) first: Option<S>,
-    pub(super) last: Option<S>,
+    pub(super) first: Option<PhysicalBaseline<S>>,
+    pub(super) last: Option<PhysicalBaseline<S>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -56,10 +56,9 @@ pub(super) struct GridBaselineGroups<S: LayoutScalar = Scalar> {
     pub(super) columns: Vec<TrackBaselineGroup<S>>,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct GridContainerBaselines<S: LayoutScalar = Scalar> {
-    pub(super) first: Option<S>,
-    pub(super) last: Option<S>,
+    pub(super) baselines: BaselinesOf<S>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -75,7 +74,11 @@ pub(super) struct BaselineShim<S: LayoutScalar = Scalar> {
 }
 
 impl<S: LayoutScalar> GridBaselineGroups<S> {
-    fn shared_baseline(&self, group_kind: BaselineGroupKind, area: GridArea<S>) -> Option<S> {
+    fn shared_baseline(
+        &self,
+        group_kind: BaselineGroupKind,
+        area: GridArea<S>,
+    ) -> Option<PhysicalBaseline<S>> {
         match group_kind {
             BaselineGroupKind::Major => self.rows.get(area.row)?.first,
             BaselineGroupKind::Minor => {
@@ -93,6 +96,7 @@ pub(super) fn baseline_shim_for_intrinsic_contribution<S: LayoutScalar>(
     participation: BaselineParticipation,
     geometry: BaselineGeometry<S>,
     shared: TrackBaselineGroup<S>,
+    expected_axis: PhysicalAxis,
 ) -> BaselineShim<S> {
     if !participation.participates {
         return BaselineShim::default();
@@ -100,16 +104,20 @@ pub(super) fn baseline_shim_for_intrinsic_contribution<S: LayoutScalar>(
 
     match participation.group {
         Some(BaselineGroupKind::Major) => BaselineShim {
-            before: shared.first.map_or(S::ZERO, |baseline| {
-                (baseline - geometry.major_baseline).max(S::ZERO)
-            }),
+            before: shared
+                .first
+                .and_then(|baseline| baseline.coordinate_on(expected_axis))
+                .zip(geometry.major_baseline.coordinate_on(expected_axis))
+                .map_or(S::ZERO, |(shared, item)| (shared - item).max(S::ZERO)),
             after: S::ZERO,
         },
         Some(BaselineGroupKind::Minor) => BaselineShim {
             before: S::ZERO,
-            after: shared.last.map_or(S::ZERO, |baseline| {
-                (baseline - geometry.minor_baseline).max(S::ZERO)
-            }),
+            after: shared
+                .last
+                .and_then(|baseline| baseline.coordinate_on(expected_axis))
+                .zip(geometry.minor_baseline.coordinate_on(expected_axis))
+                .map_or(S::ZERO, |(shared, item)| (shared - item).max(S::ZERO)),
         },
         None => BaselineShim::default(),
     }
@@ -117,14 +125,24 @@ pub(super) fn baseline_shim_for_intrinsic_contribution<S: LayoutScalar>(
 
 pub(super) fn baseline_offset<S: LayoutScalar>(
     group_kind: BaselineGroupKind,
-    shared_baseline: S,
+    shared_baseline: PhysicalBaseline<S>,
     geometry: BaselineGeometry<S>,
-) -> S {
+    expected_axis: PhysicalAxis,
+) -> Option<S> {
+    let shared_baseline = shared_baseline.coordinate_on(expected_axis)?;
     match group_kind {
-        BaselineGroupKind::Major => shared_baseline - geometry.major_baseline,
+        BaselineGroupKind::Major => geometry
+            .major_baseline
+            .coordinate_on(expected_axis)
+            .map(|baseline| shared_baseline - baseline),
         BaselineGroupKind::Minor => {
-            let baseline_delta = shared_baseline - geometry.minor_baseline;
-            geometry.available_span_size - baseline_delta - geometry.margin_box_size
+            geometry
+                .minor_baseline
+                .coordinate_on(expected_axis)
+                .map(|baseline| {
+                    let baseline_delta = shared_baseline - baseline;
+                    geometry.available_span_size - baseline_delta - geometry.margin_box_size
+                })
         }
     }
 }
@@ -148,6 +166,7 @@ pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
     groups: &GridBaselineGroups<S>,
     rows: &[S],
     row_gap: S,
+    expected_axis: PhysicalAxis,
 ) -> Option<S> {
     if !item.baseline_participation.participates || item.block_auto_margins {
         return None;
@@ -155,9 +174,13 @@ pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
 
     let group_kind = item.baseline_participation.group?;
     let shared = groups.shared_baseline(group_kind, item.area)?;
-    let margin_box_offset =
-        baseline_offset(group_kind, shared, item.baseline_geometry(rows, row_gap));
-    Some(margin_box_offset + item.vertical_axis.margin_start)
+    let margin_box_offset = baseline_offset(
+        group_kind,
+        shared,
+        item.baseline_geometry(rows, row_gap),
+        expected_axis,
+    )?;
+    Some(margin_box_offset + item.child_flow_axes.line_over_edge(item.margin))
 }
 
 pub(super) fn layout_grid_children<Tree, M>(
@@ -205,8 +228,7 @@ where
         }
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
-            first_baseline: None,
-            last_baseline: None,
+            baselines: BaselinesOf::NONE,
             baseline_groups: GridBaselineGroups {
                 rows: Vec::new(),
                 columns: Vec::new(),
@@ -437,16 +459,30 @@ where
             bottom: vertical_axis.margin_end,
         };
         let baselines = output.baselines();
-        let first_baseline = baselines.first_or_synthesize_block(output.size);
-        let last_baseline = baselines.last_or_synthesize_block(output.size);
-        let block_auto_margins =
-            item.unresolved_margin.top.is_none() || item.unresolved_margin.bottom.is_none();
+        let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+        let first_baseline =
+            baselines.first_or_synthesize_block_baseline(child_flow_axes, output.size);
+        let last_baseline =
+            baselines.last_or_synthesize_block_baseline(child_flow_axes, output.size);
+        let block_auto_margins = child_flow_axes
+            .line_over_edge(item.unresolved_margin)
+            .is_none()
+            || child_flow_axes
+                .line_under_edge(item.unresolved_margin)
+                .is_none();
         let row_span_tracks = row_tracks.get(area.row..area.row_end).unwrap_or(&[]);
-        let baseline_participation = baseline_participation(
+        let baseline_participation = baseline_participation_for_container(
             item.align_self,
             block_auto_margins,
-            synthesized_baseline_would_cycle(item.align_self, baselines, row_span_tracks),
+            synthesized_baseline_would_cycle(
+                item.align_self,
+                baselines,
+                child_flow_axes,
+                row_span_tracks,
+            ),
             baselines,
+            child_flow_axes,
+            constants.flow_axes,
         );
         pending_items.push(PendingGridItem {
             node: child,
@@ -455,6 +491,7 @@ where
             output,
             horizontal_axis,
             vertical_axis,
+            child_flow_axes,
             relative_offset: relative_inset_offset(
                 child_style
                     .inset
@@ -471,6 +508,7 @@ where
             ),
             first_baseline,
             last_baseline,
+            location: Point::ZERO,
             published_row_baselines: None,
             block_offset: vertical_axis.offset,
             block_auto_margins,
@@ -483,9 +521,15 @@ where
         });
     }
 
-    let mut published_group_set = baseline_groups(&pending_items, rows.len(), columns.len());
+    let expected_baseline_axis = constants.flow_axes.block_axis();
+    let mut published_group_set = baseline_groups(
+        &pending_items,
+        rows.len(),
+        columns.len(),
+        expected_baseline_axis,
+    );
     let mut baseline_group_set = published_group_set.clone();
-    merge_inherited_baseline_groups(&mut baseline_group_set, parent_context);
+    merge_inherited_baseline_groups(&mut baseline_group_set, parent_context, constants.flow_axes);
     for _ in 0..=pending_items.len() {
         refresh_subgrid_items_with_baselines(
             tree,
@@ -504,26 +548,41 @@ where
             },
             &mut pending_items,
         )?;
-        let next_published_group_set = baseline_groups(&pending_items, rows.len(), columns.len());
+        let next_published_group_set = baseline_groups(
+            &pending_items,
+            rows.len(),
+            columns.len(),
+            expected_baseline_axis,
+        );
         if next_published_group_set == published_group_set {
             break;
         }
         published_group_set = next_published_group_set;
         baseline_group_set = published_group_set.clone();
-        merge_inherited_baseline_groups(&mut baseline_group_set, parent_context);
+        merge_inherited_baseline_groups(
+            &mut baseline_group_set,
+            parent_context,
+            constants.flow_axes,
+        );
     }
     for item in &mut pending_items {
         let area_origin =
             grid_area_physical_origin(style, &column_offsets, &row_offsets, item.area);
-        let block_axis_offset =
-            baseline_aligned_block_offset(item, &baseline_group_set, rows, gap.height)
-                .unwrap_or_else(|| grid_item_block_axis_offset(style.writing_mode, item));
+        let block_axis_offset = baseline_aligned_block_offset(
+            item,
+            &baseline_group_set,
+            rows,
+            gap.height,
+            expected_baseline_axis,
+        )
+        .unwrap_or_else(|| grid_item_block_axis_offset(style.writing_mode, item));
         item.block_offset = block_axis_offset;
         let axis_offset = grid_item_physical_offset(style.writing_mode, item, block_axis_offset);
         let location = Point::new(
             area_origin.x + axis_offset.x + item.relative_offset.x,
             area_origin.y + axis_offset.y + item.relative_offset.y,
         );
+        item.location = location;
         visible_content_size = max_size(
             visible_content_size,
             content_size_contribution(
@@ -549,13 +608,17 @@ where
             },
         );
     }
-    let baselines =
-        grid_container_baselines(&pending_items, &baseline_group_set, &row_offsets, rows);
+    let baselines = grid_container_baselines(
+        &pending_items,
+        &baseline_group_set,
+        &row_offsets,
+        rows,
+        constants.flow_axes,
+    );
 
     Ok(GridChildrenLayout {
         visible_content_size,
-        first_baseline: baselines.first,
-        last_baseline: baselines.last,
+        baselines: baselines.baselines,
         baseline_groups: published_group_set,
     })
 }
@@ -714,29 +777,55 @@ where
             bottom: vertical_axis.margin_end,
         };
         let baselines = output.baselines();
-        let first_baseline = baselines.first_or_synthesize_block(output.size);
-        let last_baseline = baselines.last_or_synthesize_block(output.size);
-        let block_auto_margins =
-            sizing.unresolved_margin.top.is_none() || sizing.unresolved_margin.bottom.is_none();
+        let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+        let first_baseline =
+            baselines.first_or_synthesize_block_baseline(child_flow_axes, output.size);
+        let last_baseline =
+            baselines.last_or_synthesize_block_baseline(child_flow_axes, output.size);
+        let block_auto_margins = child_flow_axes
+            .line_over_edge(sizing.unresolved_margin)
+            .is_none()
+            || child_flow_axes
+                .line_under_edge(sizing.unresolved_margin)
+                .is_none();
         let row_span_tracks = input
             .row_tracks
             .get(item.area.row..item.area.row_end)
             .unwrap_or(&[]);
-        let baseline_participation = baseline_participation(
+        let baseline_participation = baseline_participation_for_container(
             sizing.align_self,
             block_auto_margins,
-            synthesized_baseline_would_cycle(sizing.align_self, baselines, row_span_tracks),
+            synthesized_baseline_would_cycle(
+                sizing.align_self,
+                baselines,
+                child_flow_axes,
+                row_span_tracks,
+            ),
             baselines,
+            child_flow_axes,
+            FlowAxes::new(
+                input.container_style.writing_mode,
+                input.container_style.direction,
+            ),
         );
 
         item.output = output;
         item.horizontal_axis = horizontal_axis;
         item.vertical_axis = vertical_axis;
+        item.child_flow_axes = child_flow_axes;
         item.first_baseline = first_baseline;
         item.last_baseline = last_baseline;
-        item.published_row_baselines = row_axis
-            .as_ref()
-            .map(|axis| publish_row_baseline_groups(&result.baseline_groups.rows, axis));
+        item.published_row_baselines = row_axis.as_ref().map(|axis| {
+            publish_row_baseline_groups(
+                &result.baseline_groups.rows,
+                axis,
+                FlowAxes::new(
+                    input.container_style.writing_mode,
+                    input.container_style.direction,
+                )
+                .block_axis(),
+            )
+        });
         item.block_auto_margins = block_auto_margins;
         item.baseline_participation = baseline_participation;
         item.margin = margin;
@@ -949,9 +1038,11 @@ pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) output: ComputeOutputOf<S>,
     pub(super) horizontal_axis: ResolvedGridItemAxis<S>,
     pub(super) vertical_axis: ResolvedGridItemAxis<S>,
+    pub(super) child_flow_axes: FlowAxes,
     pub(super) relative_offset: Point<S>,
-    pub(super) first_baseline: S,
-    pub(super) last_baseline: S,
+    pub(super) first_baseline: PhysicalBaseline<S>,
+    pub(super) last_baseline: PhysicalBaseline<S>,
+    pub(super) location: Point<S>,
     pub(super) published_row_baselines: Option<Vec<PublishedTrackBaselineGroup<S>>>,
     pub(super) block_offset: S,
     pub(super) block_auto_margins: bool,
@@ -976,12 +1067,19 @@ impl<Node, S: LayoutScalar> PendingGridItem<Node, S> {
     fn baseline_geometry_for_span(&self, available_span_size: S) -> BaselineGeometry<S> {
         BaselineGeometry {
             available_span_size,
-            margin_box_size: self.vertical_axis.margin_start
-                + self.output.size.height
-                + self.vertical_axis.margin_end,
-            major_baseline: self.vertical_axis.margin_start + self.first_baseline,
-            minor_baseline: self.vertical_axis.margin_end + self.output.size.height
-                - self.last_baseline,
+            margin_box_size: self.child_flow_axes.block_axis_extent(self.output.size)
+                + self.child_flow_axes.line_over_edge(self.margin)
+                + self.child_flow_axes.line_under_edge(self.margin),
+            major_baseline: PhysicalBaseline::new(
+                self.first_baseline.axis(),
+                self.child_flow_axes.line_over_edge(self.margin) + self.first_baseline.coordinate(),
+            ),
+            minor_baseline: PhysicalBaseline::new(
+                self.last_baseline.axis(),
+                self.child_flow_axes.line_under_edge(self.margin)
+                    + self.child_flow_axes.block_axis_extent(self.output.size)
+                    - self.last_baseline.coordinate(),
+            ),
         }
     }
 }
@@ -990,13 +1088,14 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
     items: &[PendingGridItem<Node, S>],
     row_count: usize,
     column_count: usize,
+    expected_axis: PhysicalAxis,
 ) -> GridBaselineGroups<S> {
     let mut groups = GridBaselineGroups {
         rows: vec![TrackBaselineGroup::default(); row_count],
         columns: vec![TrackBaselineGroup::default(); column_count],
     };
     for item in items {
-        if merge_published_row_baselines(&mut groups.rows, item) {
+        if merge_published_row_baselines(&mut groups.rows, item, expected_axis) {
             continue;
         }
         if !item.baseline_participation.participates || item.block_auto_margins {
@@ -1011,11 +1110,11 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
                 else {
                     continue;
                 };
-                *group = Some(
-                    group.unwrap_or(S::ZERO).max(
-                        item.baseline_geometry_for_span(item.area.size.height)
-                            .major_baseline,
-                    ),
+                merge_expected_baseline(
+                    group,
+                    item.baseline_geometry_for_span(item.area.size.height)
+                        .major_baseline,
+                    expected_axis,
                 );
             }
             Some(BaselineGroupKind::Minor) => {
@@ -1025,11 +1124,11 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
                 let Some(group) = groups.rows.get_mut(row).map(|group| &mut group.last) else {
                     continue;
                 };
-                *group = Some(
-                    group.unwrap_or(S::ZERO).max(
-                        item.baseline_geometry_for_span(item.area.size.height)
-                            .minor_baseline,
-                    ),
+                merge_expected_baseline(
+                    group,
+                    item.baseline_geometry_for_span(item.area.size.height)
+                        .minor_baseline,
+                    expected_axis,
                 );
             }
             None => {}
@@ -1038,9 +1137,38 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
     groups
 }
 
+pub(super) fn merge_expected_baseline<S: LayoutScalar>(
+    target: &mut Option<PhysicalBaseline<S>>,
+    candidate: PhysicalBaseline<S>,
+    expected_axis: PhysicalAxis,
+) -> bool {
+    if candidate.axis() == expected_axis {
+        merge_baseline(target, candidate);
+        true
+    } else {
+        false
+    }
+}
+
+fn merge_baseline<S: LayoutScalar>(
+    target: &mut Option<PhysicalBaseline<S>>,
+    candidate: PhysicalBaseline<S>,
+) {
+    match target {
+        Some(current) if current.axis() == candidate.axis() => {
+            if candidate.coordinate() > current.coordinate() {
+                *current = candidate;
+            }
+        }
+        Some(_) => {}
+        None => *target = Some(candidate),
+    }
+}
+
 fn merge_published_row_baselines<Node, S: LayoutScalar>(
     rows: &mut [TrackBaselineGroup<S>],
     item: &PendingGridItem<Node, S>,
+    expected_axis: PhysicalAxis,
 ) -> bool {
     let Some(published) = &item.published_row_baselines else {
         return false;
@@ -1051,16 +1179,10 @@ fn merge_published_row_baselines<Node, S: LayoutScalar>(
             continue;
         };
         if let Some(first) = published.group.first {
-            parent_group.first = Some(
-                parent_group
-                    .first
-                    .map_or(first, |current| current.max(first)),
-            );
-            merged = true;
+            merged |= merge_expected_baseline(&mut parent_group.first, first, expected_axis);
         }
         if let Some(last) = published.group.last {
-            parent_group.last = Some(parent_group.last.map_or(last, |current| current.max(last)));
-            merged = true;
+            merged |= merge_expected_baseline(&mut parent_group.last, last, expected_axis);
         }
     }
     merged
@@ -1069,6 +1191,7 @@ fn merge_published_row_baselines<Node, S: LayoutScalar>(
 pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(
     local_groups: &[TrackBaselineGroup<S>],
     axis: &InheritedGridAxis<S>,
+    expected_axis: PhysicalAxis,
 ) -> Vec<PublishedTrackBaselineGroup<S>> {
     let parent_span_len = axis.parent_end.saturating_sub(axis.parent_start);
     local_groups
@@ -1085,22 +1208,28 @@ pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(
             let internal_gap_adjustment =
                 axis.gap_difference * internal_gap_edge_count(local_groups.len(), local_index);
             let first = group.first.map(|baseline| {
-                baseline
-                    + internal_gap_adjustment
-                    + if local_index == 0 {
-                        axis.start_mbp
-                    } else {
-                        S::ZERO
-                    }
+                adjust_published_baseline(
+                    baseline,
+                    internal_gap_adjustment
+                        + if local_index == 0 {
+                            axis.start_mbp
+                        } else {
+                            S::ZERO
+                        },
+                    expected_axis,
+                )
             });
             let last = group.last.map(|baseline| {
-                baseline
-                    + internal_gap_adjustment
-                    + if local_index + 1 == local_groups.len() {
-                        axis.end_mbp
-                    } else {
-                        S::ZERO
-                    }
+                adjust_published_baseline(
+                    baseline,
+                    internal_gap_adjustment
+                        + if local_index + 1 == local_groups.len() {
+                            axis.end_mbp
+                        } else {
+                            S::ZERO
+                        },
+                    expected_axis,
+                )
             });
             (first.is_some() || last.is_some()).then_some(PublishedTrackBaselineGroup {
                 parent_index,
@@ -1108,6 +1237,18 @@ pub(super) fn publish_row_baseline_groups<S: LayoutScalar>(
             })
         })
         .collect()
+}
+
+fn adjust_published_baseline<S: LayoutScalar>(
+    baseline: PhysicalBaseline<S>,
+    adjustment: S,
+    expected_axis: PhysicalAxis,
+) -> PhysicalBaseline<S> {
+    if baseline.axis() == expected_axis {
+        PhysicalBaseline::new(baseline.axis(), baseline.coordinate() + adjustment)
+    } else {
+        baseline
+    }
 }
 
 fn internal_gap_edge_count<S: LayoutScalar>(track_count: usize, track_index: usize) -> S {
@@ -1124,6 +1265,7 @@ pub(super) fn grid_container_baselines<Node, S: LayoutScalar>(
     groups: &GridBaselineGroups<S>,
     row_offsets: &[S],
     rows: &[S],
+    flow_axes: FlowAxes,
 ) -> GridContainerBaselines<S> {
     let mut first_occupied_row = None;
     let mut last_occupied_row = None;
@@ -1143,71 +1285,80 @@ pub(super) fn grid_container_baselines<Node, S: LayoutScalar>(
         }
     }
 
-    let first = first_occupied_row.and_then(|row| {
-        groups
-            .rows
-            .get(row)
-            .and_then(|group| group.first.map(|baseline| row_offsets[row] + baseline))
-            .or_else(|| {
-                items
-                    .iter()
-                    .filter(|item| item.area.row == row)
-                    .min_by_key(|item| grid_area_start_key(item.area))
-                    .map(|item| {
-                        row_offsets[item.area.row] + item.block_offset + item.first_baseline
-                    })
-            })
-    });
+    let mut baselines = BaselinesOf::NONE;
+    if let Some(point) = first_occupied_row.and_then(|row| {
+        items
+            .iter()
+            .filter(|item| item.area.row == row)
+            .min_by_key(|item| grid_area_start_key(item.area))
+            .map(|item| item.first_baseline.translated(item.location))
+    }) {
+        baselines.record_first(point);
+    }
+    if let Some(point) = last_occupied_row.and_then(|row| {
+        items
+            .iter()
+            .filter(|item| item.area.row_end.checked_sub(1) == Some(row))
+            .max_by_key(|item| grid_area_end_key(item.area))
+            .map(|item| item.last_baseline.translated(item.location))
+    }) {
+        baselines.record_last(point);
+    }
 
-    let last = last_occupied_row.and_then(|row| {
-        groups
-            .rows
-            .get(row)
-            .and_then(|group| {
-                group
-                    .last
-                    .map(|baseline| row_offsets[row] + rows[row] - baseline)
-            })
-            .or_else(|| {
-                items
-                    .iter()
-                    .filter(|item| item.area.row_end.checked_sub(1) == Some(row))
-                    .max_by_key(|item| grid_area_end_key(item.area))
-                    .map(|item| row_offsets[item.area.row] + item.block_offset + item.last_baseline)
-            })
-    });
+    if let Some(first) = first_occupied_row.and_then(|row| {
+        groups.rows.get(row).and_then(|group| {
+            group
+                .first
+                .and_then(|baseline| baseline.coordinate_on(flow_axes.block_axis()))
+                .map(|baseline| row_offsets[row] + baseline)
+        })
+    }) {
+        baselines.replace_first_axis(
+            BaselinesOf::from_block_coordinates(flow_axes, Some(first), None).first,
+        );
+    }
+    if let Some(last) = last_occupied_row.and_then(|row| {
+        groups.rows.get(row).and_then(|group| {
+            group
+                .last
+                .and_then(|baseline| baseline.coordinate_on(flow_axes.block_axis()))
+                .map(|baseline| row_offsets[row] + rows[row] - baseline)
+        })
+    }) {
+        baselines.replace_last_axis(
+            BaselinesOf::from_block_coordinates(flow_axes, None, Some(last)).last,
+        );
+    }
 
-    GridContainerBaselines { first, last }
+    GridContainerBaselines { baselines }
 }
 
 fn merge_inherited_baseline_groups<S: LayoutScalar>(
     groups: &mut GridBaselineGroups<S>,
     parent_context: &GridParentContext<S>,
+    flow_axes: FlowAxes,
 ) {
     if let Some(rows) = &parent_context.rows {
-        merge_axis_baselines(&mut groups.rows, rows);
+        merge_axis_baselines(&mut groups.rows, rows, flow_axes.block_axis());
     }
     if let Some(columns) = &parent_context.columns {
-        merge_axis_baselines(&mut groups.columns, columns);
+        merge_axis_baselines(&mut groups.columns, columns, flow_axes.inline_axis());
     }
 }
 
 fn merge_axis_baselines<S: LayoutScalar>(
     groups: &mut [TrackBaselineGroup<S>],
     axis: &InheritedGridAxis<S>,
+    expected_axis: PhysicalAxis,
 ) {
     for (group, baseline) in groups.iter_mut().zip(&axis.major_baselines) {
         if let Some(baseline) = *baseline {
-            group.first = Some(
-                group
-                    .first
-                    .map_or(baseline, |current| current.max(baseline)),
-            );
+            let _ = merge_expected_baseline(&mut group.first, baseline, expected_axis);
         }
     }
     for (group, baseline) in groups.iter_mut().zip(&axis.minor_baselines) {
         if let Some(baseline) = *baseline {
-            group.last = Some(group.last.map_or(baseline, |current| current.max(baseline)));
+            let _ = merge_expected_baseline(&mut group.last, baseline, expected_axis);
         }
     }
 }
@@ -1233,16 +1384,17 @@ pub(super) fn baseline_participation<S: LayoutScalar>(
     block_auto_margins: bool,
     synthesized_baseline_would_cycle: bool,
     baselines: BaselinesOf<S>,
+    flow_axes: FlowAxes,
 ) -> BaselineParticipation {
     let (mut group, synthesized, fallback_alignment) = match align_self {
         AlignItems::Baseline => (
             Some(BaselineGroupKind::Major),
-            baselines.first.y.is_none(),
+            baselines.first_block(flow_axes).is_none(),
             Some(AlignItems::Start),
         ),
         AlignItems::LastBaseline => (
             Some(BaselineGroupKind::Minor),
-            baselines.last.y.is_none(),
+            baselines.last_block(flow_axes).is_none(),
             Some(AlignItems::End),
         ),
         _ => (None, false, None),
@@ -1259,14 +1411,37 @@ pub(super) fn baseline_participation<S: LayoutScalar>(
     }
 }
 
+pub(super) fn baseline_participation_for_container<S: LayoutScalar>(
+    align_self: AlignItems,
+    block_auto_margins: bool,
+    synthesized_baseline_would_cycle: bool,
+    baselines: BaselinesOf<S>,
+    child_flow_axes: FlowAxes,
+    container_flow_axes: FlowAxes,
+) -> BaselineParticipation {
+    let mut participation = baseline_participation(
+        align_self,
+        block_auto_margins,
+        synthesized_baseline_would_cycle,
+        baselines,
+        child_flow_axes,
+    );
+    if child_flow_axes.block_axis() != container_flow_axes.block_axis() {
+        participation.participates = false;
+        participation.group = None;
+    }
+    participation
+}
+
 pub(super) fn synthesized_baseline_would_cycle<S: LayoutScalar>(
     align_self: AlignItems,
     baselines: BaselinesOf<S>,
+    flow_axes: FlowAxes,
     row_span_tracks: &[TrackSizingOf<S>],
 ) -> bool {
     let synthesizes = match align_self {
-        AlignItems::Baseline => baselines.first.y.is_none(),
-        AlignItems::LastBaseline => baselines.last.y.is_none(),
+        AlignItems::Baseline => baselines.first_block(flow_axes).is_none(),
+        AlignItems::LastBaseline => baselines.last_block(flow_axes).is_none(),
         _ => false,
     };
     synthesizes
@@ -1395,6 +1570,7 @@ fn subgrid_child_axis_context<S: LayoutScalar>(
     let inherited_baselines = inherit_subgrid_baselines(SubgridBaselineInheritanceInput {
         parent_major: &parent_major,
         parent_minor: &parent_minor,
+        physical_axis: grid_axis_physical_axis(input.child_style, input.axis),
         parent_span: GridTrackSpan::new(start_line, end_line),
         reversed: mapping.reversed,
         start_mbp,
@@ -1548,12 +1724,23 @@ fn parent_baseline_groups<S: LayoutScalar>(
     groups: &[TrackBaselineGroup<S>],
     track_count: usize,
     major: bool,
-) -> Vec<Option<S>> {
+) -> Vec<Option<PhysicalBaseline<S>>> {
     let mut baselines = vec![None; track_count];
     for (baseline, group) in baselines.iter_mut().zip(groups) {
         *baseline = if major { group.first } else { group.last };
     }
     baselines
+}
+
+fn grid_axis_physical_axis<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    axis: GridAxisKind,
+) -> PhysicalAxis {
+    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    match axis {
+        GridAxisKind::Column => flow_axes.inline_axis(),
+        GridAxisKind::Row => flow_axes.block_axis(),
+    }
 }
 
 fn axis_margin_border_padding<S: LayoutScalar>(

@@ -4127,6 +4127,370 @@ fn flex_row_reports_first_child_baseline() {
     assert_eq!(output.last_baselines.y, Some(7.0));
 }
 
+fn assert_flex_uses_the_orthogonal_child_line_over_margin_for_baselines<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInputOf::<S> {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Row,
+                align_items: Some(AlignItems::Baseline),
+                size: Size::new(DimensionOf::px(S::from_f64(200.0)), DimensionOf::AUTO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<S> {
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(
+                    DimensionOf::px(S::from_f64(70.0)),
+                    DimensionOf::px(S::from_f64(110.0)),
+                ),
+                margin: Edges::new(
+                    LengthAutoOf::px(S::from_f64(3.0)),
+                    LengthAutoOf::px(S::from_f64(7.0)),
+                    LengthAutoOf::px(S::from_f64(13.0)),
+                    LengthAutoOf::px(S::from_f64(19.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_sizes_and_baselines(
+                Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+                Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+                BaselinesOf {
+                    first: Point::new(Some(S::from_f64(17.0)), None),
+                    last: Point::new(Some(S::from_f64(29.0)), None),
+                },
+            ),
+        );
+
+    let output = compute_flex(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(200.0)), Some(S::from_f64(160.0))),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(200.0)),
+                AvailableOf::definite(S::from_f64(160.0)),
+            ),
+        ),
+    )
+    .expect("flex layout succeeds");
+
+    assert_eq!(
+        output.first_baselines,
+        Point::new(Some(S::from_f64(36.0)), None)
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(Some(S::from_f64(36.0)), None)
+    );
+}
+
+#[test]
+fn orthogonal_baseline_flex_uses_line_over_margin_for_f32() {
+    assert_flex_uses_the_orthogonal_child_line_over_margin_for_baselines::<f32>();
+}
+
+#[test]
+fn orthogonal_baseline_flex_uses_line_over_margin_for_f64() {
+    assert_flex_uses_the_orthogonal_child_line_over_margin_for_baselines::<f64>();
+}
+
+fn assert_flex_translates_orthogonal_child_baselines_on_the_child_block_axis<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(1, [2])
+        .style(
+            1,
+            NodeInputOf::<S> {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Row,
+                align_items: Some(AlignItems::Baseline),
+                size: Size::new(
+                    DimensionOf::px(S::from_f64(200.0)),
+                    DimensionOf::px(S::from_f64(160.0)),
+                ),
+                padding: Edges {
+                    top: LengthOf::px(S::from_f64(5.0)),
+                    left: LengthOf::px(S::from_f64(3.0)),
+                    ..Edges::all(LengthOf::ZERO)
+                },
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf::<S> {
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(
+                    DimensionOf::px(S::from_f64(70.0)),
+                    DimensionOf::px(S::from_f64(110.0)),
+                ),
+                margin: Edges::new(
+                    LengthAutoOf::px(S::from_f64(17.0)),
+                    LengthAutoOf::px(S::from_f64(7.0)),
+                    LengthAutoOf::px(S::from_f64(13.0)),
+                    LengthAutoOf::px(S::from_f64(11.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_sizes_and_baselines(
+                Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+                Size::new(S::from_f64(70.0), S::from_f64(110.0)),
+                BaselinesOf {
+                    first: Point::new(Some(S::from_f64(17.0)), None),
+                    last: Point::new(Some(S::from_f64(29.0)), None),
+                },
+            ),
+        );
+
+    let output = compute_flex(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(200.0)), Some(S::from_f64(160.0))),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(200.0)),
+                AvailableOf::definite(S::from_f64(160.0)),
+            ),
+        ),
+    )
+    .expect("flex layout succeeds");
+
+    assert_eq!(
+        tree.layout(2).expect("child layout is staged").location,
+        Point::new(S::from_f64(14.0), S::from_f64(22.0))
+    );
+    assert_eq!(
+        output.first_baselines,
+        Point::new(Some(S::from_f64(31.0)), None)
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(Some(S::from_f64(31.0)), None)
+    );
+}
+
+#[test]
+fn orthogonal_baseline_flex_translation_uses_physical_x_for_f32() {
+    assert_flex_translates_orthogonal_child_baselines_on_the_child_block_axis::<f32>();
+}
+
+#[test]
+fn orthogonal_baseline_flex_translation_uses_physical_x_for_f64() {
+    assert_flex_translates_orthogonal_child_baselines_on_the_child_block_axis::<f64>();
+}
+
+struct BaselineRefreshTree<S: LayoutScalar> {
+    styles: HashMap<u32, NodeInputOf<S>>,
+    layouts: HashMap<u32, NodeOutputOf<S>>,
+    initial_child_width: S,
+}
+
+impl<S: LayoutScalar> Traverse for BaselineRefreshTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        match node {
+            1 => [2].iter().copied(),
+            _ => [].iter().copied(),
+        }
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        usize::from(node == 1)
+    }
+
+    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+        2
+    }
+}
+
+impl<S: LayoutScalar> Compute for BaselineRefreshTree<S> {
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.styles[&node].clone())
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
+        self.layouts.insert(node, layout);
+    }
+
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S> {
+        assert_eq!(node, 2, "the focused flex tree exposes one measured child");
+        let width = input.known().width.unwrap_or(self.initial_child_width);
+        let size = Size::new(width, width / S::from_f64(2.0));
+        Ok(ComputeOutputOf::from_sizes_and_baselines(
+            size,
+            size,
+            BaselinesOf::NONE,
+        ))
+    }
+}
+
+fn assert_orthogonal_baseline_flex_target_refresh<S: LayoutScalar>(
+    container_width: f64,
+    child_width: f64,
+    expected_child_size: Size<S>,
+    expected_container_height: f64,
+    expected_baseline: f64,
+) {
+    let mut tree = BaselineRefreshTree {
+        styles: HashMap::from([
+            (
+                1,
+                NodeInputOf::<S> {
+                    display: Display::Flex,
+                    writing_mode: WritingMode::VerticalRl,
+                    flex_direction: FlexDirection::Row,
+                    align_items: Some(AlignItems::Baseline),
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(container_width)),
+                        DimensionOf::AUTO,
+                    ),
+                    ..NodeInputOf::default()
+                },
+            ),
+            (
+                2,
+                NodeInputOf::<S> {
+                    display: Display::Block,
+                    writing_mode: WritingMode::HorizontalTb,
+                    align_self: Some(AlignItems::Baseline),
+                    size: Size::new(DimensionOf::px(S::from_f64(child_width)), DimensionOf::AUTO),
+                    min_size: Size::new(DimensionOf::ZERO, DimensionOf::ZERO),
+                    flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
+                    flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
+                    margin: Edges::new(
+                        LengthAutoOf::px(S::from_f64(7.0)),
+                        LengthAutoOf::px(S::from_f64(5.0)),
+                        LengthAutoOf::px(S::from_f64(11.0)),
+                        LengthAutoOf::px(S::from_f64(3.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            ),
+        ]),
+        layouts: HashMap::new(),
+        initial_child_width: S::from_f64(child_width),
+    };
+
+    let output = compute_flex(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(container_width)), None),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(container_width)),
+                AvailableOf::MAX_CONTENT,
+            ),
+        ),
+    )
+    .expect("flex layout succeeds");
+
+    assert_eq!(
+        tree.layouts[&2].location,
+        Point::new(S::from_f64(3.0), S::from_f64(7.0))
+    );
+    assert_eq!(tree.layouts[&2].size, expected_child_size);
+    assert_eq!(
+        output.size,
+        Size::new(
+            S::from_f64(container_width),
+            S::from_f64(expected_container_height),
+        )
+    );
+    assert_eq!(
+        output.first_baselines,
+        Point::new(None, Some(S::from_f64(expected_baseline)))
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(None, Some(S::from_f64(expected_baseline)))
+    );
+}
+
+fn assert_orthogonal_baseline_flex_grow<S: LayoutScalar>() {
+    assert_orthogonal_baseline_flex_target_refresh::<S>(
+        160.0,
+        40.0,
+        Size::new(S::from_f64(152.0), S::from_f64(76.0)),
+        94.0,
+        83.0,
+    );
+}
+
+fn assert_orthogonal_baseline_flex_shrink<S: LayoutScalar>() {
+    assert_orthogonal_baseline_flex_target_refresh::<S>(
+        100.0,
+        160.0,
+        Size::new(S::from_f64(92.0), S::from_f64(46.0)),
+        64.0,
+        53.0,
+    );
+}
+
+#[test]
+fn baseline_grow_refreshes_orthogonal_flex_items_for_f32() {
+    assert_orthogonal_baseline_flex_grow::<f32>();
+}
+
+#[test]
+fn baseline_grow_refreshes_orthogonal_flex_items_for_f64() {
+    assert_orthogonal_baseline_flex_grow::<f64>();
+}
+
+#[test]
+fn baseline_shrink_refreshes_orthogonal_flex_items_for_f32() {
+    assert_orthogonal_baseline_flex_shrink::<f32>();
+}
+
+#[test]
+fn baseline_shrink_refreshes_orthogonal_flex_items_for_f64() {
+    assert_orthogonal_baseline_flex_shrink::<f64>();
+}
+
 #[test]
 fn flex_row_aligns_baseline_items_by_child_baselines() {
     #[derive(Default)]

@@ -1,5 +1,46 @@
 use crate::*;
 
+fn assert_leaf_uses_containing_flow_for_percentage_edges<S: LayoutScalar>() {
+    let input = ComputeInputOf::<S>::leaf_layout(
+        Size::NONE,
+        Size::new(Some(S::from_f64(5_000.0)), Some(S::from_f64(3_000.0))),
+        crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        Size::new(
+            AvailableOf::definite(S::from_f64(5_000.0)),
+            AvailableOf::definite(S::from_f64(8_000.0)),
+        ),
+    )
+    .expect("valid direct leaf input");
+    let style = NodeInputOf::<S> {
+        margin: Edges::all(LengthAutoOf::percent(S::from_f64(0.1))),
+        padding: Edges::all(LengthOf::percent(S::from_f64(0.2))),
+        border: Edges::all(LengthOf::percent(S::from_f64(0.3))),
+        ..NodeInputOf::default()
+    };
+
+    compute_leaf(input, &style, |measurement| {
+        assert_eq!(
+            measurement.available_content_size(),
+            Size::new(
+                MeasurementAvailableOf::definite(S::from_f64(1_400.0)).unwrap(),
+                MeasurementAvailableOf::definite(S::from_f64(4_400.0)).unwrap(),
+            )
+        );
+        Ok::<_, ()>(Size::ZERO)
+    })
+    .expect("leaf percentage resolution succeeds");
+}
+
+#[test]
+fn leaf_uses_containing_flow_for_percentage_edges_in_f32() {
+    assert_leaf_uses_containing_flow_for_percentage_edges::<f32>();
+}
+
+#[test]
+fn leaf_uses_containing_flow_for_percentage_edges_in_f64() {
+    assert_leaf_uses_containing_flow_for_percentage_edges::<f64>();
+}
+
 #[test]
 fn leaf_layout_returns_known_size_without_calling_measure() {
     let input = ComputeInput::for_child(

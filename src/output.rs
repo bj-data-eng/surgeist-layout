@@ -2,7 +2,7 @@ use super::{
     AvailableOf, Axis, CacheKeyContext, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
     NonNegativeFiniteScalarErrorOf, Point, ScrollGeometryOf, Size,
 };
-use crate::geometry::FlowAxes;
+use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RunMode {
@@ -111,11 +111,12 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
 
     #[must_use]
     pub(crate) const fn flex_item_root(
+        known: Size<Option<S>>,
         parent: Size<Option<S>>,
         containing_flow_axes: FlowAxes,
         available: Size<AvailableOf<S>>,
     ) -> Self {
-        Self::root_layout(Size::NONE, parent, containing_flow_axes, available)
+        Self::root_layout(known, parent, containing_flow_axes, available)
     }
 
     #[must_use]
@@ -415,6 +416,49 @@ pub struct BaselinesOf<S: LayoutScalar = DefaultScalar> {
 
 pub type Baselines = BaselinesOf<DefaultScalar>;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PhysicalBaseline<S: LayoutScalar> {
+    point: Point<Option<S>>,
+    axis: PhysicalAxis,
+}
+
+impl<S: LayoutScalar> PhysicalBaseline<S> {
+    pub(crate) fn new(axis: PhysicalAxis, coordinate: S) -> Self {
+        let point = match axis {
+            PhysicalAxis::Horizontal => Point::new(Some(coordinate), None),
+            PhysicalAxis::Vertical => Point::new(None, Some(coordinate)),
+        };
+        Self { point, axis }
+    }
+
+    #[must_use]
+    pub(crate) fn axis(self) -> PhysicalAxis {
+        self.axis
+    }
+
+    #[must_use]
+    pub(crate) fn coordinate(self) -> S {
+        match (self.axis, self.point) {
+            (PhysicalAxis::Horizontal, Point { x: Some(value), .. })
+            | (PhysicalAxis::Vertical, Point { y: Some(value), .. }) => value,
+            _ => unreachable!("physical baseline construction stores its tagged coordinate"),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn coordinate_on(self, expected_axis: PhysicalAxis) -> Option<S> {
+        (self.axis == expected_axis).then_some(self.coordinate())
+    }
+
+    #[must_use]
+    pub(crate) fn translated(self, location: Point<S>) -> Point<Option<S>> {
+        match self.axis {
+            PhysicalAxis::Horizontal => Point::new(Some(location.x + self.coordinate()), None),
+            PhysicalAxis::Vertical => Point::new(None, Some(location.y + self.coordinate())),
+        }
+    }
+}
+
 impl<S: LayoutScalar> BaselinesOf<S> {
     pub const NONE: Self = Self {
         first: Point::NONE,
@@ -430,21 +474,240 @@ impl<S: LayoutScalar> BaselinesOf<S> {
     }
 
     #[must_use]
-    pub const fn synthesized(size: Size<S>) -> Self {
+    pub fn synthesized(flow_axes: FlowAxes, size: Size<S>) -> Self {
         Self {
-            first: Point::new(Some(size.width), Some(size.height)),
-            last: Point::new(Some(S::ZERO), Some(S::ZERO)),
+            first: Self::block_point(
+                flow_axes,
+                Some(Self::side_coordinate(flow_axes.line_under(), size)),
+            ),
+            last: Self::block_point(
+                flow_axes,
+                Some(Self::side_coordinate(flow_axes.line_over(), size)),
+            ),
         }
     }
 
     #[must_use]
-    pub fn first_or_synthesize_block(self, size: Size<S>) -> S {
-        self.first.y.unwrap_or(size.height)
+    pub fn first_or_synthesize_block(self, flow_axes: FlowAxes, size: Size<S>) -> S {
+        self.first_or_synthesize_block_baseline(flow_axes, size)
+            .coordinate()
     }
 
     #[must_use]
-    pub fn last_or_synthesize_block(self, _size: Size<S>) -> S {
-        self.last.y.unwrap_or(S::ZERO)
+    pub fn last_or_synthesize_block(self, flow_axes: FlowAxes, size: Size<S>) -> S {
+        self.last_or_synthesize_block_baseline(flow_axes, size)
+            .coordinate()
+    }
+
+    #[must_use]
+    pub fn first_block(self, flow_axes: FlowAxes) -> Option<S> {
+        self.first_block_baseline(flow_axes)
+            .map(PhysicalBaseline::coordinate)
+    }
+
+    #[must_use]
+    pub fn last_block(self, flow_axes: FlowAxes) -> Option<S> {
+        self.last_block_baseline(flow_axes)
+            .map(PhysicalBaseline::coordinate)
+    }
+
+    #[must_use]
+    pub(crate) fn first_block_baseline(self, flow_axes: FlowAxes) -> Option<PhysicalBaseline<S>> {
+        Self::block_coordinate(flow_axes, self.first)
+            .map(|coordinate| PhysicalBaseline::new(flow_axes.block_axis(), coordinate))
+    }
+
+    #[must_use]
+    pub(crate) fn last_block_baseline(self, flow_axes: FlowAxes) -> Option<PhysicalBaseline<S>> {
+        Self::block_coordinate(flow_axes, self.last)
+            .map(|coordinate| PhysicalBaseline::new(flow_axes.block_axis(), coordinate))
+    }
+
+    #[must_use]
+    pub(crate) fn first_or_synthesize_block_baseline(
+        self,
+        flow_axes: FlowAxes,
+        size: Size<S>,
+    ) -> PhysicalBaseline<S> {
+        self.first_block_baseline(flow_axes).unwrap_or_else(|| {
+            PhysicalBaseline::new(
+                flow_axes.block_axis(),
+                Self::side_coordinate(flow_axes.line_under(), size),
+            )
+        })
+    }
+
+    #[must_use]
+    pub(crate) fn last_or_synthesize_block_baseline(
+        self,
+        flow_axes: FlowAxes,
+        size: Size<S>,
+    ) -> PhysicalBaseline<S> {
+        self.last_block_baseline(flow_axes).unwrap_or_else(|| {
+            PhysicalBaseline::new(
+                flow_axes.block_axis(),
+                Self::side_coordinate(flow_axes.line_over(), size),
+            )
+        })
+    }
+
+    #[must_use]
+    pub(crate) fn from_block_coordinates(
+        flow_axes: FlowAxes,
+        first: Option<S>,
+        last: Option<S>,
+    ) -> Self {
+        Self {
+            first: Self::block_point(flow_axes, first),
+            last: Self::block_point(flow_axes, last),
+        }
+    }
+
+    pub(crate) fn record_first(&mut self, point: Point<Option<S>>) {
+        if self.first.x.is_none() {
+            self.first.x = point.x;
+        }
+        if self.first.y.is_none() {
+            self.first.y = point.y;
+        }
+    }
+
+    pub(crate) fn record_last(&mut self, point: Point<Option<S>>) {
+        if point.x.is_some() {
+            self.last.x = point.x;
+        }
+        if point.y.is_some() {
+            self.last.y = point.y;
+        }
+    }
+
+    pub(crate) fn replace_first_axis(&mut self, point: Point<Option<S>>) {
+        if point.x.is_some() {
+            self.first.x = point.x;
+        }
+        if point.y.is_some() {
+            self.first.y = point.y;
+        }
+    }
+
+    pub(crate) fn replace_last_axis(&mut self, point: Point<Option<S>>) {
+        if point.x.is_some() {
+            self.last.x = point.x;
+        }
+        if point.y.is_some() {
+            self.last.y = point.y;
+        }
+    }
+
+    fn block_coordinate(flow_axes: FlowAxes, point: Point<Option<S>>) -> Option<S> {
+        flow_axes.block_axis_coordinate(point)
+    }
+
+    fn block_point(flow_axes: FlowAxes, value: Option<S>) -> Point<Option<S>> {
+        match flow_axes.block_axis() {
+            PhysicalAxis::Horizontal => Point::new(value, None),
+            PhysicalAxis::Vertical => Point::new(None, value),
+        }
+    }
+
+    fn side_coordinate(side: PhysicalSide, size: Size<S>) -> S {
+        match side {
+            PhysicalSide::Top | PhysicalSide::Left => S::ZERO,
+            PhysicalSide::Right => size.width,
+            PhysicalSide::Bottom => size.height,
+        }
+    }
+}
+
+#[cfg(test)]
+mod baseline_tests {
+    use super::*;
+    use crate::geometry::{PhysicalAxis, PhysicalSide};
+    use crate::{Direction, WritingMode};
+
+    fn point_coordinate<S: LayoutScalar>(point: Point<Option<S>>, axis: PhysicalAxis) -> Option<S> {
+        match axis {
+            PhysicalAxis::Horizontal => point.x,
+            PhysicalAxis::Vertical => point.y,
+        }
+    }
+
+    fn side_coordinate<S: LayoutScalar>(side: PhysicalSide, size: Size<S>) -> S {
+        match side {
+            PhysicalSide::Top | PhysicalSide::Left => S::ZERO,
+            PhysicalSide::Right => size.width,
+            PhysicalSide::Bottom => size.height,
+        }
+    }
+
+    fn assert_baseline_selection_and_synthesis<S: LayoutScalar>() {
+        let size = Size::new(S::from_f64(70.0), S::from_f64(110.0));
+        let rows = [
+            (WritingMode::HorizontalTb, Direction::Ltr),
+            (WritingMode::HorizontalTb, Direction::Rtl),
+            (WritingMode::VerticalRl, Direction::Ltr),
+            (WritingMode::VerticalRl, Direction::Rtl),
+            (WritingMode::VerticalLr, Direction::Ltr),
+            (WritingMode::VerticalLr, Direction::Rtl),
+            (WritingMode::SidewaysRl, Direction::Ltr),
+            (WritingMode::SidewaysRl, Direction::Rtl),
+            (WritingMode::SidewaysLr, Direction::Ltr),
+            (WritingMode::SidewaysLr, Direction::Rtl),
+        ];
+
+        for (writing_mode, direction) in rows {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let block_axis = flow_axes.block_axis();
+            let non_block_axis = block_axis.other();
+            let baselines = match block_axis {
+                PhysicalAxis::Horizontal => BaselinesOf {
+                    first: Point::new(Some(S::from_f64(17.0)), None),
+                    last: Point::new(Some(S::from_f64(29.0)), None),
+                },
+                PhysicalAxis::Vertical => BaselinesOf {
+                    first: Point::new(None, Some(S::from_f64(23.0))),
+                    last: Point::new(None, Some(S::from_f64(31.0))),
+                },
+            };
+            let expected_first = point_coordinate(baselines.first, block_axis)
+                .expect("the mapped physical block coordinate is present");
+            let expected_last = point_coordinate(baselines.last, block_axis)
+                .expect("the mapped physical block coordinate is present");
+
+            assert_eq!(point_coordinate(baselines.first, non_block_axis), None);
+            assert_eq!(point_coordinate(baselines.last, non_block_axis), None);
+
+            assert_eq!(
+                baselines.first_or_synthesize_block(flow_axes, size),
+                expected_first
+            );
+            assert_eq!(
+                baselines.last_or_synthesize_block(flow_axes, size),
+                expected_last
+            );
+
+            let synthesized = BaselinesOf::synthesized(flow_axes, size);
+            assert_eq!(
+                point_coordinate(synthesized.first, block_axis),
+                Some(side_coordinate(flow_axes.line_under(), size))
+            );
+            assert_eq!(
+                point_coordinate(synthesized.last, block_axis),
+                Some(side_coordinate(flow_axes.line_over(), size))
+            );
+            assert_eq!(point_coordinate(synthesized.first, non_block_axis), None);
+            assert_eq!(point_coordinate(synthesized.last, non_block_axis), None);
+        }
+    }
+
+    #[test]
+    fn baseline_selection_and_synthesis_follow_all_flow_axes_for_f32() {
+        assert_baseline_selection_and_synthesis::<f32>();
+    }
+
+    #[test]
+    fn baseline_selection_and_synthesis_follow_all_flow_axes_for_f64() {
+        assert_baseline_selection_and_synthesis::<f64>();
     }
 }
 

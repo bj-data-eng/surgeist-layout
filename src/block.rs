@@ -548,8 +548,7 @@ where
     let node_inner_size = Size::new(inner_width, constants.node_inner_size.height);
     let mut cursor_y = constants.content_box_inset.top;
     let mut content_size: Size<S> = Size::ZERO;
-    let mut first_baseline = None;
-    let mut last_baseline = None;
+    let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
     let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
     let mut top_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -631,10 +630,24 @@ where
                 static_positions.extend(placement.static_positions);
                 if let Some(baseline) = placement.first_baseline {
                     let absolute_baseline = cursor_y + baseline;
-                    first_baseline.get_or_insert(absolute_baseline);
+                    baselines.record_first(
+                        BaselinesOf::from_block_coordinates(
+                            constants.flow_axes,
+                            Some(absolute_baseline),
+                            None,
+                        )
+                        .first,
+                    );
                 }
                 if let Some(baseline) = placement.last_baseline {
-                    last_baseline = Some(cursor_y + baseline);
+                    baselines.record_last(
+                        BaselinesOf::from_block_coordinates(
+                            constants.flow_axes,
+                            None,
+                            Some(cursor_y + baseline),
+                        )
+                        .last,
+                    );
                 }
                 cursor_y = cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -680,10 +693,24 @@ where
                 static_positions.extend(placement.static_positions);
                 if let Some(baseline) = placement.first_baseline {
                     let absolute_baseline = cursor_y + baseline;
-                    first_baseline.get_or_insert(absolute_baseline);
+                    baselines.record_first(
+                        BaselinesOf::from_block_coordinates(
+                            constants.flow_axes,
+                            Some(absolute_baseline),
+                            None,
+                        )
+                        .first,
+                    );
                 }
                 if let Some(baseline) = placement.last_baseline {
-                    last_baseline = Some(cursor_y + baseline);
+                    baselines.record_last(
+                        BaselinesOf::from_block_coordinates(
+                            constants.flow_axes,
+                            None,
+                            Some(cursor_y + baseline),
+                        )
+                        .last,
+                    );
                 }
                 cursor_y = cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -740,10 +767,24 @@ where
             static_positions.extend(placement.static_positions);
             if let Some(baseline) = placement.first_baseline {
                 let absolute_baseline = cursor_y + baseline;
-                first_baseline.get_or_insert(absolute_baseline);
+                baselines.record_first(
+                    BaselinesOf::from_block_coordinates(
+                        constants.flow_axes,
+                        Some(absolute_baseline),
+                        None,
+                    )
+                    .first,
+                );
             }
             if let Some(baseline) = placement.last_baseline {
-                last_baseline = Some(cursor_y + baseline);
+                baselines.record_last(
+                    BaselinesOf::from_block_coordinates(
+                        constants.flow_axes,
+                        None,
+                        Some(cursor_y + baseline),
+                    )
+                    .last,
+                );
             }
             cursor_y = cursor_y + placement.size.height;
             active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -981,12 +1022,13 @@ where
             output.scroll_geometry,
         );
         scrollable_overflow.include_translated_child_overflow(location, child_overflow);
-        if let Some(baseline) = output.first_baselines.y {
-            let absolute_baseline = location.y + baseline;
-            first_baseline.get_or_insert(absolute_baseline);
+        let child_flow_axes =
+            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
+        if let Some(baseline) = output.baselines().first_block_baseline(child_flow_axes) {
+            baselines.record_first(baseline.translated(location));
         }
-        if let Some(baseline) = output.last_baselines.y {
-            last_baseline = Some(location.y + baseline);
+        if let Some(baseline) = output.baselines().last_block_baseline(child_flow_axes) {
+            baselines.record_last(baseline.translated(location));
         }
         if output.margins_can_collapse_through {
             cursor_y = if child_style.clear == Clear::None {
@@ -1010,10 +1052,7 @@ where
     Ok(InFlowResult {
         content_size,
         scrollable_overflow: scrollable_overflow.finish(),
-        baselines: BaselinesOf::<S> {
-            first: Point::new(None, first_baseline),
-            last: Point::new(None, last_baseline),
-        },
+        baselines,
         static_positions,
         pending_floats,
         cursor_y,
@@ -1378,6 +1417,8 @@ where
             .transpose_with_node(tree, child)?;
         let child_margin = resolve_atomic_inline_margin(unresolved_margin);
 
+        let child_flow_axes =
+            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
         let item = InlineParticipant::Box(AtomicInlineBoxParticipant {
             order,
             size: output.size,
@@ -1389,7 +1430,10 @@ where
             first_baseline: if child_style.vertical_align == VerticalAlign::Top {
                 Some(S::ZERO)
             } else {
-                output.last_baselines.y.or(output.first_baselines.y)
+                output
+                    .baselines()
+                    .last_block(child_flow_axes)
+                    .or_else(|| output.baselines().first_block(child_flow_axes))
             },
         });
         run_children.push(InlineRunChild::Box {

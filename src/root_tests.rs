@@ -106,6 +106,421 @@ impl<M: Clone> LayoutTree for RootSessionTree<M> {
     }
 }
 
+struct FlowRootLeafTree<S: LayoutScalar> {
+    style: NodeInputOf<S>,
+    measurement: RefCell<Option<LeafMeasureInputOf<S>>>,
+}
+
+impl<S: LayoutScalar> FlowRootLeafTree<S> {
+    fn new(style: NodeInputOf<S>) -> Self {
+        Self {
+            style,
+            measurement: RefCell::new(None),
+        }
+    }
+}
+
+impl<S: LayoutScalar> Traverse for FlowRootLeafTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Empty<u32>
+    where
+        Self: 'a;
+
+    fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+        std::iter::empty()
+    }
+
+    fn child_count(&self, _node: Self::Node) -> usize {
+        0
+    }
+
+    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+        unreachable!("flow-root leaf test tree has no children")
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for FlowRootLeafTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, _node: Self::Node) -> &NodeInputOf<Self::Scalar> {
+        &self.style
+    }
+
+    fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        LayoutInputOf::box_input(self.style.clone())
+    }
+
+    fn has_leaf_measurement(&self, _node: Self::Node) -> bool {
+        true
+    }
+
+    fn measure_leaf(
+        &self,
+        _node: Self::Node,
+        input: LeafMeasureInputOf<Self::Scalar>,
+    ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
+        self.measurement.replace(Some(input));
+        Some(Ok(Size::ZERO))
+    }
+}
+
+fn scalar<S: LayoutScalar>(value: f64) -> S {
+    S::from_f64(value)
+}
+
+fn single_final_output<S: LayoutScalar>(batch: &CompletedLayoutBatchOf<u32, S>) -> NodeOutputOf<S> {
+    batch
+        .final_entries()
+        .first()
+        .expect("single root must produce one final output")
+        .output()
+}
+
+fn assert_viewport_root_logical_inline_auto_fill<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    expected_location: Point<S>,
+) {
+    let tree = FlowRootLeafTree::new(NodeInputOf::<S> {
+        writing_mode,
+        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
+        ..NodeInputOf::default()
+    });
+    let viewport = Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::definite(scalar(110.0)),
+    );
+    let request = LayoutRootRequestOf::viewport(viewport).expect("valid viewport request");
+
+    let batch = compute_layout(&tree, 0, request).expect("root layout succeeds");
+    let output = single_final_output(&batch);
+
+    assert_eq!(output.size, Size::new(scalar(20.0), scalar(110.0)));
+    assert_eq!(output.location, expected_location);
+}
+
+fn assert_horizontal_viewport_root_logical_inline_auto_fill<S: LayoutScalar>() {
+    let tree = FlowRootLeafTree::new(NodeInputOf::<S> {
+        writing_mode: WritingMode::HorizontalTb,
+        size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(30.0))),
+        ..NodeInputOf::default()
+    });
+    let request = LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::definite(scalar(110.0)),
+    ))
+    .expect("valid viewport request");
+
+    let batch = compute_layout(&tree, 0, request).expect("root layout succeeds");
+    let output = single_final_output(&batch);
+
+    assert_eq!(output.size, Size::new(scalar(70.0), scalar(30.0)));
+    assert_eq!(output.location, Point::ZERO);
+}
+
+#[test]
+fn root_flow_logical_inline_auto_fill_and_start_placement_work_for_f32() {
+    assert_horizontal_viewport_root_logical_inline_auto_fill::<f32>();
+    assert_viewport_root_logical_inline_auto_fill::<f32>(
+        WritingMode::VerticalRl,
+        Point::new(50.0, 0.0),
+    );
+    assert_viewport_root_logical_inline_auto_fill::<f32>(
+        WritingMode::SidewaysLr,
+        Point::new(0.0, 0.0),
+    );
+}
+
+#[test]
+fn root_flow_logical_inline_auto_fill_and_start_placement_work_for_f64() {
+    assert_horizontal_viewport_root_logical_inline_auto_fill::<f64>();
+    assert_viewport_root_logical_inline_auto_fill::<f64>(
+        WritingMode::VerticalRl,
+        Point::new(50.0, 0.0),
+    );
+    assert_viewport_root_logical_inline_auto_fill::<f64>(
+        WritingMode::SidewaysLr,
+        Point::new(0.0, 0.0),
+    );
+}
+
+fn assert_root_flow_opposite_edge_uses_only_definite_extent<S: LayoutScalar>() {
+    let style = NodeInputOf::<S> {
+        writing_mode: WritingMode::VerticalRl,
+        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+        ..NodeInputOf::default()
+    };
+    let definite_tree = FlowRootLeafTree::new(style.clone());
+    let definite_request = LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::definite(scalar(110.0)),
+    ))
+    .expect("valid definite viewport request");
+    let definite =
+        compute_layout(&definite_tree, 0, definite_request).expect("definite root layout succeeds");
+    assert_eq!(
+        single_final_output(&definite).location,
+        Point::new(scalar(50.0), S::ZERO)
+    );
+
+    let intrinsic_tree = FlowRootLeafTree::new(style);
+    let intrinsic_request = LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::MAX_CONTENT,
+        AvailableOf::definite(scalar(110.0)),
+    ))
+    .expect("valid intrinsic viewport request");
+    let intrinsic = compute_layout(&intrinsic_tree, 0, intrinsic_request)
+        .expect("intrinsic root layout succeeds");
+    assert_eq!(single_final_output(&intrinsic).location, Point::ZERO);
+
+    let sideways_style = NodeInputOf::<S> {
+        writing_mode: WritingMode::SidewaysLr,
+        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+        ..NodeInputOf::default()
+    };
+    let sideways_definite_tree = FlowRootLeafTree::new(sideways_style.clone());
+    let sideways_definite_request = LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::definite(scalar(110.0)),
+    ))
+    .expect("valid definite sideways viewport request");
+    let sideways_definite = compute_layout(&sideways_definite_tree, 0, sideways_definite_request)
+        .expect("definite sideways root layout succeeds");
+    assert_eq!(
+        single_final_output(&sideways_definite).location,
+        Point::new(S::ZERO, scalar(80.0))
+    );
+
+    let sideways_intrinsic_tree = FlowRootLeafTree::new(sideways_style);
+    let sideways_intrinsic_request = LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::MAX_CONTENT,
+    ))
+    .expect("valid intrinsic sideways viewport request");
+    let sideways_intrinsic =
+        compute_layout(&sideways_intrinsic_tree, 0, sideways_intrinsic_request)
+            .expect("intrinsic sideways root layout succeeds");
+    assert_eq!(
+        single_final_output(&sideways_intrinsic).location,
+        Point::ZERO
+    );
+}
+
+#[test]
+fn root_flow_opposite_edge_uses_only_definite_extent_for_f32() {
+    assert_root_flow_opposite_edge_uses_only_definite_extent::<f32>();
+}
+
+#[test]
+fn root_flow_opposite_edge_uses_only_definite_extent_for_f64() {
+    assert_root_flow_opposite_edge_uses_only_definite_extent::<f64>();
+}
+
+fn assert_root_and_flex_root_percentage_edges_use_logical_inline_basis<S: LayoutScalar>() {
+    let style = NodeInputOf::<S> {
+        writing_mode: WritingMode::VerticalRl,
+        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+        margin: Edges::all(LengthAutoOf::percent(scalar(0.3))),
+        padding: Edges::all(LengthOf::percent(scalar(0.1))),
+        border: Edges::all(LengthOf::percent(scalar(0.2))),
+        ..NodeInputOf::default()
+    };
+    let viewport = Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::definite(scalar(110.0)),
+    );
+
+    let viewport_tree = FlowRootLeafTree::new(style.clone());
+    let viewport_batch = compute_layout(
+        &viewport_tree,
+        0,
+        LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+    )
+    .expect("viewport root layout succeeds");
+    let viewport_output = single_final_output(&viewport_batch);
+    assert_eq!(viewport_output.margin, Edges::all(scalar(33.0)));
+    assert_eq!(viewport_output.padding, Edges::all(scalar(11.0)));
+    assert_eq!(viewport_output.border, Edges::all(scalar(22.0)));
+
+    let flex_tree = FlowRootLeafTree::new(style);
+    let flex_batch = compute_layout(
+        &flex_tree,
+        0,
+        LayoutRootRequestOf::flex_item_under_viewport(
+            Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+            FlexItemRootContextOf::under_viewport(viewport)
+                .expect("valid flex root viewport context"),
+        )
+        .expect("valid flex root request"),
+    )
+    .expect("flex root layout succeeds");
+    let flex_output = single_final_output(&flex_batch);
+    assert_eq!(flex_output.location, Point::ZERO);
+    assert_eq!(flex_output.margin, Edges::all(scalar(33.0)));
+    assert_eq!(flex_output.padding, Edges::all(scalar(11.0)));
+    assert_eq!(flex_output.border, Edges::all(scalar(22.0)));
+}
+
+#[test]
+fn root_flow_percentage_edges_use_vertical_inline_extent_for_f32() {
+    assert_root_and_flex_root_percentage_edges_use_logical_inline_basis::<f32>();
+}
+
+#[test]
+fn root_flow_percentage_edges_use_vertical_inline_extent_for_f64() {
+    assert_root_and_flex_root_percentage_edges_use_logical_inline_basis::<f64>();
+}
+
+fn assert_flex_root_percentage_parent_is_separate_from_host_fill<S: LayoutScalar>() {
+    let host = Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::definite(scalar(110.0)),
+    );
+
+    for writing_mode in [WritingMode::VerticalRl, WritingMode::SidewaysLr] {
+        let style = NodeInputOf::<S> {
+            writing_mode,
+            size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
+            max_size: Size::new(DimensionOf::AUTO, DimensionOf::percent(scalar(0.8))),
+            padding: Edges::new(
+                LengthOf::percent(scalar(0.04)),
+                LengthOf::ZERO,
+                LengthOf::percent(scalar(0.04)),
+                LengthOf::ZERO,
+            ),
+            border: Edges::new(
+                LengthOf::percent(scalar(0.04)),
+                LengthOf::ZERO,
+                LengthOf::percent(scalar(0.04)),
+                LengthOf::ZERO,
+            ),
+            ..NodeInputOf::default()
+        };
+
+        for (viewport_height, expected_height, expected_edge) in
+            [(210.0, 110.0, 8.0), (100.0, 80.0, 4.0)]
+        {
+            let viewport = Size::new(
+                AvailableOf::definite(scalar(130.0)),
+                AvailableOf::definite(scalar(viewport_height)),
+            );
+            let tree = FlowRootLeafTree::new(style.clone());
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::flex_item_under_viewport(
+                    host,
+                    FlexItemRootContextOf::under_viewport(viewport)
+                        .expect("valid flex root viewport context"),
+                )
+                .expect("valid flex root request"),
+            )
+            .expect("flex root layout succeeds");
+            let output = single_final_output(&batch);
+
+            assert_eq!(output.location, Point::ZERO);
+            assert_eq!(
+                output.size,
+                Size::new(scalar(20.0), scalar(expected_height))
+            );
+            assert_eq!(
+                output.padding,
+                Edges::new(
+                    scalar(expected_edge),
+                    S::ZERO,
+                    scalar(expected_edge),
+                    S::ZERO,
+                )
+            );
+            assert_eq!(
+                output.border,
+                Edges::new(
+                    scalar(expected_edge),
+                    S::ZERO,
+                    scalar(expected_edge),
+                    S::ZERO,
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn flex_root_percentage_parent_separates_host_fill_for_f32() {
+    assert_flex_root_percentage_parent_is_separate_from_host_fill::<f32>();
+}
+
+#[test]
+fn flex_root_percentage_parent_separates_host_fill_for_f64() {
+    assert_flex_root_percentage_parent_is_separate_from_host_fill::<f64>();
+}
+
+fn assert_flex_root_flow_known_inline_uses_host_availability<S: LayoutScalar>() {
+    let host = Size::new(
+        AvailableOf::definite(scalar(70.0)),
+        AvailableOf::definite(scalar(110.0)),
+    );
+    let viewport = Size::new(
+        AvailableOf::definite(scalar(130.0)),
+        AvailableOf::definite(scalar(210.0)),
+    );
+
+    for writing_mode in [WritingMode::VerticalRl, WritingMode::SidewaysLr] {
+        let style = NodeInputOf::<S> {
+            writing_mode,
+            size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
+            ..NodeInputOf::default()
+        };
+        let tree = FlowRootLeafTree::new(style.clone());
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::flex_item_under_viewport(
+                host,
+                FlexItemRootContextOf::under_viewport(viewport)
+                    .expect("valid flex root viewport context"),
+            )
+            .expect("valid flex root request"),
+        )
+        .expect("flex root layout succeeds");
+        let output = single_final_output(&batch);
+
+        assert_eq!(output.size, Size::new(scalar(20.0), scalar(110.0)));
+        assert_eq!(output.location, Point::ZERO);
+
+        let unavailable_tree = FlowRootLeafTree::new(style);
+        let unavailable = compute_layout(
+            &unavailable_tree,
+            0,
+            LayoutRootRequestOf::flex_item_under_viewport(
+                Size::new(
+                    AvailableOf::definite(scalar(70.0)),
+                    AvailableOf::MAX_CONTENT,
+                ),
+                FlexItemRootContextOf::under_viewport(viewport)
+                    .expect("valid flex root viewport context"),
+            )
+            .expect("valid intrinsic flex root request"),
+        )
+        .expect("intrinsic flex root layout succeeds");
+        let unavailable_output = single_final_output(&unavailable);
+
+        assert_eq!(unavailable_output.size, Size::new(scalar(20.0), S::ZERO));
+        assert_eq!(unavailable_output.location, Point::ZERO);
+    }
+}
+
+#[test]
+fn flex_root_flow_known_inline_uses_host_availability_for_f32() {
+    assert_flex_root_flow_known_inline_uses_host_availability::<f32>();
+}
+
+#[test]
+fn flex_root_flow_known_inline_uses_host_availability_for_f64() {
+    assert_flex_root_flow_known_inline_uses_host_availability::<f64>();
+}
+
 fn root_cache_input(available: Size<Available>) -> ComputeInput {
     ComputeInput::for_child(
         RunMode::PerformRootLayout,
