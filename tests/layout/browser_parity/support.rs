@@ -543,9 +543,10 @@ impl TestTree {
             self.nodes[node].children.len(),
             self.nodes[node].text.is_some(),
         ) {
-            let mut output = layout::compute_leaf(input, &node_input, |known, available| {
-                self.measure(node, known, available)
-            });
+            let mut output = layout::compute_leaf(input, &node_input, |measure_input| {
+                Ok::<_, std::convert::Infallible>(self.measure(node, measure_input))
+            })
+            .expect("browser parity leaf measurement returns valid non-negative finite sizes");
             if let Some(text) = &self.nodes[node].text {
                 let baseline = TextMeasure::new(
                     text,
@@ -578,12 +579,11 @@ impl TestTree {
         }
     }
 
-    fn measure(
-        &self,
-        node: usize,
-        known: layout::Size<Option<Scalar>>,
-        available: layout::Size<layout::Available>,
-    ) -> layout::Size {
+    fn measure(&self, node: usize, input: layout::LeafMeasureInput) -> layout::Size {
+        let known = input.known_content_size();
+        let available = input
+            .available_content_size()
+            .map(layout::MeasurementAvailable::into_available);
         if let Some(text) = &self.nodes[node].text {
             let text = TextMeasure::new(
                 text,

@@ -1,7 +1,8 @@
 use super::{
     AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, Compute, ComputeInputOf, ComputeOutputOf,
-    Direction, LayoutInputOf, LayoutScalar, LengthResolutionOf, LengthResolutionStatus,
-    NodeInputOf, NodeOutputOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
+    DefaultScalar, Direction, LayoutInputOf, LayoutScalar, LengthResolutionOf,
+    LengthResolutionStatus, NodeInputOf, NodeOutputOf, NonNegativeFiniteOf,
+    NonNegativeFiniteScalarErrorOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
 };
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, round_scroll_geometry,
@@ -221,11 +222,105 @@ fn round<S: LayoutScalar>(value: S) -> S {
     (value + S::from_f64(0.5)).floor()
 }
 
-pub fn compute_leaf<S>(
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LeafMeasureInputOf<S: LayoutScalar = DefaultScalar> {
+    known_content_size: Size<Option<S>>,
+    available_content_size: Size<MeasurementAvailableOf<S>>,
+}
+
+pub type LeafMeasureInput = LeafMeasureInputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> LeafMeasureInputOf<S> {
+    #[must_use]
+    pub const fn known_content_size(&self) -> Size<Option<S>> {
+        self.known_content_size
+    }
+
+    #[must_use]
+    pub const fn available_content_size(&self) -> Size<MeasurementAvailableOf<S>> {
+        self.available_content_size
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum MeasurementAvailableOf<S: LayoutScalar = DefaultScalar> {
+    Definite(NonNegativeFiniteOf<S>),
+    MinContent,
+    MaxContent,
+}
+
+pub type MeasurementAvailable = MeasurementAvailableOf<DefaultScalar>;
+
+impl<S: LayoutScalar> MeasurementAvailableOf<S> {
+    pub const MIN_CONTENT: Self = Self::MinContent;
+    pub const MAX_CONTENT: Self = Self::MaxContent;
+
+    pub fn definite(value: S) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        Ok(Self::Definite(NonNegativeFiniteOf::new(value)?))
+    }
+
+    #[must_use]
+    pub const fn definite_value(self) -> Option<NonNegativeFiniteOf<S>> {
+        match self {
+            Self::Definite(value) => Some(value),
+            Self::MinContent | Self::MaxContent => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn into_available(self) -> AvailableOf<S> {
+        match self {
+            Self::Definite(value) => AvailableOf::Definite(value.get()),
+            Self::MinContent => AvailableOf::MinContent,
+            Self::MaxContent => AvailableOf::MaxContent,
+        }
+    }
+
+    fn from_content_space(value: AvailableOf<S>) -> Self {
+        match value {
+            AvailableOf::Definite(value) => Self::Definite(
+                NonNegativeFiniteOf::new(finite_floor_at_zero(value))
+                    .expect("content-space availability is finite and non-negative"),
+            ),
+            AvailableOf::MinContent => Self::MinContent,
+            AvailableOf::MaxContent => Self::MaxContent,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum LeafMeasureErrorOf<S: LayoutScalar, M> {
+    Provider(M),
+    InvalidOutput(InvalidMeasurementOutputOf<S>),
+}
+
+pub type LeafMeasureError<M> = LeafMeasureErrorOf<DefaultScalar, M>;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InvalidMeasurementOutputOf<S: LayoutScalar = DefaultScalar> {
+    axis: super::Axis,
+    error: NonNegativeFiniteScalarErrorOf<S>,
+}
+
+pub type InvalidMeasurementOutput = InvalidMeasurementOutputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> InvalidMeasurementOutputOf<S> {
+    #[must_use]
+    pub const fn axis(self) -> super::Axis {
+        self.axis
+    }
+
+    #[must_use]
+    pub const fn error(self) -> NonNegativeFiniteScalarErrorOf<S> {
+        self.error
+    }
+}
+
+pub fn compute_leaf<S, M>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
-    measure: impl FnOnce(Size<Option<S>>, Size<AvailableOf<S>>) -> Size<S>,
-) -> ComputeOutputOf<S>
+    measure: impl FnOnce(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
+) -> Result<ComputeOutputOf<S>, LeafMeasureErrorOf<S, M>>
 where
     S: LayoutScalar,
 {
@@ -310,7 +405,7 @@ where
         let size = Size::new(width, height)
             .clamp_optional(node_min_size, node_max_size)
             .max_optional(padding_border_size.map(Some));
-        return ComputeOutputOf::from_outer_size(size);
+        return Ok(ComputeOutputOf::from_outer_size(size));
     }
 
     let available = Size::new(
@@ -340,16 +435,23 @@ where
             }),
     );
 
-    let measured = measure(
-        match input.run_mode {
+    let measurement_input = LeafMeasureInputOf {
+        known_content_size: match input.run_mode {
             RunMode::ComputeSize => input.known,
             RunMode::PerformRootLayout | RunMode::PerformLayout => Size::NONE,
             RunMode::PerformHiddenLayout => {
                 unreachable!("hidden layout uses ComputeOutput::HIDDEN")
             }
-        },
-        available,
-    );
+        }
+        .zip_map(content_box_inset_size, |value, inset| {
+            value.map(|value| finite_floor_at_zero(value - inset))
+        }),
+        available_content_size: available.map(MeasurementAvailableOf::from_content_space),
+    };
+    let measured = match measure(measurement_input) {
+        Ok(measured) => validate_measurement_output(measured)?,
+        Err(error) => return Err(LeafMeasureErrorOf::Provider(error)),
+    };
     let unclamped = input
         .known
         .or(node_size)
@@ -371,7 +473,40 @@ where
     let mut output = ComputeOutputOf::from_sizes(aspect_size, measured + padding.sum_axes());
     output.margins_can_collapse_through =
         !prevents_margin_collapse && aspect_size.height == S::ZERO && measured.height == S::ZERO;
-    output
+    Ok(output)
+}
+
+fn validate_measurement_output<S, M>(measured: Size<S>) -> Result<Size<S>, LeafMeasureErrorOf<S, M>>
+where
+    S: LayoutScalar,
+{
+    let width = NonNegativeFiniteOf::new(measured.width)
+        .map_err(|error| invalid_measurement_output(super::Axis::Horizontal, error))?;
+    let height = NonNegativeFiniteOf::new(measured.height)
+        .map_err(|error| invalid_measurement_output(super::Axis::Vertical, error))?;
+
+    Ok(Size::new(width.get(), height.get()))
+}
+
+fn invalid_measurement_output<S, M>(
+    axis: super::Axis,
+    error: NonNegativeFiniteScalarErrorOf<S>,
+) -> LeafMeasureErrorOf<S, M>
+where
+    S: LayoutScalar,
+{
+    LeafMeasureErrorOf::InvalidOutput(InvalidMeasurementOutputOf { axis, error })
+}
+
+fn finite_floor_at_zero<S>(value: S) -> S
+where
+    S: LayoutScalar,
+{
+    if value.is_finite() {
+        value.max(S::ZERO)
+    } else {
+        S::ZERO
+    }
 }
 
 fn resolve_length_or_zero<S>(length: super::LengthOf<S>, basis: Option<S>) -> S

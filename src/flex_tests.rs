@@ -1847,9 +1847,14 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
         fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
-                return compute_leaf(input, &node_input, |known, _available| {
-                    Size::new(known.width.unwrap_or(0.0), known.height.unwrap_or(0.0))
-                });
+                return compute_leaf(input, &node_input, |measure_input| {
+                    let known = measure_input.known_content_size();
+                    Ok::<_, ()>(Size::new(
+                        known.width.unwrap_or(0.0),
+                        known.height.unwrap_or(0.0),
+                    ))
+                })
+                .unwrap();
             }
 
             match node_input.display.inner_display() {

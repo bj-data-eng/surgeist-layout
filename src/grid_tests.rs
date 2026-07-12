@@ -9273,9 +9273,14 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
         fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
-                return compute_leaf(input, &node_input, |known, _available| {
-                    Size::new(known.width.unwrap_or(0.0), known.height.unwrap_or(0.0))
-                });
+                return compute_leaf(input, &node_input, |measure_input| {
+                    let known = measure_input.known_content_size();
+                    Ok::<_, ()>(Size::new(
+                        known.width.unwrap_or(0.0),
+                        known.height.unwrap_or(0.0),
+                    ))
+                })
+                .unwrap();
             }
 
             match node_input.display.inner_display() {
@@ -9394,9 +9399,14 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
         fn compute_node(&mut self, node: u32, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
             if self.children[&node].is_empty() {
-                return compute_leaf(input, &node_input, |known, _available| {
-                    Size::new(known.width.unwrap_or(0.0), known.height.unwrap_or(0.0))
-                });
+                return compute_leaf(input, &node_input, |measure_input| {
+                    let known = measure_input.known_content_size();
+                    Ok::<_, ()>(Size::new(
+                        known.width.unwrap_or(0.0),
+                        known.height.unwrap_or(0.0),
+                    ))
+                })
+                .unwrap();
             }
 
             match node_input.display.inner_display() {
@@ -9543,18 +9553,22 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |known, _available| match node {
-                2 => Size::new(
-                    if known.height == Some(40.0) {
-                        40.0
-                    } else {
-                        20.0
-                    },
-                    known.height.unwrap_or(40.0),
-                ),
-                3 => Size::new(20.0, 20.0),
-                _ => Size::ZERO,
+            compute_leaf(input, &node_input, |measure_input| {
+                let known = measure_input.known_content_size();
+                Ok::<_, ()>(match node {
+                    2 => Size::new(
+                        if known.height == Some(40.0) {
+                            40.0
+                        } else {
+                            20.0
+                        },
+                        known.height.unwrap_or(40.0),
+                    ),
+                    3 => Size::new(20.0, 20.0),
+                    _ => Size::ZERO,
+                })
             })
+            .unwrap()
         }
     }
 
@@ -9642,15 +9656,19 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_known, available| {
+            compute_leaf(input, &node_input, |measure_input| {
+                let available = measure_input
+                    .available_content_size()
+                    .map(MeasurementAvailable::into_available);
                 if node == 4 && available.width == Available::MIN_CONTENT {
-                    Size::new(40.0, 40.0)
+                    Ok::<_, ()>(Size::new(40.0, 40.0))
                 } else if node == 4 {
-                    Size::new(80.0, 40.0)
+                    Ok::<_, ()>(Size::new(80.0, 40.0))
                 } else {
-                    Size::ZERO
+                    Ok::<_, ()>(Size::ZERO)
                 }
             })
+            .unwrap()
         }
     }
 
@@ -9765,15 +9783,19 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_known, available| {
+            compute_leaf(input, &node_input, |measure_input| {
+                let available = measure_input
+                    .available_content_size()
+                    .map(MeasurementAvailable::into_available);
                 if node == 4 && available.width == Available::MIN_CONTENT {
-                    Size::new(40.0, 10.0)
+                    Ok::<_, ()>(Size::new(40.0, 10.0))
                 } else if node == 4 {
-                    Size::new(80.0, 10.0)
+                    Ok::<_, ()>(Size::new(80.0, 10.0))
                 } else {
-                    Size::ZERO
+                    Ok::<_, ()>(Size::ZERO)
                 }
             })
+            .unwrap()
         }
     }
 
@@ -9865,15 +9887,19 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_known, available| {
+            compute_leaf(input, &node_input, |measure_input| {
+                let available = measure_input
+                    .available_content_size()
+                    .map(MeasurementAvailable::into_available);
                 if node == 4 && available.width == Available::MIN_CONTENT {
-                    Size::new(40.0, 10.0)
+                    Ok::<_, ()>(Size::new(40.0, 10.0))
                 } else if node == 4 {
-                    Size::new(80.0, 10.0)
+                    Ok::<_, ()>(Size::new(80.0, 10.0))
                 } else {
-                    Size::ZERO
+                    Ok::<_, ()>(Size::ZERO)
                 }
             })
+            .unwrap()
         }
     }
 
@@ -9966,7 +9992,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_known, _available| Size::ZERO)
+            compute_leaf(input, &node_input, |_input| Ok::<_, ()>(Size::ZERO)).unwrap()
         }
     }
 
@@ -10088,15 +10114,19 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_known, available| {
+            compute_leaf(input, &node_input, |measure_input| {
+                let available = measure_input
+                    .available_content_size()
+                    .map(MeasurementAvailable::into_available);
                 if node == 2 && available.width == Available::MIN_CONTENT {
-                    Size::new(80.0, 40.0)
+                    Ok::<_, ()>(Size::new(80.0, 40.0))
                 } else if node == 2 {
-                    Size::new(160.0, 40.0)
+                    Ok::<_, ()>(Size::new(160.0, 40.0))
                 } else {
-                    Size::ZERO
+                    Ok::<_, ()>(Size::ZERO)
                 }
             })
+            .unwrap()
         }
     }
 
@@ -10218,15 +10248,19 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
 
         fn compute_child(&mut self, node: Self::Node, input: ComputeInput) -> ComputeOutput {
             let node_input = self.styles[&node].clone();
-            compute_leaf(input, &node_input, |_known, available| {
+            compute_leaf(input, &node_input, |measure_input| {
+                let available = measure_input
+                    .available_content_size()
+                    .map(MeasurementAvailable::into_available);
                 if node == 2 && available.width == Available::MIN_CONTENT {
-                    Size::new(160.0, 40.0)
+                    Ok::<_, ()>(Size::new(160.0, 40.0))
                 } else if node == 2 {
-                    Size::new(320.0, 40.0)
+                    Ok::<_, ()>(Size::new(320.0, 40.0))
                 } else {
-                    Size::ZERO
+                    Ok::<_, ()>(Size::ZERO)
                 }
             })
+            .unwrap()
         }
     }
 

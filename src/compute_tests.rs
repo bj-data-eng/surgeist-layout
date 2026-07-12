@@ -34,7 +34,7 @@ fn leaf_affine_width_resolves_against_parent_basis() {
         available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
     };
 
-    let output = compute_leaf(input, &style, |_known, _available| Size::new(12.0, 8.0));
+    let output = compute_leaf(input, &style, |_input| Ok::<_, ()>(Size::new(12.0, 8.0))).unwrap();
 
     assert_eq!(output.size.width, 60.0);
 }
@@ -55,7 +55,7 @@ fn public_leaf_affine_px_width_needs_no_resolver() {
         available: Size::new(Available::definite(100.0), Available::MAX_CONTENT),
     };
 
-    let output = compute_leaf(input, &style, |_known, _available| Size::new(12.0, 8.0));
+    let output = compute_leaf(input, &style, |_input| Ok::<_, ()>(Size::new(12.0, 8.0))).unwrap();
 
     assert_eq!(output.size.width, 10.0);
 }
@@ -70,18 +70,19 @@ fn leaf_invalid_numeric_affine_width_falls_back_to_measured_size() {
         ..NodeInput::default()
     };
 
-    let output = compute_leaf(
-        invalid_numeric_affine_input(),
-        &style,
-        |known, available| {
-            assert_eq!(known, Size::NONE);
-            assert_eq!(
-                available,
-                Size::new(Available::definite(100.0), Available::MAX_CONTENT)
-            );
-            Size::new(12.0, 8.0)
-        },
-    );
+    let output = compute_leaf(invalid_numeric_affine_input(), &style, |measure_input| {
+        let known = measure_input.known_content_size();
+        let available = measure_input
+            .available_content_size()
+            .map(MeasurementAvailable::into_available);
+        assert_eq!(known, Size::NONE);
+        assert_eq!(
+            available,
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT)
+        );
+        Ok::<_, ()>(Size::new(12.0, 8.0))
+    })
+    .unwrap();
 
     assert_eq!(output.size, Size::new(12.0, 8.0));
     assert_eq!(output.content_size, Size::new(12.0, 8.0));
@@ -94,18 +95,19 @@ fn leaf_invalid_numeric_affine_padding_falls_back_to_zero() {
         ..NodeInput::default()
     };
 
-    let output = compute_leaf(
-        invalid_numeric_affine_input(),
-        &style,
-        |known, available| {
-            assert_eq!(known, Size::NONE);
-            assert_eq!(
-                available,
-                Size::new(Available::definite(100.0), Available::MAX_CONTENT)
-            );
-            Size::new(12.0, 8.0)
-        },
-    );
+    let output = compute_leaf(invalid_numeric_affine_input(), &style, |measure_input| {
+        let known = measure_input.known_content_size();
+        let available = measure_input
+            .available_content_size()
+            .map(MeasurementAvailable::into_available);
+        assert_eq!(known, Size::NONE);
+        assert_eq!(
+            available,
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT)
+        );
+        Ok::<_, ()>(Size::new(12.0, 8.0))
+    })
+    .unwrap();
 
     assert_eq!(output.size, Size::new(12.0, 8.0));
     assert_eq!(output.content_size, Size::new(12.0, 8.0));

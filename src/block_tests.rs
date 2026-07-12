@@ -7061,15 +7061,20 @@ impl Compute for CalcLeafTree {
         }
 
         let style = self.styles[&node].clone();
-        compute_leaf(input, &style, |known, available| {
-            Size::new(
+        compute_leaf(input, &style, |measure_input| {
+            let known = measure_input.known_content_size();
+            let available = measure_input
+                .available_content_size()
+                .map(MeasurementAvailable::into_available);
+            Ok::<_, ()>(Size::new(
                 known
                     .width
                     .or_else(|| available.width.into_option())
                     .unwrap_or(0.0),
                 known.height.unwrap_or(10.0),
-            )
+            ))
         })
+        .unwrap()
     }
 }
 
