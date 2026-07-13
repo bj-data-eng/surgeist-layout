@@ -51,7 +51,7 @@ arguments = [
 
 [generation_reports.full]
 file = "all.json"
-generated = 5068
+generated = 5148
 unsupported = 356
 expected_fail = 0
 quarantined = 0
@@ -86,6 +86,11 @@ generated = 4
 filter = "flex/flex_calc_basis_margin_gap"
 file = "flex_flex_calc_basis_margin_gap.json"
 generated = 4
+
+[[generation_reports.scoped]]
+filter = "flex/flex_axes"
+file = "flex_flex_axes.json"
+generated = 80
 
 [[generation_reports.scoped]]
 filter = "grid/grid_calc_track_and_item_margin"
@@ -305,6 +310,146 @@ status = "active"
 id = "flex/flex_calc_basis_margin_gap"
 source_root = "surgeist"
 source = "flex/flex_calc_basis_margin_gap.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_horizontal_tb_row"
+source_root = "surgeist"
+source = "flex/flex_axes_horizontal_tb_row.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_horizontal_tb_row_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_horizontal_tb_row_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_horizontal_tb_column"
+source_root = "surgeist"
+source = "flex/flex_axes_horizontal_tb_column.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_horizontal_tb_column_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_horizontal_tb_column_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_rl_row"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_rl_row.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_rl_row_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_rl_row_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_rl_column"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_rl_column.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_rl_column_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_rl_column_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_lr_row"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_lr_row.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_lr_row_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_lr_row_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_lr_column"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_lr_column.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_vertical_lr_column_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_vertical_lr_column_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_rl_row"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_rl_row.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_rl_row_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_rl_row_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_rl_column"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_rl_column.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_rl_column_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_rl_column_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_lr_row"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_lr_row.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_lr_row_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_lr_row_reverse.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_lr_column"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_lr_column.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/flex_axes_sideways_lr_column_reverse"
+source_root = "surgeist"
+source = "flex/flex_axes_sideways_lr_column_reverse.html"
 generator = "constrained-html"
 status = "active"
 

@@ -1,0 +1,16 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/flex/flex_axes_sideways_rl_column.html" source-sha256="d59dcb628a2584642410fa044829043326b0710fc5d31446aa66dc2dc2770ab0" helper-sha256="298fb04ffd4811de3871977c350ecfd3e66a60a2eb7cdf6da9810503fed7853c" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="flex_axes_sideways_rl_column__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" writing-mode="sideways-rl" flex-direction="column" align-items="flex-end" justify-content="space-between" width="180px" height="140px">
+      <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" writing-mode="sideways-rl" width="30px" height="20px" margin-top="13px" margin-left="11px"/>
+      <div source-tag="div" display="block" box-sizing="content-box" direction="ltr" writing-mode="sideways-rl" width="20px" height="35px" margin-bottom="7px"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="140">
+      <node x="150" y="120" width="30" height="20"/>
+      <node x="0" y="98" width="20" height="35"/>
+    </node>
+  </expectations>
+</test>

@@ -132,6 +132,143 @@ fn runs_fri_02_block_axis_families_against_surgeist_layout() {
 }
 
 #[test]
+fn runs_fri_02_flex_axis_families_against_surgeist_layout() {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity")
+        .canonicalize()
+        .expect("browser parity fixture root should exist");
+    let fixtures = support::fixture_files("xml")
+        .expect("fixtures should load")
+        .into_iter()
+        .map(|fixture| {
+            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
+                panic!("{} should canonicalize: {error}", fixture.display())
+            });
+            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
+                panic!(
+                    "{} should be under {}: {error}",
+                    fixture.display(),
+                    corpus_root.display()
+                )
+            });
+            (relative.to_path_buf(), fixture)
+        })
+        .collect::<Vec<_>>();
+    let paths = flex_axis_fixture_paths(fixtures.iter().map(|(relative, _)| relative.clone()))
+        .unwrap_or_else(|error| panic!("{error}"));
+
+    for (relative, fixture) in fixtures {
+        if !paths.contains(&relative) {
+            continue;
+        }
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        assert_flex_axis_fixture_topology(&golden, &relative)
+            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} failed layout comparison: {error}", fixture.display())
+        });
+    }
+}
+
+#[test]
+fn flex_axis_fixture_matrix_rejects_missing_duplicate_misplaced_and_leaf_lowered_topology_paths() {
+    let expected = flex_axis_expected_paths();
+
+    assert!(flex_axis_fixture_paths(expected.iter().skip(1).cloned()).is_err());
+
+    let mut duplicate = expected.clone();
+    duplicate.push(expected[0].clone());
+    assert!(flex_axis_fixture_paths(duplicate).is_err());
+
+    let mut misplaced = expected.clone();
+    misplaced[0] = PathBuf::from("xml/other/flex_axes_horizontal_tb_row__border_box_ltr.xml");
+    assert!(flex_axis_fixture_paths(misplaced).is_err());
+
+    let leaf_lowered = support::Golden::parse(
+        r#"
+        <test name="flex_axes_horizontal_tb_row__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input>
+            <div display="flex" writing-mode="horizontal-tb" flex-direction="row">
+              <text display="block" width="20px" height="10px">a</text>
+              <div display="block" width="10px" height="20px" />
+            </div>
+          </input>
+          <expectations>
+            <node x="0" y="0" width="30" height="20">
+              <node x="0" y="0" width="20" height="10" />
+              <node x="20" y="0" width="10" height="20" />
+            </node>
+          </expectations>
+        </test>
+        "#,
+    )
+    .expect("leaf-lowered fixture should parse");
+    assert!(
+        assert_flex_axis_fixture_topology(
+            &leaf_lowered,
+            Path::new("xml/flex/flex_axes_horizontal_tb_row__border_box_ltr.xml"),
+        )
+        .is_err()
+    );
+
+    let bypassed = support::Golden::parse(
+        r#"
+        <test name="flex_axes_horizontal_tb_row__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input>
+            <div display="block" writing-mode="horizontal-tb" flex-direction="row">
+              <div display="block" width="20px" height="10px" />
+              <div display="block" width="10px" height="20px" />
+            </div>
+          </input>
+          <expectations>
+            <node x="0" y="0" width="20" height="30">
+              <node x="0" y="0" width="20" height="10" />
+              <node x="0" y="10" width="10" height="20" />
+            </node>
+          </expectations>
+        </test>
+        "#,
+    )
+    .expect("bypassed fixture should parse");
+    assert!(
+        assert_flex_axis_fixture_topology(
+            &bypassed,
+            Path::new("xml/flex/flex_axes_horizontal_tb_row__border_box_ltr.xml"),
+        )
+        .is_err()
+    );
+
+    let one_child = support::Golden::parse(
+        r#"
+        <test name="flex_axes_horizontal_tb_row__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input>
+            <div display="flex" writing-mode="horizontal-tb" flex-direction="row">
+              <div display="block" width="20px" height="10px" />
+            </div>
+          </input>
+          <expectations>
+            <node x="0" y="0" width="20" height="10">
+              <node x="0" y="0" width="20" height="10" />
+            </node>
+          </expectations>
+        </test>
+        "#,
+    )
+    .expect("one-child fixture should parse");
+    assert!(
+        assert_flex_axis_fixture_topology(
+            &one_child,
+            Path::new("xml/flex/flex_axes_horizontal_tb_row__border_box_ltr.xml"),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn block_axis_fixture_matrix_rejects_missing_duplicate_misplaced_and_topology_bypassed_paths() {
     let expected = block_axis_expected_paths();
 
@@ -314,6 +451,128 @@ fn block_axis_fixture_paths(
     Ok(discovered)
 }
 
+fn flex_axis_fixture_paths(
+    candidate_paths: impl IntoIterator<Item = PathBuf>,
+) -> Result<BTreeSet<PathBuf>, String> {
+    let expected = flex_axis_expected_paths()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let fixtures = candidate_paths
+        .into_iter()
+        .filter(|candidate| {
+            candidate
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("xml")
+                && candidate
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .is_some_and(|stem| stem.starts_with("flex_axes_"))
+        })
+        .collect::<Vec<_>>();
+    let discovered = fixtures.iter().cloned().collect::<BTreeSet<_>>();
+
+    if fixtures.len() != discovered.len() {
+        return Err(format!(
+            "flex-axis fixture discovery must not contain duplicate relative paths: {discovered:#?}"
+        ));
+    }
+    if discovered != expected {
+        return Err(format!(
+            "flex-axis fixture matrix must contain exactly the required relative variants: {discovered:#?}"
+        ));
+    }
+
+    Ok(discovered)
+}
+
+fn flex_axis_expected_paths() -> Vec<PathBuf> {
+    const MODES: [&str; 5] = [
+        "horizontal_tb",
+        "vertical_rl",
+        "vertical_lr",
+        "sideways_rl",
+        "sideways_lr",
+    ];
+    const DIRECTIONS: [&str; 4] = ["row", "row_reverse", "column", "column_reverse"];
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    MODES
+        .into_iter()
+        .flat_map(|mode| {
+            DIRECTIONS.into_iter().flat_map(move |direction| {
+                VARIANTS.into_iter().map(move |variant| {
+                    PathBuf::from("xml/flex")
+                        .join(format!("flex_axes_{mode}_{direction}__{variant}.xml"))
+                })
+            })
+        })
+        .collect()
+}
+
+fn assert_flex_axis_fixture_topology(golden: &support::Golden, path: &Path) -> Result<(), String> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("{} must have a UTF-8 filename", path.display()))?;
+    let family = file_name
+        .strip_prefix("flex_axes_")
+        .and_then(|name| name.split_once("__"))
+        .map(|(family, _)| family)
+        .ok_or_else(|| format!("{} must use a flex-axis family filename", path.display()))?;
+    let (mode, direction) = [
+        "horizontal_tb",
+        "vertical_rl",
+        "vertical_lr",
+        "sideways_rl",
+        "sideways_lr",
+    ]
+    .into_iter()
+    .find_map(|mode| {
+        family
+            .strip_prefix(&format!("{mode}_"))
+            .map(|direction| (mode.replace('_', "-"), direction.replace('_', "-")))
+    })
+    .ok_or_else(|| format!("{file_name} must name a supported writing mode"))?;
+
+    if golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some("flex")
+        || golden
+            .root
+            .style
+            .get("writing-mode")
+            .unwrap_or("horizontal-tb")
+            != mode
+        || golden.root.style.get("flex-direction").unwrap_or("row") != direction
+    {
+        return Err("target root must be flex in the named writing mode and direction".to_string());
+    }
+    if golden.root.children.len() < 2 || golden.expectations.children.len() < 2 {
+        return Err("target root must have at least two element children".to_string());
+    }
+    if golden
+        .root
+        .children
+        .iter()
+        .any(|child| child.kind != support::NodeKind::Div)
+    {
+        return Err("target flex children must remain non-text element nodes".to_string());
+    }
+
+    let first = &golden.expectations.children[0];
+    let second = &golden.expectations.children[1];
+    if (first.width, first.height) == (second.width, second.height) {
+        return Err("target children must have unequal physical sizes".to_string());
+    }
+
+    Ok(())
+}
+
 fn block_axis_expected_paths() -> Vec<PathBuf> {
     const FAMILIES: [&str; 5] = [
         "block_axes_horizontal_tb",
@@ -485,8 +744,8 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .count();
 
     assert_eq!(
-        taffy_plus_local_count, 1130,
-        "expected the Taffy baseline plus eleven Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
+        taffy_plus_local_count, 1150,
+        "expected the Taffy baseline plus thirty-one Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
     );
     assert_eq!(subgrid_count, 210);
     assert_eq!(grid_lanes_count, 16);
@@ -528,7 +787,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5068);
+    assert_eq!(report_json["summary"]["generated"], 5148);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -539,7 +798,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5068,
+        5148,
         "generated bucket length must match its summary"
     );
     assert_eq!(

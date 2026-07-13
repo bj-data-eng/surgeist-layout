@@ -7,12 +7,12 @@
     "launch_profile_sha256": "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
     "helper_sha256": "298fb04ffd4811de3871977c350ecfd3e66a60a2eb7cdf6da9810503fed7853c",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
-    "corpus_manifest_sha256": "5efe4d7e54fcc6e007682e2240e119a28b659fb8357109840da55cfaf19d66d9",
+    "corpus_manifest_sha256": "b282f5892a2c6cb320e5f5a24427cc8c64923ba404f407862816aaec142274f8",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },
   "filter": null,
   "summary": {
-    "generated": 5068,
+    "generated": 5148,
     "unsupported": 356,
     "expected_fail": 0,
     "quarantined": 0,
@@ -11177,6 +11177,486 @@
       "name": "flex_absolute_direction_rtl__content_box_rtl",
       "source": "html/flex/flex_absolute_direction_rtl.html",
       "output": "xml/flex/flex_absolute_direction_rtl__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column__border_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_column.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column__content_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_column.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column__border_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_column.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column__content_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_column.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_column_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_column_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_column_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_column_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_column_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_column_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row__border_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_row.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row__content_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_row.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row__border_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_row.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row__content_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_row.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_row_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_horizontal_tb_row_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_row_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_horizontal_tb_row_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_horizontal_tb_row_reverse.html",
+      "output": "xml/flex/flex_axes_horizontal_tb_row_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_column.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_column.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_column.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_column.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_column_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_column_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_row.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_row.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_row.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_row.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_lr_row_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_lr_row_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_column.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_column.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_column.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_column.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_column_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_column_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_row.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_row.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_row.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_row.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_sideways_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_sideways_rl_row_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_sideways_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_sideways_rl_row_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_column.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_column.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_column.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_column.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_column_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_column_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_row.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_row.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_row.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_row.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_lr_row_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_lr_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_lr_row_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_column.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_column.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_column.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_column.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_column_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_column_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_column_reverse__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_row.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_row.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_row.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_row.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row_reverse__border_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row_reverse__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row_reverse__content_box_ltr",
+      "source": "html/flex/flex_axes_vertical_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row_reverse__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row_reverse__border_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row_reverse__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "flex_axes_vertical_rl_row_reverse__content_box_rtl",
+      "source": "html/flex/flex_axes_vertical_rl_row_reverse.html",
+      "output": "xml/flex/flex_axes_vertical_rl_row_reverse__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
