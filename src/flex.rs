@@ -76,7 +76,6 @@ where
 
     Ok(container_output(
         input,
-        &style,
         &layout_constants,
         &resolved_items,
         final_items.as_deref(),
@@ -120,6 +119,8 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
+        let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+        let axes = FlexAxes::new(flow_axes, style.flex_direction, style.flex_wrap);
         let padding = input
             .containing_flow_axes()
             .zip_physical_edges_with_inline_extent(
@@ -204,9 +205,6 @@ impl<S: LayoutScalar> Constants<S> {
             })
             .transpose_with_node(tree, node)?;
 
-        let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
-        let axes = FlexAxes::new(flow_axes, style.flex_direction, style.flex_wrap);
-
         Ok(Self {
             flow_axes,
             axes,
@@ -231,7 +229,7 @@ impl<S: LayoutScalar> Constants<S> {
             ),
             wrap_reverse: style.flex_wrap == super::FlexWrap::WrapReverse,
             available: input.available(),
-            available_main: input.available().main(style.flex_direction),
+            available_main: axes.main_size(input.available()),
         })
     }
 }
@@ -845,11 +843,11 @@ where
     let size = authored_size;
     let resolved_flex_basis = resolve_dimension(
         style.flex_basis,
-        constants.node_inner_size.main(constants.direction),
+        constants.axes.main_size(constants.node_inner_size),
     )
     .map_err(|status| crate::compute::value_resolution_error(node, status))?
     .map(|flex_basis| {
-        let padding_border = padding_border.sum_axes().main(constants.direction);
+        let padding_border = constants.axes.main_size(padding_border.sum_axes());
         if style.box_sizing == BoxSizing::ContentBox {
             flex_basis + padding_border
         } else {
@@ -857,7 +855,7 @@ where
         }
     });
     let size = match resolved_flex_basis {
-        Some(flex_basis) => size.with_main(constants.direction, Some(flex_basis)),
+        Some(flex_basis) => constants.axes.with_main_size(size, Some(flex_basis)),
         None => size,
     };
     let raw_min_size = style
@@ -878,9 +876,8 @@ where
     let max_size = raw_max_size
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-    let direction = constants.direction;
     let align_self = style.align_self.unwrap_or(constants.align_items);
-    let cross_size_is_auto = style.size.cross(direction).is_auto();
+    let cross_size_is_auto = constants.axes.cross_size(style.size).is_auto();
     let available_inner_size = constants.node_inner_size.or(constants.max_inner_size);
     let available = Size::new(
         constants
@@ -896,51 +893,53 @@ where
             .or_else(|| constants.max_inner_size.height.map(AvailableOf::definite))
             .unwrap_or(constants.available.height),
     );
-    let available = available.with_cross(
-        direction,
+    let available = constants.axes.with_cross_size(
+        available,
         clamp_available(
-            available.cross(direction),
-            min_size.cross(direction),
-            max_size.cross(direction),
+            constants.axes.cross_size(available),
+            constants.axes.cross_size(min_size),
+            constants.axes.cross_size(max_size),
         ),
     );
-    let main_size_is_auto = size.main(direction).is_none();
+    let main_size_is_auto = constants.axes.main_size(size).is_none();
     let use_content_sizing_for_base = main_size_is_auto && style.display == super::Display::Block;
     let mut child_known = size;
     if !constants.wraps
         && use_content_sizing_for_base
         && align_self == AlignItems::Stretch
         && cross_size_is_auto
-        && !margin_is_auto.cross_start(direction, constants.layout_direction)
-        && !margin_is_auto.cross_end(direction, constants.layout_direction)
-        && let Some(cross_size) = available.cross(direction).into_option()
+        && !constants.axes.cross_start_edge(margin_is_auto)
+        && !constants.axes.cross_end_edge(margin_is_auto)
+        && let Some(cross_size) = constants.axes.cross_size(available).into_option()
     {
-        child_known = child_known.with_cross(
-            direction,
-            Some((cross_size - margin.cross_sum(direction)).max(Tree::Scalar::ZERO)),
+        child_known = constants.axes.with_cross_size(
+            child_known,
+            Some((cross_size - constants.axes.cross_edge_sum(margin)).max(Tree::Scalar::ZERO)),
         );
     }
     let mut child_known_for_base = flex_base_known_size(
-        size.with_main(direction, None),
-        available.cross(direction),
+        constants.axes.with_main_size(size, None),
+        constants.axes.cross_size(available),
         style,
         constants,
         margin,
         margin_is_auto,
         align_self,
     );
-    let padding_border_main = padding_border.sum_axes().main(direction);
+    let padding_border_main = constants.axes.main_size(padding_border.sum_axes());
     let flex_basis_floor_may_override_content = padding_border_main > Tree::Scalar::ZERO
-        || (tree.child_count(node) == 0 && authored_size.main(direction).is_some());
+        || (tree.child_count(node) == 0 && constants.axes.main_size(authored_size).is_some());
     if let Some(flex_basis) = resolved_flex_basis
         && flex_basis <= padding_border_main
         && flex_basis_floor_may_override_content
     {
-        child_known_for_base = child_known_for_base.with_main(direction, Some(flex_basis));
+        child_known_for_base = constants
+            .axes
+            .with_main_size(child_known_for_base, Some(flex_basis));
     }
     let child_available = if use_content_sizing_for_base {
-        available.with_main(
-            direction,
+        constants.axes.with_main_size(
+            available,
             if constants.available_main == AvailableOf::MIN_CONTENT {
                 AvailableOf::MIN_CONTENT
             } else {
@@ -974,74 +973,87 @@ where
         box_sizing_adjustment,
         child_known_for_base,
     )?;
-    let flex_basis = if let Some(flex_basis) = resolved_flex_basis.or_else(|| size.main(direction))
-    {
-        flex_basis
-    } else if let Some(ratio) = style.aspect_ratio {
-        if let Some(cross) = child_known_for_base.cross(direction) {
-            main_size_from_cross_aspect(direction, cross, ratio)
+    let flex_basis =
+        if let Some(flex_basis) = resolved_flex_basis.or_else(|| constants.axes.main_size(size)) {
+            flex_basis
+        } else if let Some(ratio) = style.aspect_ratio {
+            if let Some(cross) = constants.axes.cross_size(child_known_for_base) {
+                constants.axes.main_size_from_cross_aspect(cross, ratio)
+            } else {
+                constants.axes.main_size(output.size)
+            }
         } else {
-            output.size.main(direction)
-        }
-    } else {
-        tree.compute_child(
-            node,
-            ComputeInputOf::for_child(
-                RunMode::ComputeSize,
-                SizingMode::ContentSize,
-                requested_axis(direction),
-                child_known_for_base,
-                available_inner_size.with_main(direction, None),
-                constants.flow_axes,
-                child_available.with_main(direction, AvailableOf::MAX_CONTENT),
-            ),
-        )?
-        .size
-        .main(direction)
-    };
+            constants.axes.main_size(
+                tree.compute_child(
+                    node,
+                    ComputeInputOf::for_child(
+                        RunMode::ComputeSize,
+                        SizingMode::ContentSize,
+                        constants.axes.main_requested_axis(),
+                        child_known_for_base,
+                        constants.axes.with_main_size(available_inner_size, None),
+                        constants.flow_axes,
+                        constants
+                            .axes
+                            .with_main_size(child_available, AvailableOf::MAX_CONTENT),
+                    ),
+                )?
+                .size,
+            )
+        };
     let hypothetical_main_size = clamp_main_size_axes(
         flex_basis,
         automatic_min_main_size,
-        min_size.main(direction),
-        max_size.main(direction),
+        constants.axes.main_size(min_size),
+        constants.axes.main_size(max_size),
     );
-    let authored_main_size = authored_size.main(direction);
+    let authored_main_size = constants.axes.main_size(authored_size);
     let flex_basis_uses_padding_floor = resolved_flex_basis.is_some()
         && flex_basis <= padding_border_main
         && style.flex_grow.get() == Tree::Scalar::ZERO
-        && (tree.child_count(node) > 0 || output.content_size.main(direction) <= flex_basis);
+        && (tree.child_count(node) > 0
+            || constants.axes.main_size(output.content_size) <= flex_basis);
     let intrinsic_main_size = if flex_basis_uses_padding_floor {
         flex_basis
     } else if style.flex_basis == DimensionOf::Auto && authored_main_size.is_some() {
         authored_main_size.unwrap_or(Tree::Scalar::ZERO)
     } else {
-        output
-            .content_size
-            .main(direction)
+        constants
+            .axes
+            .main_size(output.content_size)
             .max(authored_main_size.unwrap_or(Tree::Scalar::ZERO))
     };
     let max_content_main_size = intrinsic_main_size
-        .clamp_optional(min_size.main(direction), max_size.main(direction))
+        .clamp_optional(
+            constants.axes.main_size(min_size),
+            constants.axes.main_size(max_size),
+        )
         .max(padding_border_main);
-    let mut target_size = output.size.with_main(direction, hypothetical_main_size);
+    let mut target_size = constants
+        .axes
+        .with_main_size(output.size, hypothetical_main_size);
     if align_self != AlignItems::Stretch
         && cross_size_is_auto
         && let Some(ratio) = style.aspect_ratio
     {
-        let ratio = ratio.get();
-        let transferred_cross = if direction.is_row() {
-            hypothetical_main_size / ratio
-        } else {
-            hypothetical_main_size * ratio
+        let transferred_cross = match constants.axes.main_physical_axis() {
+            PhysicalAxis::Horizontal => hypothetical_main_size / ratio.get(),
+            PhysicalAxis::Vertical => hypothetical_main_size * ratio.get(),
         };
-        target_size = target_size.with_cross(direction, transferred_cross);
+        target_size = constants
+            .axes
+            .with_cross_size(target_size, transferred_cross);
     }
-    target_size = target_size.with_cross(
-        direction,
-        target_size
-            .cross(direction)
-            .clamp_optional(raw_min_size.cross(direction), raw_max_size.cross(direction))
-            .max(padding_border.sum_axes().cross(direction)),
+    target_size = constants.axes.with_cross_size(
+        target_size,
+        constants
+            .axes
+            .cross_size(target_size)
+            .clamp_optional(
+                constants.axes.cross_size(raw_min_size),
+                constants.axes.cross_size(raw_max_size),
+            )
+            .max(constants.axes.cross_size(padding_border.sum_axes())),
     );
     let child_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
     let baseline = FlexItemBaseline::from_output(output, child_flow_axes);
@@ -1060,8 +1072,8 @@ where
         automatic_min_main_size,
         min_size,
         max_size,
-        min_cross_size: raw_min_size.cross(direction),
-        max_cross_size: raw_max_size.cross(direction),
+        min_cross_size: constants.axes.cross_size(raw_min_size),
+        max_cross_size: constants.axes.cross_size(raw_max_size),
         margin,
         margin_is_auto,
         inset,
@@ -1087,8 +1099,9 @@ fn automatic_min_main_size<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let direction = constants.direction;
-    if !style.min_size.main(direction).is_auto() || flex_automatic_minimum_is_zero(style.overflow) {
+    if !constants.axes.main_size(style.min_size).is_auto()
+        || flex_automatic_minimum_is_zero(style.overflow)
+    {
         return Ok(None);
     }
     let authored_size = style
@@ -1133,17 +1146,16 @@ where
         .transpose_with_node(tree, node)?;
     let padding_border = padding + border;
 
-    let available = Size::from_main_cross(
-        direction,
+    let available = constants.axes.size_from_main_cross(
         AvailableOf::MIN_CONTENT,
         clamp_available(
             constants
-                .node_inner_size
-                .cross(direction)
+                .axes
+                .cross_size(constants.node_inner_size)
                 .map(AvailableOf::definite)
                 .unwrap_or(AvailableOf::MAX_CONTENT),
-            min_size.cross(direction),
-            resolved_max_size.cross(direction),
+            constants.axes.cross_size(min_size),
+            constants.axes.cross_size(resolved_max_size),
         ),
     );
     let output = tree.compute_child(
@@ -1151,29 +1163,33 @@ where
         ComputeInputOf::for_child(
             RunMode::ComputeSize,
             SizingMode::ContentSize,
-            requested_axis(direction),
+            constants.axes.main_requested_axis(),
             child_known,
-            constants.node_inner_size.with_main(direction, None),
+            constants
+                .axes
+                .with_main_size(constants.node_inner_size, None),
             constants.flow_axes,
             available,
         ),
     )?;
 
-    let mut min_content = output
-        .size
-        .main(direction)
-        .clamp_optional(None, authored_size.main(direction))
-        .clamp_optional(None, resolved_max_size.main(direction));
+    let mut min_content = constants
+        .axes
+        .main_size(output.size)
+        .clamp_optional(None, constants.axes.main_size(authored_size))
+        .clamp_optional(None, constants.axes.main_size(resolved_max_size));
     if let Some(ratio) = style.aspect_ratio
-        && let Some(cross) = child_known.cross(direction)
+        && let Some(cross) = constants.axes.cross_size(child_known)
     {
-        let transferred = main_size_from_cross_aspect(direction, cross, ratio)
-            .clamp_optional(None, authored_size.main(direction))
-            .clamp_optional(None, resolved_max_size.main(direction));
+        let transferred = constants
+            .axes
+            .main_size_from_cross_aspect(cross, ratio)
+            .clamp_optional(None, constants.axes.main_size(authored_size))
+            .clamp_optional(None, constants.axes.main_size(resolved_max_size));
         min_content = min_content.max(transferred);
     }
     Ok(Some(
-        min_content.max(padding_border.sum_axes().main(direction)),
+        min_content.max(constants.axes.main_size(padding_border.sum_axes())),
     ))
 }
 
@@ -1191,18 +1207,17 @@ fn flex_base_known_size<S: LayoutScalar>(
     margin_is_auto: Edges<bool>,
     align_self: AlignItems,
 ) -> Size<Option<S>> {
-    let direction = constants.direction;
-    let mut known = size.with_main(direction, None);
+    let mut known = constants.axes.with_main_size(size, None);
     if align_self == AlignItems::Stretch
-        && style.size.cross(direction).is_auto()
-        && known.cross(direction).is_none()
-        && !margin_is_auto.cross_start(direction, constants.layout_direction)
-        && !margin_is_auto.cross_end(direction, constants.layout_direction)
+        && constants.axes.cross_size(style.size).is_auto()
+        && constants.axes.cross_size(known).is_none()
+        && !constants.axes.cross_start_edge(margin_is_auto)
+        && !constants.axes.cross_end_edge(margin_is_auto)
         && let Some(cross) = cross_available.into_option()
     {
-        known = known.with_cross(
-            direction,
-            Some((cross - margin.cross_sum(direction)).max(S::ZERO)),
+        known = constants.axes.with_cross_size(
+            known,
+            Some((cross - constants.axes.cross_edge_sum(margin)).max(S::ZERO)),
         );
     }
     known
@@ -1235,7 +1250,6 @@ fn collect_flex_lines<Node, S: LayoutScalar>(
 where
     Node: Copy,
 {
-    let direction = constants.direction;
     if !constants.wraps {
         return vec![FlexLine::new(0, items.len())];
     }
@@ -1263,11 +1277,11 @@ where
             let gap = if end == start {
                 S::ZERO
             } else {
-                constants.gap.main(direction)
+                constants.axes.main_size(constants.gap)
             };
             let next_size = gap
-                + items[end].hypothetical_size.main(direction)
-                + items[end].margin.main_sum(direction);
+                + constants.axes.main_size(items[end].hypothetical_size)
+                + constants.axes.main_edge_sum(items[end].margin);
             if end > start && line_main_size + next_size > container_main_size {
                 break;
             }
@@ -1287,14 +1301,14 @@ where
 }
 
 fn flex_main_size<S: LayoutScalar>(constants: &Constants<S>) -> Option<S> {
-    constants.node_inner_size.main(constants.direction)
+    constants.axes.main_size(constants.node_inner_size)
 }
 
 fn flex_line_collection_size<S: LayoutScalar>(constants: &Constants<S>) -> Option<S> {
     constants
-        .node_inner_size
-        .main(constants.direction)
-        .or_else(|| constants.max_inner_size.main(constants.direction))
+        .axes
+        .main_size(constants.node_inner_size)
+        .or_else(|| constants.axes.main_size(constants.max_inner_size))
 }
 
 #[expect(
@@ -1321,7 +1335,7 @@ where
         .map(ResolvedFlexItem::from)
         .collect::<Vec<_>>();
     let direction = constants.direction;
-    let cross_gap = constants.gap.cross(direction);
+    let cross_gap = constants.axes.cross_size(constants.gap);
     let mut cross_cursor = Tree::Scalar::ZERO;
     let single_line = !constants.wraps;
 
@@ -1335,7 +1349,7 @@ where
         let mut main_cursor = alignment_offset(
             free_space,
             item_count,
-            constants.gap.main(direction),
+            constants.axes.main_size(constants.gap),
             justify_content,
             direction.is_reverse(),
             true,
@@ -1353,7 +1367,7 @@ where
                     + alignment_offset(
                         free_space,
                         item_count,
-                        constants.gap.main(direction),
+                        constants.axes.main_size(constants.gap),
                         justify_content,
                         direction.is_reverse(),
                         false,
@@ -1368,11 +1382,13 @@ where
                     .margin
                     .cross_start(direction, constants.layout_direction);
 
-            main_cursor =
-                main_cursor + item.target_size.main(direction) + item.margin.main_sum(direction);
+            main_cursor = main_cursor
+                + constants.axes.main_size(item.target_size)
+                + constants.axes.main_edge_sum(item.margin);
             cross_size = Tree::Scalar::max(
                 cross_size,
-                item.target_size.cross(direction) + item.margin.cross_sum(direction),
+                constants.axes.cross_size(item.target_size)
+                    + constants.axes.cross_edge_sum(item.margin),
             );
         }
         cross_size = Tree::Scalar::max(
@@ -1383,8 +1399,8 @@ where
         line.main_size = main_cursor;
         line.cross_size = if single_line {
             constants
-                .node_inner_size
-                .cross(direction)
+                .axes
+                .cross_size(constants.node_inner_size)
                 .unwrap_or(cross_size)
         } else {
             cross_size
@@ -1463,26 +1479,27 @@ fn determine_hypothetical_cross_size<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let direction = constants.direction;
-    let padding_border_cross = (item.padding + item.border).sum_axes().cross(direction);
-    let authored_cross = item
-        .size
-        .cross(direction)
+    let padding_border_cross = constants
+        .axes
+        .cross_size((item.padding + item.border).sum_axes());
+    let authored_cross = constants
+        .axes
+        .cross_size(item.size)
         .map(|cross| {
             cross.clamp_optional(
-                item.min_size.cross(direction),
-                item.max_size.cross(direction),
+                constants.axes.cross_size(item.min_size),
+                constants.axes.cross_size(item.max_size),
             )
         })
         .map(|cross| cross.max(padding_border_cross));
     let available_cross = clamp_available(
         constants
-            .node_inner_size
-            .cross(direction)
+            .axes
+            .cross_size(constants.node_inner_size)
             .map(AvailableOf::definite)
-            .unwrap_or(constants.available.cross(direction)),
-        item.min_size.cross(direction),
-        item.max_size.cross(direction),
+            .unwrap_or(constants.axes.cross_size(constants.available)),
+        constants.axes.cross_size(item.min_size),
+        constants.axes.cross_size(item.max_size),
     );
     let available_cross = match available_cross {
         AvailableOf::Definite(value) => AvailableOf::Definite(value.max(padding_border_cross)),
@@ -1491,16 +1508,17 @@ where
     let measured_cross = if let Some(authored_cross) = authored_cross {
         authored_cross
     } else {
-        let main_size_changed =
-            (item.target_size.main(direction) - item.initial_output.size.main(direction)).abs()
-                > Tree::Scalar::from_f64(0.001);
+        let main_size_changed = (constants.axes.main_size(item.target_size)
+            - constants.axes.main_size(item.initial_output.size))
+        .abs()
+            > Tree::Scalar::from_f64(0.001);
         if item.initial_output.content_size == item.initial_output.size && !main_size_changed {
-            item.initial_output
-                .size
-                .cross(direction)
+            constants
+                .axes
+                .cross_size(item.initial_output.size)
                 .clamp_optional(
-                    item.min_size.cross(direction),
-                    item.max_size.cross(direction),
+                    constants.axes.cross_size(item.min_size),
+                    constants.axes.cross_size(item.max_size),
                 )
                 .max(padding_border_cross)
         } else {
@@ -1509,23 +1527,17 @@ where
                 ComputeInputOf::for_child(
                     RunMode::ComputeSize,
                     SizingMode::ContentSize,
-                    if direction.is_row() {
-                        RequestedAxis::Vertical
-                    } else {
-                        RequestedAxis::Horizontal
-                    },
-                    Size::from_main_cross(
-                        direction,
-                        Some(item.target_size.main(direction)),
+                    constants.axes.cross_requested_axis(),
+                    constants.axes.size_from_main_cross(
+                        Some(constants.axes.main_size(item.target_size)),
                         authored_cross,
                     ),
                     constants.node_inner_size,
                     constants.flow_axes,
-                    Size::from_main_cross(
-                        direction,
+                    constants.axes.size_from_main_cross(
                         constants
-                            .node_inner_size
-                            .main(direction)
+                            .axes
+                            .main_size(constants.node_inner_size)
                             .map(AvailableOf::definite)
                             .unwrap_or(AvailableOf::MAX_CONTENT),
                         available_cross,
@@ -1533,18 +1545,20 @@ where
                 ),
             )?;
             item.baseline.refresh(measured);
-            measured
-                .size
-                .cross(direction)
+            constants
+                .axes
+                .cross_size(measured.size)
                 .clamp_optional(
-                    item.min_size.cross(direction),
-                    item.max_size.cross(direction),
+                    constants.axes.cross_size(item.min_size),
+                    constants.axes.cross_size(item.max_size),
                 )
                 .max(padding_border_cross)
         }
     };
 
-    item.target_size = item.target_size.with_cross(direction, measured_cross);
+    item.target_size = constants
+        .axes
+        .with_cross_size(item.target_size, measured_cross);
     Ok(())
 }
 
@@ -2183,7 +2197,6 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
     items: &mut [ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) {
-    let direction = constants.direction;
     let mut frozen = vec![false; items.len()];
     let Some(container_main_size) = flex_main_size(constants) else {
         return;
@@ -2191,11 +2204,13 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
     let initial_free_space = container_main_size - flex_used_space(items, constants, &frozen);
 
     for (item, frozen) in items.iter_mut().zip(&mut frozen) {
-        item.target_size = item.target_size.with_main(direction, item.flex_basis);
+        item.target_size = constants
+            .axes
+            .with_main_size(item.target_size, item.flex_basis);
         if item.flex_grow_factor == S::ZERO || item.flex_basis > item.hypothetical_main_size {
-            item.target_size = item
-                .target_size
-                .with_main(direction, item.hypothetical_main_size);
+            item.target_size = constants
+                .axes
+                .with_main_size(item.target_size, item.hypothetical_main_size);
             *frozen = true;
         }
     }
@@ -2229,8 +2244,8 @@ fn distribute_positive_free_space<Node, S: LayoutScalar>(
             }
 
             let grown_main_size = item.flex_basis + free_space * item.flex_grow_factor / grow_sum;
-            let clamped = clamp_main_size(item, direction, grown_main_size);
-            item.target_size = item.target_size.with_main(direction, clamped);
+            let clamped = clamp_main_size(item, constants.axes, grown_main_size);
+            item.target_size = constants.axes.with_main_size(item.target_size, clamped);
             let violation = clamped - grown_main_size;
             violations[index] = violation;
             total_violation = total_violation + violation;
@@ -2247,7 +2262,6 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
     items: &mut [ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) {
-    let direction = constants.direction;
     let mut frozen = vec![false; items.len()];
     let Some(container_main_size) = flex_main_size(constants) else {
         return;
@@ -2255,11 +2269,13 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
     let initial_free_space = container_main_size - flex_used_space(items, constants, &frozen);
 
     for (item, frozen) in items.iter_mut().zip(&mut frozen) {
-        item.target_size = item.target_size.with_main(direction, item.flex_basis);
+        item.target_size = constants
+            .axes
+            .with_main_size(item.target_size, item.flex_basis);
         if item.flex_shrink_factor == S::ZERO || item.flex_basis < item.hypothetical_main_size {
-            item.target_size = item
-                .target_size
-                .with_main(direction, item.hypothetical_main_size);
+            item.target_size = constants
+                .axes
+                .with_main_size(item.target_size, item.hypothetical_main_size);
             *frozen = true;
         }
     }
@@ -2301,8 +2317,9 @@ fn distribute_negative_free_space<Node, S: LayoutScalar>(
             let scaled_shrink = item.flex_shrink_factor * item.flex_basis;
             let shrunken_main_size =
                 item.flex_basis + free_space * scaled_shrink / scaled_shrink_sum;
-            let clamped = clamp_main_size(item, direction, S::max(S::ZERO, shrunken_main_size));
-            item.target_size = item.target_size.with_main(direction, clamped);
+            let clamped =
+                clamp_main_size(item, constants.axes, S::max(S::ZERO, shrunken_main_size));
+            item.target_size = constants.axes.with_main_size(item.target_size, clamped);
             let violation = clamped - shrunken_main_size;
             violations[index] = violation;
             total_violation = total_violation + violation;
@@ -2320,7 +2337,6 @@ fn flex_used_space<Node, S: LayoutScalar>(
     constants: &Constants<S>,
     frozen: &[bool],
 ) -> S {
-    let direction = constants.direction;
     items
         .iter()
         .zip(frozen)
@@ -2329,14 +2345,14 @@ fn flex_used_space<Node, S: LayoutScalar>(
             let gap = if index == 0 {
                 S::ZERO
             } else {
-                constants.gap.main(direction)
+                constants.axes.main_size(constants.gap)
             };
             let main_size = if *frozen {
-                item.target_size.main(direction)
+                constants.axes.main_size(item.target_size)
             } else {
                 item.flex_basis
             };
-            gap + main_size + item.margin.main_sum(direction)
+            gap + main_size + constants.axes.main_edge_sum(item.margin)
         })
         .fold(S::ZERO, |sum, value| sum + value)
 }
@@ -2365,7 +2381,6 @@ fn occupied_main_size<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) -> S {
-    let direction = constants.direction;
     items
         .iter()
         .enumerate()
@@ -2373,41 +2388,29 @@ fn occupied_main_size<Node, S: LayoutScalar>(
             let gap = if index == 0 {
                 S::ZERO
             } else {
-                constants.gap.main(direction)
+                constants.axes.main_size(constants.gap)
             };
-            gap + item.target_size.main(direction) + item.margin.main_sum(direction)
+            gap + constants.axes.main_size(item.target_size)
+                + constants.axes.main_edge_sum(item.margin)
         })
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
 fn clamp_main_size<Node, S: LayoutScalar>(
     item: &ResolvedFlexItem<Node, S>,
-    direction: FlexDirection,
+    axes: FlexAxes,
     value: S,
 ) -> S {
     clamp_main_size_axes(
         value,
         item.automatic_min_main_size,
-        item.min_size.main(direction),
-        item.max_size.main(direction),
+        axes.main_size(item.min_size),
+        axes.main_size(item.max_size),
     )
 }
 
 fn clamp_cross_size<Node, S: LayoutScalar>(item: &ResolvedFlexItem<Node, S>, value: S) -> S {
     value.clamp_optional(item.min_cross_size, item.max_cross_size)
-}
-
-fn main_size_from_cross_aspect<S: LayoutScalar>(
-    direction: FlexDirection,
-    cross_size: S,
-    aspect_ratio: AspectRatioOf<S>,
-) -> S {
-    let aspect_ratio = aspect_ratio.get();
-    if direction.is_row() {
-        cross_size * aspect_ratio
-    } else {
-        cross_size / aspect_ratio
-    }
 }
 
 fn clamp_main_size_axes<S: LayoutScalar>(
@@ -2423,22 +2426,22 @@ fn clamp_main_size_axes<S: LayoutScalar>(
 
 fn container_output<Node, S: LayoutScalar>(
     input: ComputeInputOf<S>,
-    style: &NodeInputOf<S>,
     constants: &Constants<S>,
     resolved_items: &[ResolvedFlexItem<Node, S>],
     final_items: Option<&[FinalFlexItem<Node, S>]>,
     lines: &[FlexLine<S>],
     absolute_content_size: Size<S>,
 ) -> ComputeOutputOf<S> {
-    let direction = constants.direction;
     let line_cross_gap =
-        constants.gap.cross(direction) * S::from_usize(lines.len().saturating_sub(1));
+        constants.axes.cross_size(constants.gap) * S::from_usize(lines.len().saturating_sub(1));
     let content_main = intrinsic_content_main_size(input, constants, resolved_items, lines);
     let content_cross = lines
         .iter()
         .fold(S::ZERO, |sum, line| sum + line.cross_size)
         + line_cross_gap;
-    let content_size = Size::from_main_cross(direction, content_main, content_cross);
+    let content_size = constants
+        .axes
+        .size_from_main_cross(content_main, content_cross);
     let outer_size = constants
         .node_outer_size
         .unwrap_or(content_size + constants.content_box_inset.sum_axes())
@@ -2448,17 +2451,21 @@ fn container_output<Node, S: LayoutScalar>(
         .or(constants.node_outer_size)
         .unwrap_or(outer_size)
         .max_optional(constants.padding_border_size.map(Some));
-    if constants.node_outer_size.main(direction).is_none()
+    if constants
+        .axes
+        .main_size(constants.node_outer_size)
+        .is_none()
         && lines.len() > 1
-        && let AvailableOf::Definite(available_main) = input.available().main(direction)
+        && let AvailableOf::Definite(available_main) = constants.axes.main_size(input.available())
     {
-        if direction.is_row() {
-            output_size.width = output_size.width.max(available_main);
-        } else {
-            output_size.height = output_size.height.max(available_main);
-        }
+        output_size = constants.axes.with_main_size(
+            output_size,
+            constants.axes.main_size(output_size).max(available_main),
+        );
     }
-    let content_size = Size::from_main_cross(style.flex_direction, content_main, content_cross);
+    let content_size = constants
+        .axes
+        .size_from_main_cross(content_main, content_cross);
     let content_size = if input.run_mode().is_perform_layout() {
         let final_items = final_items.expect("perform-layout flex output requires final items");
         max_size(
@@ -2494,11 +2501,11 @@ fn intrinsic_content_main_size<Node, S: LayoutScalar>(
     lines: &[FlexLine<S>],
 ) -> S {
     if constants
-        .node_outer_size
-        .main(constants.direction)
+        .axes
+        .main_size(constants.node_outer_size)
         .is_none()
         && constants.direction.is_row()
-        && input.available().main(constants.direction) == AvailableOf::MAX_CONTENT
+        && constants.axes.main_size(input.available()) == AvailableOf::MAX_CONTENT
     {
         return lines
             .iter()
@@ -2518,13 +2525,13 @@ fn max_content_line_main_size<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) -> S {
-    let gap = constants.gap.main(constants.direction);
+    let gap = constants.axes.main_size(constants.gap);
     items
         .iter()
         .enumerate()
         .map(|(index, item)| {
             let gap = if index == 0 { S::ZERO } else { gap };
-            gap + item.max_content_main_size + item.margin.main_sum(constants.direction)
+            gap + item.max_content_main_size + constants.axes.main_edge_sum(item.margin)
         })
         .fold(S::ZERO, |sum, value| sum + value)
 }
@@ -2545,12 +2552,12 @@ where
     let mut constants = *constants;
     determine_container_main_size(tree, input, &mut constants, items, lines)?;
     constants.max_inner_size = constants.max_inner_size.or(constants.node_inner_size);
-    let gap_basis = Size::from_main_cross(
-        constants.direction,
-        constants.node_inner_size.main(constants.direction),
-        original_inner_size
-            .cross(constants.direction)
-            .and(constants.node_inner_size.cross(constants.direction)),
+    let gap_basis = constants.axes.size_from_main_cross(
+        constants.axes.main_size(constants.node_inner_size),
+        constants
+            .axes
+            .cross_size(original_inner_size)
+            .and(constants.axes.cross_size(constants.node_inner_size)),
     );
     constants.gap = style
         .gap
@@ -2571,9 +2578,12 @@ fn determine_container_main_size<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let direction = constants.direction;
-    let fallback_outer_main_size = if constants.node_outer_size.main(direction).is_none() {
-        let content_main = match input.available().main(direction) {
+    let fallback_outer_main_size = if constants
+        .axes
+        .main_size(constants.node_outer_size)
+        .is_none()
+    {
+        let content_main = match constants.axes.main_size(input.available()) {
             AvailableOf::Definite(available_main) => {
                 let longest = lines
                     .iter()
@@ -2595,13 +2605,18 @@ where
                 intrinsic_container_main_size(tree, input, constants, items, lines)?
             }
         };
-        Some(content_main + constants.content_box_inset.sum_axes().main(direction))
+        Some(
+            content_main
+                + constants
+                    .axes
+                    .main_size(constants.content_box_inset.sum_axes()),
+        )
     } else {
         None
     };
     let Some(outer_main_size) = constants
-        .node_outer_size
-        .main(direction)
+        .axes
+        .main_size(constants.node_outer_size)
         .or(fallback_outer_main_size)
     else {
         return Ok(());
@@ -2609,23 +2624,27 @@ where
 
     let outer_main_size = outer_main_size
         .clamp_optional(
-            constants.min_outer_size.main(direction),
-            constants.max_outer_size.main(direction),
+            constants.axes.main_size(constants.min_outer_size),
+            constants.axes.main_size(constants.max_outer_size),
         )
         .max(
-            constants.content_box_inset.sum_axes().main(direction)
-                - constants.scrollbar_gutter.main(direction),
+            constants
+                .axes
+                .main_size(constants.content_box_inset.sum_axes())
+                - constants.axes.main_point(constants.scrollbar_gutter),
         );
     let inner_main_size = (outer_main_size
-        - constants.content_box_inset.sum_axes().main(direction))
+        - constants
+            .axes
+            .main_size(constants.content_box_inset.sum_axes()))
     .max(Tree::Scalar::ZERO);
 
     constants.node_outer_size = constants
-        .node_outer_size
-        .with_main(direction, Some(outer_main_size));
+        .axes
+        .with_main_size(constants.node_outer_size, Some(outer_main_size));
     constants.node_inner_size = constants
-        .node_inner_size
-        .with_main(direction, Some(inner_main_size));
+        .axes
+        .with_main_size(constants.node_inner_size, Some(inner_main_size));
     constants.available_main = AvailableOf::definite(inner_main_size);
     Ok(())
 }
@@ -2634,20 +2653,21 @@ fn flex_basis_line_main_size<Node, S: LayoutScalar>(
     items: &[CollectedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) -> S {
-    let direction = constants.direction;
-    let gap = constants.gap.main(direction);
+    let gap = constants.axes.main_size(constants.gap);
     items
         .iter()
         .enumerate()
         .map(|(index, item)| {
             let gap = if index == 0 { S::ZERO } else { gap };
-            let padding_border = (item.padding + item.border).sum_axes().main(direction);
-            let main_size = item
-                .min_size
-                .main(direction)
+            let padding_border = constants
+                .axes
+                .main_size((item.padding + item.border).sum_axes());
+            let main_size = constants
+                .axes
+                .main_size(item.min_size)
                 .map_or(item.flex_basis, |min| item.flex_basis.max(min))
                 .max(padding_border);
-            gap + main_size + item.margin.main_sum(direction)
+            gap + main_size + constants.axes.main_edge_sum(item.margin)
         })
         .fold(S::ZERO, |sum, value| sum + value)
 }
@@ -2664,7 +2684,7 @@ where
 {
     let mut largest = Tree::Scalar::ZERO;
     for line in lines {
-        let gap = constants.gap.main(constants.direction);
+        let gap = constants.axes.main_size(constants.gap);
         let mut sum = Tree::Scalar::ZERO;
         for (index, item) in items[line.start..line.end].iter_mut().enumerate() {
             let gap = if index == 0 { Tree::Scalar::ZERO } else { gap };
@@ -2686,15 +2706,16 @@ fn intrinsic_item_main_contribution<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let direction = constants.direction;
-    let style_min = item.min_size.main(direction);
-    let style_preferred = item.size.main(direction);
-    let style_max = item.max_size.main(direction);
-    let padding_border = (item.padding + item.border).sum_axes().main(direction);
+    let style_min = constants.axes.main_size(item.min_size);
+    let style_preferred = constants.axes.main_size(item.size);
+    let style_max = constants.axes.main_size(item.max_size);
+    let padding_border = constants
+        .axes
+        .main_size((item.padding + item.border).sum_axes());
     let contentful_padding_floor_item = item.flex_basis_is_definite
         && item.flex_basis <= padding_border
         && tree.child_count(item.node) == 0
-        && item.initial_output.content_size.main(direction) > item.flex_basis;
+        && constants.axes.main_size(item.initial_output.content_size) > item.flex_basis;
     let clamping_basis =
         Some(style_preferred.map_or(item.flex_basis, |preferred| item.flex_basis.max(preferred)));
     let flex_basis_min = clamping_basis.filter(|_| item.flex_shrink_factor == Tree::Scalar::ZERO);
@@ -2712,26 +2733,28 @@ where
         && item.flex_basis <= padding_border
         && style_min.is_none()
         && tree.child_count(item.node) == 0
-        && item.initial_output.size.main(direction) <= item.flex_basis
-        && item.initial_output.content_size.main(direction) <= item.flex_basis
+        && constants.axes.main_size(item.initial_output.size) <= item.flex_basis
+        && constants.axes.main_size(item.initial_output.content_size) <= item.flex_basis
     {
-        return Ok(item.flex_basis + item.margin.main_sum(direction));
+        return Ok(item.flex_basis + constants.axes.main_edge_sum(item.margin));
     }
 
     let cross_available = intrinsic_item_cross_available(input, constants, item);
     let needs_stretched_cross_measure = item.align_self == AlignItems::Stretch
-        && item.size.cross(direction).is_none()
+        && constants.axes.cross_size(item.size).is_none()
         && cross_available.into_option().is_some();
 
     let contribution = match (style_preferred, max_main <= min_main) {
         _ if flex_automatic_minimum_is_zero(item.overflow) => item.flex_basis.max(min_main),
         (Some(preferred), _) if max_main <= preferred => preferred.min(max_main).max(min_main),
         (_, true) => min_main,
-        _ if direction.is_row() && input.available().main(direction) == AvailableOf::MinContent => {
+        _ if constants.direction.is_row()
+            && constants.axes.main_size(input.available()) == AvailableOf::MinContent =>
+        {
             min_main
         }
         _ if !needs_stretched_cross_measure => {
-            if direction.is_row() {
+            if constants.direction.is_row() {
                 item.max_content_main_size
                     .clamp_optional(style_min, style_max)
             } else {
@@ -2742,24 +2765,26 @@ where
         }
         _ => {
             let child_known = intrinsic_item_known_size(constants, item, cross_available);
-            let child_available = input.available().with_cross(direction, cross_available);
-            let measured = tree
-                .compute_child(
+            let child_available = constants
+                .axes
+                .with_cross_size(input.available(), cross_available);
+            let measured = constants.axes.main_size(
+                tree.compute_child(
                     item.node,
                     ComputeInputOf::for_child(
                         RunMode::ComputeSize,
                         SizingMode::InherentSize,
-                        requested_axis(direction),
+                        constants.axes.main_requested_axis(),
                         child_known,
                         constants.node_inner_size,
                         constants.flow_axes,
                         child_available,
                     ),
                 )?
-                .size
-                .main(direction);
+                .size,
+            );
 
-            if direction.is_row() {
+            if constants.direction.is_row() {
                 measured.clamp_optional(style_min, style_max)
             } else {
                 measured
@@ -2769,7 +2794,7 @@ where
         }
     };
 
-    Ok(contribution + item.margin.main_sum(direction))
+    Ok(contribution + constants.axes.main_edge_sum(item.margin))
 }
 
 fn intrinsic_item_cross_available<Node, S: LayoutScalar>(
@@ -2777,18 +2802,17 @@ fn intrinsic_item_cross_available<Node, S: LayoutScalar>(
     constants: &Constants<S>,
     item: &CollectedFlexItem<Node, S>,
 ) -> AvailableOf<S> {
-    let direction = constants.direction;
-    let cross_margin_sum = item.margin.cross_sum(direction);
-    let child_min_cross = item
-        .min_size
-        .cross(direction)
+    let cross_margin_sum = constants.axes.cross_edge_sum(item.margin);
+    let child_min_cross = constants
+        .axes
+        .cross_size(item.min_size)
         .map(|value| value + cross_margin_sum);
-    let child_max_cross = item
-        .max_size
-        .cross(direction)
+    let child_max_cross = constants
+        .axes
+        .cross_size(item.max_size)
         .map(|value| value + cross_margin_sum);
-    let parent_cross = constants.node_inner_size.cross(direction);
-    let cross_available = input.available().cross(direction);
+    let parent_cross = constants.axes.cross_size(constants.node_inner_size);
+    let cross_available = constants.axes.cross_size(input.available());
     let cross_available = match cross_available {
         AvailableOf::Definite(value) => AvailableOf::Definite(parent_cross.unwrap_or(value)),
         other => other,
@@ -2801,15 +2825,14 @@ fn intrinsic_item_known_size<Node, S: LayoutScalar>(
     item: &CollectedFlexItem<Node, S>,
     cross_available: AvailableOf<S>,
 ) -> Size<Option<S>> {
-    let direction = constants.direction;
-    let mut known = item.size.with_main(direction, None);
+    let mut known = constants.axes.with_main_size(item.size, None);
     if item.align_self == AlignItems::Stretch
-        && known.cross(direction).is_none()
+        && constants.axes.cross_size(known).is_none()
         && let Some(cross) = cross_available.into_option()
     {
-        known = known.with_cross(
-            direction,
-            Some((cross - item.margin.cross_sum(direction)).max(S::ZERO)),
+        known = constants.axes.with_cross_size(
+            known,
+            Some((cross - constants.axes.cross_edge_sum(item.margin)).max(S::ZERO)),
         );
     }
     known
@@ -2819,34 +2842,39 @@ fn resolved_cross_layout_constants<S: LayoutScalar>(
     constants: &Constants<S>,
     lines: &[FlexLine<S>],
 ) -> Constants<S> {
-    let direction = constants.direction;
-    if constants.node_outer_size.cross(direction).is_some() {
+    if constants
+        .axes
+        .cross_size(constants.node_outer_size)
+        .is_some()
+    {
         return *constants;
     }
 
     let line_cross_gap =
-        constants.gap.cross(direction) * S::from_usize(lines.len().saturating_sub(1));
+        constants.axes.cross_size(constants.gap) * S::from_usize(lines.len().saturating_sub(1));
     let content_cross = lines
         .iter()
         .fold(S::ZERO, |sum, line| sum + line.cross_size)
         + line_cross_gap;
-    let cross_inset = constants.content_box_inset.sum_axes().cross(direction);
+    let cross_inset = constants
+        .axes
+        .cross_size(constants.content_box_inset.sum_axes());
     let outer_cross_size = (content_cross + cross_inset)
         .clamp_optional(
-            constants.min_outer_size.cross(direction),
-            constants.max_outer_size.cross(direction),
+            constants.axes.cross_size(constants.min_outer_size),
+            constants.axes.cross_size(constants.max_outer_size),
         )
-        .max(cross_inset - constants.scrollbar_gutter.cross(direction))
-        .max(constants.padding_border_size.cross(direction));
+        .max(cross_inset - constants.axes.cross_point(constants.scrollbar_gutter))
+        .max(constants.axes.cross_size(constants.padding_border_size));
     let inner_cross_size = (outer_cross_size - cross_inset).max(S::ZERO);
 
     let mut constants = *constants;
     constants.node_outer_size = constants
-        .node_outer_size
-        .with_cross(direction, Some(outer_cross_size));
+        .axes
+        .with_cross_size(constants.node_outer_size, Some(outer_cross_size));
     constants.node_inner_size = constants
-        .node_inner_size
-        .with_cross(direction, Some(inner_cross_size));
+        .axes
+        .with_cross_size(constants.node_inner_size, Some(inner_cross_size));
     constants.max_inner_size = constants.max_inner_size.or(constants.node_inner_size);
     constants
 }
@@ -2942,15 +2970,16 @@ where
                 known,
                 constants.node_inner_size,
                 constants.flow_axes,
-                Size::new(
+                Size::from_main_cross(
+                    direction,
                     constants
                         .node_inner_size
-                        .width
+                        .main(direction)
                         .map(AvailableOf::definite)
                         .unwrap_or(AvailableOf::MAX_CONTENT),
                     constants
                         .node_inner_size
-                        .height
+                        .cross(direction)
                         .map(AvailableOf::definite)
                         .unwrap_or(AvailableOf::MAX_CONTENT),
                 ),
@@ -3070,7 +3099,7 @@ where
         .add_optional(box_sizing_adjustment);
 
     let mut known = Size::new(Some(item.target_size.width), Some(item.target_size.height));
-    if constants.direction.is_row() {
+    if requested_axis(constants.direction) == RequestedAxis::Horizontal {
         if style.size.height.depends_on_basis() {
             known.height = authored.height.or(known.height);
         }

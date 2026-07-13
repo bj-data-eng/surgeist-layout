@@ -255,6 +255,489 @@ fn public_flow_output<S: LayoutScalar>(
         .output()
 }
 
+fn assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::HorizontalTb,
+                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::SidewaysLr,
+                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("non-leaf flex root layout succeeds");
+
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).size,
+        Size::new(scalar(10.0), scalar(20.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 2).size,
+        Size::new(scalar(10.0), scalar(20.0))
+    );
+}
+
+#[test]
+fn logical_flex_sizing_vertical_lr_row_uses_container_inline_axis_for_f32() {
+    assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis::<f32>();
+}
+
+#[test]
+fn logical_flex_sizing_vertical_lr_row_uses_container_inline_axis_for_f64() {
+    assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis::<f64>();
+}
+
+fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [3])
+        .with_children(2, [4])
+        .with_children(3, [])
+        .with_children(4, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(60.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::HorizontalTb,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::HorizontalTb,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            3,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            4,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(70.0))),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(30.0)),
+            AvailableOf::definite(scalar(60.0)),
+        ))
+        .expect("valid viewport request"),
+    )
+    .expect("non-leaf flex root layout succeeds");
+
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).size,
+        Size::new(scalar(20.0), scalar(60.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 2).size,
+        Size::new(scalar(20.0), scalar(60.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).content_size,
+        Size::new(scalar(20.0), scalar(30.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 2).content_size,
+        Size::new(scalar(20.0), scalar(70.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 0)
+            .content_size
+            .height,
+        scalar(100.0)
+    );
+}
+
+#[test]
+fn logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions_for_f32() {
+    assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions::<f32>();
+}
+
+#[test]
+fn logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions_for_f64() {
+    assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions::<f64>();
+}
+
+fn flex_item_style<S: LayoutScalar>(flex_basis: S) -> NodeInputOf<S> {
+    NodeInputOf {
+        display: Display::Block,
+        size: Size::splat(DimensionOf::px(scalar(10.0))),
+        flex_basis: DimensionOf::px(flex_basis),
+        flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow factor"),
+        ..NodeInputOf::default()
+    }
+}
+
+fn assert_logical_flex_sizing_wrap_thresholds_select_container_axes<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    for direction in [
+        FlexDirection::Row,
+        FlexDirection::RowReverse,
+        FlexDirection::Column,
+        FlexDirection::ColumnReverse,
+    ] {
+        let (container_size, bases, expected_sizes) = if direction.is_row() {
+            (
+                Size::new(DimensionOf::px(scalar(80.0)), DimensionOf::px(scalar(50.0))),
+                [scalar(30.0), scalar(30.0), scalar(20.0)],
+                [
+                    Size::new(scalar(10.0), scalar(50.0)),
+                    Size::new(scalar(10.0), scalar(30.0)),
+                    Size::new(scalar(10.0), scalar(20.0)),
+                ],
+            )
+        } else {
+            (
+                Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(80.0)),
+                ),
+                [scalar(60.0), scalar(60.0), scalar(40.0)],
+                [
+                    Size::new(scalar(100.0), scalar(10.0)),
+                    Size::new(scalar(60.0), scalar(10.0)),
+                    Size::new(scalar(40.0), scalar(10.0)),
+                ],
+            )
+        };
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2, 3])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    writing_mode: WritingMode::VerticalLr,
+                    size: container_size,
+                    flex_direction: direction,
+                    flex_wrap: FlexWrap::Wrap,
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(1, flex_item_style(bases[0]))
+            .with_style(2, flex_item_style(bases[1]))
+            .with_style(3, flex_item_style(bases[2]));
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::new(
+                AvailableOf::definite(scalar(100.0)),
+                AvailableOf::definite(scalar(100.0)),
+            ))
+            .expect("valid viewport request"),
+        )
+        .expect("non-leaf flex root layout succeeds");
+
+        for (node, expected_size) in [1_u32, 2, 3].into_iter().zip(expected_sizes) {
+            assert_eq!(
+                public_flow_output(batch.final_entries(), node).size,
+                expected_size
+            );
+        }
+    }
+}
+
+#[test]
+fn logical_flex_sizing_wrap_thresholds_select_container_axes_for_f32() {
+    assert_logical_flex_sizing_wrap_thresholds_select_container_axes::<f32>();
+}
+
+#[test]
+fn logical_flex_sizing_wrap_thresholds_select_container_axes_for_f64() {
+    assert_logical_flex_sizing_wrap_thresholds_select_container_axes::<f64>();
+}
+
+fn assert_logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let item = NodeInputOf {
+        display: Display::Block,
+        size: Size::splat(DimensionOf::px(scalar(10.0))),
+        flex_basis: DimensionOf::px(scalar(45.0)),
+        flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow factor"),
+        margin: Edges::all(LengthAutoOf::percent(scalar(0.1))),
+        ..NodeInputOf::default()
+    };
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2, 3])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_children(3, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(200.0)),
+                ),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                gap: Size::new(
+                    LengthOf::percent(scalar(0.1)),
+                    LengthOf::percent(scalar(0.1)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, item.clone())
+        .with_style(2, item.clone())
+        .with_style(3, item);
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(100.0)),
+            AvailableOf::definite(scalar(200.0)),
+        ))
+        .expect("valid viewport request"),
+    )
+    .expect("non-leaf flex root layout succeeds");
+
+    for node in [1_u32, 2, 3] {
+        let output = public_flow_output(batch.final_entries(), node);
+        assert_eq!(output.margin, Edges::all(scalar(20.0)));
+    }
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).size.height,
+        scalar(50.0)
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 2).size.height,
+        scalar(50.0)
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 3).size.height,
+        scalar(160.0)
+    );
+}
+
+#[test]
+fn logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes_for_f32() {
+    assert_logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes::<f32>();
+}
+
+#[test]
+fn logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes_for_f64() {
+    assert_logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes::<f64>();
+}
+
+fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2, 3])
+        .with_children(1, [4])
+        .with_children(2, [5])
+        .with_children(3, [6])
+        .with_children(4, [])
+        .with_children(5, [])
+        .with_children(6, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(120.0)),
+                ),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(40.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(40.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            3,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::HorizontalTb,
+                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(40.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            4,
+            NodeInputOf {
+                display: Display::Block,
+                flex_basis: DimensionOf::percent(scalar(0.5)),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            5,
+            NodeInputOf {
+                display: Display::Block,
+                flex_basis: DimensionOf::percent(scalar(0.5)),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            6,
+            NodeInputOf {
+                display: Display::Block,
+                flex_basis: DimensionOf::percent(scalar(0.5)),
+                ..NodeInputOf::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(100.0)),
+            AvailableOf::definite(scalar(120.0)),
+        ))
+        .expect("valid viewport request"),
+    )
+    .expect("non-leaf flex root layout succeeds");
+
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 4).size,
+        Size::new(scalar(0.0), scalar(40.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 5).size,
+        Size::new(scalar(0.0), scalar(40.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 6).size,
+        Size::new(scalar(15.0), scalar(40.0))
+    );
+
+    let horizontal = PublicFlowTree::default()
+        .with_children(0, [1, 2, 3])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_children(3, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(80.0)),
+                ),
+                flex_wrap: FlexWrap::Wrap,
+                gap: Size::new(LengthOf::ZERO, LengthOf::percent(scalar(0.1))),
+                align_content: Some(AlignContent::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, flex_item_style(scalar(60.0)))
+        .with_style(2, flex_item_style(scalar(60.0)))
+        .with_style(3, flex_item_style(scalar(40.0)));
+    let horizontal_batch = compute_layout(
+        &horizontal,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(100.0)),
+            AvailableOf::definite(scalar(80.0)),
+        ))
+        .expect("valid viewport request"),
+    )
+    .expect("horizontal non-leaf flex root layout succeeds");
+
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 1).size,
+        Size::new(scalar(100.0), scalar(10.0))
+    );
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 2).size,
+        Size::new(scalar(60.0), scalar(10.0))
+    );
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 3).size,
+        Size::new(scalar(40.0), scalar(10.0))
+    );
+    assert_eq!(
+        public_flow_output(horizontal_batch.final_entries(), 0)
+            .content_size
+            .height,
+        scalar(28.0)
+    );
+}
+
+#[test]
+fn logical_flex_sizing_preserves_horizontal_and_child_flow_ownership_for_f32() {
+    assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership::<f32>();
+}
+
+#[test]
+fn logical_flex_sizing_preserves_horizontal_and_child_flow_ownership_for_f64() {
+    assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership::<f64>();
+}
+
 fn assert_viewport_root_logical_inline_auto_fill<S: LayoutScalar>(
     writing_mode: WritingMode,
     expected_location: Point<S>,
