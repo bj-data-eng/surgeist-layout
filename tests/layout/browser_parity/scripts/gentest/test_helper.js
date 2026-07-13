@@ -325,7 +325,7 @@ function parseElementSize(styleValue, computedStyle) {
 }
 
 function isVerticalWritingMode(writingMode) {
-  return writingMode && writingMode.startsWith("vertical-");
+  return writingMode && (writingMode.startsWith("vertical-") || writingMode.startsWith("sideways-"));
 }
 
 function parseGaps(styleValue) {
@@ -836,11 +836,22 @@ function applyAutoMarginDeclaration(edges, property, value, computedStyle) {
 }
 
 function inlineStartEdge(computedStyle) {
-  return computedStyle.direction === "rtl" ? "right" : "left";
+  const rtl = computedStyle.direction === "rtl";
+  switch (computedStyle.writingMode) {
+    case "vertical-rl":
+    case "vertical-lr":
+    case "sideways-rl":
+      return rtl ? "bottom" : "top";
+    case "sideways-lr":
+      return rtl ? "top" : "bottom";
+    default:
+      return rtl ? "right" : "left";
+  }
 }
 
 function inlineEndEdge(computedStyle) {
-  return computedStyle.direction === "rtl" ? "left" : "right";
+  const start = inlineStartEdge(computedStyle);
+  return { left: "right", right: "left", top: "bottom", bottom: "top" }[start];
 }
 
 function describeChildNodes(e, expectedElement = null) {

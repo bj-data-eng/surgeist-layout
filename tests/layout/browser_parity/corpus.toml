@@ -51,11 +51,16 @@ arguments = [
 
 [generation_reports.full]
 file = "all.json"
-generated = 5048
+generated = 5068
 unsupported = 356
 expected_fail = 0
 quarantined = 0
 failed_to_generate = 0
+
+[[generation_reports.scoped]]
+filter = "block/block_axes"
+file = "block_block_axes.json"
+generated = 20
 
 [[generation_reports.scoped]]
 filter = "block/block_br_vertical"
@@ -146,6 +151,41 @@ status = "active"
 id = "block/block_calc_width_margin"
 source_root = "surgeist"
 source = "block/block_calc_width_margin.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_axes_horizontal_tb"
+source_root = "surgeist"
+source = "block/block_axes_horizontal_tb.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_axes_vertical_rl"
+source_root = "surgeist"
+source = "block/block_axes_vertical_rl.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_axes_vertical_lr"
+source_root = "surgeist"
+source = "block/block_axes_vertical_lr.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_axes_sideways_rl"
+source_root = "surgeist"
+source = "block/block_axes_sideways_rl.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/block_axes_sideways_lr"
+source_root = "surgeist"
+source = "block/block_axes_sideways_lr.html"
 generator = "constrained-html"
 status = "active"
 

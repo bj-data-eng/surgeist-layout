@@ -92,6 +92,87 @@ fn runs_grid_calc_track_and_item_margin_fixture_family_against_surgeist_layout()
 }
 
 #[test]
+fn runs_fri_02_block_axis_families_against_surgeist_layout() {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity")
+        .canonicalize()
+        .expect("browser parity fixture root should exist");
+    let fixtures = support::fixture_files("xml")
+        .expect("fixtures should load")
+        .into_iter()
+        .map(|fixture| {
+            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
+                panic!("{} should canonicalize: {error}", fixture.display())
+            });
+            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
+                panic!(
+                    "{} should be under {}: {error}",
+                    fixture.display(),
+                    corpus_root.display()
+                )
+            });
+            (relative.to_path_buf(), fixture)
+        })
+        .collect::<Vec<_>>();
+    let paths = block_axis_fixture_paths(fixtures.iter().map(|(relative, _)| relative.clone()))
+        .unwrap_or_else(|error| panic!("{error}"));
+
+    for (relative, fixture) in fixtures {
+        if !paths.contains(&relative) {
+            continue;
+        }
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        assert_block_axis_fixture_topology(&golden, &relative)
+            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} failed layout comparison: {error}", fixture.display())
+        });
+    }
+}
+
+#[test]
+fn block_axis_fixture_matrix_rejects_missing_duplicate_misplaced_and_topology_bypassed_paths() {
+    let expected = block_axis_expected_paths();
+
+    assert!(block_axis_fixture_paths(expected.iter().skip(1).cloned()).is_err());
+
+    let mut duplicate = expected.clone();
+    duplicate.push(expected[0].clone());
+    assert!(block_axis_fixture_paths(duplicate).is_err());
+
+    let mut misplaced = expected.clone();
+    misplaced[0] = PathBuf::from("xml/other/block_axes_horizontal_tb__border_box_ltr.xml");
+    assert!(block_axis_fixture_paths(misplaced).is_err());
+
+    let topology_bypass = support::Golden::parse(
+        r#"
+        <test name="block_axes_horizontal_tb__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input>
+            <div display="block" writing-mode="horizontal-tb">
+              <div display="block" width="20px" height="10px" margin-left="13px" />
+            </div>
+          </input>
+          <expectations>
+            <node x="0" y="0" width="20" height="10">
+              <node x="13" y="0" width="20" height="10" />
+            </node>
+          </expectations>
+        </test>
+        "#,
+    )
+    .expect("topology bypass fixture should parse");
+    assert!(
+        assert_block_axis_fixture_topology(
+            &topology_bypass,
+            Path::new("xml/block/block_axes_horizontal_tb__border_box_ltr.xml"),
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn calc_fixture_family_rejects_misplaced_duplicate_variant() {
     let family = "block/block_calc_width_margin";
     let candidates = [
@@ -198,6 +279,121 @@ fn calc_fixture_family_paths(
     Ok(discovered)
 }
 
+fn block_axis_fixture_paths(
+    candidate_paths: impl IntoIterator<Item = PathBuf>,
+) -> Result<BTreeSet<PathBuf>, String> {
+    let expected = block_axis_expected_paths()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let fixtures = candidate_paths
+        .into_iter()
+        .filter(|candidate| {
+            candidate
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("xml")
+                && candidate
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .is_some_and(|stem| stem.starts_with("block_axes_"))
+        })
+        .collect::<Vec<_>>();
+    let discovered = fixtures.iter().cloned().collect::<BTreeSet<_>>();
+
+    if fixtures.len() != discovered.len() {
+        return Err(format!(
+            "block-axis fixture discovery must not contain duplicate relative paths: {discovered:#?}"
+        ));
+    }
+    if discovered != expected {
+        return Err(format!(
+            "block-axis fixture matrix must contain exactly the required relative variants: {discovered:#?}"
+        ));
+    }
+
+    Ok(discovered)
+}
+
+fn block_axis_expected_paths() -> Vec<PathBuf> {
+    const FAMILIES: [&str; 5] = [
+        "block_axes_horizontal_tb",
+        "block_axes_vertical_rl",
+        "block_axes_vertical_lr",
+        "block_axes_sideways_rl",
+        "block_axes_sideways_lr",
+    ];
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    FAMILIES
+        .into_iter()
+        .flat_map(|family| {
+            VARIANTS.into_iter().map(move |variant| {
+                PathBuf::from("xml/block").join(format!("{family}__{variant}.xml"))
+            })
+        })
+        .collect()
+}
+
+fn assert_block_axis_fixture_topology(golden: &support::Golden, path: &Path) -> Result<(), String> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("{} must have a UTF-8 filename", path.display()))?;
+    let mode = file_name
+        .strip_prefix("block_axes_")
+        .and_then(|name| name.split_once("__"))
+        .map(|(mode, _)| mode.replace('_', "-"))
+        .ok_or_else(|| format!("{} must use a block-axis family filename", path.display()))?;
+    if golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some("block")
+        || golden
+            .root
+            .style
+            .get("writing-mode")
+            .unwrap_or("horizontal-tb")
+            != mode
+    {
+        return Err("target root must be an ordinary block in the named writing mode".to_string());
+    }
+    if golden.root.children.len() != 2 || golden.expectations.children.len() != 2 {
+        return Err("target root must have exactly two ordinary block children".to_string());
+    }
+    if golden.root.children.iter().any(|child| {
+        child.kind != support::NodeKind::Div || child.style.get("display") != Some("block")
+    }) {
+        return Err("target children must stay on ordinary block topology".to_string());
+    }
+
+    let first = &golden.expectations.children[0];
+    let second = &golden.expectations.children[1];
+    if (first.width, first.height) == (second.width, second.height) {
+        return Err("target children must have unequal physical sizes".to_string());
+    }
+
+    let direction = golden.root.style.get("direction").unwrap_or("ltr");
+    let margin_attr = match (mode.as_str(), direction) {
+        ("horizontal-tb", "ltr") => "margin-left",
+        ("horizontal-tb", "rtl") => "margin-right",
+        ("vertical-rl" | "vertical-lr" | "sideways-rl", "ltr") => "margin-top",
+        ("vertical-rl" | "vertical-lr" | "sideways-rl", "rtl") => "margin-bottom",
+        ("sideways-lr", "ltr") => "margin-bottom",
+        ("sideways-lr", "rtl") => "margin-top",
+        _ => return Err("target root must have an LTR or RTL direction".to_string()),
+    };
+    if golden.root.children[0].style.get(margin_attr) != Some("13px") {
+        return Err(format!(
+            "first child must retain its inline-start-sensitive {margin_attr} margin"
+        ));
+    }
+
+    Ok(())
+}
+
 #[test]
 fn parses_all_checked_in_browser_parity_xml() {
     let fixtures = support::fixture_files("xml").expect("fixtures should load");
@@ -289,8 +485,8 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .count();
 
     assert_eq!(
-        taffy_plus_local_count, 1125,
-        "expected the Taffy baseline plus six Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
+        taffy_plus_local_count, 1130,
+        "expected the Taffy baseline plus eleven Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
     );
     assert_eq!(subgrid_count, 210);
     assert_eq!(grid_lanes_count, 16);
@@ -332,7 +528,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5048);
+    assert_eq!(report_json["summary"]["generated"], 5068);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -343,7 +539,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5048,
+        5068,
         "generated bucket length must match its summary"
     );
     assert_eq!(

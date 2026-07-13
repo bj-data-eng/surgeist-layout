@@ -1425,6 +1425,8 @@ fn parse_writing_mode(raw: Option<&str>) -> Result<layout::WritingMode, Error> {
         None | Some("horizontal-tb") => Ok(layout::WritingMode::HorizontalTb),
         Some("vertical-lr") => Ok(layout::WritingMode::VerticalLr),
         Some("vertical-rl") => Ok(layout::WritingMode::VerticalRl),
+        Some("sideways-rl") => Ok(layout::WritingMode::SidewaysRl),
+        Some("sideways-lr") => Ok(layout::WritingMode::SidewaysLr),
         Some(value) => Err(Error::new(format!("unsupported writing-mode `{value}`"))),
     }
 }
@@ -2460,6 +2462,25 @@ mod tests {
         assert_eq!(input.metrics().baseline(), 15.0);
         assert_eq!(input.metrics().line_extent(), 20.0);
         assert_eq!(input.metrics().after_baseline(), 5.0);
+    }
+
+    #[test]
+    fn sideways_writing_mode_parses_without_normalization() {
+        for (raw, expected) in [
+            ("horizontal-tb", layout::WritingMode::HorizontalTb),
+            ("vertical-rl", layout::WritingMode::VerticalRl),
+            ("vertical-lr", layout::WritingMode::VerticalLr),
+            ("sideways-rl", layout::WritingMode::SidewaysRl),
+            ("sideways-lr", layout::WritingMode::SidewaysLr),
+        ] {
+            assert_eq!(
+                parse_writing_mode(Some(raw)).expect("known writing mode should parse"),
+                expected,
+                "{raw} must preserve its exact layout writing mode"
+            );
+        }
+
+        assert!(parse_writing_mode(Some("sideways")).is_err());
     }
 
     #[test]

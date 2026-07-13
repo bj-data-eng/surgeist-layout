@@ -4060,7 +4060,10 @@ fn input_attrs_with_parent_writing_mode(
 fn writing_mode_attr(style: &Value, parent_writing_mode: &str) -> Option<String> {
     let writing_mode = string(style, "writingMode").unwrap_or_else(|| "horizontal-tb".to_string());
     if writing_mode.starts_with("vertical-")
-        || (writing_mode == "horizontal-tb" && parent_writing_mode.starts_with("vertical-"))
+        || writing_mode.starts_with("sideways-")
+        || (writing_mode == "horizontal-tb"
+            && (parent_writing_mode.starts_with("vertical-")
+                || parent_writing_mode.starts_with("sideways-")))
     {
         Some(writing_mode)
     } else {
@@ -4117,13 +4120,24 @@ fn logical_inline_margin_attrs(attrs: &mut Vec<(&'static str, String)>, style: &
         return;
     }
 
-    let (start_attr, end_attr) = if string(style, "direction").as_deref() == Some("rtl") {
-        ("margin-right", "margin-left")
-    } else {
-        ("margin-left", "margin-right")
-    };
+    let writing_mode = string(style, "writingMode").unwrap_or_else(|| "horizontal-tb".to_string());
+    let (start_attr, end_attr) = logical_inline_margin_edges(
+        &writing_mode,
+        string(style, "direction").as_deref() == Some("rtl"),
+    );
     maybe_edge_attr(attrs, start_attr, dimension(&logical["inlineStart"]));
     maybe_edge_attr(attrs, end_attr, dimension(&logical["inlineEnd"]));
+}
+
+fn logical_inline_margin_edges(writing_mode: &str, rtl: bool) -> (&'static str, &'static str) {
+    match (writing_mode, rtl) {
+        ("vertical-rl" | "vertical-lr" | "sideways-rl", false) => ("margin-top", "margin-bottom"),
+        ("vertical-rl" | "vertical-lr" | "sideways-rl", true) => ("margin-bottom", "margin-top"),
+        ("sideways-lr", false) => ("margin-bottom", "margin-top"),
+        ("sideways-lr", true) => ("margin-top", "margin-bottom"),
+        (_, false) => ("margin-left", "margin-right"),
+        (_, true) => ("margin-right", "margin-left"),
+    }
 }
 
 fn maybe_edge_attr(
@@ -4857,8 +4871,9 @@ mod tests {
     fn generation_report_manifest_requires_the_exact_temporary_inventory() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let reports = generation_report_manifest(&manifest).expect("report manifest");
-        assert_eq!(reports.all_files().len(), 10);
+        assert_eq!(reports.all_files().len(), 11);
         assert_eq!(reports.full.file, "all.json");
+        assert_eq!(reports.full.generated, 5068);
         assert_eq!(
             reports
                 .scoped_for_filter("block/block_br_vertical")
@@ -4869,6 +4884,7 @@ mod tests {
         assert!(reports.scoped_for_filter("block").is_none());
 
         let expected = [
+            ("block/block_axes", "block_block_axes.json", 20),
             (
                 "block/block_calc_width_margin",
                 "block_block_calc_width_margin.json",
@@ -6818,6 +6834,90 @@ if (actual !== expected) {{
     }
 
     #[test]
+    fn sideways_writing_mode_is_preserved_by_the_generator_and_helper() {
+        let attrs = input_attrs(&json!({
+            "style": {
+                "writingMode": "sideways-rl"
+            }
+        }));
+        assert!(attrs.contains(&("writing-mode", "sideways-rl".to_string())));
+
+        let reset = input_attrs_with_parent_writing_mode(
+            &json!({
+                "style": {
+                    "writingMode": "horizontal-tb"
+                }
+            }),
+            "sideways-lr",
+        );
+        assert!(reset.contains(&("writing-mode", "horizontal-tb".to_string())));
+
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-sideways-helper-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join("sideways-helper.js");
+        let script = format!(
+            r#"
+const window = {{}};
+const CSSRule = {{ STYLE_RULE: 1 }};
+const document = {{ styleSheets: [] }};
+
+{TEST_HELPER_SOURCE}
+
+function assertEqual(name, actual, expected) {{
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {{
+    throw new Error(`${{name}} expected ${{expectedJson}} but got ${{actualJson}}`);
+  }}
+}}
+
+for (const [writingMode, direction, start, end, width, height] of [
+  ["horizontal-tb", "ltr", "left", "right", 24, 72],
+  ["horizontal-tb", "rtl", "right", "left", 24, 72],
+  ["vertical-rl", "ltr", "top", "bottom", 72, 24],
+  ["vertical-rl", "rtl", "bottom", "top", 72, 24],
+  ["vertical-lr", "ltr", "top", "bottom", 72, 24],
+  ["vertical-lr", "rtl", "bottom", "top", 72, 24],
+  ["sideways-rl", "ltr", "top", "bottom", 72, 24],
+  ["sideways-rl", "rtl", "bottom", "top", 72, 24],
+  ["sideways-lr", "ltr", "bottom", "top", 72, 24],
+  ["sideways-lr", "rtl", "top", "bottom", 72, 24],
+]) {{
+  const computedStyle = {{ writingMode, direction }};
+  assertEqual(`${{writingMode}}/${{direction}} size`, parseElementSize(
+    (property) => ({{ inlineSize: "24px", blockSize: "72px" }})[property] || "",
+    computedStyle,
+  ), {{
+    width: {{ unit: "px", value: width }},
+    height: {{ unit: "px", value: height }},
+  }});
+  assertEqual(`${{writingMode}}/${{direction}} inline edges`, {{
+    start: inlineStartEdge(computedStyle),
+    end: inlineEndEdge(computedStyle),
+  }}, {{ start, end }});
+}}
+"#
+        );
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run sideways helper contract");
+
+        assert!(
+            output.status.success(),
+            "node sideways helper contract failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
     fn visible_overflow_does_not_emit_scrollbar_width() {
         let attrs = input_attrs(&json!({
             "style": {
@@ -7746,7 +7846,7 @@ status = "active"
     fn generation_report_metadata_validation_accepts_current_manifests() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let inventory = generation_report_manifest(&manifest).expect("inventory");
-        assert_eq!(inventory.all_files().len(), 10);
+        assert_eq!(inventory.all_files().len(), 11);
     }
     #[test]
     fn generation_report_validation_rejects_bucket_summary_drift() {
