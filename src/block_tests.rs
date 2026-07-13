@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
-use crate::block::resolve_in_flow_margin;
+use crate::block::resolve_logical_in_flow_margin;
 use crate::*;
 
 fn assert_positive_physical_range(range: PhysicalScrollRange, maximum: Size) {
@@ -18,6 +19,667 @@ fn lp(absolute_px: Scalar, percent_fraction: Scalar) -> LengthPercentageOf {
 fn lp64(absolute_px: f64, percent_fraction: f64) -> LengthPercentageOf<f64> {
     LengthPercentageOf::from_coefficients(absolute_px, percent_fraction)
         .expect("test coefficients are finite")
+}
+
+#[derive(Default)]
+struct PublicBlockTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInputOf<S>>,
+    leaf_nodes: HashSet<u32>,
+    leaf_measurements: HashMap<u32, Size<S>>,
+}
+
+impl<S: LayoutScalar> PublicBlockTree<S> {
+    fn with_children(mut self, node: u32, children: impl IntoIterator<Item = u32>) -> Self {
+        self.children.insert(node, children.into_iter().collect());
+        self
+    }
+
+    fn with_style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
+        self.styles.insert(node, style);
+        self
+    }
+
+    fn with_measurement(mut self, node: u32, size: Size<S>) -> Self {
+        self.leaf_nodes.insert(node);
+        self.leaf_measurements.insert(node, size);
+        self
+    }
+}
+
+impl<S: LayoutScalar> Traverse for PublicBlockTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for PublicBlockTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.styles[&node].clone())
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        self.leaf_nodes.contains(&node)
+    }
+
+    fn measure_leaf(
+        &self,
+        node: Self::Node,
+        _input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
+        self.leaf_measurements.get(&node).copied().map(Ok)
+    }
+}
+
+fn public_final_output<S: LayoutScalar>(
+    batch: &CompletedLayoutBatchOf<u32, S>,
+    node: u32,
+) -> NodeOutputOf<S> {
+    batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == node)
+        .expect("public layout batch contains the requested node")
+        .output()
+}
+
+fn scalar_value<S: LayoutScalar>(value: f64) -> S {
+    S::from_f64(value)
+}
+
+fn scalar_percentage<S: LayoutScalar>(
+    absolute_px: f64,
+    percent_fraction: f64,
+) -> LengthPercentageOf<S> {
+    LengthPercentageOf::from_coefficients(scalar_value(absolute_px), scalar_value(percent_fraction))
+        .expect("test coefficients are finite")
+}
+
+fn assert_ordinary_block_flow<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+    expected_first: Point<S>,
+    expected_second: Point<S>,
+) {
+    let scalar = scalar_value::<S>;
+    let child_style = NodeInputOf {
+        display: Display::Block,
+        writing_mode,
+        direction,
+        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(10.0))),
+        ..NodeInputOf::default()
+    };
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode,
+                direction,
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(100.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, child_style.clone())
+        .with_style(2, child_style);
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+        .expect("finite viewport is valid");
+
+    let batch = compute_layout(&tree, 0, request).expect("ordinary block layout succeeds");
+
+    assert_eq!(public_final_output(&batch, 1).location, expected_first);
+    assert_eq!(public_final_output(&batch, 2).location, expected_second);
+}
+
+#[test]
+fn ordinary_block_flow_uses_logical_block_progression_for_f32() {
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(0.0, 0.0),
+        Point::new(0.0, 10.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::HorizontalTb,
+        Direction::Rtl,
+        Point::new(80.0, 0.0),
+        Point::new(80.0, 10.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::VerticalRl,
+        Direction::Ltr,
+        Point::new(80.0, 0.0),
+        Point::new(60.0, 0.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::VerticalRl,
+        Direction::Rtl,
+        Point::new(80.0, 90.0),
+        Point::new(60.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::VerticalLr,
+        Direction::Ltr,
+        Point::new(0.0, 0.0),
+        Point::new(20.0, 0.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::VerticalLr,
+        Direction::Rtl,
+        Point::new(0.0, 90.0),
+        Point::new(20.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::SidewaysRl,
+        Direction::Ltr,
+        Point::new(80.0, 0.0),
+        Point::new(60.0, 0.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::SidewaysRl,
+        Direction::Rtl,
+        Point::new(80.0, 90.0),
+        Point::new(60.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::SidewaysLr,
+        Direction::Ltr,
+        Point::new(0.0, 90.0),
+        Point::new(20.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f32>(
+        WritingMode::SidewaysLr,
+        Direction::Rtl,
+        Point::new(0.0, 0.0),
+        Point::new(20.0, 0.0),
+    );
+}
+
+#[test]
+fn ordinary_block_flow_uses_logical_block_progression_for_f64() {
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        Point::new(0.0, 0.0),
+        Point::new(0.0, 10.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::HorizontalTb,
+        Direction::Rtl,
+        Point::new(80.0, 0.0),
+        Point::new(80.0, 10.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::VerticalRl,
+        Direction::Ltr,
+        Point::new(80.0, 0.0),
+        Point::new(60.0, 0.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::VerticalRl,
+        Direction::Rtl,
+        Point::new(80.0, 90.0),
+        Point::new(60.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::VerticalLr,
+        Direction::Ltr,
+        Point::new(0.0, 0.0),
+        Point::new(20.0, 0.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::VerticalLr,
+        Direction::Rtl,
+        Point::new(0.0, 90.0),
+        Point::new(20.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::SidewaysRl,
+        Direction::Ltr,
+        Point::new(80.0, 0.0),
+        Point::new(60.0, 0.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::SidewaysRl,
+        Direction::Rtl,
+        Point::new(80.0, 90.0),
+        Point::new(60.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::SidewaysLr,
+        Direction::Ltr,
+        Point::new(0.0, 90.0),
+        Point::new(20.0, 90.0),
+    );
+    assert_ordinary_block_flow::<f64>(
+        WritingMode::SidewaysLr,
+        Direction::Rtl,
+        Point::new(0.0, 0.0),
+        Point::new(20.0, 0.0),
+    );
+}
+
+fn assert_ordinary_block_logical_sizing<S: LayoutScalar>(writing_mode: WritingMode) {
+    let scalar = scalar_value::<S>;
+    let percentage_thirty = LengthOf::value(scalar_percentage::<S>(0.0, 0.3));
+    let percentage_sixty = LengthOf::value(scalar_percentage::<S>(0.0, 0.6));
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode,
+                size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(100.0))),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode,
+                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
+                padding: Edges::new(
+                    percentage_thirty,
+                    LengthOf::ZERO,
+                    percentage_sixty,
+                    LengthOf::ZERO,
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+        .expect("finite viewport is valid");
+
+    let batch = compute_layout(&tree, 0, request).expect("ordinary block layout succeeds");
+    let root = public_final_output(&batch, 0);
+    let child = public_final_output(&batch, 1);
+
+    assert_eq!(root.size, Size::new(scalar(20.0), scalar(100.0)));
+    assert_eq!(child.size, Size::new(scalar(20.0), scalar(100.0)));
+    assert_eq!(child.padding.top, scalar(30.0));
+    assert_eq!(child.padding.bottom, scalar(60.0));
+}
+
+#[test]
+fn ordinary_block_logical_sizing_uses_vertical_and_sideways_inline_bases_for_f32() {
+    assert_ordinary_block_logical_sizing::<f32>(WritingMode::VerticalRl);
+    assert_ordinary_block_logical_sizing::<f32>(WritingMode::VerticalLr);
+    assert_ordinary_block_logical_sizing::<f32>(WritingMode::SidewaysRl);
+    assert_ordinary_block_logical_sizing::<f32>(WritingMode::SidewaysLr);
+}
+
+#[test]
+fn ordinary_block_logical_sizing_uses_vertical_and_sideways_inline_bases_for_f64() {
+    assert_ordinary_block_logical_sizing::<f64>(WritingMode::VerticalRl);
+    assert_ordinary_block_logical_sizing::<f64>(WritingMode::VerticalLr);
+    assert_ordinary_block_logical_sizing::<f64>(WritingMode::SidewaysRl);
+    assert_ordinary_block_logical_sizing::<f64>(WritingMode::SidewaysLr);
+}
+
+fn assert_ordinary_block_collapse_relationship<S: LayoutScalar>(
+    child_writing_mode: WritingMode,
+    child_direction: Direction,
+    measured_leaf: bool,
+    expected_second_block_offset: S,
+) {
+    let scalar = scalar_value::<S>;
+    let child_size = if child_writing_mode == WritingMode::HorizontalTb {
+        Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(S::ZERO))
+    } else {
+        Size::new(DimensionOf::px(S::ZERO), DimensionOf::px(scalar(10.0)))
+    };
+    let mut tree = PublicBlockTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(100.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: child_writing_mode,
+                direction: child_direction,
+                size: child_size,
+                margin: Edges::new(
+                    LengthAutoOf::px(scalar(30.0)),
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(60.0)),
+                    LengthAutoOf::ZERO,
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            },
+        );
+    if measured_leaf {
+        let measured = if child_writing_mode == WritingMode::HorizontalTb {
+            Size::new(scalar(10.0), S::ZERO)
+        } else {
+            Size::new(S::ZERO, scalar(10.0))
+        };
+        tree = tree.with_measurement(1, measured);
+    }
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+        .expect("finite viewport is valid");
+
+    let batch = compute_layout(&tree, 0, request).expect("ordinary block layout succeeds");
+
+    assert_eq!(
+        public_final_output(&batch, 2).location,
+        Point::new(S::ZERO, expected_second_block_offset)
+    );
+}
+
+fn assert_ordinary_block_relationship_matrix<S: LayoutScalar>() {
+    for measured_leaf in [false, true] {
+        assert_ordinary_block_collapse_relationship::<S>(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            measured_leaf,
+            scalar_value(60.0),
+        );
+        assert_ordinary_block_collapse_relationship::<S>(
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            measured_leaf,
+            scalar_value(60.0),
+        );
+        assert_ordinary_block_collapse_relationship::<S>(
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            measured_leaf,
+            scalar_value(100.0),
+        );
+    }
+
+    for measured_leaf in [false, true] {
+        let scalar = scalar_value::<S>;
+        let mut tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: WritingMode::VerticalLr,
+                    size: Size::new(
+                        DimensionOf::px(scalar(100.0)),
+                        DimensionOf::px(scalar(200.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: WritingMode::HorizontalTb,
+                    size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(10.0))),
+                    ..NodeInputOf::default()
+                },
+            );
+        if measured_leaf {
+            tree = tree.with_measurement(1, Size::new(scalar(5.0), scalar(10.0)));
+        }
+        let request = LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(100.0)),
+            AvailableOf::definite(scalar(200.0)),
+        ))
+        .expect("finite viewport is valid");
+
+        let batch = compute_layout(&tree, 0, request).expect("orthogonal layout succeeds");
+        assert_eq!(
+            public_final_output(&batch, 1).size,
+            Size::new(scalar(100.0), scalar(10.0))
+        );
+    }
+
+    for child_direction in [Direction::Ltr, Direction::Rtl] {
+        for measured_leaf in [false, true] {
+            let scalar = scalar_value::<S>;
+            let mut tree = PublicBlockTree::default()
+                .with_children(0, [1])
+                .with_children(1, [])
+                .with_style(
+                    0,
+                    NodeInputOf {
+                        display: Display::Block,
+                        writing_mode: WritingMode::VerticalLr,
+                        size: Size::new(
+                            DimensionOf::px(scalar(100.0)),
+                            DimensionOf::px(scalar(200.0)),
+                        ),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .with_style(
+                    1,
+                    NodeInputOf {
+                        display: Display::Block,
+                        writing_mode: WritingMode::VerticalLr,
+                        direction: child_direction,
+                        size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::AUTO),
+                        ..NodeInputOf::default()
+                    },
+                );
+            if measured_leaf {
+                tree = tree.with_measurement(1, Size::new(scalar(10.0), scalar(5.0)));
+            }
+            let request = LayoutRootRequestOf::viewport(Size::new(
+                AvailableOf::definite(scalar(100.0)),
+                AvailableOf::definite(scalar(200.0)),
+            ))
+            .expect("finite viewport is valid");
+
+            let batch = compute_layout(&tree, 0, request).expect("parallel layout succeeds");
+            assert_eq!(
+                public_final_output(&batch, 1).size,
+                Size::new(scalar(10.0), scalar(200.0))
+            );
+        }
+    }
+}
+
+fn assert_ordinary_block_opposing_flow_collapse<S: LayoutScalar>(measured_leaf: bool) {
+    let scalar = scalar_value::<S>;
+    let mut tree = PublicBlockTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(100.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(DimensionOf::px(S::ZERO), DimensionOf::px(scalar(10.0))),
+                margin: Edges::new(
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(60.0)),
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(30.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            },
+        );
+    if measured_leaf {
+        tree = tree.with_measurement(1, Size::new(S::ZERO, scalar(10.0)));
+    }
+    let request = LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+        .expect("finite viewport is valid");
+
+    let batch = compute_layout(&tree, 0, request).expect("opposing block layout succeeds");
+
+    assert_eq!(
+        public_final_output(&batch, 1).location,
+        Point::new(scalar(30.0), S::ZERO)
+    );
+    assert_eq!(
+        public_final_output(&batch, 2).location,
+        Point::new(scalar(60.0), S::ZERO)
+    );
+}
+
+fn assert_ordinary_block_opposing_flow_collapse_for_scalar<S: LayoutScalar>() {
+    for measured_leaf in [false, true] {
+        assert_ordinary_block_opposing_flow_collapse::<S>(measured_leaf);
+    }
+}
+
+fn assert_ordinary_block_orthogonal_inline_margin_subtraction<S: LayoutScalar>(
+    measured_leaf: bool,
+) {
+    let scalar = scalar_value::<S>;
+    let mut tree = PublicBlockTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(200.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::HorizontalTb,
+                size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(10.0))),
+                margin: Edges::new(
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(60.0)),
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(30.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    if measured_leaf {
+        tree = tree.with_measurement(1, Size::new(scalar(5.0), scalar(10.0)));
+    }
+    let request = LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::definite(scalar(100.0)),
+        AvailableOf::definite(scalar(200.0)),
+    ))
+    .expect("finite viewport is valid");
+
+    let batch = compute_layout(&tree, 0, request).expect("orthogonal layout succeeds");
+
+    assert_eq!(
+        public_final_output(&batch, 1).size,
+        Size::new(scalar(10.0), scalar(10.0))
+    );
+}
+
+#[test]
+fn ordinary_block_orthogonal_preserves_parallel_opposing_and_measured_leaf_relationships_for_f32() {
+    assert_ordinary_block_relationship_matrix::<f32>();
+}
+
+#[test]
+fn ordinary_block_orthogonal_preserves_parallel_opposing_and_measured_leaf_relationships_for_f64() {
+    assert_ordinary_block_relationship_matrix::<f64>();
+}
+
+#[test]
+fn ordinary_block_opposing_flow_collapse_preserves_real_and_measured_leaves_for_f32() {
+    assert_ordinary_block_opposing_flow_collapse_for_scalar::<f32>();
+}
+
+#[test]
+fn ordinary_block_opposing_flow_collapse_preserves_real_and_measured_leaves_for_f64() {
+    assert_ordinary_block_opposing_flow_collapse_for_scalar::<f64>();
+}
+
+#[test]
+fn ordinary_block_orthogonal_subtracts_physical_child_inline_margins_for_f32() {
+    for measured_leaf in [false, true] {
+        assert_ordinary_block_orthogonal_inline_margin_subtraction::<f32>(measured_leaf);
+    }
+}
+
+#[test]
+fn ordinary_block_orthogonal_subtracts_physical_child_inline_margins_for_f64() {
+    for measured_leaf in [false, true] {
+        assert_ordinary_block_orthogonal_inline_margin_subtraction::<f64>(measured_leaf);
+    }
 }
 
 #[derive(Default)]
@@ -8115,9 +8777,18 @@ fn unresolved_symbolic_vertical_margin_is_not_treated_as_auto_margin() {
                 Size::new(None, None),
                 |length, basis| length.resolve_auto_with_status(basis),
             );
-    let resolved = resolve_in_flow_margin(resolved, Size::new(10.0, 10.0), None);
+    let resolved = resolve_logical_in_flow_margin(
+        crate::geometry::LogicalEdgesOf::new(
+            resolved.left,
+            resolved.right,
+            resolved.top,
+            resolved.bottom,
+        ),
+        crate::geometry::LogicalSizeOf::new(10.0, 10.0),
+        None,
+    );
 
-    assert_eq!(resolved.top, 0.0);
+    assert_eq!(resolved.block_start, 0.0);
 }
 
 #[test]
@@ -8127,14 +8798,16 @@ fn invalid_numeric_margin_keeps_explicit_failure_without_panicking() {
     )
     .resolve_auto_with_status(Some(10.0));
 
-    let resolved = resolve_in_flow_margin(
-        Edges {
-            top: margin,
-            ..Edges::<Scalar>::ZERO.map(|_| ResolvedLengthAuto::Resolved(0.0))
-        },
-        Size::new(10.0, 10.0),
+    let resolved = resolve_logical_in_flow_margin(
+        crate::geometry::LogicalEdgesOf::new(
+            ResolvedLengthAuto::Resolved(0.0),
+            ResolvedLengthAuto::Resolved(0.0),
+            margin,
+            ResolvedLengthAuto::Resolved(0.0),
+        ),
+        crate::geometry::LogicalSizeOf::new(10.0, 10.0),
         Some(10.0),
     );
 
-    assert_eq!(resolved.top, 0.0);
+    assert_eq!(resolved.block_start, 0.0);
 }

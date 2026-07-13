@@ -15,7 +15,7 @@ use super::{
     Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
-use crate::geometry::PhysicalSide;
+use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalSide};
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
     scrollbar_size_from_overflow,
@@ -77,67 +77,96 @@ where
         )));
     }
 
+    let logical_inner_size = constants.logical_node_inner_size();
+    let needs_final_pass = input.run_mode().is_perform_layout()
+        && (logical_inner_size.inline.is_none()
+            || constants
+                .flow_axes
+                .logical_axis_progression(crate::LogicalAxis::Block)
+                .is_decreasing()
+                && logical_inner_size.block.is_none());
     let intrinsic_pass = layout_in_flow_children(
         tree,
         node,
         &children,
         &constants,
         input,
-        constants.node_inner_size.width,
-        input.run_mode().is_perform_layout() && constants.node_inner_size.width.is_some(),
+        logical_inner_size.inline,
+        input.run_mode().is_perform_layout() && !needs_final_pass,
     )?;
-    let auto_height = intrinsic_pass.auto_height(&constants);
-    let intrinsic_outer_size = Size::new(
-        intrinsic_pass.content_size.width + constants.content_box_inset.horizontal_sum(),
-        auto_height,
-    )
-    .clamp_optional(constants.node_min_size, constants.node_max_size)
-    .max_optional(constants.padding_border_size.map(Some));
-    let outer_size = constants
-        .node_outer_size
-        .unwrap_or(intrinsic_outer_size)
-        .max_optional(constants.padding_border_size.map(Some));
-    let output_size = input
-        .known()
-        .or(constants.node_outer_size)
-        .unwrap_or(outer_size)
-        .max_optional(constants.padding_border_size.map(Some));
-    let final_pass =
-        if input.run_mode().is_perform_layout() && constants.node_inner_size.width.is_none() {
-            let inner_width =
-                (output_size.width - constants.content_box_inset.horizontal_sum()).max(S::ZERO);
-            layout_in_flow_children(
-                tree,
-                node,
-                &children,
-                &constants,
-                input,
-                Some(inner_width),
-                true,
-            )?
-        } else {
-            intrinsic_pass
-        };
-    let auto_height = final_pass.auto_height(&constants);
-    let output_size = Size::new(
-        output_size.width,
-        input
-            .known()
-            .height
-            .or(constants.node_outer_size.height)
-            .unwrap_or(auto_height)
-            .clamp_optional(
-                constants.node_min_size.height,
-                constants.node_max_size.height,
-            )
-            .max(constants.padding_border_size.height),
+    let logical_intrinsic_outer_size = LogicalSizeOf::new(
+        intrinsic_pass.content_size.inline + constants.logical_content_box_inset().inline_sum(),
+        intrinsic_pass.auto_block(&constants),
     );
-    let top_margin = final_pass.top_margin(&constants);
-    let bottom_margin = final_pass.bottom_margin(&constants);
-    let margins_can_collapse_through =
-        constants.can_collapse_through && final_pass.all_in_flow_children_can_collapse_through;
+    let logical_intrinsic_outer_size = LogicalSizeOf::new(
+        logical_intrinsic_outer_size.inline.clamp_optional(
+            constants.logical_node_min_size().inline,
+            constants.logical_node_max_size().inline,
+        ),
+        logical_intrinsic_outer_size.block.clamp_optional(
+            constants.logical_node_min_size().block,
+            constants.logical_node_max_size().block,
+        ),
+    )
+    .max_optional(constants.logical_padding_border_size().map(Some));
+    let logical_outer_size = constants
+        .logical_node_outer_size()
+        .unwrap_or(logical_intrinsic_outer_size)
+        .max_optional(constants.logical_padding_border_size().map(Some));
+    let provisional_logical_output_size = constants
+        .flow_axes
+        .logical_size(input.known())
+        .or(constants.logical_node_outer_size())
+        .unwrap_or(logical_outer_size)
+        .max_optional(constants.logical_padding_border_size().map(Some));
+    let (final_constants, final_pass) = if needs_final_pass {
+        let logical_inner_size = LogicalSizeOf::new(
+            Some(
+                (provisional_logical_output_size.inline
+                    - constants.logical_content_box_inset().inline_sum())
+                .max(S::ZERO),
+            ),
+            Some(
+                (provisional_logical_output_size.block
+                    - constants.logical_content_box_inset().block_sum())
+                .max(S::ZERO),
+            ),
+        );
+        let final_constants = constants.with_logical_node_inner_size(logical_inner_size);
+        let final_pass = layout_in_flow_children(
+            tree,
+            node,
+            &children,
+            &final_constants,
+            input,
+            logical_inner_size.inline,
+            true,
+        )?;
+        (final_constants, final_pass)
+    } else {
+        (constants, intrinsic_pass)
+    };
+    let logical_output_size = LogicalSizeOf::new(
+        provisional_logical_output_size.inline,
+        constants
+            .flow_axes
+            .logical_size(input.known())
+            .block
+            .or(final_constants.logical_node_outer_size().block)
+            .unwrap_or_else(|| final_pass.auto_block(&final_constants))
+            .clamp_optional(
+                final_constants.logical_node_min_size().block,
+                final_constants.logical_node_max_size().block,
+            )
+            .max(final_constants.logical_padding_border_size().block),
+    );
+    let output_size = final_constants.flow_axes.physical_size(logical_output_size);
+    let top_margin = final_pass.top_margin(&final_constants);
+    let bottom_margin = final_pass.bottom_margin(&final_constants);
+    let margins_can_collapse_through = final_constants.can_collapse_through
+        && final_pass.all_in_flow_children_can_collapse_through;
     let block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
-        constants.flow_axes,
+        final_constants.flow_axes,
         top_margin,
         bottom_margin,
         margins_can_collapse_through,
@@ -157,7 +186,7 @@ where
             node,
             &final_pass.pending_floats,
             output_size,
-            &constants,
+            &final_constants,
         )?;
         let absolute = layout_absolute_children(
             tree,
@@ -165,9 +194,14 @@ where
             &children,
             &final_pass.static_positions,
             output_size,
-            &constants,
+            &final_constants,
         )?;
-        let content_size = max_content_size(final_pass.content_size, absolute.content_size);
+        let content_size = max_content_size(
+            final_constants
+                .flow_axes
+                .physical_size(final_pass.content_size),
+            absolute.content_size,
+        );
         let scrollable_overflow = crate::scroll::scroll_rect_union(
             final_pass.scrollable_overflow,
             final_content_box_scroll_rect(&style, output_size, constants.padding, constants.border)
@@ -374,12 +408,12 @@ impl<S: LayoutScalar> FloatExclusions<S> {
 }
 
 struct InFlowResult<Node, S: LayoutScalar> {
-    content_size: Size<S>,
+    content_size: LogicalSizeOf<S>,
     scrollable_overflow: super::ScrollRectOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
     pending_floats: Vec<PendingFloat<Node, S>>,
-    cursor_y: S,
+    cursor_block: S,
     top_margin: CollapsibleMarginOf<S>,
     active_margin: CollapsibleMarginOf<S>,
     active_margin_can_collapse_with_parent: bool,
@@ -403,15 +437,16 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
         }
     }
 
-    fn auto_height(&self, constants: &Constants<S>) -> S {
+    fn auto_block(&self, constants: &Constants<S>) -> S {
         let bottom_margin_offset =
             if constants.collapse_bottom_margin && self.active_margin_can_collapse_with_parent {
                 S::ZERO
             } else {
                 self.active_margin.resolve()
             };
-        (self.cursor_y + bottom_margin_offset + constants.content_box_inset.bottom)
-            .max(constants.content_box_inset.vertical_sum())
+        let content_box_inset = constants.logical_content_box_inset();
+        (self.cursor_block + bottom_margin_offset + content_box_inset.block_end)
+            .max(content_box_inset.block_sum())
     }
 }
 
@@ -572,16 +607,19 @@ fn layout_in_flow_children<Tree, S, M>(
     children: &[<Tree as Traverse>::Node],
     constants: &Constants<S>,
     input: ComputeInputOf<S>,
-    inner_width: Option<S>,
+    inner_inline: Option<S>,
     set_layout: bool,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InFlowResult<<Tree as Traverse>::Node, S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    let node_inner_size = Size::new(inner_width, constants.node_inner_size.height);
+    let logical_node_inner_size =
+        LogicalSizeOf::new(inner_inline, constants.logical_node_inner_size().block);
+    let node_inner_size = constants.flow_axes.physical_size(logical_node_inner_size);
+    let mut cursor_block = constants.logical_content_box_inset().block_start;
     let mut cursor_y = constants.content_box_inset.top;
-    let mut content_size: Size<S> = Size::ZERO;
+    let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
     let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -591,16 +629,16 @@ where
     let mut active_margin_can_collapse_with_parent = constants.collapse_top_margin;
     let mut pending_floats = Vec::new();
     let mut float_intrinsics = FloatIntrinsics::new(
-        inner_width
+        inner_inline
             .map(AvailableOf::<S>::definite)
             .unwrap_or(input.available().width),
     );
-    let content_width = inner_width
+    let content_width = inner_inline
         .or(input.available().width.into_option())
         .unwrap_or(S::ZERO);
     let mut float_exclusions = FloatExclusions::new(content_width, constants.content_box_inset);
     let content_box_size = Size::new(
-        inner_width
+        inner_inline
             .or(constants.node_inner_size.width)
             .or(input.available().width.into_option())
             .unwrap_or(S::ZERO),
@@ -639,6 +677,7 @@ where
                 index = inline_run_end(tree, children, constants, index + 1);
 
                 let collapsed_margin = active_margin.resolve();
+                cursor_block = cursor_block + collapsed_margin;
                 cursor_y = cursor_y + collapsed_margin;
                 if is_collapsing_first_margin {
                     is_collapsing_first_margin = false;
@@ -660,8 +699,10 @@ where
                     },
                     &float_exclusions,
                 )?;
-                content_size.width = content_size.width.max(placement.content_size.width);
-                content_size.height = content_size.height.max(placement.content_size.height);
+                let placement_content_size =
+                    constants.flow_axes.logical_size(placement.content_size);
+                content_size.inline = content_size.inline.max(placement_content_size.inline);
+                content_size.block = content_size.block.max(placement_content_size.block);
                 scrollable_overflow
                     .include_rect(placement.scrollable_overflow)
                     .map_err(|error| block_child_scroll_error(node, child, error))?;
@@ -687,6 +728,8 @@ where
                         .last,
                     );
                 }
+                cursor_block =
+                    cursor_block + constants.flow_axes.logical_size(placement.size).block;
                 cursor_y = cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
@@ -705,6 +748,7 @@ where
                 index = inline_run_end(tree, children, constants, index + 1);
 
                 let collapsed_margin = active_margin.resolve();
+                cursor_block = cursor_block + collapsed_margin;
                 cursor_y = cursor_y + collapsed_margin;
                 if is_collapsing_first_margin {
                     is_collapsing_first_margin = false;
@@ -726,8 +770,10 @@ where
                     },
                     &float_exclusions,
                 )?;
-                content_size.width = content_size.width.max(placement.content_size.width);
-                content_size.height = content_size.height.max(placement.content_size.height);
+                let placement_content_size =
+                    constants.flow_axes.logical_size(placement.content_size);
+                content_size.inline = content_size.inline.max(placement_content_size.inline);
+                content_size.block = content_size.block.max(placement_content_size.block);
                 scrollable_overflow
                     .include_rect(placement.scrollable_overflow)
                     .map_err(|error| block_child_scroll_error(node, child, error))?;
@@ -753,6 +799,8 @@ where
                         .last,
                     );
                 }
+                cursor_block =
+                    cursor_block + constants.flow_axes.logical_size(placement.size).block;
                 cursor_y = cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
@@ -782,6 +830,7 @@ where
             index = inline_run_end(tree, children, constants, index + 1);
 
             let collapsed_margin = active_margin.resolve();
+            cursor_block = cursor_block + collapsed_margin;
             cursor_y = cursor_y + collapsed_margin;
             if is_collapsing_first_margin {
                 is_collapsing_first_margin = false;
@@ -803,8 +852,9 @@ where
                 },
                 &float_exclusions,
             )?;
-            content_size.width = content_size.width.max(placement.content_size.width);
-            content_size.height = content_size.height.max(placement.content_size.height);
+            let placement_content_size = constants.flow_axes.logical_size(placement.content_size);
+            content_size.inline = content_size.inline.max(placement_content_size.inline);
+            content_size.block = content_size.block.max(placement_content_size.block);
             scrollable_overflow
                 .include_rect(placement.scrollable_overflow)
                 .map_err(|error| block_child_scroll_error(node, child, error))?;
@@ -830,6 +880,7 @@ where
                     .last,
                 );
             }
+            cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
             cursor_y = cursor_y + placement.size.height;
             active_margin = CollapsibleMarginOf::<S>::ZERO;
             active_margin_can_collapse_with_parent = false;
@@ -858,18 +909,27 @@ where
                 |length, basis| resolve_length_or_zero(length, basis),
             )
             .transpose_with_node(tree, child)?;
-        let child_non_auto_margin = unresolved_margin.map(resolved_length_auto_fallback_zero);
-        let available_child_width = node_inner_size
-            .width
-            .or(input.available().width.into_option())
-            .map(|width| (width - child_non_auto_margin.horizontal_sum()).max(S::ZERO));
+        let parent_logical_unresolved_margin = constants.flow_axes.logical_edges(unresolved_margin);
+        let parent_logical_available = constants.flow_axes.logical_size(input.available());
+        let child_flow_axes =
+            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
+        let child_logical_node_inner_size = child_flow_axes.logical_size(node_inner_size);
+        let child_logical_available = child_flow_axes.logical_size(input.available());
+        let child_non_auto_margin = child_flow_axes
+            .logical_edges(unresolved_margin)
+            .map(resolved_length_auto_fallback_zero);
+        let available_child_inline = child_logical_node_inner_size
+            .inline
+            .or(child_logical_available.inline.into_option())
+            .map(|inline| (inline - child_non_auto_margin.inline_sum()).max(S::ZERO));
         let child_known = in_flow_child_known_size::<Tree, M>(
             tree,
             child,
             &child_style,
             child_padding + child_border,
-            node_inner_size,
-            available_child_width,
+            child_flow_axes,
+            child_logical_node_inner_size,
+            available_child_inline,
         )?;
         let output = tree.compute_child(
             child,
@@ -878,26 +938,29 @@ where
                 SizingMode::InherentSize,
                 RequestedAxis::Both,
                 child_known,
-                Size::new(node_inner_size.width, None),
+                node_inner_size,
                 constants.flow_axes,
-                Size::new(
-                    in_flow_child_available_width(
+                child_flow_axes.physical_size(LogicalSizeOf::new(
+                    in_flow_child_available_inline(
                         &child_style,
-                        available_child_width,
-                        input.available().width,
+                        child_flow_axes,
+                        available_child_inline,
+                        child_logical_available.inline,
                     ),
                     AvailableOf::<S>::MAX_CONTENT,
-                ),
+                )),
             ),
         )?;
 
-        let child_margin = resolve_in_flow_margin(
-            unresolved_margin,
-            output.size,
-            node_inner_size
-                .width
-                .or(input.available().width.into_option()),
+        let logical_child_size = constants.flow_axes.logical_size(output.size);
+        let logical_child_margin = resolve_logical_in_flow_margin(
+            parent_logical_unresolved_margin,
+            logical_child_size,
+            logical_node_inner_size
+                .inline
+                .or(parent_logical_available.inline.into_option()),
         );
+        let child_margin = constants.flow_axes.physical_edges(logical_child_margin);
         if !child_style.float.is_none() {
             let margin_box = output.size + child_margin.sum_axes();
             float_intrinsics.add(margin_box.width, child_style.float, child_style.clear);
@@ -945,12 +1008,14 @@ where
             if set_layout {
                 pending_floats.push(pending_float);
             }
-            content_size.width = content_size.width.max(float_intrinsics.result());
-            content_size.height = content_size.height.max(
+            let float_content_size = constants.flow_axes.logical_size(Size::new(
+                float_intrinsics.result(),
                 float_location.y - constants.content_box_inset.top
                     + output.size.height
                     + child_margin.bottom,
-            );
+            ));
+            content_size.inline = content_size.inline.max(float_content_size.inline);
+            content_size.block = content_size.block.max(float_content_size.block);
             index += 1;
             continue;
         }
@@ -980,7 +1045,7 @@ where
             ));
         let child_margin_can_collapse_with_parent =
             child_margin_can_collapse_with_parent(&child_style);
-        let base_y = cursor_y;
+        let base_block = cursor_block;
         let collapsed_margin = if is_collapsing_first_margin {
             if constants.collapse_top_margin && child_margin_can_collapse_with_parent {
                 top_margin = top_margin.collapse_with(top_margin_set);
@@ -994,15 +1059,29 @@ where
         } else {
             active_margin.collapse_with(top_margin_set).resolve()
         };
+        cursor_block = cursor_block + collapsed_margin;
         cursor_y = cursor_y + collapsed_margin;
-        let layout_constants = if inner_width.is_some() {
-            constants.with_inner_width(inner_width)
-        } else {
-            *constants
-        };
+        let logical_location = LogicalPointOf::new(
+            in_flow_child_inline_offset(logical_child_size, logical_child_margin, constants),
+            cursor_block,
+        );
+        let containing_size =
+            constants
+                .node_outer_size
+                .unwrap_or(constants.flow_axes.physical_size(LogicalSizeOf::new(
+                    logical_node_inner_size.inline.unwrap_or(S::ZERO)
+                        + constants.logical_content_box_inset().inline_sum(),
+                    logical_node_inner_size.block.unwrap_or(S::ZERO)
+                        + constants.logical_content_box_inset().block_sum(),
+                )));
+        let logical_fallback_location = constants.flow_axes.physical_point(
+            logical_location,
+            logical_child_size,
+            containing_size,
+        );
         let fallback_location = Point::new(
-            in_flow_child_x(output.size, child_margin, &layout_constants) + inset_offset.x,
-            cursor_y + inset_offset.y,
+            logical_fallback_location.x + inset_offset.x,
+            logical_fallback_location.y + inset_offset.y,
         );
         let establishes_bfc = child_style.overflow.x.blocks_margin_collapse()
             || child_style.overflow.y.blocks_margin_collapse();
@@ -1051,6 +1130,15 @@ where
         }
 
         let child_bottom = (location.y - inset_offset.y) + output.size.height;
+        let child_block_end = if establishes_bfc || child_style.clear != Clear::None {
+            constants
+                .flow_axes
+                .logical_point(location, output.size, containing_size)
+                .block
+                + logical_child_size.block
+        } else {
+            logical_location.block + logical_child_size.block
+        };
         let contribution = content_size_contribution(
             Point::new(
                 location.x - constants.content_box_inset.left,
@@ -1060,14 +1148,15 @@ where
             output.content_size,
             child_style.overflow,
         );
-        content_size.width = content_size
-            .width
-            .max(child_margin.left + output.size.width + child_margin.right)
-            .max(contribution.width + child_margin.right);
-        content_size.height = content_size
-            .height
-            .max(contribution.height)
-            .max(child_bottom - constants.content_box_inset.top);
+        let logical_contribution = constants.flow_axes.logical_size(contribution);
+        content_size.inline = content_size
+            .inline
+            .max(logical_child_margin.inline_sum() + logical_child_size.inline)
+            .max(logical_contribution.inline + logical_child_margin.inline_end);
+        content_size.block = content_size
+            .block
+            .max(logical_contribution.block)
+            .max(child_block_end - constants.logical_content_box_inset().block_start);
         scrollable_overflow
             .include_child(
                 location,
@@ -1089,8 +1178,6 @@ where
         scrollable_overflow
             .include_translated_child_overflow(location, child_overflow)
             .map_err(|error| block_child_scroll_error(node, child, error))?;
-        let child_flow_axes =
-            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
         if let Some(baseline) = output.baselines().first_block_baseline(child_flow_axes) {
             baselines.record_first(baseline.translated(location));
         }
@@ -1101,8 +1188,13 @@ where
             .block_margin_collapse
             .can_collapse_through(constants.flow_axes)
         {
+            cursor_block = if child_style.clear == Clear::None {
+                base_block + logical_child_size.block
+            } else {
+                child_block_end
+            };
             cursor_y = if child_style.clear == Clear::None {
-                base_y + output.size.height
+                cursor_y + output.size.height
             } else {
                 child_bottom
             };
@@ -1112,6 +1204,7 @@ where
             active_margin_can_collapse_with_parent = child_margin_can_collapse_with_parent;
         } else {
             all_in_flow_children_can_collapse_through = false;
+            cursor_block = child_block_end;
             cursor_y = child_bottom;
             active_margin = bottom_margin_set;
             active_margin_can_collapse_with_parent = child_margin_can_collapse_with_parent;
@@ -1125,7 +1218,7 @@ where
         baselines,
         static_positions,
         pending_floats,
-        cursor_y,
+        cursor_block,
         top_margin,
         active_margin,
         active_margin_can_collapse_with_parent,
@@ -1820,12 +1913,14 @@ fn in_flow_child_known_size<Tree, M>(
     child: <Tree as Traverse>::Node,
     style: &NodeInputOf<Tree::Scalar>,
     padding_border: Edges<Tree::Scalar>,
-    parent: Size<Option<Tree::Scalar>>,
-    available_width: Option<Tree::Scalar>,
+    child_flow_axes: crate::geometry::FlowAxes,
+    parent: LogicalSizeOf<Option<Tree::Scalar>>,
+    available_inline: Option<Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Option<Tree::Scalar>>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
+    let parent = child_flow_axes.physical_size(parent);
     let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
         padding_border.sum_axes()
     } else {
@@ -1853,7 +1948,7 @@ where
     if let Some(width) = aspect_height_limit {
         max_size.width = Some(width);
     }
-    let mut known = style
+    let known = style
         .size
         .zip_map(parent, |dimension, basis| {
             resolve_dimension(dimension, basis)
@@ -1863,34 +1958,52 @@ where
         .add_optional(box_sizing_adjustment)
         .clamp_optional(min_size, max_size);
 
+    let mut known = child_flow_axes.logical_size(known);
+    let min_size = child_flow_axes.logical_size(min_size);
+    let max_size = child_flow_axes.logical_size(max_size);
+    let inline_size = match child_flow_axes.inline_axis() {
+        crate::PhysicalAxis::Horizontal => style.size.width,
+        crate::PhysicalAxis::Vertical => style.size.height,
+    };
     if !style.item_is_table
-        && known.width.is_none()
-        && !style.size.width.is_min_content()
-        && !style.size.width.is_max_content()
+        && known.inline.is_none()
+        && !inline_size.is_min_content()
+        && !inline_size.is_max_content()
     {
-        known.width =
-            available_width.map(|width| width.clamp_optional(min_size.width, max_size.width));
+        known.inline =
+            available_inline.map(|inline| inline.clamp_optional(min_size.inline, max_size.inline));
         if aspect_height_limit.is_some() {
-            known = known
-                .apply_aspect_ratio(style.aspect_ratio)
-                .clamp_optional(min_size, max_size);
+            let physical_known = child_flow_axes.physical_size(known);
+            known = child_flow_axes.logical_size(
+                physical_known
+                    .apply_aspect_ratio(style.aspect_ratio)
+                    .clamp_optional(
+                        child_flow_axes.physical_size(min_size),
+                        child_flow_axes.physical_size(max_size),
+                    ),
+            );
         }
     }
 
-    Ok(known)
+    Ok(child_flow_axes.physical_size(known))
 }
 
-fn in_flow_child_available_width<S: LayoutScalar>(
+fn in_flow_child_available_inline<S: LayoutScalar>(
     style: &NodeInputOf<S>,
-    available_width: Option<S>,
+    child_flow_axes: crate::geometry::FlowAxes,
+    available_inline: Option<S>,
     fallback: AvailableOf<S>,
 ) -> AvailableOf<S> {
-    if style.size.width.is_min_content() {
+    let inline_size = match child_flow_axes.inline_axis() {
+        crate::PhysicalAxis::Horizontal => style.size.width,
+        crate::PhysicalAxis::Vertical => style.size.height,
+    };
+    if inline_size.is_min_content() {
         AvailableOf::<S>::MIN_CONTENT
-    } else if style.size.width.is_max_content() {
+    } else if inline_size.is_max_content() {
         AvailableOf::<S>::MAX_CONTENT
     } else {
-        available_width
+        available_inline
             .map(AvailableOf::<S>::definite)
             .unwrap_or(fallback)
     }
@@ -1920,30 +2033,30 @@ fn relative_inset_offset<S: LayoutScalar>(
     )
 }
 
-pub(super) fn resolve_in_flow_margin<S: LayoutScalar>(
-    margin: Edges<ResolvedLengthAutoOf<S>>,
-    child_size: Size<S>,
-    container_width: Option<S>,
-) -> Edges<S> {
-    let non_auto_horizontal = resolved_length_auto_fallback_zero(margin.left)
-        + resolved_length_auto_fallback_zero(margin.right);
-    let auto_count = usize::from(matches!(margin.left, ResolvedLengthAutoOf::Auto))
-        + usize::from(matches!(margin.right, ResolvedLengthAutoOf::Auto));
-    let auto_horizontal = if auto_count == 0 {
+pub(super) fn resolve_logical_in_flow_margin<S: LayoutScalar>(
+    margin: LogicalEdgesOf<ResolvedLengthAutoOf<S>>,
+    child_size: LogicalSizeOf<S>,
+    container_inline: Option<S>,
+) -> LogicalEdgesOf<S> {
+    let non_auto_inline = resolved_length_auto_fallback_zero(margin.inline_start)
+        + resolved_length_auto_fallback_zero(margin.inline_end);
+    let auto_count = usize::from(matches!(margin.inline_start, ResolvedLengthAutoOf::Auto))
+        + usize::from(matches!(margin.inline_end, ResolvedLengthAutoOf::Auto));
+    let auto_inline = if auto_count == 0 {
         S::ZERO
     } else {
-        container_width
-            .map(|width| (width - child_size.width - non_auto_horizontal).max(S::ZERO))
+        container_inline
+            .map(|inline| (inline - child_size.inline - non_auto_inline).max(S::ZERO))
             .unwrap_or(S::ZERO)
             / S::from_usize(auto_count)
     };
 
-    Edges {
-        left: resolved_length_auto_or(margin.left, auto_horizontal),
-        right: resolved_length_auto_or(margin.right, auto_horizontal),
-        top: resolved_length_auto_fallback_zero(margin.top),
-        bottom: resolved_length_auto_fallback_zero(margin.bottom),
-    }
+    LogicalEdgesOf::new(
+        resolved_length_auto_or(margin.inline_start, auto_inline),
+        resolved_length_auto_or(margin.inline_end, auto_inline),
+        resolved_length_auto_fallback_zero(margin.block_start),
+        resolved_length_auto_fallback_zero(margin.block_end),
+    )
 }
 
 fn resolved_length_auto_or<S: LayoutScalar>(value: ResolvedLengthAutoOf<S>, auto_fallback: S) -> S {
@@ -1966,58 +2079,51 @@ fn resolve_atomic_inline_margin<S: LayoutScalar>(margin: Edges<Option<S>>) -> Ed
     margin.map(|value| value.unwrap_or(S::ZERO))
 }
 
-fn in_flow_child_x<S: LayoutScalar>(
-    size: Size<S>,
-    margin: Edges<S>,
+fn in_flow_child_inline_offset<S: LayoutScalar>(
+    size: LogicalSizeOf<S>,
+    margin: LogicalEdgesOf<S>,
     constants: &Constants<S>,
 ) -> S {
-    let mut x = if constants.direction == Direction::Rtl {
-        let container = constants.node_outer_size.unwrap_or(
-            constants
-                .node_inner_size
-                .unwrap_or(size + margin.sum_axes()),
-        );
-        container.width - constants.content_box_inset.right - size.width - margin.right
-    } else {
-        constants.content_box_inset.left + margin.left
-    };
+    let logical_content_box_inset = constants.logical_content_box_inset();
+    let logical_inner_size = constants.logical_node_inner_size();
+    let mut inline = logical_content_box_inset.inline_start + margin.inline_start;
 
-    let container_inner_width = constants
-        .node_inner_size
-        .width
+    let container_inner_inline = logical_inner_size
+        .inline
         .or_else(|| {
             constants
-                .node_outer_size
-                .width
-                .map(|width| width - constants.content_box_inset.horizontal_sum())
+                .logical_node_outer_size()
+                .inline
+                .map(|inline| inline - logical_content_box_inset.inline_sum())
         })
-        .unwrap_or(size.width + margin.horizontal_sum());
-    let item_outer_width = size.width + margin.horizontal_sum();
-    if item_outer_width < container_inner_width {
-        let free_space = container_inner_width - item_outer_width;
-        match (constants.text_align, constants.direction) {
-            (TextAlign::Auto, _)
-            | (TextAlign::LegacyLeft, Direction::Ltr)
-            | (TextAlign::LegacyRight, Direction::Rtl) => {}
-            (TextAlign::LegacyLeft, Direction::Rtl) | (TextAlign::LegacyCenter, Direction::Rtl) => {
-                x = x - if constants.text_align == TextAlign::LegacyCenter {
-                    free_space / S::from_f64(2.0)
-                } else {
-                    free_space
-                };
+        .unwrap_or(size.inline + margin.inline_sum());
+    let item_outer_inline = size.inline + margin.inline_sum();
+    if item_outer_inline < container_inner_inline {
+        let free_space = container_inner_inline - item_outer_inline;
+        match constants.text_align {
+            TextAlign::Auto => {}
+            TextAlign::LegacyCenter => inline = inline + free_space / S::from_f64(2.0),
+            TextAlign::LegacyLeft
+                if constants
+                    .flow_axes
+                    .logical_axis_progression(crate::LogicalAxis::Inline)
+                    .is_decreasing() =>
+            {
+                inline = inline + free_space;
             }
-            (TextAlign::LegacyRight, Direction::Ltr)
-            | (TextAlign::LegacyCenter, Direction::Ltr) => {
-                x = x + if constants.text_align == TextAlign::LegacyCenter {
-                    free_space / S::from_f64(2.0)
-                } else {
-                    free_space
-                };
+            TextAlign::LegacyRight
+                if !constants
+                    .flow_axes
+                    .logical_axis_progression(crate::LogicalAxis::Inline)
+                    .is_decreasing() =>
+            {
+                inline = inline + free_space;
             }
+            TextAlign::LegacyLeft | TextAlign::LegacyRight => {}
         }
     }
 
-    x
+    inline
 }
 
 fn absolute_static_position<S: LayoutScalar>(cursor_y: S, constants: &Constants<S>) -> Point<S> {
@@ -2786,11 +2892,41 @@ struct Constants<S: LayoutScalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
-    fn with_inner_width(mut self, width: Option<S>) -> Self {
-        self.node_inner_size.width = width;
-        if let Some(width) = width {
-            self.node_outer_size.width = Some(width + self.content_box_inset.horizontal_sum());
-        }
+    fn logical_node_outer_size(&self) -> LogicalSizeOf<Option<S>> {
+        self.flow_axes.logical_size(self.node_outer_size)
+    }
+
+    fn logical_node_inner_size(&self) -> LogicalSizeOf<Option<S>> {
+        self.flow_axes.logical_size(self.node_inner_size)
+    }
+
+    fn logical_node_min_size(&self) -> LogicalSizeOf<Option<S>> {
+        self.flow_axes.logical_size(self.node_min_size)
+    }
+
+    fn logical_node_max_size(&self) -> LogicalSizeOf<Option<S>> {
+        self.flow_axes.logical_size(self.node_max_size)
+    }
+
+    fn logical_padding_border_size(&self) -> LogicalSizeOf<S> {
+        self.flow_axes.logical_size(self.padding_border_size)
+    }
+
+    fn logical_content_box_inset(&self) -> LogicalEdgesOf<S> {
+        self.flow_axes.logical_edges(self.content_box_inset)
+    }
+
+    fn with_logical_node_inner_size(mut self, inner_size: LogicalSizeOf<Option<S>>) -> Self {
+        self.node_inner_size = self.flow_axes.physical_size(inner_size);
+        let content_box_inset = self.logical_content_box_inset();
+        self.node_outer_size = self.flow_axes.physical_size(LogicalSizeOf::new(
+            inner_size
+                .inline
+                .map(|inline| inline + content_box_inset.inline_sum()),
+            inner_size
+                .block
+                .map(|block| block + content_box_inset.block_sum()),
+        ));
         self
     }
 
@@ -2803,6 +2939,7 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
+        let flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
         let padding = input
             .containing_flow_axes()
             .zip_physical_edges_with_inline_extent(
@@ -2817,12 +2954,13 @@ impl<S: LayoutScalar> Constants<S> {
                 resolve_length_or_zero(length, basis)
             })
             .transpose_with_node(tree, node)?;
-        let collapsible_margin = Edges {
-            left: LengthAutoOf::ZERO,
-            right: LengthAutoOf::ZERO,
-            top: style.margin.top,
-            bottom: style.margin.bottom,
-        };
+        let own_logical_margin = flow_axes.logical_edges(style.margin);
+        let collapsible_margin = flow_axes.physical_edges(LogicalEdgesOf::new(
+            LengthAutoOf::ZERO,
+            LengthAutoOf::ZERO,
+            own_logical_margin.block_start,
+            own_logical_margin.block_end,
+        ));
         let margin = input
             .containing_flow_axes()
             .zip_physical_edges_with_inline_extent(
@@ -2888,21 +3026,25 @@ impl<S: LayoutScalar> Constants<S> {
             && !is_root
             && !blocks_margin_collapse
             && style.position == Position::Relative
-            && padding.top == S::ZERO
-            && padding.bottom == S::ZERO
-            && border.top == S::ZERO
-            && border.bottom == S::ZERO
-            && !matches!(style_size.height, Some(height) if height > S::ZERO)
-            && !matches!(min_size.height, Some(height) if height > S::ZERO);
+            && flow_axes.logical_edges(padding).block_start == S::ZERO
+            && flow_axes.logical_edges(padding).block_end == S::ZERO
+            && flow_axes.logical_edges(border).block_start == S::ZERO
+            && flow_axes.logical_edges(border).block_end == S::ZERO
+            && !matches!(flow_axes.logical_size(style_size).block, Some(block) if block > S::ZERO)
+            && !matches!(flow_axes.logical_size(min_size).block, Some(block) if block > S::ZERO);
         let node_outer_size = input
             .known()
             .or(min_max_definite_size)
             .or(style_size.clamp_optional(min_size, max_size))
             .max_optional(padding_border_size.map(Some));
         let node_inner_size = node_outer_size.sub_optional(content_box_inset_size);
+        let logical_padding = flow_axes.logical_edges(padding);
+        let logical_border = flow_axes.logical_edges(border);
+        let logical_style_size = flow_axes.logical_size(style_size);
+        let logical_margin = flow_axes.logical_edges(margin);
 
         Ok(Self {
-            flow_axes: crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+            flow_axes,
             node_outer_size,
             node_inner_size,
             node_min_size: min_size,
@@ -2915,23 +3057,25 @@ impl<S: LayoutScalar> Constants<S> {
             padding_border_size,
             scrollbar_gutter,
             content_box_inset,
-            own_top_margin: CollapsibleMarginOf::<S>::from_margin(margin.top.unwrap_or(S::ZERO)),
+            own_top_margin: CollapsibleMarginOf::<S>::from_margin(
+                logical_margin.block_start.unwrap_or(S::ZERO),
+            ),
             own_bottom_margin: CollapsibleMarginOf::<S>::from_margin(
-                margin.bottom.unwrap_or(S::ZERO),
+                logical_margin.block_end.unwrap_or(S::ZERO),
             ),
             collapse_top_margin: is_margin_collapsing_block
                 && !is_root
                 && style.position == Position::Relative
                 && !blocks_margin_collapse
-                && padding.top == S::ZERO
-                && border.top == S::ZERO,
+                && logical_padding.block_start == S::ZERO
+                && logical_border.block_start == S::ZERO,
             collapse_bottom_margin: is_margin_collapsing_block
                 && !is_root
                 && style.position == Position::Relative
                 && !blocks_margin_collapse
-                && padding.bottom == S::ZERO
-                && border.bottom == S::ZERO
-                && style_size.height.is_none(),
+                && logical_padding.block_end == S::ZERO
+                && logical_border.block_end == S::ZERO
+                && logical_style_size.block.is_none(),
             can_collapse_through,
         })
     }
@@ -3057,7 +3201,6 @@ impl<S: LayoutScalar> SizeOptionExt<S> for Size<Option<S>> {
 
 trait SizeConcreteExt<S: LayoutScalar> {
     fn clamp_optional(self, min: Size<Option<S>>, max: Size<Option<S>>) -> Self;
-    fn max_optional(self, min: Size<Option<S>>) -> Self;
 }
 
 impl<S: LayoutScalar> SizeConcreteExt<S> for Size<S> {
@@ -3065,13 +3208,6 @@ impl<S: LayoutScalar> SizeConcreteExt<S> for Size<S> {
         Size::new(
             self.width.clamp_optional(min.width, max.width),
             self.height.clamp_optional(min.height, max.height),
-        )
-    }
-
-    fn max_optional(self, min: Size<Option<S>>) -> Self {
-        Size::new(
-            min.width.map_or(self.width, |min| self.width.max(min)),
-            min.height.map_or(self.height, |min| self.height.max(min)),
         )
     }
 }

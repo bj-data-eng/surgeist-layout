@@ -238,13 +238,6 @@ impl FlowAxes {
         }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages logical-axis progression for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
     pub(crate) const fn logical_axis_progression(self, axis: LogicalAxis) -> PhysicalProgression {
         match axis {
@@ -254,7 +247,7 @@ impl FlowAxes {
     }
 
     #[must_use]
-    pub(crate) fn physical_size<S: LayoutScalar>(self, logical: LogicalSizeOf<S>) -> Size<S> {
+    pub(crate) fn physical_size<T>(self, logical: LogicalSizeOf<T>) -> Size<T> {
         match self.inline_axis() {
             PhysicalAxis::Horizontal => Size::new(logical.inline, logical.block),
             PhysicalAxis::Vertical => Size::new(logical.block, logical.inline),
@@ -262,7 +255,7 @@ impl FlowAxes {
     }
 
     #[must_use]
-    pub(crate) fn logical_size<S: LayoutScalar>(self, physical: Size<S>) -> LogicalSizeOf<S> {
+    pub(crate) fn logical_size<T>(self, physical: Size<T>) -> LogicalSizeOf<T> {
         match self.inline_axis() {
             PhysicalAxis::Horizontal => LogicalSizeOf::new(physical.width, physical.height),
             PhysicalAxis::Vertical => LogicalSizeOf::new(physical.height, physical.width),
@@ -311,13 +304,6 @@ impl FlowAxes {
         }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages physical-to-logical point projection for later flow-aware migrations."
-        )
-    )]
     #[must_use]
     pub(crate) fn logical_point<S: LayoutScalar>(
         self,
@@ -349,13 +335,6 @@ impl FlowAxes {
         )
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages logical-to-physical edge projection for later flow-aware migrations."
-        )
-    )]
     #[must_use]
     pub(crate) fn physical_edges<T>(self, logical: LogicalEdgesOf<T>) -> Edges<T> {
         let LogicalEdgesOf {
@@ -387,13 +366,6 @@ impl FlowAxes {
         }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages physical-to-logical edge projection for later flow-aware migrations."
-        )
-    )]
     #[must_use]
     pub(crate) fn logical_edges<T>(self, physical: Edges<T>) -> LogicalEdgesOf<T> {
         let Edges {
@@ -544,13 +516,6 @@ fn project_from_start<S: LayoutScalar>(origin: S, size: S, extent: S, start: Phy
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C01-T1 stages inverse point projection for later flow-aware migrations."
-    )
-)]
 fn project_to_start<S: LayoutScalar>(origin: S, size: S, extent: S, start: PhysicalSide) -> S {
     if start.progression().is_decreasing() {
         extent - origin - size
@@ -607,26 +572,19 @@ where
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub(crate) struct LogicalSizeOf<S: LayoutScalar = Scalar> {
-    pub(crate) inline: S,
-    pub(crate) block: S,
+pub(crate) struct LogicalSizeOf<T = Scalar> {
+    pub(crate) inline: T,
+    pub(crate) block: T,
 }
 
-impl<S: LayoutScalar> LogicalSizeOf<S> {
+impl<T> LogicalSizeOf<T> {
     #[must_use]
-    pub(crate) const fn new(inline: S, block: S) -> Self {
+    pub(crate) const fn new(inline: T, block: T) -> Self {
         Self { inline, block }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages logical-size mapping for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
-    pub(crate) fn map<R: LayoutScalar>(self, f: impl Fn(S) -> R) -> LogicalSizeOf<R> {
+    pub(crate) fn map<R>(self, f: impl Fn(T) -> R) -> LogicalSizeOf<R> {
         LogicalSizeOf::new(f(self.inline), f(self.block))
     }
 
@@ -638,10 +596,10 @@ impl<S: LayoutScalar> LogicalSizeOf<S> {
         )
     )]
     #[must_use]
-    pub(crate) fn zip_map<U: LayoutScalar, R: LayoutScalar>(
+    pub(crate) fn zip_map<U, R>(
         self,
         other: LogicalSizeOf<U>,
-        f: impl Fn(S, U) -> R,
+        f: impl Fn(T, U) -> R,
     ) -> LogicalSizeOf<R> {
         LogicalSizeOf::new(f(self.inline, other.inline), f(self.block, other.block))
     }
@@ -654,7 +612,10 @@ impl<S: LayoutScalar> LogicalSizeOf<S> {
         )
     )]
     #[must_use]
-    pub(crate) const fn axis(self, axis: LogicalAxis) -> S {
+    pub(crate) const fn axis(self, axis: LogicalAxis) -> T
+    where
+        T: Copy,
+    {
         match axis {
             LogicalAxis::Inline => self.inline,
             LogicalAxis::Block => self.block,
@@ -662,10 +623,32 @@ impl<S: LayoutScalar> LogicalSizeOf<S> {
     }
 }
 
-impl<U: LayoutScalar, T: LayoutScalar + Add<U>> Add<LogicalSizeOf<U>> for LogicalSizeOf<T>
-where
-    <T as Add<U>>::Output: LayoutScalar,
-{
+impl<S: LayoutScalar> LogicalSizeOf<Option<S>> {
+    #[must_use]
+    pub(crate) fn or(self, other: Self) -> Self {
+        Self::new(self.inline.or(other.inline), self.block.or(other.block))
+    }
+
+    #[must_use]
+    pub(crate) fn unwrap_or(self, fallback: LogicalSizeOf<S>) -> LogicalSizeOf<S> {
+        LogicalSizeOf::new(
+            self.inline.unwrap_or(fallback.inline),
+            self.block.unwrap_or(fallback.block),
+        )
+    }
+}
+
+impl<S: LayoutScalar> LogicalSizeOf<S> {
+    #[must_use]
+    pub(crate) fn max_optional(self, min: LogicalSizeOf<Option<S>>) -> Self {
+        Self::new(
+            self.inline.max(min.inline.unwrap_or(S::ZERO)),
+            self.block.max(min.block.unwrap_or(S::ZERO)),
+        )
+    }
+}
+
+impl<U, T: Add<U>> Add<LogicalSizeOf<U>> for LogicalSizeOf<T> {
     type Output = LogicalSizeOf<<T as Add<U>>::Output>;
 
     fn add(self, rhs: LogicalSizeOf<U>) -> Self::Output {
@@ -673,10 +656,7 @@ where
     }
 }
 
-impl<U: LayoutScalar, T: LayoutScalar + Sub<U>> Sub<LogicalSizeOf<U>> for LogicalSizeOf<T>
-where
-    <T as Sub<U>>::Output: LayoutScalar,
-{
+impl<U, T: Sub<U>> Sub<LogicalSizeOf<U>> for LogicalSizeOf<T> {
     type Output = LogicalSizeOf<<T as Sub<U>>::Output>;
 
     fn sub(self, rhs: LogicalSizeOf<U>) -> Self::Output {
@@ -684,13 +664,6 @@ where
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C01-T1 stages logical edge geometry for later flow-aware algorithm migrations."
-    )
-)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct LogicalEdgesOf<T = Scalar> {
     pub(crate) inline_start: T,
@@ -700,13 +673,6 @@ pub(crate) struct LogicalEdgesOf<T = Scalar> {
 }
 
 impl<T> LogicalEdgesOf<T> {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages logical-edge construction for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
     pub(crate) const fn new(inline_start: T, inline_end: T, block_start: T, block_end: T) -> Self {
         Self {
@@ -717,13 +683,6 @@ impl<T> LogicalEdgesOf<T> {
         }
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C01-T1 stages logical-edge mapping for later flow-aware algorithm migrations."
-        )
-    )]
     #[must_use]
     pub(crate) fn map<R>(self, f: impl Fn(T) -> R) -> LogicalEdgesOf<R> {
         LogicalEdgesOf::new(
@@ -732,6 +691,21 @@ impl<T> LogicalEdgesOf<T> {
             f(self.block_start),
             f(self.block_end),
         )
+    }
+}
+
+impl<T> LogicalEdgesOf<T>
+where
+    T: Add<Output = T> + Copy,
+{
+    #[must_use]
+    pub(crate) fn inline_sum(self) -> T {
+        self.inline_start + self.inline_end
+    }
+
+    #[must_use]
+    pub(crate) fn block_sum(self) -> T {
+        self.block_start + self.block_end
     }
 }
 
