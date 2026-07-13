@@ -9995,6 +9995,169 @@ fn logical_ordinary_grid_carriers_project_fixed_tracks() {
     assert_projection!(f64);
 }
 
+fn assert_logical_ordinary_grid_intrinsic_reruns_fake_measurements<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
+{
+    let scalar = S::from_f64;
+    let measured_size = Size::new(scalar(17.0), scalar(31.0));
+    let relationships = [
+        (
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "parallel",
+        ),
+        (
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "opposing",
+        ),
+        (
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            "parent-horizontal-child-vertical",
+        ),
+        (
+            WritingMode::VerticalLr,
+            Direction::Ltr,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "parent-vertical-child-horizontal",
+        ),
+    ];
+
+    for (parent_writing_mode, parent_direction, child_writing_mode, child_direction, label) in
+        relationships
+    {
+        let mut tree = OracleTreeOf::<S>::new()
+            .children(1, [2])
+            .children(2, [])
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode: parent_writing_mode,
+                    direction: parent_direction,
+                    grid_template_columns: vec![TrackComponentOf::AUTO],
+                    grid_template_rows: vec![TrackComponentOf::AUTO],
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    writing_mode: child_writing_mode,
+                    direction: child_direction,
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(2, ComputeOutputOf::from_outer_size(measured_size));
+
+        let output = crate::compute_grid(
+            &mut tree,
+            1,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                Size::splat(AvailableOf::MAX_CONTENT),
+            ),
+        )
+        .expect("ordinary grid fake measurement layout succeeds");
+
+        assert_eq!(output.size, measured_size, "{label}");
+    }
+
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(80.0))),
+                grid_template_columns: vec![TrackComponentOf::percent(scalar(1.0))],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                justify_content: Some(AlignContent::Start),
+                align_content: Some(AlignContent::Start),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                writing_mode: WritingMode::HorizontalTb,
+                ..NodeInputOf::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutputOf::from_outer_size(Size::new(scalar(40.0), scalar(96.0))),
+        );
+
+    let output = crate::compute_grid(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        ),
+    )
+    .expect("ordinary grid percentage rerun succeeds");
+
+    assert_eq!(output.size, Size::new(scalar(40.0), scalar(80.0)));
+    let child_inputs = tree.inputs(2);
+    assert!(
+        child_inputs.iter().any(|input| {
+            input.run_mode() == RunMode::ComputeSize
+                && input.known() == Size::new(None, Some(scalar(80.0)))
+                && input.available()
+                    == Size::new(
+                        AvailableOf::MAX_CONTENT,
+                        AvailableOf::definite(scalar(80.0)),
+                    )
+        }),
+        "constrained row sizing must map the resolved logical inline track to the child's physical height: {child_inputs:?}"
+    );
+    assert!(
+        child_inputs.iter().any(|input| {
+            input.run_mode() == RunMode::ComputeSize
+                && input.known() == Size::new(Some(scalar(40.0)), None)
+                && input.available()
+                    == Size::new(
+                        AvailableOf::definite(scalar(40.0)),
+                        AvailableOf::MIN_CONTENT,
+                    )
+        }),
+        "constrained column sizing must map the resolved logical block track to the child's physical width: {child_inputs:?}"
+    );
+}
+
+#[test]
+fn logical_ordinary_grid_intrinsic_reruns_fake_measurements_f32() {
+    assert_logical_ordinary_grid_intrinsic_reruns_fake_measurements::<f32>();
+}
+
+#[test]
+fn logical_ordinary_grid_intrinsic_reruns_fake_measurements_f64() {
+    assert_logical_ordinary_grid_intrinsic_reruns_fake_measurements::<f64>();
+}
+
 #[test]
 fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
     #[derive(Default)]

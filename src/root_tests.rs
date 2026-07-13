@@ -1492,6 +1492,100 @@ fn logical_ordinary_grid_container_sizing_f64() {
     assert_logical_ordinary_grid_container_sizing::<f64>();
 }
 
+fn assert_logical_ordinary_grid_intrinsic_reruns_public_leaves<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let physical_leaf_size =
+        Size::new(DimensionOf::px(scalar(17.0)), DimensionOf::px(scalar(31.0)));
+    let expected_size = Size::new(scalar(17.0), scalar(31.0));
+    let relationships = [
+        (
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "parallel",
+        ),
+        (
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "opposing",
+        ),
+        (
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            "parent-horizontal-child-vertical",
+        ),
+        (
+            WritingMode::SidewaysLr,
+            Direction::Rtl,
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            "parent-sideways-child-horizontal",
+        ),
+    ];
+
+    for (parent_writing_mode, parent_direction, child_writing_mode, child_direction, label) in
+        relationships
+    {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::InlineGrid,
+                    writing_mode: parent_writing_mode,
+                    direction: parent_direction,
+                    grid_template_columns: vec![TrackComponentOf::AUTO],
+                    grid_template_rows: vec![TrackComponentOf::AUTO],
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: child_writing_mode,
+                    direction: child_direction,
+                    size: physical_leaf_size,
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("ordinary grid public leaf layout succeeds");
+
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 0).size,
+            expected_size,
+            "{label}"
+        );
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 1).size,
+            expected_size,
+            "{label}"
+        );
+    }
+}
+
+#[test]
+fn logical_ordinary_grid_intrinsic_reruns_public_leaves_f32() {
+    assert_logical_ordinary_grid_intrinsic_reruns_public_leaves::<f32>();
+}
+
+#[test]
+fn logical_ordinary_grid_intrinsic_reruns_public_leaves_f64() {
+    assert_logical_ordinary_grid_intrinsic_reruns_public_leaves::<f64>();
+}
+
 fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions<
     S: LayoutScalar,
 >() {

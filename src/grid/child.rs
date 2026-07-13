@@ -1808,20 +1808,61 @@ pub(super) fn grid_item_sizing<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    grid_item_sizing_with_status(
+    grid_item_sizing_for_grid_flow(
+        _tree,
+        child,
         child_style,
         container_style,
         area_size,
         containing_physical_size,
+        FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+    )
+}
+
+pub(super) fn grid_item_sizing_for_grid_flow<Tree, M>(
+    _tree: &Tree,
+    child: <Tree as Traverse>::Node,
+    child_style: &NodeInputOf<Tree::Scalar>,
+    container_style: &NodeInputOf<Tree::Scalar>,
+    area_size: Size<Tree::Scalar>,
+    containing_physical_size: Size<Option<Tree::Scalar>>,
+    grid_flow_axes: FlowAxes,
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridItemSizing<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    grid_item_sizing_with_grid_flow_status(
+        child_style,
+        container_style,
+        area_size,
+        containing_physical_size,
+        grid_flow_axes,
     )
     .map_err(|status| crate::compute::value_resolution_error(child, status))
 }
 
+#[cfg(test)]
 pub(super) fn grid_item_sizing_with_status<S: LayoutScalar>(
     child_style: &NodeInputOf<S>,
     container_style: &NodeInputOf<S>,
     area_size: Size<S>,
     containing_physical_size: Size<Option<S>>,
+) -> Result<GridItemSizing<S>, LengthResolutionStatus<S>> {
+    grid_item_sizing_with_grid_flow_status(
+        child_style,
+        container_style,
+        area_size,
+        containing_physical_size,
+        FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+    )
+}
+
+fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
+    child_style: &NodeInputOf<S>,
+    container_style: &NodeInputOf<S>,
+    area_size: Size<S>,
+    containing_physical_size: Size<Option<S>>,
+    grid_flow_axes: FlowAxes,
 ) -> Result<GridItemSizing<S>, LengthResolutionStatus<S>> {
     let container_flow_axes =
         crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction);
@@ -1832,10 +1873,13 @@ pub(super) fn grid_item_sizing_with_status<S: LayoutScalar>(
             |length, basis| resolve_auto_optional(length, basis),
         ))?;
     let margin = unresolved_margin.map(|margin| margin.unwrap_or(S::ZERO));
-    let available = Size::new(
-        (area_size.width - margin.horizontal_sum()).max(S::ZERO),
-        (area_size.height - margin.vertical_sum()).max(S::ZERO),
+    let logical_area_size = grid_flow_axes.logical_size(area_size);
+    let logical_margin = grid_flow_axes.logical_edges(margin);
+    let logical_available = LogicalSizeOf::new(
+        (logical_area_size.inline - logical_margin.inline_sum()).max(S::ZERO),
+        (logical_area_size.block - logical_margin.block_sum()).max(S::ZERO),
     );
+    let available = grid_flow_axes.physical_size(logical_available);
     let padding =
         transpose_edges_result(container_flow_axes.zip_physical_edges_with_inline_extent(
             child_style.padding,
@@ -1880,11 +1924,17 @@ pub(super) fn grid_item_sizing_with_status<S: LayoutScalar>(
     )?
     .apply_aspect_ratio(child_style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
+    let logical_inherent_size = grid_flow_axes.logical_size(inherent_size);
     let justify_self = child_style
         .justify_self
         .or(container_style.justify_items)
         .unwrap_or_else(|| {
-            if inherent_size.width.is_some() || !child_style.size.width.is_auto() {
+            if logical_inherent_size.inline.is_some()
+                || !grid_flow_axes
+                    .logical_size(child_style.size)
+                    .inline
+                    .is_auto()
+            {
                 AlignItems::Start
             } else {
                 AlignItems::Stretch
@@ -1894,35 +1944,53 @@ pub(super) fn grid_item_sizing_with_status<S: LayoutScalar>(
         .align_self
         .or(container_style.align_items)
         .unwrap_or_else(|| {
-            if inherent_size.height.is_some()
-                || !child_style.size.height.is_auto()
-                || (child_style.aspect_ratio.is_some() && child_style.min_size.height.is_auto())
+            if logical_inherent_size.block.is_some()
+                || !grid_flow_axes
+                    .logical_size(child_style.size)
+                    .block
+                    .is_auto()
+                || (child_style.aspect_ratio.is_some()
+                    && grid_flow_axes
+                        .logical_size(child_style.min_size)
+                        .block
+                        .is_auto())
             {
                 AlignItems::Start
             } else {
                 AlignItems::Stretch
             }
         });
-    let width_stretches = unresolved_margin.left.is_some()
-        && unresolved_margin.right.is_some()
+    let logical_unresolved_margin = grid_flow_axes.logical_edges(unresolved_margin);
+    let inline_stretches = logical_unresolved_margin.inline_start.is_some()
+        && logical_unresolved_margin.inline_end.is_some()
         && justify_self == AlignItems::Stretch;
-    let height_stretches = unresolved_margin.top.is_some()
-        && unresolved_margin.bottom.is_some()
+    let block_stretches = logical_unresolved_margin.block_start.is_some()
+        && logical_unresolved_margin.block_end.is_some()
         && align_self == AlignItems::Stretch;
-    let width = inherent_size
-        .width
-        .or_else(|| width_stretches.then_some(available.width));
-    let height = inherent_size
-        .height
-        .or_else(|| height_stretches.then_some(available.height));
-    let known = if let (Some(ratio), None, Some(height)) =
-        (child_style.aspect_ratio, inherent_size.width, height)
-        && height_stretches
-        && !child_style.min_size.height.is_auto()
+    let logical_known = LogicalSizeOf::new(
+        logical_inherent_size
+            .inline
+            .or_else(|| inline_stretches.then_some(logical_available.inline)),
+        logical_inherent_size
+            .block
+            .or_else(|| block_stretches.then_some(logical_available.block)),
+    );
+    let known = if child_style.aspect_ratio.is_some()
+        && logical_inherent_size.inline.is_none()
+        && logical_known.block.is_some()
+        && block_stretches
+        && !grid_flow_axes
+            .logical_size(child_style.min_size)
+            .block
+            .is_auto()
     {
-        Size::new(Some(height * ratio.get()), Some(height))
+        grid_flow_axes
+            .physical_size(LogicalSizeOf::new(None, logical_known.block))
+            .apply_aspect_ratio(child_style.aspect_ratio)
     } else {
-        Size { width, height }.apply_aspect_ratio(child_style.aspect_ratio)
+        grid_flow_axes
+            .physical_size(logical_known)
+            .apply_aspect_ratio(child_style.aspect_ratio)
     }
     .clamp_optional(min_size, max_size);
 
