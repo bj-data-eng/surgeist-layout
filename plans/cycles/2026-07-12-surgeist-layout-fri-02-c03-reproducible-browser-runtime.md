@@ -1,5 +1,5 @@
 # FRI-02-C03 Reproducible Browser Runtime
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-02-C03`
 Owning repository: `surgeist-layout`
 Cycle base: `d383f446b5bb64424806c89aa3cd296c3deb7658`
