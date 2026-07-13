@@ -1,11 +1,12 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
-    ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, FlexDirection, LayoutResultOf,
-    LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf, LengthResolutionStatus, NodeInputOf,
-    NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
+    ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, FlexDirection, FlexWrap,
+    LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
+    LengthResolutionStatus, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis,
+    RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
-use crate::geometry::{FlowAxes, PhysicalAxis};
+use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
@@ -67,7 +68,7 @@ where
     let (absolute_content_size, final_items) = if input.run_mode().is_perform_layout() {
         let final_items = final_layout(tree, &resolved_items, &layout_constants)?;
         let absolute_content_size = layout_absolute_children(tree, node, &layout_constants)?;
-        layout_hidden_children(tree, node, layout_constants.flow_axes)?;
+        layout_hidden_children(tree, node, layout_constants.axes.flow_axes())?;
         (absolute_content_size, Some(final_items))
     } else {
         (Size::<S>::ZERO, None)
@@ -87,6 +88,7 @@ where
 #[derive(Clone, Copy)]
 struct Constants<S: LayoutScalar> {
     flow_axes: crate::geometry::FlowAxes,
+    axes: FlexAxes,
     direction: FlexDirection,
     layout_direction: Direction,
     node_outer_size: Size<Option<S>>,
@@ -202,8 +204,12 @@ impl<S: LayoutScalar> Constants<S> {
             })
             .transpose_with_node(tree, node)?;
 
+        let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+        let axes = FlexAxes::new(flow_axes, style.flex_direction, style.flex_wrap);
+
         Ok(Self {
-            flow_axes: crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+            flow_axes,
+            axes,
             direction: style.flex_direction,
             layout_direction: style.direction,
             node_outer_size,
@@ -227,6 +233,352 @@ impl<S: LayoutScalar> Constants<S> {
             available: input.available(),
             available_main: input.available().main(style.flex_direction),
         })
+    }
+}
+
+/// Resolved flex main/cross roles for one container.
+///
+/// This is the sole flex owner for translating a container's logical flow into
+/// physical axes, sides, and progressions. It is derived only from the
+/// container's `FlowAxes`, `FlexDirection`, and `FlexWrap`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct FlexAxes {
+    flow_axes: FlowAxes,
+    main_logical_axis: LogicalAxis,
+    cross_logical_axis: LogicalAxis,
+    main_physical_axis: PhysicalAxis,
+    cross_physical_axis: PhysicalAxis,
+    main_start_side: PhysicalSide,
+    main_end_side: PhysicalSide,
+    cross_start_side: PhysicalSide,
+    cross_end_side: PhysicalSide,
+    main_reversed: bool,
+    cross_reversed: bool,
+    main_progression: PhysicalProgression,
+    cross_progression: PhysicalProgression,
+}
+
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "C05-T1 stages the canonical flex-axis operations for later sizing and placement migrations."
+    )
+)]
+impl FlexAxes {
+    #[must_use]
+    pub(crate) const fn new(
+        flow_axes: FlowAxes,
+        flex_direction: FlexDirection,
+        flex_wrap: FlexWrap,
+    ) -> Self {
+        let main_reversed = flex_direction.is_reverse();
+        let cross_reversed = matches!(flex_wrap, FlexWrap::WrapReverse);
+        let (
+            main_logical_axis,
+            cross_logical_axis,
+            main_physical_axis,
+            cross_physical_axis,
+            normal_main_start_side,
+            normal_main_end_side,
+            normal_cross_start_side,
+            normal_cross_end_side,
+        ) = if flex_direction.is_row() {
+            (
+                LogicalAxis::Inline,
+                LogicalAxis::Block,
+                flow_axes.inline_axis(),
+                flow_axes.block_axis(),
+                flow_axes.inline_start(),
+                flow_axes.inline_end(),
+                flow_axes.block_start(),
+                flow_axes.block_end(),
+            )
+        } else {
+            (
+                LogicalAxis::Block,
+                LogicalAxis::Inline,
+                flow_axes.block_axis(),
+                flow_axes.inline_axis(),
+                flow_axes.block_start(),
+                flow_axes.block_end(),
+                flow_axes.inline_start(),
+                flow_axes.inline_end(),
+            )
+        };
+        let (main_start_side, main_end_side) = if main_reversed {
+            (normal_main_end_side, normal_main_start_side)
+        } else {
+            (normal_main_start_side, normal_main_end_side)
+        };
+        let (cross_start_side, cross_end_side) = if cross_reversed {
+            (normal_cross_end_side, normal_cross_start_side)
+        } else {
+            (normal_cross_start_side, normal_cross_end_side)
+        };
+
+        Self {
+            flow_axes,
+            main_logical_axis,
+            cross_logical_axis,
+            main_physical_axis,
+            cross_physical_axis,
+            main_start_side,
+            main_end_side,
+            cross_start_side,
+            cross_end_side,
+            main_reversed,
+            cross_reversed,
+            main_progression: Self::reverse_progression(
+                flow_axes.physical_axis_progression(main_physical_axis),
+                main_reversed,
+            ),
+            cross_progression: Self::reverse_progression(
+                flow_axes.physical_axis_progression(cross_physical_axis),
+                cross_reversed,
+            ),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn flow_axes(self) -> FlowAxes {
+        self.flow_axes
+    }
+
+    #[must_use]
+    pub(crate) const fn flow_direction(self) -> Direction {
+        self.flow_axes.direction()
+    }
+
+    #[must_use]
+    pub(crate) const fn main_logical_axis(self) -> LogicalAxis {
+        self.main_logical_axis
+    }
+
+    #[must_use]
+    pub(crate) const fn cross_logical_axis(self) -> LogicalAxis {
+        self.cross_logical_axis
+    }
+
+    #[must_use]
+    pub(crate) const fn main_physical_axis(self) -> PhysicalAxis {
+        self.main_physical_axis
+    }
+
+    #[must_use]
+    pub(crate) const fn cross_physical_axis(self) -> PhysicalAxis {
+        self.cross_physical_axis
+    }
+
+    #[must_use]
+    pub(crate) const fn main_start_side(self) -> PhysicalSide {
+        self.main_start_side
+    }
+
+    #[must_use]
+    pub(crate) const fn main_end_side(self) -> PhysicalSide {
+        self.main_end_side
+    }
+
+    #[must_use]
+    pub(crate) const fn cross_start_side(self) -> PhysicalSide {
+        self.cross_start_side
+    }
+
+    #[must_use]
+    pub(crate) const fn cross_end_side(self) -> PhysicalSide {
+        self.cross_end_side
+    }
+
+    #[must_use]
+    pub(crate) const fn main_is_reversed(self) -> bool {
+        self.main_reversed
+    }
+
+    #[must_use]
+    pub(crate) const fn cross_is_reversed(self) -> bool {
+        self.cross_reversed
+    }
+
+    #[must_use]
+    pub(crate) const fn main_progression(self) -> PhysicalProgression {
+        self.main_progression
+    }
+
+    #[must_use]
+    pub(crate) const fn cross_progression(self) -> PhysicalProgression {
+        self.cross_progression
+    }
+
+    #[must_use]
+    pub(crate) fn main_size<T>(self, size: Size<T>) -> T {
+        match self.main_physical_axis {
+            PhysicalAxis::Horizontal => size.width,
+            PhysicalAxis::Vertical => size.height,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn cross_size<T>(self, size: Size<T>) -> T {
+        match self.cross_physical_axis {
+            PhysicalAxis::Horizontal => size.width,
+            PhysicalAxis::Vertical => size.height,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn size_from_main_cross<T>(self, main: T, cross: T) -> Size<T> {
+        match self.main_physical_axis {
+            PhysicalAxis::Horizontal => Size::new(main, cross),
+            PhysicalAxis::Vertical => Size::new(cross, main),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn with_main_size<T>(self, size: Size<T>, value: T) -> Size<T> {
+        match self.main_physical_axis {
+            PhysicalAxis::Horizontal => Size::new(value, size.height),
+            PhysicalAxis::Vertical => Size::new(size.width, value),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn with_cross_size<T>(self, size: Size<T>, value: T) -> Size<T> {
+        match self.cross_physical_axis {
+            PhysicalAxis::Horizontal => Size::new(value, size.height),
+            PhysicalAxis::Vertical => Size::new(size.width, value),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn main_point<T>(self, point: Point<T>) -> T {
+        match self.main_physical_axis {
+            PhysicalAxis::Horizontal => point.x,
+            PhysicalAxis::Vertical => point.y,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn cross_point<T>(self, point: Point<T>) -> T {
+        match self.cross_physical_axis {
+            PhysicalAxis::Horizontal => point.x,
+            PhysicalAxis::Vertical => point.y,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn point_from_main_cross<T>(self, main: T, cross: T) -> Point<T> {
+        match self.main_physical_axis {
+            PhysicalAxis::Horizontal => Point::new(main, cross),
+            PhysicalAxis::Vertical => Point::new(cross, main),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn main_start_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.main_start_side)
+    }
+
+    #[must_use]
+    pub(crate) fn main_end_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.main_end_side)
+    }
+
+    #[must_use]
+    pub(crate) fn cross_start_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.cross_start_side)
+    }
+
+    #[must_use]
+    pub(crate) fn cross_end_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.cross_end_side)
+    }
+
+    #[must_use]
+    pub(crate) fn main_edge_sum<S: LayoutScalar>(self, edges: Edges<S>) -> S {
+        self.main_start_edge(edges) + self.main_end_edge(edges)
+    }
+
+    #[must_use]
+    pub(crate) fn cross_edge_sum<S: LayoutScalar>(self, edges: Edges<S>) -> S {
+        self.cross_start_edge(edges) + self.cross_end_edge(edges)
+    }
+
+    pub(crate) fn set_main_start_edge<T>(self, edges: &mut Edges<T>, value: T) {
+        self.set_edge_at_side(edges, self.main_start_side, value);
+    }
+
+    pub(crate) fn set_main_end_edge<T>(self, edges: &mut Edges<T>, value: T) {
+        self.set_edge_at_side(edges, self.main_end_side, value);
+    }
+
+    pub(crate) fn set_cross_start_edge<T>(self, edges: &mut Edges<T>, value: T) {
+        self.set_edge_at_side(edges, self.cross_start_side, value);
+    }
+
+    pub(crate) fn set_cross_end_edge<T>(self, edges: &mut Edges<T>, value: T) {
+        self.set_edge_at_side(edges, self.cross_end_side, value);
+    }
+
+    #[must_use]
+    pub(crate) const fn main_requested_axis(self) -> RequestedAxis {
+        Self::requested_axis_for(self.main_physical_axis)
+    }
+
+    #[must_use]
+    pub(crate) const fn cross_requested_axis(self) -> RequestedAxis {
+        Self::requested_axis_for(self.cross_physical_axis)
+    }
+
+    #[must_use]
+    pub(crate) fn main_size_from_cross_aspect<S: LayoutScalar>(
+        self,
+        cross: S,
+        aspect_ratio: AspectRatioOf<S>,
+    ) -> S {
+        match self.main_physical_axis {
+            PhysicalAxis::Horizontal => cross * aspect_ratio.get(),
+            PhysicalAxis::Vertical => cross / aspect_ratio.get(),
+        }
+    }
+
+    const fn reverse_progression(
+        progression: PhysicalProgression,
+        reversed: bool,
+    ) -> PhysicalProgression {
+        if !reversed {
+            return progression;
+        }
+
+        match progression {
+            PhysicalProgression::Increasing => PhysicalProgression::Decreasing,
+            PhysicalProgression::Decreasing => PhysicalProgression::Increasing,
+        }
+    }
+
+    fn edge_at_side<T>(self, edges: Edges<T>, side: PhysicalSide) -> T {
+        match side {
+            PhysicalSide::Top => edges.top,
+            PhysicalSide::Right => edges.right,
+            PhysicalSide::Bottom => edges.bottom,
+            PhysicalSide::Left => edges.left,
+        }
+    }
+
+    fn set_edge_at_side<T>(self, edges: &mut Edges<T>, side: PhysicalSide, value: T) {
+        match side {
+            PhysicalSide::Top => edges.top = value,
+            PhysicalSide::Right => edges.right = value,
+            PhysicalSide::Bottom => edges.bottom = value,
+            PhysicalSide::Left => edges.left = value,
+        }
+    }
+
+    const fn requested_axis_for(axis: PhysicalAxis) -> RequestedAxis {
+        match axis {
+            PhysicalAxis::Horizontal => RequestedAxis::Horizontal,
+            PhysicalAxis::Vertical => RequestedAxis::Vertical,
+        }
     }
 }
 

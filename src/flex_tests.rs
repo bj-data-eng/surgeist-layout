@@ -1,6 +1,765 @@
 use std::collections::HashMap;
 
+use crate::flex::FlexAxes;
+use crate::geometry::PhysicalProgression;
 use crate::*;
+
+#[derive(Clone, Copy)]
+struct FlexAxesExpectation {
+    main_logical_axis: LogicalAxis,
+    cross_logical_axis: LogicalAxis,
+    main_physical_axis: PhysicalAxis,
+    cross_physical_axis: PhysicalAxis,
+    main_start_side: PhysicalSide,
+    main_end_side: PhysicalSide,
+    cross_start_side: PhysicalSide,
+    cross_end_side: PhysicalSide,
+    main_reversed: bool,
+    cross_reversed: bool,
+    main_progression: PhysicalProgression,
+    cross_progression: PhysicalProgression,
+}
+
+#[derive(Clone, Copy)]
+struct FlexAxesCase {
+    writing_mode: WritingMode,
+    direction: Direction,
+    flex_direction: FlexDirection,
+    normal: FlexAxesExpectation,
+    wrap_reverse: FlexAxesExpectation,
+}
+
+fn assert_flex_axes_expectation(axes: FlexAxes, expectation: FlexAxesExpectation) {
+    assert_eq!(axes.main_logical_axis(), expectation.main_logical_axis);
+    assert_eq!(axes.cross_logical_axis(), expectation.cross_logical_axis);
+    assert_eq!(axes.main_physical_axis(), expectation.main_physical_axis);
+    assert_eq!(axes.cross_physical_axis(), expectation.cross_physical_axis);
+    assert_eq!(axes.main_start_side(), expectation.main_start_side);
+    assert_eq!(axes.main_end_side(), expectation.main_end_side);
+    assert_eq!(axes.cross_start_side(), expectation.cross_start_side);
+    assert_eq!(axes.cross_end_side(), expectation.cross_end_side);
+    assert_eq!(axes.main_is_reversed(), expectation.main_reversed);
+    assert_eq!(axes.cross_is_reversed(), expectation.cross_reversed);
+    assert_eq!(axes.main_progression(), expectation.main_progression);
+    assert_eq!(axes.cross_progression(), expectation.cross_progression);
+}
+
+#[test]
+fn flex_axes_matrix_covers_all_flows_directions_and_flex_directions() {
+    use LogicalAxis::{Block, Inline};
+    use PhysicalAxis::{Horizontal, Vertical};
+    use PhysicalProgression::{Decreasing, Increasing};
+    use PhysicalSide::{Bottom, Left, Right, Top};
+
+    macro_rules! expectation {
+        (
+            $main_logical_axis:ident,
+            $cross_logical_axis:ident,
+            $main_physical_axis:ident,
+            $cross_physical_axis:ident,
+            $main_start_side:ident,
+            $main_end_side:ident,
+            $cross_start_side:ident,
+            $cross_end_side:ident,
+            $main_reversed:expr,
+            $cross_reversed:expr,
+            $main_progression:ident,
+            $cross_progression:ident
+        ) => {
+            FlexAxesExpectation {
+                main_logical_axis: $main_logical_axis,
+                cross_logical_axis: $cross_logical_axis,
+                main_physical_axis: $main_physical_axis,
+                cross_physical_axis: $cross_physical_axis,
+                main_start_side: $main_start_side,
+                main_end_side: $main_end_side,
+                cross_start_side: $cross_start_side,
+                cross_end_side: $cross_end_side,
+                main_reversed: $main_reversed,
+                cross_reversed: $cross_reversed,
+                main_progression: $main_progression,
+                cross_progression: $cross_progression,
+            }
+        };
+    }
+
+    macro_rules! case {
+        ($writing_mode:expr, $direction:expr, $flex_direction:expr, $normal:expr, $wrap_reverse:expr) => {
+            FlexAxesCase {
+                writing_mode: $writing_mode,
+                direction: $direction,
+                flex_direction: $flex_direction,
+                normal: $normal,
+                wrap_reverse: $wrap_reverse,
+            }
+        };
+    }
+
+    let cases = [
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Left, Right, Top, Bottom, false, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Left, Right, Bottom, Top, false, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Right, Left, Top, Bottom, true, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Right, Left, Bottom, Top, true, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Top, Bottom, Left, Right, false, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Top, Bottom, Right, Left, false, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Ltr,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Bottom, Top, Left, Right, true, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Bottom, Top, Right, Left, true, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Right, Left, Top, Bottom, false, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Right, Left, Bottom, Top, false, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Left, Right, Top, Bottom, true, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Horizontal, Vertical, Left, Right, Bottom, Top, true, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Top, Bottom, Right, Left, false, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Top, Bottom, Left, Right, false, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::HorizontalTb,
+            Direction::Rtl,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Bottom, Top, Right, Left, true, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Vertical, Horizontal, Bottom, Top, Left, Right, true, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, false, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, false, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, true, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, true, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, false, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, false, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Ltr,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, true, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, true, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Rtl,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, false, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, false, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Rtl,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, true, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, true, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Rtl,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, false, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, false, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalRl,
+            Direction::Rtl,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, true, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, true, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Ltr,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, false, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, false, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Ltr,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, true, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, true, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Ltr,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, false, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, false, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Ltr,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, true, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, true, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Rtl,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, false, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, false, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Rtl,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, true, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, true, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Rtl,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, false, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, false, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::VerticalLr,
+            Direction::Rtl,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, true, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, true, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Ltr,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, false, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, false, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Ltr,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, true, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, true, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Ltr,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, false, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, false, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Ltr,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, true, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, true, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Rtl,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, false, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, false, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Rtl,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, true, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, true, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Rtl,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, false, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, false, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysRl,
+            Direction::Rtl,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, true, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, true, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Ltr,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, false, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, false, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Ltr,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, true, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, true, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Ltr,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, false, false,
+                Increasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, false, true,
+                Increasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Ltr,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, true, false,
+                Decreasing, Decreasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, true, true,
+                Decreasing, Increasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Rtl,
+            FlexDirection::Row,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Left, Right, false, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Top, Bottom, Right, Left, false, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Rtl,
+            FlexDirection::RowReverse,
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Left, Right, true, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Inline, Block, Vertical, Horizontal, Bottom, Top, Right, Left, true, true,
+                Decreasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Rtl,
+            FlexDirection::Column,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Top, Bottom, false, false,
+                Increasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Left, Right, Bottom, Top, false, true,
+                Increasing, Decreasing
+            )
+        ),
+        case!(
+            WritingMode::SidewaysLr,
+            Direction::Rtl,
+            FlexDirection::ColumnReverse,
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Top, Bottom, true, false,
+                Decreasing, Increasing
+            ),
+            expectation!(
+                Block, Inline, Horizontal, Vertical, Right, Left, Bottom, Top, true, true,
+                Decreasing, Decreasing
+            )
+        ),
+    ];
+
+    assert_eq!(cases.len(), 40);
+    for case in cases {
+        let flow_axes = FlowAxes::new(case.writing_mode, case.direction);
+        let normal = FlexAxes::new(flow_axes, case.flex_direction, FlexWrap::Wrap);
+        let wrap_reverse = FlexAxes::new(flow_axes, case.flex_direction, FlexWrap::WrapReverse);
+
+        assert_eq!(normal.flow_direction(), case.direction);
+        assert_eq!(wrap_reverse.flow_direction(), case.direction);
+        assert_flex_axes_expectation(normal, case.normal);
+        assert_flex_axes_expectation(wrap_reverse, case.wrap_reverse);
+
+        assert_eq!(normal.main_logical_axis(), wrap_reverse.main_logical_axis());
+        assert_eq!(
+            normal.cross_logical_axis(),
+            wrap_reverse.cross_logical_axis()
+        );
+        assert_eq!(
+            normal.main_physical_axis(),
+            wrap_reverse.main_physical_axis()
+        );
+        assert_eq!(
+            normal.cross_physical_axis(),
+            wrap_reverse.cross_physical_axis()
+        );
+        assert_eq!(normal.main_start_side(), wrap_reverse.main_start_side());
+        assert_eq!(normal.main_end_side(), wrap_reverse.main_end_side());
+        assert_eq!(normal.main_is_reversed(), wrap_reverse.main_is_reversed());
+        assert_eq!(normal.main_progression(), wrap_reverse.main_progression());
+        assert_ne!(normal.cross_start_side(), wrap_reverse.cross_start_side());
+        assert_ne!(normal.cross_end_side(), wrap_reverse.cross_end_side());
+        assert_ne!(normal.cross_progression(), wrap_reverse.cross_progression());
+    }
+}
+
+#[test]
+fn flex_axes_selectors_and_mutators_follow_the_resolved_mapping() {
+    let axes = FlexAxes::new(
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+        FlexDirection::ColumnReverse,
+        FlexWrap::WrapReverse,
+    );
+    let size = Size::new(3.0, 5.0);
+    let point = Point::new(7.0, 11.0);
+    let mut edges = Edges::new(2.0, 3.0, 5.0, 7.0);
+
+    assert_eq!(
+        axes.flow_axes(),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr)
+    );
+    assert_eq!(axes.main_size(size), 3.0);
+    assert_eq!(axes.cross_size(size), 5.0);
+    assert_eq!(axes.size_from_main_cross(13.0, 17.0), Size::new(13.0, 17.0));
+    assert_eq!(axes.with_main_size(size, 19.0), Size::new(19.0, 5.0));
+    assert_eq!(axes.with_cross_size(size, 23.0), Size::new(3.0, 23.0));
+    assert_eq!(axes.main_point(point), 7.0);
+    assert_eq!(axes.cross_point(point), 11.0);
+    assert_eq!(
+        axes.point_from_main_cross(29.0, 31.0),
+        Point::new(29.0, 31.0)
+    );
+
+    assert_eq!(axes.main_start_edge(edges), 3.0);
+    assert_eq!(axes.main_end_edge(edges), 7.0);
+    assert_eq!(axes.cross_start_edge(edges), 2.0);
+    assert_eq!(axes.cross_end_edge(edges), 5.0);
+    assert_eq!(axes.main_edge_sum(edges), 10.0);
+    assert_eq!(axes.cross_edge_sum(edges), 7.0);
+    axes.set_main_start_edge(&mut edges, 37.0);
+    axes.set_main_end_edge(&mut edges, 41.0);
+    axes.set_cross_start_edge(&mut edges, 43.0);
+    axes.set_cross_end_edge(&mut edges, 47.0);
+    assert_eq!(edges, Edges::new(43.0, 37.0, 47.0, 41.0));
+
+    assert_eq!(axes.main_requested_axis(), crate::RequestedAxis::Horizontal);
+    assert_eq!(axes.cross_requested_axis(), crate::RequestedAxis::Vertical);
+    assert_eq!(
+        axes.main_size_from_cross_aspect(
+            11.0,
+            AspectRatio::new(2.0).expect("finite positive aspect ratio"),
+        ),
+        22.0
+    );
+
+    let vertical_main = FlexAxes::new(
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+        FlexDirection::Row,
+        FlexWrap::NoWrap,
+    );
+    assert_eq!(
+        vertical_main.main_size_from_cross_aspect(
+            22.0,
+            AspectRatio::new(2.0).expect("finite positive aspect ratio"),
+        ),
+        11.0
+    );
+    assert_eq!(vertical_main.main_size(size), 5.0);
+    assert_eq!(vertical_main.cross_size(size), 3.0);
+    assert_eq!(
+        vertical_main.size_from_main_cross(13.0, 17.0),
+        Size::new(17.0, 13.0)
+    );
+    assert_eq!(
+        vertical_main.with_main_size(size, 19.0),
+        Size::new(3.0, 19.0)
+    );
+    assert_eq!(
+        vertical_main.with_cross_size(size, 23.0),
+        Size::new(23.0, 5.0)
+    );
+    assert_eq!(vertical_main.main_point(point), 11.0);
+    assert_eq!(vertical_main.cross_point(point), 7.0);
+    assert_eq!(vertical_main.main_requested_axis(), RequestedAxis::Vertical);
+    assert_eq!(
+        vertical_main.cross_requested_axis(),
+        RequestedAxis::Horizontal
+    );
+    assert_eq!(
+        vertical_main.point_from_main_cross(29.0, 31.0),
+        Point::new(31.0, 29.0)
+    );
+
+    let mut vertical_edges = Edges::new(2.0, 3.0, 5.0, 7.0);
+    assert_eq!(vertical_main.main_start_edge(vertical_edges), 5.0);
+    assert_eq!(vertical_main.main_end_edge(vertical_edges), 2.0);
+    assert_eq!(vertical_main.cross_start_edge(vertical_edges), 7.0);
+    assert_eq!(vertical_main.cross_end_edge(vertical_edges), 3.0);
+    assert_eq!(vertical_main.main_edge_sum(vertical_edges), 7.0);
+    assert_eq!(vertical_main.cross_edge_sum(vertical_edges), 10.0);
+    vertical_main.set_main_start_edge(&mut vertical_edges, 37.0);
+    vertical_main.set_main_end_edge(&mut vertical_edges, 41.0);
+    vertical_main.set_cross_start_edge(&mut vertical_edges, 43.0);
+    vertical_main.set_cross_end_edge(&mut vertical_edges, 47.0);
+    assert_eq!(vertical_edges, Edges::new(41.0, 47.0, 37.0, 43.0));
+    assert_eq!(
+        FlexAxes::new(
+            FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+            FlexDirection::Row,
+            FlexWrap::Wrap,
+        ),
+        vertical_main
+    );
+}
 
 fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
     let size = Size::new(
