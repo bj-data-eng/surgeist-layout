@@ -78,13 +78,13 @@ basis, automatic minima, intrinsic contributions, child requested axes, line
 collection/wrapping, gaps, grow/shrink target dimensions, and content-main
 calculation to constants.axes. Preserve each existing equation and its
 FRI-07-negative-free-space behavior; migrate no alignment/output code here.
-RED: public compute_layout f32/f64 tests first fail for the vertical-lr 100x100
-row with 10x20 children at (0,0)/(0,20), unequal basis/intrinsic items,
-main/cross percentage margins and gaps, all-direction wrapping, reverse, and
-wrap-reverse line formation.
-Acceptance: all cases use real non-leaf flex roots, retain horizontal results,
-and prove parallel, opposing, and orthogonal child flows keep their own child
-flow while flex selection remains container-owned. No Size/Edges context-free
+RED: public compute_layout f32/f64 tests first fail on vertical-lr sizing,
+unequal basis/intrinsic items, percentage margins/gaps, and all four direction
+wrap thresholds; focused line membership replaces T3-owned physical point order.
+Acceptance: real non-leaf roots retain horizontal results and prove parallel,
+opposing, and orthogonal children retain their flow while selection is container-owned.
+Evidence covers sizes, intrinsic/content-main, wrap thresholds, and line membership;
+final coordinates and reverse/wrap-reverse order are T3. No Size/Edges context-free
 main/cross access remains in this sizing/collection range.
 Commands: CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_flex_sizing -- --nocapture; CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_flex_intrinsic -- --nocapture; then the Rust gate.
 Coordinator commit after CLEAN: layout: size flex lines through logical axes.
@@ -97,9 +97,9 @@ baseline selection/synthesis, relative offsets, final physical point projection,
 visible content extent, scroll/output contribution, and existing absolute/static
 projection through FlexAxes. Preserve the current FRI-09 and FRI-10 equations
 while replacing their axis/edge lookup only.
-RED: public f32/f64 tests expose wrong physical side for main/cross auto margins
-and insets, baseline axis/line-over, relative trailing inset, absolute static
-alignment, wrap-reverse, and rounded physical output in vertical/sideways flows.
+RED: public f32/f64 tests expose the normative vertical-lr 100x100 row at
+(0,0)/(0,20), wrong reverse/wrap-reverse order, mapped margins/insets/baseline/
+relative/absolute-static sides, and rounded output in vertical/sideways flows.
 Acceptance: alignment and baselines select axes through FlexAxes; reverse and
 wrap-reverse compose once; output and rounding stay physical; all tested five
 modes, directions, and parallel/opposing/orthogonal children complete without
