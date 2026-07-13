@@ -1,5 +1,5 @@
 # FRI-02-C04 Logical Block Flow
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-02-C04`
 Owning repository: `surgeist-layout`
 Cycle base: `584f16231bed9c3e0475a4e64056fdc9e25dc2d3`
