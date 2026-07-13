@@ -26,6 +26,8 @@ inventory, provenance, corpus freshness, generator-produced migration, and local
 docs. It does not add axis fixtures, change layout/XML geometry, retune generation,
 acquire browser/Taffy software, edit root/siblings, or implement the final report
 state. `C04`-`C07` add five scoped entries; `C08` removes the temporary nine.
+FRI-13 owns the pre-existing failing ignored full-corpus aggregate gate; C03 does
+not claim or alter it.
 
 At the base, omitting the command generates; arbitrary prefixes select reports; browser
 cache/version env values override constants; explicit paths bypass containment,
@@ -115,7 +117,7 @@ are exact; failure accounting has no silent path. Real existing-pinned full+nine
 generation has zero failures; all 5,048 XML and ten reports carry current schema,
 digest, and provenance; table counts and all four hashes remain exact; no artifact
 is added/removed; one scoped rerun is byte-idempotent; poisoned `check-corpus` and
-the ignored green corpus pass; docs contain no legacy guidance.
+all C03-owned focused/default tests pass; docs contain no legacy guidance.
 
 Commands: focused filters `browser_command_dispatch`, `browser_resolution`,
 `browser_launch_profile`, `generator_stability`, `corpus_manifest_schema`,
@@ -153,7 +155,6 @@ env -u SURGEIST_BROWSER_PATH -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSI
 env -u SURGEIST_BROWSER_PATH -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT RUSTDOCFLAGS="-D warnings" CARGO_NET_OFFLINE=true cargo doc --locked -p surgeist-layout --no-deps
 env -u SURGEIST_BROWSER_PATH -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 env -u SURGEIST_BROWSER_PATH -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings
-env -u SURGEIST_BROWSER_PATH -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_all_checked_in_browser_parity_xml -- --ignored
 cargo fmt --check && git diff --check && git diff --cached --check && git diff --exit-code && git diff --cached --exit-code
 bash -lc 'set -euo pipefail; file=tests/bin/surgeist-layout-generate/generator.rs; test "$(rg -n "BrowserConfig::builder" "$file" | wc -l | tr -d " ")" -eq 1; test "$(rg -n -o "browser_launch_config\\(" "$file" | wc -l | tr -d " ")" -eq 3; if rg -n "BROWSER_FIXTURE_BATCH_SIZE|BROWSER_NAVIGATION_TIMEOUT|BROWSER_NAVIGATION_POLL_INTERVAL|fn browser_args" "$file"; then exit 1; else rc=$?; test "$rc" -eq 1; fi'
 bash -lc 'set -euo pipefail; files=(); while IFS= read -r -d "" file; do files+=("$file"); done < <(git ls-files -z --cached --others --exclude-standard -- "*.rs"); test "${#files[@]}" -gt 0; if rg -n --pcre2 '\''#\s*!?\s*\[[^]]*(?:unsafe\s*\(|\b(?:no_mangle|export_name|link_section|naked)\b|\b(?:allow|expect)\s*\([^]]*\b(?:unsafe_code|unsafe_op_in_unsafe_fn)\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{'\'' "${files[@]}"; then exit 1; else rc=$?; test "$rc" -eq 1; fi'
