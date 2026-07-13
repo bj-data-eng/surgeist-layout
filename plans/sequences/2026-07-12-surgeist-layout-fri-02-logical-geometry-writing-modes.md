@@ -6,9 +6,9 @@
 - Reviewed specification:
   `plans/specs/2026-07-12-surgeist-layout-fri-02-logical-geometry-writing-modes.md`
 - Specification normalized SHA-256:
-  `cc42db7e9bb5d895f10cb4d62e964bfc3cf4aef2b4e74a85e39d822a441e7d3f`
+  `9f3b3587c2feaafb02c28500034b29c6d47b58f1233b6dc8f530716ce6bf17ba`
 - Specification commit:
-  `092f3b383ce87a9b72834ed444996861e3cfda2d`
+  `ddb23fed47297bcdd1df67f67f0ee1ac20de7876`
 - Initiative index:
   `plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`,
   `FRI-02`
@@ -99,18 +99,24 @@ profile.
 
 - Owner: `surgeist-layout`
 - Outcome: Ordinary block sizing, placement, edges, collapse, baseline, root,
-  hidden, parallel, and orthogonal behavior follows containing logical axes.
-- Specification: `FRI-02.8`, block portions of `FRI-02.12` through `FRI-02.14`,
-  block evidence in `FRI-02.17`, and acceptance item 5 in `FRI-02.20`.
+  hidden, parallel, and orthogonal behavior follows containing logical axes;
+  compute output carries typed physical block-margin collapse state.
+- Specification: `FRI-02.4` decision `D-18`; public collapsible-margin output in
+  `FRI-02.6`; `FRI-02.8`; block portions of `FRI-02.12` through `FRI-02.14`;
+  block evidence in `FRI-02.17`; and acceptance items 4-5 in `FRI-02.20`.
 - Prerequisites: `C01`, `C02`, and `C03`.
 - Entry state: The signed scroll projection contract and reproducible browser
   runtime are complete, while ordinary block flow remains physically vertical
-  outside the limited inline-control paths.
-- Exit evidence: Named algorithm evidence and the exact five-family, 20-output
-  block browser matrix pass without absorbing vertical clear, floats, or inline
-  formatting work from `FRI-06`; the block report is manifest-owned, the refreshed
-  full report includes its outputs, and `BLOCK-003` is closed.
-- Handoff: Block no longer depends on a legacy physical-flow interpretation.
+  outside limited inline-control paths and compute margin output exposes
+  top/bottom fields plus an axis-free collapse-through boolean.
+- Exit evidence: The typed carrier and block/measured-leaf matrices prove
+  parallel/opposing collapse and orthogonal isolation in both scalar lanes;
+  its containing-flow-aware query remains; all three loose fields are absent
+  without aliases/conversions. Named algorithm evidence and the exact
+  five-family, 20-output block browser matrix pass without absorbing `FRI-05`,
+  `FRI-06`, or `FRI-10`; block/full reports validate and `BLOCK-003` is closed.
+- Handoff: Later algorithms consume typed physical collapse state; no legacy
+  vertical-only flow, loose margin field, or unqualified through query remains.
 
 ## C05 - Logical Flex Flow
 
@@ -181,7 +187,3 @@ profile.
   public docs, feature states, MSRV evidence, and all five finding closures agree.
 - Handoff: Publish the reviewed layout candidate and provide root the archival
   adapter/facade/API-artifact obligations from `FRI-02.15`; do not edit root.
-
-## Next Ready Cycle
-
-`C01 - Shared Flow And Compute Context` is the only next ready cycle.
