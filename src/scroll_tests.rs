@@ -1,10 +1,272 @@
-use crate::scroll::{ScrollBoxRects, ScrollbarReservation};
-use crate::{
-    Direction, Edges, Overflow, Point, ScrollContainerAxis, ScrollContainerFacts, ScrollGeometry,
-    ScrollOffset, ScrollOffsetOf, ScrollOverflowCouplingPolicy, ScrollOverflowExposure,
-    ScrollRange, ScrollRangeOf, ScrollRect, ScrollUnsupportedFeature, ScrollbarGutterRects, Size,
-    WritingMode,
+use crate::scroll::{
+    FlowRelativeScrollOffsetOf, FlowRelativeScrollRangeOf, PhysicalScrollOffsetOf,
+    PhysicalScrollRangeOf, ScrollBoxRects, ScrollCoordinateErrorOf, ScrollbarReservation,
 };
+use crate::{
+    Direction, Edges, LogicalAxis, Overflow, PhysicalAxis, Point, ScrollContainerAxis,
+    ScrollContainerFacts, ScrollGeometry, ScrollOffset, ScrollOffsetOf,
+    ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRange, ScrollRangeOf, ScrollRect,
+    ScrollUnsupportedFeature, ScrollbarGutterRects, Size, WritingMode,
+};
+
+#[test]
+fn scroll_coordinate_constructors_report_exact_semantic_errors() {
+    assert_eq!(
+        PhysicalScrollOffsetOf::try_new(f32::INFINITY, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalOffset {
+            axis: PhysicalAxis::Horizontal,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        PhysicalScrollOffsetOf::try_new(1.0, f32::NEG_INFINITY),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalOffset {
+            axis: PhysicalAxis::Vertical,
+            value: f32::NEG_INFINITY,
+        })
+    );
+    assert_eq!(
+        FlowRelativeScrollOffsetOf::try_new(f32::INFINITY, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeOffset {
+            axis: LogicalAxis::Inline,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        FlowRelativeScrollOffsetOf::try_new(1.0, f32::NEG_INFINITY),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeOffset {
+            axis: LogicalAxis::Block,
+            value: f32::NEG_INFINITY,
+        })
+    );
+
+    assert_eq!(
+        PhysicalScrollRangeOf::try_new(f32::INFINITY, 1.0, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalRangeMinimum {
+            axis: PhysicalAxis::Horizontal,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        PhysicalScrollRangeOf::try_new(0.0, f32::INFINITY, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalRangeMaximum {
+            axis: PhysicalAxis::Horizontal,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        PhysicalScrollRangeOf::try_new(0.0, 1.0, f32::NEG_INFINITY, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalRangeMinimum {
+            axis: PhysicalAxis::Vertical,
+            value: f32::NEG_INFINITY,
+        })
+    );
+    assert_eq!(
+        PhysicalScrollRangeOf::try_new(0.0, 1.0, 0.0, f32::INFINITY),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalRangeMaximum {
+            axis: PhysicalAxis::Vertical,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        PhysicalScrollRangeOf::try_new(3.0, 2.0, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::InvertedPhysicalRange {
+            axis: PhysicalAxis::Horizontal,
+            minimum: 3.0,
+            maximum: 2.0,
+        })
+    );
+    assert_eq!(
+        PhysicalScrollRangeOf::try_new(0.0, 1.0, 3.0, 2.0),
+        Err(ScrollCoordinateErrorOf::InvertedPhysicalRange {
+            axis: PhysicalAxis::Vertical,
+            minimum: 3.0,
+            maximum: 2.0,
+        })
+    );
+
+    assert_eq!(
+        FlowRelativeScrollRangeOf::try_new(f32::INFINITY, 1.0, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeRangeMinimum {
+            axis: LogicalAxis::Inline,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        FlowRelativeScrollRangeOf::try_new(0.0, f32::INFINITY, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeRangeMaximum {
+            axis: LogicalAxis::Inline,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        FlowRelativeScrollRangeOf::try_new(0.0, 1.0, f32::NEG_INFINITY, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeRangeMinimum {
+            axis: LogicalAxis::Block,
+            value: f32::NEG_INFINITY,
+        })
+    );
+    assert_eq!(
+        FlowRelativeScrollRangeOf::try_new(0.0, 1.0, 0.0, f32::INFINITY),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeRangeMaximum {
+            axis: LogicalAxis::Block,
+            value: f32::INFINITY,
+        })
+    );
+    assert_eq!(
+        FlowRelativeScrollRangeOf::try_new(3.0, 2.0, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::InvertedFlowRelativeRange {
+            axis: LogicalAxis::Inline,
+            minimum: 3.0,
+            maximum: 2.0,
+        })
+    );
+    assert_eq!(
+        FlowRelativeScrollRangeOf::try_new(0.0, 1.0, 3.0, 2.0),
+        Err(ScrollCoordinateErrorOf::InvertedFlowRelativeRange {
+            axis: LogicalAxis::Block,
+            minimum: 3.0,
+            maximum: 2.0,
+        })
+    );
+}
+
+#[test]
+fn scroll_coordinate_constructors_reject_f32_nan_with_typed_errors() {
+    let nan = f32::from_bits(0x7fc0_0042);
+
+    assert!(matches!(
+        PhysicalScrollOffsetOf::<f32>::try_new(nan, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalOffset {
+            axis: PhysicalAxis::Horizontal,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+    assert!(matches!(
+        FlowRelativeScrollOffsetOf::<f32>::try_new(1.0, nan),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeOffset {
+            axis: LogicalAxis::Block,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+    assert!(matches!(
+        PhysicalScrollRangeOf::<f32>::try_new(nan, 1.0, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalRangeMinimum {
+            axis: PhysicalAxis::Horizontal,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+    assert!(matches!(
+        FlowRelativeScrollRangeOf::<f32>::try_new(0.0, 1.0, 0.0, nan),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeRangeMaximum {
+            axis: LogicalAxis::Block,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+}
+
+#[test]
+fn scroll_coordinate_constructors_reject_f64_nan_with_typed_errors() {
+    let nan = f64::from_bits(0x7ff8_0000_0000_0042);
+
+    assert!(matches!(
+        PhysicalScrollOffsetOf::<f64>::try_new(1.0, nan),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalOffset {
+            axis: PhysicalAxis::Vertical,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+    assert!(matches!(
+        FlowRelativeScrollOffsetOf::<f64>::try_new(nan, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeOffset {
+            axis: LogicalAxis::Inline,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+    assert!(matches!(
+        PhysicalScrollRangeOf::<f64>::try_new(0.0, 1.0, 0.0, nan),
+        Err(ScrollCoordinateErrorOf::NonFinitePhysicalRangeMaximum {
+            axis: PhysicalAxis::Vertical,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+    assert!(matches!(
+        FlowRelativeScrollRangeOf::<f64>::try_new(nan, 1.0, 0.0, 1.0),
+        Err(ScrollCoordinateErrorOf::NonFiniteFlowRelativeRangeMinimum {
+            axis: LogicalAxis::Inline,
+            value,
+        }) if value.to_bits() == nan.to_bits()
+    ));
+}
+
+#[test]
+fn scroll_coordinate_preserves_signed_values_and_canonicalizes_zero_in_both_scalar_lanes() {
+    let physical = PhysicalScrollOffsetOf::try_new(-3.5_f32, -0.0).unwrap();
+    assert_eq!(physical.x(), -3.5);
+    assert_eq!(physical.y().to_bits(), 0.0_f32.to_bits());
+
+    let flow = FlowRelativeScrollOffsetOf::<f64>::try_new(-0.0, -9.25).unwrap();
+    assert_eq!(flow.inline().to_bits(), 0.0_f64.to_bits());
+    assert_eq!(flow.block(), -9.25);
+
+    let physical_range =
+        PhysicalScrollRangeOf::<f64>::try_new(-0.0, 16_777_217.0, -8.0, -0.0).unwrap();
+    assert_eq!(physical_range.x().minimum().to_bits(), 0.0_f64.to_bits());
+    assert_eq!(physical_range.x().maximum(), 16_777_217.0);
+    assert_eq!(physical_range.y().minimum(), -8.0);
+    assert_eq!(physical_range.y().maximum().to_bits(), 0.0_f64.to_bits());
+
+    let flow_range = FlowRelativeScrollRangeOf::try_new(-4.0_f32, -0.0, -0.0, 7.0).unwrap();
+    assert_eq!(flow_range.inline().minimum(), -4.0);
+    assert_eq!(flow_range.inline().maximum().to_bits(), 0.0_f32.to_bits());
+    assert_eq!(flow_range.block().minimum().to_bits(), 0.0_f32.to_bits());
+    assert_eq!(flow_range.block().maximum(), 7.0);
+}
+
+#[test]
+fn scroll_clamp_is_component_wise_contained_and_idempotent_in_both_spaces() {
+    let physical_range = PhysicalScrollRangeOf::try_new(-10.0_f32, 20.0, -30.0, 40.0).unwrap();
+    for (input, expected) in [
+        ((-11.0, -31.0), (-10.0, -30.0)),
+        ((-10.0, -30.0), (-10.0, -30.0)),
+        ((2.0, 3.0), (2.0, 3.0)),
+        ((20.0, 40.0), (20.0, 40.0)),
+        ((21.0, 41.0), (20.0, 40.0)),
+    ] {
+        let clamped =
+            physical_range.clamp(PhysicalScrollOffsetOf::try_new(input.0, input.1).unwrap());
+        assert_eq!(
+            clamped,
+            PhysicalScrollOffsetOf::try_new(expected.0, expected.1).unwrap()
+        );
+        assert!(clamped.x() >= physical_range.x().minimum());
+        assert!(clamped.x() <= physical_range.x().maximum());
+        assert!(clamped.y() >= physical_range.y().minimum());
+        assert!(clamped.y() <= physical_range.y().maximum());
+        assert_eq!(physical_range.clamp(clamped), clamped);
+    }
+
+    let flow_range = FlowRelativeScrollRangeOf::<f64>::try_new(-10.0, 20.0, -30.0, 40.0).unwrap();
+    for (input, expected) in [
+        ((-11.0, -31.0), (-10.0, -30.0)),
+        ((-10.0, -30.0), (-10.0, -30.0)),
+        ((2.0, 3.0), (2.0, 3.0)),
+        ((20.0, 40.0), (20.0, 40.0)),
+        ((21.0, 41.0), (20.0, 40.0)),
+    ] {
+        let clamped =
+            flow_range.clamp(FlowRelativeScrollOffsetOf::try_new(input.0, input.1).unwrap());
+        assert_eq!(
+            clamped,
+            FlowRelativeScrollOffsetOf::try_new(expected.0, expected.1).unwrap()
+        );
+        assert!(clamped.inline() >= flow_range.inline().minimum());
+        assert!(clamped.inline() <= flow_range.inline().maximum());
+        assert!(clamped.block() >= flow_range.block().minimum());
+        assert!(clamped.block() <= flow_range.block().maximum());
+        assert_eq!(flow_range.clamp(clamped), clamped);
+    }
+}
 
 #[test]
 fn scroll_range_clamps_offsets_to_non_negative_maximum() {
