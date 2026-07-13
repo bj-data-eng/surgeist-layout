@@ -14830,8 +14830,15 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         row_tracks: &tracks,
         context: container_context.clone(),
         subgrid_report: &subgrid_report,
-        available: Size::splat(AvailableOf::<f64>::MAX_CONTENT),
-        intrinsic_max_available: Size::splat(false),
+        sizing_flow_axes: crate::geometry::FlowAxes::new(
+            crate::WritingMode::HorizontalTb,
+            crate::Direction::Ltr,
+        ),
+        available: LogicalSizeOf::new(
+            AvailableOf::<f64>::MAX_CONTENT,
+            AvailableOf::<f64>::MAX_CONTENT,
+        ),
+        intrinsic_max_available: LogicalSizeOf::new(false, false),
         placements: &placements,
     };
     let _track_resolution = GridTrackResolution::<f64> {

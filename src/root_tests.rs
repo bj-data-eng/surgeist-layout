@@ -1417,6 +1417,81 @@ fn logical_flex_sizing_vertical_lr_row_uses_container_inline_axis_for_f64() {
     assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis::<f64>();
 }
 
+fn assert_logical_ordinary_grid_container_sizing<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let logical_outer_size = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let logical_style_size = crate::geometry::LogicalSizeOf::new(scalar(80.0), scalar(120.0));
+    let logical_min_size = crate::geometry::LogicalSizeOf::new(scalar(60.0), scalar(100.0));
+    let logical_gap = crate::geometry::LogicalSizeOf::new(
+        LengthOf::percent(scalar(0.1)),
+        LengthOf::percent(scalar(0.2)),
+    );
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    direction,
+                    size: flow_axes
+                        .physical_size(logical_style_size)
+                        .map(DimensionOf::px),
+                    min_size: flow_axes
+                        .physical_size(logical_min_size)
+                        .map(DimensionOf::px),
+                    max_size: flow_axes
+                        .physical_size(logical_outer_size)
+                        .map(DimensionOf::px),
+                    gap: flow_axes.physical_size(logical_gap),
+                    grid_template_columns: vec![TrackComponentOf::px(scalar(30.0))],
+                    grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                    grid_auto_columns: vec![TrackComponentOf::px(scalar(33.0))],
+                    grid_auto_rows: vec![TrackComponentOf::px(scalar(48.0))],
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    grid_column: GridPlacement::try_line(2).expect("valid grid line"),
+                    grid_row: GridPlacement::try_line(2).expect("valid grid line"),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("ordinary grid root layout succeeds");
+        let expected = flow_axes.physical_size(logical_outer_size);
+        let output = public_flow_output(batch.unrounded_entries(), 0);
+
+        assert_eq!(output.size, expected, "{writing_mode:?} {direction:?}");
+        assert_eq!(
+            output.content_size, expected,
+            "{writing_mode:?} {direction:?}"
+        );
+    }
+}
+
+#[test]
+fn logical_ordinary_grid_container_sizing_f32() {
+    assert_logical_ordinary_grid_container_sizing::<f32>();
+}
+
+#[test]
+fn logical_ordinary_grid_container_sizing_f64() {
+    assert_logical_ordinary_grid_container_sizing::<f64>();
+}
+
 fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions<
     S: LayoutScalar,
 >() {

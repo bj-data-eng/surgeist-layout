@@ -144,17 +144,26 @@ impl<S: LayoutScalar> GridComputeResult<S> {
 fn intrinsic_container_available<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     constants: &Constants<S>,
+    sizing_flow_axes: crate::geometry::FlowAxes,
     available: Size<AvailableOf<S>>,
-) -> Size<AvailableOf<S>> {
-    let max_inner_size = constants
-        .node_max_size
-        .sub_optional(constants.content_box_inset.sum_axes());
-    Size::new(
-        intrinsic_available_for_dimension(style.size.width)
-            .unwrap_or_else(|| intrinsic_available_for_axis(available.width, max_inner_size.width)),
-        intrinsic_available_for_dimension(style.size.height).unwrap_or_else(|| {
-            intrinsic_available_for_axis(available.height, max_inner_size.height)
+) -> LogicalSizeOf<AvailableOf<S>> {
+    let style_size = sizing_flow_axes.logical_size(style.size);
+    let available = sizing_flow_axes.logical_size(available);
+    let max_size = sizing_flow_axes.logical_size(constants.node_max_size);
+    let content_box_inset_size =
+        sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
+    let max_inner_size = LogicalSizeOf::new(
+        max_size
+            .inline
+            .map(|max| max - content_box_inset_size.inline),
+        max_size.block.map(|max| max - content_box_inset_size.block),
+    );
+    LogicalSizeOf::new(
+        intrinsic_available_for_dimension(style_size.inline).unwrap_or_else(|| {
+            intrinsic_available_for_axis(available.inline, max_inner_size.inline)
         }),
+        intrinsic_available_for_dimension(style_size.block)
+            .unwrap_or_else(|| intrinsic_available_for_axis(available.block, max_inner_size.block)),
     )
 }
 
@@ -193,11 +202,14 @@ fn intrinsic_available_size_for_axis<S: LayoutScalar>(
 
 fn intrinsic_max_available<S: LayoutScalar>(
     constants: &Constants<S>,
+    sizing_flow_axes: crate::geometry::FlowAxes,
     available: Size<AvailableOf<S>>,
-) -> Size<bool> {
-    Size::new(
-        available.width == AvailableOf::MaxContent && constants.node_max_size.width.is_some(),
-        available.height == AvailableOf::MaxContent && constants.node_max_size.height.is_some(),
+) -> LogicalSizeOf<bool> {
+    let available = sizing_flow_axes.logical_size(available);
+    let max_size = sizing_flow_axes.logical_size(constants.node_max_size);
+    LogicalSizeOf::new(
+        available.inline == AvailableOf::MaxContent && max_size.inline.is_some(),
+        available.block == AvailableOf::MaxContent && max_size.block.is_some(),
     )
 }
 
@@ -282,7 +294,10 @@ where
     debug_assert_eq!(lines.column_explicit_count, context.explicit_columns);
     debug_assert_eq!(lines.row_explicit_start, context.leading_rows);
     debug_assert_eq!(lines.row_explicit_count, context.explicit_rows);
-    let track_available = intrinsic_container_available(&style, &constants, input.available());
+    let sizing_flow_axes =
+        grid_sizing_flow_axes(&style, &constants, parent_context.has_inherited_axis());
+    let track_available =
+        intrinsic_container_available(&style, &constants, sizing_flow_axes, input.available());
     let track_resolution = resolve_grid_track_sizes(
         tree,
         node,
@@ -293,8 +308,13 @@ where
             row_tracks: &row_tracks,
             context: context.clone(),
             subgrid_report: &subgrid_report,
+            sizing_flow_axes,
             available: track_available,
-            intrinsic_max_available: intrinsic_max_available(&constants, input.available()),
+            intrinsic_max_available: intrinsic_max_available(
+                &constants,
+                sizing_flow_axes,
+                input.available(),
+            ),
             placements: &placements,
         },
     )?;
@@ -337,24 +357,27 @@ where
             .block
             .max(cyclic_percent_content_size.block),
     );
+    let logical_style_size = constants.flow_axes.logical_size(style.size);
+    let logical_node_inner_size = constants.logical_node_inner_size();
+    let logical_available_inner_size = constants.logical_available_inner_size();
     let intrinsic_sizing_content_size = {
         LogicalSizeOf::new(
             intrinsic_sizing_axis_content_size(IntrinsicSizingAxisInput {
                 run_mode: input.run_mode(),
-                style_size: style.size.width,
+                style_size: logical_style_size.inline,
                 content_size: content_size.inline,
                 track_content_size: track_content_size.inline,
-                definite_size: constants.node_inner_size.width,
-                available_size: constants.available_inner_size.width,
+                definite_size: logical_node_inner_size.inline,
+                available_size: logical_available_inner_size.inline,
                 tracks: &column_tracks,
             }),
             intrinsic_sizing_axis_content_size(IntrinsicSizingAxisInput {
                 run_mode: input.run_mode(),
-                style_size: style.size.height,
+                style_size: logical_style_size.block,
                 content_size: content_size.block,
                 track_content_size: track_content_size.block,
-                definite_size: constants.node_inner_size.height,
-                available_size: constants.available_inner_size.height,
+                definite_size: logical_node_inner_size.block,
+                available_size: logical_available_inner_size.block,
                 tracks: &row_tracks,
             }),
         )
@@ -441,6 +464,18 @@ fn layout_percent_track_floor<S: LayoutScalar>(
         .unwrap_or(S::ZERO)
 }
 
+fn grid_sizing_flow_axes<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    constants: &Constants<S>,
+    has_inherited_axis: bool,
+) -> crate::geometry::FlowAxes {
+    if style.display.establishes_grid_lanes_formatting_context() || has_inherited_axis {
+        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr)
+    } else {
+        constants.flow_axes
+    }
+}
+
 struct IntrinsicSizingAxisInput<'a, S: LayoutScalar = Scalar> {
     run_mode: RunMode,
     style_size: DimensionOf<S>,
@@ -501,7 +536,10 @@ where
         report,
     } = initialized_tracks;
     let GridContainerContext { gap, lines, .. } = context.clone();
-    let track_available = intrinsic_container_available(&style, &constants, input.available());
+    let sizing_flow_axes =
+        grid_sizing_flow_axes(&style, &constants, parent_context.has_inherited_axis());
+    let track_available =
+        intrinsic_container_available(&style, &constants, sizing_flow_axes, input.available());
     let track_resolution = resolve_grid_track_sizes(
         tree,
         node,
@@ -512,8 +550,13 @@ where
             row_tracks: &row_tracks,
             context: context.clone(),
             subgrid_report: &subgrid_report,
+            sizing_flow_axes,
             available: track_available,
-            intrinsic_max_available: intrinsic_max_available(&constants, input.available()),
+            intrinsic_max_available: intrinsic_max_available(
+                &constants,
+                sizing_flow_axes,
+                input.available(),
+            ),
             placements: &placements,
         },
     )?;
@@ -774,22 +817,21 @@ fn initialize_grid_tracks<Tree, M>(
 where
     Tree: Compute<M>,
 {
+    let sizing_flow_axes =
+        grid_sizing_flow_axes(style, constants, parent_context.has_inherited_axis());
     let resolved_gap = Size::new(
         resolve_length_or_zero(style.gap.width, constants.node_inner_size.width),
         resolve_length_or_zero(style.gap.height, constants.node_inner_size.height),
     )
     .transpose_with_node(tree, node)?;
-    let mut gap = LogicalSizeOf::new(resolved_gap.width, resolved_gap.height);
+    let mut gap = sizing_flow_axes.logical_size(resolved_gap);
     if let Some(columns) = &parent_context.columns {
         gap.inline = columns.gap;
     }
     if let Some(rows) = &parent_context.rows {
         gap.block = rows.gap;
     }
-    let mut percent_basis = LogicalSizeOf::new(
-        constants.node_inner_size.width,
-        constants.node_inner_size.height,
-    );
+    let mut percent_basis = sizing_flow_axes.logical_size(constants.node_inner_size);
     let children = tree.children(node).collect::<Vec<_>>();
     let visible_child_count = children
         .iter()
@@ -806,8 +848,12 @@ where
     } else {
         let column_expansion_basis = track_expansion_basis(
             &style.grid_template_columns,
-            constants.node_inner_size.width,
-            constants.available_inner_size.width,
+            sizing_flow_axes
+                .logical_size(constants.node_inner_size)
+                .inline,
+            sizing_flow_axes
+                .logical_size(constants.available_inner_size)
+                .inline,
         );
         expand_track_components(
             &style.grid_template_columns,
@@ -822,8 +868,12 @@ where
     } else {
         let row_expansion_basis = track_expansion_basis(
             &style.grid_template_rows,
-            constants.node_inner_size.height,
-            constants.available_inner_size.height,
+            sizing_flow_axes
+                .logical_size(constants.node_inner_size)
+                .block,
+            sizing_flow_axes
+                .logical_size(constants.available_inner_size)
+                .block,
         );
         expand_track_components(
             &style.grid_template_rows,
@@ -834,10 +884,14 @@ where
         .map_err(|status| crate::compute::value_resolution_error(node, status))?
     };
     if percent_basis.inline.is_none() && tracks_need_available_basis(&column_tracks) {
-        percent_basis.inline = constants.available_inner_size.width;
+        percent_basis.inline = sizing_flow_axes
+            .logical_size(constants.available_inner_size)
+            .inline;
     }
     if percent_basis.block.is_none() && tracks_need_available_basis(&row_tracks) {
-        percent_basis.block = constants.available_inner_size.height;
+        percent_basis.block = sizing_flow_axes
+            .logical_size(constants.available_inner_size)
+            .block;
     }
     let explicit_columns = column_tracks.len();
     let explicit_rows = row_tracks.len();
@@ -1176,8 +1230,9 @@ struct GridTrackResolutionInput<'a, Node, S: LayoutScalar = Scalar> {
     row_tracks: &'a [TrackSizingOf<S>],
     context: GridContainerContext<S>,
     subgrid_report: &'a GridSubgridReport<Node>,
-    available: Size<AvailableOf<S>>,
-    intrinsic_max_available: Size<bool>,
+    sizing_flow_axes: crate::geometry::FlowAxes,
+    available: LogicalSizeOf<AvailableOf<S>>,
+    intrinsic_max_available: LogicalSizeOf<bool>,
     placements: &'a GridPlacementContext<Node>,
 }
 
@@ -1204,6 +1259,7 @@ where
         row_tracks,
         context,
         subgrid_report,
+        sizing_flow_axes,
         available,
         intrinsic_max_available,
         placements,
@@ -1217,6 +1273,12 @@ where
         area_facts,
         ..
     } = context;
+    let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
+    let logical_available_inner_size =
+        sizing_flow_axes.logical_size(constants.available_inner_size);
+    let logical_node_max_size = sizing_flow_axes.logical_size(constants.node_max_size);
+    let logical_content_box_inset_size =
+        sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
     let column_basis = percent_basis.inline;
     let row_basis = percent_basis.block;
     let intrinsic_grid = IntrinsicGrid {
@@ -1240,9 +1302,9 @@ where
         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
         IntrinsicGridLowerBounds::default(),
     )?;
-    let compute_column_min_intrinsic_sizes = available.width == AvailableOf::MIN_CONTENT
-        || (constants.node_inner_size.width.is_none()
-            && constants.available_inner_size.width.is_some())
+    let compute_column_min_intrinsic_sizes = available.inline == AvailableOf::MIN_CONTENT
+        || (logical_node_inner_size.inline.is_none()
+            && logical_available_inner_size.inline.is_some())
         || column_tracks.iter().any(|track| {
             track.min == MinTrackSizingOf::MinContent
                 || track.max == MaxTrackSizingOf::MinContent
@@ -1319,7 +1381,7 @@ where
         &column_min_intrinsic_sizes,
         &column_max_intrinsic_sizes,
     );
-    let column_resolution_intrinsic_sizes = if available.width == AvailableOf::MIN_CONTENT {
+    let column_resolution_intrinsic_sizes = if available.inline == AvailableOf::MIN_CONTENT {
         column_min_intrinsic_sizes.as_slice()
     } else {
         mixed_column_intrinsic_sizes.as_slice()
@@ -1328,29 +1390,29 @@ where
         resolve_inline_tracks(InlineTrackInput {
             tracks: column_tracks,
             basis: column_basis,
-            definite_size: constants.node_inner_size.width,
-            available_size: constants.available_inner_size.width,
+            definite_size: logical_node_inner_size.inline,
+            available_size: logical_available_inner_size.inline,
             gap: gap.inline,
             alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
-            stretch_empty_auto_to_available: intrinsic_max_available.width
-                && constants.node_inner_size.width.is_none()
-                && constants.node_max_size.width.is_some(),
+            stretch_empty_auto_to_available: intrinsic_max_available.inline
+                && logical_node_inner_size.inline.is_none()
+                && logical_node_max_size.inline.is_some(),
             min_intrinsic_sizes: &column_min_intrinsic_sizes,
             max_intrinsic_sizes: column_resolution_intrinsic_sizes,
         })
     };
-    if constants.node_inner_size.width.is_none()
-        && let Some(max_width) = constants.node_max_size.width
+    if logical_node_inner_size.inline.is_none()
+        && let Some(max_inline) = logical_node_max_size.inline
     {
-        let max_inner_width =
-            (max_width - constants.content_box_inset.horizontal_sum()).max(Tree::Scalar::ZERO);
-        if track_sum(&columns, gap.inline) > max_inner_width {
+        let max_inner_inline =
+            (max_inline - logical_content_box_inset_size.inline).max(Tree::Scalar::ZERO);
+        if track_sum(&columns, gap.inline) > max_inner_inline {
             columns = {
                 resolve_inline_tracks(InlineTrackInput {
                     tracks: column_tracks,
                     basis: column_basis,
-                    definite_size: constants.node_inner_size.width,
-                    available_size: Some(max_inner_width),
+                    definite_size: logical_node_inner_size.inline,
+                    available_size: Some(max_inner_inline),
                     gap: gap.inline,
                     alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                     stretch_empty_auto_to_available: false,
@@ -1425,7 +1487,7 @@ where
             &column_min_intrinsic_sizes,
             &column_max_intrinsic_sizes,
         );
-        let column_resolution_intrinsic_sizes = if available.width == AvailableOf::MIN_CONTENT {
+        let column_resolution_intrinsic_sizes = if available.inline == AvailableOf::MIN_CONTENT {
             column_min_intrinsic_sizes.as_slice()
         } else {
             mixed_column_intrinsic_sizes.as_slice()
@@ -1434,13 +1496,13 @@ where
             resolve_inline_tracks(InlineTrackInput {
                 tracks: column_tracks,
                 basis: column_basis,
-                definite_size: constants.node_inner_size.width,
-                available_size: constants.available_inner_size.width,
+                definite_size: logical_node_inner_size.inline,
+                available_size: logical_available_inner_size.inline,
                 gap: gap.inline,
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
-                stretch_empty_auto_to_available: intrinsic_max_available.width
-                    && constants.node_inner_size.width.is_none()
-                    && constants.node_max_size.width.is_some(),
+                stretch_empty_auto_to_available: intrinsic_max_available.inline
+                    && logical_node_inner_size.inline.is_none()
+                    && logical_node_max_size.inline.is_some(),
                 min_intrinsic_sizes: &column_min_intrinsic_sizes,
                 max_intrinsic_sizes: column_resolution_intrinsic_sizes,
             })
@@ -1559,17 +1621,30 @@ where
         ..
     } = context;
     let column_basis = container_percent_basis.inline;
+    let sizing_flow_axes =
+        grid_sizing_flow_axes(style, constants, parent_context.has_inherited_axis());
     let layout_content_box_size =
         (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
-    let layout_gap =
-        resolved_layout_gap(tree, node, style, constants, layout_content_box_size, gap)?;
-    let rerun_percent_columns = constants.node_inner_size.width.is_none() && {
+    let logical_layout_content_box_size = sizing_flow_axes.logical_size(layout_content_box_size);
+    let layout_gap = resolved_logical_layout_gap(
+        tree,
+        node,
+        style,
+        constants,
+        sizing_flow_axes,
+        logical_layout_content_box_size,
+        gap,
+    )?;
+    let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
+    let logical_available_inner_size =
+        sizing_flow_axes.logical_size(constants.available_inner_size);
+    let rerun_percent_columns = logical_node_inner_size.inline.is_none() && {
         column_tracks.iter().any(track_has_percent_sizing)
     };
     let (layout_column_min_intrinsic_sizes, layout_column_max_intrinsic_sizes) =
         if layout_gap != gap || rerun_percent_columns {
             let percent_basis = LogicalSizeOf::new(
-                rerun_percent_columns.then_some(layout_content_box_size.width),
+                rerun_percent_columns.then_some(logical_layout_content_box_size.inline),
                 None,
             );
             let intrinsic_grid = IntrinsicGrid {
@@ -1614,8 +1689,8 @@ where
         resolve_inline_tracks(InlineTrackInput {
             tracks: column_tracks,
             basis: column_basis,
-            definite_size: constants.node_inner_size.width,
-            available_size: constants.available_inner_size.width,
+            definite_size: logical_node_inner_size.inline,
+            available_size: logical_available_inner_size.inline,
             gap: layout_gap.inline,
             alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
             stretch_empty_auto_to_available: false,
@@ -1625,23 +1700,28 @@ where
     } else {
         columns.to_vec()
     };
-    let layout_columns =
-        resolved_layout_columns(constants, &layout_intrinsic_columns, output_size.width, {
+    let layout_columns = resolved_logical_layout_columns(
+        constants,
+        sizing_flow_axes,
+        &layout_intrinsic_columns,
+        sizing_flow_axes.logical_size(output_size).inline,
+        {
             InlineTrackInput {
                 tracks: column_tracks,
                 basis: column_basis,
-                definite_size: constants.node_inner_size.width,
-                available_size: constants.available_inner_size.width,
+                definite_size: logical_node_inner_size.inline,
+                available_size: logical_available_inner_size.inline,
                 gap: layout_gap.inline,
                 alignment: style.justify_content.unwrap_or(AlignContent::Stretch),
                 stretch_empty_auto_to_available: false,
                 min_intrinsic_sizes: &layout_column_min_intrinsic_sizes,
                 max_intrinsic_sizes: &layout_column_max_intrinsic_sizes,
             }
-        });
+        },
+    );
     let layout_row_intrinsic_sizes = if layout_columns != columns {
         let percent_basis = LogicalSizeOf::new(
-            rerun_percent_columns.then_some(layout_content_box_size.width),
+            rerun_percent_columns.then_some(logical_layout_content_box_size.inline),
             None,
         );
         let intrinsic_grid = IntrinsicGrid {
@@ -1672,11 +1752,12 @@ where
     } else {
         row_intrinsic_sizes.to_vec()
     };
-    let layout_rows = resolved_layout_rows(ResolvedLayoutRowsInput {
+    let layout_rows = resolved_logical_layout_rows(ResolvedLogicalLayoutRowsInput {
         tracks: row_tracks,
         constants,
+        sizing_flow_axes,
         intrinsic_rows: rows,
-        output_height: output_size.height,
+        output_block: sizing_flow_axes.logical_size(output_size).block,
         gap: layout_gap.block,
         alignment: style.align_content.unwrap_or(AlignContent::Stretch),
         intrinsic_sizes: &layout_row_intrinsic_sizes,
@@ -1763,6 +1844,34 @@ where
     Ok(LogicalSizeOf::new(gap.width, gap.height))
 }
 
+fn resolved_logical_layout_gap<Tree, M>(
+    tree: &Tree,
+    node: <Tree as Traverse>::Node,
+    style: &NodeInputOf<Tree::Scalar>,
+    constants: &Constants<Tree::Scalar>,
+    sizing_flow_axes: crate::geometry::FlowAxes,
+    content_box_size: LogicalSizeOf<Tree::Scalar>,
+    intrinsic_gap: LogicalSizeOf<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, LogicalSizeOf<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let physical_content_box_size = sizing_flow_axes.physical_size(content_box_size);
+    let physical_intrinsic_gap = sizing_flow_axes.physical_size(intrinsic_gap);
+    let gap = Size::new(
+        constants.node_inner_size.width.map_or_else(
+            || resolve_length_or_zero(style.gap.width, Some(physical_content_box_size.width)),
+            |_| Ok(physical_intrinsic_gap.width),
+        ),
+        constants.node_inner_size.height.map_or_else(
+            || resolve_length_or_zero(style.gap.height, Some(physical_content_box_size.height)),
+            |_| Ok(physical_intrinsic_gap.height),
+        ),
+    )
+    .transpose_with_node(tree, node)?;
+    Ok(sizing_flow_axes.logical_size(gap))
+}
+
 fn resolved_layout_columns<S: LayoutScalar>(
     constants: &Constants<S>,
     intrinsic_columns: &[S],
@@ -1770,10 +1879,7 @@ fn resolved_layout_columns<S: LayoutScalar>(
     input: InlineTrackInput<'_, S>,
 ) -> Vec<S> {
     if constants.node_inner_size.width.is_some()
-        || !input
-            .tracks
-            .iter()
-            .any(|track| track_needs_layout_width_resolution(track))
+        || !input.tracks.iter().any(track_needs_layout_resolution)
     {
         return intrinsic_columns.to_vec();
     }
@@ -1789,6 +1895,39 @@ fn resolved_layout_columns<S: LayoutScalar>(
         basis: Some(resolution_width),
         definite_size: Some(resolution_width),
         available_size: constants.available_inner_size.width,
+        ..input
+    })
+}
+
+fn resolved_logical_layout_columns<S: LayoutScalar>(
+    constants: &Constants<S>,
+    sizing_flow_axes: crate::geometry::FlowAxes,
+    intrinsic_columns: &[S],
+    output_inline: S,
+    input: InlineTrackInput<'_, S>,
+) -> Vec<S> {
+    let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
+    let logical_available_inner_size =
+        sizing_flow_axes.logical_size(constants.available_inner_size);
+    if logical_node_inner_size.inline.is_some()
+        || !input.tracks.iter().any(track_needs_layout_resolution)
+    {
+        return intrinsic_columns.to_vec();
+    }
+
+    let logical_content_box_inset_size =
+        sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
+    let content_inline = (output_inline - logical_content_box_inset_size.inline).max(S::ZERO);
+    let percent_sum = track_percent_sum(input.tracks);
+    let percent_floor_basis = logical_available_inner_size.inline.filter(|available| {
+        percent_sum > S::ZERO
+            && (content_inline - *available * percent_sum).abs() <= S::from_f64(0.001)
+    });
+    let resolution_inline = percent_floor_basis.unwrap_or(content_inline);
+    resolve_inline_tracks(InlineTrackInput {
+        basis: Some(resolution_inline),
+        definite_size: Some(resolution_inline),
+        available_size: logical_available_inner_size.inline,
         ..input
     })
 }
@@ -1814,9 +1953,7 @@ fn resolved_layout_rows<S: LayoutScalar>(input: ResolvedLayoutRowsInput<'_, S>) 
         intrinsic_sizes,
     } = input;
     if constants.node_inner_size.height.is_some()
-        || !tracks
-            .iter()
-            .any(|track| track_needs_layout_height_resolution(track))
+        || !tracks.iter().any(track_needs_layout_resolution)
     {
         return intrinsic_rows.to_vec();
     }
@@ -1831,11 +1968,43 @@ fn resolved_layout_rows<S: LayoutScalar>(input: ResolvedLayoutRowsInput<'_, S>) 
     )
 }
 
-fn track_needs_layout_width_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
-    track.depends_on_basis()
+struct ResolvedLogicalLayoutRowsInput<'a, S: LayoutScalar = Scalar> {
+    tracks: &'a [TrackSizingOf<S>],
+    constants: &'a Constants<S>,
+    sizing_flow_axes: crate::geometry::FlowAxes,
+    intrinsic_rows: &'a [S],
+    output_block: S,
+    gap: S,
+    alignment: AlignContent,
+    intrinsic_sizes: &'a [S],
 }
 
-fn track_needs_layout_height_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
+fn resolved_logical_layout_rows<S: LayoutScalar>(
+    input: ResolvedLogicalLayoutRowsInput<'_, S>,
+) -> Vec<S> {
+    let ResolvedLogicalLayoutRowsInput {
+        tracks,
+        constants,
+        sizing_flow_axes,
+        intrinsic_rows,
+        output_block,
+        gap,
+        alignment,
+        intrinsic_sizes,
+    } = input;
+    let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
+    if logical_node_inner_size.block.is_some() || !tracks.iter().any(track_needs_layout_resolution)
+    {
+        return intrinsic_rows.to_vec();
+    }
+
+    let logical_content_box_inset_size =
+        sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
+    let content_block = (output_block - logical_content_box_inset_size.block).max(S::ZERO);
+    resolve_tracks(tracks, Some(content_block), gap, alignment, intrinsic_sizes)
+}
+
+fn track_needs_layout_resolution<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
     track.depends_on_basis()
 }
 
@@ -1870,6 +2039,14 @@ struct Constants<S: LayoutScalar = Scalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
+    fn logical_node_inner_size(&self) -> LogicalSizeOf<Option<S>> {
+        self.flow_axes.logical_size(self.node_inner_size)
+    }
+
+    fn logical_available_inner_size(&self) -> LogicalSizeOf<Option<S>> {
+        self.flow_axes.logical_size(self.available_inner_size)
+    }
+
     fn new<Tree, M>(
         tree: &Tree,
         node: <Tree as Traverse>::Node,
