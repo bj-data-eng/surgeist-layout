@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use super::inline::{
     AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
-    InlineControlAlignment, InlineFlowOf, InlineParticipant, InlineRunInput, layout_inline_run,
+    InlineControlAlignment, InlineFlowOf, InlineParticipant, InlineRunInput, InlineRunReport,
+    layout_inline_run,
 };
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
@@ -15,7 +16,7 @@ use super::{
     Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
-use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalSide};
+use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
     scrollbar_size_from_overflow,
@@ -618,7 +619,7 @@ where
         LogicalSizeOf::new(inner_inline, constants.logical_node_inner_size().block);
     let node_inner_size = constants.flow_axes.physical_size(logical_node_inner_size);
     let mut cursor_block = constants.logical_content_box_inset().block_start;
-    let mut cursor_y = constants.content_box_inset.top;
+    let mut float_bfc_cursor_y = constants.content_box_inset.top;
     let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
@@ -678,7 +679,7 @@ where
 
                 let collapsed_margin = active_margin.resolve();
                 cursor_block = cursor_block + collapsed_margin;
-                cursor_y = cursor_y + collapsed_margin;
+                float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
                 if is_collapsing_first_margin {
                     is_collapsing_first_margin = false;
                 }
@@ -691,7 +692,7 @@ where
                     index,
                     InlineRunContext {
                         order_start: run_start as u32,
-                        cursor_y,
+                        cursor_block,
                         constants,
                         input,
                         node_inner_size,
@@ -706,31 +707,11 @@ where
                 scrollable_overflow
                     .include_rect(placement.scrollable_overflow)
                     .map_err(|error| block_child_scroll_error(node, child, error))?;
+                record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
                 static_positions.extend(placement.static_positions);
-                if let Some(baseline) = placement.first_baseline {
-                    let absolute_baseline = cursor_y + baseline;
-                    baselines.record_first(
-                        BaselinesOf::from_block_coordinates(
-                            constants.flow_axes,
-                            Some(absolute_baseline),
-                            None,
-                        )
-                        .first,
-                    );
-                }
-                if let Some(baseline) = placement.last_baseline {
-                    baselines.record_last(
-                        BaselinesOf::from_block_coordinates(
-                            constants.flow_axes,
-                            None,
-                            Some(cursor_y + baseline),
-                        )
-                        .last,
-                    );
-                }
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                cursor_y = cursor_y + placement.size.height;
+                float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -749,7 +730,7 @@ where
 
                 let collapsed_margin = active_margin.resolve();
                 cursor_block = cursor_block + collapsed_margin;
-                cursor_y = cursor_y + collapsed_margin;
+                float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
                 if is_collapsing_first_margin {
                     is_collapsing_first_margin = false;
                 }
@@ -762,7 +743,7 @@ where
                     index,
                     InlineRunContext {
                         order_start: run_start as u32,
-                        cursor_y,
+                        cursor_block,
                         constants,
                         input,
                         node_inner_size,
@@ -777,31 +758,11 @@ where
                 scrollable_overflow
                     .include_rect(placement.scrollable_overflow)
                     .map_err(|error| block_child_scroll_error(node, child, error))?;
+                record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
                 static_positions.extend(placement.static_positions);
-                if let Some(baseline) = placement.first_baseline {
-                    let absolute_baseline = cursor_y + baseline;
-                    baselines.record_first(
-                        BaselinesOf::from_block_coordinates(
-                            constants.flow_axes,
-                            Some(absolute_baseline),
-                            None,
-                        )
-                        .first,
-                    );
-                }
-                if let Some(baseline) = placement.last_baseline {
-                    baselines.record_last(
-                        BaselinesOf::from_block_coordinates(
-                            constants.flow_axes,
-                            None,
-                            Some(cursor_y + baseline),
-                        )
-                        .last,
-                    );
-                }
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                cursor_y = cursor_y + placement.size.height;
+                float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -819,7 +780,11 @@ where
         if child_style.position == Position::Absolute {
             static_positions.push((
                 child,
-                absolute_static_position(cursor_y + active_margin.resolve(), constants),
+                absolute_static_position(
+                    cursor_block + active_margin.resolve(),
+                    constants,
+                    constants.containing_size(logical_node_inner_size),
+                ),
             ));
             index += 1;
             continue;
@@ -831,7 +796,7 @@ where
 
             let collapsed_margin = active_margin.resolve();
             cursor_block = cursor_block + collapsed_margin;
-            cursor_y = cursor_y + collapsed_margin;
+            float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
             if is_collapsing_first_margin {
                 is_collapsing_first_margin = false;
             }
@@ -844,7 +809,7 @@ where
                 index,
                 InlineRunContext {
                     order_start: run_start as u32,
-                    cursor_y,
+                    cursor_block,
                     constants,
                     input,
                     node_inner_size,
@@ -858,30 +823,10 @@ where
             scrollable_overflow
                 .include_rect(placement.scrollable_overflow)
                 .map_err(|error| block_child_scroll_error(node, child, error))?;
+            record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
             static_positions.extend(placement.static_positions);
-            if let Some(baseline) = placement.first_baseline {
-                let absolute_baseline = cursor_y + baseline;
-                baselines.record_first(
-                    BaselinesOf::from_block_coordinates(
-                        constants.flow_axes,
-                        Some(absolute_baseline),
-                        None,
-                    )
-                    .first,
-                );
-            }
-            if let Some(baseline) = placement.last_baseline {
-                baselines.record_last(
-                    BaselinesOf::from_block_coordinates(
-                        constants.flow_axes,
-                        None,
-                        Some(cursor_y + baseline),
-                    )
-                    .last,
-                );
-            }
             cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
-            cursor_y = cursor_y + placement.size.height;
+            float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
             active_margin = CollapsibleMarginOf::<S>::ZERO;
             active_margin_can_collapse_with_parent = false;
             all_in_flow_children_can_collapse_through = false;
@@ -978,7 +923,7 @@ where
                 order: order as u32,
                 side: child_style.float,
                 clear: child_style.clear,
-                y: cursor_y,
+                y: float_bfc_cursor_y,
                 size: output.size,
                 content_size: output.content_size,
                 scrollbar_size: child_scrollbar_size(&child_style),
@@ -989,7 +934,7 @@ where
                 scrollable_overflow: float_parent_overflow,
                 child_compute_geometry: output.scroll_geometry,
             };
-            let float_location = float_exclusions.place_float(&pending_float, cursor_y);
+            let float_location = float_exclusions.place_float(&pending_float, float_bfc_cursor_y);
             scrollable_overflow
                 .include_child(
                     float_location,
@@ -1020,14 +965,15 @@ where
             continue;
         }
         let inset_offset = relative_inset_offset(
-            child_style
-                .inset
-                .zip_size(
-                    Size::new(node_inner_size.width, Some(S::ZERO)),
+            constants
+                .flow_axes
+                .zip_physical_edges_with_inline_extent(
+                    child_style.inset,
+                    node_inner_size,
                     |length, basis| resolve_auto_optional(length, basis),
                 )
                 .transpose_with_node(tree, child)?,
-            constants.direction,
+            constants.flow_axes,
         );
         let top_margin_set = output
             .block_margin_collapse
@@ -1060,20 +1006,12 @@ where
             active_margin.collapse_with(top_margin_set).resolve()
         };
         cursor_block = cursor_block + collapsed_margin;
-        cursor_y = cursor_y + collapsed_margin;
+        float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
         let logical_location = LogicalPointOf::new(
             in_flow_child_inline_offset(logical_child_size, logical_child_margin, constants),
             cursor_block,
         );
-        let containing_size =
-            constants
-                .node_outer_size
-                .unwrap_or(constants.flow_axes.physical_size(LogicalSizeOf::new(
-                    logical_node_inner_size.inline.unwrap_or(S::ZERO)
-                        + constants.logical_content_box_inset().inline_sum(),
-                    logical_node_inner_size.block.unwrap_or(S::ZERO)
-                        + constants.logical_content_box_inset().block_sum(),
-                )));
+        let containing_size = constants.containing_size(logical_node_inner_size);
         let logical_fallback_location = constants.flow_axes.physical_point(
             logical_location,
             logical_child_size,
@@ -1087,7 +1025,7 @@ where
             || child_style.overflow.y.blocks_margin_collapse();
         let location = if establishes_bfc {
             let placement = float_exclusions.place_bfc_block(
-                cursor_y,
+                float_bfc_cursor_y,
                 output.size,
                 child_margin,
                 child_style.clear,
@@ -1097,7 +1035,8 @@ where
         } else if child_style.clear != Clear::None {
             Point::new(
                 fallback_location.x,
-                float_exclusions.clearance_y(cursor_y, child_style.clear) + inset_offset.y,
+                float_exclusions.clearance_y(float_bfc_cursor_y, child_style.clear)
+                    + inset_offset.y,
             )
         } else {
             fallback_location
@@ -1129,7 +1068,6 @@ where
             );
         }
 
-        let child_bottom = (location.y - inset_offset.y) + output.size.height;
         let child_block_end = if establishes_bfc || child_style.clear != Clear::None {
             constants
                 .flow_axes
@@ -1139,6 +1077,7 @@ where
         } else {
             logical_location.block + logical_child_size.block
         };
+        let child_physical_bottom = (location.y - inset_offset.y) + output.size.height;
         let contribution = content_size_contribution(
             Point::new(
                 location.x - constants.content_box_inset.left,
@@ -1193,10 +1132,10 @@ where
             } else {
                 child_block_end
             };
-            cursor_y = if child_style.clear == Clear::None {
-                cursor_y + output.size.height
+            float_bfc_cursor_y = if child_style.clear == Clear::None {
+                float_bfc_cursor_y + output.size.height
             } else {
-                child_bottom
+                child_physical_bottom
             };
             active_margin = active_margin
                 .collapse_with(top_margin_set)
@@ -1205,7 +1144,7 @@ where
         } else {
             all_in_flow_children_can_collapse_through = false;
             cursor_block = child_block_end;
-            cursor_y = child_bottom;
+            float_bfc_cursor_y = child_physical_bottom;
             active_margin = bottom_margin_set;
             active_margin_can_collapse_with_parent = child_margin_can_collapse_with_parent;
         }
@@ -1231,13 +1170,14 @@ struct InlineRunPlacement<Node, S: LayoutScalar> {
     content_size: Size<S>,
     scrollable_overflow: super::ScrollRectOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
+    baselines: BaselinesOf<S>,
     first_baseline: Option<S>,
     last_baseline: Option<S>,
 }
 
 struct InlineRunContext<'a, S: LayoutScalar> {
     order_start: u32,
-    cursor_y: S,
+    cursor_block: S,
     constants: &'a Constants<S>,
     input: ComputeInputOf<S>,
     node_inner_size: Size<Option<S>>,
@@ -1246,7 +1186,7 @@ struct InlineRunContext<'a, S: LayoutScalar> {
 
 struct InlineSegmentsContext<'a, S: LayoutScalar> {
     order_start: u32,
-    cursor_y: S,
+    cursor_block: S,
     constants: &'a Constants<S>,
     input: ComputeInputOf<S>,
     node_inner_size: Size<Option<S>>,
@@ -1319,7 +1259,7 @@ where
 {
     let InlineSegmentsContext {
         order_start,
-        mut cursor_y,
+        mut cursor_block,
         constants,
         input,
         node_inner_size,
@@ -1330,7 +1270,7 @@ where
     let mut static_positions = Vec::new();
     let mut first_baseline = None;
     let mut last_baseline = None;
-    let start_y = cursor_y;
+    let start_y = cursor_block;
     let mut scrollable_overflow: Option<super::ScrollRectOf<S>> = None;
 
     while offset < run.len() {
@@ -1351,14 +1291,14 @@ where
                 &run[offset..candidate.end],
                 InlineRunContext {
                     order_start: order_start + offset as u32,
-                    cursor_y,
+                    cursor_block,
                     constants,
                     input,
                     node_inner_size,
                     set_layout: false,
                 },
             )?;
-            let segment_bottom = cursor_y + probe.size.height;
+            let segment_bottom = cursor_block + probe.size.height;
             if float_exclusions.clearance_y(segment_bottom, candidate.clear) > segment_bottom {
                 segment_end = candidate.end;
                 segment_clear = candidate.clear;
@@ -1373,7 +1313,7 @@ where
             &run[offset..segment_end],
             InlineRunContext {
                 order_start: order_start + offset as u32,
-                cursor_y,
+                cursor_block,
                 constants,
                 input,
                 node_inner_size,
@@ -1400,18 +1340,18 @@ where
         });
         static_positions.extend(placement.static_positions);
         if let Some(baseline) = placement.first_baseline {
-            first_baseline.get_or_insert(cursor_y - start_y + baseline);
+            first_baseline.get_or_insert(cursor_block - start_y + baseline);
         }
         if let Some(baseline) = placement.last_baseline {
-            last_baseline = Some(cursor_y - start_y + baseline);
+            last_baseline = Some(cursor_block - start_y + baseline);
         }
 
-        cursor_y = cursor_y + placement.size.height;
+        cursor_block = cursor_block + placement.size.height;
         if segment_clear != Clear::None {
-            cursor_y = float_exclusions.clearance_y(cursor_y, segment_clear);
+            cursor_block = float_exclusions.clearance_y(cursor_block, segment_clear);
             content_size.height = content_size
                 .height
-                .max(cursor_y - constants.content_box_inset.top);
+                .max(cursor_block - constants.content_box_inset.top);
         }
         offset = segment_end;
     }
@@ -1426,10 +1366,11 @@ where
     };
 
     Ok(InlineRunPlacement {
-        size: Size::new(content_size.width, cursor_y - start_y),
+        size: Size::new(content_size.width, cursor_block - start_y),
         content_size,
         scrollable_overflow,
         static_positions,
+        baselines: BaselinesOf::NONE,
         first_baseline,
         last_baseline,
     })
@@ -1458,7 +1399,7 @@ where
         &children[run_start..run_end],
         InlineSegmentsContext {
             order_start: context.order_start,
-            cursor_y: context.cursor_y,
+            cursor_block: context.cursor_block,
             constants: context.constants,
             input: context.input,
             node_inner_size: context.node_inner_size,
@@ -1480,12 +1421,18 @@ where
 {
     let InlineRunContext {
         order_start,
-        cursor_y,
+        cursor_block,
         constants,
         input,
         node_inner_size,
         set_layout,
     } = context;
+    let logical_node_inner_size = constants.flow_axes.logical_size(node_inner_size);
+    let available_inline_extent = logical_node_inner_size
+        .inline
+        .map(AvailableOf::<S>::definite)
+        .unwrap_or(constants.flow_axes.logical_size(input.available()).inline);
+    let containing_size = constants.containing_size(logical_node_inner_size);
     let mut items = Vec::with_capacity(run.len());
     let mut run_children = Vec::with_capacity(run.len());
     let mut static_positions = Vec::new();
@@ -1510,14 +1457,7 @@ where
 
                 run_children.push(InlineRunChild::LineBreak { child, order });
                 items.push(InlineParticipant::forced_line_break(
-                    forced_line_break_control(
-                        order,
-                        line_break,
-                        node_inner_size
-                            .width
-                            .map(AvailableOf::<S>::definite)
-                            .unwrap_or(input.available().width),
-                    ),
+                    forced_line_break_control(order, line_break, available_inline_extent),
                 ));
                 continue;
             }
@@ -1534,10 +1474,7 @@ where
                 items.push(InlineParticipant::inline_boundary(inline_boundary_control(
                     order,
                     boundary,
-                    node_inner_size
-                        .width
-                        .map(AvailableOf::<S>::definite)
-                        .unwrap_or(input.available().width),
+                    available_inline_extent,
                 )));
                 continue;
             }
@@ -1550,7 +1487,10 @@ where
             continue;
         }
         if child_style.position == Position::Absolute {
-            static_positions.push((child, absolute_static_position(cursor_y, constants)));
+            static_positions.push((
+                child,
+                absolute_static_position(cursor_block, constants, containing_size),
+            ));
             continue;
         }
         let child_padding = constants
@@ -1576,15 +1516,14 @@ where
                 SizingMode::InherentSize,
                 RequestedAxis::Both,
                 Size::NONE,
-                Size::new(node_inner_size.width, None),
+                constants
+                    .flow_axes
+                    .physical_size(LogicalSizeOf::new(logical_node_inner_size.inline, None)),
                 constants.flow_axes,
-                Size::new(
-                    node_inner_size
-                        .width
-                        .map(AvailableOf::<S>::definite)
-                        .unwrap_or(input.available().width),
+                constants.flow_axes.physical_size(LogicalSizeOf::new(
+                    available_inline_extent,
                     AvailableOf::<S>::MAX_CONTENT,
-                ),
+                )),
             ),
         )?;
         let unresolved_margin = constants
@@ -1626,17 +1565,31 @@ where
     }
 
     let report = layout_inline_run(InlineRunInput {
-        available_width: node_inner_size
-            .width
-            .map(AvailableOf::<S>::definite)
-            .unwrap_or(input.available().width),
+        available_width: available_inline_extent,
         writing_mode: constants.writing_mode,
         direction: constants.direction,
         items,
     });
-    let run_offset = inline_run_offset(report.size.width, constants, node_inner_size.width);
+    let run_offset = inline_run_offset(
+        constants.flow_axes.logical_size(report.size).inline,
+        constants,
+        logical_node_inner_size.inline,
+    );
+    let logical_content_box_inset = constants.logical_content_box_inset();
+    let report_location = project_inline_report_item(
+        Point::ZERO,
+        report.size,
+        report.size,
+        cursor_block,
+        logical_content_box_inset.inline_start + run_offset,
+        constants,
+        containing_size,
+    );
     let mut content_size = content_size_contribution(
-        Point::new(run_offset, cursor_y - constants.content_box_inset.top),
+        Point::new(
+            report_location.x - constants.content_box_inset.left,
+            report_location.y - constants.content_box_inset.top,
+        ),
         report.size,
         report.content_size,
         Point::new(Overflow::Visible, Overflow::Visible),
@@ -1664,14 +1617,15 @@ where
             } => {
                 let item = report_items_by_order[order];
                 let inset_offset = relative_inset_offset(
-                    child_style
-                        .inset
-                        .zip_size(
-                            Size::new(node_inner_size.width, Some(S::ZERO)),
+                    constants
+                        .flow_axes
+                        .zip_physical_edges_with_inline_extent(
+                            child_style.inset,
+                            node_inner_size,
                             |length, basis| resolve_auto_optional(length, basis),
                         )
                         .transpose_with_node(tree, *child)?,
-                    constants.direction,
+                    constants.flow_axes,
                 );
                 let run_child_location = Point::new(
                     item.location.x + inset_offset.x,
@@ -1689,12 +1643,24 @@ where
                 run_scrollable_overflow
                     .include_translated_child_overflow(run_child_location, child_overflow)
                     .map_err(|error| block_child_scroll_error(container, *child, error))?;
+                let projected_location = project_inline_report_item(
+                    item.location,
+                    item.size,
+                    report.size,
+                    cursor_block,
+                    logical_content_box_inset.inline_start + run_offset,
+                    constants,
+                    containing_size,
+                );
                 let location = Point::new(
-                    run_offset + item.location.x + inset_offset.x,
-                    cursor_y + item.location.y + inset_offset.y - constants.content_box_inset.top,
+                    projected_location.x + inset_offset.x,
+                    projected_location.y + inset_offset.y,
                 );
                 let contribution = content_size_contribution(
-                    location,
+                    Point::new(
+                        location.x - constants.content_box_inset.left,
+                        location.y - constants.content_box_inset.top,
+                    ),
                     item.size,
                     output.content_size,
                     child_style.overflow,
@@ -1706,13 +1672,7 @@ where
                         *child,
                         NodeOutputOf::<S> {
                             order: item.order,
-                            location: Point::new(
-                                constants.content_box_inset.left
-                                    + run_offset
-                                    + item.location.x
-                                    + inset_offset.x,
-                                cursor_y + item.location.y + inset_offset.y,
-                            ),
+                            location,
                             size: item.size,
                             content_size: item.content_size,
                             scroll_geometry: Some(
@@ -1743,9 +1703,14 @@ where
                         *child,
                         NodeOutputOf::<S> {
                             order: item.order,
-                            location: Point::new(
-                                constants.content_box_inset.left + run_offset + item.location.x,
-                                cursor_y + item.location.y,
+                            location: project_inline_report_item(
+                                item.location,
+                                Size::ZERO,
+                                report.size,
+                                cursor_block,
+                                logical_content_box_inset.inline_start + run_offset,
+                                constants,
+                                containing_size,
                             ),
                             size: Size::ZERO,
                             content_size: Size::ZERO,
@@ -1765,9 +1730,14 @@ where
                         *child,
                         NodeOutputOf::<S> {
                             order: item.order,
-                            location: Point::new(
-                                constants.content_box_inset.left + run_offset + item.location.x,
-                                cursor_y + item.location.y,
+                            location: project_inline_report_item(
+                                item.location,
+                                Size::ZERO,
+                                report.size,
+                                cursor_block,
+                                logical_content_box_inset.inline_start + run_offset,
+                                constants,
+                                containing_size,
                             ),
                             size: Size::ZERO,
                             content_size: Size::ZERO,
@@ -1788,42 +1758,159 @@ where
         content_size,
         scrollable_overflow: translate_scroll_rect(
             run_scrollable_overflow.finish(),
-            Point::new(constants.content_box_inset.left + run_offset, cursor_y),
+            report_location,
         )
         .map_err(|error| {
             block_inline_scroll_error(container, inline_subject, input.run_mode(), error)
         })?,
         static_positions,
+        baselines: inline_report_baselines(
+            &report,
+            cursor_block,
+            logical_content_box_inset.inline_start + run_offset,
+            constants,
+            containing_size,
+        ),
         first_baseline: report.first_baseline,
         last_baseline: report.last_baseline,
     })
 }
 
-fn inline_run_offset<S: LayoutScalar>(
-    run_width: S,
+fn project_inline_report_item<S: LayoutScalar>(
+    report_location: Point<S>,
+    item_size: Size<S>,
+    report_size: Size<S>,
+    cursor_block: S,
+    inline_start: S,
     constants: &Constants<S>,
-    resolved_inner_width: Option<S>,
+    containing_size: Size<S>,
+) -> Point<S> {
+    let flow_axes = constants.flow_axes;
+    let local = flow_axes.logical_point(report_location, item_size, report_size);
+    flow_axes.physical_point(
+        LogicalPointOf::new(inline_start + local.inline, cursor_block + local.block),
+        flow_axes.logical_size(item_size),
+        containing_size,
+    )
+}
+
+fn inline_report_baselines<S: LayoutScalar>(
+    report: &InlineRunReport<S>,
+    cursor_block: S,
+    inline_start: S,
+    constants: &Constants<S>,
+    containing_size: Size<S>,
+) -> BaselinesOf<S> {
+    let flow_axes = constants.flow_axes;
+    if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
+        return BaselinesOf::NONE;
+    }
+
+    let mut block_start = None;
+    let mut block_end = None;
+    for item in &report.items {
+        let origin = flow_axes.logical_point(item.location, item.size, report.size);
+        let end = origin.block + flow_axes.logical_size(item.size).block;
+        block_start =
+            Some(block_start.map_or(origin.block, |current: S| current.min(origin.block)));
+        block_end = Some(block_end.map_or(end, |current: S| current.max(end)));
+    }
+    let (Some(block_start), Some(block_end)) = (block_start, block_end) else {
+        return BaselinesOf::NONE;
+    };
+
+    let block_coordinate = |side| {
+        let logical_block = if side == flow_axes.block_start() {
+            cursor_block + block_start
+        } else {
+            cursor_block + block_end
+        };
+        flow_axes.block_axis_coordinate(flow_axes.physical_point(
+            LogicalPointOf::new(inline_start, logical_block),
+            LogicalSizeOf::new(S::ZERO, S::ZERO),
+            containing_size,
+        ))
+    };
+
+    BaselinesOf::from_block_coordinates(
+        flow_axes,
+        Some(block_coordinate(flow_axes.line_under())),
+        Some(block_coordinate(flow_axes.line_over())),
+    )
+}
+
+fn record_inline_run_baselines<S: LayoutScalar>(
+    baselines: &mut BaselinesOf<S>,
+    placement: &InlineRunPlacement<impl Copy, S>,
+    cursor_block: S,
+    constants: &Constants<S>,
+) {
+    if constants.flow_axes.inline_axis() == PhysicalAxis::Vertical {
+        baselines.record_first(placement.baselines.first);
+        baselines.record_last(placement.baselines.last);
+        return;
+    }
+
+    if let Some(baseline) = placement.first_baseline {
+        baselines.record_first(
+            BaselinesOf::from_block_coordinates(
+                constants.flow_axes,
+                Some(cursor_block + baseline),
+                None,
+            )
+            .first,
+        );
+    }
+    if let Some(baseline) = placement.last_baseline {
+        baselines.record_last(
+            BaselinesOf::from_block_coordinates(
+                constants.flow_axes,
+                None,
+                Some(cursor_block + baseline),
+            )
+            .last,
+        );
+    }
+}
+
+fn inline_run_offset<S: LayoutScalar>(
+    run_inline: S,
+    constants: &Constants<S>,
+    resolved_inner_inline: Option<S>,
 ) -> S {
-    let container_inner_width = constants
-        .node_inner_size
-        .width
-        .or(resolved_inner_width)
+    let logical_content_box_inset = constants.logical_content_box_inset();
+    let container_inner_inline = constants
+        .logical_node_inner_size()
+        .inline
+        .or(resolved_inner_inline)
         .or_else(|| {
             constants
-                .node_outer_size
-                .width
-                .map(|width| width - constants.content_box_inset.horizontal_sum())
+                .logical_node_outer_size()
+                .inline
+                .map(|inline| inline - logical_content_box_inset.inline_sum())
         })
-        .unwrap_or(run_width);
-    let free_space = (container_inner_width - run_width).max(S::ZERO);
-    match (constants.text_align, constants.direction) {
-        (TextAlign::Auto, Direction::Ltr)
-        | (TextAlign::LegacyLeft, Direction::Ltr)
-        | (TextAlign::LegacyLeft, Direction::Rtl) => S::ZERO,
-        (TextAlign::Auto, Direction::Rtl)
-        | (TextAlign::LegacyRight, Direction::Ltr)
-        | (TextAlign::LegacyRight, Direction::Rtl) => free_space,
-        (TextAlign::LegacyCenter, _) => free_space / S::from_f64(2.0),
+        .unwrap_or(run_inline);
+    let free_space = (container_inner_inline - run_inline).max(S::ZERO);
+    match constants.text_align {
+        TextAlign::Auto => S::ZERO,
+        TextAlign::LegacyLeft
+            if constants
+                .flow_axes
+                .logical_axis_progression(crate::LogicalAxis::Inline)
+                .is_decreasing() =>
+        {
+            free_space
+        }
+        TextAlign::LegacyRight
+            if !constants
+                .flow_axes
+                .logical_axis_progression(crate::LogicalAxis::Inline)
+                .is_decreasing() =>
+        {
+            free_space
+        }
+        TextAlign::LegacyCenter => free_space / S::from_f64(2.0),
+        TextAlign::LegacyLeft | TextAlign::LegacyRight => S::ZERO,
     }
 }
 
@@ -2011,25 +2098,23 @@ fn in_flow_child_available_inline<S: LayoutScalar>(
 
 fn relative_inset_offset<S: LayoutScalar>(
     inset: Edges<Option<S>>,
-    direction: Direction,
+    flow_axes: crate::geometry::FlowAxes,
 ) -> Point<S> {
-    Point::new(
-        if direction == Direction::Rtl {
-            inset
-                .right
-                .map(|right| -right)
-                .or(inset.left)
-                .unwrap_or(S::ZERO)
-        } else {
-            inset
-                .left
-                .or_else(|| inset.right.map(|right| -right))
-                .unwrap_or(S::ZERO)
-        },
-        inset
-            .top
-            .or_else(|| inset.bottom.map(|bottom| -bottom))
+    let logical_inset = flow_axes.logical_edges(inset);
+    let logical_offset = LogicalPointOf::new(
+        logical_inset
+            .inline_start
+            .or_else(|| logical_inset.inline_end.map(|end| -end))
             .unwrap_or(S::ZERO),
+        logical_inset
+            .block_start
+            .or_else(|| logical_inset.block_end.map(|end| -end))
+            .unwrap_or(S::ZERO),
+    );
+    flow_axes.physical_point(
+        logical_offset,
+        LogicalSizeOf::new(S::ZERO, S::ZERO),
+        Size::ZERO,
     )
 }
 
@@ -2126,16 +2211,19 @@ fn in_flow_child_inline_offset<S: LayoutScalar>(
     inline
 }
 
-fn absolute_static_position<S: LayoutScalar>(cursor_y: S, constants: &Constants<S>) -> Point<S> {
-    let container = constants
-        .node_outer_size
-        .unwrap_or(constants.node_inner_size.unwrap_or(Size::ZERO));
-    let x = if constants.direction == Direction::Rtl {
-        container.width - constants.content_box_inset.right
-    } else {
-        constants.content_box_inset.left
-    };
-    Point::new(x, cursor_y)
+fn absolute_static_position<S: LayoutScalar>(
+    cursor_block: S,
+    constants: &Constants<S>,
+    containing_size: Size<S>,
+) -> Point<S> {
+    constants.flow_axes.physical_point(
+        LogicalPointOf::new(
+            constants.logical_content_box_inset().inline_start,
+            cursor_block,
+        ),
+        LogicalSizeOf::new(S::ZERO, S::ZERO),
+        containing_size,
+    )
 }
 
 fn content_size_contribution<S: LayoutScalar>(
@@ -2637,20 +2725,28 @@ where
             .clamp_optional(min_size, max_size);
         let margin =
             resolve_absolute_margin(unresolved_margin, inset, style_size, final_size, area_size);
-        let mut static_position = static_positions
+        let static_position = static_positions
             .iter()
             .find_map(|(node, position)| (*node == child).then_some(*position))
             .unwrap_or_else(|| {
-                absolute_static_position(constants.content_box_inset.top, constants)
+                absolute_static_position(
+                    constants.logical_content_box_inset().block_start,
+                    constants,
+                    container,
+                )
             });
-        if constants.direction == Direction::Rtl && inset.left.is_none() && inset.right.is_none() {
-            static_position.x = container.width - constants.content_box_inset.right;
-        }
+        let static_x_direction =
+            static_axis_direction(constants.flow_axes, PhysicalAxis::Horizontal);
+        let static_y_direction = static_axis_direction(constants.flow_axes, PhysicalAxis::Vertical);
         let location = Point::new(
             AbsoluteAxis {
                 start: inset.left,
                 end: inset.right,
-                direction: constants.direction,
+                direction: if inset.left.is_none() && inset.right.is_none() {
+                    static_x_direction
+                } else {
+                    constants.direction
+                },
                 area_start: area_offset.x,
                 area_size: area_size.width,
                 size: final_size.width,
@@ -2662,7 +2758,11 @@ where
             AbsoluteAxis {
                 start: inset.top,
                 end: inset.bottom,
-                direction: Direction::Ltr,
+                direction: if inset.top.is_none() && inset.bottom.is_none() {
+                    static_y_direction
+                } else {
+                    Direction::Ltr
+                },
                 area_start: area_offset.y,
                 area_size: area_size.height,
                 size: final_size.height,
@@ -2743,6 +2843,19 @@ where
         content_size: absolute_content_size,
         scrollable_overflow: absolute_scrollable_overflow,
     })
+}
+
+fn static_axis_direction(flow_axes: crate::geometry::FlowAxes, axis: PhysicalAxis) -> Direction {
+    let start = if flow_axes.inline_axis() == axis {
+        flow_axes.inline_start()
+    } else {
+        flow_axes.block_start()
+    };
+    if matches!(start, PhysicalSide::Right | PhysicalSide::Bottom) {
+        Direction::Rtl
+    } else {
+        Direction::Ltr
+    }
 }
 
 struct AbsoluteAxis<S: LayoutScalar> {
@@ -2914,6 +3027,15 @@ impl<S: LayoutScalar> Constants<S> {
 
     fn logical_content_box_inset(&self) -> LogicalEdgesOf<S> {
         self.flow_axes.logical_edges(self.content_box_inset)
+    }
+
+    fn containing_size(&self, inner_size: LogicalSizeOf<Option<S>>) -> Size<S> {
+        self.node_outer_size
+            .unwrap_or(self.flow_axes.physical_size(LogicalSizeOf::new(
+                inner_size.inline.unwrap_or(S::ZERO)
+                    + self.logical_content_box_inset().inline_sum(),
+                inner_size.block.unwrap_or(S::ZERO) + self.logical_content_box_inset().block_sum(),
+            )))
     }
 
     fn with_logical_node_inner_size(mut self, inner_size: LogicalSizeOf<Option<S>>) -> Self {

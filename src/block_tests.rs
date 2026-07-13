@@ -291,6 +291,555 @@ fn ordinary_block_flow_uses_logical_block_progression_for_f64() {
     );
 }
 
+fn all_writing_mode_directions() -> [(WritingMode, Direction); 10] {
+    [
+        (WritingMode::HorizontalTb, Direction::Ltr),
+        (WritingMode::HorizontalTb, Direction::Rtl),
+        (WritingMode::VerticalRl, Direction::Ltr),
+        (WritingMode::VerticalRl, Direction::Rtl),
+        (WritingMode::VerticalLr, Direction::Ltr),
+        (WritingMode::VerticalLr, Direction::Rtl),
+        (WritingMode::SidewaysRl, Direction::Ltr),
+        (WritingMode::SidewaysRl, Direction::Rtl),
+        (WritingMode::SidewaysLr, Direction::Ltr),
+        (WritingMode::SidewaysLr, Direction::Rtl),
+    ]
+}
+
+fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
+    let scalar = scalar_value::<S>;
+    let container_size = Size::new(scalar(100.0), scalar(100.0));
+    let child_logical_size = crate::geometry::LogicalSizeOf::new(scalar(20.0), scalar(10.0));
+
+    for (writing_mode, direction) in all_writing_mode_directions() {
+        let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+        let child_size = flow_axes.physical_size(child_logical_size);
+        let relative_inset = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            LengthAutoOf::px(scalar(3.0)),
+            LengthAutoOf::AUTO,
+            LengthAutoOf::px(scalar(5.0)),
+            LengthAutoOf::AUTO,
+        ));
+        let relative_expected = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(scalar(3.0), scalar(5.0)),
+            child_logical_size,
+            container_size,
+        );
+        let relative_tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::new(
+                        DimensionOf::px(scalar(100.0)),
+                        DimensionOf::px(scalar(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    position: Position::Relative,
+                    size: child_size.map(DimensionOf::px),
+                    inset: relative_inset,
+                    ..NodeInputOf::default()
+                },
+            );
+        let request =
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid");
+        let relative =
+            compute_layout(&relative_tree, 0, request).expect("relative block layout succeeds");
+
+        assert_eq!(
+            public_final_output(&relative, 1).location,
+            relative_expected
+        );
+
+        let inline_expected = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(S::ZERO, scalar(10.0)),
+            child_logical_size,
+            container_size,
+        );
+        let inline_tree = PublicBlockTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::new(
+                        DimensionOf::px(scalar(100.0)),
+                        DimensionOf::px(scalar(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: child_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::InlineBlock,
+                    writing_mode,
+                    direction,
+                    size: child_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            );
+        let request =
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid");
+        let inline =
+            compute_layout(&inline_tree, 0, request).expect("inline block layout succeeds");
+
+        assert_eq!(public_final_output(&inline, 2).location, inline_expected);
+
+        let static_expected = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(S::ZERO, scalar(10.0)),
+            child_logical_size,
+            container_size,
+        );
+        let static_tree = PublicBlockTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::new(
+                        DimensionOf::px(scalar(100.0)),
+                        DimensionOf::px(scalar(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: child_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    position: Position::Absolute,
+                    size: child_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            );
+        let request =
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid");
+        let static_position =
+            compute_layout(&static_tree, 0, request).expect("static fallback layout succeeds");
+
+        assert_eq!(
+            public_final_output(&static_position, 2).location,
+            static_expected
+        );
+    }
+}
+
+#[test]
+fn ordinary_block_boundaries_project_through_containing_flow_for_f32() {
+    assert_ordinary_block_boundaries::<f32>();
+}
+
+#[test]
+fn ordinary_block_boundaries_project_through_containing_flow_for_f64() {
+    assert_ordinary_block_boundaries::<f64>();
+}
+
+fn inline_run_baseline_point<S: LayoutScalar>(
+    flow_axes: crate::geometry::FlowAxes,
+    location: Point<S>,
+    size: Size<S>,
+    side: crate::PhysicalSide,
+) -> Point<Option<S>> {
+    let coordinate = match side {
+        crate::PhysicalSide::Top | crate::PhysicalSide::Left => S::ZERO,
+        crate::PhysicalSide::Right => size.width,
+        crate::PhysicalSide::Bottom => size.height,
+    };
+    match flow_axes.block_axis() {
+        crate::PhysicalAxis::Horizontal => Point::new(Some(location.x + coordinate), None),
+        crate::PhysicalAxis::Vertical => Point::new(None, Some(location.y + coordinate)),
+    }
+}
+
+fn assert_ordinary_block_boundary_baselines<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let container_size = Size::new(S::from_f64(100.0), S::from_f64(100.0));
+    let logical_size = crate::geometry::LogicalSizeOf::new(S::from_f64(20.0), S::from_f64(10.0));
+
+    for (writing_mode, direction) in all_writing_mode_directions() {
+        let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+        let child_size = flow_axes.physical_size(logical_size);
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [1, 2])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(100.0)),
+                        DimensionOf::px(S::from_f64(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: child_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    display: Display::InlineBlock,
+                    writing_mode,
+                    direction,
+                    size: child_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            );
+        let output = crate::compute_block(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                container_size.map(Some),
+                flow_axes,
+                Size::splat(AvailableOf::definite(S::from_f64(100.0))),
+            ),
+        )
+        .expect("block layout succeeds");
+
+        let (expected_first, expected_last) = if flow_axes.block_axis()
+            == crate::PhysicalAxis::Horizontal
+        {
+            let location = flow_axes.physical_point(
+                crate::geometry::LogicalPointOf::new(S::ZERO, S::from_f64(10.0)),
+                logical_size,
+                container_size,
+            );
+            (
+                inline_run_baseline_point(flow_axes, location, child_size, flow_axes.line_under()),
+                inline_run_baseline_point(flow_axes, location, child_size, flow_axes.line_over()),
+            )
+        } else {
+            let baseline = Some(S::from_f64(20.0));
+            (Point::new(None, baseline), Point::new(None, baseline))
+        };
+        assert_eq!(output.first_baselines, expected_first);
+        assert_eq!(output.last_baselines, expected_last);
+    }
+}
+
+#[test]
+fn ordinary_block_boundaries_project_inline_baselines_for_f32() {
+    assert_ordinary_block_boundary_baselines::<f32>();
+}
+
+#[test]
+fn ordinary_block_boundaries_project_inline_baselines_for_f64() {
+    assert_ordinary_block_boundary_baselines::<f64>();
+}
+
+fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
+    let scalar = scalar_value::<S>;
+    let root_size = Size::new(scalar(40.0), scalar(100.0));
+
+    for (writing_mode, direction) in all_writing_mode_directions()
+        .into_iter()
+        .filter(|(writing_mode, _)| *writing_mode != WritingMode::HorizontalTb)
+    {
+        let (expected_content_size, expected_scrollable_overflow) = match writing_mode {
+            WritingMode::VerticalRl | WritingMode::SidewaysRl => (
+                Size::new(scalar(100.0), scalar(60.0)),
+                ScrollRectOf::new(
+                    Point::new(scalar(-60.0), S::ZERO),
+                    Size::new(scalar(160.0), scalar(100.0)),
+                )
+                .expect("finite expected overflow rectangle"),
+            ),
+            WritingMode::VerticalLr | WritingMode::SidewaysLr => (
+                Size::new(scalar(20.0), scalar(60.0)),
+                ScrollRectOf::new(Point::ZERO, Size::splat(scalar(100.0)))
+                    .expect("finite expected overflow rectangle"),
+            ),
+            WritingMode::HorizontalTb => unreachable!("horizontal flow is filtered above"),
+        };
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    text_align: TextAlign::LegacyCenter,
+                    overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                    size: root_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::InlineBlock,
+                    writing_mode,
+                    direction,
+                    size: Size::splat(DimensionOf::px(scalar(20.0))),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid"),
+        )
+        .expect("inline run layout succeeds");
+        let root = public_final_output(&batch, 0);
+
+        assert_eq!(root.content_size, expected_content_size);
+        assert_eq!(
+            root.scroll_geometry
+                .expect("root always has scroll geometry")
+                .scrollable_overflow(),
+            expected_scrollable_overflow,
+        );
+    }
+}
+
+#[test]
+fn ordinary_block_boundaries_project_vertical_and_sideways_inline_report_overflow_for_f32() {
+    assert_ordinary_block_boundary_inline_report_overflow::<f32>();
+}
+
+#[test]
+fn ordinary_block_boundaries_project_vertical_and_sideways_inline_report_overflow_for_f64() {
+    assert_ordinary_block_boundary_inline_report_overflow::<f64>();
+}
+
+fn assert_ordinary_block_boundaries_keep_inline_content_coordinates<S: LayoutScalar>() {
+    let scalar = scalar_value::<S>;
+    let root_size = Size::new(scalar(50.0), scalar(50.0));
+    let padding = Edges::new(
+        LengthOf::px(scalar(2.0)),
+        LengthOf::px(scalar(3.0)),
+        LengthOf::px(scalar(5.0)),
+        LengthOf::px(scalar(7.0)),
+    );
+    let border = Edges::new(
+        LengthOf::px(scalar(1.0)),
+        LengthOf::px(scalar(2.0)),
+        LengthOf::px(scalar(3.0)),
+        LengthOf::px(scalar(4.0)),
+    );
+    let expected_content_size = Size::new(scalar(40.0), scalar(45.0));
+
+    for (writing_mode, direction) in all_writing_mode_directions() {
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                    size: root_size.map(DimensionOf::px),
+                    padding,
+                    border,
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::InlineBlock,
+                    writing_mode,
+                    direction,
+                    size: expected_content_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(50.0))))
+                .expect("finite viewport is valid"),
+        )
+        .expect("padded inline block layout succeeds");
+        let root = public_final_output(&batch, 0);
+        let expected_scrollable_overflow = match (writing_mode, direction) {
+            (WritingMode::HorizontalTb, Direction::Ltr) => {
+                ScrollRectOf::new(Point::new(scalar(11.0), scalar(3.0)), expected_content_size)
+            }
+            (WritingMode::HorizontalTb, Direction::Rtl)
+            | (WritingMode::VerticalRl, Direction::Ltr)
+            | (WritingMode::SidewaysRl, Direction::Ltr) => ScrollRectOf::new(
+                Point::new(scalar(5.0), scalar(3.0)),
+                Size::new(scalar(46.0), scalar(45.0)),
+            ),
+            (WritingMode::VerticalRl, Direction::Rtl)
+            | (WritingMode::SidewaysRl, Direction::Rtl) => ScrollRectOf::new(
+                Point::new(scalar(5.0), scalar(-3.0)),
+                Size::new(scalar(46.0), scalar(51.0)),
+            ),
+            (WritingMode::VerticalLr, Direction::Ltr)
+            | (WritingMode::SidewaysLr, Direction::Rtl) => ScrollRectOf::new(
+                Point::new(scalar(11.0), scalar(3.0)),
+                Size::new(scalar(45.0), scalar(45.0)),
+            ),
+            (WritingMode::VerticalLr, Direction::Rtl)
+            | (WritingMode::SidewaysLr, Direction::Ltr) => ScrollRectOf::new(
+                Point::new(scalar(11.0), scalar(-3.0)),
+                Size::new(scalar(45.0), scalar(51.0)),
+            ),
+        }
+        .expect("finite expected scrollable overflow");
+
+        assert_eq!(root.content_size, expected_content_size);
+        assert_eq!(
+            root.scroll_geometry
+                .expect("root always has scroll geometry")
+                .scrollable_overflow(),
+            expected_scrollable_overflow,
+        );
+    }
+}
+
+#[test]
+fn ordinary_block_boundaries_keep_padded_inline_content_coordinates_for_f32() {
+    assert_ordinary_block_boundaries_keep_inline_content_coordinates::<f32>();
+}
+
+#[test]
+fn ordinary_block_boundaries_keep_padded_inline_content_coordinates_for_f64() {
+    assert_ordinary_block_boundaries_keep_inline_content_coordinates::<f64>();
+}
+
+fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: LayoutScalar>() {
+    let scalar = scalar_value::<S>;
+
+    for writing_mode in [WritingMode::VerticalRl, WritingMode::VerticalLr] {
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1, 2, 3])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    size: Size::new(
+                        DimensionOf::px(scalar(100.0)),
+                        DimensionOf::px(scalar(100.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    float: Float::Left,
+                    size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                3,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    clear: Clear::Left,
+                    overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                    size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("finite viewport is valid"),
+        )
+        .expect("vertical float and BFC layout succeeds");
+
+        assert_eq!(public_final_output(&batch, 2).location.y, scalar(20.0));
+        assert_eq!(public_final_output(&batch, 3).location.y, scalar(40.0));
+    }
+}
+
+#[test]
+fn ordinary_block_boundaries_preserve_vertical_physical_float_bfc_cursor_for_f32() {
+    assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor::<f32>();
+}
+
+#[test]
+fn ordinary_block_boundaries_preserve_vertical_physical_float_bfc_cursor_for_f64() {
+    assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor::<f64>();
+}
+
 fn assert_ordinary_block_logical_sizing<S: LayoutScalar>(writing_mode: WritingMode) {
     let scalar = scalar_value::<S>;
     let percentage_thirty = LengthOf::value(scalar_percentage::<S>(0.0, 0.3));

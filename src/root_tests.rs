@@ -116,6 +116,62 @@ impl<M: Clone> LayoutTree for RootSessionTree<M> {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+struct PublicFlowTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInputOf<S>>,
+}
+
+impl<S: LayoutScalar> PublicFlowTree<S> {
+    fn with_children(mut self, node: u32, children: impl IntoIterator<Item = u32>) -> Self {
+        self.children.insert(node, children.into_iter().collect());
+        self
+    }
+
+    fn with_style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
+        self.styles.insert(node, style);
+        self
+    }
+}
+
+impl<S: LayoutScalar> Traverse for PublicFlowTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for PublicFlowTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.styles[&node].clone())
+    }
+}
+
 struct FlowRootLeafTree<S: LayoutScalar> {
     style: NodeInputOf<S>,
     measurement: RefCell<Option<LeafMeasureInputOf<S>>>,
@@ -188,6 +244,17 @@ fn single_final_output<S: LayoutScalar>(batch: &CompletedLayoutBatchOf<u32, S>) 
         .output()
 }
 
+fn public_flow_output<S: LayoutScalar>(
+    entries: &[LayoutOutputEntryOf<u32, S>],
+    node: u32,
+) -> NodeOutputOf<S> {
+    entries
+        .iter()
+        .find(|entry| entry.node() == node)
+        .expect("public layout batch contains the requested node")
+        .output()
+}
+
 fn assert_viewport_root_logical_inline_auto_fill<S: LayoutScalar>(
     writing_mode: WritingMode,
     expected_location: Point<S>,
@@ -253,6 +320,271 @@ fn root_flow_logical_inline_auto_fill_and_start_placement_work_for_f64() {
         WritingMode::SidewaysLr,
         Point::new(0.0, 0.0),
     );
+}
+
+fn root_writing_mode_directions() -> [(WritingMode, Direction); 10] {
+    [
+        (WritingMode::HorizontalTb, Direction::Ltr),
+        (WritingMode::HorizontalTb, Direction::Rtl),
+        (WritingMode::VerticalRl, Direction::Ltr),
+        (WritingMode::VerticalRl, Direction::Rtl),
+        (WritingMode::VerticalLr, Direction::Ltr),
+        (WritingMode::VerticalLr, Direction::Rtl),
+        (WritingMode::SidewaysRl, Direction::Ltr),
+        (WritingMode::SidewaysRl, Direction::Rtl),
+        (WritingMode::SidewaysLr, Direction::Ltr),
+        (WritingMode::SidewaysLr, Direction::Rtl),
+    ]
+}
+
+fn assert_ordinary_block_root_contexts<S: LayoutScalar>() {
+    let viewport = Size::new(
+        AvailableOf::definite(scalar::<S>(100.0)),
+        AvailableOf::definite(scalar::<S>(100.0)),
+    );
+    let logical_size = crate::geometry::LogicalSizeOf::new(scalar::<S>(20.0), scalar::<S>(10.0));
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+        let size = flow_axes.physical_size(logical_size);
+        let style = NodeInputOf::<S> {
+            display: Display::Block,
+            writing_mode,
+            direction,
+            size: size.map(DimensionOf::px),
+            ..NodeInputOf::default()
+        };
+
+        let viewport_tree = FlowRootLeafTree::new(style.clone());
+        let viewport_batch = compute_layout(
+            &viewport_tree,
+            0,
+            LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+        )
+        .expect("viewport root layout succeeds");
+        let viewport_output = single_final_output(&viewport_batch);
+        assert_eq!(viewport_output.size, size);
+        assert_eq!(
+            viewport_output.location,
+            flow_axes.physical_point(
+                crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+                logical_size,
+                Size::new(scalar::<S>(100.0), scalar::<S>(100.0)),
+            )
+        );
+
+        let flex_tree = FlowRootLeafTree::new(style);
+        let flex_batch = compute_layout(
+            &flex_tree,
+            0,
+            LayoutRootRequestOf::flex_item_under_viewport(
+                viewport,
+                FlexItemRootContextOf::under_viewport(viewport)
+                    .expect("valid flex root viewport context"),
+            )
+            .expect("valid flex root request"),
+        )
+        .expect("flex root layout succeeds");
+        assert_eq!(single_final_output(&flex_batch).size, size);
+    }
+}
+
+#[test]
+fn ordinary_block_root_contexts_preserve_all_flow_mappings_for_f32() {
+    assert_ordinary_block_root_contexts::<f32>();
+}
+
+#[test]
+fn ordinary_block_root_contexts_preserve_all_flow_mappings_for_f64() {
+    assert_ordinary_block_root_contexts::<f64>();
+}
+
+fn assert_ordinary_block_root_contexts_clear_hidden_descendants<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let viewport = Size::splat(AvailableOf::definite(scalar(100.0)));
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [2])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::None,
+                    writing_mode: WritingMode::HorizontalTb,
+                    direction: Direction::Ltr,
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    size: Size::splat(DimensionOf::px(scalar(20.0))),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+        )
+        .expect("hidden descendant layout succeeds");
+
+        assert_eq!(
+            batch
+                .cache_clear_entries()
+                .iter()
+                .map(|entry| entry.node())
+                .collect::<Vec<_>>(),
+            vec![1, 2]
+        );
+        for node in [1, 2] {
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), node),
+                NodeOutputOf::with_order(0)
+            );
+            assert_eq!(
+                public_flow_output(batch.final_entries(), node),
+                NodeOutputOf::with_order(0)
+            );
+        }
+    }
+}
+
+#[test]
+fn ordinary_block_root_contexts_clear_hidden_descendants_for_all_flows_f32() {
+    assert_ordinary_block_root_contexts_clear_hidden_descendants::<f32>();
+}
+
+#[test]
+fn ordinary_block_root_contexts_clear_hidden_descendants_for_all_flows_f64() {
+    assert_ordinary_block_root_contexts_clear_hidden_descendants::<f64>();
+}
+
+fn fractional_child_rect<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+) -> (Point<S>, Size<S>, Point<S>, Size<S>) {
+    let scalar = scalar::<S>;
+    match (writing_mode, direction) {
+        (WritingMode::HorizontalTb, Direction::Ltr) => (
+            Point::ZERO,
+            Size::new(scalar(10.25), scalar(20.25)),
+            Point::ZERO,
+            Size::new(scalar(10.0), scalar(20.0)),
+        ),
+        (WritingMode::HorizontalTb, Direction::Rtl) => (
+            Point::new(scalar(90.25), S::ZERO),
+            Size::new(scalar(10.25), scalar(20.25)),
+            Point::new(scalar(90.0), S::ZERO),
+            Size::new(scalar(11.0), scalar(20.0)),
+        ),
+        (WritingMode::VerticalRl, Direction::Ltr) | (WritingMode::SidewaysRl, Direction::Ltr) => (
+            Point::new(scalar(80.25), S::ZERO),
+            Size::new(scalar(20.25), scalar(10.25)),
+            Point::new(scalar(80.0), S::ZERO),
+            Size::new(scalar(21.0), scalar(10.0)),
+        ),
+        (WritingMode::VerticalRl, Direction::Rtl) => (
+            Point::new(scalar(80.25), scalar(90.25)),
+            Size::new(scalar(20.25), scalar(10.25)),
+            Point::new(scalar(80.0), scalar(90.0)),
+            Size::new(scalar(21.0), scalar(11.0)),
+        ),
+        (WritingMode::VerticalLr, Direction::Ltr) | (WritingMode::SidewaysLr, Direction::Rtl) => (
+            Point::ZERO,
+            Size::new(scalar(20.25), scalar(10.25)),
+            Point::ZERO,
+            Size::new(scalar(20.0), scalar(10.0)),
+        ),
+        (WritingMode::VerticalLr, Direction::Rtl) | (WritingMode::SidewaysLr, Direction::Ltr) => (
+            Point::new(S::ZERO, scalar(90.25)),
+            Size::new(scalar(20.25), scalar(10.25)),
+            Point::new(S::ZERO, scalar(90.0)),
+            Size::new(scalar(20.0), scalar(11.0)),
+        ),
+        (WritingMode::SidewaysRl, Direction::Rtl) => (
+            Point::new(scalar(80.25), scalar(90.25)),
+            Size::new(scalar(20.25), scalar(10.25)),
+            Point::new(scalar(80.0), scalar(90.0)),
+            Size::new(scalar(21.0), scalar(11.0)),
+        ),
+    }
+}
+
+fn assert_ordinary_block_root_contexts_round_fractional_physical_edges<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let root_size = Size::splat(scalar(100.5));
+    let viewport = root_size.map(AvailableOf::definite);
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let (
+            expected_unrounded_location,
+            expected_unrounded_size,
+            expected_final_location,
+            expected_final_size,
+        ) = fractional_child_rect(writing_mode, direction);
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: root_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: expected_unrounded_size.map(DimensionOf::px),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+        )
+        .expect("fractional root layout succeeds");
+        let unrounded_child = public_flow_output(batch.unrounded_entries(), 1);
+        let final_root = public_flow_output(batch.final_entries(), 0);
+        let final_child = public_flow_output(batch.final_entries(), 1);
+
+        assert_eq!(unrounded_child.location, expected_unrounded_location);
+        assert_eq!(unrounded_child.size, expected_unrounded_size);
+        assert_eq!(final_child.location, expected_final_location);
+        assert_eq!(final_child.size, expected_final_size);
+        assert_eq!(final_root.size, Size::splat(scalar(101.0)));
+    }
+}
+
+#[test]
+fn ordinary_block_root_contexts_round_fractional_physical_edges_for_all_flows_f32() {
+    assert_ordinary_block_root_contexts_round_fractional_physical_edges::<f32>();
+}
+
+#[test]
+fn ordinary_block_root_contexts_round_fractional_physical_edges_for_all_flows_f64() {
+    assert_ordinary_block_root_contexts_round_fractional_physical_edges::<f64>();
 }
 
 fn assert_root_flow_opposite_edge_uses_only_definite_extent<S: LayoutScalar>() {
