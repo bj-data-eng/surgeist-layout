@@ -22,9 +22,9 @@ The outcome is one layout-owned logical geometry model in which:
 3. block, flex, grid, grid-lanes, subgrid, existing inline-control layout, and
    scroll-coordinate contracts consume that same mapping rather than matching
    writing modes independently;
-4. public `Point`, `Size`, `Edges`, rectangles, node output, and scroll geometry
-   remain explicitly physical, while crate-private logical geometry cannot be
-   mixed with them accidentally;
+4. public `Point`, `Size`, `Edges`, rectangles, node output, collapsible-margin
+   carriers, and scroll geometry remain explicitly physical, while
+   crate-private logical geometry cannot be mixed with them accidentally;
 5. ordinary block flow advances along the containing block's logical block
    axis in every writing mode;
 6. flex row and column directions derive from logical inline and block axes in
@@ -52,6 +52,7 @@ This specification owns:
   direction;
 - public physical-axis and physical-side semantic types;
 - the public resolved `FlowAxes` mapping contract;
+- the public physical collapsible-margin carrier returned by compute output;
 - crate-private logical point, size, edge, and rectangle algorithm types;
 - physical/logical projection used by existing block, flex, grid, grid-lanes,
   subgrid, inline-control, baseline, output, rounding, and scroll paths;
@@ -129,19 +130,23 @@ overflow directions:
 - <https://www.w3.org/TR/cssom-view/#scrolling-area>
 - <https://www.w3.org/TR/cssom-view/#scroll-an-element>
 
-### Source Evidence
+### Source Evidence At The Published C03 Base
 
-| Evidence ID | Current source fact | Required correction |
+This table describes commit
+`584f16231bed9c3e0475a4e64056fdc9e25dc2d3`. Completed substrate remains
+normative initiative state; each row names only its remaining correction.
+
+| Evidence ID | Current source fact | Remaining correction |
 | --- | --- | --- |
-| `E-MODE-1` | `WritingMode` has only `HorizontalTb`, `VerticalLr`, and `VerticalRl`; `is_vertical` collapses every non-horizontal distinction. | Add both sideways values and derive all mapping from `FlowAxes`. |
-| `E-GEOM-1` | Public `Axis`, `Point`, `Size`, and `Edges` are physical, but `Point`, `Size`, and `Edges` also expose context-free flex main/cross helpers. | Rename `Axis` to `PhysicalAxis`; remove context-free main/cross APIs; keep public physical geometry physical. |
-| `E-INLINE-1` | `src/inline.rs` has private `LogicalInlinePointOf`, `LogicalInlineSizeOf`, and `InlineAxisMapping` with a three-mode table. | Replace the private duplicate with shared logical geometry and `FlowAxes`. |
-| `E-BLOCK-1` | `layout_in_flow_children` advances physical `cursor_y`; block auto size, margins, baselines, and child positions assume top-to-bottom physical y. | Perform ordinary flow in logical coordinates and project once through the containing block's flow axes. |
-| `E-FLEX-1` | `FlexDirection`, geometry helpers, and flex-local edge traits encode row as physical x and column as physical y. | Derive a flex-local main/cross mapping from shared `FlowAxes`. |
-| `E-GRID-1` | Grid expansion bases, intrinsic totals, child areas, and baseline groups repeatedly bind columns to width/x and rows to height/y. | Keep column/row values logical and project through shared `FlowAxes`. |
-| `E-SCROLL-1` | `ScrollRangeOf` stores only non-negative maximum width/height and clamps all offsets to physical `0..maximum`. | Replace unqualified range/offset types with signed coordinate-space-specific contracts. |
-| `E-PARITY-1` | The fixture parser rejects sideways modes. Existing vertical-flex XML sends the relevant flex node through text measurement rather than non-leaf flex layout. | Parse/generate all five modes and add topology-checked non-leaf flex families to default verification. |
-| `E-BASELINE-1` | `BaselinesOf` stores physical x/y coordinates, but block/flex/grid helper methods select physical y and synthesize against horizontal assumptions. | Preserve physical baseline points and select/synthesize their axis and line-over side through `FlowAxes`. |
+| `E-MODE-1` | `WritingMode` has all five values and `FlowAxes` owns the complete ten-row mapping. | Migrate the remaining block, flex, and grid consumers without adding another mapping table. |
+| `E-GEOM-1` | Public `PhysicalAxis` and crate-private logical geometry are present; temporary public `Point`/`Size` main/cross helpers and `FlexDirection` physical-axis helpers remain for the live flex consumer. | Remove those temporary helpers when flex migrates; C04 extends only shared generic logical projection needed by block. |
+| `E-INLINE-1` | `src/inline.rs` consumes shared `FlowAxes`, `LogicalPointOf`, and `LogicalSizeOf`; its private writing-mode table is gone. | Preserve that single-owner mapping while block projects existing inline/control reports through containing flow. |
+| `E-BLOCK-1` | `layout_in_flow_children` advances physical `cursor_y`; block auto size, margins, baselines, and child positions assume top-to-bottom physical y. Compute output still carries top/bottom-only collapse state. | Perform ordinary flow in logical coordinates, add typed physical collapse output, and project once through the containing block's flow axes. |
+| `E-FLEX-1` | `FlexDirection`, geometry helpers, and flex-local selectors still encode row as physical x and column as physical y. | Derive a flex-local main/cross mapping from shared `FlowAxes`. |
+| `E-GRID-1` | Grid-axis comparison delegates to `FlowAxes`, but expansion bases, intrinsic totals, child areas, and baseline groups still repeatedly bind columns to width/x and rows to height/y. | Keep column/row values logical through sizing and placement, then project through `FlowAxes`. |
+| `E-SCROLL-1` | Signed physical and flow-relative offset/range types, validated construction, conversion, and flow-owned range projection are implemented. | Preserve this completed C02 contract while later algorithms consume it. |
+| `E-PARITY-1` | The pinned runtime and schema-two report inventory are implemented; the fixture parser/generator/helper still reject or drop sideways modes, and existing vertical-flex XML still reaches text measurement rather than non-leaf flex layout. | Add each cycle's exact sideways-capable families/reports and the topology-checked non-leaf flex matrix. |
+| `E-BASELINE-1` | `BaselinesOf` remains physical and its shared selection/synthesis methods are flow-aware; block, flex, and grid callers still contain algorithm-local physical-axis assumptions. | Migrate each algorithm caller through shared flow without changing the physical output representation. |
 
 ## FRI-02.4 Resolved Design Decisions
 
@@ -191,6 +196,21 @@ Physical authored properties remain on their physical edges. Mapping changes
 which physical values participate in a logical calculation; it never relabels
 the property itself. Percentage margin and padding resolution uses the
 containing block's logical inline extent in every writing mode.
+
+`ComputeOutputOf` cannot continue exposing only `top_margin`, `bottom_margin`,
+and an unqualified `margins_can_collapse_through`: those names and positions
+cannot represent left/right block edges, and the boolean can be misapplied
+across an orthogonal parent axis. It instead exposes one
+`PhysicalBlockMarginCollapseOf<S>` value. The value has private storage and is
+constructed from one `FlowAxes`, logical block-start and block-end margin sets,
+and collapse-through eligibility. It stores the sets on the corresponding
+physical sides and binds eligibility to that physical block axis. It permits
+physical-side lookup and a containing-flow-aware collapse-through query but no
+raw-edge constructor or mutation. A parent selects its own physical block-start
+and block-end sides from this carrier; an opposing child therefore swaps the
+relevant set and remains axis-compatible, while an orthogonal child's
+descendant sets and collapse-through state cannot leak onto the parent's block
+axis.
 
 The public context-free `Edges::zip_inline_size` helper is removed. Its current
 physical-width behavior is neither retained nor renamed. The single replacement
@@ -330,7 +350,9 @@ than deprecated:
 - `Edges::zip_inline_size`;
 - `Point::main` / `cross`;
 - `Size::main` / `cross` / `from_cross`; and
-- `Edges::main_sum` / `cross_sum`.
+- `Edges::main_sum` / `cross_sum`; and
+- `ComputeOutputOf::top_margin` / `bottom_margin` /
+  `margins_can_collapse_through`.
 
 Crate-local duplicates such as `InlineAxisMapping`, physical flex edge traits,
 and grid writing-mode match tables are deleted after their consumers migrate.
@@ -443,6 +465,49 @@ geometry are themselves crate-private. No public method mentions
 
 `PhysicalAxis` replaces `Axis` in public diagnostic types such as
 `RootAvailabilityErrorOf` and measurement-output errors.
+
+### Public Collapsible-Margin Output
+
+The physical compute-output carrier is:
+
+```rust
+pub struct PhysicalBlockMarginCollapseOf<S: LayoutScalar = DefaultScalar> {
+    /* private physical-edge, block-axis, and through-eligibility storage */
+}
+
+impl<S: LayoutScalar> PhysicalBlockMarginCollapseOf<S> {
+    pub const NONE: Self;
+    pub const fn from_block_flow(
+        flow_axes: FlowAxes,
+        block_start: CollapsibleMarginOf<S>,
+        block_end: CollapsibleMarginOf<S>,
+        can_collapse_through: bool,
+    ) -> Self;
+    pub const fn at(self, side: PhysicalSide) -> CollapsibleMarginOf<S>;
+    pub const fn can_collapse_through(self, containing_flow: FlowAxes) -> bool;
+}
+```
+
+`PhysicalBlockMarginCollapse` is the default-scalar alias. `ComputeOutputOf`
+replaces its public `top_margin`, `bottom_margin`, and
+`margins_can_collapse_through` fields with
+`block_margin_collapse: PhysicalBlockMarginCollapseOf<S>`. Constructors that
+do not report block collapse produce `NONE`. `can_collapse_through` returns true
+only when the stored eligibility is true and the supplied containing flow has
+the stored physical block axis; parallel and opposing flows are compatible,
+orthogonal flows are not. No alias, deprecated field-equivalent accessor, raw
+`Edges` constructor, unqualified through query, or compatibility conversion
+survives.
+
+The direct measured-leaf compute path constructs this value from the leaf
+style's own `FlowAxes`, zero block-start and block-end sets, and a logical
+empty-leaf predicate. The predicate requires both the measured content extent
+and final resolved outer extent on the leaf's own logical block axis to be zero,
+in addition to the existing edge/formatting-context exclusions; it never tests
+an unconditional physical height. The carrier never binds eligibility to the
+containing flow. This preserves valid parallel and opposing empty-leaf collapse
+while making the same leaf in an orthogonal parent ineligible through the
+contextual query. Non-reporting output constructors retain `NONE`.
 
 ### Public Containing-Flow Context
 
@@ -664,6 +729,17 @@ The containing block's `FlowAxes` owns positioning-phase logical sides,
 physical placement, auto margins, and margin collapse. A child's own
 `FlowAxes` owns its sizing phase. Parallel and orthogonal child flows therefore
 remain distinct rather than inheriting a physical width/height assumption.
+
+Each block compute result constructs `PhysicalBlockMarginCollapseOf` from that
+block's own flow. Its parent reads only the carrier entries at the parent's
+physical block-start and block-end sides and asks through the parent's flow.
+Parallel and opposing flows may collapse through; orthogonal flows may not.
+Direct authored child margins remain physical and are selected by the parent
+flow before collapse.
+
+Measured leaf results follow the same ownership rule: their carrier records the
+leaf's own physical block axis even though both descendant edge sets are zero.
+The containing parent flow is used only when the parent queries that result.
 
 For an orthogonal child:
 
@@ -1034,9 +1110,10 @@ corpus classifications.
 
 ### FRI-02 Generation Reports
 
-`corpus.toml` advances to `schema_version = 2` and is the sole fixture-phase
-owner of the browser pin, stable launch profile, and report inventory. Its exact
-new schema is:
+`corpus.toml` retains the schema version 2 implemented by C03 and remains the
+sole fixture-phase owner of the browser pin, stable launch profile, and report
+inventory. C04-C07 change only their scoped inventory/counts and generated
+artifacts; C08 performs the final inventory cleanup. The retained schema is:
 
 ```toml
 schema_version = 2
@@ -1198,19 +1275,19 @@ the primary evidence for each behavior and failure class.
 
 | Area | Required outcome |
 | --- | --- |
-| `src/geometry.rs` | Own `PhysicalAxis`, `LogicalAxis`, `PhysicalSide`, `FlowAxes`, and crate-private logical geometry. Remove context-free flex main/cross helpers and public `Edges::zip_inline_size`; provide the one containing-FlowAxes edge-basis operation. |
-| `src/node_input.rs` | Add sideways writing modes; document used `Direction`; remove physical `FlexDirection` axis helpers. |
-| `src/inline.rs` | Remove private mapping/logical duplicate and consume shared flow/logical geometry for existing participant/control behavior. |
-| `src/output.rs`, `src/cache.rs`, `src/compute.rs` | Use `PhysicalAxis` in diagnostics; make baseline selection/synthesis flow-aware while keeping output points physical; make all direct/root/flex-root/child/hidden compute construction carry containing `FlowAxes`; include it in cache identity; make root sizing, percentages, and start/start placement logical. |
-| `src/scroll.rs` | Replace ambiguous offset/range types; store `FlowAxes`; provide typed signed conversion and errors; preserve physical rectangles; route normal and rounded layout-produced magnitudes through a flow-relative range before physical projection. |
+| `src/geometry.rs` | C01 implemented `PhysicalAxis`, `LogicalAxis`, `PhysicalSide`, `FlowAxes`, crate-private logical geometry, and containing-flow edge basis. C04 adds only generic logical-size operations required by block; C05 removes the temporary live flex main/cross helpers. |
+| `src/node_input.rs` | C01 added sideways modes and documented used `Direction`; C05 removes the temporary physical `FlexDirection` axis helpers. |
+| `src/inline.rs` | C01 removed the private mapping/logical duplicate. Later algorithm cycles consume this shared participant/control behavior without another writing-mode table. |
+| `src/output.rs`, `src/cache.rs`, `src/compute.rs` | C01 made diagnostics, baseline primitives, compute construction, cache identity, and root flow-aware. C04 replaces the top/bottom/unqualified-through compute fields with `PhysicalBlockMarginCollapseOf`, binds block and measured-leaf producers to their own flow, and preserves root/flex-root/hidden evidence. |
+| `src/scroll.rs` | C02 implemented typed signed physical/flow-relative offsets and ranges, conversion, errors, and flow-owned layout range projection. Later cycles preserve that contract. |
 | `src/block.rs` | Convert ordinary in-flow constants, sizing, cursor, margins, baselines, inline report placement, and physical projection to shared logical geometry. |
 | `src/flex.rs` | Derive `FlexAxes`; replace physical main/cross and edge helper logic throughout current flex behavior. |
-| `src/grid/axis.rs` | Delegate all writing-mode mapping to `FlowAxes`; retain grid-local logical-axis roles only. |
+| `src/grid/axis.rs` | C01 delegated writing-mode comparison to `FlowAxes`; C06/C07 retain only grid-local logical-axis roles while migrating sizing and placement consumers. |
 | `src/grid/mod.rs`, `tracks.rs` | Keep column/row bases, totals, gaps, intrinsic sizing, and reruns logical until projection. |
 | `src/grid/child.rs`, `subgrid.rs`, `lanes.rs` | Project areas/offsets/baselines/inherited axes through shared mapping without absorbing other grid findings. |
 | tests and browser parity | Add the required mapping, property, algorithm, topology, fixture, XML, and default regression evidence. |
-| `Cargo.toml`, generator, `corpus.toml` | Retain the managed pinned Chrome-for-Testing fetch/cache path; add an existing-pinned one-shot path for agent use; validate the actual executable version in both paths; route both through one launch-settings owner including mock-keychain behavior; own the exact five scoped-report filters and six-file report inventory; prune obsolete reports only on a successful full run; keep `check-corpus` browser-free. |
-| `src/lib.rs`, README, rustdoc | Reexport and document only the intentional physical/logical front door and root boundary. |
+| `Cargo.toml`, generator, `corpus.toml` | C03 implemented both validated pinned-browser modes, one launch-settings owner, schema-two reports, and browser-free corpus checks. C04-C07 add five exact scoped entries cumulatively; C08 removes the nine temporary pre-FRI-02 entries and leaves the final six-file inventory. |
+| `src/lib.rs`, README, rustdoc | C01-C03 document and reexport the implemented substrate. Each later cycle adds only its intentional public type/docs; C08 verifies the final front door and root boundary. |
 
 No module may define another exhaustive `WritingMode` mapping table. Direct
 matches are limited to the one owning geometry implementation, enum parsing,
@@ -1225,11 +1302,13 @@ that root later must:
 2. supply the used inline `Direction`, not an unresolved authored token;
 3. replace `Axis` references with `PhysicalAxis`;
 4. consume `FlowAxes` instead of duplicating physical-side tables;
-5. consume signed `PhysicalScrollRangeOf` and any flow-relative conversion
+5. replace direct top/bottom/through compute-margin access with
+   `PhysicalBlockMarginCollapseOf` and its containing-flow-aware query;
+6. consume signed `PhysicalScrollRangeOf` and any flow-relative conversion
    through layout's public contract;
-6. keep live retained scroll offsets and host/CSSOM policy in root-owned state;
-7. update root adapters/facade exports without compatibility aliases; and
-8. refresh root-owned API artifacts after the candidate is visible.
+7. keep live retained scroll offsets and host/CSSOM policy in root-owned state;
+8. update root adapters/facade exports without compatibility aliases; and
+9. refresh root-owned API artifacts after the candidate is visible.
 
 Layout does not edit root, style, retained, text, or generated root artifacts.
 
@@ -1429,11 +1508,24 @@ clamp is idempotent.
 Focused tests use the real public `compute_layout` front door and prove:
 
 - ordinary block children follow logical block flow;
+- compute output constructs collapse carriers from the child's flow, parent
+  selection uses the parent's physical block sides, parallel/opposing through
+  queries remain eligible, and orthogonal through queries are rejected;
 - flex containers are non-leaf and follow logical main/cross flow;
 - grid intrinsic totals and areas project correctly;
 - baseline points use the mapped physical block axis and line-over side;
 - output/cache/rounding retain physical geometry; and
 - no FRI-02-owned sideways or vertical request panics or silently falls back.
+
+Named collapse regressions include a parallel child, an opposing child, and an
+orthogonal child whose own empty block can collapse through but whose parent-axis
+margins and through state must remain isolated. Both scalar lanes exercise these
+cases through the real public layout front door. A second named matrix uses
+measured empty leaves in the same three relationships and proves their carrier is
+bound to the leaf's own flow rather than the containing flow. That matrix covers
+zero logical block/nonzero logical inline extents as eligible and nonzero logical
+block/zero logical inline extents as ineligible for vertical and sideways leaves
+in both scalar lanes.
 
 Normal and rounded scroll-geometry tests prove layout-produced magnitudes first
 form flow-relative ranges and then project to the expected signed physical
@@ -1532,9 +1624,10 @@ non-ignored and green.
 2. public physical and crate-private logical geometry are distinct and every
    contextual conversion is named;
 3. `FlowAxes` is the only production owner of writing-mode mapping;
-4. `Axis`, unqualified scroll offset/range types, context-free flex helpers, and
-   `Edges::zip_inline_size` are absent without aliases, and algorithm-local
-   mapping tables are absent;
+4. `Axis`, unqualified scroll offset/range types, context-free flex helpers,
+   `Edges::zip_inline_size`, top/bottom-only compute margin fields, and an
+   unqualified collapse-through output field are absent without aliases, and
+   algorithm-local mapping tables are absent;
 5. ordinary block flow produces correct physical geometry across horizontal,
    vertical, sideways, parallel, and orthogonal cases owned here, including
    viewport-root, flex-item-root, and hidden-flow construction;
