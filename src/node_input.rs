@@ -564,6 +564,20 @@ pub enum FlexWrap {
     WrapReverse,
 }
 
+/// Flex direction selects a container-local logical main axis.
+///
+/// Physical-axis selection requires the container's resolved flow and is owned
+/// by the crate-private flex algorithm.
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexDirection, PhysicalAxis};
+/// let _: PhysicalAxis = FlexDirection::Row.main_axis();
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexDirection, PhysicalAxis};
+/// let _: PhysicalAxis = FlexDirection::Column.cross_axis();
+/// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum FlexDirection {
     #[default]
@@ -587,22 +601,6 @@ impl FlexDirection {
     #[must_use]
     pub const fn is_reverse(self) -> bool {
         matches!(self, Self::RowReverse | Self::ColumnReverse)
-    }
-
-    #[must_use]
-    pub const fn main_axis(self) -> super::PhysicalAxis {
-        match self {
-            Self::Row | Self::RowReverse => super::PhysicalAxis::Horizontal,
-            Self::Column | Self::ColumnReverse => super::PhysicalAxis::Vertical,
-        }
-    }
-
-    #[must_use]
-    pub const fn cross_axis(self) -> super::PhysicalAxis {
-        match self {
-            Self::Row | Self::RowReverse => super::PhysicalAxis::Vertical,
-            Self::Column | Self::ColumnReverse => super::PhysicalAxis::Horizontal,
-        }
     }
 }
 

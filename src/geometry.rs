@@ -1,6 +1,6 @@
 use core::ops::{Add, Sub};
 
-use super::{Direction, FlexDirection, LayoutScalar, Scalar, WritingMode};
+use super::{Direction, LayoutScalar, Scalar, WritingMode};
 
 /// A physical x/y coordinate axis.
 ///
@@ -736,6 +736,20 @@ impl<S: LayoutScalar> LogicalRectOf<S> {
     }
 }
 
+/// A physical x/y point.
+///
+/// Flex main/cross roles require a container's flow context and are not
+/// available on physical points.
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexDirection, Point};
+/// let _ = Point::new(1.0, 2.0).main(FlexDirection::Row);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexDirection, Point};
+/// let _ = Point::new(1.0, 2.0).cross(FlexDirection::Column);
+/// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Point<T = Scalar> {
     pub x: T,
@@ -763,16 +777,6 @@ impl<T> Point<T> {
             y: self.x,
         }
     }
-
-    #[must_use]
-    pub fn main(self, direction: FlexDirection) -> T {
-        if direction.is_row() { self.x } else { self.y }
-    }
-
-    #[must_use]
-    pub fn cross(self, direction: FlexDirection) -> T {
-        if direction.is_row() { self.y } else { self.x }
-    }
 }
 
 impl<T> Point<Option<T>> {
@@ -783,6 +787,25 @@ impl<S: LayoutScalar> Point<S> {
     pub const ZERO: Self = Self::new(S::ZERO, S::ZERO);
 }
 
+/// A physical width/height size.
+///
+/// Flex main/cross roles require a container's flow context and are not
+/// available on physical sizes.
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexDirection, Size};
+/// let _ = Size::new(1.0, 2.0).main(FlexDirection::Row);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexDirection, Size};
+/// let _ = Size::new(1.0, 2.0).cross(FlexDirection::Column);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexDirection, Size};
+/// let _ = Size::from_cross(FlexDirection::Row, Some(1.0));
+/// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Size<T = Scalar> {
     pub width: T,
@@ -810,24 +833,6 @@ impl<T> Size<T> {
             height: f(self.height, other.height),
         }
     }
-
-    #[must_use]
-    pub fn main(self, direction: FlexDirection) -> T {
-        if direction.is_row() {
-            self.width
-        } else {
-            self.height
-        }
-    }
-
-    #[must_use]
-    pub fn cross(self, direction: FlexDirection) -> T {
-        if direction.is_row() {
-            self.height
-        } else {
-            self.width
-        }
-    }
 }
 
 impl<T> Size<Option<T>> {
@@ -835,23 +840,6 @@ impl<T> Size<Option<T>> {
         width: None,
         height: None,
     };
-}
-
-impl<T> Size<Option<T>> {
-    #[must_use]
-    pub const fn from_cross(direction: FlexDirection, value: Option<T>) -> Self {
-        if direction.is_row() {
-            Self {
-                width: None,
-                height: value,
-            }
-        } else {
-            Self {
-                width: value,
-                height: None,
-            }
-        }
-    }
 }
 
 impl<S: LayoutScalar> Size<S> {
@@ -889,6 +877,20 @@ impl<U, T: Sub<U>> Sub<Size<U>> for Size<T> {
     }
 }
 
+/// Physical rectangle edges.
+///
+/// Flex main/cross sums require a container's flow context and are not
+/// available on physical edges.
+///
+/// ```compile_fail
+/// use surgeist_layout::{Edges, FlexDirection};
+/// let _ = Edges::all(1.0).main_sum(FlexDirection::Row);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{Edges, FlexDirection};
+/// let _ = Edges::all(1.0).cross_sum(FlexDirection::Column);
+/// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Edges<T = Scalar> {
     pub top: T,
@@ -974,24 +976,6 @@ where
     #[must_use]
     pub fn sum_axes(self) -> Size<T> {
         Size::new(self.horizontal_sum(), self.vertical_sum())
-    }
-
-    #[must_use]
-    pub fn main_sum(self, direction: FlexDirection) -> T {
-        if direction.is_row() {
-            self.horizontal_sum()
-        } else {
-            self.vertical_sum()
-        }
-    }
-
-    #[must_use]
-    pub fn cross_sum(self, direction: FlexDirection) -> T {
-        if direction.is_row() {
-            self.vertical_sum()
-        } else {
-            self.horizontal_sum()
-        }
     }
 }
 

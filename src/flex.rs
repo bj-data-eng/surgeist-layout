@@ -88,7 +88,6 @@ where
 struct Constants<S: LayoutScalar> {
     flow_axes: crate::geometry::FlowAxes,
     axes: FlexAxes,
-    direction: FlexDirection,
     node_outer_size: Size<Option<S>>,
     node_inner_size: Size<Option<S>>,
     min_outer_size: Size<Option<S>>,
@@ -206,7 +205,6 @@ impl<S: LayoutScalar> Constants<S> {
         Ok(Self {
             flow_axes,
             axes,
-            direction: style.flex_direction,
             node_outer_size,
             node_inner_size,
             min_outer_size: min_size,
@@ -252,13 +250,6 @@ pub(crate) struct FlexAxes {
     cross_progression: PhysicalProgression,
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C05-T1 stages the canonical flex-axis operations for later sizing and placement migrations."
-    )
-)]
 impl FlexAxes {
     #[must_use]
     pub(crate) const fn new(
@@ -364,21 +355,25 @@ impl FlexAxes {
         self.cross_physical_axis
     }
 
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn main_start_side(self) -> PhysicalSide {
         self.main_start_side
     }
 
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn main_end_side(self) -> PhysicalSide {
         self.main_end_side
     }
 
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn cross_start_side(self) -> PhysicalSide {
         self.cross_start_side
     }
 
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn cross_end_side(self) -> PhysicalSide {
         self.cross_end_side
@@ -394,11 +389,13 @@ impl FlexAxes {
         self.cross_reversed
     }
 
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn main_progression(self) -> PhysicalProgression {
         self.main_progression
     }
 
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn cross_progression(self) -> PhysicalProgression {
         self.cross_progression
@@ -2530,7 +2527,7 @@ fn intrinsic_content_main_size<Node, S: LayoutScalar>(
         .axes
         .main_size(constants.node_outer_size)
         .is_none()
-        && constants.direction.is_row()
+        && constants.axes.main_logical_axis() == LogicalAxis::Inline
         && constants.axes.main_size(input.available()) == AvailableOf::MAX_CONTENT
     {
         return lines
@@ -2774,13 +2771,13 @@ where
         _ if flex_automatic_minimum_is_zero(item.overflow) => item.flex_basis.max(min_main),
         (Some(preferred), _) if max_main <= preferred => preferred.min(max_main).max(min_main),
         (_, true) => min_main,
-        _ if constants.direction.is_row()
+        _ if constants.axes.main_logical_axis() == LogicalAxis::Inline
             && constants.axes.main_size(input.available()) == AvailableOf::MinContent =>
         {
             min_main
         }
         _ if !needs_stretched_cross_measure => {
-            if constants.direction.is_row() {
+            if constants.axes.main_logical_axis() == LogicalAxis::Inline {
                 item.max_content_main_size
                     .clamp_optional(style_min, style_max)
             } else {
@@ -2810,7 +2807,7 @@ where
                 .size,
             );
 
-            if constants.direction.is_row() {
+            if constants.axes.main_logical_axis() == LogicalAxis::Inline {
                 measured.clamp_optional(style_min, style_max)
             } else {
                 measured
@@ -3660,60 +3657,6 @@ fn resolution_optional<S: LayoutScalar>(
     }
 }
 
-#[expect(
-    dead_code,
-    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
-)]
-trait PointExt<S: LayoutScalar> {
-    fn from_main_cross(direction: FlexDirection, main: S, cross: S) -> Self;
-}
-
-impl<S: LayoutScalar> PointExt<S> for Point<S> {
-    fn from_main_cross(direction: FlexDirection, main: S, cross: S) -> Self {
-        if direction.is_row() {
-            Self::new(main, cross)
-        } else {
-            Self::new(cross, main)
-        }
-    }
-}
-
-#[expect(
-    dead_code,
-    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
-)]
-trait SizeExt<T> {
-    fn from_main_cross(direction: FlexDirection, main: T, cross: T) -> Self;
-    fn with_main(self, direction: FlexDirection, value: T) -> Self;
-    fn with_cross(self, direction: FlexDirection, value: T) -> Self;
-}
-
-impl<T> SizeExt<T> for Size<T> {
-    fn from_main_cross(direction: FlexDirection, main: T, cross: T) -> Self {
-        if direction.is_row() {
-            Self::new(main, cross)
-        } else {
-            Self::new(cross, main)
-        }
-    }
-
-    fn with_main(self, direction: FlexDirection, value: T) -> Self {
-        if direction.is_row() {
-            Self::new(value, self.height)
-        } else {
-            Self::new(self.width, value)
-        }
-    }
-
-    fn with_cross(self, direction: FlexDirection, value: T) -> Self {
-        if direction.is_row() {
-            Self::new(self.width, value)
-        } else {
-            Self::new(value, self.height)
-        }
-    }
-}
-
 trait SizeOptionExt {
     type Scalar: LayoutScalar;
     fn or(self, other: Self) -> Self;
@@ -3829,213 +3772,14 @@ impl<S: LayoutScalar> ScalarExt for S {
     }
 }
 
-#[expect(
-    dead_code,
-    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
-)]
-trait EdgeAxisExt {
-    type Scalar: LayoutScalar;
-    fn main_start(self, direction: FlexDirection) -> Self::Scalar;
-    fn main_end(self, direction: FlexDirection) -> Self::Scalar;
-    fn cross_start(self, direction: FlexDirection, layout_direction: Direction) -> Self::Scalar;
-    fn cross_end(self, direction: FlexDirection, layout_direction: Direction) -> Self::Scalar;
-    fn set_main_start(&mut self, direction: FlexDirection, value: Self::Scalar);
-    fn set_main_end(&mut self, direction: FlexDirection, value: Self::Scalar);
-    fn set_cross_start(
-        &mut self,
-        direction: FlexDirection,
-        layout_direction: Direction,
-        value: Self::Scalar,
-    );
-    fn set_cross_end(
-        &mut self,
-        direction: FlexDirection,
-        layout_direction: Direction,
-        value: Self::Scalar,
-    );
-}
-
-impl<S: LayoutScalar> EdgeAxisExt for Edges<S> {
-    type Scalar = S;
-
-    fn main_start(self, direction: FlexDirection) -> S {
-        if direction.is_row() {
-            self.left
-        } else {
-            self.top
-        }
-    }
-
-    fn main_end(self, direction: FlexDirection) -> S {
-        if direction.is_row() {
-            self.right
-        } else {
-            self.bottom
-        }
-    }
-
-    fn cross_start(self, direction: FlexDirection, layout_direction: Direction) -> S {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.top,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => self.left,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => self.right,
-        }
-    }
-
-    fn cross_end(self, direction: FlexDirection, layout_direction: Direction) -> S {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.bottom,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => self.right,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => self.left,
-        }
-    }
-
-    fn set_main_start(&mut self, direction: FlexDirection, value: S) {
-        if direction.is_row() {
-            self.left = value;
-        } else {
-            self.top = value;
-        }
-    }
-
-    fn set_main_end(&mut self, direction: FlexDirection, value: S) {
-        if direction.is_row() {
-            self.right = value;
-        } else {
-            self.bottom = value;
-        }
-    }
-
-    fn set_cross_start(&mut self, direction: FlexDirection, layout_direction: Direction, value: S) {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.top = value,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => {
-                self.left = value;
-            }
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => {
-                self.right = value;
-            }
-        }
-    }
-
-    fn set_cross_end(&mut self, direction: FlexDirection, layout_direction: Direction, value: S) {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.bottom = value,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => {
-                self.right = value;
-            }
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => {
-                self.left = value;
-            }
-        }
-    }
-}
-
-#[expect(
-    dead_code,
-    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
-)]
-trait BoolEdgeAxisExt {
-    fn main_start(self, direction: FlexDirection) -> bool;
-    fn main_end(self, direction: FlexDirection) -> bool;
-    fn cross_start(self, direction: FlexDirection, layout_direction: Direction) -> bool;
-    fn cross_end(self, direction: FlexDirection, layout_direction: Direction) -> bool;
-}
-
-#[expect(
-    dead_code,
-    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
-)]
-trait OptionEdgeAxisExt {
-    type Scalar: LayoutScalar;
-    fn main_start(self, direction: FlexDirection) -> Option<Self::Scalar>;
-    fn main_end(self, direction: FlexDirection) -> Option<Self::Scalar>;
-    fn cross_start(
-        self,
-        direction: FlexDirection,
-        layout_direction: Direction,
-    ) -> Option<Self::Scalar>;
-    fn cross_end(
-        self,
-        direction: FlexDirection,
-        layout_direction: Direction,
-    ) -> Option<Self::Scalar>;
-}
-
-impl<S: LayoutScalar> OptionEdgeAxisExt for Edges<Option<S>> {
-    type Scalar = S;
-
-    fn main_start(self, direction: FlexDirection) -> Option<S> {
-        if direction.is_row() {
-            self.left
-        } else {
-            self.top
-        }
-    }
-
-    fn main_end(self, direction: FlexDirection) -> Option<S> {
-        if direction.is_row() {
-            self.right
-        } else {
-            self.bottom
-        }
-    }
-
-    fn cross_start(self, direction: FlexDirection, layout_direction: Direction) -> Option<S> {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.top,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => self.left,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => self.right,
-        }
-    }
-
-    fn cross_end(self, direction: FlexDirection, layout_direction: Direction) -> Option<S> {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.bottom,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => self.right,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => self.left,
-        }
-    }
-}
-
-impl BoolEdgeAxisExt for Edges<bool> {
-    fn main_start(self, direction: FlexDirection) -> bool {
-        if direction.is_row() {
-            self.left
-        } else {
-            self.top
-        }
-    }
-
-    fn main_end(self, direction: FlexDirection) -> bool {
-        if direction.is_row() {
-            self.right
-        } else {
-            self.bottom
-        }
-    }
-
-    fn cross_start(self, direction: FlexDirection, layout_direction: Direction) -> bool {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.top,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => self.left,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => self.right,
-        }
-    }
-
-    fn cross_end(self, direction: FlexDirection, layout_direction: Direction) -> bool {
-        match (direction, layout_direction) {
-            (FlexDirection::Row | FlexDirection::RowReverse, _) => self.bottom,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => self.right,
-            (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => self.left,
-        }
-    }
-}
-
 #[cfg(test)]
 mod final_baseline_selection_tests {
     use super::*;
-    use crate::WritingMode;
+
+    fn default_flow_axes<S: LayoutScalar>() -> FlowAxes {
+        let style = NodeInputOf::<S>::default();
+        FlowAxes::new(style.writing_mode, style.direction)
+    }
 
     fn final_item<S: LayoutScalar>(
         align_self: AlignItems,
@@ -4053,20 +3797,16 @@ mod final_baseline_selection_tests {
             output,
             overflow: Point::new(Overflow::Visible, Overflow::Visible),
             align_self,
-            baseline: FlexItemBaseline::from_output(
-                output,
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            ),
+            baseline: FlexItemBaseline::from_output(output, default_flow_axes::<S>()),
             location: Point::new(S::ZERO, S::from_f64(location_y)),
         }
     }
 
-    fn constants<S: LayoutScalar>() -> Constants<S> {
-        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    fn constants<S: LayoutScalar>(flex_direction: FlexDirection) -> Constants<S> {
+        let flow_axes = default_flow_axes::<S>();
         Constants {
             flow_axes,
-            axes: FlexAxes::new(flow_axes, FlexDirection::Row, FlexWrap::NoWrap),
-            direction: FlexDirection::Column,
+            axes: FlexAxes::new(flow_axes, flex_direction, FlexWrap::NoWrap),
             node_outer_size: Size::NONE,
             node_inner_size: Size::NONE,
             min_outer_size: Size::NONE,
@@ -4099,18 +3839,22 @@ mod final_baseline_selection_tests {
             cross_size: S::ZERO,
             offset_cross: S::ZERO,
         }];
-        let constants = constants::<S>();
-
-        assert_eq!(
-            first_final_vertical_baseline(&items, &lines, &constants),
-            Some(Point::new(None, Some(S::from_f64(22.0)))),
-            "the first final baseline selects the first baseline-aligned final item"
-        );
-        assert_eq!(
-            last_final_vertical_baseline(&items, &lines, &constants),
-            Some(Point::new(None, Some(S::from_f64(22.0)))),
-            "the last final baseline selects the last baseline-aligned final item"
-        );
+        for (flex_direction, first, last) in [
+            (FlexDirection::Row, 22.0, 22.0),
+            (FlexDirection::Column, 11.0, 33.0),
+        ] {
+            let constants = constants::<S>(flex_direction);
+            assert_eq!(
+                first_final_vertical_baseline(&items, &lines, &constants),
+                Some(Point::new(None, Some(S::from_f64(first)))),
+                "the first final baseline follows the resolved main logical axis"
+            );
+            assert_eq!(
+                last_final_vertical_baseline(&items, &lines, &constants),
+                Some(Point::new(None, Some(S::from_f64(last)))),
+                "the last final baseline follows the resolved main logical axis"
+            );
+        }
     }
 
     #[test]

@@ -480,27 +480,20 @@ fn node_input_does_not_carry_line_break_state() {
 }
 
 #[test]
-fn geometry_reports_main_and_cross_components_for_flex_direction() {
+fn physical_geometry_retains_only_physical_components() {
     let size = Size::new(80.0, 24.0);
-    assert_eq!(size.main(FlexDirection::Row), 80.0);
-    assert_eq!(size.cross(FlexDirection::Row), 24.0);
-    assert_eq!(size.main(FlexDirection::Column), 24.0);
-    assert_eq!(size.cross(FlexDirection::Column), 80.0);
-    assert_eq!(
-        Size::from_cross(FlexDirection::Row, Some(12.0)),
-        Size::new(None, Some(12.0))
-    );
+    assert_eq!(size.width, 80.0);
+    assert_eq!(size.height, 24.0);
 
     let edges = Edges::new(1.0, 2.0, 3.0, 4.0);
-    assert_eq!(edges.main_sum(FlexDirection::Row), 6.0);
-    assert_eq!(edges.cross_sum(FlexDirection::Row), 4.0);
-    assert_eq!(edges.main_sum(FlexDirection::Column), 4.0);
-    assert_eq!(edges.cross_sum(FlexDirection::Column), 6.0);
+    assert_eq!(edges.horizontal_sum(), 6.0);
+    assert_eq!(edges.vertical_sum(), 4.0);
+    assert_eq!(edges.sum_axes(), Size::new(6.0, 4.0));
 
     let point = Point::new(5.0, 9.0);
     assert_eq!(point.transpose(), Point::new(9.0, 5.0));
-    assert_eq!(point.main(FlexDirection::Row), 5.0);
-    assert_eq!(point.cross(FlexDirection::Column), 5.0);
+    assert_eq!(point.x, 5.0);
+    assert_eq!(point.y, 9.0);
 }
 
 #[test]

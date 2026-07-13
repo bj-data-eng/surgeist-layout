@@ -120,6 +120,8 @@ impl<M: Clone> LayoutTree for RootSessionTree<M> {
 struct PublicFlowTree<S: LayoutScalar> {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInputOf<S>>,
+    caches: RefCell<HashMap<u32, CacheOf<S>>>,
+    cache_inputs: RefCell<Vec<(u32, ComputeInputOf<S>)>>,
 }
 
 impl<S: LayoutScalar> PublicFlowTree<S> {
@@ -131,6 +133,29 @@ impl<S: LayoutScalar> PublicFlowTree<S> {
     fn with_style(mut self, node: u32, style: NodeInputOf<S>) -> Self {
         self.styles.insert(node, style);
         self
+    }
+
+    fn apply_cache_entries(&self, entries: &[LayoutCacheStoreEntryOf<u32, S>]) {
+        let mut caches = self.caches.borrow_mut();
+        for entry in entries {
+            caches.entry(entry.node()).or_default().store_with_context(
+                entry.input(),
+                entry.context(),
+                entry.output(),
+            );
+        }
+    }
+
+    fn cache_inputs(&self, node: u32) -> Vec<ComputeInputOf<S>> {
+        self.cache_inputs
+            .borrow()
+            .iter()
+            .filter_map(|(recorded_node, input)| (*recorded_node == node).then_some(*input))
+            .collect()
+    }
+
+    fn clear_cache_inputs(&self) {
+        self.cache_inputs.borrow_mut().clear();
     }
 }
 
@@ -169,6 +194,19 @@ impl<S: LayoutScalar> LayoutTree for PublicFlowTree<S> {
 
     fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
         LayoutInputOf::box_input(self.styles[&node].clone())
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        self.cache_inputs.borrow_mut().push((node, *input));
+        self.caches
+            .borrow()
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context))
     }
 }
 
@@ -1799,6 +1837,247 @@ fn logical_flex_sizing_preserves_horizontal_and_child_flow_ownership_for_f32() {
 #[test]
 fn logical_flex_sizing_preserves_horizontal_and_child_flow_ownership_for_f64() {
     assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership::<f64>();
+}
+
+fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let vertical_containing_flow = FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl);
+    let horizontal_containing_flow = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+
+    // A non-leaf flex root passes its own vertical containing flow to children
+    // whose own flows differ, so percentage sizing remains owned by the parent.
+    assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership::<S>();
+
+    let flex_root = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, logical_flex_leaf(10.0, 20.0))
+        .with_style(2, logical_flex_leaf(10.0, 20.0));
+    let viewport = Size::splat(AvailableOf::definite(scalar(100.0)));
+    let flex_root_batch = compute_layout(
+        &flex_root,
+        0,
+        LayoutRootRequestOf::flex_item_under_viewport(
+            viewport,
+            FlexItemRootContextOf::under_viewport(viewport)
+                .expect("valid flex item root viewport context"),
+        )
+        .expect("valid flex item root request"),
+    )
+    .expect("public flex item root layout succeeds");
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 0).location,
+        Point::ZERO
+    );
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 0).size,
+        Size::splat(scalar(100.0))
+    );
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 1).location,
+        Point::new(S::ZERO, S::ZERO)
+    );
+    assert_eq!(
+        public_flow_output(flex_root_batch.final_entries(), 2).location,
+        Point::new(S::ZERO, scalar(20.0))
+    );
+
+    let cache_tree = |writing_mode, direction| {
+        PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Flex,
+                    writing_mode,
+                    direction,
+                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    flex_direction: FlexDirection::Row,
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(1, logical_flex_leaf(10.25, 20.25))
+    };
+    let cache_request =
+        LayoutRootRequestOf::viewport(viewport).expect("valid cache viewport request");
+    let vertical_cache_tree = cache_tree(WritingMode::VerticalLr, Direction::Rtl);
+    let cold_cache_batch = compute_layout(&vertical_cache_tree, 0, cache_request)
+        .expect("cold non-leaf flex cache traversal succeeds");
+    let cold_child_entry = cold_cache_batch
+        .cache_store_entries()
+        .iter()
+        .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
+        .expect("cold flex traversal stages the child final-layout cache output");
+    assert_eq!(
+        cold_child_entry.input().containing_flow_axes(),
+        vertical_containing_flow
+    );
+    assert_eq!(
+        cold_child_entry.output().size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
+    assert_eq!(cold_child_entry.output().content_size, Size::ZERO);
+    assert_eq!(
+        public_flow_output(cold_cache_batch.final_entries(), 1),
+        NodeOutputOf {
+            location: Point::new(S::ZERO, scalar(80.0)),
+            size: Size::new(scalar(10.0), scalar(20.0)),
+            ..NodeOutputOf::with_order(0)
+        }
+    );
+
+    vertical_cache_tree.apply_cache_entries(cold_cache_batch.cache_store_entries());
+    vertical_cache_tree.clear_cache_inputs();
+    let warm_cache_batch = compute_layout(&vertical_cache_tree, 0, cache_request)
+        .expect("matching public flex cache traversal succeeds");
+    assert!(
+        vertical_cache_tree
+            .cache_inputs(1)
+            .iter()
+            .any(|input| *input == *cold_child_entry.input())
+    );
+    assert!(
+        warm_cache_batch.cache_store_entries().iter().all(|entry| {
+            entry.node() != 1 || entry.input().run_mode() != RunMode::PerformLayout
+        })
+    );
+    assert_eq!(
+        public_flow_output(warm_cache_batch.final_entries(), 1),
+        public_flow_output(cold_cache_batch.final_entries(), 1)
+    );
+
+    let horizontal_cache_tree = cache_tree(WritingMode::HorizontalTb, Direction::Ltr);
+    horizontal_cache_tree.apply_cache_entries(&[*cold_child_entry]);
+    let distinct_flow_batch = compute_layout(&horizontal_cache_tree, 0, cache_request)
+        .expect("distinct-flow public flex cache traversal succeeds");
+    assert!(
+        horizontal_cache_tree
+            .cache_inputs(1)
+            .iter()
+            .any(|input| input.containing_flow_axes() == horizontal_containing_flow)
+    );
+    assert!(
+        distinct_flow_batch
+            .cache_store_entries()
+            .iter()
+            .any(|entry| {
+                entry.node() == 1
+                    && entry.input().run_mode() == RunMode::PerformLayout
+                    && entry.input().containing_flow_axes() == horizontal_containing_flow
+            })
+    );
+
+    let hidden = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [2])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::None,
+                writing_mode: WritingMode::HorizontalTb,
+                direction: Direction::Ltr,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(2, logical_flex_leaf(20.0, 10.0));
+    let hidden_batch = compute_layout(
+        &hidden,
+        0,
+        LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+    )
+    .expect("hidden flex descendant layout succeeds");
+    assert_eq!(
+        hidden_batch
+            .cache_clear_entries()
+            .iter()
+            .map(|entry| entry.node())
+            .collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    for node in [1, 2] {
+        assert_eq!(
+            public_flow_output(hidden_batch.unrounded_entries(), node),
+            NodeOutputOf::with_order(0)
+        );
+        assert_eq!(
+            public_flow_output(hidden_batch.final_entries(), node),
+            NodeOutputOf::with_order(0)
+        );
+    }
+
+    let fractional = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.5))),
+                flex_direction: FlexDirection::Row,
+                align_items: Some(AlignItems::FlexEnd),
+                justify_content: Some(AlignContent::FlexEnd),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, logical_flex_leaf(10.25, 20.25));
+    let fractional_batch = compute_layout(
+        &fractional,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.5))))
+            .expect("valid fractional viewport request"),
+    )
+    .expect("fractional non-horizontal flex layout succeeds");
+    assert_eq!(
+        public_flow_output(fractional_batch.unrounded_entries(), 1).location,
+        Point::new(scalar(90.25), scalar(80.25))
+    );
+    assert_eq!(
+        public_flow_output(fractional_batch.unrounded_entries(), 1).size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
+    assert_eq!(
+        public_flow_output(fractional_batch.final_entries(), 1).location,
+        Point::new(scalar(90.0), scalar(80.0))
+    );
+    assert_eq!(
+        public_flow_output(fractional_batch.final_entries(), 1).size,
+        Size::new(scalar(11.0), scalar(21.0))
+    );
+}
+
+#[test]
+fn logical_flex_public_contexts_preserve_flow_and_physical_output_for_f32() {
+    assert_logical_flex_public_contexts::<f32>();
+}
+
+#[test]
+fn logical_flex_public_contexts_preserve_flow_and_physical_output_for_f64() {
+    assert_logical_flex_public_contexts::<f64>();
 }
 
 fn assert_viewport_root_logical_inline_auto_fill<S: LayoutScalar>(
@@ -3437,22 +3716,23 @@ fn compute_layout_preserves_nested_subgrid_resolution_failure() {
     ));
 }
 
-#[test]
-fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
+fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow<
+    S: LayoutScalar,
+>() {
     #[derive(Default)]
-    struct HiddenTree {
+    struct HiddenTree<S: LayoutScalar> {
         children: HashMap<u32, Vec<u32>>,
-        layouts: HashMap<u32, NodeOutput>,
-        caches: HashMap<u32, Cache>,
-        styles: HashMap<u32, NodeInput>,
-        hidden_children: Vec<u32>,
+        layouts: HashMap<u32, NodeOutputOf<S>>,
+        caches: HashMap<u32, CacheOf<S>>,
+        styles: HashMap<u32, NodeInputOf<S>>,
+        calls: Vec<(u32, ComputeInputOf<S>)>,
         cache_get_calls: Cell<usize>,
         cache_store_calls: usize,
     }
 
-    impl Traverse for HiddenTree {
+    impl<S: LayoutScalar> Traverse for HiddenTree<S> {
         type Node = u32;
-        type Scalar = Scalar;
+        type Scalar = S;
         type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
 
         fn children(&self, node: Self::Node) -> Self::Children<'_> {
@@ -3468,8 +3748,8 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         }
     }
 
-    impl Compute for HiddenTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInput {
+    impl<S: LayoutScalar> Compute for HiddenTree<S> {
+        fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
             &self.styles[&node]
         }
 
@@ -3477,30 +3757,26 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
             LayoutInputOf::box_input(self.node_input(node).clone())
         }
 
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
             self.layouts.insert(node, layout);
         }
 
         fn compute_child(
             &mut self,
             node: Self::Node,
-            input: ComputeInput,
+            input: ComputeInputOf<S>,
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
-            Ok({
-                assert_eq!(
-                    input.containing_flow_axes(),
-                    crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl)
-                );
-                self.hidden_children.push(node);
-                ComputeOutput::HIDDEN
-            })
+            let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+            assert_eq!(input, ComputeInputOf::hidden(expected_axes));
+            self.calls.push((node, input));
+            compute_hidden(self, node, input.containing_flow_axes())
         }
     }
 
-    impl CacheAccess for HiddenTree {
+    impl<S: LayoutScalar> CacheAccess for HiddenTree<S> {
         type Node = u32;
-        type Scalar = Scalar;
+        type Scalar = S;
 
         fn cache_context(&self) -> crate::CacheKeyContext {
             crate::CacheKeyContext::new()
@@ -3509,9 +3785,9 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         fn cache_get(
             &self,
             node: Self::Node,
-            input: &ComputeInput,
+            input: &ComputeInputOf<S>,
             context: crate::CacheKeyContext,
-        ) -> Option<ComputeOutput> {
+        ) -> Option<ComputeOutputOf<S>> {
             self.cache_get_calls.set(self.cache_get_calls.get() + 1);
             self.caches[&node].get_with_context(input, context)
         }
@@ -3519,14 +3795,14 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
         fn cache_store(
             &mut self,
             node: Self::Node,
-            input: &ComputeInput,
+            input: &ComputeInputOf<S>,
             context: crate::CacheKeyContext,
-            output: ComputeOutput,
+            output: ComputeOutputOf<S>,
         ) {
             self.cache_store_calls += 1;
             self.caches
                 .get_mut(&node)
-                .unwrap()
+                .expect("test hidden node cache exists")
                 .store_with_context(input, context, output);
         }
 
@@ -3536,43 +3812,50 @@ fn hidden_layout_clears_cache_sets_zero_layout_and_hides_children() {
     }
 
     let mut tree = HiddenTree::default();
-    tree.children.insert(1, vec![2, 3]);
-    tree.children.insert(2, vec![]);
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![3]);
     tree.children.insert(3, vec![]);
-    tree.styles.insert(1, NodeInput::default());
-    tree.styles.insert(2, NodeInput::default());
-    tree.styles.insert(3, NodeInput::default());
-    tree.caches.insert(1, Cache::new());
-    tree.caches.insert(2, Cache::new());
-    tree.caches.insert(3, Cache::new());
-    tree.caches.get_mut(&1).unwrap().store_with_context(
-        &ComputeInput::for_child(
-            RunMode::PerformLayout,
-            SizingMode::InherentSize,
-            RequestedAxis::Both,
-            Size::new(Some(1.0), Some(1.0)),
-            Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Rtl),
-            Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
-        ),
-        crate::CacheKeyContext::new(),
-        ComputeOutput::from_outer_size(Size::new(1.0, 1.0)),
-    );
+    for node in [1, 2, 3] {
+        tree.styles.insert(node, NodeInputOf::default());
+        tree.caches.insert(node, CacheOf::new());
+        tree.caches.get_mut(&node).unwrap().store_with_context(
+            &ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::splat(Some(scalar::<S>(1.0))),
+                Size::NONE,
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                Size::splat(AvailableOf::MAX_CONTENT),
+            ),
+            CacheKeyContext::new(),
+            ComputeOutputOf::from_outer_size(Size::splat(scalar::<S>(1.0))),
+        );
+    }
 
+    let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let expected_input = ComputeInputOf::hidden(expected_axes);
     assert_eq!(
-        compute_hidden(
-            &mut tree,
-            1,
-            crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
-        )
-        .unwrap(),
-        ComputeOutput::HIDDEN
+        compute_hidden(&mut tree, 1, expected_axes).unwrap(),
+        ComputeOutputOf::HIDDEN
     );
-    assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
-    assert_eq!(tree.hidden_children, vec![2, 3]);
-    assert!(tree.caches[&1].is_empty());
+    assert_eq!(tree.calls, vec![(2, expected_input), (3, expected_input)]);
+    for node in [1, 2, 3] {
+        assert_eq!(tree.layouts[&node], NodeOutputOf::with_order(0));
+        assert!(tree.caches[&node].is_empty());
+    }
     assert_eq!(tree.cache_get_calls.get(), 0);
     assert_eq!(tree.cache_store_calls, 0);
+}
+
+#[test]
+fn logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow_for_f32() {
+    assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow::<f32>();
+}
+
+#[test]
+fn logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow_for_f64() {
+    assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow::<f64>();
 }
 
 #[test]
@@ -3836,138 +4119,6 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
     assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
     assert!(tree.caches[&1].is_empty());
     assert!(tree.caches[&3].is_empty());
-}
-
-#[test]
-fn f64_compute_hidden_clears_layout_with_f64_output_type() {
-    #[derive(Default)]
-    struct HiddenTree {
-        children: HashMap<u32, Vec<u32>>,
-        layouts: HashMap<u32, NodeOutputOf<f64>>,
-        caches: HashMap<u32, CacheOf<f64>>,
-        styles: HashMap<u32, NodeInputOf<f64>>,
-        hidden_children: Vec<u32>,
-    }
-
-    impl Traverse for HiddenTree {
-        type Node = u32;
-        type Scalar = f64;
-        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-        fn children(&self, node: Self::Node) -> Self::Children<'_> {
-            self.children[&node].iter().copied()
-        }
-
-        fn child_count(&self, node: Self::Node) -> usize {
-            self.children[&node].len()
-        }
-
-        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-            self.children[&node][index]
-        }
-    }
-
-    impl Compute for HiddenTree {
-        fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
-            &self.styles[&node]
-        }
-
-        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
-            LayoutInputOf::box_input(self.node_input(node).clone())
-        }
-
-        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
-            self.layouts.insert(node, layout);
-        }
-
-        fn compute_child(
-            &mut self,
-            node: Self::Node,
-            input: ComputeInputOf<f64>,
-        ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
-        {
-            Ok({
-                assert_eq!(
-                    input,
-                    ComputeInputOf::hidden(crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
-                    ))
-                );
-                self.hidden_children.push(node);
-                ComputeOutputOf::HIDDEN
-            })
-        }
-    }
-
-    impl CacheAccess for HiddenTree {
-        type Node = u32;
-        type Scalar = f64;
-
-        fn cache_context(&self) -> crate::CacheKeyContext {
-            crate::CacheKeyContext::new()
-        }
-
-        fn cache_get(
-            &self,
-            node: Self::Node,
-            input: &ComputeInputOf<f64>,
-            context: crate::CacheKeyContext,
-        ) -> Option<ComputeOutputOf<f64>> {
-            self.caches[&node].get_with_context(input, context)
-        }
-
-        fn cache_store(
-            &mut self,
-            node: Self::Node,
-            input: &ComputeInputOf<f64>,
-            context: crate::CacheKeyContext,
-            output: ComputeOutputOf<f64>,
-        ) {
-            self.caches
-                .get_mut(&node)
-                .unwrap()
-                .store_with_context(input, context, output);
-        }
-
-        fn cache_clear(&mut self, node: Self::Node) {
-            self.caches.get_mut(&node).unwrap().clear();
-        }
-    }
-
-    let mut tree = HiddenTree::default();
-    tree.children.insert(1, vec![2]);
-    tree.children.insert(2, vec![]);
-    tree.styles.insert(1, NodeInputOf::<f64>::default());
-    tree.styles.insert(2, NodeInputOf::<f64>::default());
-    tree.caches.insert(1, CacheOf::<f64>::new());
-    tree.caches.insert(2, CacheOf::<f64>::new());
-    tree.caches.get_mut(&1).unwrap().store_with_context(
-        &ComputeInputOf::<f64>::for_child(
-            RunMode::PerformLayout,
-            SizingMode::InherentSize,
-            RequestedAxis::Both,
-            Size::new(Some(1.25), Some(1.5)),
-            Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
-            Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
-        ),
-        crate::CacheKeyContext::new(),
-        ComputeOutputOf::from_outer_size(Size::new(1.25, 1.5)),
-    );
-
-    assert_eq!(
-        compute_hidden(
-            &mut tree,
-            1,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
-        )
-        .unwrap(),
-        ComputeOutputOf::HIDDEN
-    );
-    assert_eq!(tree.layouts[&1], NodeOutputOf::with_order(0));
-    assert_eq!(tree.hidden_children, vec![2]);
-    assert!(tree.caches[&1].is_empty());
 }
 
 #[test]
