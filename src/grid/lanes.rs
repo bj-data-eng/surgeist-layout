@@ -1,4 +1,5 @@
 use super::*;
+use crate::geometry::LogicalSizeOf;
 use crate::scroll::scrollbar_size_from_overflow;
 use crate::{
     GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
@@ -861,16 +862,16 @@ where
     let tolerance = match resolve_tolerance(
         style.grid_flow_tolerance,
         match grid_axis {
-            GridAxisKind::Column => context.column_basis.unwrap_or(Tree::Scalar::ZERO),
-            GridAxisKind::Row => context.row_basis.unwrap_or(Tree::Scalar::ZERO),
+            GridAxisKind::Column => context.percent_basis.inline.unwrap_or(Tree::Scalar::ZERO),
+            GridAxisKind::Row => context.percent_basis.block.unwrap_or(Tree::Scalar::ZERO),
         },
     ) {
         Ok(tolerance) => tolerance,
         Err(error) => return Ok(Err(error)),
     };
     let lane_gap = match lane_axis {
-        GridAxisKind::Column => context.gap.width,
-        GridAxisKind::Row => context.gap.height,
+        GridAxisKind::Column => context.gap.inline,
+        GridAxisKind::Row => context.gap.block,
     };
     let mut running = vec![Tree::Scalar::ZERO; grid_axis_tracks.len()];
     let mut item_offsets = Vec::new();
@@ -1250,7 +1251,7 @@ where
         gap.height,
         style.align_content.unwrap_or(AlignContent::Stretch),
     );
-    context.gap = gap;
+    context.gap = LogicalSizeOf::new(gap.width, gap.height);
     let grid_axis_gap = match grid_axis_for_grid_lanes(style) {
         GridAxisKind::Column => column_alignment.gap,
         GridAxisKind::Row => row_alignment.gap,
@@ -1371,7 +1372,7 @@ where
                         row: 0,
                         column_end: end,
                         row_end: 1,
-                        size: Size::new(width, item_offset.lane_axis_margin_box),
+                        size: LogicalSizeOf::new(width, item_offset.lane_axis_margin_box),
                     },
                     Point::new(x, lane_axis_alignment_start + item_offset.offset),
                     Size::new(width, item_offset.lane_axis_margin_box),
@@ -1397,7 +1398,7 @@ where
                         row: start,
                         column_end: 1,
                         row_end: end,
-                        size: Size::new(item_offset.lane_axis_margin_box, height),
+                        size: LogicalSizeOf::new(item_offset.lane_axis_margin_box, height),
                     },
                     Point::new(x, y),
                     Size::new(item_offset.lane_axis_margin_box, height),
@@ -1446,7 +1447,7 @@ where
             content_box_size: subgrid_content_box_size,
             columns,
             rows,
-            gap,
+            gap: LogicalSizeOf::new(gap.width, gap.height),
             parent_named_columns: &context.named_columns,
             parent_named_rows: &context.named_rows,
             parent_area_facts: context.area_facts.as_ref(),

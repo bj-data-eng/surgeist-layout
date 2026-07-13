@@ -7,6 +7,15 @@ pub enum GridAxisKind {
     Row,
 }
 
+impl GridAxisKind {
+    pub(super) const fn logical_axis(self) -> LogicalAxis {
+        match self {
+            Self::Column => LogicalAxis::Inline,
+            Self::Row => LogicalAxis::Block,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum GridAxisMappingError {
     #[expect(
@@ -39,7 +48,7 @@ pub(super) fn map_grid_axis<S: LayoutScalar>(
         input.parent_style.direction,
     );
     let child_flow = FlowAxes::new(input.child_style.writing_mode, input.child_style.direction);
-    let logical_axis = logical_axis(input.queried_axis);
+    let logical_axis = input.queried_axis.logical_axis();
     let physical_axis = match logical_axis {
         LogicalAxis::Inline => child_flow.inline_axis(),
         LogicalAxis::Block => child_flow.block_axis(),
@@ -57,11 +66,4 @@ pub(super) fn map_grid_axis<S: LayoutScalar>(
         reversed: parent_flow.physical_axis_progression(physical_axis)
             != child_flow.physical_axis_progression(physical_axis),
     })
-}
-
-const fn logical_axis(axis: GridAxisKind) -> LogicalAxis {
-    match axis {
-        GridAxisKind::Column => LogicalAxis::Inline,
-        GridAxisKind::Row => LogicalAxis::Block,
-    }
 }

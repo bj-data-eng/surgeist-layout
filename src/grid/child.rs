@@ -237,7 +237,7 @@ where
     }
 
     let logical_content_size =
-        Size::new(track_sum(columns, gap.width), track_sum(rows, gap.height));
+        LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
     let physical_content_size = grid_area_physical_size(constants.flow_axes, logical_content_size);
     let content_box_size =
         constants
@@ -247,18 +247,18 @@ where
             } else {
                 container_content_size
             });
-    let axis_content_box_size = grid_area_logical_size(style.writing_mode, content_box_size);
+    let axis_content_box_size = grid_area_logical_size(constants.flow_axes, content_box_size);
     let alignment_free_space = axis_content_box_size - logical_content_size;
     let column_alignment = grid_alignment(
-        alignment_free_space.width,
+        alignment_free_space.inline,
         columns.len(),
-        gap.width,
+        gap.inline,
         style.justify_content.unwrap_or(AlignContent::Stretch),
     );
     let row_alignment = grid_alignment(
-        alignment_free_space.height,
+        alignment_free_space.block,
         rows.len(),
-        gap.height,
+        gap.block,
         style.align_content.unwrap_or(AlignContent::Stretch),
     );
     let content_box_left = effective_content_box_left(constants, container_content_size);
@@ -331,7 +331,7 @@ where
                         row_offsets: &row_offsets,
                         columns,
                         rows,
-                        gap,
+                        gap: Size::new(gap.inline, gap.block),
                         lines,
                         column: placement.absolute_column,
                         row: placement.absolute_row,
@@ -572,7 +572,7 @@ where
             item,
             &baseline_group_set,
             rows,
-            gap.height,
+            gap.block,
             expected_baseline_axis,
         )
         .unwrap_or_else(|| grid_item_block_axis_offset(style.writing_mode, item));
@@ -629,7 +629,7 @@ struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
     columns: &'a [S],
     rows: &'a [S],
     row_tracks: &'a [TrackSizingOf<S>],
-    gap: Size<S>,
+    gap: LogicalSizeOf<S>,
     named_columns: NamedGridLines,
     named_rows: NamedGridLines,
     area_facts: Option<GridAreaNameFacts>,
@@ -867,20 +867,13 @@ pub(super) fn grid_area_physical_origin<S: LayoutScalar>(
 
 pub(super) fn grid_area_physical_size<S: LayoutScalar>(
     containing_flow_axes: FlowAxes,
-    size: Size<S>,
+    size: LogicalSizeOf<S>,
 ) -> Size<S> {
-    containing_flow_axes.physical_size(LogicalSizeOf::new(size.width, size.height))
+    containing_flow_axes.physical_size(size)
 }
 
-fn grid_area_logical_size<S: LayoutScalar>(
-    writing_mode: crate::WritingMode,
-    size: Size<S>,
-) -> Size<S> {
-    if writing_mode.is_vertical() {
-        Size::new(size.height, size.width)
-    } else {
-        size
-    }
+fn grid_area_logical_size<S: LayoutScalar>(flow_axes: FlowAxes, size: Size<S>) -> LogicalSizeOf<S> {
+    flow_axes.logical_size(size)
 }
 
 #[derive(Clone, Copy)]
@@ -1112,7 +1105,7 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
                 };
                 merge_expected_baseline(
                     group,
-                    item.baseline_geometry_for_span(item.area.size.height)
+                    item.baseline_geometry_for_span(item.area.size.block)
                         .major_baseline,
                     expected_axis,
                 );
@@ -1126,7 +1119,7 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
                 };
                 merge_expected_baseline(
                     group,
-                    item.baseline_geometry_for_span(item.area.size.height)
+                    item.baseline_geometry_for_span(item.area.size.block)
                         .minor_baseline,
                     expected_axis,
                 );
@@ -1459,7 +1452,7 @@ pub(super) struct SubgridChildParentContextInput<'a, Node, S: LayoutScalar = Sca
     pub(super) content_box_size: Size<S>,
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) parent_named_columns: &'a NamedGridLines,
     pub(super) parent_named_rows: &'a NamedGridLines,
     pub(super) parent_area_facts: Option<&'a GridAreaNameFacts>,
@@ -1519,7 +1512,7 @@ struct SubgridChildAxisContextInput<'a, S: LayoutScalar = Scalar> {
     content_box_size: Size<S>,
     parent_columns: &'a [S],
     parent_rows: &'a [S],
-    parent_gap: Size<S>,
+    parent_gap: LogicalSizeOf<S>,
     parent_named_columns: &'a NamedGridLines,
     parent_named_rows: &'a NamedGridLines,
     parent_area_facts: Option<&'a GridAreaNameFacts>,
@@ -1671,13 +1664,13 @@ fn subgrid_parent_axis_data<'a, S: LayoutScalar>(
     match axis {
         GridAxisKind::Column => SubgridParentAxisData {
             tracks: input.parent_columns,
-            gap: input.parent_gap.width,
+            gap: input.parent_gap.inline,
             named_lines: input.parent_named_columns,
             baseline_groups: &input.parent_baseline_groups.columns,
         },
         GridAxisKind::Row => SubgridParentAxisData {
             tracks: input.parent_rows,
-            gap: input.parent_gap.height,
+            gap: input.parent_gap.block,
             named_lines: input.parent_named_rows,
             baseline_groups: &input.parent_baseline_groups.rows,
         },
@@ -1737,9 +1730,9 @@ fn grid_axis_physical_axis<S: LayoutScalar>(
     axis: GridAxisKind,
 ) -> PhysicalAxis {
     let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
-    match axis {
-        GridAxisKind::Column => flow_axes.inline_axis(),
-        GridAxisKind::Row => flow_axes.block_axis(),
+    match axis.logical_axis() {
+        crate::LogicalAxis::Inline => flow_axes.inline_axis(),
+        crate::LogicalAxis::Block => flow_axes.block_axis(),
     }
 }
 

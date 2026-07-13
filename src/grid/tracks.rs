@@ -1,5 +1,5 @@
 use super::*;
-use crate::geometry::FlowAxes;
+use crate::geometry::{FlowAxes, LogicalSizeOf};
 use crate::{
     LengthOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf,
 };
@@ -9,8 +9,8 @@ pub(super) struct IntrinsicGrid<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) constants: &'a Constants<S>,
     pub(super) column_tracks: &'a [TrackSizingOf<S>],
     pub(super) row_tracks: &'a [TrackSizingOf<S>],
-    pub(super) gap: Size<S>,
-    pub(super) percent_basis: Size<Option<S>>,
+    pub(super) gap: LogicalSizeOf<S>,
+    pub(super) percent_basis: LogicalSizeOf<Option<S>>,
     pub(super) lines: GridLines,
     pub(super) named_columns: &'a NamedGridLines,
     pub(super) named_rows: &'a NamedGridLines,
@@ -76,7 +76,7 @@ where
         style,
         columns: &zero_columns,
         rows: &zero_rows,
-        gap: Size::ZERO,
+        gap: LogicalSizeOf::new(Tree::Scalar::ZERO, Tree::Scalar::ZERO),
         lines: grid.lines,
     });
     let column_area_sizes = columns.clone();
@@ -88,8 +88,8 @@ where
             axis: GridAxisKind::Column,
             tracks: column_tracks,
             sizes: &mut columns,
-            percent_basis: grid.percent_basis.width,
-            gap: grid.gap.width,
+            percent_basis: grid.percent_basis.inline,
+            gap: grid.gap.inline,
             container_gap: grid.gap,
             available,
             children: &children,
@@ -111,8 +111,8 @@ where
             axis: GridAxisKind::Row,
             tracks: row_tracks,
             sizes: &mut rows,
-            percent_basis: grid.percent_basis.height,
-            gap: grid.gap.height,
+            percent_basis: grid.percent_basis.block,
+            gap: grid.gap.block,
             container_gap: grid.gap,
             available,
             children: &children,
@@ -145,9 +145,9 @@ where
         let row_end = area.row_end;
         let column_span_tracks = column_tracks.get(column_start..column_end);
         let row_span_tracks = row_tracks.get(row_start..row_end);
-        area.size = Size::new(
-            track_span_sum(&columns, column_start, column_end, grid.gap.width),
-            track_span_sum(&rows, row_start, row_end, grid.gap.height),
+        area.size = LogicalSizeOf::new(
+            track_span_sum(&columns, column_start, column_end, grid.gap.inline),
+            track_span_sum(&rows, row_start, row_end, grid.gap.block),
         );
         let inherited_column_subgrid = grid.subgrid_report.items.get(index).is_some_and(|item| {
             item_inherits_parent_axis(&child_style, *item, GridAxisKind::Column)
@@ -261,7 +261,7 @@ where
                     &mut columns[column_start..column_end],
                     &column_tracks[column_start..column_end],
                     child_style.overflow.x,
-                    grid.percent_basis.width,
+                    grid.percent_basis.inline,
                     output.size.width + margin.horizontal_sum(),
                 );
             } else {
@@ -269,11 +269,11 @@ where
                     &mut columns[column_start..column_end],
                     &column_tracks[column_start..column_end],
                     contribution_kind,
-                    grid.percent_basis.width,
+                    grid.percent_basis.inline,
                     span_contribution(
                         output.size.width + margin.horizontal_sum(),
                         column_end - column_start,
-                        grid.gap.width,
+                        grid.gap.inline,
                     ),
                 );
             }
@@ -333,8 +333,8 @@ where
                 &mut rows[item.start..item.end],
                 &row_tracks[item.start..item.end],
                 item.contribution_kind,
-                grid.percent_basis.height,
-                span_contribution(contribution, item.end - item.start, grid.gap.height),
+                grid.percent_basis.block,
+                span_contribution(contribution, item.end - item.start, grid.gap.block),
             );
         }
     }
@@ -657,7 +657,7 @@ struct SubgridIntrinsicContributionInput<'a, Node, S: LayoutScalar = Scalar> {
     sizes: &'a mut [S],
     percent_basis: Option<S>,
     gap: S,
-    container_gap: Size<S>,
+    container_gap: LogicalSizeOf<S>,
     available: Size<AvailableOf<S>>,
     children: &'a [Node],
     placed_areas: &'a [Option<GridArea<S>>],
@@ -696,7 +696,7 @@ where
             named_columns: input.named_columns,
             named_rows: input.named_rows,
             area_facts: input.area_facts,
-            parent_gap: input.container_gap,
+            parent_gap: Size::new(input.container_gap.inline, input.container_gap.block),
             column_sizes: input.column_sizes,
             row_sizes: input.row_sizes,
             container_size: input.constants.node_inner_size,
@@ -930,7 +930,7 @@ pub(super) fn constrained_row_intrinsic_sizes<Tree, M>(
     node: <Tree as Traverse>::Node,
     grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
     columns: &[Tree::Scalar],
-    gap: Size<Tree::Scalar>,
+    gap: LogicalSizeOf<Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, Vec<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -968,11 +968,11 @@ where
                 axis: GridAxisKind::Row,
                 tracks: grid.row_tracks,
                 sizes: &mut rows,
-                percent_basis: grid.percent_basis.height,
-                gap: gap.height,
+                percent_basis: grid.percent_basis.block,
+                gap: gap.block,
                 container_gap: gap,
                 available: Size::new(
-                    AvailableOf::Definite(track_sum(columns, gap.width)),
+                    AvailableOf::Definite(track_sum(columns, gap.inline)),
                     AvailableOf::MAX_CONTENT,
                 ),
                 children: &children,
@@ -1126,8 +1126,8 @@ where
                 &mut rows[item.start..item.end],
                 &grid.row_tracks[item.start..item.end],
                 item.contribution_kind,
-                grid.percent_basis.height,
-                span_contribution(contribution, item.end - item.start, gap.height),
+                grid.percent_basis.block,
+                span_contribution(contribution, item.end - item.start, gap.block),
             );
         }
     }
@@ -1141,7 +1141,7 @@ pub(super) fn constrained_column_intrinsic_sizes<Tree, M>(
     grid: IntrinsicGrid<'_, <Tree as Traverse>::Node, Tree::Scalar>,
     columns: &[Tree::Scalar],
     rows: &[Tree::Scalar],
-    gap: Size<Tree::Scalar>,
+    gap: LogicalSizeOf<Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, Vec<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -1228,7 +1228,7 @@ pub(super) struct PercentTrackContent<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) row_tracks: &'a [TrackSizingOf<S>],
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) lines: GridLines,
     pub(super) placements: &'a GridPlacementContext<Node>,
 }
@@ -1268,8 +1268,8 @@ where
         gap,
         lines,
     });
-    let column_offsets = offsets(columns, Tree::Scalar::ZERO, gap.width);
-    let row_offsets = offsets(rows, Tree::Scalar::ZERO, gap.height);
+    let column_offsets = offsets(columns, Tree::Scalar::ZERO, gap.inline);
+    let row_offsets = offsets(rows, Tree::Scalar::ZERO, gap.block);
     let mut content_size = Size::ZERO;
     let accumulate_standalone_percent_columns =
         inherits_opposite_subgrid_axis(parent_context, GridAxisKind::Column);
@@ -1363,10 +1363,10 @@ where
     if accumulate_standalone_percent_columns {
         content_size.width = content_size
             .width
-            .max(track_sum(&column_content, gap.width));
+            .max(track_sum(&column_content, gap.inline));
     }
     if accumulate_standalone_percent_rows {
-        content_size.height = content_size.height.max(track_sum(&row_content, gap.height));
+        content_size.height = content_size.height.max(track_sum(&row_content, gap.block));
     }
 
     Ok(content_size)
@@ -2899,7 +2899,7 @@ mod tests {
             column_end: 1,
             row: 0,
             row_end: 1,
-            size: Size::new(200.0, 100.0),
+            size: LogicalSizeOf::new(200.0, 100.0),
         };
         let columns = [200.0];
         let rows = [100.0];
@@ -2936,8 +2936,8 @@ mod tests {
                     constants: &constants,
                     column_tracks: &[TrackSizing::px(200.0)],
                     row_tracks: &[TrackSizing::px(100.0)],
-                    gap: Size::ZERO,
-                    percent_basis: Size::NONE,
+                    gap: LogicalSizeOf::new(0.0, 0.0),
+                    percent_basis: LogicalSizeOf::new(None, None),
                     lines: GridLines {
                         column_explicit_start: 0,
                         column_explicit_count: 1,
@@ -3019,7 +3019,7 @@ mod tests {
             column_end: 2,
             row: 0,
             row_end: 1,
-            size: Size::new(200.0, 100.0),
+            size: LogicalSizeOf::new(200.0, 100.0),
         };
         let columns = [100.0, 100.0];
         let rows = [100.0];
@@ -3053,8 +3053,8 @@ mod tests {
                     constants: &constants,
                     column_tracks: &[TrackSizing::px(100.0), TrackSizing::px(100.0)],
                     row_tracks: &[TrackSizing::px(100.0)],
-                    gap: Size::ZERO,
-                    percent_basis: Size::NONE,
+                    gap: LogicalSizeOf::new(0.0, 0.0),
+                    percent_basis: LogicalSizeOf::new(None, None),
                     lines: GridLines {
                         column_explicit_start: 0,
                         column_explicit_count: 2,

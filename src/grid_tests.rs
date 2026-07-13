@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use super::lanes::*;
 use super::tracks::*;
 use super::*;
-use crate::geometry::PhysicalAxis;
+use crate::geometry::{LogicalSizeOf, PhysicalAxis};
 use crate::test_support::{
     self as lts,
-    layout_tree::{OracleMeasurement, OracleTree},
+    layout_tree::{OracleMeasurement, OracleTree, OracleTreeOf},
 };
 use crate::*;
 use lts::oracle::grid::{
@@ -197,9 +197,8 @@ fn grid_lanes_layout_rejects_overflowed_affine_tolerance_resolution() {
         row_explicit_count: 1,
     };
     let context = GridContainerContext {
-        gap: Size::ZERO,
-        column_basis: Some(f32::MAX),
-        row_basis: Some(f32::MAX),
+        gap: LogicalSizeOf::new(0.0, 0.0),
+        percent_basis: LogicalSizeOf::new(Some(f32::MAX), Some(f32::MAX)),
         explicit_columns: 1,
         explicit_rows: 1,
         named_columns: named::NamedGridLines::new(GridAxisKind::Column, 1),
@@ -3596,7 +3595,7 @@ fn vertical_grid_absolute_child_maps_rows_to_physical_x_and_columns_to_y() {
     .unwrap();
     let child = tree.layout(2).expect("absolute child should be laid out");
 
-    assert_eq!(output.size, Size::new(70.0, 110.0));
+    assert_eq!(output.size, Size::new(110.0, 70.0));
     assert_eq!(child.location, Point::new(0.0, 30.0));
     assert_eq!(child.size, Size::new(60.0, 40.0));
 }
@@ -9859,9 +9858,78 @@ fn vertical_rl_grid_places_distinct_rows_on_physical_x_axis() {
     )
     .unwrap();
 
-    assert_eq!(output.size, Size::new(70.0, 110.0));
+    assert_eq!(output.size, Size::new(110.0, 70.0));
     assert_eq!(tree.layout(2).unwrap().location, Point::new(60.0, 0.0));
     assert_eq!(tree.layout(3).unwrap().location, Point::new(0.0, 30.0));
+}
+
+#[test]
+fn logical_ordinary_grid_carriers_project_fixed_tracks() {
+    macro_rules! assert_projection {
+        ($scalar:ty) => {
+            for (writing_mode, direction) in [
+                (WritingMode::HorizontalTb, Direction::Ltr),
+                (WritingMode::HorizontalTb, Direction::Rtl),
+                (WritingMode::VerticalRl, Direction::Ltr),
+                (WritingMode::VerticalRl, Direction::Rtl),
+                (WritingMode::VerticalLr, Direction::Ltr),
+                (WritingMode::VerticalLr, Direction::Rtl),
+                (WritingMode::SidewaysRl, Direction::Ltr),
+                (WritingMode::SidewaysRl, Direction::Rtl),
+                (WritingMode::SidewaysLr, Direction::Ltr),
+                (WritingMode::SidewaysLr, Direction::Rtl),
+            ] {
+                let mut tree = OracleTreeOf::<$scalar>::new().children(1, []).style(
+                    1,
+                    NodeInputOf {
+                        display: Display::Grid,
+                        writing_mode,
+                        direction,
+                        grid_template_columns: vec![
+                            TrackComponentOf::px(<$scalar as LayoutScalar>::from_f64(30.0)),
+                            TrackComponentOf::px(<$scalar as LayoutScalar>::from_f64(40.0)),
+                        ],
+                        grid_template_rows: vec![
+                            TrackComponentOf::px(<$scalar as LayoutScalar>::from_f64(50.0)),
+                            TrackComponentOf::px(<$scalar as LayoutScalar>::from_f64(60.0)),
+                        ],
+                        ..NodeInputOf::default()
+                    },
+                );
+
+                let output = crate::compute_grid(
+                    &mut tree,
+                    1,
+                    ComputeInputOf::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        Size::NONE,
+                        Size::NONE,
+                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                        Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+                    ),
+                )
+                .unwrap();
+
+                let expected = if writing_mode == WritingMode::HorizontalTb {
+                    Size::new(
+                        <$scalar as LayoutScalar>::from_f64(70.0),
+                        <$scalar as LayoutScalar>::from_f64(110.0),
+                    )
+                } else {
+                    Size::new(
+                        <$scalar as LayoutScalar>::from_f64(110.0),
+                        <$scalar as LayoutScalar>::from_f64(70.0),
+                    )
+                };
+                assert_eq!(output.size, expected, "{writing_mode:?} {direction:?}");
+            }
+        };
+    }
+
+    assert_projection!(f32);
+    assert_projection!(f64);
 }
 
 #[test]
@@ -14715,9 +14783,8 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         row_explicit_count: 1,
     };
     let container_context = GridContainerContext::<f64> {
-        gap: Size::new(1.0, 2.0),
-        column_basis: Some(100.0),
-        row_basis: None,
+        gap: LogicalSizeOf::new(1.0, 2.0),
+        percent_basis: LogicalSizeOf::new(Some(100.0), None),
         explicit_columns: 1,
         explicit_rows: 1,
         named_columns: named_lines.clone(),
@@ -14797,7 +14864,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         columns: &[10.0],
         rows: &[20.0],
         row_tracks: &tracks,
-        gap: Size::new(1.0, 2.0),
+        gap: LogicalSizeOf::new(1.0, 2.0),
         lines,
         named_columns: named_lines,
         named_rows: named::NamedGridLines::new(GridAxisKind::Row, 1),
@@ -14888,7 +14955,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         row: 0,
         column_end: 1,
         row_end: 2,
-        size: Size::new(40.0, 90.0),
+        size: LogicalSizeOf::new(40.0, 90.0),
     };
     let item = PendingGridItem::<_, f64> {
         node: "child",
@@ -15095,7 +15162,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         content_box_size: Size::new(40.0, 90.0),
         columns: &[40.0],
         rows: &[20.0, 30.0],
-        gap: Size::new(0.0, 6.0),
+        gap: LogicalSizeOf::new(0.0, 6.0),
         parent_named_columns: &named::NamedGridLines::new(GridAxisKind::Column, 1),
         parent_named_rows: &named::NamedGridLines::new(GridAxisKind::Row, 2),
         parent_area_facts: None,
@@ -15648,7 +15715,7 @@ fn named_grid_placement_context_ignores_non_in_flow_track_requirements() {
 
     assert_eq!(
         grid_track_requirement_from_placements(&placements),
-        Size::new(2, 3)
+        LogicalSizeOf::new(2, 3)
     );
     assert_eq!(
         leading_implicit_tracks_from_placements(&placements, GridAxisKind::Column, 2),
@@ -15938,7 +16005,7 @@ fn subgrid_intrinsic_parent_context_uses_actual_span_and_reversal() {
             column: 1,
             row_end: 1,
             column_end: 4,
-            size: Size::<Scalar>::ZERO,
+            size: LogicalSizeOf::new(Scalar::ZERO, Scalar::ZERO),
         },
         Size::<Scalar>::ZERO,
         &parent,
@@ -16359,7 +16426,7 @@ fn baseline_test_item(
             column,
             row_end: row + row_span,
             column_end: column + 1,
-            size: Size::new(40.0, height),
+            size: LogicalSizeOf::new(40.0, height),
         },
         output: ComputeOutput::from_sizes_and_baselines(
             Size::new(40.0, height),
@@ -17022,7 +17089,7 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
             row: 0,
             column_end: 1,
             row_end: 1,
-            size: Size::new(S::from_f64(70.0), S::from_f64(80.0)),
+            size: LogicalSizeOf::new(S::from_f64(70.0), S::from_f64(80.0)),
         },
         output: ComputeOutputOf::from_sizes_and_baselines(
             Size::new(S::from_f64(30.0), S::from_f64(20.0)),
@@ -17669,7 +17736,7 @@ fn vertical_subgrid_percentage_edges_use_physical_area_basis() {
         column_end: 1,
         row: 0,
         row_end: 1,
-        size: Size::new(200.0, 100.0),
+        size: LogicalSizeOf::new(200.0, 100.0),
     };
     let named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
     let named_rows = named::NamedGridLines::new(GridAxisKind::Row, 2);
@@ -17737,7 +17804,7 @@ fn orthogonal_subgrid_percentage_edges_use_containing_physical_area_basis() {
         column_end: 1,
         row: 0,
         row_end: 1,
-        size: Size::new(200.0, 100.0),
+        size: LogicalSizeOf::new(200.0, 100.0),
     };
     let named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
     let named_rows = named::NamedGridLines::new(GridAxisKind::Row, 2);
@@ -17839,7 +17906,7 @@ fn nested_subgrid_same_flow_projects_physical_edge_sums_before_local_track_sizin
         column_end: 1,
         row: 0,
         row_end: 1,
-        size: Size::new(200.0, 100.0),
+        size: LogicalSizeOf::new(200.0, 100.0),
     };
     let children = [2];
     let placed_areas = [Some(area)];
@@ -17931,7 +17998,7 @@ fn orthogonal_subgrid_grandchild_percentage_edges_use_immediate_containing_flow(
         column_end: 1,
         row: 0,
         row_end: 1,
-        size: Size::new(200.0, 100.0),
+        size: LogicalSizeOf::new(200.0, 100.0),
     };
     let children = [2];
     let placed_areas = [Some(area)];
@@ -17992,7 +18059,7 @@ fn grid_area_physical_origin_maps_vertical_grid_tracks_without_collapsing_rows()
                 column_end: 1,
                 row: 0,
                 row_end: 1,
-                size: Size::new(30.0, 50.0),
+                size: LogicalSizeOf::new(30.0, 50.0),
             },
         ),
         Point::new(60.0, 0.0)
@@ -18007,7 +18074,7 @@ fn grid_area_physical_origin_maps_vertical_grid_tracks_without_collapsing_rows()
                 column_end: 2,
                 row: 1,
                 row_end: 2,
-                size: Size::new(40.0, 60.0),
+                size: LogicalSizeOf::new(40.0, 60.0),
             },
         ),
         Point::new(0.0, 30.0)
@@ -18284,7 +18351,7 @@ fn grid_area(column: usize, column_end: usize, row: usize, row_end: usize) -> Gr
         column_end,
         row,
         row_end,
-        size: Size::ZERO,
+        size: LogicalSizeOf::new(0.0, 0.0),
     }
 }
 
@@ -18810,12 +18877,12 @@ fn column_subgrid_context_preserves_inherited_baseline_groups() {
             column: 0,
             row_end: 1,
             column_end: 2,
-            size: Size::new(80.0, 20.0),
+            size: LogicalSizeOf::new(80.0, 20.0),
         },
         content_box_size: Size::new(80.0, 20.0),
         columns: &[40.0, 40.0],
         rows: &[20.0],
-        gap: Size::ZERO,
+        gap: LogicalSizeOf::new(0.0, 0.0),
         parent_named_columns: &parent_named_columns,
         parent_named_rows: &parent_named_rows,
         parent_area_facts: None,
@@ -18912,12 +18979,12 @@ fn subgrid_child_context_rejects_inheritable_axis_without_parent_tracks() {
             column: 0,
             row_end: 1,
             column_end: 1,
-            size: Size::new(0.0, 20.0),
+            size: LogicalSizeOf::new(0.0, 20.0),
         },
         content_box_size: Size::new(0.0, 20.0),
         columns: &[],
         rows: &[20.0],
-        gap: Size::ZERO,
+        gap: LogicalSizeOf::new(0.0, 0.0),
         parent_named_columns: &parent_named_columns,
         parent_named_rows: &parent_named_rows,
         parent_area_facts: None,

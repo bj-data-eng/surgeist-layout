@@ -1,4 +1,5 @@
 use super::*;
+use crate::geometry::LogicalSizeOf;
 use crate::geometry::PhysicalAxis;
 use crate::output::PhysicalBaseline;
 
@@ -868,7 +869,10 @@ where
     let parent_axis = mapping.parent_axis;
     let span_in_parent = area_span(area, parent_axis);
     let parent_axis_gap = axis_size(parent_gap, parent_axis);
-    let physical_area_size = grid_area_physical_size(containing_flow_axes, area_size);
+    let physical_area_size = grid_area_physical_size(
+        containing_flow_axes,
+        LogicalSizeOf::new(area_size.width, area_size.height),
+    );
     let area_basis = physical_area_size.map(Some);
     let resolved_margin = containing_flow_axes
         .zip_physical_edges_with_inline_extent(style.margin, area_basis, |length, basis| {
@@ -1072,7 +1076,7 @@ where
         style,
         columns: &zero_columns,
         rows: &zero_rows,
-        gap,
+        gap: LogicalSizeOf::new(gap.width, gap.height),
         lines: initialized.context.lines,
     });
     let queried_axis_fully_inherited =
@@ -1520,7 +1524,7 @@ mod tests {
                 row: 0,
                 column_end: 1,
                 row_end: 1,
-                size: Size::new(20.0, 20.0),
+                size: LogicalSizeOf::new(20.0, 20.0),
             },
             Size::new(20.0, 20.0),
             item_report,

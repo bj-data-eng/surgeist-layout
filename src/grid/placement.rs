@@ -1,4 +1,5 @@
 use super::*;
+use crate::geometry::LogicalSizeOf;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct GridArea<S: LayoutScalar = Scalar> {
@@ -6,7 +7,7 @@ pub(super) struct GridArea<S: LayoutScalar = Scalar> {
     pub(super) row: usize,
     pub(super) column_end: usize,
     pub(super) row_end: usize,
-    pub(super) size: Size<S>,
+    pub(super) size: LogicalSizeOf<S>,
 }
 
 impl<S: LayoutScalar> GridArea<S> {
@@ -16,27 +17,25 @@ impl<S: LayoutScalar> GridArea<S> {
             row,
             column_end: column + 1,
             row_end: row + 1,
-            size: Size::new(width, height),
+            size: LogicalSizeOf::new(width, height),
         }
     }
 }
 
 pub(super) fn grid_track_requirement_from_placements(
     placements: &[ResolvedGridItemPlacement],
-) -> Size<usize> {
-    placements
-        .iter()
-        .filter(|item| item.in_flow)
-        .fold(Size::new(1, 1), |requirement, item| {
-            Size::new(
+) -> LogicalSizeOf<usize> {
+    placements.iter().filter(|item| item.in_flow).fold(
+        LogicalSizeOf::new(1, 1),
+        |requirement, item| {
+            LogicalSizeOf::new(
                 requirement
-                    .width
+                    .inline
                     .max(placement_track_requirement(item.column)),
-                requirement
-                    .height
-                    .max(placement_track_requirement(item.row)),
+                requirement.block.max(placement_track_requirement(item.row)),
             )
-        })
+        },
+    )
 }
 
 pub(super) fn leading_implicit_tracks_from_placements(
@@ -163,7 +162,7 @@ pub(super) fn fully_definite_area<S: LayoutScalar>(
     row: super::GridPlacement,
     columns: &[S],
     rows: &[S],
-    gap: Size<S>,
+    gap: LogicalSizeOf<S>,
     lines: GridLines,
 ) -> Option<GridArea<S>> {
     if !has_definite_line(column) || !has_definite_line(row) {
@@ -413,7 +412,7 @@ pub(super) fn definite_area<S: LayoutScalar>(
     row: super::GridPlacement,
     columns: &[S],
     rows: &[S],
-    gap: Size<S>,
+    gap: LogicalSizeOf<S>,
     lines: GridLines,
 ) -> Option<GridArea<S>> {
     let (column_start, column_end) = placement_range(
@@ -433,9 +432,9 @@ pub(super) fn definite_area<S: LayoutScalar>(
         row: row_start,
         column_end,
         row_end,
-        size: Size::new(
-            track_span_sum(columns, column_start, column_end, gap.width),
-            track_span_sum(rows, row_start, row_end, gap.height),
+        size: LogicalSizeOf::new(
+            track_span_sum(columns, column_start, column_end, gap.inline),
+            track_span_sum(rows, row_start, row_end, gap.block),
         ),
     })
 }
@@ -516,12 +515,12 @@ pub(super) fn next_auto_area<S: LayoutScalar>(
     occupancy: &[bool],
     columns: &[S],
     rows: &[S],
-    gap: Size<S>,
-    span: Size<usize>,
+    gap: LogicalSizeOf<S>,
+    span: LogicalSizeOf<usize>,
     column_flow: bool,
 ) -> GridArea<S> {
-    let column_span = span.width.max(1);
-    let row_span = span.height.max(1);
+    let column_span = span.inline.max(1);
+    let row_span = span.block.max(1);
     loop {
         let index = *placement_index;
         *placement_index += 1;
@@ -549,9 +548,9 @@ pub(super) fn next_auto_area<S: LayoutScalar>(
                 row,
                 column_end,
                 row_end,
-                size: Size::new(
-                    track_span_sum(columns, column, column_end, gap.width),
-                    track_span_sum(rows, row, row_end, gap.height),
+                size: LogicalSizeOf::new(
+                    track_span_sum(columns, column, column_end, gap.inline),
+                    track_span_sum(rows, row, row_end, gap.block),
                 ),
             };
         }
@@ -631,7 +630,7 @@ pub(super) struct ResolveGridChildAreasInput<'a, Node, S: LayoutScalar = Scalar>
     pub(super) style: &'a NodeInputOf<S>,
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) lines: GridLines,
 }
 
@@ -684,7 +683,7 @@ pub(super) fn place_grid_child_area_phase<Node, S: LayoutScalar>(
 pub(super) struct PlacementContext<'a, S: LayoutScalar = Scalar> {
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) lines: GridLines,
     pub(super) column_flow: bool,
     pub(super) dense_flow: bool,
@@ -712,7 +711,7 @@ pub(super) struct PlacementGrid<'a, S: LayoutScalar = Scalar> {
     pub(super) occupancy: &'a [bool],
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) lines: GridLines,
     pub(super) column_flow: bool,
     pub(super) dense_flow: bool,
@@ -753,7 +752,7 @@ pub(super) fn resolve_grid_area<S: LayoutScalar>(
                 grid.columns,
                 grid.rows,
                 grid.gap,
-                Size::new(
+                LogicalSizeOf::new(
                     placement_span_or_one(column).get(),
                     placement_span_or_one(row).get(),
                 ),
@@ -825,9 +824,9 @@ pub(super) fn next_area_with_fixed_column<S: LayoutScalar>(
                 row,
                 column_end,
                 row_end,
-                size: Size::new(
-                    track_span_sum(grid.columns, column_start, column_end, grid.gap.width),
-                    track_span_sum(grid.rows, row, row_end, grid.gap.height),
+                size: LogicalSizeOf::new(
+                    track_span_sum(grid.columns, column_start, column_end, grid.gap.inline),
+                    track_span_sum(grid.rows, row, row_end, grid.gap.block),
                 ),
             };
         }
@@ -882,9 +881,9 @@ pub(super) fn next_area_with_fixed_row<S: LayoutScalar>(
                 row: row_start,
                 column_end,
                 row_end,
-                size: Size::new(
-                    track_span_sum(grid.columns, column, column_end, grid.gap.width),
-                    track_span_sum(grid.rows, row_start, row_end, grid.gap.height),
+                size: LogicalSizeOf::new(
+                    track_span_sum(grid.columns, column, column_end, grid.gap.inline),
+                    track_span_sum(grid.rows, row_start, row_end, grid.gap.block),
                 ),
             };
         }
