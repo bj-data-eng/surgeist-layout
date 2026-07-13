@@ -1,5 +1,5 @@
 # FRI-02-C06 Logical Ordinary Grid
-Status: reviewed
+Status: in_progress
 Cycle ID: FRI-02-C06
 Owning repository: surgeist-layout
 Cycle base: d0a8c30deb701ee31397f73b868de974c4810d31
