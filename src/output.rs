@@ -422,6 +422,75 @@ impl<S: LayoutScalar> CollapsibleMarginOf<S> {
     }
 }
 
+/// Collapsible block margins reported on their physical output sides.
+///
+/// The carrier records the physical axis selected by the reporting box's
+/// `FlowAxes`. Callers select physical sides directly and provide their own
+/// containing flow when asking whether collapse may continue through the box.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PhysicalBlockMarginCollapseOf<S: LayoutScalar = DefaultScalar> {
+    margins: Edges<CollapsibleMarginOf<S>>,
+    block_axis: PhysicalAxis,
+    can_collapse_through: bool,
+}
+
+/// Default-scalar physical block-margin-collapse output.
+pub type PhysicalBlockMarginCollapse = PhysicalBlockMarginCollapseOf<DefaultScalar>;
+
+impl<S: LayoutScalar> PhysicalBlockMarginCollapseOf<S> {
+    /// A non-reporting collapse result with zero margins and no eligibility.
+    pub const NONE: Self = Self {
+        margins: Edges::all(CollapsibleMarginOf::ZERO),
+        block_axis: PhysicalAxis::Vertical,
+        can_collapse_through: false,
+    };
+
+    /// Constructs physical block-start and block-end margin state for `flow_axes`.
+    #[must_use]
+    pub const fn from_block_flow(
+        flow_axes: FlowAxes,
+        block_start: CollapsibleMarginOf<S>,
+        block_end: CollapsibleMarginOf<S>,
+        can_collapse_through: bool,
+    ) -> Self {
+        let zero = CollapsibleMarginOf::ZERO;
+        let margins = match flow_axes.block_start() {
+            PhysicalSide::Top => Edges::new(block_start, zero, block_end, zero),
+            PhysicalSide::Right => Edges::new(zero, block_start, zero, block_end),
+            PhysicalSide::Bottom => Edges::new(block_end, zero, block_start, zero),
+            PhysicalSide::Left => Edges::new(zero, block_end, zero, block_start),
+        };
+
+        Self {
+            margins,
+            block_axis: flow_axes.block_axis(),
+            can_collapse_through,
+        }
+    }
+
+    /// Returns the margin set stored on `side`.
+    #[must_use]
+    pub const fn at(self, side: PhysicalSide) -> CollapsibleMarginOf<S> {
+        match side {
+            PhysicalSide::Top => self.margins.top,
+            PhysicalSide::Right => self.margins.right,
+            PhysicalSide::Bottom => self.margins.bottom,
+            PhysicalSide::Left => self.margins.left,
+        }
+    }
+
+    /// Returns whether a containing flow on the same physical block axis may collapse through.
+    #[must_use]
+    pub const fn can_collapse_through(self, containing_flow: FlowAxes) -> bool {
+        self.can_collapse_through
+            && matches!(
+                (containing_flow.block_axis(), self.block_axis),
+                (PhysicalAxis::Horizontal, PhysicalAxis::Horizontal)
+                    | (PhysicalAxis::Vertical, PhysicalAxis::Vertical)
+            )
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BaselinesOf<S: LayoutScalar = DefaultScalar> {
     pub first: Point<Option<S>>,
@@ -732,9 +801,7 @@ pub struct ComputeOutputOf<S: LayoutScalar = DefaultScalar> {
     pub scroll_geometry: Option<ScrollGeometryOf<S>>,
     pub first_baselines: Point<Option<S>>,
     pub last_baselines: Point<Option<S>>,
-    pub top_margin: CollapsibleMarginOf<S>,
-    pub bottom_margin: CollapsibleMarginOf<S>,
-    pub margins_can_collapse_through: bool,
+    pub block_margin_collapse: PhysicalBlockMarginCollapseOf<S>,
 }
 
 pub type ComputeOutput = ComputeOutputOf<DefaultScalar>;
@@ -746,9 +813,7 @@ impl<S: LayoutScalar> ComputeOutputOf<S> {
         scroll_geometry: None,
         first_baselines: Point::NONE,
         last_baselines: Point::NONE,
-        top_margin: CollapsibleMarginOf::ZERO,
-        bottom_margin: CollapsibleMarginOf::ZERO,
-        margins_can_collapse_through: false,
+        block_margin_collapse: PhysicalBlockMarginCollapseOf::NONE,
     };
 
     pub const DEFAULT: Self = Self::HIDDEN;
@@ -765,9 +830,7 @@ impl<S: LayoutScalar> ComputeOutputOf<S> {
             scroll_geometry: None,
             first_baselines: baselines.first,
             last_baselines: baselines.last,
-            top_margin: CollapsibleMarginOf::ZERO,
-            bottom_margin: CollapsibleMarginOf::ZERO,
-            margins_can_collapse_through: false,
+            block_margin_collapse: PhysicalBlockMarginCollapseOf::NONE,
         }
     }
 

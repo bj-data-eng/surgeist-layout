@@ -128,11 +128,12 @@ fn complete_compute_size_output<S: LayoutScalar>() -> ComputeOutputOf<S> {
         scroll_geometry: Some(cache_scroll_geometry()),
         first_baselines: Point::new(Some(scalar(12.0)), Some(scalar(18.0))),
         last_baselines: Point::new(Some(scalar(102.0)), Some(scalar(34.0))),
-        top_margin: CollapsibleMarginOf::from_margin(scalar(9.0))
-            .collapse_with_margin(scalar(-3.0)),
-        bottom_margin: CollapsibleMarginOf::from_margin(scalar(4.0))
-            .collapse_with_margin(scalar(-6.0)),
-        margins_can_collapse_through: true,
+        block_margin_collapse: PhysicalBlockMarginCollapseOf::from_block_flow(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            CollapsibleMarginOf::from_margin(scalar(9.0)).collapse_with_margin(scalar(-3.0)),
+            CollapsibleMarginOf::from_margin(scalar(4.0)).collapse_with_margin(scalar(-6.0)),
+            true,
+        ),
     }
 }
 

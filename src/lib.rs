@@ -97,7 +97,8 @@ pub use output::{
     FlexItemRootContext, FlexItemRootContextOf, LayoutCacheClearEntry, LayoutCacheStoreEntry,
     LayoutCacheStoreEntryOf, LayoutOutputEntry, LayoutOutputEntryOf, LayoutRootContext,
     LayoutRootContextOf, LayoutRootRequest, LayoutRootRequestOf, LayoutRoundingMode, NodeOutput,
-    NodeOutputOf, RootAvailabilityError, RootAvailabilityErrorOf,
+    NodeOutputOf, PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf,
+    RootAvailabilityError, RootAvailabilityErrorOf,
 };
 pub(crate) use output::{RequestedAxis, RunMode, SizingMode};
 /// Supported scalar contract for generic layout APIs.

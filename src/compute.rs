@@ -1,9 +1,10 @@
 use super::{
-    AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, Compute, ComputeInputOf, ComputeOutputOf,
-    DefaultScalar, Direction, Edges, LayoutCacheClearEntry, LayoutCacheStoreEntryOf, LayoutInputOf,
-    LayoutOutputEntryOf, LayoutRootContextOf, LayoutRootRequestOf, LayoutScalar,
-    LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, NonNegativeFiniteOf,
-    NonNegativeFiniteScalarErrorOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
+    AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CollapsibleMarginOf, Compute,
+    ComputeInputOf, ComputeOutputOf, DefaultScalar, Direction, Edges, LayoutCacheClearEntry,
+    LayoutCacheStoreEntryOf, LayoutInputOf, LayoutOutputEntryOf, LayoutRootContextOf,
+    LayoutRootRequestOf, LayoutScalar, LengthResolutionOf, LengthResolutionStatus, NodeInputOf,
+    NodeOutputOf, NonNegativeFiniteOf, NonNegativeFiniteScalarErrorOf,
+    PhysicalBlockMarginCollapseOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
@@ -1015,6 +1016,15 @@ fn transpose_leaf_size<S, E>(size: Size<Result<Option<S>, E>>) -> Result<Size<Op
     Ok(Size::new(size.width?, size.height?))
 }
 
+fn edge_at_physical_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
+    match side {
+        PhysicalSide::Top => edges.top,
+        PhysicalSide::Right => edges.right,
+        PhysicalSide::Bottom => edges.bottom,
+        PhysicalSide::Left => edges.left,
+    }
+}
+
 pub fn compute_leaf<S, M>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
@@ -1068,17 +1078,28 @@ where
     let content_box_inset =
         content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
     let content_box_inset_size = content_box_inset.sum_axes();
+    let leaf_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let block_start = leaf_flow_axes.block_start();
+    let block_end = leaf_flow_axes.block_end();
+    let node_block_size = match leaf_flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => node_size.width,
+        PhysicalAxis::Vertical => node_size.height,
+    };
+    let node_min_block_size = match leaf_flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => node_min_size.width,
+        PhysicalAxis::Vertical => node_min_size.height,
+    };
 
     let prevents_margin_collapse = style.display != super::Display::Block
         || style.overflow.x.blocks_margin_collapse()
         || style.overflow.y.blocks_margin_collapse()
         || style.position == Position::Absolute
-        || padding.top > S::ZERO
-        || padding.bottom > S::ZERO
-        || border.top > S::ZERO
-        || border.bottom > S::ZERO
-        || matches!(node_size.height, Some(height) if height > S::ZERO)
-        || matches!(node_min_size.height, Some(height) if height > S::ZERO);
+        || edge_at_physical_side(padding, block_start) > S::ZERO
+        || edge_at_physical_side(padding, block_end) > S::ZERO
+        || edge_at_physical_side(border, block_start) > S::ZERO
+        || edge_at_physical_side(border, block_end) > S::ZERO
+        || matches!(node_block_size, Some(size) if size > S::ZERO)
+        || matches!(node_min_block_size, Some(size) if size > S::ZERO);
 
     if input.run_mode() == RunMode::ComputeSize
         && prevents_margin_collapse
@@ -1163,8 +1184,15 @@ where
         .max_optional(padding_border_size.map(Some));
 
     let mut output = ComputeOutputOf::from_sizes(aspect_size, measured + padding.sum_axes());
-    output.margins_can_collapse_through =
-        !prevents_margin_collapse && aspect_size.height == S::ZERO && measured.height == S::ZERO;
+    let can_collapse_through = !prevents_margin_collapse
+        && leaf_flow_axes.logical_size(aspect_size).block == S::ZERO
+        && leaf_flow_axes.logical_size(measured).block == S::ZERO;
+    output.block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
+        leaf_flow_axes,
+        CollapsibleMarginOf::ZERO,
+        CollapsibleMarginOf::ZERO,
+        can_collapse_through,
+    );
     Ok(output)
 }
 

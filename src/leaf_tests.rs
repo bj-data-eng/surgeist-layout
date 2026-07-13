@@ -1,5 +1,73 @@
 use crate::*;
 
+fn assert_measured_leaf_block_margin_collapse_uses_own_logical_block_extent<S: LayoutScalar>() {
+    let containing_flow = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+
+    for writing_mode in [
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        let leaf_flow = FlowAxes::new(writing_mode, Direction::Ltr);
+        let style = NodeInputOf::<S> {
+            display: Display::Block,
+            writing_mode,
+            ..NodeInputOf::default()
+        };
+        let input = ComputeInputOf::<S>::leaf_layout(
+            Size::NONE,
+            Size::NONE,
+            containing_flow,
+            Size::splat(AvailableOf::MAX_CONTENT),
+        )
+        .expect("valid direct leaf input");
+
+        let zero_block = compute_leaf(input, &style, |_measurement| {
+            Ok::<_, ()>(Size::new(S::ZERO, S::from_f64(12.0)))
+        })
+        .expect("leaf measurement succeeds");
+        assert_eq!(
+            zero_block.block_margin_collapse.at(leaf_flow.block_start()),
+            CollapsibleMarginOf::ZERO
+        );
+        assert_eq!(
+            zero_block.block_margin_collapse.at(leaf_flow.block_end()),
+            CollapsibleMarginOf::ZERO
+        );
+        assert!(
+            zero_block
+                .block_margin_collapse
+                .can_collapse_through(leaf_flow)
+        );
+        assert!(
+            !zero_block
+                .block_margin_collapse
+                .can_collapse_through(containing_flow)
+        );
+
+        let nonzero_block = compute_leaf(input, &style, |_measurement| {
+            Ok::<_, ()>(Size::new(S::from_f64(12.0), S::ZERO))
+        })
+        .expect("leaf measurement succeeds");
+        assert!(
+            !nonzero_block
+                .block_margin_collapse
+                .can_collapse_through(leaf_flow)
+        );
+    }
+}
+
+#[test]
+fn measured_leaf_block_margin_collapse_uses_own_logical_block_extent_in_f32() {
+    assert_measured_leaf_block_margin_collapse_uses_own_logical_block_extent::<f32>();
+}
+
+#[test]
+fn measured_leaf_block_margin_collapse_uses_own_logical_block_extent_in_f64() {
+    assert_measured_leaf_block_margin_collapse_uses_own_logical_block_extent::<f64>();
+}
+
 fn assert_leaf_uses_containing_flow_for_percentage_edges<S: LayoutScalar>() {
     let input = ComputeInputOf::<S>::leaf_layout(
         Size::NONE,

@@ -5057,8 +5057,17 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(output.size, Size::new(100.0, 5.0));
-    assert_eq!(output.top_margin.resolve(), 10.0);
-    assert_eq!(output.bottom_margin.resolve(), 0.0);
+    assert_eq!(
+        output.block_margin_collapse.at(PhysicalSide::Top).resolve(),
+        10.0
+    );
+    assert_eq!(
+        output
+            .block_margin_collapse
+            .at(PhysicalSide::Bottom)
+            .resolve(),
+        0.0
+    );
 }
 
 #[test]
@@ -5159,9 +5168,22 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 10.0));
     assert_eq!(output.size, Size::new(100.0, 15.0));
     assert_eq!(output.content_size, Size::new(100.0, 15.0));
-    assert_eq!(output.top_margin.resolve(), 0.0);
-    assert_eq!(output.bottom_margin.resolve(), 0.0);
-    assert!(!output.margins_can_collapse_through);
+    assert_eq!(
+        output.block_margin_collapse.at(PhysicalSide::Top).resolve(),
+        0.0
+    );
+    assert_eq!(
+        output
+            .block_margin_collapse
+            .at(PhysicalSide::Bottom)
+            .resolve(),
+        0.0
+    );
+    assert!(
+        !output
+            .block_margin_collapse
+            .can_collapse_through(FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr))
+    );
 }
 
 #[test]
@@ -5357,8 +5379,17 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(output.size, Size::new(100.0, 5.0));
-    assert_eq!(output.top_margin.resolve(), 0.0);
-    assert_eq!(output.bottom_margin.resolve(), 10.0);
+    assert_eq!(
+        output.block_margin_collapse.at(PhysicalSide::Top).resolve(),
+        0.0
+    );
+    assert_eq!(
+        output
+            .block_margin_collapse
+            .at(PhysicalSide::Bottom)
+            .resolve(),
+        10.0
+    );
 }
 
 #[test]
@@ -5549,7 +5580,12 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
         },
     );
     let mut empty_output = ComputeOutput::from_sizes(Size::new(100.0, 0.0), Size::new(100.0, 0.0));
-    empty_output.margins_can_collapse_through = true;
+    empty_output.block_margin_collapse = PhysicalBlockMarginCollapse::from_block_flow(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        CollapsibleMargin::ZERO,
+        CollapsibleMargin::ZERO,
+        true,
+    );
     tree.outputs.insert(2, empty_output);
     tree.outputs.insert(
         3,
@@ -5652,7 +5688,11 @@ fn block_empty_auto_height_can_collapse_through() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 0.0));
-    assert!(output.margins_can_collapse_through);
+    assert!(
+        output
+            .block_margin_collapse
+            .can_collapse_through(FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr))
+    );
 }
 
 #[test]
@@ -5740,9 +5780,22 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 2.0));
-    assert_eq!(output.top_margin.resolve(), 8.0);
-    assert_eq!(output.bottom_margin.resolve(), 6.0);
-    assert!(!output.margins_can_collapse_through);
+    assert_eq!(
+        output.block_margin_collapse.at(PhysicalSide::Top).resolve(),
+        8.0
+    );
+    assert_eq!(
+        output
+            .block_margin_collapse
+            .at(PhysicalSide::Bottom)
+            .resolve(),
+        6.0
+    );
+    assert!(
+        !output
+            .block_margin_collapse
+            .can_collapse_through(FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr))
+    );
 }
 
 fn assert_collapsible_percentage_margins_use_containing_inline_extent<S: LayoutScalar>(
@@ -5793,8 +5846,17 @@ fn assert_collapsible_percentage_margins_use_containing_inline_extent<S: LayoutS
     )
     .expect("block layout succeeds");
 
-    assert_eq!(output.top_margin.resolve(), S::from_f64(30.0));
-    assert_eq!(output.bottom_margin.resolve(), S::from_f64(60.0));
+    assert_eq!(
+        output.block_margin_collapse.at(PhysicalSide::Top).resolve(),
+        S::from_f64(30.0)
+    );
+    assert_eq!(
+        output
+            .block_margin_collapse
+            .at(PhysicalSide::Bottom)
+            .resolve(),
+        S::from_f64(60.0)
+    );
 }
 
 #[test]

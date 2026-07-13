@@ -11,10 +11,11 @@ use super::{
     LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant,
     LayoutOperation, LayoutResultOf, LayoutScalar, LayoutUnsupportedCapability, LengthAutoOf,
     LengthOf, LengthResolutionOf, LengthResolutionStatus, LineBreakInputOf, NodeInputOf,
-    NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, TextAlign,
-    Traverse, VerticalAlign, WritingMode,
+    NodeOutputOf, Overflow, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis, RunMode,
+    Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
+use crate::geometry::PhysicalSide;
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
     scrollbar_size_from_overflow,
@@ -29,6 +30,15 @@ where
     Tree: Compute<M>,
 {
     compute_block_inner::<Tree, Tree::Scalar, M>(tree, node, input)
+}
+
+fn edge_at_physical_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
+    match side {
+        PhysicalSide::Top => edges.top,
+        PhysicalSide::Right => edges.right,
+        PhysicalSide::Bottom => edges.bottom,
+        PhysicalSide::Left => edges.left,
+    }
 }
 
 fn compute_block_inner<Tree, S, M>(
@@ -126,6 +136,12 @@ where
     let bottom_margin = final_pass.bottom_margin(&constants);
     let margins_can_collapse_through =
         constants.can_collapse_through && final_pass.all_in_flow_children_can_collapse_through;
+    let block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
+        constants.flow_axes,
+        top_margin,
+        bottom_margin,
+        margins_can_collapse_through,
+    );
 
     if input.run_mode() == RunMode::ComputeSize {
         let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
@@ -133,9 +149,7 @@ where
             Size::ZERO,
             final_pass.baselines,
         );
-        output.top_margin = top_margin;
-        output.bottom_margin = bottom_margin;
-        output.margins_can_collapse_through = margins_can_collapse_through;
+        output.block_margin_collapse = block_margin_collapse;
         Ok(output)
     } else {
         layout_floats(
@@ -178,9 +192,7 @@ where
             output_size,
             scrollable_overflow,
         )?);
-        output.top_margin = top_margin;
-        output.bottom_margin = bottom_margin;
-        output.margins_can_collapse_through = margins_can_collapse_through;
+        output.block_margin_collapse = block_margin_collapse;
         Ok(output)
     }
 }
@@ -952,10 +964,20 @@ where
                 .transpose_with_node(tree, child)?,
             constants.direction,
         );
-        let top_margin_set = output.top_margin.collapse_with_margin(child_margin.top);
+        let top_margin_set = output
+            .block_margin_collapse
+            .at(constants.flow_axes.block_start())
+            .collapse_with_margin(edge_at_physical_side(
+                child_margin,
+                constants.flow_axes.block_start(),
+            ));
         let bottom_margin_set = output
-            .bottom_margin
-            .collapse_with_margin(child_margin.bottom);
+            .block_margin_collapse
+            .at(constants.flow_axes.block_end())
+            .collapse_with_margin(edge_at_physical_side(
+                child_margin,
+                constants.flow_axes.block_end(),
+            ));
         let child_margin_can_collapse_with_parent =
             child_margin_can_collapse_with_parent(&child_style);
         let base_y = cursor_y;
@@ -1075,7 +1097,10 @@ where
         if let Some(baseline) = output.baselines().last_block_baseline(child_flow_axes) {
             baselines.record_last(baseline.translated(location));
         }
-        if output.margins_can_collapse_through {
+        if output
+            .block_margin_collapse
+            .can_collapse_through(constants.flow_axes)
+        {
             cursor_y = if child_style.clear == Clear::None {
                 base_y + output.size.height
             } else {

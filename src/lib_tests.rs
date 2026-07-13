@@ -1,8 +1,80 @@
 use crate::{
-    Available, Baselines, ComputeOutput, Dimension, Display, Edges, Length, LengthAuto,
-    LengthPercentageOf, LengthResolutionStatus, MaxTrackSizing, MinTrackSizing, Point, Scalar,
-    Size, TrackComponent, TrackComponentList, TrackRepeatCount, TrackSizing,
+    Available, Baselines, CollapsibleMarginOf, ComputeOutput, Dimension, Direction, Display, Edges,
+    FlowAxes, LayoutScalar, Length, LengthAuto, LengthPercentageOf, LengthResolutionStatus,
+    MaxTrackSizing, MinTrackSizing, PhysicalAxis, PhysicalBlockMarginCollapse,
+    PhysicalBlockMarginCollapseOf, PhysicalSide, Point, Scalar, Size, TrackComponent,
+    TrackComponentList, TrackRepeatCount, TrackSizing, WritingMode,
 };
+
+fn assert_physical_block_margin_collapse_maps_all_flow_axes<S: LayoutScalar>() {
+    let none = PhysicalBlockMarginCollapseOf::<S>::NONE;
+    let block_start = CollapsibleMarginOf::from_margin(S::from_f64(5.0));
+    let block_end = CollapsibleMarginOf::from_margin(S::from_f64(-3.0));
+    let flows = [
+        (WritingMode::HorizontalTb, Direction::Ltr),
+        (WritingMode::HorizontalTb, Direction::Rtl),
+        (WritingMode::VerticalRl, Direction::Ltr),
+        (WritingMode::VerticalRl, Direction::Rtl),
+        (WritingMode::VerticalLr, Direction::Ltr),
+        (WritingMode::VerticalLr, Direction::Rtl),
+        (WritingMode::SidewaysRl, Direction::Ltr),
+        (WritingMode::SidewaysRl, Direction::Rtl),
+        (WritingMode::SidewaysLr, Direction::Ltr),
+        (WritingMode::SidewaysLr, Direction::Rtl),
+    ];
+
+    for (writing_mode, direction) in flows {
+        let flow = FlowAxes::new(writing_mode, direction);
+        let carrier =
+            PhysicalBlockMarginCollapseOf::from_block_flow(flow, block_start, block_end, true);
+
+        for side in [
+            PhysicalSide::Top,
+            PhysicalSide::Right,
+            PhysicalSide::Bottom,
+            PhysicalSide::Left,
+        ] {
+            let expected = if side == flow.block_start() {
+                block_start
+            } else if side == flow.block_end() {
+                block_end
+            } else {
+                CollapsibleMarginOf::ZERO
+            };
+            assert_eq!(carrier.at(side), expected);
+            assert_eq!(none.at(side), CollapsibleMarginOf::ZERO);
+        }
+
+        let compatible_flow = match flow.block_start() {
+            PhysicalSide::Top | PhysicalSide::Bottom => {
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl)
+            }
+            PhysicalSide::Right => FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+            PhysicalSide::Left => FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        };
+        let orthogonal_flow = match flow.block_axis() {
+            PhysicalAxis::Horizontal => FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            PhysicalAxis::Vertical => FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        };
+
+        assert!(carrier.can_collapse_through(flow));
+        assert!(carrier.can_collapse_through(compatible_flow));
+        assert!(!carrier.can_collapse_through(orthogonal_flow));
+        assert!(!none.can_collapse_through(flow));
+    }
+}
+
+#[test]
+fn physical_block_margin_collapse_maps_all_flow_axes_in_f32() {
+    let default_none: PhysicalBlockMarginCollapse = PhysicalBlockMarginCollapse::NONE;
+    assert_eq!(default_none, PhysicalBlockMarginCollapseOf::<f32>::NONE);
+    assert_physical_block_margin_collapse_maps_all_flow_axes::<f32>();
+}
+
+#[test]
+fn physical_block_margin_collapse_maps_all_flow_axes_in_f64() {
+    assert_physical_block_margin_collapse_maps_all_flow_axes::<f64>();
+}
 
 #[test]
 fn dimension_conversions_keep_semantic_variants() {
