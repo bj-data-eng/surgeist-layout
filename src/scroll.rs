@@ -1,6 +1,6 @@
 use super::{
-    DefaultScalar, Direction, Edges, LayoutScalar, LogicalAxis, Overflow, PhysicalAxis, Point,
-    Size, WritingMode,
+    DefaultScalar, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis, Overflow, PhysicalAxis,
+    Point, Size, WritingMode,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -174,13 +174,6 @@ pub enum ScrollCoordinateErrorOf<S: LayoutScalar = DefaultScalar> {
 )]
 pub type ScrollCoordinateError = ScrollCoordinateErrorOf<DefaultScalar>;
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this physical offset for T2 projection."
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PhysicalScrollOffsetOf<S: LayoutScalar = DefaultScalar> {
     x: S,
@@ -197,7 +190,7 @@ pub type PhysicalScrollOffset = PhysicalScrollOffsetOf<DefaultScalar>;
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages these physical offset operations for T2 projection."
+        reason = "C02-T2 stages checked physical offsets for T3 migration."
     )
 )]
 impl<S: LayoutScalar> PhysicalScrollOffsetOf<S> {
@@ -232,13 +225,6 @@ impl<S: LayoutScalar> PhysicalScrollOffsetOf<S> {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this flow-relative offset for T2 projection."
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlowRelativeScrollOffsetOf<S: LayoutScalar = DefaultScalar> {
     inline: S,
@@ -255,7 +241,7 @@ pub type FlowRelativeScrollOffset = FlowRelativeScrollOffsetOf<DefaultScalar>;
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages these flow-relative offset operations for T2 projection."
+        reason = "C02-T2 stages checked flow-relative offsets for T3 migration."
     )
 )]
 impl<S: LayoutScalar> FlowRelativeScrollOffsetOf<S> {
@@ -290,13 +276,6 @@ impl<S: LayoutScalar> FlowRelativeScrollOffsetOf<S> {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this physical axis range for T2 projection."
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PhysicalScrollAxisRangeOf<S: LayoutScalar = DefaultScalar> {
     minimum: S,
@@ -313,7 +292,7 @@ pub type PhysicalScrollAxisRange = PhysicalScrollAxisRangeOf<DefaultScalar>;
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages these physical axis range operations for T2 projection."
+        reason = "C02-T2 stages physical axis-range operations for T3 migration."
     )
 )]
 impl<S: LayoutScalar> PhysicalScrollAxisRangeOf<S> {
@@ -337,13 +316,6 @@ impl<S: LayoutScalar> PhysicalScrollAxisRangeOf<S> {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this flow-relative axis range for T2 projection."
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlowRelativeScrollAxisRangeOf<S: LayoutScalar = DefaultScalar> {
     minimum: S,
@@ -360,7 +332,7 @@ pub type FlowRelativeScrollAxisRange = FlowRelativeScrollAxisRangeOf<DefaultScal
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages these flow-relative axis range operations for T2 projection."
+        reason = "C02-T2 stages flow-relative axis-range operations for T3 migration."
     )
 )]
 impl<S: LayoutScalar> FlowRelativeScrollAxisRangeOf<S> {
@@ -384,13 +356,6 @@ impl<S: LayoutScalar> FlowRelativeScrollAxisRangeOf<S> {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this physical range for T2 projection."
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PhysicalScrollRangeOf<S: LayoutScalar = DefaultScalar> {
     x: PhysicalScrollAxisRangeOf<S>,
@@ -407,7 +372,7 @@ pub type PhysicalScrollRange = PhysicalScrollRangeOf<DefaultScalar>;
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages these physical range operations for T2 projection."
+        reason = "C02-T2 stages checked physical ranges for T3 migration."
     )
 )]
 impl<S: LayoutScalar> PhysicalScrollRangeOf<S> {
@@ -451,13 +416,6 @@ impl<S: LayoutScalar> PhysicalScrollRangeOf<S> {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this flow-relative range for T2 projection."
-    )
-)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlowRelativeScrollRangeOf<S: LayoutScalar = DefaultScalar> {
     inline: FlowRelativeScrollAxisRangeOf<S>,
@@ -474,7 +432,7 @@ pub type FlowRelativeScrollRange = FlowRelativeScrollRangeOf<DefaultScalar>;
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages these flow-relative range operations for T2 projection."
+        reason = "C02-T2 stages checked flow-relative ranges for T3 migration."
     )
 )]
 impl<S: LayoutScalar> FlowRelativeScrollRangeOf<S> {
@@ -522,7 +480,7 @@ impl<S: LayoutScalar> FlowRelativeScrollRangeOf<S> {
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages this physical range validator for T2 projection."
+        reason = "C02-T1 stages this physical range validator for T3 public migration."
     )
 )]
 fn validate_physical_scroll_range<S: LayoutScalar>(
@@ -557,7 +515,7 @@ fn validate_physical_scroll_range<S: LayoutScalar>(
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages this flow-relative range validator for T2 projection."
+        reason = "C02-T1 stages this flow-relative range validator for T3 public migration."
     )
 )]
 fn validate_flow_relative_scroll_range<S: LayoutScalar>(
@@ -592,11 +550,136 @@ fn validate_flow_relative_scroll_range<S: LayoutScalar>(
     not(test),
     expect(
         dead_code,
-        reason = "C02-T1 stages zero canonicalization for T2 projection."
+        reason = "C02-T2 stages signed-zero canonicalization for T3 migration."
     )
 )]
 fn canonical_scroll_zero<S: LayoutScalar>(value: S) -> S {
     if value == S::ZERO { S::ZERO } else { value }
+}
+
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "C02-T2 stages crate-private scroll projection for T3 geometry migration."
+    )
+)]
+impl FlowAxes {
+    #[must_use]
+    pub(crate) fn physical_scroll_offset<S: LayoutScalar>(
+        self,
+        flow_relative: FlowRelativeScrollOffsetOf<S>,
+    ) -> PhysicalScrollOffsetOf<S> {
+        let inline =
+            self.project_scroll_offset_component(self.inline_axis(), flow_relative.inline());
+        let block = self.project_scroll_offset_component(self.block_axis(), flow_relative.block());
+
+        match self.inline_axis() {
+            PhysicalAxis::Horizontal => PhysicalScrollOffsetOf {
+                x: inline,
+                y: block,
+            },
+            PhysicalAxis::Vertical => PhysicalScrollOffsetOf {
+                x: block,
+                y: inline,
+            },
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn flow_relative_scroll_offset<S: LayoutScalar>(
+        self,
+        physical: PhysicalScrollOffsetOf<S>,
+    ) -> FlowRelativeScrollOffsetOf<S> {
+        let (inline, block) = match self.inline_axis() {
+            PhysicalAxis::Horizontal => (physical.x(), physical.y()),
+            PhysicalAxis::Vertical => (physical.y(), physical.x()),
+        };
+
+        FlowRelativeScrollOffsetOf {
+            inline: self.project_scroll_offset_component(self.inline_axis(), inline),
+            block: self.project_scroll_offset_component(self.block_axis(), block),
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn physical_scroll_range<S: LayoutScalar>(
+        self,
+        flow_relative: FlowRelativeScrollRangeOf<S>,
+    ) -> PhysicalScrollRangeOf<S> {
+        let inline = self.project_scroll_range_bounds(
+            self.inline_axis(),
+            flow_relative.inline().minimum(),
+            flow_relative.inline().maximum(),
+        );
+        let block = self.project_scroll_range_bounds(
+            self.block_axis(),
+            flow_relative.block().minimum(),
+            flow_relative.block().maximum(),
+        );
+
+        match self.inline_axis() {
+            PhysicalAxis::Horizontal => PhysicalScrollRangeOf {
+                x: PhysicalScrollAxisRangeOf::new(inline.0, inline.1),
+                y: PhysicalScrollAxisRangeOf::new(block.0, block.1),
+            },
+            PhysicalAxis::Vertical => PhysicalScrollRangeOf {
+                x: PhysicalScrollAxisRangeOf::new(block.0, block.1),
+                y: PhysicalScrollAxisRangeOf::new(inline.0, inline.1),
+            },
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn flow_relative_scroll_range<S: LayoutScalar>(
+        self,
+        physical: PhysicalScrollRangeOf<S>,
+    ) -> FlowRelativeScrollRangeOf<S> {
+        let (inline, block) = match self.inline_axis() {
+            PhysicalAxis::Horizontal => (physical.x(), physical.y()),
+            PhysicalAxis::Vertical => (physical.y(), physical.x()),
+        };
+        let inline = self.project_scroll_range_bounds(
+            self.inline_axis(),
+            inline.minimum(),
+            inline.maximum(),
+        );
+        let block =
+            self.project_scroll_range_bounds(self.block_axis(), block.minimum(), block.maximum());
+
+        FlowRelativeScrollRangeOf {
+            inline: FlowRelativeScrollAxisRangeOf::new(inline.0, inline.1),
+            block: FlowRelativeScrollAxisRangeOf::new(block.0, block.1),
+        }
+    }
+
+    fn project_scroll_offset_component<S: LayoutScalar>(self, axis: PhysicalAxis, value: S) -> S {
+        let projected = if self.physical_axis_progression(axis).is_decreasing() {
+            -value
+        } else {
+            value
+        };
+        canonical_scroll_zero(projected)
+    }
+
+    fn project_scroll_range_bounds<S: LayoutScalar>(
+        self,
+        axis: PhysicalAxis,
+        minimum: S,
+        maximum: S,
+    ) -> (S, S) {
+        if self.physical_axis_progression(axis).is_decreasing() {
+            (
+                canonical_scroll_zero(-maximum),
+                canonical_scroll_zero(-minimum),
+            )
+        } else {
+            (
+                canonical_scroll_zero(minimum),
+                canonical_scroll_zero(maximum),
+            )
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

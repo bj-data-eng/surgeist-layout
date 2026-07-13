@@ -3,11 +3,352 @@ use crate::scroll::{
     PhysicalScrollRangeOf, ScrollBoxRects, ScrollCoordinateErrorOf, ScrollbarReservation,
 };
 use crate::{
-    Direction, Edges, LogicalAxis, Overflow, PhysicalAxis, Point, ScrollContainerAxis,
+    Direction, Edges, FlowAxes, LogicalAxis, Overflow, PhysicalAxis, Point, ScrollContainerAxis,
     ScrollContainerFacts, ScrollGeometry, ScrollOffset, ScrollOffsetOf,
     ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRange, ScrollRangeOf, ScrollRect,
     ScrollUnsupportedFeature, ScrollbarGutterRects, Size, WritingMode,
 };
+
+type ScrollProjectionExpectation = (WritingMode, Direction, (f64, f64), (f64, f64, f64, f64));
+
+const ALL_SCROLL_PROJECTION_WRITING_MODES: [WritingMode; 5] = [
+    WritingMode::HorizontalTb,
+    WritingMode::VerticalRl,
+    WritingMode::VerticalLr,
+    WritingMode::SidewaysRl,
+    WritingMode::SidewaysLr,
+];
+
+const ALL_SCROLL_PROJECTION_DIRECTIONS: [Direction; 2] = [Direction::Ltr, Direction::Rtl];
+
+const SCROLL_PROJECTION_EXPECTATIONS: [ScrollProjectionExpectation; 10] = [
+    (
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        (3.0, 7.0),
+        (-3.0, 11.0, -5.0, 13.0),
+    ),
+    (
+        WritingMode::HorizontalTb,
+        Direction::Rtl,
+        (-3.0, 7.0),
+        (-11.0, 3.0, -5.0, 13.0),
+    ),
+    (
+        WritingMode::VerticalRl,
+        Direction::Ltr,
+        (-7.0, 3.0),
+        (-13.0, 5.0, -3.0, 11.0),
+    ),
+    (
+        WritingMode::VerticalRl,
+        Direction::Rtl,
+        (-7.0, -3.0),
+        (-13.0, 5.0, -11.0, 3.0),
+    ),
+    (
+        WritingMode::VerticalLr,
+        Direction::Ltr,
+        (7.0, 3.0),
+        (-5.0, 13.0, -3.0, 11.0),
+    ),
+    (
+        WritingMode::VerticalLr,
+        Direction::Rtl,
+        (7.0, -3.0),
+        (-5.0, 13.0, -11.0, 3.0),
+    ),
+    (
+        WritingMode::SidewaysRl,
+        Direction::Ltr,
+        (-7.0, 3.0),
+        (-13.0, 5.0, -3.0, 11.0),
+    ),
+    (
+        WritingMode::SidewaysRl,
+        Direction::Rtl,
+        (-7.0, -3.0),
+        (-13.0, 5.0, -11.0, 3.0),
+    ),
+    (
+        WritingMode::SidewaysLr,
+        Direction::Ltr,
+        (7.0, -3.0),
+        (-5.0, 13.0, -11.0, 3.0),
+    ),
+    (
+        WritingMode::SidewaysLr,
+        Direction::Rtl,
+        (7.0, 3.0),
+        (-5.0, 13.0, -3.0, 11.0),
+    ),
+];
+
+fn scroll_projection_expectations_are_complete_and_unique(
+    expectations: &[ScrollProjectionExpectation],
+) -> bool {
+    expectations.len()
+        == ALL_SCROLL_PROJECTION_WRITING_MODES.len() * ALL_SCROLL_PROJECTION_DIRECTIONS.len()
+        && ALL_SCROLL_PROJECTION_WRITING_MODES
+            .into_iter()
+            .all(|writing_mode| {
+                ALL_SCROLL_PROJECTION_DIRECTIONS
+                    .into_iter()
+                    .all(|direction| {
+                        expectations
+                            .iter()
+                            .filter(|(candidate_mode, candidate_direction, _, _)| {
+                                *candidate_mode == writing_mode && *candidate_direction == direction
+                            })
+                            .count()
+                            == 1
+                    })
+            })
+}
+
+#[test]
+fn scroll_projection_expectations_reject_duplicates_and_cover_all_flow_mappings() {
+    assert!(scroll_projection_expectations_are_complete_and_unique(
+        &SCROLL_PROJECTION_EXPECTATIONS
+    ));
+
+    let mut duplicate_pair = SCROLL_PROJECTION_EXPECTATIONS;
+    duplicate_pair[duplicate_pair.len() - 1] = duplicate_pair[0];
+    assert!(!scroll_projection_expectations_are_complete_and_unique(
+        &duplicate_pair
+    ));
+}
+
+fn assert_scroll_projection_for_all_mappings<S: crate::LayoutScalar>() {
+    let flow_offset =
+        FlowRelativeScrollOffsetOf::try_new(S::from_f64(3.0), S::from_f64(7.0)).unwrap();
+    let flow_range = FlowRelativeScrollRangeOf::try_new(
+        S::from_f64(-3.0),
+        S::from_f64(11.0),
+        S::from_f64(-5.0),
+        S::from_f64(13.0),
+    )
+    .unwrap();
+
+    for (writing_mode, direction, offset, range) in SCROLL_PROJECTION_EXPECTATIONS {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_offset = flow_axes.physical_scroll_offset(flow_offset);
+        let physical_range = flow_axes.physical_scroll_range(flow_range);
+
+        assert_eq!(
+            physical_offset,
+            PhysicalScrollOffsetOf::try_new(S::from_f64(offset.0), S::from_f64(offset.1)).unwrap()
+        );
+        assert_eq!(
+            physical_range,
+            PhysicalScrollRangeOf::try_new(
+                S::from_f64(range.0),
+                S::from_f64(range.1),
+                S::from_f64(range.2),
+                S::from_f64(range.3),
+            )
+            .unwrap()
+        );
+        assert_eq!(
+            flow_axes.flow_relative_scroll_offset(physical_offset),
+            flow_offset
+        );
+        assert_eq!(
+            flow_axes.flow_relative_scroll_range(physical_range),
+            flow_range
+        );
+        assert_eq!(
+            flow_axes
+                .physical_scroll_offset(flow_axes.flow_relative_scroll_offset(physical_offset)),
+            physical_offset
+        );
+        assert_eq!(
+            flow_axes.physical_scroll_range(flow_axes.flow_relative_scroll_range(physical_range)),
+            physical_range
+        );
+    }
+}
+
+#[test]
+fn scroll_projection_maps_all_ten_flow_mappings_in_both_scalar_lanes() {
+    assert_scroll_projection_for_all_mappings::<f32>();
+    assert_scroll_projection_for_all_mappings::<f64>();
+}
+
+#[test]
+fn scroll_projection_canonicalizes_signed_zero_for_all_mappings_in_both_scalar_lanes() {
+    for (writing_mode, direction, _, _) in SCROLL_PROJECTION_EXPECTATIONS {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical = flow_axes.physical_scroll_offset(
+            FlowRelativeScrollOffsetOf::<f32>::try_new(-0.0, -0.0).unwrap(),
+        );
+        let flow = flow_axes.flow_relative_scroll_offset(
+            PhysicalScrollOffsetOf::<f32>::try_new(-0.0, -0.0).unwrap(),
+        );
+
+        assert_eq!(physical.x().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(physical.y().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(flow.inline().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(flow.block().to_bits(), 0.0_f32.to_bits());
+
+        let physical = flow_axes.physical_scroll_offset(
+            FlowRelativeScrollOffsetOf::<f64>::try_new(-0.0, -0.0).unwrap(),
+        );
+        let flow = flow_axes.flow_relative_scroll_offset(
+            PhysicalScrollOffsetOf::<f64>::try_new(-0.0, -0.0).unwrap(),
+        );
+
+        assert_eq!(physical.x().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(physical.y().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(flow.inline().to_bits(), 0.0_f64.to_bits());
+        assert_eq!(flow.block().to_bits(), 0.0_f64.to_bits());
+    }
+}
+
+macro_rules! assert_reversed_range_projection_canonicalizes_signed_zero {
+    ($scalar:ty) => {{
+        let mut reverses_inline = false;
+        let mut reverses_block = false;
+        let mut reverses_horizontal = false;
+        let mut reverses_vertical = false;
+
+        for (writing_mode, direction, _, _) in SCROLL_PROJECTION_EXPECTATIONS {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let inline_reverses = flow_axes
+                .logical_axis_progression(LogicalAxis::Inline)
+                .is_decreasing();
+            let block_reverses = flow_axes
+                .logical_axis_progression(LogicalAxis::Block)
+                .is_decreasing();
+
+            if !inline_reverses && !block_reverses {
+                continue;
+            }
+
+            reverses_inline |= inline_reverses;
+            reverses_block |= block_reverses;
+            reverses_horizontal |= match flow_axes.inline_axis() {
+                PhysicalAxis::Horizontal => inline_reverses,
+                PhysicalAxis::Vertical => block_reverses,
+            };
+            reverses_vertical |= match flow_axes.inline_axis() {
+                PhysicalAxis::Horizontal => block_reverses,
+                PhysicalAxis::Vertical => inline_reverses,
+            };
+
+            let flow_range = FlowRelativeScrollRangeOf::try_new(
+                0.0 as $scalar,
+                0.0 as $scalar,
+                0.0 as $scalar,
+                0.0 as $scalar,
+            )
+            .unwrap();
+            let physical_range = flow_axes.physical_scroll_range(flow_range);
+            assert_eq!(
+                physical_range.x().minimum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+            assert_eq!(
+                physical_range.x().maximum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+            assert_eq!(
+                physical_range.y().minimum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+            assert_eq!(
+                physical_range.y().maximum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+
+            let physical_range = PhysicalScrollRangeOf::try_new(
+                0.0 as $scalar,
+                0.0 as $scalar,
+                0.0 as $scalar,
+                0.0 as $scalar,
+            )
+            .unwrap();
+            let flow_range = flow_axes.flow_relative_scroll_range(physical_range);
+            assert_eq!(
+                flow_range.inline().minimum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+            assert_eq!(
+                flow_range.inline().maximum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+            assert_eq!(
+                flow_range.block().minimum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+            assert_eq!(
+                flow_range.block().maximum().to_bits(),
+                (0.0 as $scalar).to_bits()
+            );
+        }
+
+        assert!(reverses_inline);
+        assert!(reverses_block);
+        assert!(reverses_horizontal);
+        assert!(reverses_vertical);
+    }};
+}
+
+#[test]
+fn scroll_projection_canonicalizes_range_signed_zero_after_reversal_in_both_scalar_lanes() {
+    assert_reversed_range_projection_canonicalizes_signed_zero!(f32);
+    assert_reversed_range_projection_canonicalizes_signed_zero!(f64);
+}
+
+fn assert_scroll_conversion_clamp_laws_for_all_mappings<S: crate::LayoutScalar>() {
+    let flow_range = FlowRelativeScrollRangeOf::try_new(
+        S::from_f64(-10.0),
+        S::from_f64(20.0),
+        S::from_f64(-30.0),
+        S::from_f64(40.0),
+    )
+    .unwrap();
+
+    for (writing_mode, direction, _, _) in SCROLL_PROJECTION_EXPECTATIONS {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_range = flow_axes.physical_scroll_range(flow_range);
+
+        for (inline, block) in [
+            (-11.0, -31.0),
+            (-10.0, -30.0),
+            (2.0, 3.0),
+            (20.0, 40.0),
+            (21.0, 41.0),
+        ] {
+            let flow_offset =
+                FlowRelativeScrollOffsetOf::try_new(S::from_f64(inline), S::from_f64(block))
+                    .unwrap();
+            let physical_offset = flow_axes.physical_scroll_offset(flow_offset);
+            let flow_clamped = flow_range.clamp(flow_offset);
+            let physical_clamped = physical_range.clamp(physical_offset);
+
+            assert_eq!(
+                physical_clamped,
+                flow_axes.physical_scroll_offset(flow_clamped)
+            );
+            assert_eq!(
+                flow_axes.flow_relative_scroll_offset(physical_clamped),
+                flow_clamped
+            );
+            assert!(physical_clamped.x() >= physical_range.x().minimum());
+            assert!(physical_clamped.x() <= physical_range.x().maximum());
+            assert!(physical_clamped.y() >= physical_range.y().minimum());
+            assert!(physical_clamped.y() <= physical_range.y().maximum());
+            assert_eq!(physical_range.clamp(physical_clamped), physical_clamped);
+        }
+    }
+}
+
+#[test]
+fn scroll_conversion_clamp_commutes_is_contained_and_idempotent_in_both_scalar_lanes() {
+    assert_scroll_conversion_clamp_laws_for_all_mappings::<f32>();
+    assert_scroll_conversion_clamp_laws_for_all_mappings::<f64>();
+}
 
 #[test]
 fn scroll_coordinate_constructors_report_exact_semantic_errors() {
