@@ -260,7 +260,10 @@ fn browser_parity_corpus_manifest_exists() {
         )
     });
 
-    assert!(raw.contains("schema_version = 1"));
+    assert!(raw.contains("schema_version = 2"));
+    assert!(raw.contains("[browser]"));
+    assert!(raw.contains("[browser.launch]"));
+    assert!(raw.contains("[generation_reports.full]"));
     assert!(raw.contains("[source_roots.taffy]"));
     assert!(raw.contains("[source_roots.surgeist]"));
 }

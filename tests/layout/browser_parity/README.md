@@ -31,9 +31,21 @@ cargo test -p surgeist-layout --test layout runs_all_checked_in_browser_parity_x
 Regenerate XML fixtures from constrained HTML fixtures:
 
 ```sh
-cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
-SURGEIST_LAYOUT_GENERATE_FILTER=subgrid cargo run -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate
+cargo run --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate
+CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH=target/surgeist-browser/.../Google\ Chrome\ for\ Testing cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
+
+`generate` resolves the manifest-owned Chrome-for-Testing pin and may use the
+managed cache/fetcher. `generate-existing` is the no-fetch artifact path: its
+browser path must be nonempty, repository-relative, under the manifest cache,
+executable, and report the exact pinned `--version`. Both modes use the one
+manifest-owned launch profile, with disabled Chromium defaults/cache and
+`use-mock-keychain`; batch, timeout, polling, retry, profile, and page lifetimes
+are all manifest-owned.
+
+`SURGEIST_BROWSER_CACHE` and `SURGEIST_BROWSER_VERSION` are not overrides and
+are rejected for generation. `SURGEIST_LAYOUT_GENERATE_FILTER` is empty for the
+full report or exactly one scoped report filter named by `corpus.toml`.
 
 Import or verify the pinned Taffy green baseline:
 
@@ -46,26 +58,17 @@ The Taffy baseline is fetched from the pinned upstream repository and commit in
 `corpus.toml` into `target/surgeist-sources/taffy/<commit>`, then copied into
 `html/`. The Taffy-only check verifies that checked-in baseline.
 
-The generator is a Rust binary. It fetches a pinned Chrome-for-Testing build into
-`target/surgeist-browser` unless `SURGEIST_BROWSER_PATH` points at an explicit
-browser executable. The default fetched version is `149.0.7827.115`, pinned for
-the current corpus and the Rust CDP driver used by the generator. The browser
-runs headless with a temporary profile. The Rust generation path handles
-constrained `html/` fixtures with `getTestData()`, then writes XML into `xml/`.
+`SURGEIST_LAYOUT_BROWSER_PARITY_ROOT` may select a self-contained corpus root.
+Generation writes only the manifest-named report for its full or scoped run.
+The successful full run removes non-manifest reports; scoped runs leave every
+other report untouched. Reports and XML carry schema-2 provenance, including the
+launch-profile digest and stable repository-relative browser provenance.
 
-Optional generator environment:
-
-- `SURGEIST_BROWSER_PATH`: explicit Chromium-compatible executable to run.
-- `SURGEIST_BROWSER_CACHE`: project-local browser download cache override.
-- `SURGEIST_BROWSER_VERSION`: optional Chrome-for-Testing version accepted by
-  `chromiumoxide`.
-- `SURGEIST_LAYOUT_BROWSER_PARITY_ROOT`: override a self-contained root with
-  `html/`, `xml/`, and `corpus.toml`.
-
-Generation writes scope-specific reports under `xml/generation-reports/`, such
-as `subgrid.json` or `all.json`. Each report records the active filter,
-generated XML files, unsupported inputs, expected failures, quarantine entries,
-and failed generation attempts.
+`check-corpus` is browser-free: it reads neither browser selection variables nor
+the generation filter, and validates the exact manifest report inventory,
+metadata, report relations, and XML provenance. `check-taffy-corpus` and
+`import-taffy` are also browser-free; import remains an acquisition-capable
+operation and should be run only with explicit authority.
 
 HTML fixtures are the human-readable source of truth. The constrained `html/`
 fixtures are runnable today. XML fixtures are generated browser expectations for

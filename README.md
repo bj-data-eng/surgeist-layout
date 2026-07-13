@@ -19,6 +19,21 @@ Browser parity XML and its generator remain a default-precision fixture
 boundary. Use those fixtures to check the default `f32` contract; add separate
 crate-local tests when a behavior specifically needs `f64` coverage.
 
+## Browser Parity Runtime
+
+The browser-parity corpus pins its Chrome-for-Testing source, executable version,
+cache root, launch profile, and report inventory in
+`tests/layout/browser_parity/corpus.toml`. `generate` resolves that managed pin;
+it is the only command that may use the configured browser fetcher. The no-fetch
+artifact command is `generate-existing`: it requires `SURGEIST_BROWSER_PATH` to
+be a repository-relative executable beneath the manifest cache and verifies its
+exact `--version` output before any XML or report write. Both modes use the same
+headless launch profile, including `use-mock-keychain`.
+
+`check-corpus`, `check-taffy-corpus`, and `import-taffy` are browser-free command
+paths. In particular, `check-corpus` validates the committed report and XML
+provenance without reading a browser selection or generation filter.
+
 Layout owns normalized layout values, algorithm inputs, traversal contracts,
 caches, reports, and box output. Retained tree identity and sibling coordination
 belong to the root integration layer that provides the tree implementation.

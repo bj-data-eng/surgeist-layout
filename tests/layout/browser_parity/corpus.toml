@@ -1,4 +1,106 @@
-schema_version = 1
+schema_version = 2
+
+[browser]
+source = "chrome-for-testing"
+version = "149.0.7827.115"
+version_output = "Google Chrome for Testing 149.0.7827.115"
+cache_root = "target/surgeist-browser"
+provenance_format = "chrome-for-testing/{version} ({repository_relative_executable})"
+
+[browser.launch]
+batch_size = 50
+navigation_timeout_ms = 10000
+dom_poll_interval_ms = 25
+retry_count = 1
+job_order = "sorted-sequential"
+retry_error_class = "open-load-reset-timeout"
+profile_scope = "per-batch-and-retry"
+page_scope = "per-job"
+disable_default_args = true
+disable_cache = true
+arguments = [
+  "headless=new",
+  "mute-audio",
+  "disable-background-networking",
+  "disable-background-timer-throttling",
+  "disable-backgrounding-occluded-windows",
+  "disable-breakpad",
+  "disable-client-side-phishing-detection",
+  "disable-component-extensions-with-background-pages",
+  "disable-component-update",
+  "disable-default-apps",
+  "disable-dev-shm-usage",
+  "disable-domain-reliability",
+  "disable-features=TranslateUI,MediaRouter,OptimizationHints,AutofillServerCommunication",
+  "disable-hang-monitor",
+  "disable-ipc-flooding-protection",
+  "disable-popup-blocking",
+  "disable-prompt-on-repost",
+  "disable-renderer-backgrounding",
+  "disable-sync",
+  "enable-automation",
+  "enable-blink-features=IdleDetection,CSSGridLanesLayout",
+  "enable-features=NetworkService,NetworkServiceInProcess",
+  "force-color-profile=srgb",
+  "lang=en_US",
+  "metrics-recording-only",
+  "no-default-browser-check",
+  "no-first-run",
+  "use-mock-keychain",
+]
+
+[generation_reports.full]
+file = "all.json"
+generated = 5048
+unsupported = 356
+expected_fail = 0
+quarantined = 0
+failed_to_generate = 0
+
+[[generation_reports.scoped]]
+filter = "block/block_br_vertical"
+file = "block_block_br_vertical.json"
+generated = 16
+
+[[generation_reports.scoped]]
+filter = "block/block_calc_width_margin"
+file = "block_block_calc_width_margin.json"
+generated = 4
+
+[[generation_reports.scoped]]
+filter = "block/block_margin_x_percentage_intrinsic_size_self_negative"
+file = "block_block_margin_x_percentage_intrinsic_size_self_negative.json"
+generated = 4
+
+[[generation_reports.scoped]]
+filter = "block/block_margin_x_percentage_intrinsic_size_self_positive"
+file = "block_block_margin_x_percentage_intrinsic_size_self_positive.json"
+generated = 4
+
+[[generation_reports.scoped]]
+filter = "flex/flex_calc_basis_margin_gap"
+file = "flex_flex_calc_basis_margin_gap.json"
+generated = 4
+
+[[generation_reports.scoped]]
+filter = "grid/grid_calc_track_and_item_margin"
+file = "grid_grid_calc_track_and_item_margin.json"
+generated = 4
+
+[[generation_reports.scoped]]
+filter = "grid/grid_max_content_single_item_margin_percent"
+file = "grid_grid_max_content_single_item_margin_percent.json"
+generated = 4
+
+[[generation_reports.scoped]]
+filter = "grid/grid_min_content_flex_single_item_margin_percent"
+file = "grid_grid_min_content_flex_single_item_margin_percent.json"
+generated = 4
+
+[[generation_reports.scoped]]
+filter = "grid/grid_named_template_area_generated_names"
+file = "grid_grid_named_template_area_generated_names.json"
+generated = 4
 
 [source_roots.taffy]
 kind = "taffy"

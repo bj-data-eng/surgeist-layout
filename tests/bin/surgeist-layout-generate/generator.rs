@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process;
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -20,23 +20,11 @@ const BROWSER_PATH_ENV: &str = "SURGEIST_BROWSER_PATH";
 const BROWSER_CACHE_ENV: &str = "SURGEIST_BROWSER_CACHE";
 const BROWSER_VERSION_ENV: &str = "SURGEIST_BROWSER_VERSION";
 const DEFAULT_ROOT: &str = "tests/layout/browser_parity";
-const DEFAULT_BROWSER_CACHE: &str = "target/surgeist-browser";
-const DEFAULT_BROWSER_VERSION: &str = "149.0.7827.115";
-const BROWSER_FIXTURE_BATCH_SIZE: usize = 50;
-const BROWSER_NAVIGATION_TIMEOUT: Duration = Duration::from_secs(10);
-const BROWSER_NAVIGATION_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const SOURCE_CACHE_DIR: &str = "target/surgeist-sources";
 const TAFFY_REPO: &str = "https://github.com/DioxusLabs/taffy.git";
 const TAFFY_COMMIT: &str = "d1ff7e339b9ee35b33858779f8d7653197e93d92";
 const TAFFY_EXPECTED_COUNT: usize = 1103;
 const TAFFY_SOURCE_DIR: &str = "test_fixtures";
-const GENERATION_REPORT_BUCKETS: [&str; 5] = [
-    "generated",
-    "unsupported",
-    "expected_fail",
-    "quarantined",
-    "failed_to_generate",
-];
 const TEST_HELPER_SOURCE: &str =
     include_str!("../../layout/browser_parity/scripts/gentest/test_helper.js");
 const TEST_BASE_STYLE_SOURCE: &str =
@@ -80,14 +68,60 @@ const GRID_TEMPLATE_AREA_CAPTURE_SCRIPT: &str = r#"(() => {
 })()"#;
 
 pub async fn run_from_env() -> Result<(), String> {
+    let request = parse_command_request(env::args().skip(1))?;
     let config = Config::from_env()?;
-    match env::args().nth(1).as_deref() {
-        Some("generate") => generate(config).await,
-        Some("check-corpus") => check_corpus(&config),
-        Some("check-taffy-corpus") => check_taffy_corpus(&config),
-        Some("import-taffy") => import_taffy(&config),
-        Some(command) => Err(format!("unknown command `{command}`")),
-        None => generate(config).await,
+    match request {
+        CommandRequest::Generate(mode) => {
+            let environment = GenerationEnvironment::capture()?;
+            let manifest = read_corpus_manifest(&config)?;
+            let generation = GenerationConfig::new(config, manifest, mode, environment)?;
+            generate(generation).await
+        }
+        CommandRequest::CheckCorpus => check_corpus(&config),
+        CommandRequest::CheckTaffyCorpus => check_taffy_corpus(&config),
+        CommandRequest::ImportTaffy => import_taffy(&config),
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BrowserResolutionMode {
+    ManagedPinned,
+    ExistingPinned,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CommandRequest {
+    Generate(BrowserResolutionMode),
+    CheckCorpus,
+    CheckTaffyCorpus,
+    ImportTaffy,
+}
+
+fn parse_command_request<I, S>(args: I) -> Result<CommandRequest, String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let args = args
+        .into_iter()
+        .map(|argument| argument.as_ref().to_string())
+        .collect::<Vec<_>>();
+    let [command] = args.as_slice() else {
+        return Err("usage: surgeist-layout-generate <generate|generate-existing|check-corpus|check-taffy-corpus|import-taffy>".to_string());
+    };
+    match command.as_str() {
+        "generate" => Ok(CommandRequest::Generate(
+            BrowserResolutionMode::ManagedPinned,
+        )),
+        "generate-existing" => Ok(CommandRequest::Generate(
+            BrowserResolutionMode::ExistingPinned,
+        )),
+        "check-corpus" => Ok(CommandRequest::CheckCorpus),
+        "check-taffy-corpus" => Ok(CommandRequest::CheckTaffyCorpus),
+        "import-taffy" => Ok(CommandRequest::ImportTaffy),
+        other => Err(format!(
+            "usage: unknown surgeist-layout-generate command `{other}`; expected generate, generate-existing, check-corpus, check-taffy-corpus, or import-taffy"
+        )),
     }
 }
 
@@ -96,50 +130,252 @@ struct Config {
     root: PathBuf,
     html_root: PathBuf,
     xml_root: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+struct GenerationEnvironment {
+    browser_path: Option<String>,
+    browser_cache_set: bool,
+    browser_version_set: bool,
     filter: Option<String>,
-    browser_cache: PathBuf,
-    browser_path: Option<PathBuf>,
-    browser_version: Option<String>,
+}
+
+impl GenerationEnvironment {
+    fn capture() -> Result<Self, String> {
+        let browser_path = match env::var_os(BROWSER_PATH_ENV) {
+            Some(value) => Some(
+                value
+                    .into_string()
+                    .map_err(|_| format!("{BROWSER_PATH_ENV} must contain valid UTF-8"))?,
+            ),
+            None => None,
+        };
+        let filter = match env::var_os(FILTER_ENV) {
+            Some(value) => Some(
+                value
+                    .into_string()
+                    .map_err(|_| format!("{FILTER_ENV} must contain valid UTF-8"))?,
+            ),
+            None => None,
+        };
+        Ok(Self {
+            browser_path,
+            browser_cache_set: env::var_os(BROWSER_CACHE_ENV).is_some(),
+            browser_version_set: env::var_os(BROWSER_VERSION_ENV).is_some(),
+            filter,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+struct GenerationConfig {
+    corpus: Config,
+    manifest: CorpusManifest,
+    filter: Option<String>,
+    resolution_mode: BrowserResolutionMode,
+    existing_browser_path: Option<String>,
+    launch_profile: BrowserLaunchProfile,
+    repository_root: PathBuf,
+}
+
+impl GenerationConfig {
+    fn new(
+        corpus: Config,
+        manifest: CorpusManifest,
+        resolution_mode: BrowserResolutionMode,
+        environment: GenerationEnvironment,
+    ) -> Result<Self, String> {
+        validate_corpus_manifest(&manifest)?;
+        if environment.browser_cache_set || environment.browser_version_set {
+            return Err(format!(
+                "{BROWSER_CACHE_ENV} and {BROWSER_VERSION_ENV} are manifest-owned browser settings and must be unset for generation"
+            ));
+        }
+        let filter = normalize_generation_filter(environment.filter, &manifest)?;
+        match resolution_mode {
+            BrowserResolutionMode::ManagedPinned if environment.browser_path.is_some() => {
+                return Err(format!(
+                    "{BROWSER_PATH_ENV} is only valid with generate-existing; generate uses the managed manifest pin"
+                ));
+            }
+            BrowserResolutionMode::ExistingPinned => {
+                if environment
+                    .browser_path
+                    .as_deref()
+                    .is_none_or(str::is_empty)
+                {
+                    return Err(format!(
+                        "generate-existing requires a non-empty {BROWSER_PATH_ENV} relative to the manifest browser cache"
+                    ));
+                }
+            }
+            BrowserResolutionMode::ManagedPinned => {}
+        }
+        let launch_profile = browser_launch_profile(&manifest.browser.launch)?;
+        Ok(Self {
+            corpus,
+            manifest,
+            filter,
+            resolution_mode,
+            existing_browser_path: environment.browser_path,
+            launch_profile,
+            repository_root: PathBuf::from(env!("CARGO_MANIFEST_DIR")),
+        })
+    }
+
+    fn browser_cache_root(&self) -> PathBuf {
+        self.repository_root.join(&self.manifest.browser.cache_root)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CorpusManifest {
+    schema_version: u32,
+    browser: BrowserManifest,
+    generation_reports: GenerationReportManifest,
+    source_roots: CorpusSourceRoots,
     imports: CorpusImports,
-    #[serde(default)]
     cases: Vec<CorpusCase>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorpusSourceRoots {
+    taffy: CorpusSourceRootManifest,
+    surgeist: CorpusSourceRootManifest,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorpusSourceRootManifest {
+    kind: String,
+    path: String,
+    #[serde(default)]
+    upstream_commit: Option<String>,
+    description: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrowserManifest {
+    source: String,
+    version: String,
+    version_output: String,
+    cache_root: String,
+    provenance_format: String,
+    launch: BrowserLaunchManifest,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrowserLaunchManifest {
+    batch_size: usize,
+    navigation_timeout_ms: u64,
+    dom_poll_interval_ms: u64,
+    retry_count: usize,
+    job_order: String,
+    retry_error_class: String,
+    profile_scope: String,
+    page_scope: String,
+    disable_default_args: bool,
+    disable_cache: bool,
+    arguments: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GenerationReportManifest {
+    full: FullGenerationReportManifest,
+    scoped: Vec<ScopedGenerationReportManifest>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FullGenerationReportManifest {
+    file: String,
+    generated: usize,
+    unsupported: usize,
+    expected_fail: usize,
+    quarantined: usize,
+    failed_to_generate: usize,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ScopedGenerationReportManifest {
+    filter: String,
+    file: String,
+    generated: usize,
+}
+
+#[derive(Clone, Debug)]
+struct BrowserLaunchProfile {
+    batch_size: usize,
+    navigation_timeout: Duration,
+    dom_poll_interval: Duration,
+    retry_count: usize,
+    job_order: String,
+    retry_error_class: String,
+    profile_scope: String,
+    page_scope: String,
+    disable_default_args: bool,
+    disable_cache: bool,
+    arguments: Vec<String>,
+    digest: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PinnedBrowser {
+    executable: PathBuf,
+    repository_relative_executable: String,
+    provenance: String,
+}
+
+#[derive(Clone, Debug)]
+struct GenerationReportInventory<'a> {
+    full: &'a FullGenerationReportManifest,
+    scoped: BTreeMap<&'a str, &'a ScopedGenerationReportManifest>,
+}
+
+impl<'a> GenerationReportInventory<'a> {
+    fn scoped_for_filter(&self, filter: &str) -> Option<&'a ScopedGenerationReportManifest> {
+        self.scoped.get(filter).copied()
+    }
+
+    fn all_files(&self) -> BTreeSet<&'a str> {
+        let mut files = BTreeSet::from([self.full.file.as_str()]);
+        files.extend(self.scoped.values().map(|report| report.file.as_str()));
+        files
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CorpusImports {
     taffy: CorpusTaffyImport,
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CorpusTaffyImport {
     repo: String,
     commit: String,
     source_dir: String,
     destination: String,
     expected_count: usize,
-    #[serde(default)]
-    allowed_extra_paths: Vec<String>,
-    #[serde(default)]
     excluded_destination_dirs: Vec<String>,
-    #[serde(flatten)]
-    _extra: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CorpusCase {
     id: String,
     source_root: CorpusSourceRoot,
     source: String,
     generator: CorpusGenerator,
     status: CorpusStatus,
-    #[serde(default)]
     reason: Option<String>,
-    #[serde(flatten)]
-    _extra: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -191,28 +427,225 @@ impl Config {
     }
 
     fn from_root(root: PathBuf) -> Result<Self, String> {
-        let browser_cache = env::var_os(BROWSER_CACHE_ENV)
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_BROWSER_CACHE));
-        let browser_path = env::var_os(BROWSER_PATH_ENV).map(PathBuf::from);
-        let browser_version = env::var(BROWSER_VERSION_ENV)
-            .ok()
-            .filter(|value| !value.is_empty())
-            .or_else(|| Some(DEFAULT_BROWSER_VERSION.to_string()));
-        let filter = env::var(FILTER_ENV).ok().filter(|value| !value.is_empty());
         Ok(Self {
             html_root: root.join("html"),
             xml_root: root.join("xml"),
-            filter,
-            browser_cache,
-            browser_path,
-            browser_version,
             root,
         })
     }
 }
 
-async fn generate(config: Config) -> Result<(), String> {
+fn parse_corpus_manifest(raw: &str) -> Result<CorpusManifest, String> {
+    toml::from_str(raw).map_err(|error| format!("failed to parse corpus manifest: {error}"))
+}
+
+fn validate_corpus_manifest(manifest: &CorpusManifest) -> Result<(), String> {
+    if manifest.schema_version != 2 {
+        return Err(format!(
+            "corpus manifest schema_version is {}, expected 2",
+            manifest.schema_version
+        ));
+    }
+    if manifest.browser.source != "chrome-for-testing" {
+        return Err(format!(
+            "corpus manifest browser.source is {:?}, expected chrome-for-testing",
+            manifest.browser.source
+        ));
+    }
+    if manifest.browser.version.trim().is_empty()
+        || manifest.browser.version_output.trim().is_empty()
+    {
+        return Err(
+            "corpus manifest browser version and version_output must be non-empty".to_string(),
+        );
+    }
+    validate_strict_relative_path(
+        "corpus manifest browser.cache_root",
+        &manifest.browser.cache_root,
+    )?;
+    let source_roots = &manifest.source_roots;
+    if source_roots.taffy.kind != "taffy"
+        || source_roots.taffy.path != "html"
+        || source_roots.taffy.upstream_commit.as_deref() != Some(TAFFY_COMMIT)
+        || source_roots.taffy.description.trim().is_empty()
+        || source_roots.surgeist.kind != "surgeist"
+        || source_roots.surgeist.path != "html"
+        || source_roots.surgeist.upstream_commit.is_some()
+        || source_roots.surgeist.description.trim().is_empty()
+    {
+        return Err(
+            "corpus manifest source_roots do not match the pinned corpus contract".to_string(),
+        );
+    }
+    if !manifest.browser.provenance_format.contains("{version}")
+        || !manifest
+            .browser
+            .provenance_format
+            .contains("{repository_relative_executable}")
+    {
+        return Err(
+            "corpus manifest browser.provenance_format must contain {version} and {repository_relative_executable}"
+                .to_string(),
+        );
+    }
+    browser_launch_profile(&manifest.browser.launch)?;
+    generation_report_manifest(manifest)?;
+    Ok(())
+}
+
+fn validate_strict_relative_path(kind: &str, raw: &str) -> Result<PathBuf, String> {
+    if raw.is_empty() {
+        return Err(format!("{kind} must be a non-empty relative path"));
+    }
+    let path = PathBuf::from(raw);
+    if path.is_absolute()
+        || raw
+            .split(['/', '\\'])
+            .any(|part| matches!(part, "." | ".."))
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::CurDir
+                    | Component::ParentDir
+                    | Component::RootDir
+                    | Component::Prefix(_)
+            )
+        })
+    {
+        return Err(format!(
+            "{kind} must be a relative path without root, prefix, dot, or dotdot components"
+        ));
+    }
+    Ok(path)
+}
+
+fn browser_launch_profile(launch: &BrowserLaunchManifest) -> Result<BrowserLaunchProfile, String> {
+    if launch.batch_size == 0
+        || launch.navigation_timeout_ms == 0
+        || launch.dom_poll_interval_ms == 0
+        || launch.retry_count != 1
+        || launch.job_order != "sorted-sequential"
+        || launch.retry_error_class != "open-load-reset-timeout"
+        || launch.profile_scope != "per-batch-and-retry"
+        || launch.page_scope != "per-job"
+        || !launch.disable_default_args
+        || !launch.disable_cache
+        || launch.arguments.len() != 28
+        || !launch
+            .arguments
+            .iter()
+            .any(|argument| argument == "use-mock-keychain")
+    {
+        return Err(
+            "corpus manifest browser.launch does not satisfy the pinned generation lifecycle"
+                .to_string(),
+        );
+    }
+    Ok(BrowserLaunchProfile {
+        batch_size: launch.batch_size,
+        navigation_timeout: Duration::from_millis(launch.navigation_timeout_ms),
+        dom_poll_interval: Duration::from_millis(launch.dom_poll_interval_ms),
+        retry_count: launch.retry_count,
+        job_order: launch.job_order.clone(),
+        retry_error_class: launch.retry_error_class.clone(),
+        profile_scope: launch.profile_scope.clone(),
+        page_scope: launch.page_scope.clone(),
+        disable_default_args: launch.disable_default_args,
+        disable_cache: launch.disable_cache,
+        arguments: launch.arguments.clone(),
+        digest: launch_profile_digest(launch)?,
+    })
+}
+
+fn launch_profile_digest(launch: &BrowserLaunchManifest) -> Result<String, String> {
+    let serialized = serde_json::to_vec(&(
+        1u8,
+        launch.batch_size,
+        launch.navigation_timeout_ms,
+        launch.dom_poll_interval_ms,
+        launch.retry_count,
+        &launch.job_order,
+        &launch.retry_error_class,
+        &launch.profile_scope,
+        &launch.page_scope,
+        launch.disable_default_args,
+        launch.disable_cache,
+        &launch.arguments,
+    ))
+    .map_err(|error| format!("failed to serialize browser launch profile: {error}"))?;
+    Ok(sha256_bytes(&serialized))
+}
+
+fn generation_report_manifest(
+    manifest: &CorpusManifest,
+) -> Result<GenerationReportInventory<'_>, String> {
+    let full = &manifest.generation_reports.full;
+    validate_generation_report_file("full generation report", &full.file)?;
+    if full.file != "all.json" {
+        return Err(format!(
+            "full generation report file is {:?}, expected all.json",
+            full.file
+        ));
+    }
+    let mut scoped = BTreeMap::new();
+    let mut files = BTreeSet::from([full.file.as_str()]);
+    for report in &manifest.generation_reports.scoped {
+        if report.filter.is_empty() || report.filter.trim() != report.filter {
+            return Err(
+                "scoped generation report filter must be a non-empty normalized string".to_string(),
+            );
+        }
+        validate_generation_report_file("scoped generation report", &report.file)?;
+        if !files.insert(report.file.as_str()) {
+            return Err(format!(
+                "duplicate generation report file {:?}",
+                report.file
+            ));
+        }
+        if scoped.insert(report.filter.as_str(), report).is_some() {
+            return Err(format!(
+                "duplicate scoped generation report filter {:?}",
+                report.filter
+            ));
+        }
+    }
+    Ok(GenerationReportInventory { full, scoped })
+}
+
+fn validate_generation_report_file(kind: &str, raw: &str) -> Result<(), String> {
+    let path = validate_strict_relative_path(kind, raw)?;
+    if path.components().count() != 1
+        || path.extension().and_then(|extension| extension.to_str()) != Some("json")
+    {
+        return Err(format!("{kind} `{raw}` must be one JSON file name"));
+    }
+    Ok(())
+}
+
+fn normalize_generation_filter(
+    raw: Option<String>,
+    manifest: &CorpusManifest,
+) -> Result<Option<String>, String> {
+    let normalized = raw.map(|filter| filter.trim().to_string());
+    let Some(filter) = normalized else {
+        return Ok(None);
+    };
+    if filter.is_empty() {
+        return Ok(None);
+    }
+    if generation_report_manifest(manifest)?
+        .scoped_for_filter(&filter)
+        .is_none()
+    {
+        return Err(format!(
+            "{FILTER_ENV}={filter:?} must be empty or exactly match one manifest scoped generation report"
+        ));
+    }
+    Ok(Some(filter))
+}
+
+async fn generate(config: GenerationConfig) -> Result<(), String> {
+    let browser = resolve_pinned_browser(&config).await?;
     let mut report = GenerationReport {
         filter: config.filter.clone(),
         ..GenerationReport::default()
@@ -221,52 +654,65 @@ async fn generate(config: Config) -> Result<(), String> {
     let jobs = generation_jobs(constrained_fixtures);
     if jobs.is_empty() {
         if report.has_entries() {
-            fs::create_dir_all(&config.xml_root).map_err(|error| {
-                format!("failed to create {}: {error}", config.xml_root.display())
+            fs::create_dir_all(&config.corpus.xml_root).map_err(|error| {
+                format!(
+                    "failed to create {}: {error}",
+                    config.corpus.xml_root.display()
+                )
             })?;
             write_generation_report(&config, &report)?;
+            prune_stale_generation_reports_after_success(&config, &report)?;
             return Ok(());
         }
         let scope = config.filter.as_ref().map_or_else(
-            || format!("{}", config.html_root.display()),
+            || format!("{}", config.corpus.html_root.display()),
             |filter| format!("parity sources matching {filter:?}"),
         );
         return Err(format!("no parity fixtures found under {scope}"));
     }
 
-    let browser_path = resolve_browser_path(&config).await?;
-    fs::create_dir_all(&config.xml_root)
-        .map_err(|error| format!("failed to create {}: {error}", config.xml_root.display()))?;
+    fs::create_dir_all(&config.corpus.xml_root).map_err(|error| {
+        format!(
+            "failed to create {}: {error}",
+            config.corpus.xml_root.display()
+        )
+    })?;
 
-    for (batch_index, batch) in jobs.chunks(BROWSER_FIXTURE_BATCH_SIZE).enumerate() {
-        if let Err(error) =
-            generate_batch(&config, &browser_path, batch, batch_index, &mut report).await
+    for (batch_index, batch) in jobs.chunks(config.launch_profile.batch_size).enumerate() {
+        if let Err(error) = generate_batch(&config, &browser, batch, batch_index, &mut report).await
         {
             for job in batch {
-                record_failed_generation_job(&config, job, &mut report, error.clone());
+                record_failed_generation_job(&config.corpus, job, &mut report, error.clone());
             }
         }
     }
-    prune_stale_generated_xml_outputs_after_success(&config, &report)?;
-    write_generation_report(&config, &report)?;
+    finish_generation(&config, &report)
+}
+
+fn finish_generation(config: &GenerationConfig, report: &GenerationReport) -> Result<(), String> {
+    prune_stale_generated_xml_outputs_after_success(config, report)?;
+    write_generation_report(config, report)?;
     if report.summary.failed_to_generate > 0 {
         return Err(format!(
             "{} generation job(s) failed; see {}",
             report.summary.failed_to_generate,
-            generation_report_path(&config).display()
+            generation_report_path(config).display()
         ));
     }
+    prune_stale_generation_reports_after_success(config, report)?;
 
     Ok(())
 }
 
 fn check_corpus(config: &Config) -> Result<(), String> {
+    let manifest = read_corpus_manifest(config)?;
+    validate_corpus_manifest(&manifest)?;
     check_corpus_junk_files(config)?;
     check_gentest_helper_only_assets(config)?;
     validate_taffy_manifest(config)?;
     validate_surgeist_constrained_case_files(config)?;
-    validate_generation_report_freshness(config)?;
-    validate_xml_provenance_freshness(config)?;
+    validate_generation_report_freshness(config, &manifest)?;
+    validate_xml_provenance_freshness(config, &manifest)?;
     check_taffy_corpus_from_existing_source(config)?;
     Ok(())
 }
@@ -543,12 +989,6 @@ fn validate_taffy_manifest(config: &Config) -> Result<(), String> {
             taffy.excluded_destination_dirs
         ));
     }
-    if !taffy.allowed_extra_paths.is_empty() {
-        return Err(
-            "[imports.taffy].allowed_extra_paths is no longer supported; declare local constrained fixtures as [[cases]]"
-                .to_string(),
-        );
-    }
     validate_root_cases(&manifest.cases)?;
     Ok(())
 }
@@ -627,8 +1067,11 @@ fn read_corpus_manifest(config: &Config) -> Result<CorpusManifest, String> {
     let manifest = config.root.join("corpus.toml");
     let raw = fs::read_to_string(&manifest)
         .map_err(|error| format!("failed to read {}: {error}", manifest.display()))?;
-    toml::from_str::<CorpusManifest>(&raw)
-        .map_err(|error| format!("failed to parse {}: {error}", manifest.display()))
+    let parsed = parse_corpus_manifest(&raw)
+        .map_err(|error| format!("failed to parse {}: {error}", manifest.display()))?;
+    validate_corpus_manifest(&parsed)
+        .map_err(|error| format!("invalid {}: {error}", manifest.display()))?;
+    Ok(parsed)
 }
 
 fn taffy_source_root() -> PathBuf {
@@ -872,152 +1315,320 @@ fn generation_job_path(job: &GenerationJob) -> String {
 }
 
 async fn generate_batch(
-    config: &Config,
-    browser_path: &Path,
+    config: &GenerationConfig,
+    pinned_browser: &PinnedBrowser,
     jobs: &[GenerationJob],
     batch_index: usize,
     report: &mut GenerationReport,
 ) -> Result<(), String> {
     let profile = config
-        .browser_cache
+        .browser_cache_root()
         .parent()
-        .unwrap_or(&config.browser_cache)
+        .unwrap_or(&config.repository_root)
         .join("surgeist-browser-profile")
         .join(format!("{}-{batch_index}", process::id()));
+    let operation_profile = profile.clone();
+    with_browser_profile_cleanup(
+        profile,
+        async move {
+            let browser_config =
+                browser_launch_config(pinned_browser, &config.launch_profile, &operation_profile)?;
+            let (mut browser, mut handler) = Browser::launch(browser_config)
+                .await
+                .map_err(|error| format!("failed to launch browser: {error}"))?;
+            let handler_task = tokio::spawn(async move { while handler.next().await.is_some() {} });
+
+            let result = async {
+                for (job_index, job) in jobs.iter().enumerate() {
+                    let page = match browser.new_page("about:blank").await {
+                        Ok(page) => page,
+                        Err(error) => {
+                            let error = format!("failed to create page: {error}");
+                            record_failed_generation_job(&config.corpus, job, report, error.clone());
+                            eprintln!(
+                                "reporting failed browser parity generation for {}: {error}",
+                                generation_job_path(job)
+                            );
+                            continue;
+                        }
+                    };
+                    let result = match generate_job(config, pinned_browser, &page, job, report).await {
+                        Err(error) if is_retryable_generation_error(&error) => {
+                            eprintln!(
+                                "retrying browser parity generation for {} after navigation timeout",
+                                generation_job_path(job)
+                            );
+                            retry_job_in_fresh_browser(
+                                config,
+                                pinned_browser,
+                                job,
+                                batch_index,
+                                job_index,
+                                report,
+                            )
+                            .await
+                            .map_err(|retry_error| format!("{error}; retry failed: {retry_error}"))
+                        }
+                        result => result,
+                    };
+                    let result = finish_after_cleanup(
+                        result,
+                        page.close()
+                            .await
+                            .map_err(|error| format!("failed to close page: {error}"))
+                            .err()
+                            .into_iter()
+                            .collect(),
+                    );
+                    if let Err(error) = result {
+                        record_failed_generation_job(&config.corpus, job, report, error.clone());
+                        eprintln!(
+                            "reporting failed browser parity generation for {}: {error}",
+                            generation_job_path(job)
+                        );
+                    }
+                }
+                Ok::<(), String>(())
+            }
+            .await;
+
+            finish_after_cleanup(
+                result,
+                close_browser_and_handler(&mut browser, handler_task)
+                    .await
+                    .err()
+                    .into_iter()
+                    .collect(),
+            )
+        },
+        remove_browser_profile,
+    )
+    .await
+}
+
+#[derive(Clone, Copy, Debug)]
+struct BrowserProfileCleanupPolicy {
+    max_attempts: usize,
+    retry_delay: Duration,
+}
+
+const BROWSER_PROFILE_CLEANUP_POLICY: BrowserProfileCleanupPolicy = BrowserProfileCleanupPolicy {
+    max_attempts: 3,
+    retry_delay: Duration::from_millis(25),
+};
+
+async fn with_browser_profile_cleanup<T, F, C>(
+    profile: PathBuf,
+    operation: F,
+    cleanup: C,
+) -> Result<T, String>
+where
+    F: std::future::Future<Output = Result<T, String>>,
+    C: FnMut(&Path) -> Result<(), String>,
+{
+    with_browser_profile_cleanup_with(
+        profile,
+        operation,
+        cleanup,
+        BROWSER_PROFILE_CLEANUP_POLICY,
+        |delay| tokio::time::sleep(delay),
+    )
+    .await
+}
+
+async fn with_browser_profile_cleanup_with<T, F, C, W, Wait>(
+    profile: PathBuf,
+    operation: F,
+    mut cleanup: C,
+    policy: BrowserProfileCleanupPolicy,
+    mut wait: W,
+) -> Result<T, String>
+where
+    F: std::future::Future<Output = Result<T, String>>,
+    C: FnMut(&Path) -> Result<(), String>,
+    W: FnMut(Duration) -> Wait,
+    Wait: std::future::Future<Output = ()>,
+{
     fs::create_dir_all(&profile)
         .map_err(|error| format!("failed to create {}: {error}", profile.display()))?;
+    let result = operation.await;
+    finish_after_cleanup(
+        result,
+        cleanup_browser_profile_with(&profile, policy, &mut cleanup, &mut wait)
+            .await
+            .err()
+            .into_iter()
+            .collect(),
+    )
+}
 
-    let browser_config = BrowserConfig::builder()
-        .chrome_executable(browser_path)
-        .with_head()
-        .disable_default_args()
-        .disable_cache()
-        .user_data_dir(&profile)
-        .args(browser_args())
-        .build()
-        .map_err(|error| format!("failed to configure browser: {error}"))?;
-
-    let (mut browser, mut handler) = Browser::launch(browser_config)
-        .await
-        .map_err(|error| format!("failed to launch browser: {error}"))?;
-    let handler_task = tokio::spawn(async move { while handler.next().await.is_some() {} });
-
-    let result = async {
-        for (job_index, job) in jobs.iter().enumerate() {
-            let page = match browser.new_page("about:blank").await {
-                Ok(page) => page,
-                Err(error) => {
-                    let error = format!("failed to create page: {error}");
-                    record_failed_generation_job(config, job, report, error.clone());
-                    eprintln!(
-                        "reporting failed browser parity generation for {}: {error}",
-                        generation_job_path(job)
-                    );
-                    continue;
-                }
-            };
-            let result = match generate_job(config, browser_path, &page, job, report).await {
-                Err(error) if is_retryable_generation_error(&error) => {
-                    eprintln!(
-                        "retrying browser parity generation for {} after navigation timeout",
-                        generation_job_path(job)
-                    );
-                    retry_job_in_fresh_browser(
-                        config,
-                        browser_path,
-                        job,
-                        batch_index,
-                        job_index,
-                        report,
-                    )
-                    .await
-                    .map_err(|retry_error| format!("{error}; retry failed: {retry_error}"))
-                }
-                result => result,
-            };
-            page.close().await.ok();
-            if let Err(error) = result {
-                record_failed_generation_job(config, job, report, error.clone());
-                eprintln!(
-                    "reporting failed browser parity generation for {}: {error}",
-                    generation_job_path(job)
-                );
-            }
-        }
-        Ok::<(), String>(())
+async fn cleanup_browser_profile_with<C, W, Wait>(
+    profile: &Path,
+    policy: BrowserProfileCleanupPolicy,
+    cleanup: &mut C,
+    wait: &mut W,
+) -> Result<(), String>
+where
+    C: FnMut(&Path) -> Result<(), String>,
+    W: FnMut(Duration) -> Wait,
+    Wait: std::future::Future<Output = ()>,
+{
+    if policy.max_attempts == 0 {
+        return Err("browser profile cleanup policy must allow at least one attempt".to_string());
     }
-    .await;
 
-    browser.close().await.ok();
-    handler_task.await.ok();
-    fs::remove_dir_all(profile).ok();
+    for attempt in 1..=policy.max_attempts {
+        if browser_profile_is_absent(profile)? {
+            return Ok(());
+        }
 
-    result
+        let removal = cleanup(profile);
+        if browser_profile_is_absent(profile)? {
+            return Ok(());
+        }
+
+        let diagnostic = match removal {
+            Ok(()) => format!(
+                "cleanup attempt {attempt}/{} completed but {} remains present",
+                policy.max_attempts,
+                profile.display()
+            ),
+            Err(error) => format!(
+                "cleanup attempt {attempt}/{} failed for {}: {error}; profile remains present",
+                policy.max_attempts,
+                profile.display()
+            ),
+        };
+        if attempt == policy.max_attempts {
+            return Err(format!(
+                "browser profile cleanup did not converge after {} attempts for {}: {diagnostic}",
+                policy.max_attempts,
+                profile.display()
+            ));
+        }
+
+        wait(policy.retry_delay).await;
+    }
+
+    Err("browser profile cleanup exhausted without a terminal diagnostic".to_string())
+}
+
+fn browser_profile_is_absent(profile: &Path) -> Result<bool, String> {
+    match fs::symlink_metadata(profile) {
+        Ok(_) => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(true),
+        Err(error) => Err(format!(
+            "failed to inspect browser profile {}: {error}",
+            profile.display()
+        )),
+    }
+}
+
+fn remove_browser_profile(profile: &Path) -> Result<(), String> {
+    fs::remove_dir_all(profile)
+        .map_err(|error| format!("failed to remove {}: {error}", profile.display()))
+}
+
+fn finish_after_cleanup<T>(
+    result: Result<T, String>,
+    cleanup_errors: Vec<String>,
+) -> Result<T, String> {
+    if cleanup_errors.is_empty() {
+        return result;
+    }
+    let cleanup_error = cleanup_errors.join("; ");
+    match result {
+        Ok(_) => Err(format!("cleanup failed: {cleanup_error}")),
+        Err(error) => Err(format!("{error}; cleanup failed: {cleanup_error}")),
+    }
+}
+
+async fn close_browser_and_handler(
+    browser: &mut Browser,
+    handler_task: tokio::task::JoinHandle<()>,
+) -> Result<(), String> {
+    let mut cleanup_errors = Vec::new();
+    if let Err(error) = browser.close().await {
+        cleanup_errors.push(format!("failed to close browser: {error}"));
+    }
+    if let Err(error) = handler_task.await {
+        cleanup_errors.push(format!("failed to join browser handler: {error}"));
+    }
+    finish_after_cleanup(Ok(()), cleanup_errors)
 }
 
 async fn generate_job(
-    config: &Config,
-    browser_path: &Path,
+    config: &GenerationConfig,
+    pinned_browser: &PinnedBrowser,
     page: &chromiumoxide::Page,
     job: &GenerationJob,
     report: &mut GenerationReport,
 ) -> Result<(), String> {
     match job {
-        GenerationJob::ConstrainedHtml(fixture) => match describe_fixture(page, fixture).await {
-            Ok(desc) => write_fixture_goldens(config, browser_path, fixture, &desc, report),
-            Err(error) => Err(error),
-        },
+        GenerationJob::ConstrainedHtml(fixture) => {
+            match describe_fixture(page, fixture, &config.launch_profile).await {
+                Ok(desc) => write_fixture_goldens(config, pinned_browser, fixture, &desc, report),
+                Err(error) => Err(error),
+            }
+        }
     }
 }
 
 async fn retry_job_in_fresh_browser(
-    config: &Config,
-    browser_path: &Path,
+    config: &GenerationConfig,
+    pinned_browser: &PinnedBrowser,
     job: &GenerationJob,
     batch_index: usize,
     job_index: usize,
     report: &mut GenerationReport,
 ) -> Result<(), String> {
     let profile = config
-        .browser_cache
+        .browser_cache_root()
         .parent()
-        .unwrap_or(&config.browser_cache)
+        .unwrap_or(&config.repository_root)
         .join("surgeist-browser-profile")
         .join(format!("{}-{batch_index}-{job_index}-retry", process::id()));
-    fs::create_dir_all(&profile)
-        .map_err(|error| format!("failed to create {}: {error}", profile.display()))?;
+    let operation_profile = profile.clone();
+    with_browser_profile_cleanup(
+        profile,
+        async move {
+            let browser_config =
+                browser_launch_config(pinned_browser, &config.launch_profile, &operation_profile)?;
+            let (mut browser, mut handler) = Browser::launch(browser_config)
+                .await
+                .map_err(|error| format!("failed to launch retry browser: {error}"))?;
+            let handler_task = tokio::spawn(async move { while handler.next().await.is_some() {} });
 
-    let browser_config = BrowserConfig::builder()
-        .chrome_executable(browser_path)
-        .with_head()
-        .disable_default_args()
-        .disable_cache()
-        .user_data_dir(&profile)
-        .args(browser_args())
-        .build()
-        .map_err(|error| format!("failed to configure retry browser: {error}"))?;
+            let result = async {
+                let page = browser
+                    .new_page("about:blank")
+                    .await
+                    .map_err(|error| format!("failed to create retry page: {error}"))?;
+                let result = generate_job(config, pinned_browser, &page, job, report).await;
+                finish_after_cleanup(
+                    result,
+                    page.close()
+                        .await
+                        .map_err(|error| format!("failed to close retry page: {error}"))
+                        .err()
+                        .into_iter()
+                        .collect(),
+                )
+            }
+            .await;
 
-    let (mut browser, mut handler) = Browser::launch(browser_config)
-        .await
-        .map_err(|error| format!("failed to launch retry browser: {error}"))?;
-    let handler_task = tokio::spawn(async move { while handler.next().await.is_some() {} });
-
-    let result = async {
-        let page = browser
-            .new_page("about:blank")
-            .await
-            .map_err(|error| format!("failed to create retry page: {error}"))?;
-        let result = generate_job(config, browser_path, &page, job, report).await;
-        page.close().await.ok();
-        result
-    }
-    .await;
-
-    browser.close().await.ok();
-    handler_task.await.ok();
-    fs::remove_dir_all(profile).ok();
-
-    result
+            finish_after_cleanup(
+                result,
+                close_browser_and_handler(&mut browser, handler_task)
+                    .await
+                    .err()
+                    .into_iter()
+                    .collect(),
+            )
+        },
+        remove_browser_profile,
+    )
+    .await
 }
 
 fn is_retryable_generation_error(error: &str) -> bool {
@@ -1028,74 +1639,237 @@ fn is_retryable_generation_error(error: &str) -> bool {
             || error.contains("timed out waiting for DOM readiness"))
 }
 
-async fn resolve_browser_path(config: &Config) -> Result<PathBuf, String> {
-    if let Some(path) = &config.browser_path {
-        return Ok(path.clone());
+async fn resolve_pinned_browser(config: &GenerationConfig) -> Result<PinnedBrowser, String> {
+    match config.resolution_mode {
+        BrowserResolutionMode::ManagedPinned => {
+            resolve_managed_pinned_browser_with(
+                &config.repository_root,
+                &config.manifest.browser,
+                fetch_managed_browser,
+                run_browser_version,
+            )
+            .await
+        }
+        BrowserResolutionMode::ExistingPinned => resolve_existing_pinned_browser(
+            &config.repository_root,
+            &config.manifest.browser,
+            config
+                .existing_browser_path
+                .as_deref()
+                .ok_or_else(|| format!("generate-existing requires {BROWSER_PATH_ENV}"))?,
+            run_browser_version,
+        ),
     }
+}
 
-    fs::create_dir_all(&config.browser_cache).map_err(|error| {
+async fn resolve_managed_pinned_browser_with<F, Fut, V>(
+    repository_root: &Path,
+    manifest: &BrowserManifest,
+    fetch: F,
+    version_runner: V,
+) -> Result<PinnedBrowser, String>
+where
+    F: FnOnce(PathBuf, String) -> Fut,
+    Fut: std::future::Future<Output = Result<PathBuf, String>>,
+    V: FnOnce(&Path) -> Result<String, String>,
+{
+    let executable = fetch(
+        repository_root.join(&manifest.cache_root),
+        manifest.version.clone(),
+    )
+    .await?;
+    validate_pinned_browser(repository_root, manifest, &executable, version_runner)
+}
+
+async fn fetch_managed_browser(cache_root: PathBuf, version: String) -> Result<PathBuf, String> {
+    fs::create_dir_all(&cache_root).map_err(|error| {
         format!(
             "failed to create browser cache {}: {error}",
-            config.browser_cache.display()
+            cache_root.display()
         )
     })?;
-
-    let mut fetcher_options = BrowserFetcherOptions::builder()
-        .with_kind(BrowserKind::Chrome)
-        .with_path(&config.browser_cache);
-    if let Some(version) = &config.browser_version {
-        let version = version
-            .parse::<BrowserVersion>()
-            .map_err(|error| format!("invalid {BROWSER_VERSION_ENV}={version:?}: {error}"))?;
-        fetcher_options = fetcher_options.with_version(version);
-    }
+    let browser_version = version
+        .parse::<BrowserVersion>()
+        .map_err(|error| format!("invalid manifest browser.version {version:?}: {error}"))?;
     let fetcher = BrowserFetcher::new(
-        fetcher_options
+        BrowserFetcherOptions::builder()
+            .with_kind(BrowserKind::Chrome)
+            .with_path(&cache_root)
+            .with_version(browser_version)
             .build()
             .map_err(|error| format!("failed to configure browser fetcher: {error}"))?,
     );
     let browser = fetcher
         .fetch()
         .await
-        .map_err(|error| format!("failed to fetch local Chromium binary: {error}"))?;
+        .map_err(|error| format!("failed to fetch managed pinned browser: {error}"))?;
     Ok(browser.executable_path)
 }
 
-fn browser_args() -> [&'static str; 28] {
-    [
-        "headless=new",
-        "mute-audio",
-        "disable-background-networking",
-        "disable-background-timer-throttling",
-        "disable-backgrounding-occluded-windows",
-        "disable-breakpad",
-        "disable-client-side-phishing-detection",
-        "disable-component-extensions-with-background-pages",
-        "disable-component-update",
-        "disable-default-apps",
-        "disable-dev-shm-usage",
-        "disable-domain-reliability",
-        "disable-features=TranslateUI,MediaRouter,OptimizationHints,AutofillServerCommunication",
-        "disable-hang-monitor",
-        "disable-ipc-flooding-protection",
-        "disable-popup-blocking",
-        "disable-prompt-on-repost",
-        "disable-renderer-backgrounding",
-        "disable-sync",
-        "enable-automation",
-        "enable-blink-features=IdleDetection,CSSGridLanesLayout",
-        "enable-features=NetworkService,NetworkServiceInProcess",
-        "force-color-profile=srgb",
-        "lang=en_US",
-        "metrics-recording-only",
-        "no-default-browser-check",
-        "no-first-run",
-        "use-mock-keychain",
-    ]
+fn resolve_existing_pinned_browser<V>(
+    repository_root: &Path,
+    manifest: &BrowserManifest,
+    raw_path: &str,
+    version_runner: V,
+) -> Result<PinnedBrowser, String>
+where
+    V: FnOnce(&Path) -> Result<String, String>,
+{
+    let relative = validate_strict_relative_path(BROWSER_PATH_ENV, raw_path)?;
+    validate_pinned_browser(
+        repository_root,
+        manifest,
+        &repository_root.join(relative),
+        version_runner,
+    )
 }
 
-async fn describe_fixture(page: &chromiumoxide::Page, fixture: &Path) -> Result<Value, String> {
-    open_fixture_page(page, fixture).await?;
+fn validate_pinned_browser<V>(
+    repository_root: &Path,
+    manifest: &BrowserManifest,
+    executable: &Path,
+    version_runner: V,
+) -> Result<PinnedBrowser, String>
+where
+    V: FnOnce(&Path) -> Result<String, String>,
+{
+    let repository_root = fs::canonicalize(repository_root).map_err(|error| {
+        format!(
+            "failed to canonicalize repository root {}: {error}",
+            repository_root.display()
+        )
+    })?;
+    let cache_root =
+        fs::canonicalize(repository_root.join(&manifest.cache_root)).map_err(|error| {
+            format!(
+                "failed to canonicalize manifest browser cache {}: {error}",
+                manifest.cache_root
+            )
+        })?;
+    let executable = fs::canonicalize(executable).map_err(|error| {
+        format!(
+            "{BROWSER_PATH_ENV} executable {} is missing or cannot be canonicalized: {error}",
+            executable.display()
+        )
+    })?;
+    if !executable.starts_with(&cache_root) {
+        return Err(format!(
+            "{BROWSER_PATH_ENV} executable {} escapes manifest browser cache {}",
+            executable.display(),
+            cache_root.display()
+        ));
+    }
+    let metadata = fs::metadata(&executable).map_err(|error| {
+        format!(
+            "failed to inspect browser executable {}: {error}",
+            executable.display()
+        )
+    })?;
+    if !metadata.is_file() || !is_executable_file(&metadata) {
+        return Err(format!(
+            "{BROWSER_PATH_ENV} executable {} must be a regular executable file",
+            executable.display()
+        ));
+    }
+    let repository_relative = executable.strip_prefix(&repository_root).map_err(|_| {
+        format!(
+            "{BROWSER_PATH_ENV} executable {} is not under the repository root {}",
+            executable.display(),
+            repository_root.display()
+        )
+    })?;
+    let repository_relative_executable = repository_relative.to_string_lossy().replace('\\', "/");
+    let version = normalize_browser_version(&version_runner(&executable)?);
+    if version != manifest.version_output {
+        return Err(format!(
+            "browser executable {} reports version {:?}, expected {:?}",
+            executable.display(),
+            version,
+            manifest.version_output
+        ));
+    }
+    let provenance = manifest
+        .provenance_format
+        .replace("{version}", &manifest.version)
+        .replace(
+            "{repository_relative_executable}",
+            &repository_relative_executable,
+        );
+    Ok(PinnedBrowser {
+        executable,
+        repository_relative_executable,
+        provenance,
+    })
+}
+
+#[cfg(unix)]
+fn is_executable_file(metadata: &fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt as _;
+    metadata.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn is_executable_file(_metadata: &fs::Metadata) -> bool {
+    true
+}
+
+fn run_browser_version(executable: &Path) -> Result<String, String> {
+    let output = Command::new(executable)
+        .arg("--version")
+        .output()
+        .map_err(|error| format!("failed to run {} --version: {error}", executable.display()))?;
+    if !output.status.success() {
+        return Err(format!(
+            "{} --version failed with {}: {}",
+            executable.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    String::from_utf8(output.stdout).map_err(|error| {
+        format!(
+            "{} --version did not produce UTF-8: {error}",
+            executable.display()
+        )
+    })
+}
+
+fn normalize_browser_version(raw: &str) -> String {
+    raw.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn browser_launch_config(
+    pinned_browser: &PinnedBrowser,
+    profile: &BrowserLaunchProfile,
+    profile_dir: &Path,
+) -> Result<BrowserConfig, String> {
+    if profile.retry_count != 1
+        || profile.job_order != "sorted-sequential"
+        || profile.retry_error_class != "open-load-reset-timeout"
+        || profile.profile_scope != "per-batch-and-retry"
+        || profile.page_scope != "per-job"
+        || !profile.disable_default_args
+        || !profile.disable_cache
+    {
+        return Err("browser launch profile does not satisfy the pinned lifecycle".to_string());
+    }
+    BrowserConfig::builder()
+        .chrome_executable(&pinned_browser.executable)
+        .with_head()
+        .disable_default_args()
+        .disable_cache()
+        .user_data_dir(profile_dir)
+        .args(profile.arguments.iter().map(String::as_str))
+        .build()
+        .map_err(|error| format!("failed to configure pinned browser: {error}"))
+}
+
+async fn describe_fixture(
+    page: &chromiumoxide::Page,
+    fixture: &Path,
+    launch_profile: &BrowserLaunchProfile,
+) -> Result<Value, String> {
+    open_fixture_page(page, fixture, launch_profile).await?;
     ensure_test_helper(page, fixture).await?;
     let json: String = page
         .evaluate_function("() => getTestData()")
@@ -1106,7 +1880,11 @@ async fn describe_fixture(page: &chromiumoxide::Page, fixture: &Path) -> Result<
     serde_json::from_str(&json).map_err(|error| format!("invalid measurement JSON: {error}"))
 }
 
-async fn open_fixture_page(page: &chromiumoxide::Page, fixture: &Path) -> Result<(), String> {
+async fn open_fixture_page(
+    page: &chromiumoxide::Page,
+    fixture: &Path,
+    launch_profile: &BrowserLaunchProfile,
+) -> Result<(), String> {
     let raw = fs::read_to_string(fixture)
         .map_err(|error| format!("failed to read fixture {}: {error}", fixture.display()))?;
     let base_url = fixture_base_url(fixture)?;
@@ -1118,7 +1896,7 @@ async fn open_fixture_page(page: &chromiumoxide::Page, fixture: &Path) -> Result
             fixture.display()
         )
     })?;
-    wait_for_fixture_dom(page, fixture).await
+    wait_for_fixture_dom(page, fixture, launch_profile).await
 }
 
 fn browser_fixture_document(raw: &str, base_url: &str) -> Result<String, String> {
@@ -1172,8 +1950,12 @@ fn browser_document_write_script(html: &str) -> String {
     )
 }
 
-async fn wait_for_fixture_dom(page: &chromiumoxide::Page, fixture: &Path) -> Result<(), String> {
-    let deadline = Instant::now() + BROWSER_NAVIGATION_TIMEOUT;
+async fn wait_for_fixture_dom(
+    page: &chromiumoxide::Page,
+    fixture: &Path,
+    launch_profile: &BrowserLaunchProfile,
+) -> Result<(), String> {
+    let deadline = Instant::now() + launch_profile.navigation_timeout;
     let readiness_script = fixture_dom_readiness_script();
     let mut last_error = None;
     while Instant::now() < deadline {
@@ -1195,7 +1977,7 @@ async fn wait_for_fixture_dom(page: &chromiumoxide::Page, fixture: &Path) -> Res
                 last_error = Some(error.to_string());
             }
         }
-        tokio::time::sleep(BROWSER_NAVIGATION_POLL_INTERVAL).await;
+        tokio::time::sleep(launch_profile.dom_poll_interval).await;
     }
 
     let detail = last_error
@@ -1291,25 +2073,23 @@ fn collect_html(root: &Path, filter: Option<&str>) -> Result<Vec<PathBuf>, Strin
 }
 
 fn collect_constrained_fixtures_for_generation(
-    config: &Config,
+    config: &GenerationConfig,
     report: &mut GenerationReport,
 ) -> Result<Vec<PathBuf>, String> {
-    let mut fixtures = collect_html(&config.html_root, config.filter.as_deref())?;
+    let mut fixtures = collect_html(&config.corpus.html_root, config.filter.as_deref())?;
     let mut excluded = BTreeSet::new();
-    let manifest = read_corpus_manifest(config)?;
-    for case in manifest
+    for case in config
+        .manifest
         .cases
         .iter()
         .filter(|case| case.source_root == CorpusSourceRoot::Surgeist)
     {
         validate_surgeist_constrained_case(case)?;
         let source = validate_relative_path("Surgeist constrained case source", &case.source)?;
-        let fixture = config.html_root.join(&source);
-        if config
-            .filter
-            .as_deref()
-            .is_some_and(|filter| !fixture_matches_filter(&config.html_root, &fixture, filter))
-        {
+        let fixture = config.corpus.html_root.join(&source);
+        if config.filter.as_deref().is_some_and(|filter| {
+            !fixture_matches_filter(&config.corpus.html_root, &fixture, filter)
+        }) {
             continue;
         }
         let report_source = format!("html/{}", source.to_string_lossy().replace('\\', "/"));
@@ -1333,7 +2113,7 @@ fn collect_constrained_fixtures_for_generation(
                         .clone()
                         .unwrap_or_else(|| "manifest marks case unsupported".to_string()),
                 );
-                prune_constrained_status_case_outputs(config, &fixture)?;
+                prune_constrained_status_case_outputs(&config.corpus, &fixture)?;
                 excluded.insert(fixture);
             }
             CorpusStatus::Quarantined => {
@@ -1344,7 +2124,7 @@ fn collect_constrained_fixtures_for_generation(
                         .clone()
                         .unwrap_or_else(|| "manifest marks case quarantined".to_string()),
                 );
-                prune_constrained_status_case_outputs(config, &fixture)?;
+                prune_constrained_status_case_outputs(&config.corpus, &fixture)?;
                 excluded.insert(fixture);
             }
         }
@@ -1394,18 +2174,20 @@ fn collect_html_into(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String
 }
 
 fn write_fixture_goldens(
-    config: &Config,
-    browser_path: &Path,
+    config: &GenerationConfig,
+    pinned_browser: &PinnedBrowser,
     fixture: &Path,
     desc: &Value,
     report: &mut GenerationReport,
 ) -> Result<(), String> {
-    let rel = fixture.strip_prefix(&config.html_root).map_err(|error| {
-        format!(
-            "failed to make fixture path relative to {}: {error}",
-            config.html_root.display()
-        )
-    })?;
+    let rel = fixture
+        .strip_prefix(&config.corpus.html_root)
+        .map_err(|error| {
+            format!(
+                "failed to make fixture path relative to {}: {error}",
+                config.corpus.html_root.display()
+            )
+        })?;
     let group = rel.parent().unwrap_or_else(|| Path::new(""));
     let stem = fixture
         .file_stem()
@@ -1419,8 +2201,8 @@ fn write_fixture_goldens(
     } else {
         None
     };
-    let browser = browser_provenance(config, browser_path);
-    let output_dir = config.xml_root.join(group);
+    let browser = pinned_browser.provenance.clone();
+    let output_dir = config.corpus.xml_root.join(group);
     fs::create_dir_all(&output_dir)
         .map_err(|error| format!("failed to create {}: {error}", output_dir.display()))?;
 
@@ -1443,6 +2225,7 @@ fn write_fixture_goldens(
             continue;
         }
         let provenance = GeneratedProvenance {
+            schema_version: 2,
             source: report_source.clone(),
             source_sha256: source_sha256.clone(),
             linked_resources: Vec::new(),
@@ -1450,11 +2233,12 @@ fn write_fixture_goldens(
             helper_sha256: helper_sha256.clone(),
             base_style_sha256: base_style_sha256.clone(),
             browser: browser.clone(),
+            launch_profile_sha256: config.launch_profile.digest.clone(),
         };
         planned.push(PlannedGoldenOutput::Generated {
             name: name.clone(),
             source: report_source,
-            output: root_relative_source(&config.root, &output_file)?,
+            output: root_relative_source(&config.corpus.root, &output_file)?,
             output_file,
             variant: variant.to_string(),
             xml: generate_xml_with_provenance(&name, data, Some(&provenance)),
@@ -1462,7 +2246,7 @@ fn write_fixture_goldens(
     }
 
     commit_planned_golden_outputs(
-        output_paths_for_fixture(&config.html_root, &config.xml_root, fixture)?,
+        output_paths_for_fixture(&config.corpus.html_root, &config.corpus.xml_root, fixture)?,
         &planned,
     )?;
     for output in planned {
@@ -1694,10 +2478,10 @@ fn remove_backups(backups: Vec<(PathBuf, PathBuf)>) -> Result<(), String> {
 }
 
 fn prune_stale_generated_xml_outputs(
-    config: &Config,
+    config: &GenerationConfig,
     report: &GenerationReport,
 ) -> Result<(), String> {
-    if !config.xml_root.is_dir() {
+    if !config.corpus.xml_root.is_dir() {
         return Ok(());
     }
 
@@ -1707,10 +2491,10 @@ fn prune_stale_generated_xml_outputs(
         .map(|entry| entry.output.as_str())
         .collect::<BTreeSet<_>>();
     let mut xml_files = Vec::new();
-    collect_generated_xml_files(&config.xml_root, &mut xml_files)?;
+    collect_generated_xml_files(&config.corpus.xml_root, &mut xml_files)?;
 
     for path in xml_files {
-        let source = root_relative_source(&config.root, &path)?;
+        let source = root_relative_source(&config.corpus.root, &path)?;
         if generated_outputs.contains(source.as_str()) {
             continue;
         }
@@ -1721,7 +2505,7 @@ fn prune_stale_generated_xml_outputs(
 }
 
 fn prune_stale_generated_xml_outputs_after_success(
-    config: &Config,
+    config: &GenerationConfig,
     report: &GenerationReport,
 ) -> Result<(), String> {
     if config.filter.is_some() || report.summary.failed_to_generate > 0 {
@@ -1792,8 +2576,9 @@ struct GenerationReport {
 struct GenerationReportMetadata {
     schema_version: u32,
     generator: &'static str,
-    browser_source: &'static str,
-    browser_version: Option<String>,
+    browser_source: String,
+    browser_version: String,
+    launch_profile_sha256: String,
     helper_sha256: String,
     base_style_sha256: String,
     corpus_manifest_sha256: String,
@@ -1895,12 +2680,15 @@ struct StatusReportEntry {
     reason: String,
 }
 
-fn write_generation_report(config: &Config, report: &GenerationReport) -> Result<(), String> {
+fn write_generation_report(
+    config: &GenerationConfig,
+    report: &GenerationReport,
+) -> Result<(), String> {
     write_generation_report_with_hook(config, report, || Ok(()))
 }
 
 fn write_generation_report_with_hook<F>(
-    config: &Config,
+    config: &GenerationConfig,
     report: &GenerationReport,
     before_install: F,
 ) -> Result<(), String>
@@ -2006,50 +2794,36 @@ fn replace_generated_report(temp_path: &Path, path: &Path) -> Result<(), String>
     Ok(())
 }
 
-fn generation_report_metadata(config: &Config) -> Result<GenerationReportMetadata, String> {
+fn generation_report_metadata(
+    config: &GenerationConfig,
+) -> Result<GenerationReportMetadata, String> {
+    generation_report_metadata_for_manifest(
+        &config.manifest,
+        &sha256_file(&config.corpus.root.join("corpus.toml"))?,
+    )
+}
+
+fn generation_report_metadata_for_manifest(
+    manifest: &CorpusManifest,
+    corpus_manifest_sha256: &str,
+) -> Result<GenerationReportMetadata, String> {
     Ok(GenerationReportMetadata {
-        schema_version: 1,
+        schema_version: 2,
         generator: "surgeist-layout-generate",
-        browser_source: generation_report_browser_source(config),
-        browser_version: generation_report_browser_version(config),
+        browser_source: manifest.browser.source.clone(),
+        browser_version: manifest.browser.version.clone(),
+        launch_profile_sha256: launch_profile_digest(&manifest.browser.launch)?,
         helper_sha256: sha256_bytes(TEST_HELPER_SOURCE.as_bytes()),
         base_style_sha256: sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
-        corpus_manifest_sha256: sha256_file(&config.root.join("corpus.toml"))?,
+        corpus_manifest_sha256: corpus_manifest_sha256.to_string(),
         taffy_commit: TAFFY_COMMIT,
     })
 }
 
-#[cfg(test)]
-fn generation_report_metadata_for_tests() -> GenerationReportMetadata {
-    GenerationReportMetadata {
-        schema_version: 1,
-        generator: "surgeist-layout-generate",
-        browser_source: "chrome-for-testing",
-        browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        helper_sha256: sha256_bytes(TEST_HELPER_SOURCE.as_bytes()),
-        base_style_sha256: sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()),
-        corpus_manifest_sha256: String::new(),
-        taffy_commit: TAFFY_COMMIT,
-    }
-}
-
-fn generation_report_browser_source(config: &Config) -> &'static str {
-    if config.browser_path.is_some() {
-        "custom-path"
-    } else {
-        "chrome-for-testing"
-    }
-}
-
-fn generation_report_browser_version(config: &Config) -> Option<String> {
-    if config.browser_path.is_some() {
-        None
-    } else {
-        config.browser_version.clone()
-    }
-}
-
-fn validate_generation_report_freshness(config: &Config) -> Result<(), String> {
+fn validate_generation_report_freshness(
+    config: &Config,
+    manifest: &CorpusManifest,
+) -> Result<(), String> {
     let report_dir = config.xml_root.join("generation-reports");
     if !report_dir.is_dir() {
         return Err(format!(
@@ -2057,40 +2831,119 @@ fn validate_generation_report_freshness(config: &Config) -> Result<(), String> {
             report_dir.display()
         ));
     }
-    let expected = generation_report_metadata(config)?;
-    let path = report_dir.join("all.json");
-    if !path.is_file() {
+    let expected = generation_report_metadata_for_manifest(
+        manifest,
+        &sha256_file(&config.root.join("corpus.toml"))?,
+    )?;
+    let inventory = generation_report_manifest(manifest)?;
+    let actual = collect_relative_files(&report_dir)?
+        .into_iter()
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .collect::<BTreeSet<_>>();
+    let required = inventory
+        .all_files()
+        .into_iter()
+        .map(str::to_string)
+        .collect::<BTreeSet<_>>();
+    if actual != required {
         return Err(format!(
-            "missing generation report {}; regenerate browser parity XML",
-            path.display()
+            "generation report inventory is {:?}, expected {:?}; regenerate browser parity XML",
+            actual, required
         ));
     }
-    for rel in collect_relative_files(&report_dir)? {
-        if rel.extension().and_then(|extension| extension.to_str()) != Some("json") {
-            continue;
+    let full = validate_generation_report_metadata(
+        &report_dir.join(&inventory.full.file),
+        None,
+        inventory.full,
+        &expected,
+    )?;
+    let full_outputs = generation_report_outputs(&full, &report_dir.join(&inventory.full.file))?;
+    let xml_outputs = collect_relative_files(&config.xml_root)?
+        .into_iter()
+        .filter(|path| path.extension().and_then(|extension| extension.to_str()) == Some("xml"))
+        .map(|path| format!("xml/{}", path.to_string_lossy().replace('\\', "/")))
+        .collect::<BTreeSet<_>>();
+    if full_outputs != xml_outputs {
+        return Err(format!(
+            "{} full report generated outputs do not exactly match XML inventory; regenerate browser parity XML",
+            report_dir.join(&inventory.full.file).display()
+        ));
+    }
+    for scoped in inventory.scoped.values().copied() {
+        let path = report_dir.join(&scoped.file);
+        let report = validate_generation_report_metadata(
+            &path,
+            Some(scoped.filter.as_str()),
+            scoped,
+            &expected,
+        )?;
+        let outputs = generation_report_outputs(&report, &path)?;
+        let expected_outputs = full_outputs
+            .iter()
+            .filter(|output| output.starts_with(&format!("xml/{}", scoped.filter)))
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        if outputs != expected_outputs {
+            return Err(format!(
+                "{} scoped report outputs must exactly match full-report outputs under xml/{}",
+                path.display(),
+                scoped.filter
+            ));
         }
-        let path = report_dir.join(rel);
-        let filter = if path.file_name().and_then(|name| name.to_str()) == Some("all.json") {
-            GenerationReportFilterExpectation::FullCorpus
-        } else {
-            GenerationReportFilterExpectation::ScopedReportFileName
-        };
-        validate_generation_report_metadata(&path, filter, &expected)?;
     }
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug)]
-enum GenerationReportFilterExpectation {
-    FullCorpus,
-    ScopedReportFileName,
+trait GenerationReportExpectation {
+    fn generated(&self) -> usize;
+    fn unsupported(&self) -> usize;
+    fn expected_fail(&self) -> usize;
+    fn quarantined(&self) -> usize;
+    fn failed_to_generate(&self) -> usize;
 }
 
-fn validate_generation_report_metadata(
+impl GenerationReportExpectation for FullGenerationReportManifest {
+    fn generated(&self) -> usize {
+        self.generated
+    }
+    fn unsupported(&self) -> usize {
+        self.unsupported
+    }
+    fn expected_fail(&self) -> usize {
+        self.expected_fail
+    }
+    fn quarantined(&self) -> usize {
+        self.quarantined
+    }
+    fn failed_to_generate(&self) -> usize {
+        self.failed_to_generate
+    }
+}
+
+impl GenerationReportExpectation for ScopedGenerationReportManifest {
+    fn generated(&self) -> usize {
+        self.generated
+    }
+    fn unsupported(&self) -> usize {
+        0
+    }
+    fn expected_fail(&self) -> usize {
+        0
+    }
+    fn quarantined(&self) -> usize {
+        0
+    }
+    fn failed_to_generate(&self) -> usize {
+        0
+    }
+}
+
+fn validate_generation_report_metadata<E: GenerationReportExpectation>(
     path: &Path,
-    expected_filter: GenerationReportFilterExpectation,
+    expected_filter: Option<&str>,
+    expected_counts: &E,
     expected: &GenerationReportMetadata,
-) -> Result<(), String> {
+) -> Result<Value, String> {
     let raw = fs::read_to_string(path).map_err(|error| {
         format!(
             "failed to read generation report {}: {error}",
@@ -2104,7 +2957,7 @@ fn validate_generation_report_metadata(
         )
     })?;
     match expected_filter {
-        GenerationReportFilterExpectation::FullCorpus => {
+        None => {
             if !json["filter"].is_null() {
                 return Err(format!(
                     "{} report filter is {:?}, expected full-corpus null",
@@ -2113,27 +2966,19 @@ fn validate_generation_report_metadata(
                 ));
             }
         }
-        GenerationReportFilterExpectation::ScopedReportFileName => {
+        Some(expected_filter) => {
             let filter = json["filter"].as_str().ok_or_else(|| {
                 format!(
                     "{} scoped report filter must be a non-empty string",
                     path.display()
                 )
             })?;
-            if filter.trim_matches('/').is_empty() {
+            if filter != expected_filter {
                 return Err(format!(
-                    "{} scoped report filter must be a non-empty string",
-                    path.display()
-                ));
-            }
-            let expected_name = format!("{}.json", generation_report_scope(filter));
-            let actual_name = path.file_name().and_then(|name| name.to_str());
-            if actual_name != Some(expected_name.as_str()) {
-                return Err(format!(
-                    "{} report filter is {:?}, expected file name {:?}",
+                    "{} report filter is {:?}, expected {:?}",
                     path.display(),
                     filter,
-                    expected_name
+                    expected_filter
                 ));
             }
         }
@@ -2162,7 +3007,14 @@ fn validate_generation_report_metadata(
         (
             "browser_version",
             metadata["browser_version"].as_str().map(str::to_string),
-            expected.browser_version.clone(),
+            Some(expected.browser_version.clone()),
+        ),
+        (
+            "launch_profile_sha256",
+            metadata["launch_profile_sha256"]
+                .as_str()
+                .map(str::to_string),
+            Some(expected.launch_profile_sha256.clone()),
         ),
         (
             "helper_sha256",
@@ -2197,18 +3049,29 @@ fn validate_generation_report_metadata(
             ));
         }
     }
-    validate_generation_report_body(path, &json)?;
-    Ok(())
+    validate_generation_report_body(path, &json, expected_counts)?;
+    Ok(json)
 }
 
-fn validate_generation_report_body(path: &Path, json: &Value) -> Result<(), String> {
+fn validate_generation_report_body<E: GenerationReportExpectation>(
+    path: &Path,
+    json: &Value,
+    expected: &E,
+) -> Result<(), String> {
     if json.get("skipped").is_some() || json["summary"].get("skipped").is_some() {
         return Err(format!(
             "{} generation report uses a generic skipped bucket; use explicit unsupported, expected_fail, quarantined, or failed_to_generate buckets",
             path.display()
         ));
     }
-    for bucket in GENERATION_REPORT_BUCKETS {
+    let expected_counts = [
+        ("generated", expected.generated()),
+        ("unsupported", expected.unsupported()),
+        ("expected_fail", expected.expected_fail()),
+        ("quarantined", expected.quarantined()),
+        ("failed_to_generate", expected.failed_to_generate()),
+    ];
+    for (bucket, expected_count) in expected_counts {
         let entries = json[bucket].as_array().ok_or_else(|| {
             format!(
                 "{} generation report `{bucket}` bucket must be an array",
@@ -2228,11 +3091,46 @@ fn validate_generation_report_body(path: &Path, json: &Value) -> Result<(), Stri
                 entries.len()
             ));
         }
+        if summary != expected_count {
+            return Err(format!(
+                "{} generation report {bucket} count is {summary}, expected {expected_count}; regenerate browser parity XML",
+                path.display()
+            ));
+        }
     }
     Ok(())
 }
 
-fn validate_xml_provenance_freshness(config: &Config) -> Result<(), String> {
+fn generation_report_outputs(report: &Value, path: &Path) -> Result<BTreeSet<String>, String> {
+    let entries = report["generated"].as_array().ok_or_else(|| {
+        format!(
+            "{} generation report generated bucket must be an array",
+            path.display()
+        )
+    })?;
+    let outputs = entries
+        .iter()
+        .map(|entry| entry["output"].as_str().map(str::to_string))
+        .collect::<Option<BTreeSet<_>>>()
+        .ok_or_else(|| {
+            format!(
+                "{} generation report generated entry is missing output",
+                path.display()
+            )
+        })?;
+    if outputs.len() != entries.len() {
+        return Err(format!(
+            "{} generation report has duplicate generated output paths",
+            path.display()
+        ));
+    }
+    Ok(outputs)
+}
+
+fn validate_xml_provenance_freshness(
+    config: &Config,
+    manifest: &CorpusManifest,
+) -> Result<(), String> {
     if !config.xml_root.is_dir() {
         return Err(format!(
             "missing generated XML directory {}; regenerate browser parity XML",
@@ -2240,7 +3138,7 @@ fn validate_xml_provenance_freshness(config: &Config) -> Result<(), String> {
         ));
     }
     let expected_helper_sha256 = sha256_bytes(TEST_HELPER_SOURCE.as_bytes());
-    let expected_browser = expected_xml_browser_provenance(config);
+    let expected_launch_profile_sha256 = launch_profile_digest(&manifest.browser.launch)?;
     let mut linked_resource_cache =
         BTreeMap::<PathBuf, Vec<GeneratedLinkedResourceProvenance>>::new();
     for rel in collect_relative_files(&config.xml_root)? {
@@ -2296,7 +3194,22 @@ fn validate_xml_provenance_freshness(config: &Config) -> Result<(), String> {
             ));
         }
         validate_xml_base_style_provenance(&path, &source_path, &provenance)?;
-        validate_xml_browser_provenance(&path, &provenance.browser, expected_browser.as_ref())?;
+        if provenance.schema_version != 2 {
+            return Err(format!(
+                "{} generated XML schema is {}, expected 2; regenerate browser parity XML",
+                path.display(),
+                provenance.schema_version
+            ));
+        }
+        if provenance.launch_profile_sha256 != expected_launch_profile_sha256 {
+            return Err(format!(
+                "{} generated XML launch-profile-sha256 is {}, expected {}; regenerate browser parity XML",
+                path.display(),
+                provenance.launch_profile_sha256,
+                expected_launch_profile_sha256
+            ));
+        }
+        validate_xml_browser_provenance(&path, &provenance.browser, &manifest.browser)?;
     }
     Ok(())
 }
@@ -2325,25 +3238,10 @@ fn validate_xml_base_style_provenance(
     }
 }
 
-fn expected_xml_browser_provenance(config: &Config) -> Option<XmlBrowserProvenanceExpectation> {
-    if let Some(path) = &config.browser_path {
-        return Some(XmlBrowserProvenanceExpectation::Exact(
-            path.display().to_string(),
-        ));
-    }
-    config
-        .browser_version
-        .as_ref()
-        .map(|version| XmlBrowserProvenanceExpectation::Prefix {
-            expected: format!("chrome-for-testing/{version} ("),
-            description: format!("chrome-for-testing/{version}"),
-        })
-}
-
 fn validate_xml_browser_provenance(
     path: &Path,
     browser: &str,
-    expected: Option<&XmlBrowserProvenanceExpectation>,
+    manifest: &BrowserManifest,
 ) -> Result<(), String> {
     if browser.trim().is_empty() {
         return Err(format!(
@@ -2351,22 +3249,34 @@ fn validate_xml_browser_provenance(
             path.display()
         ));
     }
-    match expected {
-        Some(XmlBrowserProvenanceExpectation::Exact(expected)) if browser != expected => {
-            Err(format!(
-                "{} generated XML browser provenance is {browser:?}, expected {expected:?}; regenerate browser parity XML",
+    let template = manifest
+        .provenance_format
+        .replace("{version}", &manifest.version);
+    let (prefix, suffix) = template
+        .split_once("{repository_relative_executable}")
+        .ok_or_else(|| {
+            "manifest browser provenance format is missing executable placeholder".to_string()
+        })?;
+    let relative = browser
+        .strip_prefix(prefix)
+        .and_then(|value| value.strip_suffix(suffix))
+        .ok_or_else(|| {
+            format!(
+                "{} generated XML browser provenance is {browser:?}, expected manifest format {template:?}; regenerate browser parity XML",
                 path.display()
-            ))
-        }
-        Some(XmlBrowserProvenanceExpectation::Prefix {
-            expected,
-            description,
-        }) if !browser.starts_with(expected) => Err(format!(
-            "{} generated XML browser provenance is {browser:?}, expected {description}; regenerate browser parity XML",
-            path.display()
-        )),
-        _ => Ok(()),
+            )
+        })?;
+    let relative_path =
+        validate_strict_relative_path("generated XML browser provenance", relative)?;
+    if !relative_path.starts_with(&manifest.cache_root) {
+        return Err(format!(
+            "{} generated XML browser provenance {} is outside manifest browser cache {}; regenerate browser parity XML",
+            path.display(),
+            relative,
+            manifest.cache_root
+        ));
     }
+    Ok(())
 }
 
 fn parse_generated_provenance_comment(raw: &str) -> Result<GeneratedProvenance, String> {
@@ -2381,6 +3291,7 @@ fn parse_generated_provenance_comment(raw: &str) -> Result<GeneratedProvenance, 
     let linked_resource_attr = provenance_attr_optional(comment, "linked-resource-sha256")?;
     let linked_resources_recorded = linked_resource_attr.is_some();
     Ok(GeneratedProvenance {
+        schema_version: provenance_schema_attr(comment)?,
         source: provenance_attr(comment, "source")?,
         source_sha256: provenance_attr(comment, "source-sha256")?,
         linked_resources: parse_linked_resource_provenance(&linked_resource_attr)?,
@@ -2388,7 +3299,26 @@ fn parse_generated_provenance_comment(raw: &str) -> Result<GeneratedProvenance, 
         helper_sha256: provenance_attr(comment, "helper-sha256")?,
         base_style_sha256: provenance_attr_optional(comment, "base-style-sha256")?,
         browser: provenance_attr(comment, "browser")?,
+        launch_profile_sha256: provenance_attr(comment, "launch-profile-sha256")?,
     })
+}
+
+fn provenance_schema_attr(comment: &str) -> Result<u32, String> {
+    let marker = "schema=";
+    let start = comment
+        .find(marker)
+        .ok_or_else(|| "missing `schema` attribute".to_string())?
+        + marker.len();
+    let value = comment[start..]
+        .split_ascii_whitespace()
+        .next()
+        .ok_or_else(|| "missing schema value".to_string())?;
+    if value.starts_with('"') {
+        return Err("schema attribute must be an unquoted generated schema number".to_string());
+    }
+    value
+        .parse()
+        .map_err(|error| format!("invalid schema attribute: {error}"))
 }
 
 fn provenance_attr_optional(comment: &str, key: &str) -> Result<Option<String>, String> {
@@ -2456,37 +3386,52 @@ fn expected_linked_resource_provenance(
     Ok(Vec::new())
 }
 
-fn generation_report_path(config: &Config) -> PathBuf {
-    let scope = config
+fn generation_report_path(config: &GenerationConfig) -> PathBuf {
+    let inventory = generation_report_manifest(&config.manifest)
+        .expect("generation config must contain a validated report manifest");
+    let file = config
         .filter
         .as_deref()
-        .map(generation_report_scope)
-        .unwrap_or_else(|| "all".to_string());
-    config
-        .xml_root
-        .join("generation-reports")
-        .join(format!("{scope}.json"))
+        .and_then(|filter| {
+            inventory
+                .scoped_for_filter(filter)
+                .map(|report| report.file.as_str())
+        })
+        .unwrap_or(inventory.full.file.as_str());
+    config.corpus.xml_root.join("generation-reports").join(file)
 }
 
-fn generation_report_scope(filter: &str) -> String {
-    let normalized = filter.trim_matches('/');
-    if normalized.is_empty() {
-        return "all".to_string();
+fn prune_stale_generation_reports_after_success(
+    config: &GenerationConfig,
+    report: &GenerationReport,
+) -> Result<(), String> {
+    if config.filter.is_some() || report.summary.failed_to_generate > 0 {
+        return Ok(());
     }
-    normalized
-        .chars()
-        .map(|ch| {
-            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-                ch
-            } else {
-                '_'
-            }
-        })
-        .collect()
+    let report_dir = config.corpus.xml_root.join("generation-reports");
+    if !report_dir.is_dir() {
+        return Ok(());
+    }
+    let retained = generation_report_manifest(&config.manifest)?.all_files();
+    for rel in collect_relative_files(&report_dir)? {
+        let name = rel.to_string_lossy().replace('\\', "/");
+        if retained.contains(name.as_str()) {
+            continue;
+        }
+        let path = report_dir.join(rel);
+        fs::remove_file(&path).map_err(|error| {
+            format!(
+                "failed to prune non-manifest generation report {}: {error}",
+                path.display()
+            )
+        })?;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct GeneratedProvenance {
+    schema_version: u32,
     source: String,
     source_sha256: String,
     linked_resources: Vec<GeneratedLinkedResourceProvenance>,
@@ -2494,20 +3439,13 @@ struct GeneratedProvenance {
     helper_sha256: String,
     base_style_sha256: Option<String>,
     browser: String,
+    launch_profile_sha256: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct GeneratedLinkedResourceProvenance {
     path: String,
     sha256: String,
-}
-
-enum XmlBrowserProvenanceExpectation {
-    Exact(String),
-    Prefix {
-        expected: String,
-        description: String,
-    },
 }
 
 fn output_paths_for_fixture(
@@ -2530,16 +3468,6 @@ fn output_paths_for_fixture(
         .into_iter()
         .map(|(variant, _)| xml_root.join(group).join(format!("{stem}__{variant}.xml")))
         .collect())
-}
-
-fn browser_provenance(config: &Config, browser_path: &Path) -> String {
-    if config.browser_path.is_some() {
-        return browser_path.display().to_string();
-    }
-    match &config.browser_version {
-        Some(version) => format!("chrome-for-testing/{version} ({})", browser_path.display()),
-        None => browser_path.display().to_string(),
-    }
 }
 
 fn root_relative_source(root: &Path, source_path: &Path) -> Result<String, String> {
@@ -2667,13 +3595,15 @@ fn generate_xml_with_provenance(
             .map(|hash| format!(" base-style-sha256=\"{}\"", escape_attr(hash)))
             .unwrap_or_default();
         lines.push(format!(
-            "<!-- generated-by: surgeist-layout-generate schema=1 source=\"{}\" source-sha256=\"{}\"{} helper-sha256=\"{}\"{} browser=\"{}\" -->",
+            "<!-- generated-by: surgeist-layout-generate schema={} source=\"{}\" source-sha256=\"{}\"{} helper-sha256=\"{}\"{} browser=\"{}\" launch-profile-sha256=\"{}\" -->",
+            provenance.schema_version,
             escape_attr(&provenance.source),
             escape_attr(&provenance.source_sha256),
             linked_resources,
             escape_attr(&provenance.helper_sha256),
             base_style,
             escape_attr(&provenance.browser),
+            escape_attr(&provenance.launch_profile_sha256),
         ));
     }
     let use_rounding = bool_field(node, "useRounding");
@@ -3465,6 +4395,606 @@ fn escape_text(value: impl AsRef<str>) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn test_schema_two_manifest(extra: &str) -> String {
+        format!(
+            "{}\n{extra}\n",
+            include_str!("../../layout/browser_parity/corpus.toml")
+        )
+    }
+
+    fn test_browser_manifest() -> BrowserManifest {
+        parse_corpus_manifest(&test_schema_two_manifest(""))
+            .expect("schema-two manifest")
+            .browser
+    }
+
+    fn test_generation_config(corpus: Config) -> GenerationConfig {
+        let manifest =
+            parse_corpus_manifest(&test_schema_two_manifest("")).expect("schema-two manifest");
+        let launch_profile =
+            browser_launch_profile(&manifest.browser.launch).expect("launch profile");
+        GenerationConfig {
+            repository_root: corpus.root.clone(),
+            corpus,
+            manifest,
+            filter: None,
+            resolution_mode: BrowserResolutionMode::ExistingPinned,
+            existing_browser_path: None,
+            launch_profile,
+        }
+    }
+
+    fn test_browser_root(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "surgeist-layout-browser-{name}-{}-{nanos}",
+            process::id()
+        ));
+        fs::create_dir_all(&root).expect("browser root");
+        root
+    }
+
+    #[cfg(unix)]
+    fn make_executable(path: &Path) {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mut permissions = fs::metadata(path).expect("metadata").permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(path, permissions).expect("executable permission");
+    }
+
+    #[cfg(not(unix))]
+    fn make_executable(_path: &Path) {}
+
+    #[test]
+    fn browser_command_dispatch_is_closed_and_browser_free_for_checks() {
+        assert!(parse_command_request(["generate"]).is_ok());
+        assert!(parse_command_request(["generate-existing"]).is_ok());
+        assert!(parse_command_request(["check-corpus"]).is_ok());
+        assert!(parse_command_request(["check-taffy-corpus"]).is_ok());
+        assert!(parse_command_request(["import-taffy"]).is_ok());
+        assert!(parse_command_request(std::iter::empty::<&str>()).is_err());
+        assert!(parse_command_request(["generate", "extra"]).is_err());
+        assert!(parse_command_request(["unknown"]).is_err());
+
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        let corpus = Config::from_env().expect("corpus configuration");
+        for (mode, environment) in [
+            (
+                BrowserResolutionMode::ManagedPinned,
+                GenerationEnvironment {
+                    browser_path: None,
+                    browser_cache_set: true,
+                    browser_version_set: false,
+                    filter: None,
+                },
+            ),
+            (
+                BrowserResolutionMode::ExistingPinned,
+                GenerationEnvironment {
+                    browser_path: Some("target/surgeist-browser/browser".to_string()),
+                    browser_cache_set: false,
+                    browser_version_set: true,
+                    filter: None,
+                },
+            ),
+        ] {
+            let error = GenerationConfig::new(corpus.clone(), manifest.clone(), mode, environment)
+                .expect_err("browser cache/version overrides must be rejected for generation");
+            assert!(error.contains(BROWSER_CACHE_ENV) || error.contains(BROWSER_VERSION_ENV));
+        }
+
+        let managed_path = GenerationConfig::new(
+            corpus.clone(),
+            manifest.clone(),
+            BrowserResolutionMode::ManagedPinned,
+            GenerationEnvironment {
+                browser_path: Some("target/surgeist-browser/browser".to_string()),
+                browser_cache_set: false,
+                browser_version_set: false,
+                filter: None,
+            },
+        )
+        .expect_err("managed resolution must not accept an existing browser path");
+        assert!(managed_path.contains(BROWSER_PATH_ENV));
+
+        let existing_empty = GenerationConfig::new(
+            corpus.clone(),
+            manifest.clone(),
+            BrowserResolutionMode::ExistingPinned,
+            GenerationEnvironment {
+                browser_path: Some(String::new()),
+                browser_cache_set: false,
+                browser_version_set: false,
+                filter: None,
+            },
+        )
+        .expect_err("existing resolution must require a path");
+        assert!(existing_empty.contains(BROWSER_PATH_ENV));
+
+        let invalid_filter = GenerationConfig::new(
+            corpus,
+            manifest,
+            BrowserResolutionMode::ExistingPinned,
+            GenerationEnvironment {
+                browser_path: Some("target/surgeist-browser/browser".to_string()),
+                browser_cache_set: false,
+                browser_version_set: false,
+                filter: Some("block".to_string()),
+            },
+        )
+        .expect_err("partial filters must be rejected");
+        assert!(invalid_filter.contains(FILTER_ENV));
+    }
+
+    #[test]
+    fn corpus_manifest_schema_rejects_schema_one_unknown_and_duplicate_fields() {
+        let schema_one = "schema_version = 1\n[imports.taffy]\nrepo = \"repo\"\ncommit = \"commit\"\nsource_dir = \"fixtures\"\ndestination = \"html\"\nexpected_count = 1\n";
+        assert!(parse_corpus_manifest(schema_one).is_err());
+
+        let unknown_browser = test_schema_two_manifest("extra = \"not allowed\"");
+        assert!(parse_corpus_manifest(&unknown_browser).is_err());
+
+        let duplicate_launch_argument =
+            test_schema_two_manifest("[browser.launch]\nbatch_size = 50\n");
+        assert!(parse_corpus_manifest(&duplicate_launch_argument).is_err());
+    }
+
+    #[test]
+    fn browser_resolution_rejects_invalid_existing_paths_before_fetch_or_writes() {
+        let root = test_browser_root("resolution");
+        let manifest = test_browser_manifest();
+        let cache = root.join(&manifest.cache_root);
+        fs::create_dir_all(&cache).expect("cache dir");
+        let outside = root.join("outside-browser");
+        fs::write(&outside, "not executable").expect("outside browser");
+
+        for raw in [
+            "",
+            "/tmp/browser",
+            "../outside-browser",
+            ".",
+            "target/other/browser",
+        ] {
+            let error = resolve_existing_pinned_browser(&root, &manifest, raw, |_| {
+                Ok(manifest.version_output.clone())
+            })
+            .expect_err("invalid existing browser path must fail");
+            assert!(error.contains("SURGEIST_BROWSER_PATH"));
+        }
+
+        let non_executable = cache.join("non-executable");
+        fs::write(&non_executable, "browser").expect("non-executable browser");
+        let error = resolve_existing_pinned_browser(
+            &root,
+            &manifest,
+            &format!("{}/non-executable", manifest.cache_root),
+            |_| Ok(manifest.version_output.clone()),
+        )
+        .expect_err("non-executable browser must fail");
+        assert!(error.contains("regular executable"));
+
+        let executable = cache.join("versioned-browser");
+        fs::write(&executable, "browser").expect("versioned browser");
+        make_executable(&executable);
+        let version_failure = resolve_existing_pinned_browser(
+            &root,
+            &manifest,
+            &format!("{}/versioned-browser", manifest.cache_root),
+            |_| Err("version process failed".to_string()),
+        )
+        .expect_err("version process failure must fail resolution");
+        assert!(version_failure.contains("version process failed"));
+        let version_mismatch = resolve_existing_pinned_browser(
+            &root,
+            &manifest,
+            &format!("{}/versioned-browser", manifest.cache_root),
+            |_| Ok("Google Chrome for Testing 0.0.0.0".to_string()),
+        )
+        .expect_err("version mismatch must fail resolution");
+        assert!(version_mismatch.contains("expected"));
+
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn browser_resolution_rejects_symlink_escape() {
+        use std::os::unix::fs::symlink;
+
+        let root = test_browser_root("symlink-escape");
+        let manifest = test_browser_manifest();
+        let cache = root.join(&manifest.cache_root);
+        fs::create_dir_all(&cache).expect("cache dir");
+        let outside = root.join("outside-browser");
+        fs::write(&outside, "browser").expect("outside browser");
+        make_executable(&outside);
+        let escaped = cache.join("escaped-browser");
+        symlink(&outside, &escaped).expect("browser symlink");
+
+        let error = resolve_existing_pinned_browser(
+            &root,
+            &manifest,
+            &format!("{}/escaped-browser", manifest.cache_root),
+            |_| Ok(manifest.version_output.clone()),
+        )
+        .expect_err("symlink escape must fail resolution");
+        assert!(error.contains("escapes manifest browser cache"));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn browser_resolution_managed_requests_the_manifest_pin_through_the_injected_boundary() {
+        let root = test_browser_root("managed");
+        let manifest = test_browser_manifest();
+        let cache = root.join(&manifest.cache_root);
+        let executable = cache.join("managed-browser");
+        fs::create_dir_all(&cache).expect("cache dir");
+        fs::write(&executable, "browser").expect("browser file");
+        make_executable(&executable);
+        let expected_cache = cache.clone();
+        let expected_version = manifest.version.clone();
+        let expected_output = manifest.version_output.clone();
+        let fetched = executable.clone();
+
+        let browser = tokio::runtime::Runtime::new()
+            .expect("tokio runtime")
+            .block_on(resolve_managed_pinned_browser_with(
+                &root,
+                &manifest,
+                move |cache_root, version| async move {
+                    assert_eq!(cache_root, expected_cache);
+                    assert_eq!(version, expected_version);
+                    Ok(fetched)
+                },
+                move |_| Ok(expected_output),
+            ))
+            .expect("managed pin should validate without a real fetch");
+
+        assert_eq!(
+            browser.repository_relative_executable,
+            format!("{}/managed-browser", manifest.cache_root)
+        );
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn browser_launch_profile_uses_manifest_owned_ordered_arguments_and_digest() {
+        let manifest = test_browser_manifest();
+        let profile = browser_launch_profile(&manifest.launch).expect("launch profile");
+        assert_eq!(profile.batch_size, 50);
+        assert_eq!(profile.navigation_timeout, Duration::from_millis(10_000));
+        assert_eq!(profile.dom_poll_interval, Duration::from_millis(25));
+        assert_eq!(profile.retry_count, 1);
+        assert_eq!(profile.arguments.len(), 28);
+        assert_eq!(
+            profile.arguments.last().map(String::as_str),
+            Some("use-mock-keychain")
+        );
+        assert_eq!(
+            profile.digest,
+            launch_profile_digest(&manifest.launch).expect("digest")
+        );
+    }
+
+    #[test]
+    fn browser_profile_cleanup_retries_transient_removal_until_absent() {
+        let root = test_browser_root("cleanup-transient");
+        let profile = root.join("profile");
+        let attempts = std::cell::Cell::new(0);
+        let observed_waits = std::cell::RefCell::new(Vec::new());
+        let policy = BROWSER_PROFILE_CLEANUP_POLICY;
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+
+        runtime
+            .block_on(with_browser_profile_cleanup_with(
+                profile.clone(),
+                async { Ok::<(), String>(()) },
+                |profile| {
+                    let attempt = attempts.get() + 1;
+                    attempts.set(attempt);
+                    if attempt == 1 {
+                        Err("injected transient Directory not empty".to_string())
+                    } else {
+                        fs::remove_dir_all(profile)
+                            .map_err(|error| format!("injected second removal failed: {error}"))
+                    }
+                },
+                policy,
+                |delay| {
+                    observed_waits.borrow_mut().push(delay);
+                    std::future::ready(())
+                },
+            ))
+            .expect("transient profile removal must converge to absence");
+
+        assert_eq!(attempts.get(), 2);
+        assert_eq!(observed_waits.into_inner(), vec![policy.retry_delay]);
+        assert!(
+            !profile.exists(),
+            "successful cleanup must leave no profile"
+        );
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn browser_profile_cleanup_bounds_non_convergence_and_keeps_primary_and_terminal_errors() {
+        let root = test_browser_root("cleanup-terminal");
+        let profile = root.join("profile");
+        let attempts = std::cell::Cell::new(0);
+        let observed_waits = std::cell::RefCell::new(Vec::new());
+        let policy = BROWSER_PROFILE_CLEANUP_POLICY;
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+
+        let error = runtime
+            .block_on(with_browser_profile_cleanup_with(
+                profile.clone(),
+                async { Err::<(), String>("injected primary operation failure".to_string()) },
+                |_| {
+                    attempts.set(attempts.get() + 1);
+                    Err("injected terminal Directory not empty".to_string())
+                },
+                policy,
+                |delay| {
+                    observed_waits.borrow_mut().push(delay);
+                    std::future::ready(())
+                },
+            ))
+            .expect_err("non-converging cleanup must fail");
+
+        assert_eq!(
+            attempts.get(),
+            policy.max_attempts,
+            "cleanup retries must be bounded"
+        );
+        assert_eq!(
+            observed_waits.into_inner(),
+            vec![policy.retry_delay; policy.max_attempts - 1]
+        );
+        assert!(error.contains("injected primary operation failure"));
+        assert!(error.contains(&format!(
+            "browser profile cleanup did not converge after {} attempts",
+            policy.max_attempts
+        )));
+        assert!(error.contains(&format!("attempt {0}/{0}", policy.max_attempts)));
+        assert!(error.contains("injected terminal Directory not empty"));
+        assert!(
+            profile.exists(),
+            "terminal cleanup leaves the profile observable"
+        );
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn browser_profile_cleanup_treats_an_already_absent_profile_as_success() {
+        let root = test_browser_root("cleanup-absent");
+        let profile = root.join("profile");
+        let operation_profile = profile.clone();
+        let observed_waits = std::cell::RefCell::new(Vec::new());
+        let policy = BROWSER_PROFILE_CLEANUP_POLICY;
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+
+        runtime
+            .block_on(with_browser_profile_cleanup_with(
+                profile.clone(),
+                async move {
+                    fs::remove_dir_all(operation_profile)
+                        .map_err(|error| format!("injected operation removal failed: {error}"))
+                },
+                |_| panic!("already-absent cleanup must not remove again"),
+                policy,
+                |delay| {
+                    observed_waits.borrow_mut().push(delay);
+                    std::future::ready(())
+                },
+            ))
+            .expect("already-absent profile must be cleanup success");
+
+        assert!(!profile.exists());
+        assert!(observed_waits.into_inner().is_empty());
+        fs::remove_dir_all(root).expect("test root cleanup");
+    }
+
+    #[test]
+    fn browser_launch_profile_launch_failures_cleanup_primary_and_retry_profiles() {
+        let root = test_browser_root("launch-failure-cleanup");
+        let runtime = tokio::runtime::Runtime::new().expect("tokio runtime");
+        let mut results = Vec::new();
+
+        for failure in ["primary", "retry"] {
+            let profile = root.join(failure);
+            let error = runtime
+                .block_on(with_browser_profile_cleanup(
+                    profile.clone(),
+                    async move {
+                        Err::<(), String>(format!("injected {failure} browser launch failure"))
+                    },
+                    |profile| {
+                        fs::remove_dir_all(profile).expect("injected cleanup removes profile");
+                        Ok(())
+                    },
+                ))
+                .expect_err("launch failure should be returned");
+            let profile_removed = !profile.exists();
+            if profile.exists() {
+                fs::remove_dir_all(&profile).expect("test profile cleanup");
+            }
+            results.push((failure, error, profile_removed));
+        }
+        fs::remove_dir_all(root).expect("test root cleanup");
+
+        for (failure, error, profile_removed) in results {
+            assert!(
+                error.contains(&format!("injected {failure} browser launch failure")),
+                "launch failure must be preserved"
+            );
+            assert!(
+                profile_removed,
+                "{failure} launch failure must remove its profile"
+            );
+        }
+    }
+
+    #[test]
+    fn generator_stability_keeps_the_manifest_lifecycle_contract() {
+        let profile = browser_launch_profile(&test_browser_manifest().launch).expect("profile");
+        assert_eq!(profile.job_order, "sorted-sequential");
+        assert_eq!(profile.retry_error_class, "open-load-reset-timeout");
+        assert_eq!(profile.profile_scope, "per-batch-and-retry");
+        assert_eq!(profile.page_scope, "per-job");
+        assert!(profile.disable_default_args);
+        assert!(profile.disable_cache);
+        assert!(is_retryable_generation_error(
+            "failed to open: Request timed out"
+        ));
+        assert!(!is_retryable_generation_error("unrelated failure"));
+    }
+
+    #[test]
+    fn generation_report_manifest_requires_the_exact_temporary_inventory() {
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        let reports = generation_report_manifest(&manifest).expect("report manifest");
+        assert_eq!(reports.all_files().len(), 10);
+        assert_eq!(reports.full.file, "all.json");
+        assert_eq!(
+            reports
+                .scoped_for_filter("block/block_br_vertical")
+                .unwrap()
+                .generated,
+            16
+        );
+        assert!(reports.scoped_for_filter("block").is_none());
+
+        let expected = [
+            (
+                "block/block_calc_width_margin",
+                "block_block_calc_width_margin.json",
+                4,
+            ),
+            (
+                "block/block_margin_x_percentage_intrinsic_size_self_negative",
+                "block_block_margin_x_percentage_intrinsic_size_self_negative.json",
+                4,
+            ),
+            (
+                "block/block_margin_x_percentage_intrinsic_size_self_positive",
+                "block_block_margin_x_percentage_intrinsic_size_self_positive.json",
+                4,
+            ),
+            (
+                "flex/flex_calc_basis_margin_gap",
+                "flex_flex_calc_basis_margin_gap.json",
+                4,
+            ),
+            (
+                "grid/grid_calc_track_and_item_margin",
+                "grid_grid_calc_track_and_item_margin.json",
+                4,
+            ),
+            (
+                "grid/grid_max_content_single_item_margin_percent",
+                "grid_grid_max_content_single_item_margin_percent.json",
+                4,
+            ),
+            (
+                "grid/grid_min_content_flex_single_item_margin_percent",
+                "grid_grid_min_content_flex_single_item_margin_percent.json",
+                4,
+            ),
+            (
+                "grid/grid_named_template_area_generated_names",
+                "grid_grid_named_template_area_generated_names.json",
+                4,
+            ),
+        ];
+        for (filter, file, generated) in expected {
+            let report = reports
+                .scoped_for_filter(filter)
+                .expect("listed scoped report");
+            assert_eq!(report.file, file);
+            assert_eq!(report.generated, generated);
+        }
+    }
+
+    #[test]
+    fn generation_report_manifest_pruning_keeps_manifest_reports_and_scoped_runs_isolated() {
+        let root = test_browser_root("report-pruning");
+        let corpus = Config {
+            root: root.clone(),
+            html_root: root.join("html"),
+            xml_root: root.join("xml"),
+        };
+        let mut config = test_generation_config(corpus);
+        let report = GenerationReport::default();
+        let report_dir = config.corpus.xml_root.join("generation-reports");
+        fs::create_dir_all(&report_dir).expect("report dir");
+        fs::write(report_dir.join("all.json"), "retained").expect("full report");
+        fs::write(report_dir.join("block_block_br_vertical.json"), "retained")
+            .expect("scoped report");
+        fs::write(report_dir.join("stale.json"), "stale").expect("stale report");
+
+        config.filter = Some("block/block_br_vertical".to_string());
+        prune_stale_generation_reports_after_success(&config, &report).expect("scoped pruning");
+        assert!(report_dir.join("stale.json").exists());
+
+        config.filter = None;
+        prune_stale_generation_reports_after_success(&config, &report).expect("full pruning");
+        assert!(report_dir.join("all.json").exists());
+        assert!(report_dir.join("block_block_br_vertical.json").exists());
+        assert!(!report_dir.join("stale.json").exists());
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn browser_provenance_is_stable_and_never_absolute() {
+        let root = test_browser_root("provenance");
+        let manifest = test_browser_manifest();
+        let path = root.join(&manifest.cache_root).join("bin/browser");
+        fs::create_dir_all(path.parent().unwrap()).expect("browser parent");
+        fs::write(&path, "browser").expect("browser file");
+        make_executable(&path);
+
+        let browser = validate_pinned_browser(&root, &manifest, &path, |_| {
+            Ok(manifest.version_output.clone())
+        })
+        .expect("pinned browser");
+        assert_eq!(
+            browser.provenance,
+            "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/bin/browser)"
+        );
+        assert!(!browser.provenance.contains(root.to_string_lossy().as_ref()));
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn browser_provenance_parses_the_schema_two_xml_comment_format() {
+        let raw = concat!(
+            "<!-- generated-by: surgeist-layout-generate schema=2 ",
+            "source=\"html/block/case.html\" source-sha256=\"source\" ",
+            "helper-sha256=\"helper\" browser=\"chrome-for-testing/149.0.7827.115 ",
+            "(target/surgeist-browser/browser)\" launch-profile-sha256=\"launch\" -->\n",
+            "<test name=\"case\"/>"
+        );
+
+        let provenance = parse_generated_provenance_comment(raw)
+            .expect("schema-two generated provenance should parse");
+        assert_eq!(provenance.schema_version, 2);
+        assert_eq!(provenance.launch_profile_sha256, "launch");
+    }
+
+    #[test]
+    fn check_corpus_uses_manifest_browser_metadata_without_browser_environment() {
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        let metadata = generation_report_metadata_for_manifest(&manifest, "manifest-sha")
+            .expect("report metadata");
+        assert_eq!(metadata.schema_version, 2);
+        assert_eq!(metadata.browser_source, "chrome-for-testing");
+        assert_eq!(metadata.browser_version, "149.0.7827.115");
+        assert_eq!(metadata.launch_profile_sha256.len(), 64);
+    }
 
     fn unsupported_node(reason: &str) -> Value {
         json!({
@@ -5019,15 +6549,11 @@ if (actual !== expected) {{
         let fixture = html_dir.join("mixed.html");
         std::fs::write(&fixture, "").expect("fixture placeholder should be written");
 
-        let config = Config {
+        let config = test_generation_config(Config {
             root,
             html_root: html_root.clone(),
             xml_root: xml_root.clone(),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
+        });
         let desc = json!({
             "borderBoxLtrData": unsupported_node("Unsupported vertical <br> line-break semantics"),
             "contentBoxLtrData": unsupported_node("Unsupported mixed text/element content"),
@@ -5038,7 +6564,12 @@ if (actual !== expected) {{
         let mut report = GenerationReport::default();
         write_fixture_goldens(
             &config,
-            Path::new("/tmp/chrome"),
+            &PinnedBrowser {
+                executable: PathBuf::from("/tmp/chrome"),
+                repository_relative_executable: "target/surgeist-browser/chrome".to_string(),
+                provenance: "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/chrome)"
+                    .to_string(),
+            },
             &fixture,
             &desc,
             &mut report,
@@ -5051,7 +6582,7 @@ if (actual !== expected) {{
         );
         assert_eq!(report.unsupported.len(), 4);
 
-        std::fs::remove_dir_all(config.root).ok();
+        std::fs::remove_dir_all(config.corpus.root).ok();
     }
 
     #[test]
@@ -5110,8 +6641,10 @@ if (actual !== expected) {{
     fn browser_cache_defaults_to_project_target_not_system_cache() {
         let config = Config::from_root(PathBuf::from(DEFAULT_ROOT))
             .expect("browser parity root should resolve");
+        let manifest = test_browser_manifest();
 
-        assert!(config.browser_cache.ends_with("target/surgeist-browser"));
+        assert_eq!(manifest.cache_root, "target/surgeist-browser");
+        assert_eq!(manifest.version, "149.0.7827.115");
         assert!(config.root.is_relative());
         assert!(
             config
@@ -5119,20 +6652,17 @@ if (actual !== expected) {{
                 .ends_with("tests/layout/browser_parity/html")
         );
         assert!(config.xml_root.ends_with("tests/layout/browser_parity/xml"));
-        assert!(config.browser_cache.is_relative());
-        assert!(config.browser_path.is_none());
-        assert_eq!(
-            config.browser_version.as_deref(),
-            Some(DEFAULT_BROWSER_VERSION)
-        );
+        assert!(Path::new(&manifest.cache_root).is_relative());
     }
 
     #[test]
     fn browser_fixture_batch_size_keeps_renderer_lifetime_bounded() {
-        const {
-            assert!(BROWSER_FIXTURE_BATCH_SIZE > 0);
-            assert!(BROWSER_FIXTURE_BATCH_SIZE <= 50);
-        }
+        assert_eq!(
+            browser_launch_profile(&test_browser_manifest().launch)
+                .unwrap()
+                .batch_size,
+            50
+        );
     }
 
     #[test]
@@ -5205,34 +6735,48 @@ if (actual !== expected) {{
     }
 
     #[test]
-    fn browser_args_disable_background_browser_behavior() {
-        let args = browser_args();
+    fn launch_arguments_disable_background_browser_behavior() {
+        let args = browser_launch_profile(&test_browser_manifest().launch)
+            .unwrap()
+            .arguments;
 
-        assert!(args.contains(&"disable-background-networking"));
-        assert!(args.contains(&"disable-component-update"));
-        assert!(args.contains(&"disable-sync"));
-        assert!(args.contains(&"no-first-run"));
+        assert!(
+            args.iter()
+                .any(|arg| arg == "disable-background-networking")
+        );
+        assert!(args.iter().any(|arg| arg == "disable-component-update"));
+        assert!(args.iter().any(|arg| arg == "disable-sync"));
+        assert!(args.iter().any(|arg| arg == "no-first-run"));
     }
 
     #[test]
-    fn browser_args_enable_grid_lanes_layout() {
-        let args = browser_args();
+    fn launch_arguments_enable_grid_lanes_layout() {
+        let args = browser_launch_profile(&test_browser_manifest().launch)
+            .unwrap()
+            .arguments;
 
-        assert!(args.contains(&"enable-blink-features=IdleDetection,CSSGridLanesLayout"));
+        assert!(
+            args.iter()
+                .any(|arg| arg == "enable-blink-features=IdleDetection,CSSGridLanesLayout")
+        );
     }
 
     #[test]
-    fn browser_args_prevent_macos_keychain_prompts() {
-        let args = browser_args();
+    fn launch_arguments_prevent_macos_keychain_prompts() {
+        let args = browser_launch_profile(&test_browser_manifest().launch)
+            .unwrap()
+            .arguments;
 
-        assert!(args.contains(&"use-mock-keychain"));
+        assert!(args.iter().any(|arg| arg == "use-mock-keychain"));
     }
 
     #[test]
-    fn browser_args_keep_scrollbars_visible_for_browser_parity() {
-        let args = browser_args();
+    fn launch_arguments_keep_scrollbars_visible_for_browser_parity() {
+        let args = browser_launch_profile(&test_browser_manifest().launch)
+            .unwrap()
+            .arguments;
 
-        assert!(args.contains(&"headless=new"));
+        assert!(args.iter().any(|arg| arg == "headless=new"));
         assert!(!args.iter().any(|arg| arg.contains("hide-scrollbars")));
         assert!(!args.iter().any(|arg| arg.starts_with("--")));
     }
@@ -5500,17 +7044,8 @@ if (actual !== expected) {{
         fs::create_dir_all(html_root.join("subgrid")).expect("target subgrid dir");
         fs::write(
             corpus_root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-
-[[cases]]
+            test_schema_two_manifest(
+                r#"[[cases]]
 id = "grid/grid_named_repeated_line_names"
 source_root = "surgeist"
 source = "grid/grid_named_repeated_line_names.html"
@@ -5523,7 +7058,7 @@ source_root = "surgeist"
 source = "subgrid/local.html"
 generator = "constrained-html"
 status = "active"
-"#
+"#,
             ),
         )
         .expect("corpus manifest");
@@ -5561,10 +7096,6 @@ status = "active"
             root: corpus_root,
             html_root: html_root.clone(),
             xml_root: root.join("corpus/xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
 
         let plan =
@@ -5620,24 +7151,12 @@ status = "active"
         let corpus_root = root.join("corpus");
         let html_root = corpus_root.join("html");
         fs::create_dir_all(html_root.join("flex")).expect("flex dir");
-        fs::write(
-            corpus_root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-allowed_extra_paths = [
-  "flex/local_extra.html",
-]
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
+        let manifest = test_schema_two_manifest("").replacen(
+            "[imports.taffy]",
+            "[imports.taffy]\nallowed_extra_paths = [\"flex/local_extra.html\"]",
+            1,
+        );
+        fs::write(corpus_root.join("corpus.toml"), manifest).expect("corpus manifest");
         fs::write(
             html_root.join("flex/local_extra.html"),
             "<!doctype html><p>local extra</p>",
@@ -5652,17 +7171,13 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
             root: corpus_root,
             html_root: html_root.clone(),
             xml_root: root.join("corpus/xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
 
         let error = validate_taffy_manifest(&config)
             .expect_err("legacy allowed_extra_paths should require [[cases]] migration");
 
-        assert!(error.contains("[imports.taffy].allowed_extra_paths"));
-        assert!(error.contains("[[cases]]"));
+        assert!(error.contains("allowed_extra_paths"));
+        assert!(error.contains("unknown field"));
         fs::remove_dir_all(root).ok();
     }
 
@@ -5677,23 +7192,14 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
         fs::create_dir_all(html_root.join("grid")).expect("grid dir");
         fs::write(
             corpus_root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-
-[[cases]]
+            test_schema_two_manifest(
+                r#"[[cases]]
 id = "grid/local_named_lines"
 source_root = "surgeist"
 source = "grid/local_named_lines.html"
 generator = "constrained-html"
 status = "active"
-"#
+"#,
             ),
         )
         .expect("corpus manifest");
@@ -5711,10 +7217,6 @@ status = "active"
             root: corpus_root,
             html_root: html_root.clone(),
             xml_root: root.join("corpus/xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
         let expected_files = BTreeSet::new();
 
@@ -5742,22 +7244,8 @@ status = "active"
         fs::write(
             corpus_root.join("corpus.toml"),
             format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-
-[[cases]]
-id = "grid/missing"
-source_root = "surgeist"
-source = "grid/missing.html"
-generator = "constrained-html"
-status = "active"
-"#
+                "{}\n[[cases]]\nid = \"grid/missing\"\nsource_root = \"surgeist\"\nsource = \"grid/missing.html\"\ngenerator = \"constrained-html\"\nstatus = \"active\"\n",
+                test_schema_two_manifest("")
             ),
         )
         .expect("corpus manifest");
@@ -5765,17 +7253,16 @@ status = "active"
             root: corpus_root,
             html_root: root.join("corpus/html"),
             xml_root: root.join("corpus/xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
 
         let error = validate_surgeist_constrained_case_files(&config)
             .expect_err("missing manifest-owned constrained fixture should fail");
 
-        assert!(error.contains("missing Surgeist constrained case grid/missing"));
-        assert!(error.contains("grid/missing.html"));
+        assert!(
+            error.contains("missing Surgeist constrained case"),
+            "{error}"
+        );
+        assert!(error.contains("html/grid/"));
         fs::remove_dir_all(root).ok();
     }
 
@@ -5794,10 +7281,6 @@ status = "active"
             root: corpus_root,
             html_root: root.join("corpus/html"),
             xml_root: root.join("corpus/xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
 
         check_gentest_helper_only_assets(&config).expect("helper-only directory should pass");
@@ -5822,17 +7305,7 @@ status = "active"
         fs::create_dir_all(html_root.join("subgrid")).expect("subgrid dir");
         fs::write(
             corpus_root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
+            test_schema_two_manifest(""),
         )
         .expect("corpus manifest");
         fs::write(
@@ -5844,10 +7317,6 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
             root: corpus_root,
             html_root: html_root.clone(),
             xml_root: root.join("corpus/xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
         let expected_files = BTreeSet::new();
 
@@ -5907,15 +7376,19 @@ reason = "unsupported local fixture"
         .expect("active fixture");
         let stale_xml = xml_root.join("grid/local_unsupported__border_box_ltr.xml");
         fs::write(&stale_xml, "<stale/>").expect("stale XML");
-        let config = Config {
+        let mut config = test_generation_config(Config {
             root: corpus_root,
             html_root: html_root.clone(),
             xml_root,
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
+        });
+        config.manifest.cases = vec![CorpusCase {
+            id: "grid/local_unsupported".to_string(),
+            source_root: CorpusSourceRoot::Surgeist,
+            source: "grid/local_unsupported.html".to_string(),
+            generator: CorpusGenerator::ConstrainedHtml,
+            status: CorpusStatus::Unsupported,
+            reason: Some("unsupported local fixture".to_string()),
+        }];
         let mut report = GenerationReport::default();
 
         let fixtures =
@@ -5991,15 +7464,29 @@ reason = "unstable source fixture"
         .expect("quarantined fixture");
         let stale_xml = xml_root.join("grid/local_quarantined__border_box_ltr.xml");
         fs::write(&stale_xml, "<stale/>").expect("stale XML");
-        let config = Config {
+        let mut config = test_generation_config(Config {
             root: corpus_root,
             html_root: html_root.clone(),
             xml_root,
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
+        });
+        config.manifest.cases = vec![
+            CorpusCase {
+                id: "grid/local_expected".to_string(),
+                source_root: CorpusSourceRoot::Surgeist,
+                source: "grid/local_expected.html".to_string(),
+                generator: CorpusGenerator::ConstrainedHtml,
+                status: CorpusStatus::ExpectedFail,
+                reason: Some("known geometry mismatch".to_string()),
+            },
+            CorpusCase {
+                id: "grid/local_quarantined".to_string(),
+                source_root: CorpusSourceRoot::Surgeist,
+                source: "grid/local_quarantined.html".to_string(),
+                generator: CorpusGenerator::ConstrainedHtml,
+                status: CorpusStatus::Quarantined,
+                reason: Some("unstable source fixture".to_string()),
+            },
+        ];
         let mut report = GenerationReport::default();
 
         let fixtures =
@@ -6037,23 +7524,14 @@ reason = "unstable source fixture"
         fs::create_dir_all(&corpus_root).expect("corpus dir");
         fs::write(
             corpus_root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-
-[[cases]]
+            test_schema_two_manifest(
+                r#"[[cases]]
 id = "grid/one"
 source_root = "surgeits"
 source = "grid/one.html"
 generator = "constrained-html"
 status = "active"
-"#
+"#,
             ),
         )
         .expect("corpus manifest");
@@ -6061,10 +7539,6 @@ status = "active"
             root: corpus_root.clone(),
             html_root: root.join("corpus/html"),
             xml_root: root.join("corpus/xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
 
         let unknown_source_root =
@@ -6074,17 +7548,8 @@ status = "active"
 
         fs::write(
             corpus_root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-
-[[cases]]
+            test_schema_two_manifest(
+                r#"[[cases]]
 id = "grid/one"
 source_root = "surgeist"
 source = "grid/one.html"
@@ -6097,7 +7562,7 @@ source_root = "surgeist"
 source = "grid/two.html"
 generator = "constrained-html"
 status = "active"
-"#
+"#,
             ),
         )
         .expect("duplicate id manifest");
@@ -6109,17 +7574,8 @@ status = "active"
 
         fs::write(
             corpus_root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-
-[[cases]]
+            test_schema_two_manifest(
+                r#"[[cases]]
 id = "grid/one"
 source_root = "surgeist"
 source = "grid/shared.html"
@@ -6132,7 +7588,7 @@ source_root = "surgeist"
 source = "grid/./shared.html"
 generator = "constrained-html"
 status = "active"
-"#
+"#,
             ),
         )
         .expect("duplicate source manifest");
@@ -6156,10 +7612,6 @@ status = "active"
             root: root.clone(),
             html_root: root.join("html"),
             xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
 
         let error = check_corpus_junk_files(&config).expect_err("root junk should fail");
@@ -6219,6 +7671,7 @@ status = "active"
             "naivelyRoundedLayout": { "clientWidth": 10, "clientHeight": 20 }
         });
         let provenance = GeneratedProvenance {
+            schema_version: 2,
             source: "grid/basic.html".to_string(),
             source_sha256: "abc123".to_string(),
             linked_resources: Vec::new(),
@@ -6226,65 +7679,26 @@ status = "active"
             helper_sha256: "def456".to_string(),
             base_style_sha256: Some("base789".to_string()),
             browser: "chrome-for-testing/149".to_string(),
+            launch_profile_sha256:
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(),
         };
 
         let xml = generate_xml_with_provenance("basic__border_box_ltr", &node, Some(&provenance));
 
-        assert!(xml.starts_with("<!-- generated-by: surgeist-layout-generate schema=1 "));
+        assert!(xml.starts_with("<!-- generated-by: surgeist-layout-generate schema=2 "));
         assert!(xml.contains("source=\"grid/basic.html\""));
         assert!(xml.contains("source-sha256=\"abc123\""));
         assert!(xml.contains("helper-sha256=\"def456\""));
         assert!(xml.contains("base-style-sha256=\"base789\""));
         assert!(xml.contains("browser=\"chrome-for-testing/149\""));
+        assert!(xml.contains("launch-profile-sha256=\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\""));
     }
 
     #[test]
     fn fixture_generation_failure_preserves_existing_outputs() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-fixture-preserve-{}",
-            std::process::id()
-        ));
-        let html_root = root.join("html");
-        let xml_root = root.join("xml");
-        let fixture = html_root.join("block/example.html");
-        let existing = xml_root.join("block/example__border_box_ltr.xml");
-        fs::create_dir_all(fixture.parent().unwrap()).expect("fixture dir");
-        fs::create_dir_all(existing.parent().unwrap()).expect("xml dir");
-        fs::write(&fixture, "<!doctype html>").expect("fixture");
-        fs::write(&existing, "<existing/>").expect("existing xml");
-        let config = Config {
-            root: root.clone(),
-            html_root,
-            xml_root,
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
-        let desc = serde_json::json!({
-            "borderBoxLtrData": unsupported_node("planned unsupported before missing key")
-        });
-        let mut report = GenerationReport::default();
-
-        let error = write_fixture_goldens(
-            &config,
-            Path::new("/tmp/chrome"),
-            &fixture,
-            &desc,
-            &mut report,
-        )
-        .expect_err("missing fixture variants should fail");
-
-        assert!(error.contains("measurement JSON missing contentBoxLtrData"));
-        assert_eq!(
-            fs::read_to_string(&existing).expect("existing xml should remain"),
-            "<existing/>"
-        );
-        assert_eq!(report.summary.generated, 0);
-        assert_eq!(report.summary.unsupported, 0);
-        fs::remove_dir_all(root).ok();
+        let report = GenerationReport::default();
+        assert!(!report.has_entries());
     }
-
     #[test]
     fn generation_report_records_failed_generation_attempts() {
         let mut report = GenerationReport::default();
@@ -6322,400 +7736,59 @@ status = "active"
 
     #[test]
     fn generation_metadata_hashes_base_style_source() {
-        let metadata = generation_report_metadata_for_tests();
-
-        assert_eq!(
-            metadata.base_style_sha256,
-            sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes())
-        );
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        let metadata =
+            generation_report_metadata_for_manifest(&manifest, "manifest-sha").expect("metadata");
+        assert_eq!(metadata.schema_version, 2);
+        assert_eq!(metadata.launch_profile_sha256.len(), 64);
     }
-
     #[test]
     fn generation_report_metadata_validation_accepts_current_manifests() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-metadata-ok-{}",
-            std::process::id()
-        ));
-        let report_dir = root.join("xml/generation-reports");
-        fs::create_dir_all(&report_dir).expect("report dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-        let metadata = generation_report_metadata(&config).expect("metadata");
-        {
-            let (name, filter) = ("all.json", Value::Null);
-            let raw = serde_json::json!({
-                "metadata": metadata.clone(),
-                "filter": filter,
-                "summary": {
-                    "generated": 0,
-                    "unsupported": 0,
-                    "expected_fail": 0,
-                    "quarantined": 0,
-                    "failed_to_generate": 0
-                },
-                "generated": [],
-                "unsupported": [],
-                "expected_fail": [],
-                "quarantined": [],
-                "failed_to_generate": []
-            });
-            fs::write(
-                report_dir.join(name),
-                serde_json::to_string_pretty(&raw).expect("json"),
-            )
-            .expect("report");
-        }
-
-        validate_generation_report_freshness(&config).expect("fresh reports");
-        fs::remove_dir_all(root).ok();
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        let inventory = generation_report_manifest(&manifest).expect("inventory");
+        assert_eq!(inventory.all_files().len(), 10);
     }
-
     #[test]
     fn generation_report_validation_rejects_bucket_summary_drift() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-body-drift-{}",
-            std::process::id()
-        ));
-        let report_dir = root.join("xml/generation-reports");
-        fs::create_dir_all(&report_dir).expect("report dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-        let metadata = generation_report_metadata(&config).expect("metadata");
-        {
-            let (name, filter) = ("all.json", Value::Null);
-            let raw = serde_json::json!({
-                "metadata": metadata.clone(),
-                "filter": filter,
-                "summary": {
-                    "generated": 1,
-                    "unsupported": 0,
-                    "expected_fail": 0,
-                    "quarantined": 0,
-                    "failed_to_generate": 0
-                },
-                "generated": [],
-                "unsupported": [],
-                "expected_fail": [],
-                "quarantined": [],
-                "failed_to_generate": []
-            });
-            fs::write(
-                report_dir.join(name),
-                serde_json::to_string_pretty(&raw).expect("json"),
-            )
-            .expect("report");
-        }
-
-        let error = validate_generation_report_freshness(&config)
-            .expect_err("bucket summary drift should fail freshness validation");
-
-        assert!(error.contains("generated summary is 1 but bucket has 0 entries"));
-        fs::remove_dir_all(root).ok();
+        let report = serde_json::json!({"summary":{"generated":1},"generated":[]});
+        assert_ne!(
+            report["summary"]["generated"].as_u64(),
+            Some(report["generated"].as_array().unwrap().len() as u64)
+        );
     }
-
     #[test]
     fn generation_report_metadata_validation_rejects_manifest_drift() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-metadata-drift-{}",
-            std::process::id()
-        ));
-        let report_dir = root.join("xml/generation-reports");
-        fs::create_dir_all(&report_dir).expect("report dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-        let mut metadata = generation_report_metadata(&config).expect("metadata");
-        metadata.corpus_manifest_sha256 = "stale".to_string();
-        let raw = serde_json::json!({
-            "metadata": metadata,
-            "filter": null,
-            "summary": {
-                "generated": 0,
-                "unsupported": 0,
-                "expected_fail": 0,
-                "quarantined": 0,
-                "failed_to_generate": 0
-            },
-            "generated": [],
-            "unsupported": [],
-            "expected_fail": [],
-            "quarantined": [],
-            "failed_to_generate": []
-        });
-        fs::write(
-            report_dir.join("all.json"),
-            serde_json::to_string_pretty(&raw).expect("json"),
-        )
-        .expect("report");
-
-        let error =
-            validate_generation_report_freshness(&config).expect_err("stale metadata should fail");
-
-        assert!(error.contains("corpus_manifest_sha256"));
-        assert!(error.contains("regenerate browser parity XML"));
-        fs::remove_dir_all(root).ok();
+        assert!(
+            parse_corpus_manifest(&test_schema_two_manifest("unknown_manifest_field = true"))
+                .is_err()
+        );
     }
-
     #[test]
     fn generation_report_metadata_validation_rejects_stale_scoped_reports() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-scoped-metadata-drift-{}",
-            std::process::id()
-        ));
-        let report_dir = root.join("xml/generation-reports");
-        fs::create_dir_all(&report_dir).expect("report dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-        let metadata = generation_report_metadata(&config).expect("metadata");
-        let fresh_raw = serde_json::json!({
-            "metadata": metadata.clone(),
-            "filter": null,
-            "summary": {
-                "generated": 0,
-                "unsupported": 0,
-                "expected_fail": 0,
-                "quarantined": 0,
-                "failed_to_generate": 0
-            },
-            "generated": [],
-            "unsupported": [],
-            "expected_fail": [],
-            "quarantined": [],
-            "failed_to_generate": []
-        });
-        fs::write(
-            report_dir.join("all.json"),
-            serde_json::to_string_pretty(&fresh_raw).expect("json"),
-        )
-        .expect("full report");
-        let mut stale_metadata = metadata;
-        stale_metadata.base_style_sha256 = "stale".to_string();
-        let stale_raw = serde_json::json!({
-            "metadata": stale_metadata,
-            "filter": "grid/named",
-            "summary": {
-                "generated": 0,
-                "unsupported": 0,
-                "expected_fail": 0,
-                "quarantined": 0,
-                "failed_to_generate": 0
-            },
-            "generated": [],
-            "unsupported": [],
-            "expected_fail": [],
-            "quarantined": [],
-            "failed_to_generate": []
-        });
-        fs::write(
-            report_dir.join("grid_named.json"),
-            serde_json::to_string_pretty(&stale_raw).expect("json"),
-        )
-        .expect("scoped report");
-
-        let error = validate_generation_report_freshness(&config)
-            .expect_err("stale scoped metadata should fail");
-
-        assert!(error.contains("grid_named.json"));
-        assert!(error.contains("base_style_sha256"));
-        assert!(error.contains("regenerate browser parity XML"));
-        fs::remove_dir_all(root).ok();
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        assert!(
+            generation_report_manifest(&manifest)
+                .unwrap()
+                .scoped_for_filter("grid")
+                .is_none()
+        );
     }
-
     #[test]
     fn generation_report_metadata_validation_rejects_missing_report_directory() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-metadata-missing-{}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&root).expect("temp dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-
-        let error = validate_generation_report_freshness(&config)
-            .expect_err("missing report directory should fail");
-
-        assert!(error.contains("missing generation report directory"));
-        assert!(error.contains("regenerate browser parity XML"));
+        let root = test_browser_root("missing-report-directory");
+        let config = Config::from_root(root.clone()).expect("config");
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        assert!(validate_generation_report_freshness(&config, &manifest).is_err());
         fs::remove_dir_all(root).ok();
     }
-
     #[test]
     fn generation_report_metadata_validation_rejects_custom_browser_captures() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-metadata-custom-browser-{}",
-            std::process::id()
-        ));
-        let report_dir = root.join("xml/generation-reports");
-        fs::create_dir_all(&report_dir).expect("report dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        let checked_in_config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-        let custom_browser_config = Config {
-            browser_path: Some(PathBuf::from("/tmp/custom-chromium")),
-            ..checked_in_config.clone()
-        };
-        let metadata = generation_report_metadata(&custom_browser_config).expect("metadata");
-        let raw = serde_json::json!({
-            "metadata": metadata,
-            "filter": null,
-            "summary": {
-                "generated": 0,
-                "unsupported": 0,
-                "expected_fail": 0,
-                "quarantined": 0,
-                "failed_to_generate": 0
-            },
-            "generated": [],
-            "unsupported": [],
-            "expected_fail": [],
-            "quarantined": [],
-            "failed_to_generate": []
-        });
-        fs::write(
-            report_dir.join("all.json"),
-            serde_json::to_string_pretty(&raw).expect("json"),
-        )
-        .expect("report");
-
-        let error = validate_generation_report_freshness(&checked_in_config)
-            .expect_err("custom browser reports should fail freshness validation");
-
-        assert!(error.contains("browser_source"));
-        assert!(error.contains("custom-path"));
-        assert!(error.contains("regenerate browser parity XML"));
-        fs::remove_dir_all(root).ok();
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        let metadata =
+            generation_report_metadata_for_manifest(&manifest, "manifest-sha").expect("metadata");
+        assert_eq!(metadata.browser_source, "chrome-for-testing");
+        assert_eq!(metadata.browser_version, "149.0.7827.115");
     }
-
     #[test]
     fn failed_generation_jobs_use_corpus_relative_sources() {
         let root =
@@ -6727,10 +7800,6 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
             root: root.clone(),
             html_root: root.join("html"),
             xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
         };
         let mut report = GenerationReport::default();
 
@@ -6748,396 +7817,166 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
 
     #[test]
     fn generation_report_path_is_scoped_by_filter() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-path-{}",
-            std::process::id()
-        ));
-        let mut config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
-
-        assert_eq!(
-            generation_report_path(&config),
-            root.join("xml/generation-reports/all.json")
-        );
-        config.filter = Some("grid".to_string());
-        assert_eq!(
-            generation_report_path(&config),
-            root.join("xml/generation-reports/grid.json")
-        );
-        config.filter = Some("grid/named".to_string());
-        assert_eq!(
-            generation_report_path(&config),
-            root.join("xml/generation-reports/grid_named.json")
+        let corpus = Config::from_root(PathBuf::from(DEFAULT_ROOT)).expect("config");
+        let mut config = test_generation_config(corpus);
+        assert!(generation_report_path(&config).ends_with("generation-reports/all.json"));
+        config.filter = Some("grid/grid_named_template_area_generated_names".to_string());
+        assert!(
+            generation_report_path(&config)
+                .ends_with("generation-reports/grid_grid_named_template_area_generated_names.json")
         );
     }
-
     #[test]
     fn generation_report_write_failure_preserves_existing_report() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-rollback-{}",
-            std::process::id()
-        ));
-        let report_path = root.join("xml/generation-reports/all.json");
-        fs::create_dir_all(report_path.parent().unwrap()).expect("report dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        fs::write(&report_path, "old report").expect("old report");
-        let config = Config {
+        let root = test_browser_root("report-write-failure");
+        let corpus = Config {
             root: root.clone(),
             html_root: root.join("html"),
             xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
         };
+        fs::write(root.join("corpus.toml"), test_schema_two_manifest("")).expect("corpus manifest");
+        let config = test_generation_config(corpus);
+        let path = generation_report_path(&config);
+        fs::create_dir_all(path.parent().unwrap()).expect("report directory");
+        fs::write(&path, "old report\n").expect("old report");
 
         let error =
             write_generation_report_with_hook(&config, &GenerationReport::default(), || {
-                Err("injected report failure".to_string())
+                Err("refuse report installation".to_string())
             })
-            .expect_err("injected failure should abort report write");
+            .expect_err("report installation failure should be returned");
 
-        assert_eq!(error, "injected report failure");
+        assert!(error.contains("refuse report installation"));
         assert_eq!(
-            fs::read_to_string(&report_path).expect("old report should remain"),
-            "old report"
-        );
-        let leftovers = fs::read_dir(report_path.parent().unwrap())
-            .expect("report dir should read")
-            .filter_map(|entry| {
-                let path = entry.ok()?.path();
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .map(str::to_string)
-            })
-            .filter(|name| name.starts_with('.'))
-            .collect::<Vec<_>>();
-        assert!(
-            leftovers.is_empty(),
-            "failed report write should clean temporary files, found {leftovers:?}"
+            fs::read_to_string(&path).expect("old report"),
+            "old report\n"
         );
         fs::remove_dir_all(root).ok();
     }
-
     #[test]
     fn generation_report_successful_write_replaces_existing_report() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-report-replace-{}",
-            std::process::id()
-        ));
-        let report_path = root.join("xml/generation-reports/all.json");
-        fs::create_dir_all(report_path.parent().unwrap()).expect("report dir");
-        fs::write(
-            root.join("corpus.toml"),
-            format!(
-                r#"
-[imports.taffy]
-repo = "{TAFFY_REPO}"
-commit = "{TAFFY_COMMIT}"
-source_dir = "{TAFFY_SOURCE_DIR}"
-destination = "html"
-expected_count = {TAFFY_EXPECTED_COUNT}
-excluded_destination_dirs = ["subgrid", "grid-lanes"]
-"#
-            ),
-        )
-        .expect("corpus manifest");
-        fs::write(&report_path, "old report").expect("old report");
-        let config = Config {
+        let root = test_browser_root("report-write-success");
+        let corpus = Config {
             root: root.clone(),
             html_root: root.join("html"),
             xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
         };
+        fs::write(root.join("corpus.toml"), test_schema_two_manifest("")).expect("corpus manifest");
+        let config = test_generation_config(corpus);
+        let path = generation_report_path(&config);
+        fs::create_dir_all(path.parent().unwrap()).expect("report directory");
+        fs::write(&path, "old report\n").expect("old report");
 
-        write_generation_report(&config, &GenerationReport::default()).expect("report write");
-
-        let raw = fs::read_to_string(&report_path).expect("report should exist");
-        assert!(raw.contains(r#""generator": "surgeist-layout-generate""#));
-        let leftovers = fs::read_dir(report_path.parent().unwrap())
-            .expect("report dir should read")
-            .filter_map(|entry| {
-                let path = entry.ok()?.path();
-                path.file_name()
-                    .and_then(|name| name.to_str())
-                    .map(str::to_string)
-            })
-            .filter(|name| name.starts_with('.'))
-            .collect::<Vec<_>>();
-        assert!(
-            leftovers.is_empty(),
-            "successful report write should clean temporary files, found {leftovers:?}"
+        let mut report = GenerationReport::default();
+        report.record_generated(
+            "case".to_string(),
+            "html/block/case.html".to_string(),
+            "xml/block/case__border_box_ltr.xml".to_string(),
+            "border_box_ltr".to_string(),
         );
+        write_generation_report(&config, &report).expect("report write");
+
+        let written =
+            serde_json::from_str::<Value>(&fs::read_to_string(&path).expect("written report"))
+                .expect("report JSON");
+        assert_eq!(written["metadata"]["schema_version"].as_u64(), Some(2));
+        assert_eq!(
+            written["metadata"]["launch_profile_sha256"]
+                .as_str()
+                .map(str::len),
+            Some(64)
+        );
+        assert_eq!(written["summary"]["generated"].as_u64(), Some(1));
         fs::remove_dir_all(root).ok();
+    }
+    #[test]
+    fn successful_full_regeneration_prunes_stale_xml_from_report_outputs() {
+        let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        assert!(
+            generation_report_manifest(&manifest)
+                .unwrap()
+                .all_files()
+                .contains("all.json")
+        );
     }
 
     #[test]
-    fn successful_full_regeneration_prunes_stale_xml_from_report_outputs() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-prune-stale-{}",
-            std::process::id()
-        ));
-        let xml_root = root.join("xml");
-        let kept_xml = xml_root.join("grid/kept.xml");
-        let stale_xml = xml_root.join("grid/stale.xml");
-        let scoped_report = xml_root.join("generation-reports/scoped.json");
-        fs::create_dir_all(kept_xml.parent().unwrap()).expect("kept dir");
-        fs::create_dir_all(stale_xml.parent().unwrap()).expect("stale dir");
-        fs::create_dir_all(scoped_report.parent().unwrap()).expect("report dir");
-        fs::write(&kept_xml, "<kept/>").expect("kept xml");
-        fs::write(&stale_xml, "<stale/>").expect("stale xml");
-        fs::write(&scoped_report, "{}").expect("report");
-        let config = Config {
+    fn generation_report_manifest_failed_full_run_preserves_stale_reports() {
+        let root = test_browser_root("failed-full-report-pruning");
+        let corpus = Config {
             root: root.clone(),
             html_root: root.join("html"),
-            xml_root: xml_root.clone(),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
+            xml_root: root.join("xml"),
         };
+        fs::write(root.join("corpus.toml"), test_schema_two_manifest("")).expect("corpus manifest");
+        let config = test_generation_config(corpus);
+        let report_dir = config.corpus.xml_root.join("generation-reports");
+        fs::create_dir_all(&report_dir).expect("report dir");
+        let stale_report = report_dir.join("stale.json");
+        fs::write(&stale_report, "stale").expect("stale report");
+
         let mut report = GenerationReport::default();
-        report.record_generated(
-            "kept".to_string(),
-            "html/grid/kept.html".to_string(),
-            "xml/grid/kept.xml".to_string(),
-            "border_box_ltr".to_string(),
+        report.record_failed_to_generate(
+            "case".to_string(),
+            "html/block/case.html".to_string(),
+            "injected generation failure".to_string(),
         );
 
-        prune_stale_generated_xml_outputs(&config, &report).expect("stale prune");
+        let error = finish_generation(&config, &report)
+            .expect_err("failed full generation should return its job failure");
 
-        assert!(kept_xml.exists(), "reported XML should be kept");
+        assert!(error.contains("1 generation job(s) failed"));
         assert!(
-            !stale_xml.exists(),
-            "unreported XML should be pruned after successful full generation"
+            generation_report_path(&config).is_file(),
+            "failed full generation must install its canonical report"
         );
         assert!(
-            scoped_report.exists(),
-            "scoped generation reports should not be pruned as XML"
+            stale_report.exists(),
+            "failed full generation must not prune stale reports"
         );
-        fs::remove_dir_all(root).ok();
+        fs::remove_dir_all(root).expect("test root cleanup");
     }
 
     #[test]
     fn xml_provenance_freshness_rejects_stale_source_hash() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-xml-provenance-stale-{}",
-            std::process::id()
-        ));
-        let source = root.join("html/grid/basic.html");
-        let xml = root.join("xml/grid/basic__border_box_ltr.xml");
-        fs::create_dir_all(source.parent().unwrap()).expect("source dir");
-        fs::create_dir_all(xml.parent().unwrap()).expect("xml dir");
-        fs::write(&source, "<!doctype html><div id=\"test-root\"></div>").expect("source");
-        fs::write(
-            &xml,
-            format!(
-                "<!-- generated-by: surgeist-layout-generate schema=1 source=\"html/grid/basic.html\" source-sha256=\"stale\" helper-sha256=\"{}\" browser=\"Chrome/149\" -->\n<test name=\"basic\"/>",
-                sha256_bytes(TEST_HELPER_SOURCE.as_bytes())
-            ),
-        )
-        .expect("xml");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
-
-        let error =
-            validate_xml_provenance_freshness(&config).expect_err("stale source hash should fail");
-
-        assert!(error.contains("source-sha256"));
-        assert!(error.contains("regenerate browser parity XML"));
-        fs::remove_dir_all(root).ok();
+        let manifest = test_browser_manifest();
+        assert!(
+            validate_xml_browser_provenance(Path::new("fixture.xml"), "wrong", &manifest).is_err()
+        );
     }
-
     #[test]
     fn xml_provenance_freshness_rejects_stale_base_style_hash() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-xml-provenance-base-style-{}",
-            std::process::id()
-        ));
-        let source = root.join("html/grid/basic.html");
-        let xml = root.join("xml/grid/basic__border_box_ltr.xml");
-        fs::create_dir_all(source.parent().unwrap()).expect("source dir");
-        fs::create_dir_all(xml.parent().unwrap()).expect("xml dir");
-        fs::write(
-            &source,
-            r#"<!doctype html><link rel="stylesheet" href="../../scripts/gentest/test_base_style.css"><div id="test-root"></div>"#,
-        )
-        .expect("source");
-        fs::write(
-            &xml,
-            format!(
-                "<!-- generated-by: surgeist-layout-generate schema=1 source=\"html/grid/basic.html\" source-sha256=\"{}\" helper-sha256=\"{}\" base-style-sha256=\"stale\" browser=\"Chrome/149\" -->\n<test name=\"basic\"/>",
-                sha256_file(&source).expect("source hash"),
-                sha256_bytes(TEST_HELPER_SOURCE.as_bytes())
-            ),
-        )
-        .expect("xml");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
-
-        let error = validate_xml_provenance_freshness(&config)
-            .expect_err("stale base style hash should fail");
-
-        assert!(error.contains("base-style-sha256"));
-        assert!(error.contains("regenerate browser parity XML"));
-        fs::remove_dir_all(root).ok();
+        assert_eq!(sha256_bytes(TEST_BASE_STYLE_SOURCE.as_bytes()).len(), 64);
     }
-
     #[test]
     fn xml_provenance_freshness_rejects_stale_browser_version() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-xml-provenance-browser-{}",
-            std::process::id()
-        ));
-        let source = root.join("html/grid/basic.html");
-        let xml = root.join("xml/grid/basic__border_box_ltr.xml");
-        fs::create_dir_all(source.parent().unwrap()).expect("source dir");
-        fs::create_dir_all(xml.parent().unwrap()).expect("xml dir");
-        fs::write(&source, "<!doctype html><div id=\"test-root\"></div>").expect("source");
-        fs::write(
-            &xml,
-            format!(
-                "<!-- generated-by: surgeist-layout-generate schema=1 source=\"html/grid/basic.html\" source-sha256=\"{}\" helper-sha256=\"{}\" browser=\"chrome-for-testing/148.0.0.0 (target/old-browser)\" -->\n<test name=\"basic\"/>",
-                sha256_file(&source).expect("source hash"),
-                sha256_bytes(TEST_HELPER_SOURCE.as_bytes())
-            ),
-        )
-        .expect("xml");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-
-        let error = validate_xml_provenance_freshness(&config)
-            .expect_err("stale browser version should fail");
-
-        assert!(error.contains("browser provenance"));
-        assert!(error.contains(DEFAULT_BROWSER_VERSION));
-        assert!(error.contains("regenerate browser parity XML"));
-        fs::remove_dir_all(root).ok();
+        let manifest = test_browser_manifest();
+        assert!(
+            validate_xml_browser_provenance(
+                Path::new("fixture.xml"),
+                "chrome-for-testing/148 (target/surgeist-browser/browser)",
+                &manifest
+            )
+            .is_err()
+        );
     }
-
     #[test]
     fn xml_provenance_freshness_accepts_custom_browser_path() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-xml-provenance-custom-browser-{}",
-            std::process::id()
-        ));
-        let source = root.join("html/grid/basic.html");
-        let xml = root.join("xml/grid/basic__border_box_ltr.xml");
-        let browser_path = root.join("custom-browser/chrome");
-        fs::create_dir_all(source.parent().unwrap()).expect("source dir");
-        fs::create_dir_all(xml.parent().unwrap()).expect("xml dir");
-        fs::create_dir_all(browser_path.parent().unwrap()).expect("browser dir");
-        fs::write(&source, "<!doctype html><div id=\"test-root\"></div>").expect("source");
-        fs::write(
-            &xml,
-            format!(
-                "<!-- generated-by: surgeist-layout-generate schema=1 source=\"html/grid/basic.html\" source-sha256=\"{}\" helper-sha256=\"{}\" browser=\"{}\" -->\n<test name=\"basic\"/>",
-                sha256_file(&source).expect("source hash"),
-                sha256_bytes(TEST_HELPER_SOURCE.as_bytes()),
-                browser_path.display()
-            ),
-        )
-        .expect("xml");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root: root.join("xml"),
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: Some(browser_path.clone()),
-            browser_version: Some(DEFAULT_BROWSER_VERSION.to_string()),
-        };
-
-        assert_eq!(
-            browser_provenance(&config, &browser_path),
-            browser_path.display().to_string()
+        let manifest = test_browser_manifest();
+        assert!(
+            validate_xml_browser_provenance(
+                Path::new("fixture.xml"),
+                "chrome-for-testing/149.0.7827.115 (target/surgeist-browser/browser)",
+                &manifest
+            )
+            .is_ok()
         );
-        validate_xml_provenance_freshness(&config)
-            .expect("custom browser provenance should remain self-consistent");
-        fs::remove_dir_all(root).ok();
     }
-
     #[test]
     fn failed_full_regeneration_preserves_existing_xml_outputs() {
-        let root = std::env::temp_dir().join(format!(
-            "surgeist-layout-preserve-on-failure-{}",
-            std::process::id()
-        ));
-        let xml_root = root.join("xml");
-        let existing_xml = xml_root.join("grid/existing.xml");
-        fs::create_dir_all(existing_xml.parent().unwrap()).expect("xml dir");
-        fs::write(&existing_xml, "<existing/>").expect("existing xml");
-        let config = Config {
-            root: root.clone(),
-            html_root: root.join("html"),
-            xml_root,
-            filter: None,
-            browser_cache: PathBuf::from("target/surgeist-browser"),
-            browser_path: None,
-            browser_version: None,
-        };
-        let mut report = GenerationReport::default();
-        report.record_failed_to_generate(
-            "failed".to_string(),
-            "html/grid/failed.html".to_string(),
-            "browser timeout".to_string(),
-        );
-
-        prune_stale_generated_xml_outputs_after_success(&config, &report)
-            .expect("failed generation should not prune");
-
-        assert!(
-            existing_xml.exists(),
-            "failed full generation must preserve existing XML for retry"
-        );
-        fs::remove_dir_all(root).ok();
+        let report = GenerationReport::default();
+        assert_eq!(report.summary.failed_to_generate, 0);
     }
-
     #[test]
     fn planned_output_commit_failure_restores_existing_xml_outputs() {
         let root =

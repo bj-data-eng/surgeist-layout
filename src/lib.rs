@@ -17,6 +17,12 @@
 //! become typed layout errors. `DefaultScalar` and `Scalar` use `f32`; generic
 //! `*Of<S>` contracts support end-to-end `f32` and `f64` scalar lanes.
 //!
+//! Browser-parity generation is crate-local tooling. Its corpus manifest pins
+//! Chrome-for-Testing and the shared headless launch profile, including the
+//! mock-keychain argument. `generate-existing` accepts only a validated,
+//! repository-relative executable under that manifest cache; corpus freshness
+//! checks remain browser-free.
+//!
 //! ```compile_fail
 //! use surgeist_layout::{LogicalEdgesOf, LogicalPointOf, LogicalRectOf, LogicalSizeOf};
 //! ```
