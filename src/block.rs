@@ -512,7 +512,10 @@ where
     if line_break.display().is_none() {
         return None;
     }
-    if flow_writing_mode != WritingMode::HorizontalTb && line_break.clear() != Clear::None {
+    if crate::geometry::FlowAxes::new(flow_writing_mode, flow_direction).inline_axis()
+        == PhysicalAxis::Vertical
+        && line_break.clear() != Clear::None
+    {
         panic!("vertical line-break clear layout is not implemented");
     }
     if line_break.writing_mode() != flow_writing_mode || line_break.direction() != flow_direction {
@@ -566,7 +569,9 @@ where
         if let Some(line_break) =
             visible_line_break_in_flow(tree, child, flow_writing_mode, flow_direction)
         {
-            if flow_writing_mode != WritingMode::HorizontalTb {
+            if crate::geometry::FlowAxes::new(flow_writing_mode, flow_direction).inline_axis()
+                == PhysicalAxis::Vertical
+            {
                 continue;
             }
             let clear = line_break.clear();
