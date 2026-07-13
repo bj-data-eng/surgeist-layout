@@ -255,6 +255,1069 @@ fn public_flow_output<S: LayoutScalar>(
         .output()
 }
 
+fn logical_flex_leaf<S: LayoutScalar>(width: f64, height: f64) -> NodeInputOf<S> {
+    NodeInputOf {
+        display: Display::Block,
+        size: Size::new(
+            DimensionOf::px(scalar::<S>(width)),
+            DimensionOf::px(scalar::<S>(height)),
+        ),
+        flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink factor"),
+        ..NodeInputOf::default()
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LogicalFlexChildFlow {
+    writing_mode: WritingMode,
+    direction: Direction,
+}
+
+fn logical_flex_opposing_flow(flow: LogicalFlexChildFlow) -> LogicalFlexChildFlow {
+    LogicalFlexChildFlow {
+        writing_mode: match flow.writing_mode {
+            WritingMode::HorizontalTb => WritingMode::HorizontalTb,
+            WritingMode::VerticalRl => WritingMode::VerticalLr,
+            WritingMode::VerticalLr => WritingMode::VerticalRl,
+            WritingMode::SidewaysRl => WritingMode::SidewaysLr,
+            WritingMode::SidewaysLr => WritingMode::SidewaysRl,
+        },
+        direction: match flow.writing_mode {
+            WritingMode::HorizontalTb => match flow.direction {
+                Direction::Ltr => Direction::Rtl,
+                Direction::Rtl => Direction::Ltr,
+            },
+            WritingMode::VerticalRl
+            | WritingMode::VerticalLr
+            | WritingMode::SidewaysRl
+            | WritingMode::SidewaysLr => flow.direction,
+        },
+    }
+}
+
+fn logical_flex_orthogonal_flow(flow: LogicalFlexChildFlow) -> LogicalFlexChildFlow {
+    LogicalFlexChildFlow {
+        writing_mode: match flow.writing_mode {
+            WritingMode::HorizontalTb => WritingMode::VerticalLr,
+            WritingMode::VerticalRl
+            | WritingMode::VerticalLr
+            | WritingMode::SidewaysRl
+            | WritingMode::SidewaysLr => WritingMode::HorizontalTb,
+        },
+        direction: flow.direction,
+    }
+}
+
+fn logical_flex_all_flow_expected(
+    writing_mode: WritingMode,
+    direction: Direction,
+    flex_direction: FlexDirection,
+) -> [(f64, f64); 3] {
+    match (writing_mode, direction, flex_direction) {
+        (WritingMode::HorizontalTb, Direction::Ltr, FlexDirection::Row)
+        | (WritingMode::HorizontalTb, Direction::Rtl, FlexDirection::RowReverse) => {
+            [(0.0, 0.0), (10.0, 0.0), (30.0, 0.0)]
+        }
+        (WritingMode::HorizontalTb, Direction::Ltr, FlexDirection::RowReverse)
+        | (WritingMode::HorizontalTb, Direction::Rtl, FlexDirection::Row) => {
+            [(90.0, 0.0), (70.0, 0.0), (40.0, 0.0)]
+        }
+        (WritingMode::HorizontalTb, Direction::Ltr, FlexDirection::Column) => {
+            [(0.0, 0.0), (0.0, 10.0), (0.0, 30.0)]
+        }
+        (WritingMode::HorizontalTb, Direction::Ltr, FlexDirection::ColumnReverse) => {
+            [(0.0, 90.0), (0.0, 70.0), (0.0, 40.0)]
+        }
+        (WritingMode::HorizontalTb, Direction::Rtl, FlexDirection::Column) => {
+            [(90.0, 0.0), (80.0, 10.0), (70.0, 30.0)]
+        }
+        (WritingMode::HorizontalTb, Direction::Rtl, FlexDirection::ColumnReverse) => {
+            [(90.0, 90.0), (80.0, 70.0), (70.0, 40.0)]
+        }
+        (WritingMode::VerticalRl | WritingMode::SidewaysRl, Direction::Ltr, FlexDirection::Row)
+        | (
+            WritingMode::VerticalRl | WritingMode::SidewaysRl,
+            Direction::Rtl,
+            FlexDirection::RowReverse,
+        ) => [(90.0, 0.0), (80.0, 10.0), (70.0, 30.0)],
+        (
+            WritingMode::VerticalRl | WritingMode::SidewaysRl,
+            Direction::Ltr,
+            FlexDirection::RowReverse,
+        )
+        | (WritingMode::VerticalRl | WritingMode::SidewaysRl, Direction::Rtl, FlexDirection::Row) => {
+            [(90.0, 90.0), (80.0, 70.0), (70.0, 40.0)]
+        }
+        (
+            WritingMode::VerticalRl | WritingMode::SidewaysRl,
+            Direction::Ltr,
+            FlexDirection::Column,
+        ) => [(90.0, 0.0), (70.0, 0.0), (40.0, 0.0)],
+        (
+            WritingMode::VerticalRl | WritingMode::SidewaysRl,
+            Direction::Ltr,
+            FlexDirection::ColumnReverse,
+        ) => [(0.0, 0.0), (10.0, 0.0), (30.0, 0.0)],
+        (
+            WritingMode::VerticalRl | WritingMode::SidewaysRl,
+            Direction::Rtl,
+            FlexDirection::Column,
+        ) => [(90.0, 90.0), (70.0, 80.0), (40.0, 70.0)],
+        (
+            WritingMode::VerticalRl | WritingMode::SidewaysRl,
+            Direction::Rtl,
+            FlexDirection::ColumnReverse,
+        ) => [(0.0, 90.0), (10.0, 80.0), (30.0, 70.0)],
+        (WritingMode::VerticalLr, Direction::Ltr, FlexDirection::Row)
+        | (WritingMode::VerticalLr, Direction::Rtl, FlexDirection::RowReverse)
+        | (WritingMode::SidewaysLr, Direction::Rtl, FlexDirection::Row)
+        | (WritingMode::SidewaysLr, Direction::Ltr, FlexDirection::RowReverse) => {
+            [(0.0, 0.0), (0.0, 10.0), (0.0, 30.0)]
+        }
+        (WritingMode::VerticalLr, Direction::Ltr, FlexDirection::RowReverse)
+        | (WritingMode::VerticalLr, Direction::Rtl, FlexDirection::Row)
+        | (WritingMode::SidewaysLr, Direction::Rtl, FlexDirection::RowReverse)
+        | (WritingMode::SidewaysLr, Direction::Ltr, FlexDirection::Row) => {
+            [(0.0, 90.0), (0.0, 70.0), (0.0, 40.0)]
+        }
+        (WritingMode::VerticalLr, Direction::Ltr, FlexDirection::Column)
+        | (WritingMode::SidewaysLr, Direction::Rtl, FlexDirection::Column) => {
+            [(0.0, 0.0), (10.0, 0.0), (30.0, 0.0)]
+        }
+        (WritingMode::VerticalLr, Direction::Ltr, FlexDirection::ColumnReverse)
+        | (WritingMode::SidewaysLr, Direction::Rtl, FlexDirection::ColumnReverse) => {
+            [(90.0, 0.0), (70.0, 0.0), (40.0, 0.0)]
+        }
+        (WritingMode::VerticalLr, Direction::Rtl, FlexDirection::Column)
+        | (WritingMode::SidewaysLr, Direction::Ltr, FlexDirection::Column) => {
+            [(0.0, 90.0), (10.0, 80.0), (30.0, 70.0)]
+        }
+        (WritingMode::VerticalLr, Direction::Rtl, FlexDirection::ColumnReverse)
+        | (WritingMode::SidewaysLr, Direction::Ltr, FlexDirection::ColumnReverse) => {
+            [(90.0, 90.0), (70.0, 80.0), (40.0, 70.0)]
+        }
+    }
+}
+
+fn assert_logical_flex_placement_vertical_lr_row_projects_inline_main<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, logical_flex_leaf(10.0, 20.0))
+        .with_style(2, logical_flex_leaf(10.0, 20.0));
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("non-leaf flex root layout succeeds");
+
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).location,
+        Point::new(scalar(0.0), scalar(0.0))
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 2).location,
+        Point::new(scalar(0.0), scalar(20.0))
+    );
+}
+
+#[test]
+fn logical_flex_placement_vertical_lr_row_projects_inline_main_for_f32() {
+    assert_logical_flex_placement_vertical_lr_row_projects_inline_main::<f32>();
+}
+
+#[test]
+fn logical_flex_placement_vertical_lr_row_projects_inline_main_for_f64() {
+    assert_logical_flex_placement_vertical_lr_row_projects_inline_main::<f64>();
+}
+
+fn assert_logical_flex_boundaries_reverse_and_wrap_reverse_project_once<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let reversed = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::RowReverse,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, logical_flex_leaf(10.0, 20.0))
+        .with_style(2, logical_flex_leaf(10.0, 20.0));
+    let reversed_batch = compute_layout(
+        &reversed,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("reversed non-leaf flex root layout succeeds");
+    assert_eq!(
+        public_flow_output(reversed_batch.final_entries(), 1).location,
+        Point::new(scalar(0.0), scalar(80.0))
+    );
+    assert_eq!(
+        public_flow_output(reversed_batch.final_entries(), 2).location,
+        Point::new(scalar(0.0), scalar(60.0))
+    );
+
+    let wrapped = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::WrapReverse,
+                align_content: Some(AlignContent::FlexStart),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, logical_flex_leaf(10.0, 60.0))
+        .with_style(2, logical_flex_leaf(10.0, 60.0));
+    let wrapped_batch = compute_layout(
+        &wrapped,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("wrapped non-leaf flex root layout succeeds");
+    assert_eq!(
+        public_flow_output(wrapped_batch.final_entries(), 1).location,
+        Point::new(scalar(90.0), scalar(0.0))
+    );
+    assert_eq!(
+        public_flow_output(wrapped_batch.final_entries(), 2).location,
+        Point::new(scalar(80.0), scalar(0.0))
+    );
+}
+
+#[test]
+fn logical_flex_boundaries_reverse_and_wrap_reverse_project_once_for_f32() {
+    assert_logical_flex_boundaries_reverse_and_wrap_reverse_project_once::<f32>();
+}
+
+#[test]
+fn logical_flex_boundaries_reverse_and_wrap_reverse_project_once_for_f64() {
+    assert_logical_flex_boundaries_reverse_and_wrap_reverse_project_once::<f64>();
+}
+
+fn assert_logical_flex_placement_wrap_reverse_keeps_logical_and_flex_alignment_distinct<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2, 3, 4])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_children(3, [])
+        .with_children(4, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::WrapReverse,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                align_self: Some(AlignItems::Start),
+                ..logical_flex_leaf(10.0, 10.0)
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                align_self: Some(AlignItems::FlexStart),
+                ..logical_flex_leaf(10.0, 10.0)
+            },
+        )
+        .with_style(
+            3,
+            NodeInputOf {
+                align_self: Some(AlignItems::End),
+                ..logical_flex_leaf(10.0, 10.0)
+            },
+        )
+        .with_style(
+            4,
+            NodeInputOf {
+                align_self: Some(AlignItems::FlexEnd),
+                ..logical_flex_leaf(10.0, 10.0)
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("wrap-reverse logical and flex alignment succeeds");
+
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).location,
+        Point::new(scalar(0.0), scalar(0.0)),
+        "logical start remains tied to the container flow start"
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 2).location,
+        Point::new(scalar(10.0), scalar(90.0)),
+        "flex start follows the wrap-reversed cross axis"
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 3).location,
+        Point::new(scalar(20.0), scalar(90.0)),
+        "logical end remains tied to the container flow end"
+    );
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 4).location,
+        Point::new(scalar(30.0), scalar(0.0)),
+        "flex end follows the wrap-reversed cross axis"
+    );
+}
+
+#[test]
+fn logical_flex_placement_wrap_reverse_distinguishes_logical_and_flex_alignment_for_f32() {
+    assert_logical_flex_placement_wrap_reverse_keeps_logical_and_flex_alignment_distinct::<f32>();
+}
+
+#[test]
+fn logical_flex_placement_wrap_reverse_distinguishes_logical_and_flex_alignment_for_f64() {
+    assert_logical_flex_placement_wrap_reverse_keeps_logical_and_flex_alignment_distinct::<f64>();
+}
+
+fn assert_logical_flex_placement_maps_auto_margins_and_relative_trailing_inset<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                position: Position::Relative,
+                margin: Edges {
+                    top: LengthAutoOf::AUTO,
+                    left: LengthAutoOf::AUTO,
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                inset: Edges {
+                    bottom: LengthAutoOf::px(scalar(5.0)),
+                    ..Edges::all(LengthAutoOf::AUTO)
+                },
+                ..logical_flex_leaf(10.0, 20.0)
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("logical auto-margin layout succeeds");
+    let output = public_flow_output(batch.final_entries(), 1);
+    assert_eq!(output.margin.top, scalar(80.0));
+    assert_eq!(output.margin.left, scalar(90.0));
+    assert_eq!(output.location, Point::new(scalar(90.0), scalar(75.0)));
+}
+
+#[test]
+fn logical_flex_placement_maps_auto_margins_and_relative_trailing_inset_for_f32() {
+    assert_logical_flex_placement_maps_auto_margins_and_relative_trailing_inset::<f32>();
+}
+
+#[test]
+fn logical_flex_placement_maps_auto_margins_and_relative_trailing_inset_for_f64() {
+    assert_logical_flex_placement_maps_auto_margins_and_relative_trailing_inset::<f64>();
+}
+
+fn assert_logical_flex_boundaries_positioned_insets_keep_normal_flow_precedence<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    struct Case {
+        name: &'static str,
+        writing_mode: WritingMode,
+        direction: Direction,
+        flex_direction: FlexDirection,
+        flex_wrap: FlexWrap,
+        relative_location: Point<f64>,
+        absolute_location: Point<f64>,
+    }
+
+    for case in [
+        Case {
+            name: "horizontal LTR row reverse",
+            writing_mode: WritingMode::HorizontalTb,
+            direction: Direction::Ltr,
+            flex_direction: FlexDirection::RowReverse,
+            flex_wrap: FlexWrap::NoWrap,
+            relative_location: Point::new(100.0, 20.0),
+            absolute_location: Point::new(10.0, 20.0),
+        },
+        Case {
+            name: "horizontal LTR row wrap reverse",
+            writing_mode: WritingMode::HorizontalTb,
+            direction: Direction::Ltr,
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::WrapReverse,
+            relative_location: Point::new(10.0, 110.0),
+            absolute_location: Point::new(10.0, 20.0),
+        },
+        Case {
+            name: "vertical RL RTL row reverse",
+            writing_mode: WritingMode::VerticalRl,
+            direction: Direction::Rtl,
+            flex_direction: FlexDirection::RowReverse,
+            flex_wrap: FlexWrap::NoWrap,
+            relative_location: Point::new(60.0, -40.0),
+            absolute_location: Point::new(60.0, 50.0),
+        },
+        Case {
+            name: "sideways LR RTL row wrap reverse",
+            writing_mode: WritingMode::SidewaysLr,
+            direction: Direction::Rtl,
+            flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::WrapReverse,
+            relative_location: Point::new(100.0, 20.0),
+            absolute_location: Point::new(10.0, 20.0),
+        },
+        Case {
+            name: "horizontal RTL column reverse",
+            writing_mode: WritingMode::HorizontalTb,
+            direction: Direction::Rtl,
+            flex_direction: FlexDirection::ColumnReverse,
+            flex_wrap: FlexWrap::NoWrap,
+            relative_location: Point::new(60.0, 110.0),
+            absolute_location: Point::new(60.0, 20.0),
+        },
+    ] {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    writing_mode: case.writing_mode,
+                    direction: case.direction,
+                    flex_direction: case.flex_direction,
+                    flex_wrap: case.flex_wrap,
+                    align_content: Some(AlignContent::FlexStart),
+                    align_items: Some(AlignItems::FlexStart),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    position: Position::Relative,
+                    inset: Edges {
+                        top: LengthAutoOf::px(scalar(20.0)),
+                        right: LengthAutoOf::px(scalar(30.0)),
+                        bottom: LengthAutoOf::px(scalar(40.0)),
+                        left: LengthAutoOf::px(scalar(10.0)),
+                    },
+                    ..logical_flex_leaf(10.0, 10.0)
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    inset: Edges {
+                        top: LengthAutoOf::px(scalar(20.0)),
+                        right: LengthAutoOf::px(scalar(30.0)),
+                        bottom: LengthAutoOf::px(scalar(40.0)),
+                        left: LengthAutoOf::px(scalar(10.0)),
+                    },
+                    ..logical_flex_leaf(10.0, 10.0)
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("positioned inset precedence layout succeeds");
+
+        assert_eq!(
+            public_flow_output(batch.final_entries(), 1).location,
+            Point::new(
+                scalar(case.relative_location.x),
+                scalar(case.relative_location.y),
+            ),
+            "{} relative positioning keeps normal-flow authored-edge precedence",
+            case.name
+        );
+        assert_eq!(
+            public_flow_output(batch.final_entries(), 2).location,
+            Point::new(
+                scalar(case.absolute_location.x),
+                scalar(case.absolute_location.y),
+            ),
+            "{} absolute positioning keeps normal-flow authored-edge precedence",
+            case.name
+        );
+    }
+}
+
+#[test]
+fn logical_flex_boundaries_positioned_insets_keep_normal_flow_precedence_for_f32() {
+    assert_logical_flex_boundaries_positioned_insets_keep_normal_flow_precedence::<f32>();
+}
+
+#[test]
+fn logical_flex_boundaries_positioned_insets_keep_normal_flow_precedence_for_f64() {
+    assert_logical_flex_boundaries_positioned_insets_keep_normal_flow_precedence::<f64>();
+}
+
+fn assert_logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physical<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                position: Position::Relative,
+                inset: Edges {
+                    top: LengthAutoOf::px(scalar(95.5)),
+                    ..Edges::all(LengthAutoOf::AUTO)
+                },
+                ..logical_flex_leaf(10.0, 20.0)
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("visible overflow and scroll projection succeed");
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).location,
+        Point::new(scalar(0.0), scalar(96.0))
+    );
+    let root = public_flow_output(batch.final_entries(), 0);
+    assert_eq!(root.content_size.height, scalar(116.0));
+    assert!(root.scroll_geometry.is_some());
+}
+
+#[test]
+fn logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physical_for_f32() {
+    assert_logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physical::<f32>();
+}
+
+#[test]
+fn logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physical_for_f64() {
+    assert_logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physical::<f64>();
+}
+
+fn assert_logical_flex_boundaries_absolute_static_alignment_and_all_flows<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let absolute = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalLr,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                position: Position::Absolute,
+                align_self: Some(AlignItems::FlexEnd),
+                ..logical_flex_leaf(10.0, 20.0)
+            },
+        );
+    let batch = compute_layout(
+        &absolute,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("logical absolute static alignment succeeds");
+    assert_eq!(
+        public_flow_output(batch.final_entries(), 1).location,
+        Point::new(scalar(90.0), scalar(0.0))
+    );
+
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for flex_direction in [
+                FlexDirection::Row,
+                FlexDirection::RowReverse,
+                FlexDirection::Column,
+                FlexDirection::ColumnReverse,
+            ] {
+                let parallel_flow = LogicalFlexChildFlow {
+                    writing_mode,
+                    direction,
+                };
+                let opposing_flow = logical_flex_opposing_flow(parallel_flow);
+                let orthogonal_flow = logical_flex_orthogonal_flow(parallel_flow);
+                let tree = PublicFlowTree::default()
+                    .with_children(0, [1, 2, 3])
+                    .with_children(1, [4])
+                    .with_children(2, [5])
+                    .with_children(3, [6])
+                    .with_children(4, [])
+                    .with_children(5, [])
+                    .with_children(6, [])
+                    .with_style(
+                        0,
+                        NodeInputOf {
+                            display: Display::Flex,
+                            writing_mode,
+                            direction,
+                            size: Size::splat(DimensionOf::px(scalar(100.0))),
+                            flex_direction,
+                            justify_content: Some(AlignContent::FlexStart),
+                            align_items: Some(AlignItems::Start),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .with_style(
+                        1,
+                        NodeInputOf {
+                            writing_mode: parallel_flow.writing_mode,
+                            direction: parallel_flow.direction,
+                            ..logical_flex_leaf(10.0, 10.0)
+                        },
+                    )
+                    .with_style(
+                        2,
+                        NodeInputOf {
+                            writing_mode: opposing_flow.writing_mode,
+                            direction: opposing_flow.direction,
+                            ..logical_flex_leaf(20.0, 20.0)
+                        },
+                    )
+                    .with_style(
+                        3,
+                        NodeInputOf {
+                            writing_mode: orthogonal_flow.writing_mode,
+                            direction: orthogonal_flow.direction,
+                            ..logical_flex_leaf(30.0, 30.0)
+                        },
+                    )
+                    .with_style(4, logical_flex_leaf(4.0, 5.0))
+                    .with_style(5, logical_flex_leaf(6.0, 7.0))
+                    .with_style(6, logical_flex_leaf(8.0, 9.0));
+                let batch = compute_layout(
+                    &tree,
+                    0,
+                    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
+                        100.0,
+                    ))))
+                    .expect("valid viewport request"),
+                )
+                .expect("all logical flex directions complete without fallback");
+                assert_eq!(batch.final_entries().len(), 7);
+                for (node, (x, y)) in [1_u32, 2, 3]
+                    .into_iter()
+                    .zip(logical_flex_all_flow_expected(
+                        writing_mode,
+                        direction,
+                        flex_direction,
+                    ))
+                {
+                    assert_eq!(
+                        public_flow_output(batch.final_entries(), node).location,
+                        Point::new(scalar(x), scalar(y)),
+                        "{writing_mode:?} {direction:?} {flex_direction:?} must project child {node} through its physical axis and progression"
+                    );
+                }
+                for (node, child_flow) in [
+                    (4_u32, parallel_flow),
+                    (5, opposing_flow),
+                    (6, orthogonal_flow),
+                ] {
+                    let (descendant_x, descendant_y) =
+                        logical_flex_descendant_expected(node, child_flow);
+                    assert_eq!(
+                        public_flow_output(batch.final_entries(), node).location,
+                        Point::new(scalar(descendant_x), scalar(descendant_y)),
+                        "{writing_mode:?} {direction:?} {flex_direction:?} must retain {child_flow:?} for descendant {node}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn logical_flex_descendant_expected(node: u32, child_flow: LogicalFlexChildFlow) -> (f64, f64) {
+    match (child_flow.writing_mode, child_flow.direction) {
+        (WritingMode::HorizontalTb, Direction::Ltr) => (0.0, 0.0),
+        (WritingMode::HorizontalTb, Direction::Rtl) => match node {
+            4 => (6.0, 0.0),
+            5 => (14.0, 0.0),
+            6 => (22.0, 0.0),
+            _ => unreachable!("all-flow descendant fixture has nodes 4 through 6"),
+        },
+        (WritingMode::VerticalRl | WritingMode::SidewaysRl, Direction::Ltr) => match node {
+            4 => (6.0, 0.0),
+            5 => (14.0, 0.0),
+            6 => (22.0, 0.0),
+            _ => unreachable!("all-flow descendant fixture has nodes 4 through 6"),
+        },
+        (WritingMode::VerticalRl | WritingMode::SidewaysRl, Direction::Rtl) => match node {
+            4 => (6.0, 5.0),
+            5 => (14.0, 13.0),
+            6 => (22.0, 21.0),
+            _ => unreachable!("all-flow descendant fixture has nodes 4 through 6"),
+        },
+        (WritingMode::VerticalLr, Direction::Ltr) => (0.0, 0.0),
+        (WritingMode::VerticalLr, Direction::Rtl) | (WritingMode::SidewaysLr, Direction::Ltr) => {
+            match node {
+                4 => (0.0, 5.0),
+                5 => (0.0, 13.0),
+                6 => (0.0, 21.0),
+                _ => unreachable!("all-flow descendant fixture has nodes 4 through 6"),
+            }
+        }
+        (WritingMode::SidewaysLr, Direction::Rtl) => (0.0, 0.0),
+    }
+}
+
+fn assert_logical_flex_placement_reversed_alignment_distinguishes_logical_and_flex_keywords<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    for (flex_direction, start, flex_start, end, flex_end) in [
+        (
+            FlexDirection::RowReverse,
+            (0.0, 0.0),
+            (90.0, 0.0),
+            (90.0, 0.0),
+            (0.0, 0.0),
+        ),
+        (
+            FlexDirection::ColumnReverse,
+            (0.0, 0.0),
+            (0.0, 90.0),
+            (0.0, 90.0),
+            (0.0, 0.0),
+        ),
+    ] {
+        for (alignment, expected) in [
+            (AlignContent::Start, start),
+            (AlignContent::FlexStart, flex_start),
+            (AlignContent::End, end),
+            (AlignContent::FlexEnd, flex_end),
+        ] {
+            let tree = PublicFlowTree::default()
+                .with_children(0, [1])
+                .with_children(1, [])
+                .with_style(
+                    0,
+                    NodeInputOf {
+                        display: Display::Flex,
+                        size: Size::splat(DimensionOf::px(scalar(100.0))),
+                        flex_direction,
+                        justify_content: Some(alignment),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .with_style(1, logical_flex_leaf(10.0, 10.0));
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                    .expect("valid viewport request"),
+            )
+            .expect("reversed main alignment layout succeeds");
+            assert_eq!(
+                public_flow_output(batch.final_entries(), 1).location,
+                Point::new(scalar(expected.0), scalar(expected.1)),
+                "{flex_direction:?} {alignment:?} keeps logical and flex-relative main alignment distinct"
+            );
+        }
+    }
+}
+
+fn assert_logical_flex_placement_wrap_reverse_align_content_distinguishes_logical_and_flex_keywords<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    for (alignment, expected_y) in [
+        (AlignContent::Start, 10.0),
+        (AlignContent::FlexStart, 90.0),
+        (AlignContent::End, 90.0),
+        (AlignContent::FlexEnd, 10.0),
+    ] {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Flex,
+                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    flex_wrap: FlexWrap::WrapReverse,
+                    align_content: Some(alignment),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(1, logical_flex_leaf(60.0, 10.0))
+            .with_style(2, logical_flex_leaf(60.0, 10.0));
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("wrap-reversed line alignment layout succeeds");
+        assert_eq!(
+            public_flow_output(batch.final_entries(), 1).location,
+            Point::new(scalar(0.0), scalar(expected_y)),
+            "wrap-reverse {alignment:?} keeps logical and flex-relative line alignment distinct"
+        );
+    }
+}
+
+fn assert_logical_flex_boundaries_absolute_reversed_main_alignment_distinguishes_logical_and_flex_keywords<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    for (flex_direction, start, flex_start, end, flex_end) in [
+        (
+            FlexDirection::RowReverse,
+            (0.0, 0.0),
+            (90.0, 0.0),
+            (90.0, 0.0),
+            (0.0, 0.0),
+        ),
+        (
+            FlexDirection::ColumnReverse,
+            (0.0, 0.0),
+            (0.0, 90.0),
+            (0.0, 90.0),
+            (0.0, 0.0),
+        ),
+    ] {
+        for (alignment, expected) in [
+            (AlignContent::Start, start),
+            (AlignContent::FlexStart, flex_start),
+            (AlignContent::End, end),
+            (AlignContent::FlexEnd, flex_end),
+        ] {
+            let tree = PublicFlowTree::default()
+                .with_children(0, [1])
+                .with_children(1, [])
+                .with_style(
+                    0,
+                    NodeInputOf {
+                        display: Display::Flex,
+                        size: Size::splat(DimensionOf::px(scalar(100.0))),
+                        flex_direction,
+                        justify_content: Some(alignment),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .with_style(
+                    1,
+                    NodeInputOf {
+                        position: Position::Absolute,
+                        ..logical_flex_leaf(10.0, 10.0)
+                    },
+                );
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+                    .expect("valid viewport request"),
+            )
+            .expect("absolute reversed main alignment layout succeeds");
+            assert_eq!(
+                public_flow_output(batch.final_entries(), 1).location,
+                Point::new(scalar(expected.0), scalar(expected.1)),
+                "absolute {flex_direction:?} {alignment:?} keeps logical and flex-relative main alignment distinct"
+            );
+        }
+    }
+}
+
+fn assert_logical_flex_boundaries_absolute_wrap_reverse_distinguishes_logical_and_flex_alignment<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2, 3, 4])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_children(3, [])
+        .with_children(4, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Flex,
+                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::WrapReverse,
+                ..NodeInputOf::default()
+            },
+        );
+    let tree = [
+        (1, AlignItems::Start),
+        (2, AlignItems::FlexStart),
+        (3, AlignItems::End),
+        (4, AlignItems::FlexEnd),
+    ]
+    .into_iter()
+    .fold(tree, |tree, (node, align_self)| {
+        tree.with_style(
+            node,
+            NodeInputOf {
+                position: Position::Absolute,
+                align_self: Some(align_self),
+                ..logical_flex_leaf(10.0, 10.0)
+            },
+        )
+    });
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(100.0))))
+            .expect("valid viewport request"),
+    )
+    .expect("absolute wrap-reverse logical and flex alignment succeeds");
+
+    for (node, expected_y) in [(1, 0.0), (2, 90.0), (3, 90.0), (4, 0.0)] {
+        assert_eq!(
+            public_flow_output(batch.final_entries(), node).location,
+            Point::new(scalar(0.0), scalar(expected_y)),
+            "absolute item {node} keeps its logical or flex-relative cross alignment"
+        );
+    }
+}
+
+#[test]
+fn logical_flex_boundaries_absolute_static_alignment_and_all_flows_for_f32() {
+    assert_logical_flex_boundaries_absolute_static_alignment_and_all_flows::<f32>();
+}
+
+#[test]
+fn logical_flex_boundaries_absolute_static_alignment_and_all_flows_for_f64() {
+    assert_logical_flex_boundaries_absolute_static_alignment_and_all_flows::<f64>();
+}
+
+#[test]
+fn logical_flex_placement_reversed_alignment_distinguishes_logical_and_flex_keywords_for_f32() {
+    assert_logical_flex_placement_reversed_alignment_distinguishes_logical_and_flex_keywords::<f32>(
+    );
+}
+
+#[test]
+fn logical_flex_placement_reversed_alignment_distinguishes_logical_and_flex_keywords_for_f64() {
+    assert_logical_flex_placement_reversed_alignment_distinguishes_logical_and_flex_keywords::<f64>(
+    );
+}
+
+#[test]
+fn logical_flex_placement_wrap_reverse_align_content_distinguishes_logical_and_flex_keywords_for_f32()
+ {
+    assert_logical_flex_placement_wrap_reverse_align_content_distinguishes_logical_and_flex_keywords::<f32>();
+}
+
+#[test]
+fn logical_flex_placement_wrap_reverse_align_content_distinguishes_logical_and_flex_keywords_for_f64()
+ {
+    assert_logical_flex_placement_wrap_reverse_align_content_distinguishes_logical_and_flex_keywords::<f64>();
+}
+
+#[test]
+fn logical_flex_boundaries_absolute_reversed_main_alignment_distinguishes_logical_and_flex_keywords_for_f32()
+ {
+    assert_logical_flex_boundaries_absolute_reversed_main_alignment_distinguishes_logical_and_flex_keywords::<f32>();
+}
+
+#[test]
+fn logical_flex_boundaries_absolute_reversed_main_alignment_distinguishes_logical_and_flex_keywords_for_f64()
+ {
+    assert_logical_flex_boundaries_absolute_reversed_main_alignment_distinguishes_logical_and_flex_keywords::<f64>();
+}
+
+#[test]
+fn logical_flex_boundaries_absolute_wrap_reverse_distinguishes_logical_and_flex_alignment_for_f32()
+{
+    assert_logical_flex_boundaries_absolute_wrap_reverse_distinguishes_logical_and_flex_alignment::<
+        f32,
+    >();
+}
+
+#[test]
+fn logical_flex_boundaries_absolute_wrap_reverse_distinguishes_logical_and_flex_alignment_for_f64()
+{
+    assert_logical_flex_boundaries_absolute_wrap_reverse_distinguishes_logical_and_flex_alignment::<
+        f64,
+    >();
+}
+
 fn assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis<S: LayoutScalar>() {
     let scalar = scalar::<S>;
     let tree = PublicFlowTree::default()
@@ -380,11 +1443,11 @@ fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contribu
 
     assert_eq!(
         public_flow_output(batch.final_entries(), 1).size,
-        Size::new(scalar(20.0), scalar(60.0))
+        Size::new(scalar(30.0), scalar(30.0))
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 2).size,
-        Size::new(scalar(20.0), scalar(60.0))
+        Size::new(scalar(30.0), scalar(70.0))
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 1).content_size,
@@ -665,11 +1728,11 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
 
     assert_eq!(
         public_flow_output(batch.final_entries(), 4).size,
-        Size::new(scalar(0.0), scalar(40.0))
+        Size::new(scalar(30.0), scalar(20.0))
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 5).size,
-        Size::new(scalar(0.0), scalar(40.0))
+        Size::new(scalar(30.0), scalar(20.0))
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 6).size,

@@ -89,7 +89,6 @@ struct Constants<S: LayoutScalar> {
     flow_axes: crate::geometry::FlowAxes,
     axes: FlexAxes,
     direction: FlexDirection,
-    layout_direction: Direction,
     node_outer_size: Size<Option<S>>,
     node_inner_size: Size<Option<S>>,
     min_outer_size: Size<Option<S>>,
@@ -104,7 +103,6 @@ struct Constants<S: LayoutScalar> {
     align_content: AlignContent,
     justify_content: AlignContent,
     wraps: bool,
-    wrap_reverse: bool,
     available: Size<AvailableOf<S>>,
     available_main: AvailableOf<S>,
 }
@@ -209,7 +207,6 @@ impl<S: LayoutScalar> Constants<S> {
             flow_axes,
             axes,
             direction: style.flex_direction,
-            layout_direction: style.direction,
             node_outer_size,
             node_inner_size,
             min_outer_size: min_size,
@@ -227,7 +224,6 @@ impl<S: LayoutScalar> Constants<S> {
                 style.flex_wrap,
                 super::FlexWrap::Wrap | super::FlexWrap::WrapReverse
             ),
-            wrap_reverse: style.flex_wrap == super::FlexWrap::WrapReverse,
             available: input.available(),
             available_main: axes.main_size(input.available()),
         })
@@ -493,6 +489,26 @@ impl FlexAxes {
     }
 
     #[must_use]
+    pub(crate) fn normal_main_start_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.normal_axis_start_side(self.main_logical_axis))
+    }
+
+    #[must_use]
+    pub(crate) fn normal_main_end_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.normal_axis_end_side(self.main_logical_axis))
+    }
+
+    #[must_use]
+    pub(crate) fn normal_cross_start_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.normal_axis_start_side(self.cross_logical_axis))
+    }
+
+    #[must_use]
+    pub(crate) fn normal_cross_end_edge<T>(self, edges: Edges<T>) -> T {
+        self.edge_at_side(edges, self.normal_axis_end_side(self.cross_logical_axis))
+    }
+
+    #[must_use]
     pub(crate) fn main_edge_sum<S: LayoutScalar>(self, edges: Edges<S>) -> S {
         self.main_start_edge(edges) + self.main_end_edge(edges)
     }
@@ -538,6 +554,91 @@ impl FlexAxes {
             PhysicalAxis::Horizontal => cross * aspect_ratio.get(),
             PhysicalAxis::Vertical => cross / aspect_ratio.get(),
         }
+    }
+
+    #[must_use]
+    pub(crate) fn main_position_from_start<S: LayoutScalar>(
+        self,
+        container: Size<S>,
+        start_inset: S,
+        offset: S,
+        item_size: S,
+        relative_offset: S,
+    ) -> S {
+        let coordinate = start_inset + offset + relative_offset;
+        match self.main_progression {
+            PhysicalProgression::Increasing => coordinate,
+            PhysicalProgression::Decreasing => self.main_size(container) - coordinate - item_size,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn cross_position_from_start<S: LayoutScalar>(
+        self,
+        container: Size<S>,
+        start_inset: S,
+        offset: S,
+        item_size: S,
+        relative_offset: S,
+    ) -> S {
+        let coordinate = start_inset + offset + relative_offset;
+        match self.cross_progression {
+            PhysicalProgression::Increasing => coordinate,
+            PhysicalProgression::Decreasing => self.cross_size(container) - coordinate - item_size,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn main_offset_from_normal_flow<S: LayoutScalar>(self, offset: S) -> S {
+        if self.main_reversed { -offset } else { offset }
+    }
+
+    #[must_use]
+    pub(crate) fn cross_offset_from_normal_flow<S: LayoutScalar>(self, offset: S) -> S {
+        if self.cross_reversed { -offset } else { offset }
+    }
+
+    #[must_use]
+    pub(crate) fn main_position_from_normal_start<S: LayoutScalar>(
+        self,
+        container: Size<S>,
+        offset: S,
+        item_size: S,
+    ) -> S {
+        let flex_offset = if self.main_reversed {
+            self.main_size(container) - offset - item_size
+        } else {
+            offset
+        };
+        self.main_position_from_start(container, S::ZERO, flex_offset, item_size, S::ZERO)
+    }
+
+    #[must_use]
+    pub(crate) fn cross_position_from_normal_start<S: LayoutScalar>(
+        self,
+        container: Size<S>,
+        offset: S,
+        item_size: S,
+    ) -> S {
+        let flex_offset = if self.cross_reversed {
+            self.cross_size(container) - offset - item_size
+        } else {
+            offset
+        };
+        self.cross_position_from_start(container, S::ZERO, flex_offset, item_size, S::ZERO)
+    }
+
+    #[must_use]
+    const fn normal_axis_start_side(self, axis: LogicalAxis) -> PhysicalSide {
+        match axis {
+            LogicalAxis::Inline => self.flow_axes.inline_start(),
+            LogicalAxis::Block => self.flow_axes.block_start(),
+        }
+    }
+
+    #[must_use]
+    const fn normal_axis_end_side(self, axis: LogicalAxis) -> PhysicalSide {
+        self.normal_axis_start_side(axis).opposite()
     }
 
     const fn reverse_progression(
@@ -1223,14 +1324,6 @@ fn flex_base_known_size<S: LayoutScalar>(
     known
 }
 
-fn requested_axis(direction: FlexDirection) -> RequestedAxis {
-    if direction.is_row() {
-        RequestedAxis::Horizontal
-    } else {
-        RequestedAxis::Vertical
-    }
-}
-
 fn clamp_available<S: LayoutScalar>(
     available: AvailableOf<S>,
     min: Option<S>,
@@ -1334,7 +1427,6 @@ where
         .copied()
         .map(ResolvedFlexItem::from)
         .collect::<Vec<_>>();
-    let direction = constants.direction;
     let cross_gap = constants.axes.cross_size(constants.gap);
     let mut cross_cursor = Tree::Scalar::ZERO;
     let single_line = !constants.wraps;
@@ -1351,17 +1443,12 @@ where
             item_count,
             constants.axes.main_size(constants.gap),
             justify_content,
-            direction.is_reverse(),
+            constants.axes.main_is_reversed(),
             true,
         );
         let mut cross_size = Tree::Scalar::ZERO;
 
-        let mut item_indices = (line.start..line.end).collect::<Vec<_>>();
-        if direction.is_reverse() {
-            item_indices.reverse();
-        }
-
-        for (index, item_index) in item_indices.into_iter().enumerate() {
+        for (index, item_index) in (line.start..line.end).enumerate() {
             if index > 0 {
                 main_cursor = main_cursor
                     + alignment_offset(
@@ -1369,7 +1456,7 @@ where
                         item_count,
                         constants.axes.main_size(constants.gap),
                         justify_content,
-                        direction.is_reverse(),
+                        constants.axes.main_is_reversed(),
                         false,
                     );
             }
@@ -1377,10 +1464,7 @@ where
             let item = &mut resolved_items[item_index];
             determine_hypothetical_cross_size(tree, item, constants)?;
             item.offset_main = main_cursor + item.margin_main_start(constants);
-            item.offset_cross = cross_cursor
-                + item
-                    .margin
-                    .cross_start(direction, constants.layout_direction);
+            item.offset_cross = cross_cursor + constants.axes.cross_start_edge(item.margin);
 
             main_cursor = main_cursor
                 + constants.axes.main_size(item.target_size)
@@ -1425,29 +1509,23 @@ fn align_lines_on_cross_axis<Node, S: LayoutScalar>(
     lines: &mut [FlexLine<S>],
     constants: &Constants<S>,
 ) {
-    let direction = constants.direction;
-    let Some(container_cross_size) = constants.node_inner_size.cross(direction) else {
+    let Some(container_cross_size) = constants.axes.cross_size(constants.node_inner_size) else {
         return;
     };
     let line_count = lines.len();
-    let cross_gap = constants.gap.cross(direction);
+    let cross_gap = constants.axes.cross_size(constants.gap);
     let used_cross_size = lines
         .iter()
         .fold(S::ZERO, |sum, line| sum + line.cross_size)
         + cross_gap * S::from_usize(line_count.saturating_sub(1));
     let free_space = container_cross_size - used_cross_size;
     let align_content = alignment_fallback(free_space, line_count, constants.align_content);
-    if constants.wrap_reverse {
-        align_reversed_lines_on_cross_axis(items, lines, free_space, cross_gap, align_content);
-        return;
-    }
-
     let mut cross_cursor = alignment_offset(
         free_space,
         line_count,
         cross_gap,
         align_content,
-        false,
+        constants.axes.cross_is_reversed(),
         true,
     );
     for (index, line) in lines.iter_mut().enumerate() {
@@ -1458,7 +1536,7 @@ fn align_lines_on_cross_axis<Node, S: LayoutScalar>(
                     line_count,
                     cross_gap,
                     align_content,
-                    false,
+                    constants.axes.cross_is_reversed(),
                     false,
                 );
         }
@@ -1571,11 +1649,10 @@ fn stretch_lines_on_cross_axis<Node, S: LayoutScalar>(
         return;
     }
 
-    let direction = constants.direction;
-    let Some(container_cross_size) = constants.node_inner_size.cross(direction) else {
+    let Some(container_cross_size) = constants.axes.cross_size(constants.node_inner_size) else {
         return;
     };
-    let cross_gap = constants.gap.cross(direction);
+    let cross_gap = constants.axes.cross_size(constants.gap);
     let used_cross_size = lines
         .iter()
         .fold(S::ZERO, |sum, line| sum + line.cross_size)
@@ -1593,36 +1670,6 @@ fn stretch_lines_on_cross_axis<Node, S: LayoutScalar>(
             line.offset_cross,
             constants,
         );
-    }
-}
-
-fn align_reversed_lines_on_cross_axis<Node, S: LayoutScalar>(
-    items: &mut [ResolvedFlexItem<Node, S>],
-    lines: &mut [FlexLine<S>],
-    free_space: S,
-    cross_gap: S,
-    align_content: AlignContent,
-) {
-    let line_count = lines.len();
-    let mut total_cross_offset = S::ZERO;
-
-    for (reverse_index, line_index) in (0..lines.len()).rev().enumerate() {
-        let line_alignment_offset = alignment_offset(
-            free_space,
-            line_count,
-            cross_gap,
-            align_content,
-            true,
-            reverse_index == 0,
-        );
-        let line = &mut lines[line_index];
-        let aligned_cross_offset = total_cross_offset + line_alignment_offset;
-        let delta = aligned_cross_offset - line.offset_cross;
-        line.offset_cross = aligned_cross_offset;
-        for item in &mut items[line.start..line.end] {
-            item.offset_cross = item.offset_cross + delta;
-        }
-        total_cross_offset = total_cross_offset + line_alignment_offset + line.cross_size;
     }
 }
 
@@ -1672,44 +1719,46 @@ fn align_items_on_cross_axis<Node, S: LayoutScalar>(
     line_cross_offset: S,
     constants: &Constants<S>,
 ) {
-    let direction = constants.direction;
-    let cross_axis = flex_cross_axis(direction);
+    let cross_axis = constants.axes.cross_physical_axis();
     let max_baseline = max_line_baseline(items, cross_axis);
     for item in items {
         resolve_cross_axis_auto_margins(item, line_cross_size, constants);
-        let outer_cross_size = item.target_size.cross(direction) + item.margin.cross_sum(direction);
+        let outer_cross_size = constants.axes.cross_size(item.target_size)
+            + constants.axes.cross_edge_sum(item.margin);
         let free_space = line_cross_size - outer_cross_size;
         if item.align_self == AlignItems::Stretch && item.cross_size_is_auto {
-            let stretched_cross_size =
-                S::max(S::ZERO, line_cross_size - item.margin.cross_sum(direction));
+            let stretched_cross_size = S::max(
+                S::ZERO,
+                line_cross_size - constants.axes.cross_edge_sum(item.margin),
+            );
             let stretched_cross_size = clamp_cross_size(item, stretched_cross_size);
-            item.target_size = item.target_size.with_cross(direction, stretched_cross_size);
+            item.target_size = constants
+                .axes
+                .with_cross_size(item.target_size, stretched_cross_size);
         }
         let alignment_offset = match item.align_self.safe_fallback(free_space) {
-            AlignItems::Start => S::ZERO,
-            AlignItems::End | AlignItems::LastBaseline => free_space,
-            AlignItems::FlexStart | AlignItems::Stretch => {
-                if constants.wrap_reverse {
+            AlignItems::Start => {
+                if constants.axes.cross_is_reversed() {
                     free_space
                 } else {
                     S::ZERO
                 }
             }
+            AlignItems::End | AlignItems::LastBaseline => {
+                if constants.axes.cross_is_reversed() {
+                    S::ZERO
+                } else {
+                    free_space
+                }
+            }
+            AlignItems::FlexStart | AlignItems::Stretch => S::ZERO,
             AlignItems::Center => free_space / S::from_f64(2.0),
-            AlignItems::FlexEnd => {
-                if constants.wrap_reverse {
-                    S::ZERO
-                } else {
-                    free_space
-                }
-            }
-            AlignItems::Baseline
-                if direction.is_row() && item.baseline.axis(item.target_size) == cross_axis =>
-            {
+            AlignItems::FlexEnd => free_space,
+            AlignItems::Baseline if item.baseline.axis(item.target_size) == cross_axis => {
                 max_baseline - item.baseline.value(item.target_size, item.margin)
             }
             AlignItems::Baseline
-                if constants.wraps && constants.layout_direction == Direction::Rtl =>
+                if constants.wraps && constants.axes.flow_direction() == Direction::Rtl =>
             {
                 free_space
             }
@@ -1723,8 +1772,7 @@ fn align_items_on_cross_axis<Node, S: LayoutScalar>(
         {
             item.baseline.flow_axes.line_over_edge(item.margin)
         } else {
-            item.margin
-                .cross_start(direction, constants.layout_direction)
+            constants.axes.cross_start_edge(item.margin)
         };
         item.offset_cross = line_cross_offset + line_over_margin + alignment_offset;
     }
@@ -1734,7 +1782,7 @@ fn line_cross_size<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) -> S {
-    let cross_axis = flex_cross_axis(constants.direction);
+    let cross_axis = constants.axes.cross_physical_axis();
     let max_baseline = max_line_baseline(items, cross_axis);
     items
         .iter()
@@ -1747,11 +1795,10 @@ fn line_item_cross_size<Node, S: LayoutScalar>(
     max_baseline: S,
     constants: &Constants<S>,
 ) -> S {
-    let direction = constants.direction;
-    let outer_cross_size = item.target_size.cross(direction) + item.margin.cross_sum(direction);
+    let outer_cross_size =
+        constants.axes.cross_size(item.target_size) + constants.axes.cross_edge_sum(item.margin);
     if item.align_self == AlignItems::Baseline
-        && direction.is_row()
-        && item.baseline.axis(item.target_size) == flex_cross_axis(direction)
+        && item.baseline.axis(item.target_size) == constants.axes.cross_physical_axis()
         && !item.baseline.has_auto_line_margin(item.margin_is_auto)
     {
         return max_baseline - item.baseline.value(item.target_size, item.margin)
@@ -1775,14 +1822,6 @@ fn max_line_baseline<Node, S: LayoutScalar>(
         .fold(S::ZERO, S::max)
 }
 
-fn flex_cross_axis(direction: FlexDirection) -> PhysicalAxis {
-    if direction.is_row() {
-        PhysicalAxis::Vertical
-    } else {
-        PhysicalAxis::Horizontal
-    }
-}
-
 fn first_vertical_baseline<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     lines: &[FlexLine<S>],
@@ -1792,15 +1831,29 @@ fn first_vertical_baseline<Node, S: LayoutScalar>(
     let line_items = &items[line.start..line.end];
     let item = line_items
         .iter()
-        .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
+        .find(|item| {
+            constants.axes.main_logical_axis() == LogicalAxis::Block
+                || item.align_self == AlignItems::Baseline
+        })
         .or_else(|| line_items.first())?;
-    let location = Point::from_main_cross(
-        constants.direction,
-        constants.content_box_inset.main_start(constants.direction) + item.offset_main,
-        constants
-            .content_box_inset
-            .cross_start(constants.direction, constants.layout_direction)
-            + item.offset_cross,
+    let container = constants
+        .node_outer_size
+        .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO));
+    let location = constants.axes.point_from_main_cross(
+        constants.axes.main_position_from_start(
+            container,
+            constants.axes.main_start_edge(constants.content_box_inset),
+            item.offset_main,
+            constants.axes.main_size(item.target_size),
+            S::ZERO,
+        ),
+        constants.axes.cross_position_from_start(
+            container,
+            constants.axes.cross_start_edge(constants.content_box_inset),
+            item.offset_cross,
+            constants.axes.cross_size(item.target_size),
+            S::ZERO,
+        ),
     );
     Some(item_physical_baseline(
         location,
@@ -1819,15 +1872,29 @@ fn last_vertical_baseline<Node, S: LayoutScalar>(
     let item = line_items
         .iter()
         .rev()
-        .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
+        .find(|item| {
+            constants.axes.main_logical_axis() == LogicalAxis::Block
+                || item.align_self == AlignItems::Baseline
+        })
         .or_else(|| line_items.last())?;
-    let location = Point::from_main_cross(
-        constants.direction,
-        constants.content_box_inset.main_start(constants.direction) + item.offset_main,
-        constants
-            .content_box_inset
-            .cross_start(constants.direction, constants.layout_direction)
-            + item.offset_cross,
+    let container = constants
+        .node_outer_size
+        .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO));
+    let location = constants.axes.point_from_main_cross(
+        constants.axes.main_position_from_start(
+            container,
+            constants.axes.main_start_edge(constants.content_box_inset),
+            item.offset_main,
+            constants.axes.main_size(item.target_size),
+            S::ZERO,
+        ),
+        constants.axes.cross_position_from_start(
+            container,
+            constants.axes.cross_start_edge(constants.content_box_inset),
+            item.offset_cross,
+            constants.axes.cross_size(item.target_size),
+            S::ZERO,
+        ),
     );
     Some(item_physical_baseline(
         location,
@@ -1845,7 +1912,10 @@ fn first_final_vertical_baseline<Node, S: LayoutScalar>(
     let line_items = &items[line.start..line.end];
     let item = line_items
         .iter()
-        .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
+        .find(|item| {
+            constants.axes.main_logical_axis() == LogicalAxis::Block
+                || item.align_self == AlignItems::Baseline
+        })
         .or_else(|| line_items.first())?;
     Some(item_physical_baseline(
         item.location,
@@ -1864,7 +1934,10 @@ fn last_final_vertical_baseline<Node, S: LayoutScalar>(
     let item = line_items
         .iter()
         .rev()
-        .find(|item| constants.direction.is_column() || item.align_self == AlignItems::Baseline)
+        .find(|item| {
+            constants.axes.main_logical_axis() == LogicalAxis::Block
+                || item.align_self == AlignItems::Baseline
+        })
         .or_else(|| line_items.last())?;
     Some(item_physical_baseline(
         item.location,
@@ -1893,36 +1966,37 @@ fn resolve_cross_axis_auto_margins<Node, S: LayoutScalar>(
     line_cross_size: S,
     constants: &Constants<S>,
 ) {
-    let direction = constants.direction;
-    let layout_direction = constants.layout_direction;
-    let auto_start = item.margin_is_auto.cross_start(direction, layout_direction);
-    let auto_end = item.margin_is_auto.cross_end(direction, layout_direction);
+    let auto_start = constants.axes.cross_start_edge(item.margin_is_auto);
+    let auto_end = constants.axes.cross_end_edge(item.margin_is_auto);
     if !auto_start && !auto_end {
         return;
     }
     if auto_start {
-        item.margin
-            .set_cross_start(direction, layout_direction, S::ZERO);
+        constants
+            .axes
+            .set_cross_start_edge(&mut item.margin, S::ZERO);
     }
     if auto_end {
-        item.margin
-            .set_cross_end(direction, layout_direction, S::ZERO);
+        constants.axes.set_cross_end_edge(&mut item.margin, S::ZERO);
     }
 
-    let free_space =
-        line_cross_size - item.target_size.cross(direction) - item.margin.cross_sum(direction);
+    let free_space = line_cross_size
+        - constants.axes.cross_size(item.target_size)
+        - constants.axes.cross_edge_sum(item.margin);
     if auto_start && auto_end {
         let margin = free_space / S::from_f64(2.0);
-        item.margin
-            .set_cross_start(direction, layout_direction, margin);
-        item.margin
-            .set_cross_end(direction, layout_direction, margin);
+        constants
+            .axes
+            .set_cross_start_edge(&mut item.margin, margin);
+        constants.axes.set_cross_end_edge(&mut item.margin, margin);
     } else if auto_start {
-        item.margin
-            .set_cross_start(direction, layout_direction, free_space);
+        constants
+            .axes
+            .set_cross_start_edge(&mut item.margin, free_space);
     } else if auto_end {
-        item.margin
-            .set_cross_end(direction, layout_direction, free_space);
+        constants
+            .axes
+            .set_cross_end_edge(&mut item.margin, free_space);
     }
 }
 
@@ -1930,7 +2004,6 @@ fn line_free_space<Node, S: LayoutScalar>(
     items: &[ResolvedFlexItem<Node, S>],
     constants: &Constants<S>,
 ) -> S {
-    let direction = constants.direction;
     let Some(container_main_size) = flex_main_size(constants) else {
         return S::ZERO;
     };
@@ -1941,9 +2014,10 @@ fn line_free_space<Node, S: LayoutScalar>(
             let gap = if index == 0 {
                 S::ZERO
             } else {
-                constants.gap.main(direction)
+                constants.axes.main_size(constants.gap)
             };
-            gap + item.target_size.main(direction) + item.margin.main_sum(direction)
+            gap + constants.axes.main_size(item.target_size)
+                + constants.axes.main_edge_sum(item.margin)
         })
         .fold(S::ZERO, |sum, value| sum + value);
     container_main_size - used_space
@@ -1984,22 +2058,22 @@ fn alignment_offset<S: LayoutScalar>(
 ) -> S {
     if is_first {
         match alignment_mode {
-            AlignContent::Start => S::ZERO,
-            AlignContent::FlexStart => {
+            AlignContent::Start => {
                 if layout_is_flex_reversed {
                     free_space
                 } else {
                     S::ZERO
                 }
             }
-            AlignContent::End => free_space,
-            AlignContent::FlexEnd => {
+            AlignContent::FlexStart => S::ZERO,
+            AlignContent::End => {
                 if layout_is_flex_reversed {
                     S::ZERO
                 } else {
                     free_space
                 }
             }
+            AlignContent::FlexEnd => free_space,
             AlignContent::Center => free_space / S::from_f64(2.0),
             AlignContent::Stretch | AlignContent::SpaceBetween => S::ZERO,
             AlignContent::SpaceAround => {
@@ -2053,125 +2127,77 @@ impl<S: LayoutScalar> FlexLine<S> {
 
 impl<Node, S: LayoutScalar> ResolvedFlexItem<Node, S> {
     fn margin_main_start(&self, constants: &Constants<S>) -> S {
-        if constants.direction.is_row() && constants.layout_direction == Direction::Rtl {
-            self.margin.right
-        } else {
-            self.margin.main_start(constants.direction)
-        }
+        constants.axes.main_start_edge(self.margin)
     }
 
     fn margin_main_start_is_auto(&self, constants: &Constants<S>) -> bool {
-        if constants.direction.is_row() && constants.layout_direction == Direction::Rtl {
-            self.margin_is_auto.right
-        } else {
-            self.margin_is_auto.main_start(constants.direction)
-        }
+        constants.axes.main_start_edge(self.margin_is_auto)
     }
 
     fn margin_main_end_is_auto(&self, constants: &Constants<S>) -> bool {
-        if constants.direction.is_row() && constants.layout_direction == Direction::Rtl {
-            self.margin_is_auto.left
-        } else {
-            self.margin_is_auto.main_end(constants.direction)
-        }
+        constants.axes.main_end_edge(self.margin_is_auto)
     }
 
     fn set_margin_main_start(&mut self, constants: &Constants<S>, value: S) {
-        if constants.direction.is_row() && constants.layout_direction == Direction::Rtl {
-            self.margin.right = value;
-        } else {
-            self.margin.set_main_start(constants.direction, value);
-        }
+        constants.axes.set_main_start_edge(&mut self.margin, value);
     }
 
     fn set_margin_main_end(&mut self, constants: &Constants<S>, value: S) {
-        if constants.direction.is_row() && constants.layout_direction == Direction::Rtl {
-            self.margin.left = value;
-        } else {
-            self.margin.set_main_end(constants.direction, value);
-        }
+        constants.axes.set_main_end_edge(&mut self.margin, value);
     }
 
     fn final_main_location(&self, constants: &Constants<S>, output_size: Size<S>) -> S {
-        let direction = constants.direction;
-        if constants.layout_direction == Direction::Rtl && direction.is_row() {
-            let container_main = constants
-                .node_outer_size
-                .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO))
-                .main(direction);
-            return container_main
-                - constants.content_box_inset.main_end(direction)
-                - self.offset_main
-                - self.relative_main_inset(constants)
-                - output_size.main(direction);
-        }
-
-        constants.content_box_inset.main_start(direction)
-            + self.offset_main
-            + self.relative_main_inset(constants)
+        let container = constants
+            .node_outer_size
+            .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO));
+        constants.axes.main_position_from_start(
+            container,
+            constants.axes.main_start_edge(constants.content_box_inset),
+            self.offset_main,
+            constants.axes.main_size(output_size),
+            self.relative_main_inset(constants),
+        )
     }
 
     fn relative_main_inset(&self, constants: &Constants<S>) -> S {
-        let direction = constants.direction;
-        if constants.layout_direction == Direction::Rtl && direction.is_row() {
-            return self
-                .inset
-                .main_end(direction)
-                .or_else(|| self.inset.main_start(direction).map(|inset| -inset))
-                .unwrap_or(S::ZERO);
-        }
-
-        self.inset
-            .main_start(direction)
-            .or_else(|| self.inset.main_end(direction).map(|inset| -inset))
-            .unwrap_or(S::ZERO)
+        let normal_offset = constants
+            .axes
+            .normal_main_start_edge(self.inset)
+            .or_else(|| {
+                constants
+                    .axes
+                    .normal_main_end_edge(self.inset)
+                    .map(|inset| -inset)
+            })
+            .unwrap_or(S::ZERO);
+        constants.axes.main_offset_from_normal_flow(normal_offset)
     }
 
     fn final_cross_location(&self, constants: &Constants<S>, output_size: Size<S>) -> S {
-        let direction = constants.direction;
-        if constants.layout_direction == Direction::Rtl && direction.is_column() {
-            let container_cross = constants
-                .node_outer_size
-                .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO))
-                .cross(direction);
-            return container_cross
-                - constants
-                    .content_box_inset
-                    .cross_start(direction, constants.layout_direction)
-                - self.offset_cross
-                - self.relative_cross_inset(constants)
-                - output_size.cross(direction);
-        }
-
-        constants
-            .content_box_inset
-            .cross_start(direction, constants.layout_direction)
-            + self.offset_cross
-            + self.relative_cross_inset(constants)
+        let container = constants
+            .node_outer_size
+            .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO));
+        constants.axes.cross_position_from_start(
+            container,
+            constants.axes.cross_start_edge(constants.content_box_inset),
+            self.offset_cross,
+            constants.axes.cross_size(output_size),
+            self.relative_cross_inset(constants),
+        )
     }
 
     fn relative_cross_inset(&self, constants: &Constants<S>) -> S {
-        let direction = constants.direction;
-        if constants.layout_direction == Direction::Rtl && direction.is_column() {
-            return self
-                .inset
-                .cross_start(direction, constants.layout_direction)
-                .or_else(|| {
-                    self.inset
-                        .cross_end(direction, constants.layout_direction)
-                        .map(|inset| -inset)
-                })
-                .unwrap_or(S::ZERO);
-        }
-
-        self.inset
-            .cross_start(direction, constants.layout_direction)
+        let normal_offset = constants
+            .axes
+            .normal_cross_start_edge(self.inset)
             .or_else(|| {
-                self.inset
-                    .cross_end(direction, constants.layout_direction)
+                constants
+                    .axes
+                    .normal_cross_end_edge(self.inset)
                     .map(|inset| -inset)
             })
-            .unwrap_or(S::ZERO)
+            .unwrap_or(S::ZERO);
+        constants.axes.cross_offset_from_normal_flow(normal_offset)
     }
 }
 
@@ -2956,7 +2982,6 @@ fn final_layout<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let direction = constants.direction;
     let mut final_items = Vec::with_capacity(items.len());
     for item in items {
         let style = tree.node_input(item.node).clone();
@@ -2970,24 +2995,25 @@ where
                 known,
                 constants.node_inner_size,
                 constants.flow_axes,
-                Size::from_main_cross(
-                    direction,
+                constants.axes.size_from_main_cross(
                     constants
-                        .node_inner_size
-                        .main(direction)
+                        .axes
+                        .main_size(constants.node_inner_size)
                         .map(AvailableOf::definite)
                         .unwrap_or(AvailableOf::MAX_CONTENT),
                     constants
-                        .node_inner_size
-                        .cross(direction)
+                        .axes
+                        .cross_size(constants.node_inner_size)
                         .map(AvailableOf::definite)
                         .unwrap_or(AvailableOf::MAX_CONTENT),
                 ),
             ),
         )?;
-        let resolved_flex_basis =
-            resolve_dimension(style.flex_basis, constants.node_inner_size.main(direction))
-                .map_err(|status| crate::compute::value_resolution_error(item.node, status))?;
+        let resolved_flex_basis = resolve_dimension(
+            style.flex_basis,
+            constants.axes.main_size(constants.node_inner_size),
+        )
+        .map_err(|status| crate::compute::value_resolution_error(item.node, status))?;
         suppress_padding_floor_flex_basis_content_overflow(
             tree,
             item,
@@ -2997,8 +3023,7 @@ where
         );
         let child_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
         let baseline = FlexItemBaseline::from_output(output, child_flow_axes);
-        let location = Point::from_main_cross(
-            direction,
+        let location = constants.axes.point_from_main_cross(
             item.final_main_location(constants, output.size),
             item.final_cross_location(constants, output.size),
         );
@@ -3037,21 +3062,23 @@ fn suppress_padding_floor_flex_basis_content_overflow<Node, S: LayoutScalar>(
 ) where
     Node: Copy,
 {
-    let direction = constants.direction;
     let Some(resolved_flex_basis) = resolved_flex_basis else {
         return;
     };
-    let padding_border = (item.padding + item.border).sum_axes().main(direction);
+    let padding_border = constants
+        .axes
+        .main_size((item.padding + item.border).sum_axes());
     if item.flex_grow_factor == S::ZERO
         && resolved_flex_basis <= padding_border
         && tree.child_count(item.node) == 0
-        && output.size.main(direction) <= item.flex_basis
-        && output.content_size.main(direction) <= item.flex_basis
-        && item.target_size.main(direction) <= padding_border
+        && constants.axes.main_size(output.size) <= item.flex_basis
+        && constants.axes.main_size(output.content_size) <= item.flex_basis
+        && constants.axes.main_size(item.target_size) <= padding_border
     {
-        output.content_size = output
-            .content_size
-            .with_main(direction, item.target_size.main(direction));
+        output.content_size = constants.axes.with_main_size(
+            output.content_size,
+            constants.axes.main_size(item.target_size),
+        );
     }
 }
 
@@ -3099,7 +3126,7 @@ where
         .add_optional(box_sizing_adjustment);
 
     let mut known = Size::new(Some(item.target_size.width), Some(item.target_size.height));
-    if requested_axis(constants.direction) == RequestedAxis::Horizontal {
+    if constants.axes.main_requested_axis() == RequestedAxis::Horizontal {
         if style.size.height.depends_on_basis() {
             known.height = authored.height.or(known.height);
         }
@@ -3355,100 +3382,128 @@ fn absolute_location<S: LayoutScalar>(
     align_self: AlignItems,
     constants: &Constants<S>,
 ) -> Point<S> {
-    let direction = constants.direction;
     let container = constants
         .node_outer_size
         .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO));
-    let main_start = inset.main_start(direction);
-    let main_end = inset.main_end(direction);
-    let main_is_rtl = direction.is_row() && constants.layout_direction.is_rtl();
-    let cross_is_rtl = direction.is_column() && constants.layout_direction.is_rtl();
-    let main_start_scrollbar = if main_is_rtl {
-        constants.scrollbar_gutter.main(direction)
-    } else {
-        S::ZERO
-    };
-    let main_end_scrollbar = if main_is_rtl {
-        S::ZERO
-    } else {
-        constants.scrollbar_gutter.main(direction)
-    };
-    let cross_start_scrollbar = if cross_is_rtl {
-        constants.scrollbar_gutter.cross(direction)
-    } else {
-        S::ZERO
-    };
-    let cross_end_scrollbar = if cross_is_rtl {
-        S::ZERO
-    } else {
-        constants.scrollbar_gutter.cross(direction)
-    };
-    let main = if direction.is_row()
-        && constants.layout_direction.is_rtl()
-        && main_start.is_some()
-        && let Some(end) = main_end
-    {
-        container.main(direction)
-            - constants.border.main_end(direction)
-            - main_end_scrollbar
-            - size.main(direction)
-            - end
-            - margin.main_end(direction)
-    } else if let Some(start) = main_start {
-        constants.border.main_start(direction)
+    let main_start = constants.axes.normal_main_start_edge(inset);
+    let main_end = constants.axes.normal_main_end_edge(inset);
+    let main_start_scrollbar = scrollbar_gutter_at_side(
+        constants.axes,
+        constants.axes.main_physical_axis(),
+        constants
+            .axes
+            .normal_axis_start_side(constants.axes.main_logical_axis()),
+        constants.scrollbar_gutter,
+    );
+    let main_end_scrollbar = scrollbar_gutter_at_side(
+        constants.axes,
+        constants.axes.main_physical_axis(),
+        constants
+            .axes
+            .normal_axis_end_side(constants.axes.main_logical_axis()),
+        constants.scrollbar_gutter,
+    );
+    let main = if let Some(start) = main_start {
+        constants.axes.normal_main_start_edge(constants.border)
             + main_start_scrollbar
             + start
-            + margin.main_start(direction)
+            + constants.axes.normal_main_start_edge(margin)
     } else if let Some(end) = main_end {
-        container.main(direction)
-            - constants.border.main_end(direction)
+        constants.axes.main_size(container)
+            - constants.axes.normal_main_end_edge(constants.border)
             - main_end_scrollbar
-            - size.main(direction)
+            - constants.axes.main_size(size)
             - end
-            - margin.main_end(direction)
+            - constants.axes.normal_main_end_edge(margin)
     } else {
         absolute_main_alignment(size, margin, container, constants)
     };
-    let (
-        cross_start,
-        cross_end,
-        border_cross_start,
-        border_cross_end,
-        margin_cross_start,
-        margin_cross_end,
-    ) = if direction.is_row() {
-        (
-            inset.top,
-            inset.bottom,
-            constants.border.top,
-            constants.border.bottom,
-            margin.top,
-            margin.bottom,
+    let main = if main_start.is_some() || main_end.is_some() {
+        constants.axes.main_position_from_normal_start(
+            container,
+            main,
+            constants.axes.main_size(size),
         )
     } else {
-        (
-            inset.left,
-            inset.right,
-            constants.border.left,
-            constants.border.right,
-            margin.left,
-            margin.right,
+        constants.axes.main_position_from_start(
+            container,
+            S::ZERO,
+            main,
+            constants.axes.main_size(size),
+            S::ZERO,
         )
     };
+    let cross_start = constants.axes.normal_cross_start_edge(inset);
+    let cross_end = constants.axes.normal_cross_end_edge(inset);
+    let cross_start_scrollbar = scrollbar_gutter_at_side(
+        constants.axes,
+        constants.axes.cross_physical_axis(),
+        constants
+            .axes
+            .normal_axis_start_side(constants.axes.cross_logical_axis()),
+        constants.scrollbar_gutter,
+    );
+    let cross_end_scrollbar = scrollbar_gutter_at_side(
+        constants.axes,
+        constants.axes.cross_physical_axis(),
+        constants
+            .axes
+            .normal_axis_end_side(constants.axes.cross_logical_axis()),
+        constants.scrollbar_gutter,
+    );
     let cross = if let Some(start) = cross_start {
-        border_cross_start + cross_start_scrollbar + start + margin_cross_start
+        constants.axes.normal_cross_start_edge(constants.border)
+            + cross_start_scrollbar
+            + start
+            + constants.axes.normal_cross_start_edge(margin)
     } else if let Some(end) = cross_end {
-        container.cross(direction)
-            - border_cross_end
+        constants.axes.cross_size(container)
+            - constants.axes.normal_cross_end_edge(constants.border)
             - cross_end_scrollbar
-            - size.cross(direction)
+            - constants.axes.cross_size(size)
             - end
-            - margin_cross_end
+            - constants.axes.normal_cross_end_edge(margin)
     } else {
         absolute_cross_alignment(size, margin, container, align_self, constants)
     };
+    let cross = if cross_start.is_some() || cross_end.is_some() {
+        constants.axes.cross_position_from_normal_start(
+            container,
+            cross,
+            constants.axes.cross_size(size),
+        )
+    } else {
+        constants.axes.cross_position_from_start(
+            container,
+            S::ZERO,
+            cross,
+            constants.axes.cross_size(size),
+            S::ZERO,
+        )
+    };
 
-    Point::from_main_cross(direction, main, cross)
+    constants.axes.point_from_main_cross(main, cross)
+}
+
+fn scrollbar_gutter_at_side<S: LayoutScalar>(
+    axes: FlexAxes,
+    axis: PhysicalAxis,
+    side: PhysicalSide,
+    gutter: Point<S>,
+) -> S {
+    let scrollbar_side = match axis {
+        PhysicalAxis::Horizontal if axes.flow_direction() == Direction::Rtl => PhysicalSide::Left,
+        PhysicalAxis::Horizontal => PhysicalSide::Right,
+        PhysicalAxis::Vertical => PhysicalSide::Bottom,
+    };
+    if side == scrollbar_side {
+        match axis {
+            PhysicalAxis::Horizontal => gutter.x,
+            PhysicalAxis::Vertical => gutter.y,
+        }
+    } else {
+        S::ZERO
+    }
 }
 
 fn absolute_main_alignment<S: LayoutScalar>(
@@ -3457,42 +3512,47 @@ fn absolute_main_alignment<S: LayoutScalar>(
     container: Size<S>,
     constants: &Constants<S>,
 ) -> S {
-    let direction = constants.direction;
-    let content_start = constants.content_box_inset.main_start(direction);
-    let content_end = constants.content_box_inset.main_end(direction);
-    let free_space = container.main(direction) - content_start - content_end - size.main(direction);
+    let content_start = constants.axes.main_start_edge(constants.content_box_inset);
+    let content_end = constants.axes.main_end_edge(constants.content_box_inset);
+    let free_space = constants.axes.main_size(container)
+        - content_start
+        - content_end
+        - constants.axes.main_size(size);
     let alignment = constants.justify_content.safe_fallback(free_space);
-    let reversed_main =
-        direction.is_reverse() ^ (direction.is_row() && constants.layout_direction.is_rtl());
+    let start_edge = || content_start + constants.axes.main_start_edge(margin);
+    let end_edge = || {
+        constants.axes.main_size(container)
+            - content_end
+            - constants.axes.main_size(size)
+            - constants.axes.main_end_edge(margin)
+    };
     match alignment {
-        AlignContent::Start
-        | AlignContent::Stretch
-        | AlignContent::SpaceBetween
-        | AlignContent::FlexStart
-            if !reversed_main =>
-        {
-            content_start + margin.main_start(direction)
+        AlignContent::Start => {
+            if constants.axes.main_is_reversed() {
+                end_edge()
+            } else {
+                start_edge()
+            }
         }
-        AlignContent::End | AlignContent::FlexEnd if !reversed_main => {
-            container.main(direction)
-                - content_end
-                - size.main(direction)
-                - margin.main_end(direction)
+        AlignContent::End => {
+            if constants.axes.main_is_reversed() {
+                start_edge()
+            } else {
+                end_edge()
+            }
         }
-        AlignContent::Start | AlignContent::FlexEnd => content_start + margin.main_start(direction),
-        AlignContent::End | AlignContent::FlexStart | AlignContent::Stretch => {
-            container.main(direction)
-                - content_end
-                - size.main(direction)
-                - margin.main_end(direction)
+        AlignContent::Stretch | AlignContent::SpaceBetween | AlignContent::FlexStart => {
+            start_edge()
         }
+        AlignContent::FlexEnd => end_edge(),
         AlignContent::Center | AlignContent::SpaceAround | AlignContent::SpaceEvenly => {
-            (container.main(direction) + content_start - content_end - size.main(direction)
-                + margin.main_start(direction)
-                - margin.main_end(direction))
+            (constants.axes.main_size(container) + content_start
+                - content_end
+                - constants.axes.main_size(size)
+                + constants.axes.main_start_edge(margin)
+                - constants.axes.main_end_edge(margin))
                 / S::from_f64(2.0)
         }
-        AlignContent::SpaceBetween => content_start + margin.main_start(direction),
         AlignContent::SafeEnd | AlignContent::SafeFlexEnd | AlignContent::SafeCenter => {
             unreachable!("safe_fallback returns unsafe content alignment")
         }
@@ -3506,56 +3566,42 @@ fn absolute_cross_alignment<S: LayoutScalar>(
     align_self: AlignItems,
     constants: &Constants<S>,
 ) -> S {
-    let direction = constants.direction;
-    let content_start = constants
-        .content_box_inset
-        .cross_start(direction, constants.layout_direction);
-    let content_end = constants
-        .content_box_inset
-        .cross_end(direction, constants.layout_direction);
-    let free_space =
-        container.cross(direction) - content_start - content_end - size.cross(direction);
-    let reversed_cross = constants.wrap_reverse;
-    let cross_is_rtl_column = direction.is_column() && constants.layout_direction.is_rtl();
-    let start_edge = || {
-        if cross_is_rtl_column {
-            container.cross(direction)
-                - content_start
-                - size.cross(direction)
-                - margin.cross_start(direction, constants.layout_direction)
-        } else {
-            content_start + margin.cross_start(direction, constants.layout_direction)
-        }
-    };
+    let content_start = constants.axes.cross_start_edge(constants.content_box_inset);
+    let content_end = constants.axes.cross_end_edge(constants.content_box_inset);
+    let free_space = constants.axes.cross_size(container)
+        - content_start
+        - content_end
+        - constants.axes.cross_size(size);
+    let start_edge = || content_start + constants.axes.cross_start_edge(margin);
     let end_edge = || {
-        if cross_is_rtl_column {
-            content_end + margin.cross_end(direction, constants.layout_direction)
-        } else {
-            container.cross(direction)
-                - content_end
-                - size.cross(direction)
-                - margin.cross_end(direction, constants.layout_direction)
-        }
+        constants.axes.cross_size(container)
+            - content_end
+            - constants.axes.cross_size(size)
+            - constants.axes.cross_end_edge(margin)
     };
     match align_self.safe_fallback(free_space) {
-        AlignItems::Start | AlignItems::FlexStart | AlignItems::Stretch | AlignItems::Baseline
-            if !reversed_cross =>
-        {
-            start_edge()
+        AlignItems::Start => {
+            if constants.axes.cross_is_reversed() {
+                end_edge()
+            } else {
+                start_edge()
+            }
         }
-        AlignItems::End | AlignItems::FlexEnd | AlignItems::LastBaseline if !reversed_cross => {
-            end_edge()
+        AlignItems::End | AlignItems::LastBaseline => {
+            if constants.axes.cross_is_reversed() {
+                start_edge()
+            } else {
+                end_edge()
+            }
         }
-        AlignItems::Start | AlignItems::FlexEnd => start_edge(),
-        AlignItems::End
-        | AlignItems::FlexStart
-        | AlignItems::Stretch
-        | AlignItems::Baseline
-        | AlignItems::LastBaseline => end_edge(),
+        AlignItems::FlexStart | AlignItems::Stretch | AlignItems::Baseline => start_edge(),
+        AlignItems::FlexEnd => end_edge(),
         AlignItems::Center => {
-            (container.cross(direction) + content_start - content_end - size.cross(direction)
-                + margin.cross_start(direction, constants.layout_direction)
-                - margin.cross_end(direction, constants.layout_direction))
+            (constants.axes.cross_size(container) + content_start
+                - content_end
+                - constants.axes.cross_size(size)
+                + constants.axes.cross_start_edge(margin)
+                - constants.axes.cross_end_edge(margin))
                 / S::from_f64(2.0)
         }
         AlignItems::SafeEnd | AlignItems::SafeFlexEnd | AlignItems::SafeCenter => {
@@ -3614,6 +3660,10 @@ fn resolution_optional<S: LayoutScalar>(
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
+)]
 trait PointExt<S: LayoutScalar> {
     fn from_main_cross(direction: FlexDirection, main: S, cross: S) -> Self;
 }
@@ -3628,6 +3678,10 @@ impl<S: LayoutScalar> PointExt<S> for Point<S> {
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
+)]
 trait SizeExt<T> {
     fn from_main_cross(direction: FlexDirection, main: T, cross: T) -> Self;
     fn with_main(self, direction: FlexDirection, value: T) -> Self;
@@ -3775,6 +3829,10 @@ impl<S: LayoutScalar> ScalarExt for S {
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
+)]
 trait EdgeAxisExt {
     type Scalar: LayoutScalar;
     fn main_start(self, direction: FlexDirection) -> Self::Scalar;
@@ -3873,6 +3931,10 @@ impl<S: LayoutScalar> EdgeAxisExt for Edges<S> {
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
+)]
 trait BoolEdgeAxisExt {
     fn main_start(self, direction: FlexDirection) -> bool;
     fn main_end(self, direction: FlexDirection) -> bool;
@@ -3880,6 +3942,10 @@ trait BoolEdgeAxisExt {
     fn cross_end(self, direction: FlexDirection, layout_direction: Direction) -> bool;
 }
 
+#[expect(
+    dead_code,
+    reason = "C05-T4 owns removal of the staged legacy flex selector traits."
+)]
 trait OptionEdgeAxisExt {
     type Scalar: LayoutScalar;
     fn main_start(self, direction: FlexDirection) -> Option<Self::Scalar>;
@@ -3963,5 +4029,97 @@ impl BoolEdgeAxisExt for Edges<bool> {
             (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Ltr) => self.right,
             (FlexDirection::Column | FlexDirection::ColumnReverse, Direction::Rtl) => self.left,
         }
+    }
+}
+
+#[cfg(test)]
+mod final_baseline_selection_tests {
+    use super::*;
+    use crate::WritingMode;
+
+    fn final_item<S: LayoutScalar>(
+        align_self: AlignItems,
+        location_y: f64,
+        baseline_y: f64,
+    ) -> FinalFlexItem<(), S> {
+        let size = Size::new(S::from_f64(10.0), S::from_f64(10.0));
+        let output = ComputeOutputOf::from_sizes_and_baselines(
+            size,
+            size,
+            BaselinesOf::first(Point::new(None, Some(S::from_f64(baseline_y)))),
+        );
+        FinalFlexItem {
+            _node: core::marker::PhantomData,
+            output,
+            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            align_self,
+            baseline: FlexItemBaseline::from_output(
+                output,
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ),
+            location: Point::new(S::ZERO, S::from_f64(location_y)),
+        }
+    }
+
+    fn constants<S: LayoutScalar>() -> Constants<S> {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        Constants {
+            flow_axes,
+            axes: FlexAxes::new(flow_axes, FlexDirection::Row, FlexWrap::NoWrap),
+            direction: FlexDirection::Column,
+            node_outer_size: Size::NONE,
+            node_inner_size: Size::NONE,
+            min_outer_size: Size::NONE,
+            max_outer_size: Size::NONE,
+            max_inner_size: Size::NONE,
+            border: Edges::ZERO,
+            padding_border_size: Size::ZERO,
+            scrollbar_gutter: Point::ZERO,
+            content_box_inset: Edges::ZERO,
+            gap: Size::ZERO,
+            align_items: AlignItems::Stretch,
+            align_content: AlignContent::Stretch,
+            justify_content: AlignContent::FlexStart,
+            wraps: false,
+            available: Size::splat(AvailableOf::MAX_CONTENT),
+            available_main: AvailableOf::MAX_CONTENT,
+        }
+    }
+
+    fn assert_final_baselines_follow_main_logical_axis<S: LayoutScalar>() {
+        let items = [
+            final_item::<S>(AlignItems::Stretch, 10.0, 1.0),
+            final_item::<S>(AlignItems::Baseline, 20.0, 2.0),
+            final_item::<S>(AlignItems::Stretch, 30.0, 3.0),
+        ];
+        let lines = [FlexLine {
+            start: 0,
+            end: items.len(),
+            main_size: S::ZERO,
+            cross_size: S::ZERO,
+            offset_cross: S::ZERO,
+        }];
+        let constants = constants::<S>();
+
+        assert_eq!(
+            first_final_vertical_baseline(&items, &lines, &constants),
+            Some(Point::new(None, Some(S::from_f64(22.0)))),
+            "the first final baseline selects the first baseline-aligned final item"
+        );
+        assert_eq!(
+            last_final_vertical_baseline(&items, &lines, &constants),
+            Some(Point::new(None, Some(S::from_f64(22.0)))),
+            "the last final baseline selects the last baseline-aligned final item"
+        );
+    }
+
+    #[test]
+    fn logical_flex_placement_final_baselines_follow_main_logical_axis_for_f32() {
+        assert_final_baselines_follow_main_logical_axis::<f32>();
+    }
+
+    #[test]
+    fn logical_flex_placement_final_baselines_follow_main_logical_axis_for_f64() {
+        assert_final_baselines_follow_main_logical_axis::<f64>();
     }
 }

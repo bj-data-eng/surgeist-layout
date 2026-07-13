@@ -5118,7 +5118,10 @@ impl<S: LayoutScalar> Compute for BaselineRefreshTree<S> {
         Ok(ComputeOutputOf::from_sizes_and_baselines(
             size,
             size,
-            BaselinesOf::NONE,
+            BaselinesOf {
+                first: Point::new(Some(size.width), None),
+                last: Point::new(Some(size.width), None),
+            },
         ))
     }
 }
@@ -5147,7 +5150,7 @@ fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
                 2,
                 NodeInputOf::<S> {
                     display: Display::Block,
-                    writing_mode: WritingMode::HorizontalTb,
+                    writing_mode: WritingMode::VerticalRl,
                     size: Size::new(DimensionOf::AUTO, DimensionOf::px(S::from_f64(child_main))),
                     min_size: Size::new(DimensionOf::ZERO, DimensionOf::ZERO),
                     flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
@@ -5160,7 +5163,7 @@ fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
         initial_child_main: S::from_f64(child_main),
     };
 
-    let _output = compute_flex(
+    let output = compute_flex(
         &mut tree,
         1,
         ComputeInputOf::for_child(
@@ -5179,6 +5182,21 @@ fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
     .expect("flex layout succeeds");
 
     assert_eq!(tree.layouts[&2].size, expected_child_size);
+    assert_eq!(
+        tree.layouts[&2].location,
+        Point::new(S::ZERO, S::ZERO),
+        "the corrected mapped main size reaches final physical placement"
+    );
+    assert_eq!(
+        output.first_baselines,
+        Point::new(Some(expected_child_size.width), None),
+        "the refreshed vertical child synthesizes a size-dependent physical-x baseline"
+    );
+    assert_eq!(
+        output.last_baselines,
+        Point::new(Some(expected_child_size.width), None),
+        "the refreshed vertical child retains the selected physical-x baseline"
+    );
 }
 
 fn assert_logical_flex_sizing_orthogonal_refresh_grow<S: LayoutScalar>() {
@@ -5215,6 +5233,186 @@ fn logical_flex_sizing_orthogonal_refresh_shrink_for_f32() {
 #[test]
 fn logical_flex_sizing_orthogonal_refresh_shrink_for_f64() {
     assert_logical_flex_sizing_orthogonal_refresh_shrink::<f64>();
+}
+
+#[test]
+fn logical_flex_placement_baseline_refresh_grow_projects_physical_x_for_f32() {
+    assert_logical_flex_sizing_orthogonal_refresh_grow::<f32>();
+}
+
+#[test]
+fn logical_flex_placement_baseline_refresh_grow_projects_physical_x_for_f64() {
+    assert_logical_flex_sizing_orthogonal_refresh_grow::<f64>();
+}
+
+#[test]
+fn logical_flex_placement_baseline_refresh_shrink_projects_physical_x_for_f32() {
+    assert_logical_flex_sizing_orthogonal_refresh_shrink::<f32>();
+}
+
+#[test]
+fn logical_flex_placement_baseline_refresh_shrink_projects_physical_x_for_f64() {
+    assert_logical_flex_sizing_orthogonal_refresh_shrink::<f64>();
+}
+
+struct FinalSizeSelectorTree<S: LayoutScalar> {
+    styles: HashMap<u32, NodeInputOf<S>>,
+    layouts: HashMap<u32, NodeOutputOf<S>>,
+    final_known: Option<Size<Option<S>>>,
+}
+
+impl<S: LayoutScalar> Traverse for FinalSizeSelectorTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, u32>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        match node {
+            1 => [2].iter().copied(),
+            _ => [].iter().copied(),
+        }
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        usize::from(node == 1)
+    }
+
+    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+        2
+    }
+}
+
+impl<S: LayoutScalar> Compute for FinalSizeSelectorTree<S> {
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.styles[&node].clone())
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
+        self.layouts.insert(node, layout);
+    }
+
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S> {
+        assert_eq!(node, 2, "the focused flex tree exposes one child");
+        if input.run_mode() == RunMode::PerformLayout {
+            self.final_known = Some(input.known());
+            let size = Size::new(
+                input.known().width.unwrap_or(S::from_f64(75.0)),
+                input.known().height.unwrap_or(S::from_f64(20.0)),
+            );
+            return Ok(ComputeOutputOf::from_sizes(size, size));
+        }
+
+        Ok(ComputeOutputOf::from_sizes(
+            Size::new(S::from_f64(75.0), S::from_f64(20.0)),
+            Size::new(S::from_f64(75.0), S::from_f64(20.0)),
+        ))
+    }
+}
+
+fn assert_logical_flex_final_size_selector_uses_vertical_row_main_axis<S: LayoutScalar>(
+    writing_mode: WritingMode,
+) {
+    let mut tree = FinalSizeSelectorTree {
+        styles: HashMap::from([
+            (
+                1,
+                NodeInputOf::<S> {
+                    display: Display::Flex,
+                    writing_mode,
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(200.0)),
+                        DimensionOf::px(S::from_f64(100.0)),
+                    ),
+                    flex_direction: FlexDirection::Row,
+                    ..NodeInputOf::default()
+                },
+            ),
+            (
+                2,
+                NodeInputOf::<S> {
+                    display: Display::Block,
+                    size: Size::new(
+                        DimensionOf::percent(S::from_f64(0.25)),
+                        DimensionOf::px(S::from_f64(20.0)),
+                    ),
+                    min_size: Size::new(DimensionOf::px(S::from_f64(75.0)), DimensionOf::ZERO),
+                    ..NodeInputOf::default()
+                },
+            ),
+        ]),
+        layouts: HashMap::new(),
+        final_known: None,
+    };
+
+    compute_flex(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(200.0)), Some(S::from_f64(100.0))),
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(200.0)),
+                AvailableOf::definite(S::from_f64(100.0)),
+            ),
+        ),
+    )
+    .expect("vertical or sideways flex row layout succeeds");
+
+    assert_eq!(
+        tree.final_known
+            .expect("final layout request is recorded")
+            .width,
+        Some(S::from_f64(50.0)),
+        "the percentage-dependent physical width is refined after a vertical main-axis row"
+    );
+    assert_eq!(
+        tree.layouts[&2].size,
+        Size::new(S::from_f64(50.0), S::from_f64(20.0)),
+        "the corrected final known width reaches child output"
+    );
+}
+
+#[test]
+fn logical_flex_placement_final_size_selector_maps_vertical_row_for_f32() {
+    assert_logical_flex_final_size_selector_uses_vertical_row_main_axis::<f32>(
+        WritingMode::VerticalLr,
+    );
+}
+
+#[test]
+fn logical_flex_placement_final_size_selector_maps_vertical_row_for_f64() {
+    assert_logical_flex_final_size_selector_uses_vertical_row_main_axis::<f64>(
+        WritingMode::VerticalLr,
+    );
+}
+
+#[test]
+fn logical_flex_placement_final_size_selector_maps_sideways_row_for_f32() {
+    assert_logical_flex_final_size_selector_uses_vertical_row_main_axis::<f32>(
+        WritingMode::SidewaysLr,
+    );
+}
+
+#[test]
+fn logical_flex_placement_final_size_selector_maps_sideways_row_for_f64() {
+    assert_logical_flex_final_size_selector_uses_vertical_row_main_axis::<f64>(
+        WritingMode::SidewaysLr,
+    );
 }
 
 #[test]
