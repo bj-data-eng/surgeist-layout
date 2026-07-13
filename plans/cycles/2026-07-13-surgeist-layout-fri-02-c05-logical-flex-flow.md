@@ -1,5 +1,5 @@
 # FRI-02-C05 Logical Flex Flow
-Status: proposed
+Status: in_progress
 Cycle ID: FRI-02-C05
 Owning repository: surgeist-layout
 Cycle base: e0cf26b513711e030e0aec14715117c53eb3405b
