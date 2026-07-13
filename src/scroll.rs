@@ -1,12 +1,11 @@
 use super::{
     DefaultScalar, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis, Overflow, PhysicalAxis,
-    Point, Size, WritingMode,
+    Point, Size,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScrollUnsupportedFeature {
     InvalidScrollRect,
-    InvalidScrollRange,
     InvalidScrollGeometry,
     OverflowAuto,
     OverflowClipMargin,
@@ -69,67 +68,15 @@ impl<S: LayoutScalar> ScrollRectOf<S> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ScrollOffsetOf<S: LayoutScalar = DefaultScalar> {
-    position: Point<S>,
-}
-
-pub type ScrollOffset = ScrollOffsetOf<DefaultScalar>;
-
-impl<S: LayoutScalar> ScrollOffsetOf<S> {
-    #[must_use]
-    pub const fn new(position: Point<S>) -> Self {
-        Self { position }
-    }
-
-    #[must_use]
-    pub const fn position(self) -> Point<S> {
-        self.position
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ScrollRangeOf<S: LayoutScalar = DefaultScalar> {
-    maximum_offset: Size<S>,
-}
-
-pub type ScrollRange = ScrollRangeOf<DefaultScalar>;
-
-impl<S: LayoutScalar> ScrollRangeOf<S> {
-    pub fn new(maximum_offset: Size<S>) -> Result<Self, ScrollUnsupportedFeature> {
-        if !maximum_offset.width.is_finite()
-            || !maximum_offset.height.is_finite()
-            || maximum_offset.width < S::ZERO
-            || maximum_offset.height < S::ZERO
-        {
-            return Err(ScrollUnsupportedFeature::InvalidScrollRange);
-        }
-
-        Ok(Self { maximum_offset })
-    }
-
-    #[must_use]
-    pub const fn maximum_offset(self) -> Size<S> {
-        self.maximum_offset
-    }
-
-    #[must_use]
-    pub fn clamp(self, offset: ScrollOffsetOf<S>) -> ScrollOffsetOf<S> {
-        let position = offset.position();
-        ScrollOffsetOf::new(Point::new(
-            position.x.max(S::ZERO).min(self.maximum_offset.width),
-            position.y.max(S::ZERO).min(self.maximum_offset.height),
-        ))
-    }
-}
-
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this error type for T3 public migration."
-    )
-)]
+/// Construction error for a signed physical or flow-relative scroll coordinate.
+///
+/// This error has no default because each variant records the coordinate space,
+/// axis, and finite value or endpoint that failed validation.
+///
+/// ```compile_fail
+/// use surgeist_layout::ScrollCoordinateErrorOf;
+/// let _ = ScrollCoordinateErrorOf::<f32>::default();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ScrollCoordinateErrorOf<S: LayoutScalar = DefaultScalar> {
     NonFinitePhysicalOffset {
@@ -168,31 +115,22 @@ pub enum ScrollCoordinateErrorOf<S: LayoutScalar = DefaultScalar> {
     },
 }
 
-#[expect(
-    dead_code,
-    reason = "C02-T1 stages this default alias for T3 public migration."
-)]
 pub type ScrollCoordinateError = ScrollCoordinateErrorOf<DefaultScalar>;
 
+/// Finite physical x/y scroll offset. Positive x is rightward and positive y is downward.
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalScrollOffset;
+/// let _ = PhysicalScrollOffset::default();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PhysicalScrollOffsetOf<S: LayoutScalar = DefaultScalar> {
     x: S,
     y: S,
 }
 
-#[expect(
-    dead_code,
-    reason = "C02-T1 stages this default alias for T3 public migration."
-)]
 pub type PhysicalScrollOffset = PhysicalScrollOffsetOf<DefaultScalar>;
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages checked physical offsets for T3 migration."
-    )
-)]
 impl<S: LayoutScalar> PhysicalScrollOffsetOf<S> {
     pub fn try_new(x: S, y: S) -> Result<Self, ScrollCoordinateErrorOf<S>> {
         if !x.is_finite() {
@@ -225,25 +163,20 @@ impl<S: LayoutScalar> PhysicalScrollOffsetOf<S> {
     }
 }
 
+/// Finite flow-relative inline/block scroll offset.
+///
+/// ```compile_fail
+/// use surgeist_layout::FlowRelativeScrollOffset;
+/// let _ = FlowRelativeScrollOffset::default();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlowRelativeScrollOffsetOf<S: LayoutScalar = DefaultScalar> {
     inline: S,
     block: S,
 }
 
-#[expect(
-    dead_code,
-    reason = "C02-T1 stages this default alias for T3 public migration."
-)]
 pub type FlowRelativeScrollOffset = FlowRelativeScrollOffsetOf<DefaultScalar>;
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages checked flow-relative offsets for T3 migration."
-    )
-)]
 impl<S: LayoutScalar> FlowRelativeScrollOffsetOf<S> {
     pub fn try_new(inline: S, block: S) -> Result<Self, ScrollCoordinateErrorOf<S>> {
         if !inline.is_finite() {
@@ -276,25 +209,20 @@ impl<S: LayoutScalar> FlowRelativeScrollOffsetOf<S> {
     }
 }
 
+/// Finite closed physical-axis scroll interval.
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalScrollAxisRange;
+/// let _ = PhysicalScrollAxisRange::default();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PhysicalScrollAxisRangeOf<S: LayoutScalar = DefaultScalar> {
     minimum: S,
     maximum: S,
 }
 
-#[expect(
-    dead_code,
-    reason = "C02-T1 stages this default alias for T3 public migration."
-)]
 pub type PhysicalScrollAxisRange = PhysicalScrollAxisRangeOf<DefaultScalar>;
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages physical axis-range operations for T3 migration."
-    )
-)]
 impl<S: LayoutScalar> PhysicalScrollAxisRangeOf<S> {
     const fn new(minimum: S, maximum: S) -> Self {
         Self { minimum, maximum }
@@ -316,25 +244,20 @@ impl<S: LayoutScalar> PhysicalScrollAxisRangeOf<S> {
     }
 }
 
+/// Finite closed flow-relative-axis scroll interval.
+///
+/// ```compile_fail
+/// use surgeist_layout::FlowRelativeScrollAxisRange;
+/// let _ = FlowRelativeScrollAxisRange::default();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlowRelativeScrollAxisRangeOf<S: LayoutScalar = DefaultScalar> {
     minimum: S,
     maximum: S,
 }
 
-#[expect(
-    dead_code,
-    reason = "C02-T1 stages this default alias for T3 public migration."
-)]
 pub type FlowRelativeScrollAxisRange = FlowRelativeScrollAxisRangeOf<DefaultScalar>;
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages flow-relative axis-range operations for T3 migration."
-    )
-)]
 impl<S: LayoutScalar> FlowRelativeScrollAxisRangeOf<S> {
     const fn new(minimum: S, maximum: S) -> Self {
         Self { minimum, maximum }
@@ -356,25 +279,20 @@ impl<S: LayoutScalar> FlowRelativeScrollAxisRangeOf<S> {
     }
 }
 
+/// Finite closed x/y scroll intervals in physical coordinates.
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalScrollRange;
+/// let _ = PhysicalScrollRange::default();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PhysicalScrollRangeOf<S: LayoutScalar = DefaultScalar> {
     x: PhysicalScrollAxisRangeOf<S>,
     y: PhysicalScrollAxisRangeOf<S>,
 }
 
-#[expect(
-    dead_code,
-    reason = "C02-T1 stages this default alias for T3 public migration."
-)]
 pub type PhysicalScrollRange = PhysicalScrollRangeOf<DefaultScalar>;
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages checked physical ranges for T3 migration."
-    )
-)]
 impl<S: LayoutScalar> PhysicalScrollRangeOf<S> {
     pub fn try_new(
         x_minimum: S,
@@ -416,25 +334,20 @@ impl<S: LayoutScalar> PhysicalScrollRangeOf<S> {
     }
 }
 
+/// Finite closed inline/block scroll intervals in flow-relative coordinates.
+///
+/// ```compile_fail
+/// use surgeist_layout::FlowRelativeScrollRange;
+/// let _ = FlowRelativeScrollRange::default();
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlowRelativeScrollRangeOf<S: LayoutScalar = DefaultScalar> {
     inline: FlowRelativeScrollAxisRangeOf<S>,
     block: FlowRelativeScrollAxisRangeOf<S>,
 }
 
-#[expect(
-    dead_code,
-    reason = "C02-T1 stages this default alias for T3 public migration."
-)]
 pub type FlowRelativeScrollRange = FlowRelativeScrollRangeOf<DefaultScalar>;
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages checked flow-relative ranges for T3 migration."
-    )
-)]
 impl<S: LayoutScalar> FlowRelativeScrollRangeOf<S> {
     pub fn try_new(
         inline_minimum: S,
@@ -476,13 +389,6 @@ impl<S: LayoutScalar> FlowRelativeScrollRangeOf<S> {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this physical range validator for T3 public migration."
-    )
-)]
 fn validate_physical_scroll_range<S: LayoutScalar>(
     axis: PhysicalAxis,
     minimum: S,
@@ -511,13 +417,6 @@ fn validate_physical_scroll_range<S: LayoutScalar>(
     Ok(())
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T1 stages this flow-relative range validator for T3 public migration."
-    )
-)]
 fn validate_flow_relative_scroll_range<S: LayoutScalar>(
     axis: LogicalAxis,
     minimum: S,
@@ -546,27 +445,13 @@ fn validate_flow_relative_scroll_range<S: LayoutScalar>(
     Ok(())
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages signed-zero canonicalization for T3 migration."
-    )
-)]
 fn canonical_scroll_zero<S: LayoutScalar>(value: S) -> S {
     if value == S::ZERO { S::ZERO } else { value }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C02-T2 stages crate-private scroll projection for T3 geometry migration."
-    )
-)]
 impl FlowAxes {
     #[must_use]
-    pub(crate) fn physical_scroll_offset<S: LayoutScalar>(
+    pub fn physical_scroll_offset<S: LayoutScalar>(
         self,
         flow_relative: FlowRelativeScrollOffsetOf<S>,
     ) -> PhysicalScrollOffsetOf<S> {
@@ -587,7 +472,7 @@ impl FlowAxes {
     }
 
     #[must_use]
-    pub(crate) fn flow_relative_scroll_offset<S: LayoutScalar>(
+    pub fn flow_relative_scroll_offset<S: LayoutScalar>(
         self,
         physical: PhysicalScrollOffsetOf<S>,
     ) -> FlowRelativeScrollOffsetOf<S> {
@@ -603,7 +488,7 @@ impl FlowAxes {
     }
 
     #[must_use]
-    pub(crate) fn physical_scroll_range<S: LayoutScalar>(
+    pub fn physical_scroll_range<S: LayoutScalar>(
         self,
         flow_relative: FlowRelativeScrollRangeOf<S>,
     ) -> PhysicalScrollRangeOf<S> {
@@ -631,7 +516,7 @@ impl FlowAxes {
     }
 
     #[must_use]
-    pub(crate) fn flow_relative_scroll_range<S: LayoutScalar>(
+    pub fn flow_relative_scroll_range<S: LayoutScalar>(
         self,
         physical: PhysicalScrollRangeOf<S>,
     ) -> FlowRelativeScrollRangeOf<S> {
@@ -751,10 +636,11 @@ impl ScrollContainerFacts {
     }
 
     #[must_use]
-    pub fn accepts_range<S: LayoutScalar>(self, range: ScrollRangeOf<S>) -> bool {
-        let maximum = range.maximum_offset();
-        (self.x.exposes_scroll_range() || maximum.width == S::ZERO)
-            && (self.y.exposes_scroll_range() || maximum.height == S::ZERO)
+    pub fn accepts_range<S: LayoutScalar>(self, range: PhysicalScrollRangeOf<S>) -> bool {
+        (self.x.exposes_scroll_range()
+            || range.x().minimum() == S::ZERO && range.x().maximum() == S::ZERO)
+            && (self.y.exposes_scroll_range()
+                || range.y().minimum() == S::ZERO && range.y().maximum() == S::ZERO)
     }
 
     #[must_use]
@@ -1030,15 +916,25 @@ fn scrollbar_gutter_rects_from_padding_box<S: LayoutScalar>(
     Ok(ScrollbarGutterRectsOf::new(horizontal, vertical))
 }
 
+/// Layout-produced scroll-container geometry in local physical coordinates.
+///
+/// `scrollport`, `overflow_clip`, `scrollable_overflow`, and `gutters` are all
+/// physical x/y rectangles. `physical_range` is a signed physical x/y range:
+/// positive x is rightward and positive y is downward, so a reversed logical
+/// progression can produce a negative physical interval. `flow_axes` retains
+/// the writing-mode and direction context used to project that range.
+///
+/// This value describes layout geometry only. It does not retain a current
+/// scroll offset; root and integration layers own live scroll state, host-event
+/// conversion, and CSSOM policy.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
-    writing_mode: WritingMode,
-    direction: Direction,
+    flow_axes: FlowAxes,
     container: ScrollContainerFacts,
     scrollport: ScrollRectOf<S>,
     overflow_clip: Option<ScrollRectOf<S>>,
     scrollable_overflow: ScrollRectOf<S>,
-    range: ScrollRangeOf<S>,
+    physical_range: PhysicalScrollRangeOf<S>,
     gutters: ScrollbarGutterRectsOf<S>,
 }
 
@@ -1046,17 +942,24 @@ pub type ScrollGeometry = ScrollGeometryOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ScrollGeometryOf<S> {
     #[allow(clippy::too_many_arguments)]
+    /// Constructs physical scroll geometry with its retained flow context.
+    ///
+    /// Every rectangle is expressed in local physical x/y coordinates.
+    /// `physical_range` permits any finite ordered signed bounds, rather than
+    /// requiring a zero origin; `flow_axes` records how those physical bounds
+    /// relate to the layout's inline and block progression. Construction checks
+    /// the container's current exposure and clipping invariants, but does not
+    /// own live scroll offset state or later range-origin policy.
     pub fn new(
-        writing_mode: WritingMode,
-        direction: Direction,
+        flow_axes: FlowAxes,
         container: ScrollContainerFacts,
         scrollport: ScrollRectOf<S>,
         overflow_clip: Option<ScrollRectOf<S>>,
         scrollable_overflow: ScrollRectOf<S>,
-        range: ScrollRangeOf<S>,
+        physical_range: PhysicalScrollRangeOf<S>,
         gutters: ScrollbarGutterRectsOf<S>,
     ) -> Result<Self, ScrollUnsupportedFeature> {
-        if !container.accepts_range(range) {
+        if !container.accepts_range(physical_range) {
             return Err(ScrollUnsupportedFeature::InvalidScrollGeometry);
         }
         if !container.accepts_overflow_clip(overflow_clip) {
@@ -1064,53 +967,61 @@ impl<S: LayoutScalar> ScrollGeometryOf<S> {
         }
 
         Ok(Self {
-            writing_mode,
-            direction,
+            flow_axes,
             container,
             scrollport,
             overflow_clip,
             scrollable_overflow,
-            range,
+            physical_range,
             gutters,
         })
     }
 
     #[must_use]
-    pub const fn writing_mode(self) -> WritingMode {
-        self.writing_mode
+    /// Returns the writing-mode and direction context retained with this
+    /// physical geometry.
+    pub const fn flow_axes(self) -> FlowAxes {
+        self.flow_axes
     }
 
     #[must_use]
-    pub const fn direction(self) -> Direction {
-        self.direction
-    }
-
-    #[must_use]
+    /// Returns the physical-axis overflow exposure facts for this container.
     pub const fn container(self) -> ScrollContainerFacts {
         self.container
     }
 
     #[must_use]
+    /// Returns the local physical x/y scrollport rectangle.
     pub const fn scrollport(self) -> ScrollRectOf<S> {
         self.scrollport
     }
 
     #[must_use]
+    /// Returns the local physical x/y overflow clip rectangle when clipping is
+    /// required by the container.
     pub const fn overflow_clip(self) -> Option<ScrollRectOf<S>> {
         self.overflow_clip
     }
 
     #[must_use]
+    /// Returns the local physical x/y scrollable-overflow rectangle produced by
+    /// the current layout calculation.
     pub const fn scrollable_overflow(self) -> ScrollRectOf<S> {
         self.scrollable_overflow
     }
 
     #[must_use]
-    pub const fn range(self) -> ScrollRangeOf<S> {
-        self.range
+    /// Returns the signed local physical x/y scroll range.
+    ///
+    /// Positive x is rightward and positive y is downward. Use `flow_axes()` to
+    /// relate these bounds to inline/block progression; this geometry does not
+    /// store a live current offset.
+    pub const fn physical_range(self) -> PhysicalScrollRangeOf<S> {
+        self.physical_range
     }
 
     #[must_use]
+    /// Returns local physical x/y rectangles reserved for scrollbars.
     pub const fn gutters(self) -> ScrollbarGutterRectsOf<S> {
         self.gutters
     }
@@ -1183,39 +1094,52 @@ pub fn scrollable_overflow_from_layout_content_size<S: LayoutScalar>(
     scrollable_overflow_from_content_size(rects.content_box(), content_size)
 }
 
-#[allow(dead_code)]
-pub fn scroll_range_from_overflow_rects<S: LayoutScalar>(
+fn physical_scroll_range_from_overflow_rects<S: LayoutScalar>(
+    flow_axes: FlowAxes,
     container: ScrollContainerFacts,
     scrollport: ScrollRectOf<S>,
     scrollable_overflow: ScrollRectOf<S>,
-) -> Result<ScrollRangeOf<S>, ScrollUnsupportedFeature> {
+) -> Result<PhysicalScrollRangeOf<S>, ScrollUnsupportedFeature> {
     let scrollport_origin = scrollport.origin();
     let scrollport_size = scrollport.size();
     let scrollable_origin = scrollable_overflow.origin();
     let scrollable_size = scrollable_overflow.size();
-    ScrollRangeOf::new(Size::new(
-        if container.x().exposes_scroll_range() {
-            ((scrollable_origin.x + scrollable_size.width)
-                - (scrollport_origin.x + scrollport_size.width))
-                .max(S::ZERO)
-        } else {
-            S::ZERO
-        },
-        if container.y().exposes_scroll_range() {
-            ((scrollable_origin.y + scrollable_size.height)
-                - (scrollport_origin.y + scrollport_size.height))
-                .max(S::ZERO)
-        } else {
-            S::ZERO
-        },
-    ))
+    let x_magnitude = if container.x().exposes_scroll_range() {
+        ((scrollable_origin.x + scrollable_size.width)
+            - (scrollport_origin.x + scrollport_size.width))
+            .max(S::ZERO)
+    } else {
+        S::ZERO
+    };
+    let y_magnitude = if container.y().exposes_scroll_range() {
+        ((scrollable_origin.y + scrollable_size.height)
+            - (scrollport_origin.y + scrollport_size.height))
+            .max(S::ZERO)
+    } else {
+        S::ZERO
+    };
+    let inline_magnitude = match flow_axes.inline_axis() {
+        PhysicalAxis::Horizontal => x_magnitude,
+        PhysicalAxis::Vertical => y_magnitude,
+    };
+    let block_magnitude = match flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => x_magnitude,
+        PhysicalAxis::Vertical => y_magnitude,
+    };
+    let flow_range = FlowRelativeScrollRangeOf::<S>::try_new(
+        S::ZERO,
+        inline_magnitude,
+        S::ZERO,
+        block_magnitude,
+    )
+    .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
+    Ok(flow_axes.physical_scroll_range(flow_range))
 }
 
 #[allow(clippy::too_many_arguments)]
 #[allow(dead_code)]
 pub fn scroll_geometry_from_layout<S: LayoutScalar>(
-    writing_mode: WritingMode,
-    direction: Direction,
+    flow_axes: FlowAxes,
     overflow: Point<Overflow>,
     border_box_size: Size<S>,
     padding: Edges<S>,
@@ -1224,28 +1148,34 @@ pub fn scroll_geometry_from_layout<S: LayoutScalar>(
     scrollable_overflow: ScrollRectOf<S>,
 ) -> Result<ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
     let container = scroll_container_facts_from_overflow(overflow)?;
-    let reservation =
-        ScrollbarReservationOf::from_overflow(overflow, scrollbar_width_value, direction);
+    let reservation = ScrollbarReservationOf::from_overflow(
+        overflow,
+        scrollbar_width_value,
+        flow_axes.direction(),
+    );
     let rects = scroll_box_rects_from_border_box(
         ScrollRectOf::new(Point::ZERO, border_box_size)?,
         padding,
         border,
         reservation,
     )?;
-    let range =
-        scroll_range_from_overflow_rects(container, rects.scrollport(), scrollable_overflow)?;
+    let physical_range = physical_scroll_range_from_overflow_rects(
+        flow_axes,
+        container,
+        rects.scrollport(),
+        scrollable_overflow,
+    )?;
     let overflow_clip = container
         .requires_overflow_clip()
         .then_some(rects.scrollport());
 
     ScrollGeometryOf::new(
-        writing_mode,
-        direction,
+        flow_axes,
         container,
         rects.scrollport(),
         overflow_clip,
         scrollable_overflow,
-        range,
+        physical_range,
         rects.gutters(),
     )
 }
@@ -1272,17 +1202,20 @@ pub fn round_scroll_geometry<S: LayoutScalar>(
             .map(|rect| round_scroll_rect(rect, cumulative_origin))
             .transpose()?,
     );
-    let range =
-        scroll_range_from_overflow_rects(geometry.container(), scrollport, scrollable_overflow)?;
+    let physical_range = physical_scroll_range_from_overflow_rects(
+        geometry.flow_axes(),
+        geometry.container(),
+        scrollport,
+        scrollable_overflow,
+    )?;
 
     ScrollGeometryOf::new(
-        geometry.writing_mode(),
-        geometry.direction(),
+        geometry.flow_axes(),
         geometry.container(),
         scrollport,
         overflow_clip,
         scrollable_overflow,
-        range,
+        physical_range,
         gutters,
     )
 }

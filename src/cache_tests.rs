@@ -106,14 +106,13 @@ fn cache_scroll_geometry<S: LayoutScalar>() -> ScrollGeometryOf<S> {
     let container = ScrollContainerFacts::new(scroll_axis, scroll_axis);
 
     ScrollGeometryOf::new(
-        WritingMode::VerticalRl,
-        Direction::Rtl,
+        crate::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
         container,
         cache_scroll_rect(2.0, 3.0, 40.0, 20.0),
         Some(cache_scroll_rect(1.0, 1.0, 44.0, 24.0)),
         cache_scroll_rect(0.0, 0.0, 100.0, 80.0),
-        ScrollRangeOf::new(Size::new(scalar(60.0), scalar(60.0)))
-            .expect("test scroll range is valid"),
+        PhysicalScrollRangeOf::try_new(scalar(-60.0), scalar(0.0), scalar(-60.0), scalar(0.0))
+            .expect("test signed physical range is valid"),
         ScrollbarGutterRectsOf::new(
             Some(cache_scroll_rect(2.0, 21.0, 30.0, 2.0)),
             Some(cache_scroll_rect(40.0, 3.0, 2.0, 18.0)),

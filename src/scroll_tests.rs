@@ -1,13 +1,25 @@
 use crate::scroll::{
     FlowRelativeScrollOffsetOf, FlowRelativeScrollRangeOf, PhysicalScrollOffsetOf,
-    PhysicalScrollRangeOf, ScrollBoxRects, ScrollCoordinateErrorOf, ScrollbarReservation,
+    PhysicalScrollRangeOf, ScrollBoxRects, ScrollCoordinateErrorOf, ScrollRectOf,
+    ScrollbarReservation,
 };
 use crate::{
     Direction, Edges, FlowAxes, LogicalAxis, Overflow, PhysicalAxis, Point, ScrollContainerAxis,
-    ScrollContainerFacts, ScrollGeometry, ScrollOffset, ScrollOffsetOf,
-    ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRange, ScrollRangeOf, ScrollRect,
-    ScrollUnsupportedFeature, ScrollbarGutterRects, Size, WritingMode,
+    ScrollContainerFacts, ScrollGeometry, ScrollOverflowCouplingPolicy, ScrollOverflowExposure,
+    ScrollRect, ScrollUnsupportedFeature, ScrollbarGutterRects, Size, WritingMode,
 };
+
+fn physical_range(x_maximum: f32, y_maximum: f32) -> PhysicalScrollRangeOf {
+    PhysicalScrollRangeOf::try_new(0.0, x_maximum, 0.0, y_maximum)
+        .expect("finite physical range is valid")
+}
+
+fn assert_physical_range_maximum(range: PhysicalScrollRangeOf, maximum: Size) {
+    assert_eq!(range.x().minimum(), 0.0);
+    assert_eq!(range.x().maximum(), maximum.width);
+    assert_eq!(range.y().minimum(), 0.0);
+    assert_eq!(range.y().maximum(), maximum.height);
+}
 
 type ScrollProjectionExpectation = (WritingMode, Direction, (f64, f64), (f64, f64, f64, f64));
 
@@ -610,28 +622,12 @@ fn scroll_clamp_is_component_wise_contained_and_idempotent_in_both_spaces() {
 }
 
 #[test]
-fn scroll_range_clamps_offsets_to_non_negative_maximum() {
-    let range = ScrollRange::new(Size::new(120.0, 40.0)).unwrap();
+fn physical_scroll_range_clamps_signed_offsets() {
+    let range = PhysicalScrollRangeOf::try_new(-120.0, 40.0, -30.0, 50.0).unwrap();
 
     assert_eq!(
-        range.clamp(ScrollOffset::new(Point::new(-10.0, 10.0))),
-        ScrollOffset::new(Point::new(0.0, 10.0))
-    );
-    assert_eq!(
-        range.clamp(ScrollOffset::new(Point::new(200.0, 99.0))),
-        ScrollOffset::new(Point::new(120.0, 40.0))
-    );
-}
-
-#[test]
-fn scroll_range_rejects_negative_or_non_finite_maximum() {
-    assert_eq!(
-        ScrollRange::new(Size::new(-1.0, 0.0)).unwrap_err(),
-        ScrollUnsupportedFeature::InvalidScrollRange
-    );
-    assert_eq!(
-        ScrollRange::new(Size::new(f32::INFINITY, 0.0)).unwrap_err(),
-        ScrollUnsupportedFeature::InvalidScrollRange
+        range.clamp(PhysicalScrollOffsetOf::try_new(-200.0, 99.0).unwrap()),
+        PhysicalScrollOffsetOf::try_new(-120.0, 50.0).unwrap()
     );
 }
 
@@ -649,14 +645,11 @@ fn scroll_rect_rejects_negative_or_non_finite_size() {
 
 #[test]
 fn scroll_geometry_supports_f64() {
-    let range = ScrollRangeOf::<f64>::new(Size::new(1_000_000_000_000.0, 0.5)).unwrap();
+    let range = PhysicalScrollRangeOf::<f64>::try_new(0.0, 1_000_000_000_000.0, 0.0, 0.5).unwrap();
 
     assert_eq!(
-        range.clamp(ScrollOffsetOf::<f64>::new(Point::new(
-            2_000_000_000_000.0,
-            1.0
-        ))),
-        ScrollOffsetOf::<f64>::new(Point::new(1_000_000_000_000.0, 0.5))
+        range.clamp(PhysicalScrollOffsetOf::<f64>::try_new(2_000_000_000_000.0, 1.0).unwrap()),
+        PhysicalScrollOffsetOf::<f64>::try_new(1_000_000_000_000.0, 0.5).unwrap()
     );
 }
 
@@ -688,11 +681,11 @@ fn scroll_geometry_front_door_preserves_physical_rects_and_flow_metadata() {
     let scrollport = ScrollRect::new(Point::new(1.0, 2.0), Size::new(80.0, 40.0)).unwrap();
     let overflow = ScrollRect::new(Point::ZERO, Size::new(120.0, 90.0)).unwrap();
     let clip = ScrollRect::new(Point::new(1.0, 2.0), Size::new(80.0, 40.0)).unwrap();
-    let range = ScrollRange::new(Size::new(40.0, 50.0)).unwrap();
+    let flow_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let range = PhysicalScrollRangeOf::try_new(-50.0, 0.0, -40.0, 0.0).unwrap();
     let gutters = ScrollbarGutterRects::new(None, None);
     let geometry = ScrollGeometry::new(
-        WritingMode::VerticalRl,
-        Direction::Rtl,
+        flow_axes,
         ScrollContainerFacts::new(
             ScrollContainerAxis::from_overflow(Overflow::Scroll).unwrap(),
             ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
@@ -705,26 +698,24 @@ fn scroll_geometry_front_door_preserves_physical_rects_and_flow_metadata() {
     )
     .unwrap();
 
-    assert_eq!(geometry.writing_mode(), WritingMode::VerticalRl);
-    assert_eq!(geometry.direction(), Direction::Rtl);
+    assert_eq!(geometry.flow_axes(), flow_axes);
     assert_eq!(geometry.scrollport(), scrollport);
     assert_eq!(geometry.overflow_clip(), Some(clip));
     assert_eq!(geometry.scrollable_overflow(), overflow);
-    assert_eq!(geometry.range(), range);
+    assert_eq!(geometry.physical_range(), range);
 }
 
 #[test]
 fn scroll_geometry_rejects_clipping_axis_without_clip_rect() {
     let scrollport = ScrollRect::new(Point::ZERO, Size::new(80.0, 40.0)).unwrap();
     let overflow = ScrollRect::new(Point::ZERO, Size::new(120.0, 90.0)).unwrap();
-    let range = ScrollRange::new(Size::new(0.0, 0.0)).unwrap();
+    let range = physical_range(0.0, 0.0);
     let gutters = ScrollbarGutterRects::new(None, None);
 
     for overflow_x in [Overflow::Hidden, Overflow::Clip, Overflow::Scroll] {
         assert_eq!(
             ScrollGeometry::new(
-                WritingMode::HorizontalTb,
-                Direction::Ltr,
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
                 ScrollContainerFacts::new(
                     ScrollContainerAxis::from_overflow(overflow_x).unwrap(),
                     ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
@@ -742,8 +733,7 @@ fn scroll_geometry_rejects_clipping_axis_without_clip_rect() {
 
     assert_eq!(
         ScrollGeometry::new(
-            WritingMode::HorizontalTb,
-            Direction::Ltr,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
             ScrollContainerFacts::new(
                 ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
                 ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
@@ -763,12 +753,11 @@ fn scroll_geometry_rejects_clipping_axis_without_clip_rect() {
 fn scroll_geometry_allows_visible_axes_without_clip_rect() {
     let scrollport = ScrollRect::new(Point::ZERO, Size::new(80.0, 40.0)).unwrap();
     let overflow = ScrollRect::new(Point::ZERO, Size::new(120.0, 90.0)).unwrap();
-    let range = ScrollRange::new(Size::new(0.0, 0.0)).unwrap();
+    let range = physical_range(0.0, 0.0);
     let gutters = ScrollbarGutterRects::new(None, None);
 
     let geometry = ScrollGeometry::new(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         ScrollContainerFacts::new(
             ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
             ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
@@ -788,13 +777,12 @@ fn scroll_geometry_allows_visible_axes_without_clip_rect() {
 fn scroll_geometry_rejects_clip_only_axis_with_non_zero_range() {
     let scrollport = ScrollRect::new(Point::ZERO, Size::new(80.0, 40.0)).unwrap();
     let overflow = ScrollRect::new(Point::ZERO, Size::new(120.0, 90.0)).unwrap();
-    let range = ScrollRange::new(Size::new(40.0, 0.0)).unwrap();
+    let range = physical_range(40.0, 0.0);
     let gutters = ScrollbarGutterRects::new(None, None);
 
     assert_eq!(
         ScrollGeometry::new(
-            WritingMode::HorizontalTb,
-            Direction::Ltr,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
             ScrollContainerFacts::new(
                 ScrollContainerAxis::from_overflow(Overflow::Clip).unwrap(),
                 ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
@@ -814,13 +802,12 @@ fn scroll_geometry_rejects_clip_only_axis_with_non_zero_range() {
 fn scroll_geometry_rejects_visible_axis_with_non_zero_range() {
     let scrollport = ScrollRect::new(Point::ZERO, Size::new(80.0, 40.0)).unwrap();
     let overflow = ScrollRect::new(Point::ZERO, Size::new(120.0, 90.0)).unwrap();
-    let range = ScrollRange::new(Size::new(0.0, 50.0)).unwrap();
+    let range = physical_range(0.0, 50.0);
     let gutters = ScrollbarGutterRects::new(None, None);
 
     assert_eq!(
         ScrollGeometry::new(
-            WritingMode::HorizontalTb,
-            Direction::Ltr,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
             ScrollContainerFacts::new(
                 ScrollContainerAxis::from_overflow(Overflow::Scroll).unwrap(),
                 ScrollContainerAxis::from_overflow(Overflow::Visible).unwrap(),
@@ -834,6 +821,23 @@ fn scroll_geometry_rejects_visible_axis_with_non_zero_range() {
         .unwrap_err(),
         ScrollUnsupportedFeature::InvalidScrollGeometry
     );
+}
+
+#[test]
+fn scroll_geometry_error_maps_nonfinite_layout_range_to_invalid_geometry() {
+    let error = crate::scroll::scroll_geometry_from_layout(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        Point::new(Overflow::Hidden, Overflow::Hidden),
+        Size::new(f32::MAX, 1.0),
+        Edges::ZERO,
+        Edges::ZERO,
+        0.0,
+        ScrollRect::new(Point::new(f32::MAX, 0.0), Size::new(f32::MAX, 1.0))
+            .expect("finite overflow rectangle is valid"),
+    )
+    .expect_err("non-finite layout-produced range must be invalid geometry");
+
+    assert_eq!(error, ScrollUnsupportedFeature::InvalidScrollGeometry);
 }
 
 #[test]
@@ -866,7 +870,6 @@ fn phase_one_reports_deferred_scroll_features_explicitly() {
 
     assert!(ScrollUnsupportedFeature::LayoutOwnedMixedAxisOverflowCoupling.is_phase_one_deferred());
     assert!(!ScrollUnsupportedFeature::InvalidScrollRect.is_phase_one_deferred());
-    assert!(!ScrollUnsupportedFeature::InvalidScrollRange.is_phase_one_deferred());
     assert!(!ScrollUnsupportedFeature::InvalidScrollGeometry.is_phase_one_deferred());
 }
 
@@ -1021,8 +1024,7 @@ fn scroll_geometry_from_layout_exposes_hidden_range_and_clip() {
     )
     .unwrap();
     let geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         Point::new(Overflow::Hidden, Overflow::Hidden),
         Size::new(100.0, 40.0),
         Edges::ZERO,
@@ -1041,7 +1043,7 @@ fn scroll_geometry_from_layout_exposes_hidden_range_and_clip() {
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(40.0, 30.0));
+    assert_physical_range_maximum(geometry.physical_range(), Size::new(40.0, 30.0));
 }
 
 #[test]
@@ -1052,8 +1054,7 @@ fn scroll_geometry_from_layout_keeps_clip_range_zero() {
     )
     .unwrap();
     let geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         Point::new(Overflow::Clip, Overflow::Clip),
         Size::new(100.0, 40.0),
         Edges::ZERO,
@@ -1064,7 +1065,7 @@ fn scroll_geometry_from_layout_keeps_clip_range_zero() {
     .unwrap();
 
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_physical_range_maximum(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -1075,8 +1076,7 @@ fn scroll_geometry_from_layout_keeps_visible_range_zero_with_visible_overflow() 
     )
     .unwrap();
     let geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         Point::new(Overflow::Visible, Overflow::Visible),
         Size::new(100.0, 40.0),
         Edges::ZERO,
@@ -1091,7 +1091,7 @@ fn scroll_geometry_from_layout_keeps_visible_range_zero_with_visible_overflow() 
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_physical_range_maximum(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -1102,8 +1102,7 @@ fn scroll_geometry_from_layout_accounts_for_scrollbar_gutter() {
     )
     .unwrap();
     let geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Rtl,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
         Point::new(Overflow::Hidden, Overflow::Scroll),
         Size::new(100.0, 40.0),
         Edges::ZERO,
@@ -1121,7 +1120,10 @@ fn scroll_geometry_from_layout_accounts_for_scrollbar_gutter() {
         geometry.gutters().vertical(),
         Some(ScrollRect::new(Point::ZERO, Size::new(10.0, 40.0)).unwrap())
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(30.0, 0.0));
+    assert_eq!(geometry.physical_range().x().minimum(), -30.0);
+    assert_eq!(geometry.physical_range().x().maximum(), 0.0);
+    assert_eq!(geometry.physical_range().y().minimum(), 0.0);
+    assert_eq!(geometry.physical_range().y().maximum(), 0.0);
 }
 
 #[test]
@@ -1132,8 +1134,7 @@ fn scroll_geometry_from_layout_keeps_visible_axis_range_zero_when_other_axis_scr
     )
     .unwrap();
     let geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         Point::new(Overflow::Visible, Overflow::Hidden),
         Size::new(100.0, 40.0),
         Edges::ZERO,
@@ -1144,7 +1145,7 @@ fn scroll_geometry_from_layout_keeps_visible_axis_range_zero_when_other_axis_scr
     .unwrap();
 
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
-    assert_eq!(geometry.range().maximum_offset(), Size::new(0.0, 30.0));
+    assert_physical_range_maximum(geometry.physical_range(), Size::new(0.0, 30.0));
 }
 
 #[test]
@@ -1152,8 +1153,7 @@ fn round_scroll_geometry_rounds_rects_with_cumulative_origin() {
     let scrollable_overflow =
         ScrollRect::new(Point::new(0.25, 0.25), Size::new(10.5, 20.5)).unwrap();
     let geometry = ScrollGeometry::new(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         ScrollContainerFacts::new(
             ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
             ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
@@ -1161,7 +1161,7 @@ fn round_scroll_geometry_rounds_rects_with_cumulative_origin() {
         ScrollRect::new(Point::new(0.25, 0.25), Size::new(5.5, 6.5)).unwrap(),
         Some(ScrollRect::new(Point::new(0.25, 0.25), Size::new(5.5, 6.5)).unwrap()),
         scrollable_overflow,
-        ScrollRange::new(Size::new(5.0, 14.0)).unwrap(),
+        physical_range(5.0, 14.0),
         ScrollbarGutterRects::new(
             None,
             Some(ScrollRect::new(Point::new(5.75, 0.25), Size::new(1.0, 6.5)).unwrap()),
@@ -1184,5 +1184,98 @@ fn round_scroll_geometry_rounds_rects_with_cumulative_origin() {
         rounded.gutters().vertical(),
         Some(ScrollRect::new(Point::new(6.0, 1.0), Size::new(1.0, 6.0)).unwrap())
     );
-    assert_eq!(rounded.range().maximum_offset(), Size::new(5.0, 14.0));
+    assert_physical_range_maximum(rounded.physical_range(), Size::new(5.0, 14.0));
+}
+
+#[test]
+fn scroll_geometry_projects_signed_ranges_for_all_flow_mappings_before_and_after_rounding() {
+    fn assert_scalar<S: crate::LayoutScalar>() {
+        let cases = [
+            (
+                WritingMode::HorizontalTb,
+                Direction::Ltr,
+                (0.0, 40.0, 0.0, 30.0),
+            ),
+            (
+                WritingMode::HorizontalTb,
+                Direction::Rtl,
+                (-40.0, 0.0, 0.0, 30.0),
+            ),
+            (
+                WritingMode::VerticalRl,
+                Direction::Ltr,
+                (-40.0, 0.0, 0.0, 30.0),
+            ),
+            (
+                WritingMode::VerticalRl,
+                Direction::Rtl,
+                (-40.0, 0.0, -30.0, 0.0),
+            ),
+            (
+                WritingMode::VerticalLr,
+                Direction::Ltr,
+                (0.0, 40.0, 0.0, 30.0),
+            ),
+            (
+                WritingMode::VerticalLr,
+                Direction::Rtl,
+                (0.0, 40.0, -30.0, 0.0),
+            ),
+            (
+                WritingMode::SidewaysRl,
+                Direction::Ltr,
+                (-40.0, 0.0, 0.0, 30.0),
+            ),
+            (
+                WritingMode::SidewaysRl,
+                Direction::Rtl,
+                (-40.0, 0.0, -30.0, 0.0),
+            ),
+            (
+                WritingMode::SidewaysLr,
+                Direction::Ltr,
+                (0.0, 40.0, -30.0, 0.0),
+            ),
+            (
+                WritingMode::SidewaysLr,
+                Direction::Rtl,
+                (0.0, 40.0, 0.0, 30.0),
+            ),
+        ];
+
+        for (writing_mode, direction, (x_minimum, x_maximum, y_minimum, y_maximum)) in cases {
+            let geometry = crate::scroll::scroll_geometry_from_layout(
+                FlowAxes::new(writing_mode, direction),
+                Point::new(Overflow::Hidden, Overflow::Hidden),
+                Size::new(S::from_f64(100.0), S::from_f64(40.0)),
+                Edges::ZERO,
+                Edges::ZERO,
+                S::ZERO,
+                ScrollRectOf::new(
+                    Point::ZERO,
+                    Size::new(S::from_f64(140.0), S::from_f64(70.0)),
+                )
+                .expect("finite overflow rectangle is valid"),
+            )
+            .expect("finite layout geometry is valid");
+
+            for geometry in [
+                geometry,
+                crate::scroll::round_scroll_geometry(
+                    geometry,
+                    Point::new(S::from_f64(0.25), S::from_f64(0.25)),
+                )
+                .expect("finite rounded geometry is valid"),
+            ] {
+                let range = geometry.physical_range();
+                assert_eq!(range.x().minimum(), S::from_f64(x_minimum));
+                assert_eq!(range.x().maximum(), S::from_f64(x_maximum));
+                assert_eq!(range.y().minimum(), S::from_f64(y_minimum));
+                assert_eq!(range.y().maximum(), S::from_f64(y_maximum));
+            }
+        }
+    }
+
+    assert_scalar::<f32>();
+    assert_scalar::<f64>();
 }

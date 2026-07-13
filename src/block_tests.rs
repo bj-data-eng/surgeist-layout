@@ -3,6 +3,13 @@ use std::collections::HashMap;
 use crate::block::resolve_in_flow_margin;
 use crate::*;
 
+fn assert_positive_physical_range(range: PhysicalScrollRange, maximum: Size) {
+    assert_eq!(range.x().minimum(), 0.0);
+    assert_eq!(range.x().maximum(), maximum.width);
+    assert_eq!(range.y().minimum(), 0.0);
+    assert_eq!(range.y().maximum(), maximum.height);
+}
+
 fn lp(absolute_px: Scalar, percent_fraction: Scalar) -> LengthPercentageOf {
     LengthPercentageOf::from_coefficients(absolute_px, percent_fraction)
         .expect("test coefficients are finite")
@@ -89,8 +96,7 @@ fn child_scroll_geometry(
     scrollable_overflow: ScrollRect,
 ) -> ScrollGeometry {
     crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         overflow,
         size,
         Edges::ZERO,
@@ -118,7 +124,7 @@ fn block_layout_emits_scroll_geometry_for_scroll_overflow() {
 
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -155,7 +161,7 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(30.0, 30.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(30.0, 30.0));
 }
 
 #[test]
@@ -193,7 +199,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -240,7 +246,7 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
         geometry.scrollable_overflow().size(),
         Size::new(120.0, 45.0)
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -263,24 +269,24 @@ fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
 
     let visible = run(Point::new(Overflow::Visible, Overflow::Visible));
     assert_eq!(visible.overflow_clip(), None);
-    assert_eq!(visible.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(visible.physical_range(), Size::ZERO);
 
     let hidden = run(Point::new(Overflow::Hidden, Overflow::Hidden));
     assert_eq!(hidden.overflow_clip(), Some(hidden.scrollport()));
     assert_eq!(
         hidden
-            .range()
-            .clamp(ScrollOffset::new(Point::new(3.0, 4.0))),
-        ScrollOffset::new(Point::ZERO)
+            .physical_range()
+            .clamp(PhysicalScrollOffset::try_new(3.0, 4.0).unwrap()),
+        PhysicalScrollOffset::try_new(0.0, 0.0).unwrap()
     );
 
     let clip = run(Point::new(Overflow::Clip, Overflow::Clip));
     assert_eq!(clip.overflow_clip(), Some(clip.scrollport()));
-    assert_eq!(clip.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(clip.physical_range(), Size::ZERO);
 
     let scroll = run(Point::new(Overflow::Scroll, Overflow::Scroll));
     assert_eq!(scroll.overflow_clip(), Some(scroll.scrollport()));
-    assert_eq!(scroll.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(scroll.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -353,7 +359,7 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
         geometry.scrollable_overflow().size(),
         Size::new(135.0, 60.0)
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(35.0, 20.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(35.0, 20.0));
 }
 
 #[test]
@@ -442,7 +448,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
         Point::new(-12.0, -3.0)
     );
     assert_eq!(geometry.scrollable_overflow().size(), Size::new(70.0, 26.0));
-    assert_eq!(geometry.range().maximum_offset(), Size::new(0.0, 13.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(0.0, 13.0));
 }
 
 #[test]
@@ -483,7 +489,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -667,7 +673,7 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
         geometry.scrollable_overflow().size(),
         Size::new(140.0, 55.0)
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(40.0, 15.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(40.0, 15.0));
 }
 
 #[test]
@@ -681,8 +687,7 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
     let mut float_output = ComputeOutput::from_sizes(Size::new(30.0, 10.0), Size::new(70.0, 32.0));
     float_output.scroll_geometry = Some(
         crate::scroll::scroll_geometry_from_layout(
-            WritingMode::HorizontalTb,
-            Direction::Ltr,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
             Point::new(Overflow::Hidden, Overflow::Hidden),
             Size::new(30.0, 10.0),
             resolved_padding,
@@ -738,8 +743,7 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
     let expected_overflow = crate::scroll::scroll_rect_union(base_overflow, child_compute_overflow)
         .expect("expected float child overflow union is valid");
     let expected_geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         Point::new(Overflow::Hidden, Overflow::Hidden),
         child_layout.size,
         child_layout.padding,
@@ -757,8 +761,8 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
         child_compute_overflow.origin()
     );
     assert_eq!(
-        geometry.range().maximum_offset(),
-        expected_geometry.range().maximum_offset()
+        geometry.physical_range(),
+        expected_geometry.physical_range()
     );
 }
 
@@ -854,7 +858,7 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
 
     let geometry = tree.layouts[&2].scroll_geometry.unwrap();
     assert_eq!(geometry.scrollport().size(), Size::new(50.0, 20.0));
-    assert_eq!(geometry.range().maximum_offset(), Size::new(30.0, 25.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(30.0, 25.0));
 }
 
 #[test]
@@ -892,7 +896,7 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::ZERO, Size::new(160.0, 90.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(110.0, 70.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(110.0, 70.0));
 }
 
 #[test]
@@ -934,7 +938,7 @@ fn block_absolute_child_scroll_geometry_uses_final_node_output_size() {
     assert_eq!(child_layout.size.width, 100.0);
     let geometry = child_layout.scroll_geometry.unwrap();
     assert_eq!(geometry.scrollport().size().width, 100.0);
-    assert_eq!(geometry.range().maximum_offset(), Size::new(20.0, 20.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(20.0, 20.0));
 }
 
 #[test]

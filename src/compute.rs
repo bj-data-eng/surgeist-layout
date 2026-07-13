@@ -125,6 +125,7 @@ pub enum LayoutUnsupportedCapability {
 #[non_exhaustive]
 pub enum LayoutInternalInvariant {
     InvalidRootScrollGeometry,
+    InvalidBlockScrollGeometry,
     InvalidRoundedScrollGeometry,
     MissingLeafMeasurementProvider,
     MissingStagedUnroundedOutput,
@@ -308,7 +309,7 @@ where
 
     LayoutErrorOf::new(
         LayoutErrorSiteOf::Node(node),
-        LayoutOperation::RoundingFinalization,
+        LayoutOperation::RootLayout,
         kind,
     )
 }
@@ -514,8 +515,7 @@ where
         .unwrap_or(scrollable_overflow);
     let scroll_geometry = Some(
         scroll_geometry_from_layout(
-            style.writing_mode,
-            style.direction,
+            containing_flow_axes,
             style.overflow,
             output.size,
             root_edges.padding,

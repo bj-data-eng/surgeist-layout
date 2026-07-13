@@ -4,6 +4,16 @@ use std::collections::{HashMap, HashSet};
 use crate::test_support::layout_tree::OracleTreeOf;
 use crate::*;
 
+fn assert_positive_physical_range<S: LayoutScalar>(
+    range: PhysicalScrollRangeOf<S>,
+    maximum: Size<S>,
+) {
+    assert_eq!(range.x().minimum(), S::ZERO);
+    assert_eq!(range.x().maximum(), maximum.width);
+    assert_eq!(range.y().minimum(), S::ZERO);
+    assert_eq!(range.y().maximum(), maximum.height);
+}
+
 #[derive(Clone, Debug, Default)]
 struct RootSessionTree<M = &'static str> {
     children: HashMap<u32, Vec<u32>>,
@@ -533,6 +543,224 @@ fn root_cache_input(available: Size<Available>) -> ComputeInput {
     )
 }
 
+fn assert_public_scroll_geometry_error_without_batch(
+    tree: &RootSessionTree,
+    available: Size<Available>,
+    expected_site: LayoutErrorSite<u32>,
+    expected_operation: LayoutOperation,
+    expected_invariant: LayoutInternalInvariant,
+) {
+    let request =
+        LayoutRootRequest::viewport(available).expect("finite root availability is valid");
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        compute_layout(tree, 0, request)
+    }));
+    let error = match outcome {
+        Ok(Err(error)) => error,
+        Ok(Ok(_)) => panic!("scroll-geometry overflow must not return a completed layout batch"),
+        Err(_) => panic!("scroll-geometry overflow must not unwind from compute_layout"),
+    };
+
+    let expected_kind = LayoutErrorKind::InternalInvariant(expected_invariant);
+    assert_eq!(
+        (error.site(), error.operation(), error.kind()),
+        (expected_site, expected_operation, &expected_kind)
+    );
+}
+
+fn overflowing_scroll_edges() -> Edges<Length> {
+    Edges {
+        left: Length::px(f32::MAX),
+        ..Edges::all(Length::ZERO)
+    }
+}
+
+#[test]
+fn scroll_geometry_error_maps_root_block_overflow_through_the_public_front_door() {
+    let tree: RootSessionTree = RootSessionTree::default().style(
+        0,
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            padding: overflowing_scroll_edges(),
+            border: overflowing_scroll_edges(),
+            ..NodeInput::default()
+        },
+    );
+
+    assert_public_scroll_geometry_error_without_batch(
+        &tree,
+        Size::new(Available::definite(f32::MAX), Available::definite(1.0)),
+        LayoutErrorSite::Node(0),
+        LayoutOperation::RootLayout,
+        LayoutInternalInvariant::InvalidRootScrollGeometry,
+    );
+}
+
+#[test]
+fn scroll_geometry_error_maps_non_root_block_overflow_through_the_public_front_door() {
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(100.0), Dimension::px(1.0)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+                padding: overflowing_scroll_edges(),
+                border: overflowing_scroll_edges(),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                ..NodeInput::default()
+            },
+        );
+
+    assert_public_scroll_geometry_error_without_batch(
+        &tree,
+        Size::new(Available::definite(100.0), Available::definite(1.0)),
+        LayoutErrorSite::Node(1),
+        LayoutOperation::ChildLayout,
+        LayoutInternalInvariant::InvalidBlockScrollGeometry,
+    );
+}
+
+#[test]
+fn scroll_geometry_error_maps_block_inline_float_and_absolute_overflow_to_the_subject() {
+    let available = Size::new(Available::definite(100.0), Available::definite(1.0));
+    let variants = [
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            margin: Edges {
+                left: LengthAuto::px(f32::MAX),
+                ..Edges::all(LengthAuto::ZERO)
+            },
+            ..NodeInput::default()
+        },
+        NodeInput {
+            display: Display::InlineBlock,
+            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            margin: Edges {
+                left: LengthAuto::px(f32::MAX),
+                ..Edges::all(LengthAuto::ZERO)
+            },
+            ..NodeInput::default()
+        },
+        NodeInput {
+            float: Float::Left,
+            display: Display::Block,
+            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            margin: Edges {
+                left: LengthAuto::px(f32::MAX),
+                ..Edges::all(LengthAuto::ZERO)
+            },
+            ..NodeInput::default()
+        },
+        NodeInput {
+            position: Position::Absolute,
+            display: Display::Block,
+            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            margin: Edges {
+                left: LengthAuto::px(f32::MAX),
+                ..Edges::all(LengthAuto::ZERO)
+            },
+            ..NodeInput::default()
+        },
+    ];
+
+    for child_style in variants {
+        let tree: RootSessionTree = RootSessionTree::default()
+            .children(0, [1])
+            .children(1, [])
+            .style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    size: Size::new(Dimension::px(100.0), Dimension::px(1.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .style(1, child_style)
+            .measure(1, Ok(Size::new(f32::MAX, 1.0)));
+
+        assert_public_scroll_geometry_error_without_batch(
+            &tree,
+            available,
+            LayoutErrorSite::ContainerSubject {
+                container: 0,
+                subject: 1,
+            },
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        );
+    }
+}
+
+#[test]
+fn scroll_geometry_error_maps_rounding_overflow_through_the_public_front_door() {
+    let flow_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
+    let available = Size::splat(Available::definite(f32::MAX));
+    let style = NodeInput {
+        writing_mode: WritingMode::VerticalRl,
+        size: Size::new(Dimension::px(1.0), Dimension::px(1.0)),
+        ..NodeInput::default()
+    };
+    let mut output = ComputeOutput::from_outer_size(Size::new(1.0, 1.0));
+    output.scroll_geometry = Some(
+        ScrollGeometry::new(
+            flow_axes,
+            ScrollContainerFacts::new(
+                ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
+                ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
+            ),
+            ScrollRect::new(Point::ZERO, Size::new(1.0, 1.0)).unwrap(),
+            Some(ScrollRect::new(Point::ZERO, Size::new(1.0, 1.0)).unwrap()),
+            ScrollRect::new(Point::ZERO, Size::new(f32::MAX, 1.0)).unwrap(),
+            PhysicalScrollRange::try_new(-f32::MAX, 0.0, 0.0, 0.0).unwrap(),
+            ScrollbarGutterRects::new(None, None),
+        )
+        .unwrap(),
+    );
+    let mut cache = Cache::new();
+    cache.store_with_context(
+        &ComputeInput::for_child(
+            RunMode::PerformRootLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            available.map(Available::into_option),
+            flow_axes,
+            available,
+        ),
+        CacheKeyContext::new(),
+        output,
+    );
+    let tree: RootSessionTree = RootSessionTree::default().style(0, style);
+    tree.caches.borrow_mut().insert(0, cache);
+
+    assert_public_scroll_geometry_error_without_batch(
+        &tree,
+        available,
+        LayoutErrorSite::Node(0),
+        LayoutOperation::RoundingFinalization,
+        LayoutInternalInvariant::InvalidRoundedScrollGeometry,
+    );
+}
+
 struct ConstraintOverflowTree<S: LayoutScalar> {
     style: NodeInputOf<S>,
     measure_calls: Cell<usize>,
@@ -788,7 +1016,7 @@ fn compute_layout_root_diagnostics_reject_invalid_cached_scroll_geometry_without
         .expect_err("invalid cached root output must not complete a layout batch");
 
     assert_eq!(error.site(), LayoutErrorSite::Node(0));
-    assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+    assert_eq!(error.operation(), LayoutOperation::RootLayout);
     assert_eq!(
         error.kind(),
         &LayoutErrorKind::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry)
@@ -1973,12 +2201,12 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
         geometry.scrollport(),
         ScrollRect::new(Point::ZERO, Size::new(90.0, 30.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(40.0, 40.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(40.0, 40.0));
     assert_eq!(
         geometry
-            .range()
-            .clamp(ScrollOffset::new(Point::new(99.0, -5.0))),
-        ScrollOffset::new(Point::new(40.0, 0.0))
+            .physical_range()
+            .clamp(PhysicalScrollOffset::try_new(99.0, -5.0).unwrap()),
+        PhysicalScrollOffset::try_new(40.0, 0.0).unwrap()
     );
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
 }
@@ -2005,7 +2233,7 @@ fn root_layout_emits_visible_scroll_geometry_without_range() {
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -2026,7 +2254,7 @@ fn root_layout_emits_clip_geometry_without_range() {
 
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(geometry.overflow_clip(), Some(geometry.scrollport()));
-    assert_eq!(geometry.range().maximum_offset(), Size::ZERO);
+    assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
@@ -2057,12 +2285,12 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
         geometry.scrollable_overflow(),
         ScrollRect::new(Point::new(5.0, 5.0), Size::new(130.0, 70.0)).unwrap()
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(48.0, 38.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(48.0, 38.0));
     assert_eq!(
         geometry
-            .range()
-            .clamp(ScrollOffset::new(Point::new(99.0, 99.0))),
-        ScrollOffset::new(Point::new(48.0, 38.0))
+            .physical_range()
+            .clamp(PhysicalScrollOffset::try_new(99.0, 99.0).unwrap()),
+        PhysicalScrollOffset::try_new(48.0, 38.0).unwrap()
     );
 }
 
@@ -2075,8 +2303,7 @@ fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
     });
     let child_overflow = ScrollRect::new(Point::new(-12.0, -4.0), Size::new(160.0, 74.0)).unwrap();
     let child_geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         Point::new(Overflow::Hidden, Overflow::Hidden),
         Size::new(100.0, 40.0),
         Edges::ZERO,
@@ -2097,7 +2324,7 @@ fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
 
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(geometry.scrollable_overflow(), child_overflow);
-    assert_eq!(geometry.range().maximum_offset(), Size::new(48.0, 30.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(48.0, 30.0));
 }
 
 #[test]
@@ -2133,8 +2360,7 @@ fn round_layout_rounds_scroll_geometry_with_node_output() {
             content_size: Size::new(120.5, 70.5),
             scroll_geometry: Some(
                 crate::scroll::scroll_geometry_from_layout(
-                    WritingMode::HorizontalTb,
-                    Direction::Ltr,
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
                     Point::new(Overflow::Hidden, Overflow::Hidden),
                     Size::new(100.5, 40.5),
                     Edges::ZERO,
@@ -2165,15 +2391,14 @@ fn round_layout_rounds_scroll_geometry_with_node_output() {
         geometry.scrollable_overflow().size(),
         Size::new(120.0, 70.0)
     );
-    assert_eq!(geometry.range().maximum_offset(), Size::new(20.0, 30.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(20.0, 30.0));
 }
 
 #[test]
 fn round_layout_diagnostics_rejects_invalid_rounded_scroll_geometry() {
     let scrollable_overflow = ScrollRect::new(Point::new(f32::MAX, 0.0), Size::ZERO).unwrap();
     let scroll_geometry = crate::scroll::scroll_geometry_from_layout(
-        WritingMode::HorizontalTb,
-        Direction::Ltr,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         Point::new(Overflow::Hidden, Overflow::Hidden),
         Size::new(1.0, 1.0),
         Edges::ZERO,

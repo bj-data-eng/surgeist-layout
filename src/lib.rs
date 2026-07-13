@@ -97,10 +97,13 @@ pub(crate) use output::{RequestedAxis, RunMode, SizingMode};
 /// Supported scalar contract for generic layout APIs.
 pub use scalar::LayoutScalar;
 pub use scroll::{
-    ScrollContainerAxis, ScrollContainerFacts, ScrollGeometry, ScrollGeometryOf, ScrollOffset,
-    ScrollOffsetOf, ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRange,
-    ScrollRangeOf, ScrollRect, ScrollRectOf, ScrollUnsupportedFeature, ScrollbarGutterRects,
-    ScrollbarGutterRectsOf,
+    FlowRelativeScrollAxisRange, FlowRelativeScrollAxisRangeOf, FlowRelativeScrollOffset,
+    FlowRelativeScrollOffsetOf, FlowRelativeScrollRange, FlowRelativeScrollRangeOf,
+    PhysicalScrollAxisRange, PhysicalScrollAxisRangeOf, PhysicalScrollOffset,
+    PhysicalScrollOffsetOf, PhysicalScrollRange, PhysicalScrollRangeOf, ScrollContainerAxis,
+    ScrollContainerFacts, ScrollCoordinateError, ScrollCoordinateErrorOf, ScrollGeometry,
+    ScrollGeometryOf, ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRect,
+    ScrollRectOf, ScrollUnsupportedFeature, ScrollbarGutterRects, ScrollbarGutterRectsOf,
 };
 #[cfg(test)]
 pub(crate) use traits::compute_cached;

@@ -142,8 +142,47 @@ fn geometry_supports_default_and_f64_scalars() {
 #[test]
 fn scroll_geometry_core_is_scalar_generic() {
     fn assert_scalar<S: crate::LayoutScalar>() {
-        let range = crate::ScrollRangeOf::<S>::new(crate::Size::new(S::ZERO, S::ZERO)).unwrap();
-        assert_eq!(range.maximum_offset(), crate::Size::ZERO);
+        let range = crate::PhysicalScrollRangeOf::<S>::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO)
+            .expect("zero physical range is valid");
+        assert_eq!(range.x().minimum(), S::ZERO);
+        assert_eq!(range.y().maximum(), S::ZERO);
+    }
+
+    assert_scalar::<f32>();
+    assert_scalar::<f64>();
+}
+
+#[test]
+fn scroll_geometry_public_surface_uses_signed_physical_ranges() {
+    fn assert_scalar<S: crate::LayoutScalar>() {
+        let flow_axes = crate::FlowAxes::new(crate::WritingMode::VerticalRl, crate::Direction::Rtl);
+        let range = crate::PhysicalScrollRangeOf::<S>::try_new(
+            -S::from_f64(40.0),
+            S::ZERO,
+            -S::from_f64(30.0),
+            S::ZERO,
+        )
+        .expect("finite signed physical range is valid");
+        let scroll_axis = crate::ScrollContainerAxis::from_overflow(crate::Overflow::Scroll)
+            .expect("scroll overflow is supported");
+        let scrollport = crate::ScrollRectOf::new(
+            crate::Point::ZERO,
+            crate::Size::new(S::from_f64(100.0), S::from_f64(40.0)),
+        )
+        .expect("finite scrollport is valid");
+        let geometry = crate::ScrollGeometryOf::new(
+            flow_axes,
+            crate::ScrollContainerFacts::new(scroll_axis, scroll_axis),
+            scrollport,
+            Some(scrollport),
+            scrollport,
+            range,
+            crate::ScrollbarGutterRectsOf::new(None, None),
+        )
+        .expect("scroll geometry accepts signed exposed ranges");
+
+        assert_eq!(geometry.flow_axes(), flow_axes);
+        assert_eq!(geometry.physical_range(), range);
     }
 
     assert_scalar::<f32>();
