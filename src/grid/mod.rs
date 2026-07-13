@@ -357,9 +357,10 @@ where
             .block
             .max(cyclic_percent_content_size.block),
     );
-    let logical_style_size = constants.flow_axes.logical_size(style.size);
-    let logical_node_inner_size = constants.logical_node_inner_size();
-    let logical_available_inner_size = constants.logical_available_inner_size();
+    let logical_style_size = sizing_flow_axes.logical_size(style.size);
+    let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
+    let logical_available_inner_size =
+        sizing_flow_axes.logical_size(constants.available_inner_size);
     let intrinsic_sizing_content_size = {
         LogicalSizeOf::new(
             intrinsic_sizing_axis_content_size(IntrinsicSizingAxisInput {
@@ -1932,14 +1933,6 @@ struct Constants<S: LayoutScalar = Scalar> {
 }
 
 impl<S: LayoutScalar> Constants<S> {
-    fn logical_node_inner_size(&self) -> LogicalSizeOf<Option<S>> {
-        self.flow_axes.logical_size(self.node_inner_size)
-    }
-
-    fn logical_available_inner_size(&self) -> LogicalSizeOf<Option<S>> {
-        self.flow_axes.logical_size(self.available_inner_size)
-    }
-
     fn new<Tree, M>(
         tree: &Tree,
         node: <Tree as Traverse>::Node,

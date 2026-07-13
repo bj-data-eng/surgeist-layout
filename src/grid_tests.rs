@@ -1828,6 +1828,69 @@ fn row_subgrid_intrinsic_width_accumulates_standalone_percent_columns() {
 }
 
 #[test]
+fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
+    let mut tree = OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(Dimension::AUTO, Dimension::px(100.0)),
+                grid_template_columns: vec![
+                    TrackComponent::percent(0.2),
+                    TrackComponent::percent(0.3),
+                ],
+                grid_template_rows: vec![empty_subgrid_track()],
+                ..NodeInput::DEFAULT
+            },
+        )
+        .style(2, NodeInput::default())
+        .style(3, NodeInput::default())
+        .measure(2, ComputeOutput::from_outer_size(Size::new(100.0, 10.0)))
+        .measure(3, ComputeOutput::from_outer_size(Size::new(100.0, 10.0)));
+
+    let parent_context = GridParentContext {
+        columns: None,
+        rows: Some(InheritedGridAxis {
+            offset: 0.0,
+            gap: 0.0,
+            tracks: vec![100.0],
+            named_lines: named::NamedGridLines::new(GridAxisKind::Row, 1),
+            area_facts: None,
+            major_baselines: vec![None],
+            minor_baselines: vec![None],
+            parent_start: 0,
+            parent_end: 1,
+            reversed: false,
+            start_mbp: 0.0,
+            end_mbp: 0.0,
+            gap_difference: 0.0,
+        }),
+    };
+
+    let output = compute_grid_with_context(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(None, Some(100.0)),
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            Size::new(Available::MAX_CONTENT, Available::Definite(100.0)),
+        ),
+        parent_context,
+    )
+    .unwrap();
+
+    assert_eq!(output.size, Size::new(200.0, 100.0));
+}
+
+#[test]
 fn subgrid_line_names_place_child_with_inherited_parent_names() {
     let mut tree = OracleTree::new()
         .children(1, [2])
