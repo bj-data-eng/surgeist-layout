@@ -2630,6 +2630,20 @@ impl<S: LayoutScalar> Constants<S> {
                 resolve_length_or_zero(length, basis)
             })
             .transpose_with_node(tree, node)?;
+        let collapsible_margin = Edges {
+            left: LengthAutoOf::ZERO,
+            right: LengthAutoOf::ZERO,
+            top: style.margin.top,
+            bottom: style.margin.bottom,
+        };
+        let margin = input
+            .containing_flow_axes()
+            .zip_physical_edges_with_inline_extent(
+                collapsible_margin,
+                input.parent(),
+                |length, basis| resolve_auto_optional(length, basis),
+            )
+            .transpose_with_node(tree, node)?;
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
             style.scrollbar_width.get(),
@@ -2714,15 +2728,9 @@ impl<S: LayoutScalar> Constants<S> {
             padding_border_size,
             scrollbar_gutter,
             content_box_inset,
-            own_top_margin: CollapsibleMarginOf::<S>::from_margin(
-                resolve_auto_optional(style.margin.top, input.parent().width)
-                    .map_err(|status| crate::compute::value_resolution_error(node, status))?
-                    .unwrap_or(S::ZERO),
-            ),
+            own_top_margin: CollapsibleMarginOf::<S>::from_margin(margin.top.unwrap_or(S::ZERO)),
             own_bottom_margin: CollapsibleMarginOf::<S>::from_margin(
-                resolve_auto_optional(style.margin.bottom, input.parent().width)
-                    .map_err(|status| crate::compute::value_resolution_error(node, status))?
-                    .unwrap_or(S::ZERO),
+                margin.bottom.unwrap_or(S::ZERO),
             ),
             collapse_top_margin: is_margin_collapsing_block
                 && !is_root

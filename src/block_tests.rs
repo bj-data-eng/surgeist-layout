@@ -5741,6 +5741,130 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
     assert!(!output.margins_can_collapse_through);
 }
 
+fn assert_collapsible_percentage_margins_use_containing_inline_extent<S: LayoutScalar>(
+    writing_mode: WritingMode,
+) where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let top_margin = LengthPercentageOf::<S>::from_coefficients(S::ZERO, S::from_f64(0.25))
+        .expect("test coefficients are finite");
+    let bottom_margin = LengthPercentageOf::<S>::from_coefficients(S::ZERO, S::from_f64(0.5))
+        .expect("test coefficients are finite");
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(1, [])
+        .style(
+            1,
+            NodeInputOf::<S> {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(S::from_f64(100.0)), DimensionOf::AUTO),
+                margin: Edges {
+                    top: LengthAutoOf::value(top_margin),
+                    bottom: LengthAutoOf::value(bottom_margin),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                padding: Edges {
+                    top: LengthOf::px(S::from_f64(1.0)),
+                    bottom: LengthOf::px(S::from_f64(1.0)),
+                    ..Edges::all(LengthOf::ZERO)
+                },
+                ..NodeInputOf::default()
+            },
+        );
+
+    let output = crate::compute_block(
+        &mut tree,
+        1,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(S::from_f64(40.0)), Some(S::from_f64(120.0))),
+            crate::geometry::FlowAxes::new(writing_mode, Direction::Ltr),
+            Size::new(
+                AvailableOf::definite(S::from_f64(40.0)),
+                AvailableOf::definite(S::from_f64(120.0)),
+            ),
+        ),
+    )
+    .expect("block layout succeeds");
+
+    assert_eq!(output.top_margin.resolve(), S::from_f64(30.0));
+    assert_eq!(output.bottom_margin.resolve(), S::from_f64(60.0));
+}
+
+#[test]
+fn collapsible_percentage_margins_use_non_horizontal_containing_inline_extent_for_f32() {
+    assert_collapsible_percentage_margins_use_containing_inline_extent::<f32>(
+        WritingMode::VerticalRl,
+    );
+    assert_collapsible_percentage_margins_use_containing_inline_extent::<f32>(
+        WritingMode::SidewaysLr,
+    );
+}
+
+#[test]
+fn collapsible_percentage_margins_use_non_horizontal_containing_inline_extent_for_f64() {
+    assert_collapsible_percentage_margins_use_containing_inline_extent::<f64>(
+        WritingMode::VerticalRl,
+    );
+    assert_collapsible_percentage_margins_use_containing_inline_extent::<f64>(
+        WritingMode::SidewaysLr,
+    );
+}
+
+#[test]
+fn block_in_flow_invalid_numeric_horizontal_margin_uses_zero_fallback() {
+    let invalid_margin = LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX)
+        .expect("test coefficients are finite");
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(f32::MAX), Dimension::AUTO),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(Dimension::px(10.0), Dimension::AUTO),
+                margin: Edges {
+                    left: LengthAuto::value(invalid_margin),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+                ..NodeInput::default()
+            },
+        );
+
+    crate::compute_block(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(f32::MAX), None),
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::new(Available::definite(f32::MAX), Available::MAX_CONTENT),
+        ),
+    )
+    .expect("the in-flow invalid-numeric margin falls back to zero");
+
+    assert_eq!(
+        tree.output(2)
+            .expect("child block receives an in-flow layout")
+            .margin
+            .left,
+        0.0
+    );
+}
+
 #[test]
 fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
     #[derive(Default)]
