@@ -43,6 +43,38 @@ pub(super) fn inherited_subgrid_physical_axis(
     Some(physical_axis)
 }
 
+pub(super) fn subgrid_parent_visible_content_size<S: LayoutScalar>(
+    item: SubgridItemReport<impl Copy>,
+    parent_flow_axes: crate::geometry::FlowAxes,
+    child_flow_axes: crate::geometry::FlowAxes,
+    size: Size<S>,
+    content_size: Size<S>,
+) -> Size<S> {
+    let column_axis =
+        inherited_subgrid_physical_axis(item.column, parent_flow_axes, child_flow_axes);
+    let row_axis = inherited_subgrid_physical_axis(item.row, parent_flow_axes, child_flow_axes);
+    if column_axis.is_none() && row_axis.is_none() {
+        return content_size;
+    }
+
+    // Local cross-flow tracks remain part of the subgrid's own content geometry,
+    // but cannot become visible parent content when that physical axis is not inherited.
+    Size::new(
+        if column_axis == Some(PhysicalAxis::Horizontal)
+            || row_axis == Some(PhysicalAxis::Horizontal)
+        {
+            content_size.width
+        } else {
+            size.width
+        },
+        if column_axis == Some(PhysicalAxis::Vertical) || row_axis == Some(PhysicalAxis::Vertical) {
+            content_size.height
+        } else {
+            size.height
+        },
+    )
+}
+
 fn physical_axis_for_grid_axis(
     flow_axes: crate::geometry::FlowAxes,
     axis: GridAxisKind,
@@ -1277,9 +1309,11 @@ fn resolved_subgrid_axis_gap<S: LayoutScalar>(
     parent_gap: Size<S>,
     content_box_size: Size<S>,
 ) -> Result<S, LengthResolutionStatus<S>> {
+    let logical_gap =
+        crate::geometry::FlowAxes::new(style.writing_mode, style.direction).logical_size(style.gap);
     let gap = match axis {
-        GridAxisKind::Column => style.gap.width,
-        GridAxisKind::Row => style.gap.height,
+        GridAxisKind::Column => logical_gap.inline,
+        GridAxisKind::Row => logical_gap.block,
     };
     match gap {
         LengthOf::Normal => {
@@ -1516,6 +1550,57 @@ mod tests {
         ) -> LayoutResultOf<Self::Node, ComputeOutput, Self::Scalar, Infallible> {
             unreachable!("subgrid traversal setup must not compute children")
         }
+    }
+
+    fn assert_resolved_subgrid_axis_gap_uses_node_logical_axes<S: LayoutScalar>() {
+        for (writing_mode, direction) in [
+            (crate::WritingMode::VerticalRl, crate::Direction::Ltr),
+            (crate::WritingMode::SidewaysLr, crate::Direction::Rtl),
+        ] {
+            let style = NodeInputOf::<S> {
+                display: Display::Grid,
+                writing_mode,
+                direction,
+                gap: Size::new(
+                    LengthOf::px(S::from_f64(7.0)),
+                    LengthOf::px(S::from_f64(11.0)),
+                ),
+                ..NodeInputOf::default()
+            };
+            let parent_style = NodeInputOf::<S> {
+                display: Display::Grid,
+                ..NodeInputOf::default()
+            };
+
+            for (axis, expected) in [
+                (GridAxisKind::Column, S::from_f64(11.0)),
+                (GridAxisKind::Row, S::from_f64(7.0)),
+            ] {
+                let actual = resolved_subgrid_axis_gap(
+                    &style,
+                    axis,
+                    subgrid_axis_report(&parent_style, &style, axis),
+                    Size::ZERO,
+                    Size::splat(S::from_f64(100.0)),
+                )
+                .expect("fixed gap should resolve");
+
+                assert_eq!(
+                    actual, expected,
+                    "{writing_mode:?} {direction:?} {axis:?} must select the node's logical gap"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn resolved_subgrid_axis_gap_uses_node_logical_axes_f32() {
+        assert_resolved_subgrid_axis_gap_uses_node_logical_axes::<f32>();
+    }
+
+    #[test]
+    fn resolved_subgrid_axis_gap_uses_node_logical_axes_f64() {
+        assert_resolved_subgrid_axis_gap_uses_node_logical_axes::<f64>();
     }
 
     #[test]

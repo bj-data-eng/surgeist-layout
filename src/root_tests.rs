@@ -6718,3 +6718,147 @@ fn round_layout_uses_cumulative_viewport_edges() {
     assert_eq!(tree.final_layouts[&2].border.left, 0.0);
     assert_eq!(tree.final_layouts[&2].border.right, 1.0);
 }
+
+fn assert_subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis<
+    S: LayoutScalar,
+>() {
+    let scalar = S::from_f64;
+    let outer_grid = NodeInputOf {
+        display: Display::Grid,
+        grid_template_columns: vec![
+            TrackComponentOf::px(scalar(30.0)),
+            TrackComponentOf::px(scalar(40.0)),
+        ],
+        grid_template_rows: vec![
+            TrackComponentOf::px(scalar(50.0)),
+            TrackComponentOf::px(scalar(60.0)),
+        ],
+        gap: Size::new(LengthOf::px(scalar(11.0)), LengthOf::px(scalar(7.0))),
+        ..NodeInputOf::default()
+    };
+    let vertical_item = |column, row| NodeInputOf {
+        display: Display::Flex,
+        writing_mode: WritingMode::VerticalRl,
+        grid_column: GridPlacement::try_lines(column, column + 1)
+            .expect("valid orthogonal subgrid item column placement"),
+        grid_row: GridPlacement::try_lines(row, row + 1)
+            .expect("valid orthogonal subgrid item row placement"),
+        ..NodeInputOf::default()
+    };
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 4])
+        .with_children(1, [2])
+        .with_children(2, [3, 8])
+        .with_children(3, [])
+        .with_children(8, [])
+        .with_children(4, [5])
+        .with_children(5, [6, 7])
+        .with_children(6, [])
+        .with_children(7, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, outer_grid.clone())
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                grid_template_rows: vec![
+                    TrackComponentOf::px(scalar(50.0)),
+                    TrackComponentOf::px(scalar(60.0)),
+                ],
+                gap: Size::new(LengthOf::px(scalar(7.0)), LengthOf::px(scalar(11.0))),
+                grid_column: GridPlacement::try_lines(1, 3)
+                    .expect("valid columns-subgrid column placement"),
+                grid_row: GridPlacement::try_lines(1, 3)
+                    .expect("valid columns-subgrid row placement"),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(3, vertical_item(1, 1))
+        .with_style(8, vertical_item(2, 2))
+        .with_style(4, outer_grid)
+        .with_style(
+            5,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                grid_template_columns: vec![
+                    TrackComponentOf::px(scalar(30.0)),
+                    TrackComponentOf::px(scalar(40.0)),
+                ],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                gap: Size::new(LengthOf::px(scalar(7.0)), LengthOf::px(scalar(11.0))),
+                grid_column: GridPlacement::try_lines(1, 3)
+                    .expect("valid rows-subgrid column placement"),
+                grid_row: GridPlacement::try_lines(1, 3).expect("valid rows-subgrid row placement"),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(6, vertical_item(1, 1))
+        .with_style(7, vertical_item(2, 2));
+
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("valid auto-sized root request"),
+    )
+    .expect("orthogonal subgrid layout succeeds");
+
+    let root = public_flow_output(batch.unrounded_entries(), 0);
+    let columns_outer = public_flow_output(batch.unrounded_entries(), 1);
+    let columns_subgrid = public_flow_output(batch.unrounded_entries(), 2);
+    let rows_outer = public_flow_output(batch.unrounded_entries(), 4);
+    let rows_subgrid = public_flow_output(batch.unrounded_entries(), 5);
+
+    assert_eq!(root.size, Size::new(scalar(81.0), scalar(234.0)));
+    for output in [columns_outer, columns_subgrid, rows_outer, rows_subgrid] {
+        assert_eq!(output.size, Size::new(scalar(81.0), scalar(117.0)));
+    }
+    assert_eq!(columns_outer.location, Point::new(S::ZERO, S::ZERO));
+    assert_eq!(rows_outer.location, Point::new(S::ZERO, scalar(117.0)));
+
+    for (node, location, size) in [
+        (
+            3,
+            Point::new(scalar(31.0), S::ZERO),
+            Size::new(scalar(50.0), scalar(48.0)),
+        ),
+        (
+            8,
+            Point::new(scalar(-36.0), scalar(59.0)),
+            Size::new(scalar(60.0), scalar(58.0)),
+        ),
+        (
+            6,
+            Point::new(scalar(39.0), S::ZERO),
+            Size::new(scalar(42.0), scalar(30.0)),
+        ),
+        (
+            7,
+            Point::new(S::ZERO, scalar(41.0)),
+            Size::new(scalar(32.0), scalar(40.0)),
+        ),
+    ] {
+        let output = public_flow_output(batch.unrounded_entries(), node);
+        assert_eq!(output.location, location, "node {node} location");
+        assert_eq!(output.size, size, "node {node} size");
+    }
+}
+
+#[test]
+fn subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis_f32() {
+    assert_subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis::<f32>();
+}
+
+#[test]
+fn subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis_f64() {
+    assert_subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis::<f64>();
+}

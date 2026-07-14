@@ -588,6 +588,7 @@ where
             constants
                 .flow_axes
                 .physical_point(area_origin, item.area.size, containing_size);
+        let subgrid_item = subgrid_report.items[item.order as usize];
         item.location = location;
         visible_content_size = max_size(
             visible_content_size,
@@ -597,7 +598,13 @@ where
                     location.y - physical_area_origin.y,
                 ),
                 item.output.size,
-                item.output.content_size,
+                subgrid_parent_visible_content_size(
+                    subgrid_item,
+                    constants.flow_axes,
+                    item.child_flow_axes,
+                    item.output.size,
+                    item.output.content_size,
+                ),
                 item.overflow,
             ),
         );
