@@ -212,6 +212,22 @@ fn runs_fri_02_grid_axis_families_against_surgeist_layout() {
 }
 
 #[test]
+fn runs_fri_02_grid_lanes_axis_families_against_surgeist_layout() {
+    assert_axis_fixture_family_matches(
+        grid_lanes_axis_fixture_paths,
+        assert_grid_lanes_axis_fixture_topology,
+    );
+}
+
+#[test]
+fn runs_fri_02_subgrid_axis_families_against_surgeist_layout() {
+    assert_axis_fixture_family_matches(
+        subgrid_axis_fixture_paths,
+        assert_subgrid_axis_fixture_topology,
+    );
+}
+
+#[test]
 fn grid_axes_fixture_matrix_is_generated() {
     let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/layout/browser_parity")
@@ -238,6 +254,20 @@ fn grid_axes_fixture_matrix_is_generated() {
 
     grid_axis_fixture_paths(fixtures)
         .unwrap_or_else(|error| panic!("grid_axes fixture matrix is incomplete: {error}"));
+}
+
+#[test]
+fn grid_lanes_axis_fixture_matrix() {
+    let fixtures = browser_parity_fixture_paths();
+    grid_lanes_axis_fixture_paths(fixtures)
+        .unwrap_or_else(|error| panic!("grid-lanes axis fixture matrix is incomplete: {error}"));
+}
+
+#[test]
+fn subgrid_axis_fixture_matrix() {
+    let fixtures = browser_parity_fixture_paths();
+    subgrid_axis_fixture_paths(fixtures)
+        .unwrap_or_else(|error| panic!("subgrid axis fixture matrix is incomplete: {error}"));
 }
 
 #[test]
@@ -446,6 +476,209 @@ fn grid_axis_fixture_matrix_rejects_invalid_paths_and_topology() {
         )
         .is_err(),
         "wrong named parent/child flow relationship must be rejected"
+    );
+}
+
+#[test]
+fn grid_lanes_axis_fixture_matrix_rejects_invalid_paths_and_topology() {
+    assert_axis_fixture_paths_reject_invalid_inventory(grid_lanes_axis_expected_paths());
+
+    for (description, golden) in [
+        (
+            "non-grid lanes case",
+            grid_lanes_axis_test_golden(
+                "block",
+                "block",
+                "grid-lanes",
+                "50px 60px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+        (
+            "wrong grid root",
+            grid_lanes_axis_test_golden(
+                "grid",
+                "grid-lanes",
+                "grid-lanes",
+                "50px 60px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+        (
+            "wrong child flow",
+            grid_lanes_axis_test_golden(
+                "block",
+                "grid-lanes",
+                "grid-lanes",
+                "50px 60px",
+                "vertical-rl",
+                "horizontal-tb",
+            ),
+        ),
+        ("text child", grid_lanes_axis_text_child_golden()),
+        (
+            "absolute child",
+            grid_lanes_axis_item_golden(
+                "<div position=\"absolute\" grid-row-start=\"1\" grid-row-end=\"2\" />",
+                "<div grid-row-start=\"2\" grid-row-end=\"3\" />",
+            ),
+        ),
+        (
+            "hidden-only children",
+            grid_lanes_axis_item_golden(
+                "<div display=\"none\" grid-row-start=\"1\" grid-row-end=\"2\" />",
+                "<div display=\"none\" grid-row-start=\"2\" grid-row-end=\"3\" />",
+            ),
+        ),
+        (
+            "equal totals",
+            grid_lanes_axis_test_golden(
+                "block",
+                "grid-lanes",
+                "grid-lanes",
+                "30px 40px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+        (
+            "indefinite tracks",
+            grid_lanes_axis_test_golden(
+                "block",
+                "grid-lanes",
+                "grid-lanes",
+                "auto 60px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+    ] {
+        assert!(
+            assert_grid_lanes_axis_fixture_topology(
+                &golden,
+                Path::new(
+                    "xml/grid-lanes/grid_lanes_axes_horizontal_tb_parallel__border_box_ltr.xml"
+                ),
+            )
+            .is_err(),
+            "{description} must be rejected"
+        );
+    }
+
+    let mut overlapping = support::Golden::parse(include_str!(
+        "browser_parity/xml/grid-lanes/grid_lanes_axes_horizontal_tb_parallel__border_box_ltr.xml"
+    ))
+    .expect("grid-lanes overlap golden should parse");
+    overlapping.expectations.children[1].y = Some(0.0);
+    assert!(
+        assert_grid_lanes_axis_fixture_topology(
+            &overlapping,
+            Path::new("xml/grid-lanes/grid_lanes_axes_horizontal_tb_parallel__border_box_ltr.xml"),
+        )
+        .is_err(),
+        "overlapping top-level case expectations must be rejected"
+    );
+}
+
+#[test]
+fn subgrid_axis_fixture_matrix_rejects_invalid_paths_and_topology() {
+    assert_axis_fixture_paths_reject_invalid_inventory(subgrid_axis_expected_paths());
+
+    for (description, golden) in [
+        (
+            "non-grid parent",
+            subgrid_axis_test_golden(
+                "block",
+                "block",
+                "grid",
+                "30px 40px",
+                "50px 60px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+        (
+            "wrong grid root",
+            subgrid_axis_test_golden(
+                "grid",
+                "grid",
+                "grid",
+                "30px 40px",
+                "50px 60px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+        (
+            "wrong child flow",
+            subgrid_axis_test_golden(
+                "block",
+                "grid",
+                "grid",
+                "30px 40px",
+                "50px 60px",
+                "vertical-rl",
+                "horizontal-tb",
+            ),
+        ),
+        ("text item", subgrid_axis_text_item_golden()),
+        ("absolute item", subgrid_axis_absolute_item_golden()),
+        (
+            "hidden-only items",
+            subgrid_axis_item_golden(
+                "<div display=\"none\" grid-column-start=\"1\" grid-column-end=\"2\" />",
+                "<div display=\"none\" grid-column-start=\"2\" grid-column-end=\"3\" />",
+            ),
+        ),
+        (
+            "equal totals",
+            subgrid_axis_test_golden(
+                "block",
+                "grid",
+                "grid",
+                "30px 40px",
+                "30px 40px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+        (
+            "indefinite tracks",
+            subgrid_axis_test_golden(
+                "block",
+                "grid",
+                "grid",
+                "auto 40px",
+                "50px 60px",
+                "horizontal-tb",
+                "horizontal-tb",
+            ),
+        ),
+    ] {
+        assert!(
+            assert_subgrid_axis_fixture_topology(
+                &golden,
+                Path::new("xml/subgrid/subgrid_axes_horizontal_tb_parallel__border_box_ltr.xml"),
+            )
+            .is_err(),
+            "{description} must be rejected"
+        );
+    }
+
+    let mut overlapping = support::Golden::parse(include_str!(
+        "browser_parity/xml/subgrid/subgrid_axes_horizontal_tb_parallel__border_box_ltr.xml"
+    ))
+    .expect("subgrid overlap golden should parse");
+    overlapping.expectations.children[1].y = Some(0.0);
+    assert!(
+        assert_subgrid_axis_fixture_topology(
+            &overlapping,
+            Path::new("xml/subgrid/subgrid_axes_horizontal_tb_parallel__border_box_ltr.xml"),
+        )
+        .is_err(),
+        "overlapping top-level case expectations must be rejected"
     );
 }
 
@@ -702,6 +935,169 @@ fn grid_axis_fixture_paths(
     Ok(discovered)
 }
 
+fn browser_parity_fixture_paths() -> Vec<PathBuf> {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity")
+        .canonicalize()
+        .expect("browser parity fixture root should exist");
+    support::fixture_files("xml")
+        .expect("fixtures should load")
+        .into_iter()
+        .map(|fixture| {
+            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
+                panic!("{} should canonicalize: {error}", fixture.display())
+            });
+            fixture
+                .strip_prefix(&corpus_root)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{} should be under {}: {error}",
+                        fixture.display(),
+                        corpus_root.display()
+                    )
+                })
+                .to_path_buf()
+        })
+        .collect()
+}
+
+fn assert_axis_fixture_family_matches(
+    matrix: fn(Vec<PathBuf>) -> Result<BTreeSet<PathBuf>, String>,
+    topology: fn(&support::Golden, &Path) -> Result<(), String>,
+) {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity")
+        .canonicalize()
+        .expect("browser parity fixture root should exist");
+    let fixtures = support::fixture_files("xml")
+        .expect("fixtures should load")
+        .into_iter()
+        .map(|fixture| {
+            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
+                panic!("{} should canonicalize: {error}", fixture.display())
+            });
+            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
+                panic!(
+                    "{} should be under {}: {error}",
+                    fixture.display(),
+                    corpus_root.display()
+                )
+            });
+            (relative.to_path_buf(), fixture)
+        })
+        .collect::<Vec<_>>();
+    let paths = matrix(
+        fixtures
+            .iter()
+            .map(|(relative, _)| relative.clone())
+            .collect(),
+    )
+    .unwrap_or_else(|error| panic!("{error}"));
+
+    for (relative, fixture) in fixtures {
+        if !paths.contains(&relative) {
+            continue;
+        }
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        topology(&golden, &relative)
+            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} failed layout comparison: {error}", fixture.display())
+        });
+    }
+}
+
+fn grid_lanes_axis_fixture_paths(
+    candidate_paths: Vec<PathBuf>,
+) -> Result<BTreeSet<PathBuf>, String> {
+    axis_fixture_paths(
+        candidate_paths,
+        "grid_lanes_axes_",
+        grid_lanes_axis_expected_paths(),
+        "grid-lanes axis",
+    )
+}
+
+fn subgrid_axis_fixture_paths(candidate_paths: Vec<PathBuf>) -> Result<BTreeSet<PathBuf>, String> {
+    axis_fixture_paths(
+        candidate_paths,
+        "subgrid_axes_",
+        subgrid_axis_expected_paths(),
+        "subgrid axis",
+    )
+}
+
+fn axis_fixture_paths(
+    candidate_paths: Vec<PathBuf>,
+    prefix: &str,
+    expected_paths: Vec<PathBuf>,
+    label: &str,
+) -> Result<BTreeSet<PathBuf>, String> {
+    let expected = expected_paths.into_iter().collect::<BTreeSet<_>>();
+    let fixtures = candidate_paths
+        .into_iter()
+        .filter(|candidate| {
+            candidate
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("xml")
+                && candidate
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .is_some_and(|stem| stem.starts_with(prefix))
+        })
+        .collect::<Vec<_>>();
+    let discovered = fixtures.iter().cloned().collect::<BTreeSet<_>>();
+
+    if fixtures.len() != discovered.len() {
+        return Err(format!(
+            "{label} fixture discovery must not contain duplicate relative paths: {discovered:#?}"
+        ));
+    }
+    if discovered != expected {
+        return Err(format!(
+            "{label} fixture matrix must contain exactly the required relative variants: {discovered:#?}"
+        ));
+    }
+
+    Ok(discovered)
+}
+
+fn assert_axis_fixture_paths_reject_invalid_inventory(expected: Vec<PathBuf>) {
+    let checker = if expected[0]
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("grid_lanes_axes_"))
+    {
+        grid_lanes_axis_fixture_paths as fn(Vec<PathBuf>) -> Result<BTreeSet<PathBuf>, String>
+    } else {
+        subgrid_axis_fixture_paths as fn(Vec<PathBuf>) -> Result<BTreeSet<PathBuf>, String>
+    };
+
+    assert!(checker(expected.iter().skip(1).cloned().collect()).is_err());
+    let mut duplicate = expected.clone();
+    duplicate.push(expected[0].clone());
+    assert!(checker(duplicate).is_err());
+    let mut misplaced = expected.clone();
+    let file = misplaced[0].file_name().unwrap().to_owned();
+    misplaced[0] = PathBuf::from("xml/other").join(file);
+    assert!(checker(misplaced).is_err());
+    let mut extra = expected;
+    let parent = extra[0].parent().unwrap().to_owned();
+    let prefix = if extra[0]
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("grid_lanes_axes_"))
+    {
+        "grid_lanes_axes_"
+    } else {
+        "subgrid_axes_"
+    };
+    extra.push(parent.join(format!("{prefix}extra__border_box_ltr.xml")));
+    assert!(checker(extra).is_err());
+}
+
 fn flex_axis_expected_paths() -> Vec<PathBuf> {
     const MODES: [&str; 5] = [
         "horizontal_tb",
@@ -755,6 +1151,43 @@ fn grid_axis_expected_paths() -> Vec<PathBuf> {
         .flat_map(|family| {
             VARIANTS.into_iter().map(move |variant| {
                 PathBuf::from("xml/grid").join(format!("{family}__{variant}.xml"))
+            })
+        })
+        .collect()
+}
+
+fn grid_lanes_axis_expected_paths() -> Vec<PathBuf> {
+    axis_expected_paths("xml/grid-lanes", "grid_lanes_axes")
+}
+
+fn subgrid_axis_expected_paths() -> Vec<PathBuf> {
+    axis_expected_paths("xml/subgrid", "subgrid_axes")
+}
+
+fn axis_expected_paths(directory: &str, prefix: &str) -> Vec<PathBuf> {
+    const FAMILIES: [&str; 9] = [
+        "horizontal_tb_parallel",
+        "vertical_rl_parallel",
+        "vertical_lr_parallel",
+        "sideways_rl_parallel",
+        "sideways_lr_parallel",
+        "vertical_opposing",
+        "sideways_opposing",
+        "horizontal_parent_orthogonal_child",
+        "vertical_parent_orthogonal_child",
+    ];
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    FAMILIES
+        .into_iter()
+        .flat_map(|family| {
+            VARIANTS.into_iter().map(move |variant| {
+                PathBuf::from(directory).join(format!("{prefix}_{family}__{variant}.xml"))
             })
         })
         .collect()
@@ -917,6 +1350,230 @@ fn grid_axis_family_modes(path: &Path) -> Result<(&'static str, &'static str), S
     }
 }
 
+fn assert_grid_lanes_axis_fixture_topology(
+    golden: &support::Golden,
+    path: &Path,
+) -> Result<(), String> {
+    let (parent_mode, child_mode) = axis_family_modes(path, "grid_lanes_axes_")?;
+    if golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some("block")
+        || golden.root.children.len() != 2
+        || golden.expectations.children.len() != 2
+    {
+        return Err(
+            "target root must contain exactly the columns-lanes and rows-lanes cases".to_string(),
+        );
+    }
+
+    let columns = &golden.root.children[0];
+    let rows = &golden.root.children[1];
+    assert_grid_lanes_case(
+        columns,
+        "50px 60px",
+        "30px 40px",
+        "column",
+        parent_mode,
+        child_mode,
+        "rows",
+    )?;
+    assert_grid_lanes_case(
+        rows,
+        "30px 40px",
+        "50px 60px",
+        "row",
+        parent_mode,
+        child_mode,
+        "columns",
+    )?;
+    assert_non_overlapping_positive_children(&golden.expectations.children)?;
+    Ok(())
+}
+
+fn assert_grid_lanes_case(
+    case: &support::Node,
+    primary_tracks: &str,
+    other_tracks: &str,
+    auto_flow: &str,
+    parent_mode: &str,
+    child_mode: &str,
+    primary_axis: &str,
+) -> Result<(), String> {
+    if case.kind != support::NodeKind::Div
+        || case.style.get("display") != Some("grid-lanes")
+        || case.style.get("writing-mode").unwrap_or("horizontal-tb") != parent_mode
+        || case.style.get(primary_axis_name(primary_axis)) != Some(primary_tracks)
+        || case.style.get(other_axis_name(primary_axis)) != Some(other_tracks)
+        || case.style.get("grid-auto-flow") != Some(auto_flow)
+        || case.children.len() != 2
+    {
+        return Err("each named lanes case must have definite unequal logical totals".to_string());
+    }
+    for (index, child) in case.children.iter().enumerate() {
+        if child.kind != support::NodeKind::Div
+            || child.style.get("display") == Some("none")
+            || !matches!(child.style.get("position"), None | Some("static"))
+            || child.style.get("writing-mode").unwrap_or("horizontal-tb") != child_mode
+        {
+            return Err(
+                "lanes items must be visible in-flow elements in the named child flow".to_string(),
+            );
+        }
+        let (start, end) = if index == 0 { ("1", "2") } else { ("2", "3") };
+        let axis = primary_axis.trim_end_matches('s');
+        if child.style.get(&format!("grid-{axis}-start")) != Some(start)
+            || child.style.get(&format!("grid-{axis}-end")) != Some(end)
+        {
+            return Err(
+                "lanes items must have definite non-overlapping primary-axis placement".to_string(),
+            );
+        }
+    }
+    Ok(())
+}
+
+fn primary_axis_name(axis: &str) -> &str {
+    match axis {
+        "rows" => "grid-template-rows",
+        "columns" => "grid-template-columns",
+        _ => unreachable!("only grid axes are used by fixture topology"),
+    }
+}
+
+fn other_axis_name(axis: &str) -> &str {
+    match axis {
+        "rows" => "grid-template-columns",
+        "columns" => "grid-template-rows",
+        _ => unreachable!("only grid axes are used by fixture topology"),
+    }
+}
+
+fn assert_subgrid_axis_fixture_topology(
+    golden: &support::Golden,
+    path: &Path,
+) -> Result<(), String> {
+    let (parent_mode, child_mode) = axis_family_modes(path, "subgrid_axes_")?;
+    if golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some("block")
+        || golden.root.children.len() != 2
+        || golden.expectations.children.len() != 2
+    {
+        return Err(
+            "target root must contain exactly the columns-subgrid and rows-subgrid cases"
+                .to_string(),
+        );
+    }
+    assert_subgrid_case(&golden.root.children[0], "columns", parent_mode, child_mode)?;
+    assert_subgrid_case(&golden.root.children[1], "rows", parent_mode, child_mode)?;
+    assert_non_overlapping_positive_children(&golden.expectations.children)?;
+    Ok(())
+}
+
+fn assert_subgrid_case(
+    parent: &support::Node,
+    inherited_axis: &str,
+    parent_mode: &str,
+    child_mode: &str,
+) -> Result<(), String> {
+    if parent.kind != support::NodeKind::Div
+        || parent.style.get("display") != Some("grid")
+        || parent.style.get("writing-mode").unwrap_or("horizontal-tb") != parent_mode
+        || parent.style.get("grid-template-columns") != Some("30px 40px")
+        || parent.style.get("grid-template-rows") != Some("50px 60px")
+        || parent.children.len() != 1
+    {
+        return Err("subgrid parent must keep the exact unequal inherited tracks".to_string());
+    }
+    let subgrid = &parent.children[0];
+    if subgrid.kind != support::NodeKind::Div
+        || subgrid.style.get("display") != Some("grid")
+        || subgrid.style.get("writing-mode").unwrap_or("horizontal-tb") != child_mode
+        || subgrid
+            .style
+            .get(&format!("grid-template-{inherited_axis}"))
+            != Some("subgrid")
+        || subgrid.children.len() != 2
+    {
+        return Err("case must expose the named inherited subgrid axis and child flow".to_string());
+    }
+    for (index, item) in subgrid.children.iter().enumerate() {
+        if item.kind != support::NodeKind::Div
+            || item.style.get("display") == Some("none")
+            || !matches!(item.style.get("position"), None | Some("static"))
+        {
+            return Err("subgrid items must be visible in-flow elements".to_string());
+        }
+        let (start, end) = if index == 0 { ("1", "2") } else { ("2", "3") };
+        let axis = inherited_axis.trim_end_matches('s');
+        if item.style.get(&format!("grid-{axis}-start")) != Some(start)
+            || item.style.get(&format!("grid-{axis}-end")) != Some(end)
+        {
+            return Err("subgrid items must expose inherited-track progression".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn assert_non_overlapping_positive_children(
+    expectations: &[support::Expectation],
+) -> Result<(), String> {
+    let rectangles = expectations
+        .iter()
+        .map(expectation_rect)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for &(x, y, width, height) in &rectangles {
+        if !x.is_finite()
+            || !y.is_finite()
+            || !width.is_finite()
+            || !height.is_finite()
+            || width <= 0.0
+            || height <= 0.0
+        {
+            return Err("case expectations must have finite positive physical boxes".to_string());
+        }
+    }
+
+    for (index, &(x, y, width, height)) in rectangles.iter().enumerate() {
+        for &(other_x, other_y, other_width, other_height) in &rectangles[index + 1..] {
+            if x < other_x + other_width
+                && other_x < x + width
+                && y < other_y + other_height
+                && other_y < y + height
+            {
+                return Err(
+                    "top-level case expectations must have non-overlapping physical boxes"
+                        .to_string(),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn axis_family_modes(path: &Path, prefix: &str) -> Result<(&'static str, &'static str), String> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("{} must have a UTF-8 filename", path.display()))?;
+    let family = file_name
+        .strip_prefix(prefix)
+        .and_then(|name| name.split_once("__"))
+        .map(|(family, _)| family)
+        .ok_or_else(|| format!("{file_name} must use an axis-family filename"))?;
+    match family {
+        "horizontal_tb_parallel" => Ok(("horizontal-tb", "horizontal-tb")),
+        "vertical_rl_parallel" => Ok(("vertical-rl", "vertical-rl")),
+        "vertical_lr_parallel" => Ok(("vertical-lr", "vertical-lr")),
+        "sideways_rl_parallel" => Ok(("sideways-rl", "sideways-rl")),
+        "sideways_lr_parallel" => Ok(("sideways-lr", "sideways-lr")),
+        "vertical_opposing" => Ok(("vertical-rl", "vertical-lr")),
+        "sideways_opposing" => Ok(("sideways-rl", "sideways-lr")),
+        "horizontal_parent_orthogonal_child" => Ok(("horizontal-tb", "vertical-rl")),
+        "vertical_parent_orthogonal_child" => Ok(("vertical-rl", "horizontal-tb")),
+        _ => Err(format!("{file_name} must name a required axis family")),
+    }
+}
+
 fn expectation_rect(expectation: &support::Expectation) -> Result<(f32, f32, f32, f32), String> {
     Ok((
         expectation
@@ -965,6 +1622,125 @@ fn grid_axis_test_golden(
         "#,
     ))
     .expect("grid-axis test golden should parse")
+}
+
+fn grid_lanes_axis_test_golden(
+    root_display: &str,
+    columns_display: &str,
+    rows_display: &str,
+    columns_rows_tracks: &str,
+    columns_child_mode: &str,
+    rows_child_mode: &str,
+) -> support::Golden {
+    support::Golden::parse(&format!(
+        r#"
+        <test name="grid_lanes_axes_horizontal_tb_parallel__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input>
+            <div display="{root_display}">
+              <div display="{columns_display}" writing-mode="horizontal-tb" grid-auto-flow="column" grid-template-rows="{columns_rows_tracks}" width="70px" height="110px">
+                <div writing-mode="{columns_child_mode}" grid-row-start="1" grid-row-end="2" />
+                <div writing-mode="{columns_child_mode}" grid-row-start="2" grid-row-end="3" />
+              </div>
+              <div display="{rows_display}" writing-mode="horizontal-tb" grid-auto-flow="row" grid-template-columns="30px 40px" width="70px" height="110px">
+                <div writing-mode="{rows_child_mode}" grid-column-start="1" grid-column-end="2" />
+                <div writing-mode="{rows_child_mode}" grid-column-start="2" grid-column-end="3" />
+              </div>
+            </div>
+          </input>
+          <expectations>
+            <node x="0" y="0" width="70" height="220">
+              <node x="0" y="0" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="0" y="50" width="40" height="60" /></node>
+              <node x="0" y="110" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="30" y="50" width="40" height="60" /></node>
+            </node>
+          </expectations>
+        </test>
+        "#,
+    ))
+    .expect("grid-lanes axis test golden should parse")
+}
+
+fn grid_lanes_axis_text_child_golden() -> support::Golden {
+    grid_lanes_axis_item_golden(
+        "<text grid-row-start=\"1\" grid-row-end=\"2\">text</text>",
+        "<div grid-row-start=\"2\" grid-row-end=\"3\" />",
+    )
+}
+
+fn grid_lanes_axis_item_golden(
+    columns_first_item: &str,
+    columns_second_item: &str,
+) -> support::Golden {
+    support::Golden::parse(&format!(
+        r#"
+        <test name="grid_lanes_axes_horizontal_tb_parallel__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input><div display="block">
+            <div display="grid-lanes" writing-mode="horizontal-tb" grid-auto-flow="column" grid-template-rows="50px 60px" width="70px" height="110px">{columns_first_item}{columns_second_item}</div>
+            <div display="grid-lanes" writing-mode="horizontal-tb" grid-auto-flow="row" grid-template-columns="30px 40px" width="70px" height="110px"><div grid-column-start="1" grid-column-end="2" /><div grid-column-start="2" grid-column-end="3" /></div>
+          </div></input>
+          <expectations><node x="0" y="0" width="70" height="220"><node x="0" y="0" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="0" y="50" width="40" height="60" /></node><node x="0" y="110" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="30" y="50" width="40" height="60" /></node></node></expectations>
+        </test>
+        "#,
+    ))
+    .expect("grid-lanes item golden should parse")
+}
+
+fn subgrid_axis_test_golden(
+    root_display: &str,
+    parent_display: &str,
+    subgrid_display: &str,
+    parent_columns: &str,
+    parent_rows: &str,
+    columns_child_mode: &str,
+    rows_child_mode: &str,
+) -> support::Golden {
+    support::Golden::parse(&format!(
+        r#"
+        <test name="subgrid_axes_horizontal_tb_parallel__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input><div display="{root_display}">
+            <div display="{parent_display}" writing-mode="horizontal-tb" grid-template-columns="{parent_columns}" grid-template-rows="{parent_rows}"><div display="{subgrid_display}" writing-mode="{columns_child_mode}" grid-template-columns="subgrid" grid-column-start="1" grid-column-end="3"><div grid-column-start="1" grid-column-end="2" /><div grid-column-start="2" grid-column-end="3" /></div></div>
+            <div display="{parent_display}" writing-mode="horizontal-tb" grid-template-columns="{parent_columns}" grid-template-rows="{parent_rows}"><div display="{subgrid_display}" writing-mode="{rows_child_mode}" grid-template-rows="subgrid" grid-row-start="1" grid-row-end="3"><div grid-row-start="1" grid-row-end="2" /><div grid-row-start="2" grid-row-end="3" /></div></div>
+          </div></input>
+          <expectations><node x="0" y="0" width="70" height="220"><node x="0" y="0" width="70" height="110"><node x="0" y="0" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="30" y="0" width="40" height="50" /></node></node><node x="0" y="110" width="70" height="110"><node x="0" y="0" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="0" y="50" width="30" height="60" /></node></node></node></expectations>
+        </test>
+        "#,
+    ))
+    .expect("subgrid axis test golden should parse")
+}
+
+fn subgrid_axis_absolute_item_golden() -> support::Golden {
+    subgrid_axis_item_golden(
+        "<div position=\"absolute\" grid-column-start=\"1\" grid-column-end=\"2\" />",
+        "<div grid-column-start=\"2\" grid-column-end=\"3\" />",
+    )
+}
+
+fn subgrid_axis_text_item_golden() -> support::Golden {
+    subgrid_axis_item_golden(
+        "<text grid-column-start=\"1\" grid-column-end=\"2\">text</text>",
+        "<div grid-column-start=\"2\" grid-column-end=\"3\" />",
+    )
+}
+
+fn subgrid_axis_item_golden(
+    columns_first_item: &str,
+    columns_second_item: &str,
+) -> support::Golden {
+    support::Golden::parse(&format!(
+        r#"
+        <test name="subgrid_axes_horizontal_tb_parallel__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input><div display="block">
+            <div display="grid" writing-mode="horizontal-tb" grid-template-columns="30px 40px" grid-template-rows="50px 60px"><div display="grid" writing-mode="horizontal-tb" grid-template-columns="subgrid" grid-column-start="1" grid-column-end="3">{columns_first_item}{columns_second_item}</div></div>
+            <div display="grid" writing-mode="horizontal-tb" grid-template-columns="30px 40px" grid-template-rows="50px 60px"><div display="grid" writing-mode="horizontal-tb" grid-template-rows="subgrid" grid-row-start="1" grid-row-end="3"><div grid-row-start="1" grid-row-end="2" /><div grid-row-start="2" grid-row-end="3" /></div></div>
+          </div></input>
+          <expectations><node x="0" y="0" width="70" height="220"><node x="0" y="0" width="70" height="110"><node x="0" y="0" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="30" y="0" width="40" height="50" /></node></node><node x="0" y="110" width="70" height="110"><node x="0" y="0" width="70" height="110"><node x="0" y="0" width="30" height="50" /><node x="0" y="50" width="30" height="60" /></node></node></node></expectations>
+        </test>
+        "#,
+    ))
+    .expect("subgrid item golden should parse")
 }
 
 fn block_axis_expected_paths() -> Vec<PathBuf> {
@@ -1141,8 +1917,9 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         taffy_plus_local_count, 1159,
         "expected the Taffy baseline plus forty Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
     );
-    assert_eq!(subgrid_count, 210);
-    assert_eq!(grid_lanes_count, 16);
+    assert_eq!(subgrid_count, 219);
+    assert_eq!(grid_lanes_count, 25);
+    assert_eq!(fixtures.len(), 1403);
 }
 
 #[test]
@@ -1181,7 +1958,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5184);
+    assert_eq!(report_json["summary"]["generated"], 5256);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -1192,7 +1969,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5184,
+        5256,
         "generated bucket length must match its summary"
     );
     assert_eq!(
@@ -1243,6 +2020,35 @@ fn browser_parity_generation_report_counts_full_scope() {
         unique_reported_outputs, actual_outputs,
         "generated full report outputs must match checked-in XML exactly"
     );
+}
+
+#[test]
+fn browser_parity_generation_report_inventory_includes_c07_axis_scopes() {
+    let report_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity/xml/generation-reports");
+    let reports = support::fixture_files_in(&report_root, "json")
+        .expect("generation reports should be readable");
+    assert_eq!(reports.len(), 15);
+
+    for (file, filter) in [
+        (
+            "grid-lanes_grid_lanes_axes.json",
+            "grid-lanes/grid_lanes_axes",
+        ),
+        ("subgrid_subgrid_axes.json", "subgrid/subgrid_axes"),
+    ] {
+        let path = report_root.join(file);
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("{} should read: {error}", path.display()));
+        let report: serde_json::Value = serde_json::from_str(&raw)
+            .unwrap_or_else(|error| panic!("{} should parse: {error}", path.display()));
+        assert_eq!(report["filter"], filter);
+        assert_eq!(report["summary"]["generated"], 36);
+        assert_eq!(report["summary"]["unsupported"], 0);
+        assert_eq!(report["summary"]["expected_fail"], 0);
+        assert_eq!(report["summary"]["quarantined"], 0);
+        assert_eq!(report["summary"]["failed_to_generate"], 0);
+    }
 }
 
 #[test]

@@ -1,0 +1,36 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/subgrid/subgrid_axes_horizontal_tb_parallel.html" source-sha256="993aacfe0b9628b3b326c9ada167e07dbb122f82c6ed7301f47d414b955b5818" helper-sha256="298fb04ffd4811de3871977c350ecfd3e66a60a2eb7cdf6da9810503fed7853c" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="subgrid_axes_horizontal_tb_parallel__content_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" box-sizing="content-box" direction="rtl">
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="7px" column-gap="11px" grid-template-rows="50px 60px" grid-template-columns="30px 40px">
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="7px" column-gap="11px" grid-template-rows="50px 60px" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="3" grid-column-start="1" grid-column-end="3">
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-row-start="1" grid-row-end="2" grid-column-start="1" grid-column-end="2"/>
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-row-start="2" grid-row-end="3" grid-column-start="2" grid-column-end="3"/>
+        </div>
+      </div>
+      <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="7px" column-gap="11px" grid-template-rows="50px 60px" grid-template-columns="30px 40px">
+        <div source-tag="div" display="grid" box-sizing="content-box" direction="rtl" row-gap="7px" column-gap="11px" grid-template-rows="subgrid" grid-template-columns="30px 40px" grid-row-start="1" grid-row-end="3" grid-column-start="1" grid-column-end="3">
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-row-start="1" grid-row-end="2" grid-column-start="1" grid-column-end="2"/>
+          <div source-tag="div" display="flex" box-sizing="content-box" direction="rtl" grid-row-start="2" grid-row-end="3" grid-column-start="2" grid-column-end="3"/>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="81" height="234">
+      <node x="0" y="0" width="81" height="117">
+        <node x="0" y="0" width="81" height="117">
+          <node x="51" y="0" width="30" height="50"/>
+          <node x="0" y="57" width="40" height="60"/>
+        </node>
+      </node>
+      <node x="0" y="117" width="81" height="117">
+        <node x="0" y="0" width="81" height="117">
+          <node x="51" y="0" width="30" height="50"/>
+          <node x="0" y="57" width="40" height="60"/>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>

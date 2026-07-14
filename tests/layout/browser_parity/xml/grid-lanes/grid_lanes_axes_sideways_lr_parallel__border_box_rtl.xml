@@ -1,0 +1,28 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/grid-lanes/grid_lanes_axes_sideways_lr_parallel.html" source-sha256="90953f4fa78b0f3886f69e340cb8a36437cd3e853c1bd54e4f7020b11836a1e8" helper-sha256="298fb04ffd4811de3871977c350ecfd3e66a60a2eb7cdf6da9810503fed7853c" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="grid_lanes_axes_sideways_lr_parallel__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl">
+      <div source-tag="div" display="grid-lanes" direction="rtl" writing-mode="sideways-lr" width="110px" height="70px" grid-auto-flow="column" grid-template-rows="50px 60px" grid-template-columns="30px 40px">
+        <div source-tag="div" display="flex" direction="rtl" writing-mode="sideways-lr" width="30px" height="50px" grid-row-start="1" grid-row-end="2"/>
+        <div source-tag="div" display="flex" direction="rtl" writing-mode="sideways-lr" width="40px" height="60px" grid-row-start="2" grid-row-end="3"/>
+      </div>
+      <div source-tag="div" display="grid-lanes" direction="rtl" writing-mode="sideways-lr" width="110px" height="70px" grid-auto-flow="row" grid-template-rows="50px 60px" grid-template-columns="30px 40px">
+        <div source-tag="div" display="flex" direction="rtl" writing-mode="sideways-lr" width="30px" height="50px" grid-column-start="1" grid-column-end="2"/>
+        <div source-tag="div" display="flex" direction="rtl" writing-mode="sideways-lr" width="40px" height="60px" grid-column-start="2" grid-column-end="3"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="110" height="140">
+      <node x="0" y="0" width="110" height="70">
+        <node x="0" y="0" width="30" height="50"/>
+        <node x="0" y="30" width="40" height="60"/>
+      </node>
+      <node x="0" y="70" width="110" height="70">
+        <node x="0" y="0" width="30" height="50"/>
+        <node x="0" y="30" width="40" height="60"/>
+      </node>
+    </node>
+  </expectations>
+</test>

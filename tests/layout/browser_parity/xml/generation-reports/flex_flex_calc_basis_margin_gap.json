@@ -7,7 +7,7 @@
     "launch_profile_sha256": "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
     "helper_sha256": "298fb04ffd4811de3871977c350ecfd3e66a60a2eb7cdf6da9810503fed7853c",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
-    "corpus_manifest_sha256": "d7685300a58109dd4a2e31d75fae3459bed3176985e366035953d6e4d6f9e18c",
+    "corpus_manifest_sha256": "ce5fb91bfc4983d0866a1648b64867d8dfebbfa7038dcd74301b315c2e4c0fee",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },
   "filter": "flex/flex_calc_basis_margin_gap",

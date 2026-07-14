@@ -1009,12 +1009,23 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
             return Err(Error::new(format!("invalid aspect-ratio `{value}`")));
         }
     }
-    if let Some(value) = attrs.get("row-gap") {
-        input.gap.height = parse_length_with_calc(value)?;
-    }
-    if let Some(value) = attrs.get("column-gap") {
-        input.gap.width = parse_length_with_calc(value)?;
-    }
+    let flow_axes = layout::FlowAxes::new(input.writing_mode, input.direction);
+    let (default_inline_gap, default_block_gap) = match flow_axes.inline_axis() {
+        layout::PhysicalAxis::Horizontal => (input.gap.width, input.gap.height),
+        layout::PhysicalAxis::Vertical => (input.gap.height, input.gap.width),
+    };
+    let inline_gap = match attrs.get("column-gap") {
+        Some(value) => parse_length_with_calc(value)?,
+        None => default_inline_gap,
+    };
+    let block_gap = match attrs.get("row-gap") {
+        Some(value) => parse_length_with_calc(value)?,
+        None => default_block_gap,
+    };
+    input.gap = match flow_axes.inline_axis() {
+        layout::PhysicalAxis::Horizontal => layout::Size::new(inline_gap, block_gap),
+        layout::PhysicalAxis::Vertical => layout::Size::new(block_gap, inline_gap),
+    };
 
     apply_edges_auto(
         &mut input.margin,
@@ -3024,6 +3035,36 @@ mod tests {
             node_input.margin.right,
             length_px(12.0, "12px").unwrap().into()
         );
+    }
+
+    #[test]
+    fn fixture_gaps_project_logical_css_axes() {
+        let expected_physical_gap = layout::Size::new(
+            length_px(7.0, "7px").expect("valid row gap"),
+            length_px(11.0, "11px").expect("valid column gap"),
+        );
+
+        for (writing_mode, direction) in [
+            ("vertical-rl", "ltr"),
+            ("vertical-lr", "rtl"),
+            ("sideways-rl", "rtl"),
+            ("sideways-lr", "ltr"),
+        ] {
+            let node_input = test_node_input(StyleAttrs {
+                attrs: BTreeMap::from([
+                    ("writing-mode".to_string(), writing_mode.to_string()),
+                    ("direction".to_string(), direction.to_string()),
+                    ("column-gap".to_string(), "11px".to_string()),
+                    ("row-gap".to_string(), "7px".to_string()),
+                ]),
+            })
+            .expect("logical CSS gaps should parse");
+
+            assert_eq!(
+                node_input.gap, expected_physical_gap,
+                "{writing_mode} {direction} must store column-gap as inline and row-gap as block"
+            );
+        }
     }
 
     #[test]

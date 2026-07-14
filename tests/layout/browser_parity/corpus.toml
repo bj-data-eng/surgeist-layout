@@ -51,7 +51,7 @@ arguments = [
 
 [generation_reports.full]
 file = "all.json"
-generated = 5184
+generated = 5256
 unsupported = 356
 expected_fail = 0
 quarantined = 0
@@ -115,6 +115,16 @@ generated = 4
 [[generation_reports.scoped]]
 filter = "grid/grid_axes"
 file = "grid_grid_axes.json"
+generated = 36
+
+[[generation_reports.scoped]]
+filter = "grid-lanes/grid_lanes_axes"
+file = "grid-lanes_grid_lanes_axes.json"
+generated = 36
+
+[[generation_reports.scoped]]
+filter = "subgrid/subgrid_axes"
+file = "subgrid_subgrid_axes.json"
 generated = 36
 
 [source_roots.taffy]
@@ -2107,5 +2117,131 @@ status = "active"
 id = "subgrid/subgrid_stretch_vertical_rows_width_50"
 source_root = "surgeist"
 source = "subgrid/subgrid_stretch_vertical_rows_width_50.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_horizontal_tb_parallel"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_horizontal_tb_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_vertical_rl_parallel"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_vertical_rl_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_vertical_lr_parallel"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_vertical_lr_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_sideways_rl_parallel"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_sideways_rl_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_sideways_lr_parallel"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_sideways_lr_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_vertical_opposing"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_vertical_opposing.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_sideways_opposing"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_sideways_opposing.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_horizontal_parent_orthogonal_child"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_horizontal_parent_orthogonal_child.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/grid_lanes_axes_vertical_parent_orthogonal_child"
+source_root = "surgeist"
+source = "grid-lanes/grid_lanes_axes_vertical_parent_orthogonal_child.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_horizontal_tb_parallel"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_horizontal_tb_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_vertical_rl_parallel"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_vertical_rl_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_vertical_lr_parallel"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_vertical_lr_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_sideways_rl_parallel"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_sideways_rl_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_sideways_lr_parallel"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_sideways_lr_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_vertical_opposing"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_vertical_opposing.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_sideways_opposing"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_sideways_opposing.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_horizontal_parent_orthogonal_child"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_horizontal_parent_orthogonal_child.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "subgrid/subgrid_axes_vertical_parent_orthogonal_child"
+source_root = "surgeist"
+source = "subgrid/subgrid_axes_vertical_parent_orthogonal_child.html"
 generator = "constrained-html"
 status = "active"
