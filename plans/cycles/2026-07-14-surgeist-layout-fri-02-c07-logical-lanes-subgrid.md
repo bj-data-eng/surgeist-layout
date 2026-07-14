@@ -105,6 +105,18 @@ outcome becomes expected behavior.
 Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_subgrid_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout resolved_subgrid_axis_gap_uses_node_logical_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; then the Rust gate below.
 Coordinator commit after CLEAN: `layout: inherit subgrid axes logically`.
 
+### C07-T2A - Preserve Indefinite Orthogonal Auto Child Sizing
+Files/area: `src/block.rs` and focused block/root tests. Depends on: T2 task-clean.
+Outcome: a parent block's auto-derived final physical extent remains provisional
+when it maps to an orthogonal child's auto inline axis; only genuinely definite
+parent context becomes child known/definite input.
+RED: a public f32/f64 matrix over four vertical/sideways modes and both directions
+sizes two orthogonal auto grid/subgrid siblings as `117x162` each instead of `117x81`.
+Acceptance: the root remains `117x162`, siblings are `117x81` at y `0/81`, explicit
+parent heights retain current behavior, and no FRI-08 grid behavior changes.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout orthogonal_auto_child_inline_size_remains_indefinite -- --nocapture`; then the Rust gate below.
+Coordinator commit after CLEAN: `layout: preserve orthogonal auto child sizing`.
+
 ### C07-T3 - Exact Lanes And Subgrid Browser Matrices
 Files/area: `tests/layout/browser_parity.rs`, `support.rs` (only logical CSS-gap
 projection and focused tests), `tests/bin/surgeist-layout-generate/generator.rs`
@@ -112,7 +124,7 @@ projection and focused tests), `tests/bin/surgeist-layout-generate/generator.rs`
 fixtures, their 72 generator-produced XML files, both new scoped reports, and all
 refreshed current reports. Generator parser/runtime, helper, resolver, browser
 resolution/launch, batch/retry, job lifecycle, and locking remain unchanged.
-Depends on: T2 task-clean and the sole cached ExistingPinned Chrome for Testing
+Depends on: T2A task-clean and the sole cached ExistingPinned Chrome for Testing
 149.0.7827.115.
 Outcome: add these four-variant (`border_box_ltr`, `border_box_rtl`,
 `content_box_ltr`, `content_box_rtl`) grid-lanes families: `grid_lanes_axes_horizontal_tb_parallel`,
