@@ -1,5 +1,5 @@
 use super::*;
-use crate::geometry::{LogicalPointOf, LogicalSizeOf};
+use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::scroll::scrollbar_size_from_overflow;
 use crate::{
     GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
@@ -981,10 +981,10 @@ where
 pub(super) struct GridLanesLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) style: &'a NodeInputOf<S>,
     pub(super) constants: &'a Constants<S>,
-    pub(super) container_content_size: Size<S>,
+    pub(super) container_content_box_size: LogicalSizeOf<S>,
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) context: GridContainerContext<S>,
     pub(super) subgrid_report: &'a GridSubgridReport<Node>,
     pub(super) placements: &'a GridPlacementContext<Node>,
@@ -1045,7 +1045,7 @@ where
         if !is_in_flow_grid_child(&child_style) {
             continue;
         }
-        if scroll_container_auto_minimum_zero(&child_style, axis) {
+        if scroll_container_auto_minimum_zero(&child_style, constants.flow_axes, axis) {
             continue;
         }
         let placement = match axis {
@@ -1121,8 +1121,14 @@ fn lane_child_contribution_facts<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let min_available = lane_child_intrinsic_available(axis, child_style, available);
-    let max_available = lane_child_intrinsic_available(axis, child_style, AvailableOf::MAX_CONTENT);
+    let min_available =
+        lane_child_intrinsic_available(constants.flow_axes, axis, child_style, available);
+    let max_available = lane_child_intrinsic_available(
+        constants.flow_axes,
+        axis,
+        child_style,
+        AvailableOf::MAX_CONTENT,
+    );
     let min_output = tree.compute_child(
         child,
         ComputeInputOf::for_child(
@@ -1156,43 +1162,64 @@ where
     let margin =
         intrinsic_contribution_margin(child_style, constants.flow_axes, constants.node_inner_size)
             .map_err(|status| crate::compute::value_resolution_error(child, status))?;
+    let min_output_size = constants.flow_axes.logical_size(min_output.size);
+    let max_output_size = constants.flow_axes.logical_size(max_output.size);
+    let logical_margin = constants.flow_axes.logical_edges(margin);
     Ok(LaneContributionFactsOf {
-        min_content: axis_size(min_output.size, axis) + axis_margin_sum(margin, axis),
-        max_content: axis_size(max_output.size, axis) + axis_margin_sum(margin, axis),
-        min_size: if automatic_minimum_applies(child_style, axis) {
-            axis_size(min_output.size, axis) + axis_margin_sum(margin, axis)
+        min_content: lane_axis_size(min_output_size, axis)
+            + lane_axis_margin_sum(logical_margin, axis),
+        max_content: lane_axis_size(max_output_size, axis)
+            + lane_axis_margin_sum(logical_margin, axis),
+        min_size: if automatic_minimum_applies(child_style, constants.flow_axes, axis) {
+            lane_axis_size(min_output_size, axis) + lane_axis_margin_sum(logical_margin, axis)
         } else {
             Tree::Scalar::ZERO
         },
-        automatic_minimum_applies: automatic_minimum_applies(child_style, axis),
+        automatic_minimum_applies: automatic_minimum_applies(
+            child_style,
+            constants.flow_axes,
+            axis,
+        ),
     })
 }
 
-fn automatic_minimum_applies<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> bool {
-    !scroll_container_auto_minimum_zero(style, axis)
+fn automatic_minimum_applies<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    flow_axes: crate::geometry::FlowAxes,
+    axis: GridAxisKind,
+) -> bool {
+    !scroll_container_auto_minimum_zero(style, flow_axes, axis)
 }
 
 fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
     style: &NodeInputOf<S>,
+    flow_axes: crate::geometry::FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
-    match axis {
-        GridAxisKind::Column => scroll_container_auto_minimum_zero_inline(style),
-        GridAxisKind::Row => scroll_container_auto_minimum_zero_block(style),
+    let physical_axis = match axis.logical_axis() {
+        LogicalAxis::Inline => flow_axes.inline_axis(),
+        LogicalAxis::Block => flow_axes.block_axis(),
+    };
+    match physical_axis {
+        PhysicalAxis::Horizontal => style.overflow.x.is_scrollable() && style.size.width.is_auto(),
+        PhysicalAxis::Vertical => style.overflow.y.is_scrollable() && style.size.height.is_auto(),
     }
 }
 
-fn axis_size<S: LayoutScalar>(size: Size<S>, axis: GridAxisKind) -> S {
-    match axis {
-        GridAxisKind::Column => size.width,
-        GridAxisKind::Row => size.height,
+fn lane_axis_size<S: LayoutScalar>(size: LogicalSizeOf<S>, axis: GridAxisKind) -> S {
+    match axis.logical_axis() {
+        LogicalAxis::Inline => size.inline,
+        LogicalAxis::Block => size.block,
     }
 }
 
-fn axis_margin_sum<S: LayoutScalar>(margin: Edges<S>, axis: GridAxisKind) -> S {
-    match axis {
-        GridAxisKind::Column => margin.horizontal_sum(),
-        GridAxisKind::Row => margin.vertical_sum(),
+fn lane_axis_margin_sum<S: LayoutScalar>(
+    margin: crate::geometry::LogicalEdgesOf<S>,
+    axis: GridAxisKind,
+) -> S {
+    match axis.logical_axis() {
+        LogicalAxis::Inline => margin.inline_sum(),
+        LogicalAxis::Block => margin.block_sum(),
     }
 }
 
@@ -1207,7 +1234,7 @@ where
     let GridLanesLayoutInput {
         style,
         constants,
-        container_content_size,
+        container_content_box_size,
         columns,
         rows,
         gap,
@@ -1236,22 +1263,26 @@ where
         });
     }
 
-    let track_content_size = Size::new(track_sum(columns, gap.width), track_sum(rows, gap.height));
-    let content_box_size = constants.node_inner_size.unwrap_or(container_content_size);
+    let flow_axes = constants.flow_axes;
+    let track_content_size =
+        LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
+    let content_box_size = flow_axes
+        .logical_size(constants.node_inner_size)
+        .unwrap_or(container_content_box_size);
     let alignment_free_space = content_box_size - track_content_size;
     let column_alignment = grid_alignment(
-        alignment_free_space.width,
+        alignment_free_space.inline,
         columns.len(),
-        gap.width,
+        gap.inline,
         style.justify_content.unwrap_or(AlignContent::Stretch),
     );
     let row_alignment = grid_alignment(
-        alignment_free_space.height,
+        alignment_free_space.block,
         rows.len(),
-        gap.height,
+        gap.block,
         style.align_content.unwrap_or(AlignContent::Stretch),
     );
-    context.gap = LogicalSizeOf::new(gap.width, gap.height);
+    context.gap = gap;
     let grid_axis_gap = match grid_axis_for_grid_lanes(style) {
         GridAxisKind::Column => column_alignment.gap,
         GridAxisKind::Row => row_alignment.gap,
@@ -1277,34 +1308,27 @@ where
             },
         });
     };
-    let content_box_left = effective_content_box_left(constants, container_content_size);
-    let column_offsets = if style.direction.is_rtl() {
-        rtl_offsets(
-            columns,
-            content_box_left,
-            content_box_size.width,
-            column_alignment.start,
-            column_alignment.gap,
-        )
-    } else {
-        offsets(
-            columns,
-            constants.content_box_inset.left + column_alignment.start,
-            column_alignment.gap,
-        )
-    };
-    let row_offsets = offsets(
-        rows,
-        constants.content_box_inset.top + row_alignment.start,
-        row_alignment.gap,
+    let logical_content_box_inset = flow_axes.logical_edges(constants.content_box_inset);
+    let column_offsets = grid_axis_logical_offsets(
+        columns,
+        None,
+        logical_content_box_inset.inline_start,
+        column_alignment,
     );
-    let containing_size = constants
-        .node_outer_size
-        .unwrap_or(container_content_size + constants.content_box_inset.sum_axes());
+    let row_offsets = grid_axis_logical_offsets(
+        rows,
+        None,
+        logical_content_box_inset.block_start,
+        row_alignment,
+    );
+    let containing_size = constants.node_outer_size.unwrap_or(
+        flow_axes.physical_size(container_content_box_size)
+            + constants.content_box_inset.sum_axes(),
+    );
     let lane_axis = lane_report.lane_axis;
-    let lane_axis_alignment_start = match lane_axis {
-        GridAxisKind::Column => column_alignment.start + constants.content_box_inset.left,
-        GridAxisKind::Row => row_alignment.start + constants.content_box_inset.top,
+    let lane_axis_alignment_start = match lane_axis.logical_axis() {
+        LogicalAxis::Inline => column_alignment.start + logical_content_box_inset.inline_start,
+        LogicalAxis::Block => row_alignment.start + logical_content_box_inset.block_start,
     };
     let children = tree.children(node).collect::<Vec<_>>();
     let empty_baseline_groups = GridBaselineGroups {
@@ -1329,12 +1353,12 @@ where
                     child,
                     order as u32,
                     &child_style,
-                    AbsoluteGridContext::legacy_grid_lanes(LegacyPhysicalGridLanesContextInput {
+                    AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
                         container_style: style,
                         constants,
                         containing_size,
-                        absolute_column: placement.absolute_column,
-                        absolute_row: placement.absolute_row,
+                        column: placement.absolute_column,
+                        row: placement.absolute_row,
                         column_offsets: &column_offsets,
                         row_offsets: &row_offsets,
                         columns,
@@ -1359,65 +1383,43 @@ where
 
         let start = item_offset.grid_axis_start - 1;
         let end = start + item_offset.grid_axis_span;
-        let (area, area_origin, area_size) = match lane_report.grid_axis {
+        let area = match lane_report.grid_axis {
             GridAxisKind::Column => {
-                let width = track_sum(
+                let inline = track_sum(
                     &columns[start..end.min(columns.len())],
                     column_alignment.gap,
                 );
-                let x = column_offsets
-                    .get(start..end.min(column_offsets.len()))
-                    .and_then(|offsets| offsets.iter().copied().reduce(Tree::Scalar::min))
-                    .unwrap_or(Tree::Scalar::ZERO);
-                (
-                    GridArea {
-                        column: start,
-                        row: 0,
-                        column_end: end,
-                        row_end: 1,
-                        size: LogicalSizeOf::new(width, item_offset.lane_axis_margin_box),
-                    },
-                    Point::new(x, lane_axis_alignment_start + item_offset.offset),
-                    Size::new(width, item_offset.lane_axis_margin_box),
-                )
+                GridArea {
+                    column: start,
+                    row: 0,
+                    column_end: end,
+                    row_end: 1,
+                    size: LogicalSizeOf::new(inline, item_offset.lane_axis_margin_box),
+                }
             }
             GridAxisKind::Row => {
-                let height = track_sum(&rows[start..end.min(rows.len())], row_alignment.gap);
-                let y = row_offsets
-                    .get(start)
-                    .copied()
-                    .unwrap_or(Tree::Scalar::ZERO);
-                let x = if style.direction.is_rtl() {
-                    content_box_left + content_box_size.width
-                        - column_alignment.start
-                        - item_offset.offset
-                        - item_offset.lane_axis_margin_box
-                } else {
-                    lane_axis_alignment_start + item_offset.offset
-                };
-                (
-                    GridArea {
-                        column: 0,
-                        row: start,
-                        column_end: 1,
-                        row_end: end,
-                        size: LogicalSizeOf::new(item_offset.lane_axis_margin_box, height),
-                    },
-                    Point::new(x, y),
-                    Size::new(item_offset.lane_axis_margin_box, height),
-                )
+                let block = track_sum(&rows[start..end.min(rows.len())], row_alignment.gap);
+                GridArea {
+                    column: 0,
+                    row: start,
+                    column_end: 1,
+                    row_end: end,
+                    size: LogicalSizeOf::new(item_offset.lane_axis_margin_box, block),
+                }
             }
         };
 
-        let item = grid_item_sizing::<Tree, M>(
+        let physical_area_size = flow_axes.physical_size(area.size);
+        let item = grid_item_sizing_for_grid_flow::<Tree, M>(
             tree,
             child,
             &child_style,
             style,
-            area_size,
-            area_size.map(Some),
+            physical_area_size,
+            physical_area_size.map(Some),
+            flow_axes,
         )?;
-        let area_parent = area_size.map(Some);
+        let area_parent = physical_area_size.map(Some);
         let padding = constants
             .flow_axes
             .zip_physical_edges_with_inline_extent(
@@ -1437,9 +1439,11 @@ where
         let resolved_margin = item
             .unresolved_margin
             .map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
-        let subgrid_content_box_size =
-            (area_size - resolved_margin.sum_axes() - padding.sum_axes() - border.sum_axes())
-                .max(Size::ZERO);
+        let subgrid_content_box_size = (physical_area_size
+            - resolved_margin.sum_axes()
+            - padding.sum_axes()
+            - border.sum_axes())
+        .max(Size::ZERO);
         let child_context = subgrid_child_parent_context(SubgridChildParentContextInput {
             item: *subgrid_report
                 .items
@@ -1450,7 +1454,7 @@ where
             content_box_size: subgrid_content_box_size,
             columns,
             rows,
-            gap: LogicalSizeOf::new(gap.width, gap.height),
+            gap,
             parent_named_columns: &context.named_columns,
             parent_named_rows: &context.named_rows,
             parent_area_facts: context.area_facts.as_ref(),
@@ -1465,8 +1469,8 @@ where
             SizingMode::InherentSize,
             RequestedAxis::Both,
             item.known,
-            Size::new(Some(area_size.width), Some(area_size.height)),
-            constants.flow_axes,
+            physical_area_size.map(Some),
+            flow_axes,
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         );
@@ -1475,39 +1479,36 @@ where
         } else {
             tree.compute_child(child, child_input)?
         };
-        let horizontal_axis = grid_item_axis(GridItemAxis {
-            area_size: area_size.width,
-            size: output.size.width,
-            margin_start: item.unresolved_margin.left,
-            margin_end: item.unresolved_margin.right,
-            alignment: item.justify_self,
-            direction: style.direction,
-        });
-        let vertical_axis = grid_item_axis(GridItemAxis {
-            area_size: area_size.height,
-            size: output.size.height,
-            margin_start: item.unresolved_margin.top,
-            margin_end: item.unresolved_margin.bottom,
-            alignment: item.align_self,
-            direction: Direction::Ltr,
-        });
-        let relative_offset = relative_inset_offset(
+        let logical_output_size = flow_axes.logical_size(output.size);
+        let logical_unresolved_margin = flow_axes.logical_edges(item.unresolved_margin);
+        let inline_axis = logical_grid_item_axis(
+            area.size.inline,
+            logical_output_size.inline,
+            logical_unresolved_margin.inline_start,
+            logical_unresolved_margin.inline_end,
+            item.justify_self,
+        );
+        let block_axis = logical_grid_item_axis(
+            area.size.block,
+            logical_output_size.block,
+            logical_unresolved_margin.block_start,
+            logical_unresolved_margin.block_end,
+            item.align_self,
+        );
+        let logical_relative_offset = logical_relative_inset_offset(
             child_style
                 .inset
-                .zip_size(
-                    Size::new(Some(area_size.width), Some(area_size.height)),
-                    resolve_auto_optional,
-                )
+                .zip_size(physical_area_size.map(Some), resolve_auto_optional)
                 .transpose_with_node(tree, child)?,
-            style.direction,
+            flow_axes,
             child_style.position,
         );
-        let margin = Edges {
-            left: horizontal_axis.margin_start,
-            right: horizontal_axis.margin_end,
-            top: vertical_axis.margin_start,
-            bottom: vertical_axis.margin_end,
-        };
+        let margin = flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+            inline_axis.margin_start,
+            inline_axis.margin_end,
+            block_axis.margin_start,
+            block_axis.margin_end,
+        ));
         let baselines = output.baselines();
         let child_flow_axes =
             crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
@@ -1529,34 +1530,20 @@ where
             child_flow_axes,
             constants.flow_axes,
         );
-        let location = Point::new(
-            area_origin.x + horizontal_axis.offset + relative_offset.x,
-            area_origin.y + vertical_axis.offset + relative_offset.y,
-        );
-        visible_content_size = max_size(
-            visible_content_size,
-            content_size_contribution(
-                Point::new(location.x - area_origin.x, location.y - area_origin.y),
-                output.size,
-                output.content_size,
-                child_style.overflow,
-            ),
-        );
         pending_items.push(PendingGridItem {
             node: child,
             order: order as u32,
             area,
             output,
-            horizontal_axis,
-            vertical_axis,
+            horizontal_axis: inline_axis,
+            vertical_axis: block_axis,
             child_flow_axes,
-            relative_offset,
-            logical_relative_offset: LogicalPointOf::new(Tree::Scalar::ZERO, Tree::Scalar::ZERO),
+            logical_relative_offset,
             first_baseline,
             last_baseline,
             location: Point::ZERO,
             published_row_baselines: None,
-            block_offset: vertical_axis.offset,
+            block_offset: block_axis.offset,
             block_auto_margins,
             baseline_participation,
             margin,
@@ -1579,44 +1566,52 @@ where
             .item_offsets
             .iter()
             .find(|offset| offset.item == item.node);
-        let location = Point::new(
-            match lane_axis {
-                GridAxisKind::Column => match item_offset {
-                    Some(offset) if style.direction.is_rtl() => {
-                        content_box_left + content_box_size.width
-                            - column_alignment.start
-                            - offset.offset
-                            - offset.lane_axis_margin_box
-                            + item.horizontal_axis.offset
-                            + item.relative_offset.x
-                    }
-                    _ => {
-                        lane_axis_alignment_start
-                            + item_offset.map_or(Tree::Scalar::ZERO, |offset| offset.offset)
-                            + item.horizontal_axis.offset
-                            + item.relative_offset.x
-                    }
-                },
-                GridAxisKind::Row => {
-                    grid_area_inline_offset(&column_offsets, item.area)
-                        + item.horizontal_axis.offset
-                        + item.relative_offset.x
-                }
-            },
-            match lane_axis {
-                GridAxisKind::Column => {
-                    row_offsets[item.area.row] + item.vertical_axis.offset + item.relative_offset.y
-                }
-                GridAxisKind::Row => {
-                    lane_axis_alignment_start
-                        + item_offset.map_or(Tree::Scalar::ZERO, |offset| offset.offset)
-                        + item.vertical_axis.offset
-                        + item.relative_offset.y
-                }
-            },
+        let lane_offset = item_offset.map_or(Tree::Scalar::ZERO, |offset| offset.offset);
+        let logical_location = match lane_axis.logical_axis() {
+            LogicalAxis::Inline => LogicalPointOf::new(
+                lane_axis_alignment_start
+                    + lane_offset
+                    + item.horizontal_axis.offset
+                    + item.logical_relative_offset.inline,
+                grid_area_track_offset(&row_offsets, item.area.row, item.area.row_end)
+                    + item.vertical_axis.offset
+                    + item.logical_relative_offset.block,
+            ),
+            LogicalAxis::Block => LogicalPointOf::new(
+                grid_area_inline_offset(&column_offsets, item.area)
+                    + item.horizontal_axis.offset
+                    + item.logical_relative_offset.inline,
+                lane_axis_alignment_start
+                    + lane_offset
+                    + item.vertical_axis.offset
+                    + item.logical_relative_offset.block,
+            ),
+        };
+        let location = flow_axes.physical_point(
+            logical_location,
+            flow_axes.logical_size(item.output.size),
+            containing_size,
         );
-        item.block_offset = location.y - row_offsets[item.area.row];
+        let area_origin = LogicalPointOf::new(
+            grid_area_inline_offset(&column_offsets, item.area),
+            grid_area_track_offset(&row_offsets, item.area.row, item.area.row_end),
+        );
+        let physical_area_origin =
+            flow_axes.physical_point(area_origin, item.area.size, containing_size);
+        item.block_offset = logical_location.block - area_origin.block;
         item.location = location;
+        visible_content_size = max_size(
+            visible_content_size,
+            content_size_contribution(
+                Point::new(
+                    location.x - physical_area_origin.x,
+                    location.y - physical_area_origin.y,
+                ),
+                item.output.size,
+                item.output.content_size,
+                item.overflow,
+            ),
+        );
         tree.set_unrounded(
             item.node,
             NodeOutputOf {
@@ -1636,12 +1631,13 @@ where
         rows: vec![TrackBaselineGroup::default(); rows.len()],
         columns: vec![TrackBaselineGroup::default(); columns.len()],
     };
-    let baselines = grid_container_baselines(
+    let baselines = logical_grid_container_baselines(
         &pending_items,
         &baseline_groups,
         &row_offsets,
         rows,
-        constants.flow_axes,
+        flow_axes,
+        containing_size,
     );
 
     Ok(GridChildrenLayout {
@@ -1677,13 +1673,14 @@ where
         grid_axis,
         grid_axis_size,
     } = input;
-    let containing_physical_size = match grid_axis {
-        GridAxisKind::Column => Size::new(Some(grid_axis_size), None),
-        GridAxisKind::Row => constants.node_inner_size,
+    let flow_axes = constants.flow_axes;
+    let logical_parent = match grid_axis.logical_axis() {
+        LogicalAxis::Inline => LogicalSizeOf::new(Some(grid_axis_size), None),
+        LogicalAxis::Block => LogicalSizeOf::new(None, Some(grid_axis_size)),
     };
+    let containing_physical_size = flow_axes.physical_size(logical_parent);
     let (margin, known, parent, available) = {
-        let unresolved_margin = constants
-            .flow_axes
+        let unresolved_margin = flow_axes
             .zip_physical_edges_with_inline_extent(
                 child_style.margin,
                 containing_physical_size,
@@ -1691,49 +1688,64 @@ where
             )
             .transpose_with_node(tree, child)?;
         let margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
-        let mut known = Size::NONE;
-        let mut parent = Size::NONE;
-        let mut available = Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
-        match lane_axis {
-            GridAxisKind::Column => {
-                available.width = intrinsic_available_for_dimension(child_style.size.width);
+        let logical_margin = flow_axes.logical_edges(margin);
+        let logical_style_size = flow_axes.logical_size(child_style.size);
+        let mut logical_known = LogicalSizeOf::new(None, None);
+        let mut logical_parent = LogicalSizeOf::new(None, None);
+        let mut logical_available =
+            LogicalSizeOf::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
+        match lane_axis.logical_axis() {
+            LogicalAxis::Inline => {
+                logical_available.inline =
+                    intrinsic_available_for_dimension(logical_style_size.inline);
             }
-            GridAxisKind::Row => {
-                available.height = intrinsic_available_for_dimension(child_style.size.height);
+            LogicalAxis::Block => {
+                logical_available.block =
+                    intrinsic_available_for_dimension(logical_style_size.block);
             }
         }
-        match grid_axis {
-            GridAxisKind::Column => {
-                let available_width =
-                    (grid_axis_size - margin.horizontal_sum()).max(Tree::Scalar::ZERO);
+        match grid_axis.logical_axis() {
+            LogicalAxis::Inline => {
+                let available_inline =
+                    (grid_axis_size - logical_margin.inline_sum()).max(Tree::Scalar::ZERO);
                 let justify_self = child_style
                     .justify_self
                     .or(container_style.justify_items)
                     .unwrap_or(AlignItems::Stretch);
-                known.width = resolve_dimension(child_style.size.width, Some(grid_axis_size))
-                    .map_err(|status| crate::compute::value_resolution_error(child, status))?
-                    .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_width));
-                parent.width = Some(grid_axis_size);
-                available.width = AvailableOf::Definite(available_width);
+                logical_known.inline =
+                    resolve_dimension(logical_style_size.inline, Some(grid_axis_size))
+                        .map_err(|status| crate::compute::value_resolution_error(child, status))?
+                        .or_else(|| {
+                            (justify_self == AlignItems::Stretch).then_some(available_inline)
+                        });
+                logical_parent.inline = Some(grid_axis_size);
+                logical_available.inline = AvailableOf::Definite(available_inline);
             }
-            GridAxisKind::Row => {
-                let available_height =
-                    (grid_axis_size - margin.vertical_sum()).max(Tree::Scalar::ZERO);
+            LogicalAxis::Block => {
+                let available_block =
+                    (grid_axis_size - logical_margin.block_sum()).max(Tree::Scalar::ZERO);
                 let align_self = child_style
                     .align_self
                     .or(container_style.align_items)
                     .unwrap_or(AlignItems::Stretch);
-                known.height = resolve_dimension(child_style.size.height, Some(grid_axis_size))
-                    .map_err(|status| crate::compute::value_resolution_error(child, status))?
-                    .or_else(|| {
-                        (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
-                            .then_some(available_height)
-                    });
-                parent.height = Some(grid_axis_size);
-                available.height = AvailableOf::Definite(available_height);
+                logical_known.block =
+                    resolve_dimension(logical_style_size.block, Some(grid_axis_size))
+                        .map_err(|status| crate::compute::value_resolution_error(child, status))?
+                        .or_else(|| {
+                            (align_self == AlignItems::Stretch
+                                && child_style.aspect_ratio.is_none())
+                            .then_some(available_block)
+                        });
+                logical_parent.block = Some(grid_axis_size);
+                logical_available.block = AvailableOf::Definite(available_block);
             }
         }
-        (margin, known, parent, available)
+        (
+            logical_margin,
+            flow_axes.physical_size(logical_known),
+            flow_axes.physical_size(logical_parent),
+            flow_axes.physical_size(logical_available),
+        )
     };
     let output = tree.compute_child(
         child,
@@ -1743,31 +1755,34 @@ where
             RequestedAxis::Both,
             known,
             parent,
-            constants.flow_axes,
+            flow_axes,
             available,
         ),
     )?;
-    Ok(match lane_axis {
-        GridAxisKind::Column => output.size.width + margin.horizontal_sum(),
-        GridAxisKind::Row => output.size.height + margin.vertical_sum(),
-    })
+    Ok(
+        lane_axis_size(flow_axes.logical_size(output.size), lane_axis)
+            + lane_axis_margin_sum(margin, lane_axis),
+    )
 }
 
 fn lane_child_intrinsic_available<S: LayoutScalar>(
+    flow_axes: crate::geometry::FlowAxes,
     grid_axis: GridAxisKind,
     child_style: &NodeInputOf<S>,
     grid_axis_available: AvailableOf<S>,
 ) -> Size<AvailableOf<S>> {
-    match grid_axis {
-        GridAxisKind::Column => Size::new(
+    let logical_size = flow_axes.logical_size(child_style.size);
+    let logical_available = match grid_axis.logical_axis() {
+        LogicalAxis::Inline => LogicalSizeOf::new(
             grid_axis_available,
-            intrinsic_available_for_dimension(child_style.size.height),
+            intrinsic_available_for_dimension(logical_size.block),
         ),
-        GridAxisKind::Row => Size::new(
-            intrinsic_available_for_dimension(child_style.size.width),
+        LogicalAxis::Block => LogicalSizeOf::new(
+            intrinsic_available_for_dimension(logical_size.inline),
             grid_axis_available,
         ),
-    }
+    };
+    flow_axes.physical_size(logical_available)
 }
 
 fn intrinsic_available_for_dimension<S: LayoutScalar>(dimension: DimensionOf<S>) -> AvailableOf<S> {

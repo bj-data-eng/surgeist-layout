@@ -2932,7 +2932,7 @@ mod tests {
     }
 
     #[test]
-    fn vertical_intrinsic_grid_percentage_edges_use_physical_area_basis() {
+    fn vertical_intrinsic_grid_percentage_edges_use_logical_area_basis() {
         let parent_style = NodeInput {
             display: Display::Grid,
             writing_mode: crate::WritingMode::VerticalRl,
@@ -2988,13 +2988,14 @@ mod tests {
             crate::geometry::FlowAxes::new(parent_style.writing_mode, parent_style.direction),
             area.size,
         );
-        let sizing = grid_item_sizing::<OracleTree, core::convert::Infallible>(
+        let sizing = grid_item_sizing_for_grid_flow::<OracleTree, core::convert::Infallible>(
             &tree,
             2,
             &child_style,
             &parent_style,
             physical_area_size,
             physical_area_size.map(Some),
+            constants.flow_axes,
         )
         .unwrap();
 
@@ -3006,10 +3007,7 @@ mod tests {
                 grid: IntrinsicGrid {
                     style: &parent_style,
                     constants: &constants,
-                    sizing_flow_axes: crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
-                    ),
+                    sizing_flow_axes: constants.flow_axes,
                     column_tracks: &[TrackSizing::px(200.0)],
                     row_tracks: &[TrackSizing::px(100.0)],
                     gap: LogicalSizeOf::new(0.0, 0.0),
@@ -3044,11 +3042,11 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(output.size, Size::new(100.0, 40.0));
+        assert_eq!(output.size, Size::new(100.0, 200.0));
     }
 
     #[test]
-    fn vertical_intrinsic_subgrid_percentage_gap_uses_physical_content_box() {
+    fn vertical_intrinsic_subgrid_percentage_gap_uses_logical_content_box() {
         let parent_style = NodeInput {
             display: Display::Grid,
             writing_mode: crate::WritingMode::VerticalRl,
@@ -3063,7 +3061,7 @@ mod tests {
                 name_components: Vec::new(),
             })],
             grid_template_rows: vec![TrackComponent::px(100.0)],
-            gap: Size::new(Length::percent(0.1), Length::ZERO),
+            gap: Size::new(Length::ZERO, Length::percent(0.1)),
             padding: Edges::all(Length::percent(0.1)),
             justify_items: Some(AlignItems::Start),
             align_items: Some(AlignItems::Start),
@@ -3109,13 +3107,14 @@ mod tests {
             row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
         };
         let physical_area_size = grid_area_physical_size(constants.flow_axes, area.size);
-        let sizing = grid_item_sizing::<OracleTree, core::convert::Infallible>(
+        let sizing = grid_item_sizing_for_grid_flow::<OracleTree, core::convert::Infallible>(
             &tree,
             2,
             &child_style,
             &parent_style,
             physical_area_size,
             physical_area_size.map(Some),
+            constants.flow_axes,
         )
         .unwrap();
 
@@ -3127,10 +3126,7 @@ mod tests {
                 grid: IntrinsicGrid {
                     style: &parent_style,
                     constants: &constants,
-                    sizing_flow_axes: crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
-                    ),
+                    sizing_flow_axes: constants.flow_axes,
                     column_tracks: &[TrackSizing::px(100.0), TrackSizing::px(100.0)],
                     row_tracks: &[TrackSizing::px(100.0)],
                     gap: LogicalSizeOf::new(0.0, 0.0),

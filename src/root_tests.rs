@@ -1806,40 +1806,21 @@ fn grid_lanes_absolute_expected_location<S: LayoutScalar>(
     node: u32,
 ) -> Point<S> {
     let scalar = scalar::<S>;
-    let (x, y) = match (writing_mode, direction, node) {
-        (WritingMode::HorizontalTb, Direction::Ltr, 1) => (39.25, 96.75),
-        (WritingMode::HorizontalTb, Direction::Ltr, 2) => (62.25, 81.0),
-        (WritingMode::HorizontalTb, Direction::Ltr, 3) => (32.375, 81.25),
-        (WritingMode::HorizontalTb, Direction::Rtl, 1) => (31.0, 96.75),
-        (WritingMode::HorizontalTb, Direction::Rtl, 2) => (2.5, 81.0),
-        (WritingMode::HorizontalTb, Direction::Rtl, 3) => (32.375, 81.25),
-        (WritingMode::VerticalRl, Direction::Ltr, 1) => (7.75, 39.25),
-        (WritingMode::VerticalRl, Direction::Ltr, 2) => (4.25, 49.625),
-        (WritingMode::VerticalRl, Direction::Ltr, 3) => (0.0, 32.375),
-        (WritingMode::VerticalRl, Direction::Rtl, 1) => (7.75, 67.5),
-        (WritingMode::VerticalRl, Direction::Rtl, 2) => (4.25, 57.125),
-        (WritingMode::VerticalRl, Direction::Rtl, 3) => (0.0, 32.375),
-        (WritingMode::VerticalLr, Direction::Ltr, 1) => (96.75, 39.25),
-        (WritingMode::VerticalLr, Direction::Ltr, 2) => (100.25, 49.625),
-        (WritingMode::VerticalLr, Direction::Ltr, 3) => (81.25, 32.375),
-        (WritingMode::VerticalLr, Direction::Rtl, 1) => (96.75, 67.5),
-        (WritingMode::VerticalLr, Direction::Rtl, 2) => (100.25, 57.125),
-        (WritingMode::VerticalLr, Direction::Rtl, 3) => (81.25, 32.375),
-        (WritingMode::SidewaysRl, Direction::Ltr, 1) => (65.75, 39.25),
-        (WritingMode::SidewaysRl, Direction::Ltr, 2) => (62.25, 49.625),
-        (WritingMode::SidewaysRl, Direction::Ltr, 3) => (81.25, 32.375),
-        (WritingMode::SidewaysRl, Direction::Rtl, 1) => (65.75, 67.5),
-        (WritingMode::SidewaysRl, Direction::Rtl, 2) => (62.25, 57.125),
-        (WritingMode::SidewaysRl, Direction::Rtl, 3) => (81.25, 32.375),
-        (WritingMode::SidewaysLr, Direction::Ltr, 1) => (96.75, 61.25),
-        (WritingMode::SidewaysLr, Direction::Ltr, 2) => (100.25, 50.875),
-        (WritingMode::SidewaysLr, Direction::Ltr, 3) => (81.25, 32.375),
-        (WritingMode::SidewaysLr, Direction::Rtl, 1) => (96.75, 45.5),
-        (WritingMode::SidewaysLr, Direction::Rtl, 2) => (100.25, 55.875),
-        (WritingMode::SidewaysLr, Direction::Rtl, 3) => (81.25, 32.375),
+    let logical_origin = match node {
+        1 => crate::geometry::LogicalPointOf::new(scalar(39.25), scalar(96.75)),
+        2 => crate::geometry::LogicalPointOf::new(scalar(62.25), scalar(81.0)),
+        3 => crate::geometry::LogicalPointOf::new(scalar(32.375), scalar(81.25)),
         _ => unreachable!("grid-lanes fixture has nodes 1 through 3"),
     };
-    Point::new(scalar(x), scalar(y))
+    let flow_axes = FlowAxes::new(writing_mode, direction);
+    flow_axes.physical_point(
+        logical_origin,
+        crate::geometry::LogicalSizeOf::new(scalar(11.25), scalar(13.5)),
+        flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+            scalar(76.0),
+            scalar(118.0),
+        )),
+    )
 }
 
 fn grid_lanes_nearest_css_pixel<S: LayoutScalar>(value: S) -> S {
@@ -1877,7 +1858,10 @@ fn assert_logical_grid_lanes_absolute_static<S: LayoutScalar>() {
                         TrackComponentOf::px(scalar(50.25)),
                         TrackComponentOf::px(scalar(60.0)),
                     ],
-                    gap: Size::new(LengthOf::px(scalar(5.5)), LengthOf::px(scalar(7.75))),
+                    gap: flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+                        LengthOf::px(scalar(5.5)),
+                        LengthOf::px(scalar(7.75)),
+                    )),
                     ..NodeInputOf::default()
                 },
             )
@@ -1983,6 +1967,380 @@ fn logical_grid_lanes_absolute_static_f32() {
 #[test]
 fn logical_grid_lanes_absolute_static_f64() {
     assert_logical_grid_lanes_absolute_static::<f64>();
+}
+
+fn logical_axis_value<S: LayoutScalar>(
+    size: crate::geometry::LogicalSizeOf<S>,
+    axis: LogicalAxis,
+) -> S {
+    match axis {
+        LogicalAxis::Inline => size.inline,
+        LogicalAxis::Block => size.block,
+    }
+}
+
+fn logical_axis_start<S: LayoutScalar>(
+    edges: crate::geometry::LogicalEdgesOf<S>,
+    axis: LogicalAxis,
+) -> S {
+    match axis {
+        LogicalAxis::Inline => edges.inline_start,
+        LogicalAxis::Block => edges.block_start,
+    }
+}
+
+fn logical_axis_margin_sum<S: LayoutScalar>(
+    edges: crate::geometry::LogicalEdgesOf<S>,
+    axis: LogicalAxis,
+) -> S {
+    match axis {
+        LogicalAxis::Inline => edges.inline_sum(),
+        LogicalAxis::Block => edges.block_sum(),
+    }
+}
+
+fn assert_logical_grid_lanes_axes<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let logical_track_totals = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let logical_gap = crate::geometry::LogicalSizeOf::new(scalar(7.0), scalar(11.0));
+    let logical_container_size = logical_track_totals + logical_gap;
+    let child_logical_sizes = [
+        crate::geometry::LogicalSizeOf::new(scalar(10.0), scalar(13.0)),
+        crate::geometry::LogicalSizeOf::new(scalar(12.0), scalar(17.0)),
+        crate::geometry::LogicalSizeOf::new(scalar(11.0), scalar(19.0)),
+    ];
+    let child_logical_margins = [
+        crate::geometry::LogicalEdgesOf::new(scalar(1.0), scalar(2.0), scalar(3.0), scalar(4.0)),
+        crate::geometry::LogicalEdgesOf::new(scalar(2.0), scalar(1.0), scalar(4.0), scalar(3.0)),
+        crate::geometry::LogicalEdgesOf::new(scalar(3.0), scalar(2.0), scalar(1.0), scalar(5.0)),
+    ];
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_container_size = flow_axes.physical_size(logical_container_size);
+        let parent_flow = LogicalFlexChildFlow {
+            writing_mode,
+            direction,
+        };
+        let child_flows = [
+            parent_flow,
+            logical_flex_opposing_flow(parent_flow),
+            logical_flex_orthogonal_flow(parent_flow),
+        ];
+
+        for (grid_auto_flow, row_flow) in [(GridAutoFlow::Row, true), (GridAutoFlow::Column, false)]
+        {
+            let lane_axis = if row_flow {
+                LogicalAxis::Block
+            } else {
+                LogicalAxis::Inline
+            };
+            let first_margin_box = logical_axis_value(
+                flow_axes.logical_size(
+                    FlowAxes::new(child_flows[0].writing_mode, child_flows[0].direction)
+                        .physical_size(child_logical_sizes[0]),
+                ),
+                lane_axis,
+            ) + logical_axis_margin_sum(
+                flow_axes.logical_edges(
+                    FlowAxes::new(child_flows[0].writing_mode, child_flows[0].direction)
+                        .physical_edges(child_logical_margins[0]),
+                ),
+                lane_axis,
+            );
+            let expected_origins = if row_flow {
+                [
+                    crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+                    crate::geometry::LogicalPointOf::new(scalar(37.0), S::ZERO),
+                    crate::geometry::LogicalPointOf::new(
+                        S::ZERO,
+                        first_margin_box + logical_gap.block,
+                    ),
+                ]
+            } else {
+                [
+                    crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+                    crate::geometry::LogicalPointOf::new(S::ZERO, scalar(61.0)),
+                    crate::geometry::LogicalPointOf::new(
+                        first_margin_box + logical_gap.inline,
+                        S::ZERO,
+                    ),
+                ]
+            };
+
+            let mut tree = PublicFlowTree::default()
+                .with_children(0, [1, 2, 3])
+                .with_children(1, [])
+                .with_children(2, [])
+                .with_children(3, [])
+                .with_style(
+                    0,
+                    NodeInputOf {
+                        display: Display::GridLanes,
+                        writing_mode,
+                        direction,
+                        size: physical_container_size.map(DimensionOf::px),
+                        grid_auto_flow,
+                        grid_template_columns: vec![
+                            TrackComponentOf::px(scalar(30.0)),
+                            TrackComponentOf::px(scalar(40.0)),
+                        ],
+                        grid_template_rows: vec![
+                            TrackComponentOf::px(scalar(50.0)),
+                            TrackComponentOf::px(scalar(60.0)),
+                        ],
+                        gap: flow_axes.physical_size(logical_gap.map(LengthOf::px)),
+                        justify_content: Some(AlignContent::Start),
+                        align_content: Some(AlignContent::Start),
+                        justify_items: Some(AlignItems::Start),
+                        align_items: Some(AlignItems::Start),
+                        ..NodeInputOf::default()
+                    },
+                );
+
+            for ((node, child_flow), (logical_size, logical_margin)) in [1, 2, 3]
+                .into_iter()
+                .zip(child_flows)
+                .zip(child_logical_sizes.into_iter().zip(child_logical_margins))
+            {
+                let child_flow_axes = FlowAxes::new(child_flow.writing_mode, child_flow.direction);
+                let mut child_style = NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: child_flow.writing_mode,
+                    direction: child_flow.direction,
+                    size: child_flow_axes
+                        .physical_size(logical_size)
+                        .map(DimensionOf::px),
+                    margin: child_flow_axes.physical_edges(logical_margin.map(LengthAutoOf::px)),
+                    ..NodeInputOf::default()
+                };
+                if row_flow {
+                    child_style.grid_column =
+                        GridPlacement::try_line(if node == 2 { 2 } else { 1 })
+                            .expect("valid grid column");
+                } else {
+                    child_style.grid_row = GridPlacement::try_line(if node == 2 { 2 } else { 1 })
+                        .expect("valid grid row");
+                }
+                tree = tree.with_style(node, child_style);
+            }
+
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                    .expect("valid viewport request"),
+            )
+            .expect("logical grid-lanes public layout succeeds");
+
+            let container = public_flow_output(batch.unrounded_entries(), 0);
+            assert_eq!(
+                container.size, physical_container_size,
+                "{writing_mode:?} {direction:?} {grid_auto_flow:?} container size must project logical tracks and gaps"
+            );
+            assert_eq!(
+                container.content_size, physical_container_size,
+                "{writing_mode:?} {direction:?} {grid_auto_flow:?} content extent must stay physical at the output boundary"
+            );
+            for ((node, child_flow), (logical_size, logical_margin)) in [1, 2, 3]
+                .into_iter()
+                .zip(child_flows)
+                .zip(child_logical_sizes.into_iter().zip(child_logical_margins))
+            {
+                let child_flow_axes = FlowAxes::new(child_flow.writing_mode, child_flow.direction);
+                let physical_size = child_flow_axes.physical_size(logical_size);
+                let parent_logical_size = flow_axes.logical_size(physical_size);
+                let parent_logical_margin =
+                    flow_axes.logical_edges(child_flow_axes.physical_edges(logical_margin));
+                let expected_logical_origin = expected_origins[(node - 1) as usize]
+                    + crate::geometry::LogicalPointOf::new(
+                        logical_axis_start(parent_logical_margin, LogicalAxis::Inline),
+                        logical_axis_start(parent_logical_margin, LogicalAxis::Block),
+                    );
+                let expected_location = flow_axes.physical_point(
+                    expected_logical_origin,
+                    parent_logical_size,
+                    physical_container_size,
+                );
+                let output = public_flow_output(batch.unrounded_entries(), node);
+                assert_eq!(
+                    output.size, physical_size,
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} child {node} must retain physical output geometry"
+                );
+                assert_eq!(
+                    output.location, expected_location,
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} child {node} must place from logical lanes"
+                );
+            }
+
+            let intrinsic_child_flow = child_flows[2];
+            let intrinsic_child_flow_axes = FlowAxes::new(
+                intrinsic_child_flow.writing_mode,
+                intrinsic_child_flow.direction,
+            );
+            let intrinsic_parent_logical_size = if row_flow {
+                crate::geometry::LogicalSizeOf::new(scalar(30.0), scalar(20.0))
+            } else {
+                crate::geometry::LogicalSizeOf::new(scalar(20.0), scalar(50.0))
+            };
+            let intrinsic_physical_size = flow_axes.physical_size(intrinsic_parent_logical_size);
+            let intrinsic_tree = PublicFlowTree::default()
+                .with_children(0, [1])
+                .with_children(1, [])
+                .with_style(
+                    0,
+                    NodeInputOf {
+                        display: Display::InlineGridLanes,
+                        writing_mode,
+                        direction,
+                        grid_auto_flow,
+                        grid_template_columns: if row_flow {
+                            vec![TrackComponentOf::AUTO, TrackComponentOf::px(scalar(40.0))]
+                        } else {
+                            vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ]
+                        },
+                        grid_template_rows: if row_flow {
+                            vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ]
+                        } else {
+                            vec![TrackComponentOf::AUTO, TrackComponentOf::px(scalar(60.0))]
+                        },
+                        justify_content: Some(AlignContent::Start),
+                        align_content: Some(AlignContent::Start),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .with_style(
+                    1,
+                    NodeInputOf {
+                        display: Display::Block,
+                        writing_mode: intrinsic_child_flow.writing_mode,
+                        direction: intrinsic_child_flow.direction,
+                        size: intrinsic_child_flow_axes
+                            .physical_size(
+                                intrinsic_child_flow_axes.logical_size(intrinsic_physical_size),
+                            )
+                            .map(DimensionOf::px),
+                        grid_column: if row_flow {
+                            GridPlacement::try_line(1).expect("valid intrinsic grid column")
+                        } else {
+                            GridPlacement::AUTO
+                        },
+                        grid_row: if row_flow {
+                            GridPlacement::AUTO
+                        } else {
+                            GridPlacement::try_line(1).expect("valid intrinsic grid row")
+                        },
+                        ..NodeInputOf::default()
+                    },
+                );
+            let intrinsic_batch = compute_layout(
+                &intrinsic_tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                    .expect("valid intrinsic viewport request"),
+            )
+            .expect("logical intrinsic grid-lanes public layout succeeds");
+            assert_eq!(
+                public_flow_output(intrinsic_batch.unrounded_entries(), 0).size,
+                flow_axes.physical_size(logical_track_totals),
+                "{writing_mode:?} {direction:?} {grid_auto_flow:?} intrinsic lanes must size on their logical grid axis"
+            );
+        }
+    }
+
+    assert_logical_grid_lanes_absolute_static::<S>();
+}
+
+#[test]
+fn logical_grid_lanes_axes_f32() {
+    assert_logical_grid_lanes_axes::<f32>();
+}
+
+#[test]
+fn logical_grid_lanes_axes_f64() {
+    assert_logical_grid_lanes_axes::<f64>();
+}
+
+fn assert_logical_inherited_grid_axis_contexts_public<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let parent_flow = FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl);
+    let logical_parent_size = crate::geometry::LogicalSizeOf::new(scalar(77.0), scalar(121.0));
+    let parent_size = parent_flow.physical_size(logical_parent_size);
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode: parent_flow.writing_mode(),
+                    direction: parent_flow.direction(),
+                    size: parent_size.map(DimensionOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(scalar(30.0)),
+                        TrackComponentOf::px(scalar(40.0)),
+                    ],
+                    grid_template_rows: vec![
+                        TrackComponentOf::px(scalar(50.0)),
+                        TrackComponentOf::px(scalar(60.0)),
+                    ],
+                    gap: parent_flow.physical_size(crate::geometry::LogicalSizeOf::new(
+                        LengthOf::px(scalar(7.0)),
+                        LengthOf::px(scalar(11.0)),
+                    )),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    direction,
+                    grid_column: GridPlacement::try_lines(1, -1).expect("valid subgrid columns"),
+                    grid_row: GridPlacement::try_lines(1, -1).expect("valid subgrid rows"),
+                    grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(
+                        vec![],
+                    ))],
+                    grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid inherited grid viewport request"),
+        )
+        .expect("public inherited grid layout succeeds");
+        let child = public_flow_output(batch.unrounded_entries(), 1);
+        assert_eq!(
+            child.size, parent_size,
+            "{writing_mode:?} {direction:?} must preserve inherited physical extent"
+        );
+        assert_eq!(
+            child.content_size, parent_size,
+            "{writing_mode:?} {direction:?} must preserve inherited physical content extent"
+        );
+    }
+}
+
+#[test]
+fn logical_inherited_grid_axis_contexts_public_f32() {
+    assert_logical_inherited_grid_axis_contexts_public::<f32>();
+}
+
+#[test]
+fn logical_inherited_grid_axis_contexts_public_f64() {
+    assert_logical_inherited_grid_axis_contexts_public::<f64>();
 }
 
 fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {

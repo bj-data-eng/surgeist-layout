@@ -1296,6 +1296,174 @@ fn physical_baseline_from_logical_block<S: LayoutScalar>(
     }
 }
 
+fn assert_logical_grid_lanes_axes_baselines<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
+{
+    let scalar = S::from_f64;
+    let logical_container_size = LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let logical_child_size = LogicalSizeOf::new(scalar(10.0), scalar(20.0));
+
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+            let physical_container_size = flow_axes.physical_size(logical_container_size);
+            let physical_child_size = flow_axes.physical_size(logical_child_size);
+            let first_child = ComputeOutputOf::from_sizes_and_baselines(
+                physical_child_size,
+                physical_child_size,
+                BaselinesOf {
+                    first: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(13.0),
+                        logical_child_size,
+                    ),
+                    last: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(7.0),
+                        logical_child_size,
+                    ),
+                },
+            );
+            let last_child = ComputeOutputOf::from_sizes_and_baselines(
+                physical_child_size,
+                physical_child_size,
+                BaselinesOf {
+                    first: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(12.0),
+                        logical_child_size,
+                    ),
+                    last: physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(8.0),
+                        logical_child_size,
+                    ),
+                },
+            );
+
+            for (grid_auto_flow, expected_last_block) in [
+                (GridAutoFlow::Row, scalar(8.0)),
+                (GridAutoFlow::Column, scalar(58.0)),
+            ] {
+                let mut tree = OracleTreeOf::<S>::new()
+                    .children(1, [2, 3])
+                    .children(2, [])
+                    .children(3, [])
+                    .style(
+                        1,
+                        NodeInputOf {
+                            display: Display::GridLanes,
+                            writing_mode,
+                            direction,
+                            size: physical_container_size.map(DimensionOf::px),
+                            grid_auto_flow,
+                            grid_template_columns: vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ],
+                            grid_template_rows: vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ],
+                            justify_content: Some(AlignContent::Start),
+                            align_content: Some(AlignContent::Start),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        2,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            grid_column: if grid_auto_flow == GridAutoFlow::Row {
+                                GridPlacement::try_line(1).expect("test grid column is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            grid_row: if grid_auto_flow == GridAutoFlow::Column {
+                                GridPlacement::try_line(1).expect("test grid row is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        3,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            grid_column: if grid_auto_flow == GridAutoFlow::Row {
+                                GridPlacement::try_line(2).expect("test grid column is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            grid_row: if grid_auto_flow == GridAutoFlow::Column {
+                                GridPlacement::try_line(2).expect("test grid row is valid")
+                            } else {
+                                GridPlacement::AUTO
+                            },
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .measure(2, first_child)
+                    .measure(3, last_child);
+
+                let output = crate::compute_grid(
+                    &mut tree,
+                    1,
+                    ComputeInputOf::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        Size::NONE,
+                        physical_container_size.map(Some),
+                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                        physical_container_size.map(AvailableOf::definite),
+                    ),
+                )
+                .expect("logical grid-lanes baseline layout succeeds");
+
+                assert_eq!(
+                    output.first_baselines,
+                    physical_baseline_from_logical_block(
+                        flow_axes,
+                        scalar(13.0),
+                        logical_container_size,
+                    ),
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} must project the first lane baseline on the container block axis"
+                );
+                assert_eq!(
+                    output.last_baselines,
+                    physical_baseline_from_logical_block(
+                        flow_axes,
+                        expected_last_block,
+                        logical_container_size,
+                    ),
+                    "{writing_mode:?} {direction:?} {grid_auto_flow:?} must project the last lane baseline on the container block axis"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn logical_grid_lanes_axes_baselines_f32() {
+    assert_logical_grid_lanes_axes_baselines::<f32>();
+}
+
+#[test]
+fn logical_grid_lanes_axes_baselines_f64() {
+    assert_logical_grid_lanes_axes_baselines::<f64>();
+}
+
 fn visible_content_extent_from_projected_child<S: LayoutScalar>(
     location: Point<S>,
     size: Size<S>,
@@ -1519,6 +1687,190 @@ fn logical_ordinary_grid_in_flow_placement_baselines_and_extents_f32() {
 #[test]
 fn logical_ordinary_grid_in_flow_placement_baselines_and_extents_f64() {
     assert_logical_ordinary_grid_in_flow_placement_baselines_and_extents::<f64>();
+}
+
+fn assert_logical_inherited_grid_axis_contexts<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
+{
+    let scalar = S::from_f64;
+    let parent_columns = [scalar(30.0), scalar(40.0)];
+    let parent_rows = [scalar(50.0), scalar(60.0)];
+    let parent_gap = LogicalSizeOf::new(scalar(7.0), scalar(11.0));
+    let parent_area_size = LogicalSizeOf::new(scalar(77.0), scalar(121.0));
+    let parent_named_columns = named::NamedGridLines::new(GridAxisKind::Column, 2);
+    let parent_named_rows = named::NamedGridLines::new(GridAxisKind::Row, 2);
+    let parent_baseline_groups = GridBaselineGroups {
+        rows: vec![TrackBaselineGroup::default(); 2],
+        columns: vec![TrackBaselineGroup::default(); 2],
+    };
+
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let parent_direction = match direction {
+                Direction::Ltr => Direction::Rtl,
+                Direction::Rtl => Direction::Ltr,
+            };
+            let parent_style = NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::HorizontalTb,
+                direction: parent_direction,
+                ..NodeInputOf::default()
+            };
+            let child_style = NodeInputOf {
+                display: Display::Grid,
+                writing_mode,
+                direction,
+                grid_template_columns: subgrid_track_of(),
+                grid_template_rows: subgrid_track_of(),
+                ..NodeInputOf::default()
+            };
+            let parent_flow_axes =
+                crate::geometry::FlowAxes::new(parent_style.writing_mode, parent_style.direction);
+            let child_flow_axes =
+                crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
+            let parent_physical_size = parent_flow_axes.physical_size(parent_area_size);
+            let item = SubgridItemReport {
+                node: 1,
+                column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
+                row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
+            };
+            let column_mapping = item
+                .column
+                .mapping
+                .expect("column subgrid axis mapping must resolve");
+            let row_mapping = item
+                .row
+                .mapping
+                .expect("row subgrid axis mapping must resolve");
+            assert_eq!(column_mapping.queried_axis, GridAxisKind::Column);
+            assert_eq!(column_mapping.child_axis, GridAxisKind::Column);
+            assert_eq!(row_mapping.queried_axis, GridAxisKind::Row);
+            assert_eq!(row_mapping.child_axis, GridAxisKind::Row);
+
+            let mut context = subgrid_child_parent_context(SubgridChildParentContextInput {
+                item,
+                child_style: &child_style,
+                area: GridArea {
+                    row: 0,
+                    column: 0,
+                    row_end: 2,
+                    column_end: 2,
+                    size: parent_area_size,
+                },
+                content_box_size: parent_physical_size,
+                columns: &parent_columns,
+                rows: &parent_rows,
+                gap: parent_gap,
+                parent_named_columns: &parent_named_columns,
+                parent_named_rows: &parent_named_rows,
+                parent_area_facts: None,
+                parent_baseline_groups: &parent_baseline_groups,
+                margin: Edges::all(Some(S::ZERO)),
+                border: Edges::ZERO,
+                padding: Edges::ZERO,
+            })
+            .expect("subgrid inherited context must resolve");
+            let columns = context
+                .columns
+                .as_mut()
+                .expect("columns subgrid axis must inherit");
+            columns.offset = scalar(13.0);
+            let rows = context
+                .rows
+                .as_mut()
+                .expect("rows subgrid axis must inherit");
+            rows.offset = scalar(17.0);
+
+            let columns = context
+                .columns
+                .as_ref()
+                .expect("columns subgrid axis must remain inherited");
+            let rows = context
+                .rows
+                .as_ref()
+                .expect("rows subgrid axis must remain inherited");
+            let inherited_logical_size = LogicalSizeOf::new(
+                track_sum(&columns.tracks, columns.gap),
+                track_sum(&rows.tracks, rows.gap),
+            );
+            assert_eq!(
+                child_flow_axes.physical_size(inherited_logical_size),
+                parent_physical_size,
+                "{writing_mode:?} {direction:?} must retain parent physical extent through child logical axes"
+            );
+            assert_eq!(
+                grid_axis_logical_offsets(
+                    &columns.tracks,
+                    Some(columns.offset),
+                    S::ZERO,
+                    GridAlignment {
+                        start: S::ZERO,
+                        gap: columns.gap,
+                    },
+                )[0],
+                scalar(13.0),
+                "{writing_mode:?} {direction:?} must retain the inherited inline offset logically"
+            );
+            assert_eq!(
+                grid_axis_logical_offsets(
+                    &rows.tracks,
+                    Some(rows.offset),
+                    S::ZERO,
+                    GridAlignment {
+                        start: S::ZERO,
+                        gap: rows.gap,
+                    },
+                )[0],
+                scalar(17.0),
+                "{writing_mode:?} {direction:?} must retain the inherited block offset logically"
+            );
+
+            let mut tree = OracleTreeOf::<S>::new()
+                .children(1, [])
+                .style(1, child_style);
+            let output = compute_grid_with_context(
+                &mut tree,
+                1,
+                ComputeInputOf::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    Size::NONE,
+                    parent_physical_size.map(Some),
+                    parent_flow_axes,
+                    parent_physical_size.map(AvailableOf::definite),
+                ),
+                context,
+            )
+            .expect("inherited grid sizing must complete");
+
+            assert_eq!(
+                output.size, parent_physical_size,
+                "{writing_mode:?} {direction:?} must project inherited track totals to physical output"
+            );
+            assert_eq!(
+                output.content_size, parent_physical_size,
+                "{writing_mode:?} {direction:?} must retain inherited content geometry physically"
+            );
+        }
+    }
+}
+
+#[test]
+fn logical_inherited_grid_axis_contexts_f32() {
+    assert_logical_inherited_grid_axis_contexts::<f32>();
+}
+
+#[test]
+fn logical_inherited_grid_axis_contexts_f64() {
+    assert_logical_inherited_grid_axis_contexts::<f64>();
 }
 
 #[test]
@@ -2131,7 +2483,7 @@ fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
     )
     .unwrap();
 
-    assert_eq!(output.size, Size::new(200.0, 100.0));
+    assert_eq!(output.size, Size::new(100.0, 100.0));
 }
 
 #[test]
@@ -15388,14 +15740,7 @@ fn grid_child_pure_helpers_accept_non_default_scalar() {
     assert_eq!(spanned_track_size(&[10.0_f64, 20.0, 30.0], 0, 3, 2.5), 65.0);
 
     assert_eq!(
-        grid_item_axis(GridItemAxis::<f64> {
-            area_size: 100.0,
-            size: 20.0,
-            margin_start: None,
-            margin_end: None,
-            alignment: AlignItems::Center,
-            direction: Direction::Ltr,
-        }),
+        logical_grid_item_axis::<f64>(100.0, 20.0, None, None, AlignItems::Center,),
         ResolvedGridItemAxis::<f64> {
             offset: 40.0,
             margin_start: 40.0,
@@ -15457,7 +15802,6 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
             margin_end: 5.0,
         },
         child_flow_axes: crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        relative_offset: Point::<f64>::ZERO,
         logical_relative_offset: LogicalPointOf::new(0.0, 0.0),
         first_baseline: BaselinesOf {
             first: Point::new(None, Some(8.0)),
@@ -16934,7 +17278,6 @@ fn baseline_test_item(
             margin_end: 0.0,
         },
         child_flow_axes: crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        relative_offset: Point::ZERO,
         logical_relative_offset: LogicalPointOf::new(0.0, 0.0),
         first_baseline: Baselines {
             first: Point::new(None, Some(first)),
@@ -17628,7 +17971,6 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
             margin_end: S::ZERO,
         },
         child_flow_axes,
-        relative_offset: Point::ZERO,
         logical_relative_offset: LogicalPointOf::new(S::ZERO, S::ZERO),
         first_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(7.0)),
         last_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(11.0)),
@@ -18656,7 +18998,6 @@ fn absolute_grid_axis_area_uses_left_edge_for_definite_rtl_range() {
         is_reverse: true,
         explicit_start: 0,
         explicit_count: 8,
-        positive_line_offset_adjustment: 0.0,
     });
 
     assert_eq!(area.location, 120.0);

@@ -185,7 +185,6 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
         gap,
         constants,
         lines,
-        column_line_offset_adjustment,
     } = input;
     let flow_axes = constants.flow_axes;
     let content_size =
@@ -226,7 +225,6 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
         is_reverse: false,
         explicit_start: lines.column_explicit_start,
         explicit_count: lines.column_explicit_count,
-        positive_line_offset_adjustment: column_line_offset_adjustment,
     });
     let block = absolute_grid_axis_area(AbsoluteGridAxisInput {
         placement: row,
@@ -238,7 +236,6 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
         is_reverse: false,
         explicit_start: lines.row_explicit_start,
         explicit_count: lines.row_explicit_count,
-        positive_line_offset_adjustment: S::ZERO,
     });
 
     let column_is_definite = has_definite_line(column);
@@ -286,7 +283,6 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
         is_reverse,
         explicit_start,
         explicit_count,
-        positive_line_offset_adjustment,
     } = input;
     let padding_box_end = padding_box_location + padding_box_size;
     if let (Some(start), None, None) = (placement.start(), placement.end(), placement.span())
@@ -297,7 +293,6 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
             is_reverse,
             explicit_start,
             explicit_count,
-            positive_line_offset_adjustment,
         )
     {
         let location = if is_reverse {
@@ -320,7 +315,6 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
             is_reverse,
             explicit_start,
             explicit_count,
-            positive_line_offset_adjustment,
         )
     {
         let location = if is_reverse {
@@ -345,7 +339,6 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
                 is_reverse,
                 explicit_start,
                 explicit_count,
-                positive_line_offset_adjustment,
             ),
             grid_line_offset(
                 end_line.get(),
@@ -354,7 +347,6 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
                 is_reverse,
                 explicit_start,
                 explicit_count,
-                positive_line_offset_adjustment,
             ),
         )
     {
@@ -397,20 +389,14 @@ pub(super) fn grid_line_offset<S: LayoutScalar>(
     is_reverse: bool,
     explicit_start: usize,
     explicit_count: usize,
-    positive_line_offset_adjustment: S,
 ) -> Option<S> {
     let index = grid_line_to_index(line, tracks.len(), explicit_start, explicit_count)?;
-    let adjustment = if line > 0 && index > 0 {
-        positive_line_offset_adjustment
-    } else {
-        S::ZERO
-    };
     if is_reverse {
         if index == 0 && !tracks.is_empty() {
-            return Some(offsets[0] + tracks[0] + adjustment);
+            return Some(offsets[0] + tracks[0]);
         }
         if index > 0 && index <= tracks.len() {
-            return Some(offsets[index - 1] + adjustment);
+            return Some(offsets[index - 1]);
         }
 
         return None;
