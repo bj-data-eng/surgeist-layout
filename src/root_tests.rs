@@ -1586,6 +1586,277 @@ fn logical_ordinary_grid_intrinsic_reruns_public_leaves_f64() {
     assert_logical_ordinary_grid_intrinsic_reruns_public_leaves::<f64>();
 }
 
+#[derive(Clone, Copy, Debug)]
+struct LogicalGridChildFlow {
+    writing_mode: WritingMode,
+    direction: Direction,
+}
+
+fn logical_grid_opposing_flow(flow: LogicalGridChildFlow) -> LogicalGridChildFlow {
+    LogicalGridChildFlow {
+        writing_mode: match flow.writing_mode {
+            WritingMode::HorizontalTb => WritingMode::HorizontalTb,
+            WritingMode::VerticalRl => WritingMode::VerticalLr,
+            WritingMode::VerticalLr => WritingMode::VerticalRl,
+            WritingMode::SidewaysRl => WritingMode::SidewaysLr,
+            WritingMode::SidewaysLr => WritingMode::SidewaysRl,
+        },
+        direction: match flow.writing_mode {
+            WritingMode::HorizontalTb => match flow.direction {
+                Direction::Ltr => Direction::Rtl,
+                Direction::Rtl => Direction::Ltr,
+            },
+            WritingMode::VerticalRl
+            | WritingMode::VerticalLr
+            | WritingMode::SidewaysRl
+            | WritingMode::SidewaysLr => flow.direction,
+        },
+    }
+}
+
+fn logical_grid_orthogonal_flow(flow: LogicalGridChildFlow) -> LogicalGridChildFlow {
+    LogicalGridChildFlow {
+        writing_mode: match flow.writing_mode {
+            WritingMode::HorizontalTb => WritingMode::VerticalLr,
+            WritingMode::VerticalRl
+            | WritingMode::VerticalLr
+            | WritingMode::SidewaysRl
+            | WritingMode::SidewaysLr => WritingMode::HorizontalTb,
+        },
+        direction: flow.direction,
+    }
+}
+
+fn nearest_css_pixel<S: LayoutScalar>(value: S) -> S {
+    (value + S::from_f64(0.5)).floor()
+}
+
+fn assert_logical_ordinary_grid_in_flow_placement_public_output<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let logical_container_size = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let child_size = Size::new(scalar(11.25), scalar(13.5));
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+        let parallel_flow = LogicalGridChildFlow {
+            writing_mode,
+            direction,
+        };
+        let opposing_flow = logical_grid_opposing_flow(parallel_flow);
+        let orthogonal_flow = logical_grid_orthogonal_flow(parallel_flow);
+        let child_flows = [
+            parallel_flow,
+            opposing_flow,
+            orthogonal_flow,
+            logical_grid_opposing_flow(orthogonal_flow),
+        ];
+        let area_origins = [
+            (scalar(0.0), scalar(0.0), scalar(30.0), scalar(50.0)),
+            (scalar(30.0), scalar(0.0), scalar(40.0), scalar(50.0)),
+            (scalar(0.0), scalar(50.0), scalar(30.0), scalar(60.0)),
+            (scalar(30.0), scalar(50.0), scalar(40.0), scalar(60.0)),
+        ];
+        let alignments = [
+            (AlignItems::End, AlignItems::Center),
+            (AlignItems::Center, AlignItems::Start),
+            (AlignItems::Start, AlignItems::End),
+            (AlignItems::End, AlignItems::End),
+        ];
+        let logical_margins = [
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(1.25),
+                scalar(2.5),
+                scalar(3.75),
+                scalar(4.25),
+            ),
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(2.25),
+                scalar(1.5),
+                scalar(4.5),
+                scalar(3.25),
+            ),
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(3.5),
+                scalar(2.0),
+                scalar(1.25),
+                scalar(5.0),
+            ),
+            crate::geometry::LogicalEdgesOf::new(
+                scalar(1.5),
+                scalar(3.75),
+                scalar(2.25),
+                scalar(4.5),
+            ),
+        ];
+        let relative_offsets = [
+            crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+            crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+            crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+            crate::geometry::LogicalPointOf::new(scalar(2.5), -scalar(1.25)),
+        ];
+
+        let mut tree = PublicFlowTree::default()
+            .with_children(0, [1, 2, 3, 4])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_children(4, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    direction,
+                    size: flow_axes
+                        .physical_size(logical_container_size)
+                        .map(DimensionOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(scalar(30.0)),
+                        TrackComponentOf::px(scalar(40.0)),
+                    ],
+                    grid_template_rows: vec![
+                        TrackComponentOf::px(scalar(50.0)),
+                        TrackComponentOf::px(scalar(60.0)),
+                    ],
+                    justify_content: Some(AlignContent::Start),
+                    align_content: Some(AlignContent::Start),
+                    ..NodeInputOf::default()
+                },
+            );
+
+        for (index, ((child_flow, (justify_self, align_self)), logical_margin)) in child_flows
+            .into_iter()
+            .zip(alignments)
+            .zip(logical_margins)
+            .enumerate()
+        {
+            let logical_inset = crate::geometry::LogicalEdgesOf::new(
+                LengthAutoOf::px(relative_offsets[index].inline),
+                LengthAutoOf::AUTO,
+                LengthAutoOf::px(relative_offsets[index].block),
+                LengthAutoOf::AUTO,
+            );
+            tree = tree.with_style(
+                index as u32 + 1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: child_flow.writing_mode,
+                    direction: child_flow.direction,
+                    size: child_size.map(DimensionOf::px),
+                    margin: flow_axes.physical_edges(logical_margin.map(LengthAutoOf::px)),
+                    inset: flow_axes.physical_edges(logical_inset),
+                    position: Position::Relative,
+                    justify_self: Some(justify_self),
+                    align_self: Some(align_self),
+                    grid_column: GridPlacement::try_line(index as isize % 2 + 1)
+                        .expect("test grid column is valid"),
+                    grid_row: GridPlacement::try_line(index as isize / 2 + 1)
+                        .expect("test grid row is valid"),
+                    ..NodeInputOf::default()
+                },
+            );
+        }
+
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("logical ordinary-grid in-flow placement succeeds");
+        let root_unrounded = public_flow_output(batch.unrounded_entries(), 0);
+
+        for (
+            index,
+            (
+                (
+                    (inline_origin, block_origin, inline_size, block_size),
+                    (justify_self, align_self),
+                ),
+                logical_margin,
+            ),
+        ) in area_origins
+            .into_iter()
+            .zip(alignments)
+            .zip(logical_margins)
+            .enumerate()
+        {
+            let logical_child_size = flow_axes.logical_size(child_size);
+            let inline_offset = match justify_self {
+                AlignItems::Start => logical_margin.inline_start,
+                AlignItems::End => {
+                    inline_size - logical_child_size.inline - logical_margin.inline_end
+                }
+                AlignItems::Center => {
+                    (inline_size - logical_child_size.inline + logical_margin.inline_start
+                        - logical_margin.inline_end)
+                        / scalar(2.0)
+                }
+                _ => unreachable!("the test only uses resolved item alignments"),
+            };
+            let block_offset = match align_self {
+                AlignItems::Start => logical_margin.block_start,
+                AlignItems::End => block_size - logical_child_size.block - logical_margin.block_end,
+                AlignItems::Center => {
+                    (block_size - logical_child_size.block + logical_margin.block_start
+                        - logical_margin.block_end)
+                        / scalar(2.0)
+                }
+                _ => unreachable!("the test only uses resolved item alignments"),
+            };
+            let logical_location = crate::geometry::LogicalPointOf::new(
+                inline_origin + inline_offset + relative_offsets[index].inline,
+                block_origin + block_offset + relative_offsets[index].block,
+            );
+            let expected_location = flow_axes.physical_point(
+                logical_location,
+                logical_child_size,
+                flow_axes.physical_size(logical_container_size),
+            );
+            let unrounded = public_flow_output(batch.unrounded_entries(), index as u32 + 1);
+            let rounded = public_flow_output(batch.final_entries(), index as u32 + 1);
+            let physical_margin = flow_axes.physical_edges(logical_margin);
+            let cumulative_x = root_unrounded.location.x + unrounded.location.x;
+            let cumulative_y = root_unrounded.location.y + unrounded.location.y;
+
+            assert_eq!(
+                unrounded.location,
+                expected_location,
+                "{writing_mode:?} {direction:?} child {} must project its logical grid area once",
+                index + 1
+            );
+            assert_eq!(unrounded.size, child_size);
+            assert_eq!(unrounded.margin, physical_margin);
+            assert_eq!(
+                rounded.location,
+                Point::new(
+                    nearest_css_pixel(unrounded.location.x),
+                    nearest_css_pixel(unrounded.location.y),
+                )
+            );
+            assert_eq!(
+                rounded.size,
+                Size::new(
+                    nearest_css_pixel(cumulative_x + unrounded.size.width)
+                        - nearest_css_pixel(cumulative_x),
+                    nearest_css_pixel(cumulative_y + unrounded.size.height)
+                        - nearest_css_pixel(cumulative_y),
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn logical_ordinary_grid_in_flow_placement_public_output_f32() {
+    assert_logical_ordinary_grid_in_flow_placement_public_output::<f32>();
+}
+
+#[test]
+fn logical_ordinary_grid_in_flow_placement_public_output_f64() {
+    assert_logical_ordinary_grid_in_flow_placement_public_output::<f64>();
+}
+
 fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions<
     S: LayoutScalar,
 >() {

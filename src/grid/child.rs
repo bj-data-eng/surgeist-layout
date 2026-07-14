@@ -1,6 +1,9 @@
 use super::*;
 use crate::BaselinesOf;
-use crate::geometry::{FlowAxes, LogicalSizeOf, PhysicalAxis, PhysicalProgression};
+use crate::geometry::{
+    FlowAxes, LogicalAxis, LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis,
+    PhysicalProgression,
+};
 use crate::output::PhysicalBaseline;
 use crate::scroll::scrollbar_size_from_overflow;
 
@@ -166,7 +169,7 @@ pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
     groups: &GridBaselineGroups<S>,
     rows: &[S],
     row_gap: S,
-    expected_axis: PhysicalAxis,
+    container_flow_axes: FlowAxes,
 ) -> Option<S> {
     if !item.baseline_participation.participates || item.block_auto_margins {
         return None;
@@ -177,10 +180,10 @@ pub(super) fn baseline_aligned_block_offset<Node: Copy, S: LayoutScalar>(
     let margin_box_offset = baseline_offset(
         group_kind,
         shared,
-        item.baseline_geometry(rows, row_gap),
-        expected_axis,
+        item.logical_baseline_geometry(rows, row_gap, container_flow_axes),
+        container_flow_axes.block_axis(),
     )?;
-    Some(margin_box_offset + item.child_flow_axes.line_over_edge(item.margin))
+    Some(margin_box_offset + container_flow_axes.logical_edges(item.margin).block_start)
 }
 
 pub(super) fn layout_grid_children<Tree, M>(
@@ -239,7 +242,7 @@ where
     let logical_content_size =
         LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
     let physical_content_size = grid_area_physical_size(constants.flow_axes, logical_content_size);
-    let content_box_size =
+    let legacy_content_box_size =
         constants
             .node_inner_size
             .unwrap_or(if style.writing_mode.is_vertical() {
@@ -247,8 +250,17 @@ where
             } else {
                 container_content_size
             });
-    let axis_content_box_size = grid_area_logical_size(constants.flow_axes, content_box_size);
-    let alignment_free_space = axis_content_box_size - logical_content_size;
+    let logical_content_box_size = grid_area_logical_size(
+        constants.flow_axes,
+        constants.node_inner_size.unwrap_or(container_content_size),
+    );
+    let containing_size = constants
+        .node_outer_size
+        .unwrap_or(container_content_size + constants.content_box_inset.sum_axes());
+    let logical_content_box_inset = constants
+        .flow_axes
+        .logical_edges(constants.content_box_inset);
+    let alignment_free_space = logical_content_box_size - logical_content_size;
     let column_alignment = grid_alignment(
         alignment_free_space.inline,
         columns.len(),
@@ -260,6 +272,18 @@ where
         rows.len(),
         gap.block,
         style.align_content.unwrap_or(AlignContent::Stretch),
+    );
+    let logical_column_offsets = grid_axis_logical_offsets(
+        columns,
+        inherited_column_offset,
+        logical_content_box_inset.inline_start,
+        column_alignment,
+    );
+    let logical_row_offsets = grid_axis_logical_offsets(
+        rows,
+        inherited_row_offset,
+        logical_content_box_inset.block_start,
+        row_alignment,
     );
     let content_box_left = effective_content_box_left(constants, container_content_size);
     let inherited_rtl_column_line_adjustment =
@@ -274,7 +298,7 @@ where
         tracks: columns,
         inherited_offset: inherited_column_offset,
         content_box_left,
-        content_box_size,
+        content_box_size: legacy_content_box_size,
         content_box_inset: constants.content_box_inset,
         alignment: column_alignment,
     });
@@ -284,7 +308,7 @@ where
         tracks: rows,
         inherited_offset: inherited_row_offset,
         content_box_left,
-        content_box_size,
+        content_box_size: legacy_content_box_size,
         content_box_inset: constants.content_box_inset,
         alignment: row_alignment,
     });
@@ -352,13 +376,14 @@ where
         }
 
         let physical_area_size = grid_area_physical_size(constants.flow_axes, area.size);
-        let mut item = grid_item_sizing::<Tree, M>(
+        let mut item = grid_item_sizing_for_grid_flow::<Tree, M>(
             tree,
             child,
             &child_style,
             style,
             physical_area_size,
             physical_area_size.map(Some),
+            constants.flow_axes,
         )?;
         stretch_subgridded_axes(&mut item, *subgrid_item);
         let area_parent = physical_area_size.map(Some);
@@ -426,50 +451,36 @@ where
         };
         let scrollbar_size =
             scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
-        let alignment =
-            grid_item_physical_alignment(style.writing_mode, item.justify_self, item.align_self);
-        let horizontal_axis = physical_grid_item_axis(PhysicalGridItemAxis {
-            area_size: physical_area_size.width,
-            size: output.size.width,
-            margin_start: item.unresolved_margin.left,
-            margin_end: item.unresolved_margin.right,
-            alignment: alignment.horizontal,
-            progression: grid_physical_axis_progression(
-                style.writing_mode,
-                style.direction,
-                PhysicalAxis::Horizontal,
-            ),
-        });
-        let vertical_axis = physical_grid_item_axis(PhysicalGridItemAxis {
-            area_size: physical_area_size.height,
-            size: output.size.height,
-            margin_start: item.unresolved_margin.top,
-            margin_end: item.unresolved_margin.bottom,
-            alignment: alignment.vertical,
-            progression: grid_physical_axis_progression(
-                style.writing_mode,
-                style.direction,
-                PhysicalAxis::Vertical,
-            ),
-        });
-        let margin = Edges {
-            left: horizontal_axis.margin_start,
-            right: horizontal_axis.margin_end,
-            top: vertical_axis.margin_start,
-            bottom: vertical_axis.margin_end,
-        };
+        let logical_output_size = constants.flow_axes.logical_size(output.size);
+        let logical_unresolved_margin = constants.flow_axes.logical_edges(item.unresolved_margin);
+        let inline_axis = logical_grid_item_axis(
+            area.size.inline,
+            logical_output_size.inline,
+            logical_unresolved_margin.inline_start,
+            logical_unresolved_margin.inline_end,
+            item.justify_self,
+        );
+        let block_axis = logical_grid_item_axis(
+            area.size.block,
+            logical_output_size.block,
+            logical_unresolved_margin.block_start,
+            logical_unresolved_margin.block_end,
+            item.align_self,
+        );
+        let margin = constants.flow_axes.physical_edges(LogicalEdgesOf::new(
+            inline_axis.margin_start,
+            inline_axis.margin_end,
+            block_axis.margin_start,
+            block_axis.margin_end,
+        ));
         let baselines = output.baselines();
         let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
         let first_baseline =
             baselines.first_or_synthesize_block_baseline(child_flow_axes, output.size);
         let last_baseline =
             baselines.last_or_synthesize_block_baseline(child_flow_axes, output.size);
-        let block_auto_margins = child_flow_axes
-            .line_over_edge(item.unresolved_margin)
-            .is_none()
-            || child_flow_axes
-                .line_under_edge(item.unresolved_margin)
-                .is_none();
+        let block_auto_margins = logical_unresolved_margin.block_start.is_none()
+            || logical_unresolved_margin.block_end.is_none();
         let row_span_tracks = row_tracks.get(area.row..area.row_end).unwrap_or(&[]);
         let baseline_participation = baseline_participation_for_container(
             item.align_self,
@@ -489,10 +500,11 @@ where
             order: order as u32,
             area,
             output,
-            horizontal_axis,
-            vertical_axis,
+            horizontal_axis: inline_axis,
+            vertical_axis: block_axis,
             child_flow_axes,
-            relative_offset: relative_inset_offset(
+            relative_offset: Point::ZERO,
+            logical_relative_offset: logical_relative_inset_offset(
                 child_style
                     .inset
                     .zip_size(
@@ -503,14 +515,14 @@ where
                         resolve_auto_optional,
                     )
                     .transpose_with_node(tree, child)?,
-                style.direction,
+                constants.flow_axes,
                 child_style.position,
             ),
             first_baseline,
             last_baseline,
             location: Point::ZERO,
             published_row_baselines: None,
-            block_offset: vertical_axis.offset,
+            block_offset: block_axis.offset,
             block_auto_margins,
             baseline_participation,
             margin,
@@ -521,12 +533,11 @@ where
         });
     }
 
-    let expected_baseline_axis = constants.flow_axes.block_axis();
     let mut published_group_set = baseline_groups(
         &pending_items,
         rows.len(),
         columns.len(),
-        expected_baseline_axis,
+        constants.flow_axes,
     );
     let mut baseline_group_set = published_group_set.clone();
     merge_inherited_baseline_groups(&mut baseline_group_set, parent_context, constants.flow_axes);
@@ -552,7 +563,7 @@ where
             &pending_items,
             rows.len(),
             columns.len(),
-            expected_baseline_axis,
+            constants.flow_axes,
         );
         if next_published_group_set == published_group_set {
             break;
@@ -567,26 +578,37 @@ where
     }
     for item in &mut pending_items {
         let area_origin =
-            grid_area_physical_origin(style, &column_offsets, &row_offsets, item.area);
+            grid_area_logical_origin(&logical_column_offsets, &logical_row_offsets, item.area);
         let block_axis_offset = baseline_aligned_block_offset(
             item,
             &baseline_group_set,
             rows,
             gap.block,
-            expected_baseline_axis,
+            constants.flow_axes,
         )
-        .unwrap_or_else(|| grid_item_block_axis_offset(style.writing_mode, item));
+        .unwrap_or(item.vertical_axis.offset);
         item.block_offset = block_axis_offset;
-        let axis_offset = grid_item_physical_offset(style.writing_mode, item, block_axis_offset);
-        let location = Point::new(
-            area_origin.x + axis_offset.x + item.relative_offset.x,
-            area_origin.y + axis_offset.y + item.relative_offset.y,
+        let logical_location = LogicalPointOf::new(
+            area_origin.inline + item.horizontal_axis.offset + item.logical_relative_offset.inline,
+            area_origin.block + block_axis_offset + item.logical_relative_offset.block,
         );
+        let location = constants.flow_axes.physical_point(
+            logical_location,
+            constants.flow_axes.logical_size(item.output.size),
+            containing_size,
+        );
+        let physical_area_origin =
+            constants
+                .flow_axes
+                .physical_point(area_origin, item.area.size, containing_size);
         item.location = location;
         visible_content_size = max_size(
             visible_content_size,
             content_size_contribution(
-                Point::new(location.x - area_origin.x, location.y - area_origin.y),
+                Point::new(
+                    location.x - physical_area_origin.x,
+                    location.y - physical_area_origin.y,
+                ),
                 item.output.size,
                 item.output.content_size,
                 item.overflow,
@@ -608,13 +630,25 @@ where
             },
         );
     }
-    let baselines = grid_container_baselines(
-        &pending_items,
-        &baseline_group_set,
-        &row_offsets,
-        rows,
-        constants.flow_axes,
-    );
+    let baselines = if parent_context.has_inherited_axis() {
+        // C07 publishes inherited row groups in physical coordinates.
+        grid_container_baselines(
+            &pending_items,
+            &baseline_group_set,
+            &row_offsets,
+            rows,
+            constants.flow_axes,
+        )
+    } else {
+        logical_grid_container_baselines(
+            &pending_items,
+            &baseline_group_set,
+            &logical_row_offsets,
+            rows,
+            constants.flow_axes,
+            containing_size,
+        )
+    };
 
     Ok(GridChildrenLayout {
         visible_content_size,
@@ -839,6 +873,17 @@ pub(super) fn grid_area_inline_offset<S: LayoutScalar>(offsets: &[S], area: Grid
     grid_area_track_offset(offsets, area.column, area.column_end)
 }
 
+fn grid_area_logical_origin<S: LayoutScalar>(
+    column_offsets: &[S],
+    row_offsets: &[S],
+    area: GridArea<S>,
+) -> LogicalPointOf<S> {
+    LogicalPointOf::new(
+        grid_area_track_offset(column_offsets, area.column, area.column_end),
+        grid_area_track_offset(row_offsets, area.row, area.row_end),
+    )
+}
+
 fn grid_area_track_offset<S: LayoutScalar>(offsets: &[S], start: usize, end: usize) -> S {
     offsets
         .get(start..end)
@@ -846,6 +891,13 @@ fn grid_area_track_offset<S: LayoutScalar>(offsets: &[S], start: usize, end: usi
         .unwrap_or(S::ZERO)
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "C06-T5 removes this legacy helper after migrating absolute/static grid projection."
+    )
+)]
 pub(super) fn grid_area_physical_origin<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     column_offsets: &[S],
@@ -874,6 +926,19 @@ pub(super) fn grid_area_physical_size<S: LayoutScalar>(
 
 fn grid_area_logical_size<S: LayoutScalar>(flow_axes: FlowAxes, size: Size<S>) -> LogicalSizeOf<S> {
     flow_axes.logical_size(size)
+}
+
+fn grid_axis_logical_offsets<S: LayoutScalar>(
+    tracks: &[S],
+    inherited_offset: Option<S>,
+    content_box_start: S,
+    alignment: GridAlignment<S>,
+) -> Vec<S> {
+    offsets(
+        tracks,
+        inherited_offset.unwrap_or(S::ZERO) + content_box_start + alignment.start,
+        alignment.gap,
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -1000,6 +1065,10 @@ fn grid_physical_axis_progression(
     FlowAxes::new(writing_mode, direction).physical_axis_progression(axis)
 }
 
+#[expect(
+    dead_code,
+    reason = "C06-T5 removes this legacy helper after migrating absolute/static grid projection."
+)]
 fn grid_item_block_axis_offset<Node, S: LayoutScalar>(
     writing_mode: crate::WritingMode,
     item: &PendingGridItem<Node, S>,
@@ -1011,13 +1080,17 @@ fn grid_item_block_axis_offset<Node, S: LayoutScalar>(
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "C06-T5 removes this legacy helper after migrating absolute/static grid projection."
+)]
 fn grid_item_physical_offset<Node, S: LayoutScalar>(
     writing_mode: crate::WritingMode,
     item: &PendingGridItem<Node, S>,
     block_axis_offset: S,
 ) -> Point<S> {
     if writing_mode.is_vertical() {
-        Point::new(block_axis_offset, item.vertical_axis.offset)
+        Point::new(block_axis_offset, item.horizontal_axis.offset)
     } else {
         Point::new(item.horizontal_axis.offset, block_axis_offset)
     }
@@ -1033,6 +1106,7 @@ pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) vertical_axis: ResolvedGridItemAxis<S>,
     pub(super) child_flow_axes: FlowAxes,
     pub(super) relative_offset: Point<S>,
+    pub(super) logical_relative_offset: LogicalPointOf<S>,
     pub(super) first_baseline: PhysicalBaseline<S>,
     pub(super) last_baseline: PhysicalBaseline<S>,
     pub(super) location: Point<S>,
@@ -1048,32 +1122,64 @@ pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
 }
 
 impl<Node, S: LayoutScalar> PendingGridItem<Node, S> {
-    fn baseline_geometry(&self, rows: &[S], row_gap: S) -> BaselineGeometry<S> {
-        self.baseline_geometry_for_span(spanned_track_size(
-            rows,
-            self.area.row,
-            self.area.row_end,
-            row_gap,
-        ))
+    fn logical_baseline_geometry(
+        &self,
+        rows: &[S],
+        row_gap: S,
+        container_flow_axes: FlowAxes,
+    ) -> BaselineGeometry<S> {
+        self.logical_baseline_geometry_for_span(
+            spanned_track_size(rows, self.area.row, self.area.row_end, row_gap),
+            container_flow_axes,
+        )
     }
 
-    fn baseline_geometry_for_span(&self, available_span_size: S) -> BaselineGeometry<S> {
+    fn logical_baseline_geometry_for_span(
+        &self,
+        available_span_size: S,
+        container_flow_axes: FlowAxes,
+    ) -> BaselineGeometry<S> {
+        let logical_margin = container_flow_axes.logical_edges(self.margin);
+        let logical_size = container_flow_axes.logical_size(self.output.size);
+        let first_baseline = logical_block_coordinate(
+            container_flow_axes,
+            self.first_baseline.coordinate(),
+            self.output.size,
+        );
+        let last_baseline = logical_block_coordinate(
+            container_flow_axes,
+            self.last_baseline.coordinate(),
+            self.output.size,
+        );
         BaselineGeometry {
             available_span_size,
-            margin_box_size: self.child_flow_axes.block_axis_extent(self.output.size)
-                + self.child_flow_axes.line_over_edge(self.margin)
-                + self.child_flow_axes.line_under_edge(self.margin),
+            margin_box_size: logical_size.block
+                + logical_margin.block_start
+                + logical_margin.block_end,
             major_baseline: PhysicalBaseline::new(
-                self.first_baseline.axis(),
-                self.child_flow_axes.line_over_edge(self.margin) + self.first_baseline.coordinate(),
+                container_flow_axes.block_axis(),
+                logical_margin.block_start + first_baseline,
             ),
             minor_baseline: PhysicalBaseline::new(
-                self.last_baseline.axis(),
-                self.child_flow_axes.line_under_edge(self.margin)
-                    + self.child_flow_axes.block_axis_extent(self.output.size)
-                    - self.last_baseline.coordinate(),
+                container_flow_axes.block_axis(),
+                logical_margin.block_end + logical_size.block - last_baseline,
             ),
         }
+    }
+}
+
+fn logical_block_coordinate<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    coordinate: S,
+    physical_size: Size<S>,
+) -> S {
+    if flow_axes
+        .logical_axis_progression(LogicalAxis::Block)
+        .is_decreasing()
+    {
+        flow_axes.block_axis_extent(physical_size) - coordinate
+    } else {
+        coordinate
     }
 }
 
@@ -1081,8 +1187,9 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
     items: &[PendingGridItem<Node, S>],
     row_count: usize,
     column_count: usize,
-    expected_axis: PhysicalAxis,
+    container_flow_axes: FlowAxes,
 ) -> GridBaselineGroups<S> {
+    let expected_axis = container_flow_axes.block_axis();
     let mut groups = GridBaselineGroups {
         rows: vec![TrackBaselineGroup::default(); row_count],
         columns: vec![TrackBaselineGroup::default(); column_count],
@@ -1105,8 +1212,11 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
                 };
                 merge_expected_baseline(
                     group,
-                    item.baseline_geometry_for_span(item.area.size.block)
-                        .major_baseline,
+                    item.logical_baseline_geometry_for_span(
+                        item.area.size.block,
+                        container_flow_axes,
+                    )
+                    .major_baseline,
                     expected_axis,
                 );
             }
@@ -1119,8 +1229,11 @@ pub(super) fn baseline_groups<Node, S: LayoutScalar>(
                 };
                 merge_expected_baseline(
                     group,
-                    item.baseline_geometry_for_span(item.area.size.block)
-                        .minor_baseline,
+                    item.logical_baseline_geometry_for_span(
+                        item.area.size.block,
+                        container_flow_axes,
+                    )
+                    .minor_baseline,
                     expected_axis,
                 );
             }
@@ -1316,6 +1429,92 @@ pub(super) fn grid_container_baselines<Node, S: LayoutScalar>(
                 .last
                 .and_then(|baseline| baseline.coordinate_on(flow_axes.block_axis()))
                 .map(|baseline| row_offsets[row] + rows[row] - baseline)
+        })
+    }) {
+        baselines.replace_last_axis(
+            BaselinesOf::from_block_coordinates(flow_axes, None, Some(last)).last,
+        );
+    }
+
+    GridContainerBaselines { baselines }
+}
+
+fn logical_grid_container_baselines<Node, S: LayoutScalar>(
+    items: &[PendingGridItem<Node, S>],
+    groups: &GridBaselineGroups<S>,
+    row_offsets: &[S],
+    rows: &[S],
+    flow_axes: FlowAxes,
+    containing_size: Size<S>,
+) -> GridContainerBaselines<S> {
+    let mut first_occupied_row = None;
+    let mut last_occupied_row = None;
+    for (row, group) in groups.rows.iter().enumerate() {
+        if group.first.is_some() || group.last.is_some() {
+            include_occupied_row(&mut first_occupied_row, &mut last_occupied_row, row);
+        }
+    }
+    for item in items {
+        include_occupied_row(
+            &mut first_occupied_row,
+            &mut last_occupied_row,
+            item.area.row,
+        );
+        if let Some(row) = item.area.row_end.checked_sub(1) {
+            include_occupied_row(&mut first_occupied_row, &mut last_occupied_row, row);
+        }
+    }
+
+    let mut baselines = BaselinesOf::NONE;
+    if let Some(point) = first_occupied_row.and_then(|row| {
+        items
+            .iter()
+            .filter(|item| item.area.row == row)
+            .min_by_key(|item| grid_area_start_key(item.area))
+            .map(|item| item.first_baseline.translated(item.location))
+    }) {
+        baselines.record_first(point);
+    }
+    if let Some(point) = last_occupied_row.and_then(|row| {
+        items
+            .iter()
+            .filter(|item| item.area.row_end.checked_sub(1) == Some(row))
+            .max_by_key(|item| grid_area_end_key(item.area))
+            .map(|item| item.last_baseline.translated(item.location))
+    }) {
+        baselines.record_last(point);
+    }
+
+    if let Some(first) = first_occupied_row.and_then(|row| {
+        groups.rows.get(row).and_then(|group| {
+            group
+                .first
+                .and_then(|baseline| baseline.coordinate_on(flow_axes.block_axis()))
+                .map(|baseline| {
+                    flow_axes.block_axis_coordinate(flow_axes.physical_point(
+                        LogicalPointOf::new(S::ZERO, row_offsets[row] + baseline),
+                        LogicalSizeOf::new(S::ZERO, S::ZERO),
+                        containing_size,
+                    ))
+                })
+        })
+    }) {
+        baselines.replace_first_axis(
+            BaselinesOf::from_block_coordinates(flow_axes, Some(first), None).first,
+        );
+    }
+    if let Some(last) = last_occupied_row.and_then(|row| {
+        groups.rows.get(row).and_then(|group| {
+            group
+                .last
+                .and_then(|baseline| baseline.coordinate_on(flow_axes.block_axis()))
+                .map(|baseline| {
+                    flow_axes.block_axis_coordinate(flow_axes.physical_point(
+                        LogicalPointOf::new(S::ZERO, row_offsets[row] + rows[row] - baseline),
+                        LogicalSizeOf::new(S::ZERO, S::ZERO),
+                        containing_size,
+                    ))
+                })
         })
     }) {
         baselines.replace_last_axis(
@@ -2125,6 +2324,23 @@ pub(super) fn grid_item_axis<S: LayoutScalar>(axis: GridItemAxis<S>) -> Resolved
     )
 }
 
+fn logical_grid_item_axis<S: LayoutScalar>(
+    area_size: S,
+    size: S,
+    margin_start: Option<S>,
+    margin_end: Option<S>,
+    alignment: AlignItems,
+) -> ResolvedGridItemAxis<S> {
+    resolve_grid_item_axis(
+        area_size,
+        size,
+        margin_start,
+        margin_end,
+        alignment,
+        PhysicalProgression::Increasing,
+    )
+}
+
 pub(super) fn physical_grid_item_axis<S: LayoutScalar>(
     axis: PhysicalGridItemAxis<S>,
 ) -> ResolvedGridItemAxis<S> {
@@ -2612,6 +2828,28 @@ pub(super) fn relative_inset_offset<S: LayoutScalar>(
         inset
             .top
             .or_else(|| inset.bottom.map(|bottom| -bottom))
+            .unwrap_or(S::ZERO),
+    )
+}
+
+fn logical_relative_inset_offset<S: LayoutScalar>(
+    inset: Edges<Option<S>>,
+    flow_axes: FlowAxes,
+    position: Position,
+) -> LogicalPointOf<S> {
+    if position != Position::Relative {
+        return LogicalPointOf::new(S::ZERO, S::ZERO);
+    }
+
+    let inset = flow_axes.logical_edges(inset);
+    LogicalPointOf::new(
+        inset
+            .inline_start
+            .or_else(|| inset.inline_end.map(|end| -end))
+            .unwrap_or(S::ZERO),
+        inset
+            .block_start
+            .or_else(|| inset.block_end.map(|end| -end))
             .unwrap_or(S::ZERO),
     )
 }

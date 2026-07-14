@@ -1,5 +1,5 @@
 use super::*;
-use crate::geometry::LogicalSizeOf;
+use crate::geometry::{LogicalPointOf, LogicalSizeOf};
 use crate::scroll::scrollbar_size_from_overflow;
 use crate::{
     GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
@@ -1548,6 +1548,7 @@ where
             vertical_axis,
             child_flow_axes,
             relative_offset,
+            logical_relative_offset: LogicalPointOf::new(Tree::Scalar::ZERO, Tree::Scalar::ZERO),
             first_baseline,
             last_baseline,
             location: Point::ZERO,

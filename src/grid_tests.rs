@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::lanes::*;
 use super::tracks::*;
 use super::*;
-use crate::geometry::{LogicalSizeOf, PhysicalAxis};
+use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::test_support::{
     self as lts,
     layout_tree::{OracleMeasurement, OracleTree, OracleTreeOf},
@@ -1275,6 +1275,250 @@ fn physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x_for_f32() {
 #[test]
 fn physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x_for_f64() {
     assert_physical_baseline_grid_and_lanes_preserve_an_orthogonal_child_x::<f64>();
+}
+
+fn physical_baseline_from_logical_block<S: LayoutScalar>(
+    flow_axes: crate::geometry::FlowAxes,
+    logical_coordinate: S,
+    logical_size: LogicalSizeOf<S>,
+) -> Point<Option<S>> {
+    let coordinate = if flow_axes
+        .logical_axis_progression(LogicalAxis::Block)
+        .is_decreasing()
+    {
+        logical_size.block - logical_coordinate
+    } else {
+        logical_coordinate
+    };
+    match flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => Point::new(Some(coordinate), None),
+        PhysicalAxis::Vertical => Point::new(None, Some(coordinate)),
+    }
+}
+
+fn visible_content_extent_from_projected_child<S: LayoutScalar>(
+    location: Point<S>,
+    size: Size<S>,
+) -> Size<S> {
+    let max_x = (location.x + size.width).max(S::ZERO);
+    let min_x = location.x.min(S::ZERO);
+    let max_y = (location.y + size.height).max(S::ZERO);
+    let min_y = location.y.min(S::ZERO);
+    Size::new(max_x - min_x, max_y - min_y)
+}
+
+fn assert_logical_ordinary_grid_in_flow_placement_baselines_and_extents<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
+{
+    let scalar = S::from_f64;
+    let logical_container_size = LogicalSizeOf::new(scalar(70.0), scalar(110.0));
+    let logical_child_size = LogicalSizeOf::new(scalar(10.0), scalar(20.0));
+
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = crate::geometry::FlowAxes::new(writing_mode, direction);
+            let physical_container_size = flow_axes.physical_size(logical_container_size);
+            let physical_child_size = flow_axes.physical_size(logical_child_size);
+
+            for (alignment, child_locations, shared_baseline) in [
+                (AlignItems::Baseline, [scalar(6.0), S::ZERO], scalar(14.0)),
+                (
+                    AlignItems::LastBaseline,
+                    [scalar(24.0), scalar(30.0)],
+                    scalar(40.0),
+                ),
+            ] {
+                let (first_baselines, last_baselines) = match alignment {
+                    AlignItems::Baseline => ([scalar(8.0), scalar(14.0)], [None, None]),
+                    AlignItems::LastBaseline => {
+                        ([S::ZERO, S::ZERO], [Some(scalar(16.0)), Some(scalar(10.0))])
+                    }
+                    _ => unreachable!("the test only uses baseline item alignment"),
+                };
+                let child_outputs = [
+                    ComputeOutputOf::from_sizes_and_baselines(
+                        physical_child_size,
+                        flow_axes.physical_size(LogicalSizeOf::new(scalar(10.0), scalar(20.0))),
+                        BaselinesOf {
+                            first: physical_baseline_from_logical_block(
+                                flow_axes,
+                                first_baselines[0],
+                                logical_child_size,
+                            ),
+                            last: last_baselines[0].map_or(Point::NONE, |last| {
+                                physical_baseline_from_logical_block(
+                                    flow_axes,
+                                    last,
+                                    logical_child_size,
+                                )
+                            }),
+                        },
+                    ),
+                    ComputeOutputOf::from_sizes_and_baselines(
+                        physical_child_size,
+                        flow_axes.physical_size(LogicalSizeOf::new(scalar(80.0), scalar(120.0))),
+                        BaselinesOf {
+                            first: physical_baseline_from_logical_block(
+                                flow_axes,
+                                first_baselines[1],
+                                logical_child_size,
+                            ),
+                            last: last_baselines[1].map_or(Point::NONE, |last| {
+                                physical_baseline_from_logical_block(
+                                    flow_axes,
+                                    last,
+                                    logical_child_size,
+                                )
+                            }),
+                        },
+                    ),
+                ];
+                let mut tree = OracleTreeOf::<S>::new()
+                    .children(1, [2, 3])
+                    .children(2, [])
+                    .children(3, [])
+                    .style(
+                        1,
+                        NodeInputOf {
+                            display: Display::Grid,
+                            writing_mode,
+                            direction,
+                            size: physical_container_size.map(DimensionOf::px),
+                            grid_template_columns: vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ],
+                            grid_template_rows: vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ],
+                            justify_content: Some(AlignContent::Start),
+                            align_content: Some(AlignContent::Start),
+                            align_items: Some(alignment),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        2,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .style(
+                        3,
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            grid_column: GridPlacement::try_line(2)
+                                .expect("test grid line is valid"),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .measure(2, child_outputs[0])
+                    .measure(3, child_outputs[1]);
+
+                let output = crate::compute_grid(
+                    &mut tree,
+                    1,
+                    ComputeInputOf::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        Size::NONE,
+                        physical_container_size.map(Some),
+                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                        physical_container_size.map(AvailableOf::definite),
+                    ),
+                )
+                .expect("logical ordinary-grid baseline layout succeeds");
+
+                let second_child_location = flow_axes.physical_point(
+                    crate::geometry::LogicalPointOf::new(scalar(30.0), child_locations[1]),
+                    logical_child_size,
+                    physical_container_size,
+                );
+                let second_area_origin = flow_axes.physical_point(
+                    crate::geometry::LogicalPointOf::new(scalar(30.0), S::ZERO),
+                    LogicalSizeOf::new(scalar(40.0), scalar(50.0)),
+                    physical_container_size,
+                );
+                let expected_visible_extent = visible_content_extent_from_projected_child(
+                    Point::new(
+                        second_child_location.x - second_area_origin.x,
+                        second_child_location.y - second_area_origin.y,
+                    ),
+                    flow_axes.physical_size(LogicalSizeOf::new(scalar(80.0), scalar(120.0))),
+                );
+
+                for (index, (inline, block)) in [
+                    (S::ZERO, child_locations[0]),
+                    (scalar(30.0), child_locations[1]),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    assert_eq!(
+                        tree.layout(index as u32 + 2)
+                            .expect("grid child layout is staged")
+                            .location,
+                        flow_axes.physical_point(
+                            crate::geometry::LogicalPointOf::new(inline, block),
+                            logical_child_size,
+                            physical_container_size,
+                        ),
+                        "{writing_mode:?} {direction:?} {alignment:?} child {} must align on the container block axis",
+                        index + 1
+                    );
+                }
+                let expected_baseline = physical_baseline_from_logical_block(
+                    flow_axes,
+                    shared_baseline,
+                    logical_container_size,
+                );
+                let actual_baseline = match alignment {
+                    AlignItems::Baseline => output.first_baselines,
+                    AlignItems::LastBaseline => output.last_baselines,
+                    _ => unreachable!("the test only uses baseline item alignment"),
+                };
+
+                assert_eq!(
+                    actual_baseline, expected_baseline,
+                    "{writing_mode:?} {direction:?} {alignment:?} must publish its baseline on the container block axis"
+                );
+                assert_eq!(
+                    output.content_size,
+                    Size::new(
+                        physical_container_size
+                            .width
+                            .max(expected_visible_extent.width),
+                        physical_container_size
+                            .height
+                            .max(expected_visible_extent.height),
+                    ),
+                    "{writing_mode:?} {direction:?} must retain visible content extents physically after projection"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn logical_ordinary_grid_in_flow_placement_baselines_and_extents_f32() {
+    assert_logical_ordinary_grid_in_flow_placement_baselines_and_extents::<f32>();
+}
+
+#[test]
+fn logical_ordinary_grid_in_flow_placement_baselines_and_extents_f64() {
+    assert_logical_ordinary_grid_in_flow_placement_baselines_and_extents::<f64>();
 }
 
 #[test]
@@ -15214,6 +15458,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         },
         child_flow_axes: crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         relative_offset: Point::<f64>::ZERO,
+        logical_relative_offset: LogicalPointOf::new(0.0, 0.0),
         first_baseline: BaselinesOf {
             first: Point::new(None, Some(8.0)),
             last: Point::NONE,
@@ -15249,7 +15494,12 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         overflow: Point::new(Overflow::Visible, Overflow::Visible),
     };
 
-    let groups = baseline_groups(std::slice::from_ref(&item), 2, 1, PhysicalAxis::Vertical);
+    let groups = baseline_groups(
+        std::slice::from_ref(&item),
+        2,
+        1,
+        horizontal_baseline_flow_axes(),
+    );
     assert_eq!(
         groups.rows[0].first,
         Some(tagged_baseline(PhysicalAxis::Vertical, 11.0))
@@ -15260,7 +15510,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
             &groups,
             &[40.0_f64, 40.0],
             10.0,
-            PhysicalAxis::Vertical,
+            horizontal_baseline_flow_axes(),
         ),
         Some(3.0)
     );
@@ -16642,6 +16892,10 @@ fn subgrid_named_span_counts_implicit_names_beyond_end_before_clamping() {
     );
 }
 
+fn horizontal_baseline_flow_axes() -> crate::geometry::FlowAxes {
+    crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr)
+}
+
 fn baseline_test_item(
     row: usize,
     column: usize,
@@ -16681,6 +16935,7 @@ fn baseline_test_item(
         },
         child_flow_axes: crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         relative_offset: Point::ZERO,
+        logical_relative_offset: LogicalPointOf::new(0.0, 0.0),
         first_baseline: Baselines {
             first: Point::new(None, Some(first)),
             last: Point::NONE,
@@ -16796,7 +17051,7 @@ fn row_baselines_choose_first_baseline_for_first_group() {
         baseline_test_item(0, 1, 1, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 2, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
         groups.rows[0].first,
@@ -16811,7 +17066,7 @@ fn row_baselines_choose_last_baseline_for_last_group() {
         baseline_test_item(0, 1, 2, AlignItems::LastBaseline, 8.0, 18.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 2, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
         groups.rows[1].last,
@@ -16826,7 +17081,7 @@ fn row_baselines_keep_first_groups_per_start_row() {
         baseline_test_item(1, 0, 1, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 1, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 2, 1, horizontal_baseline_flow_axes());
 
     assert_eq!(
         groups.rows[0].first,
@@ -16845,7 +17100,7 @@ fn row_baselines_keep_last_groups_per_end_row() {
         baseline_test_item(1, 0, 1, AlignItems::LastBaseline, 8.0, 18.0, 30.0),
     ];
 
-    let groups = baseline_groups(&items, 2, 1, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 2, 1, horizontal_baseline_flow_axes());
 
     assert_eq!(
         groups.rows[0].last,
@@ -16908,7 +17163,7 @@ fn empty_published_row_baselines_do_not_suppress_item_fallback() {
     let mut item = baseline_test_item(0, 0, 1, AlignItems::Baseline, 9.0, 11.0, 20.0);
     item.published_row_baselines = Some(Vec::new());
 
-    let groups = baseline_groups(&[item], 1, 1, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&[item], 1, 1, horizontal_baseline_flow_axes());
 
     assert_eq!(
         groups.rows[0].first,
@@ -16928,7 +17183,7 @@ fn baseline_groups_columns_are_default_filled_to_grid_width() {
         30.0,
     )];
 
-    let groups = baseline_groups(&items, 1, 3, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 1, 3, horizontal_baseline_flow_axes());
 
     assert_eq!(groups.columns, vec![TrackBaselineGroup::default(); 3],);
 }
@@ -17083,14 +17338,26 @@ fn baseline_aligned_block_offset_first_single_row_item() {
         baseline_test_item(0, 0, 1, AlignItems::Baseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 1, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 1, 2, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 1, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
+        baseline_aligned_block_offset(
+            &items[0],
+            &groups,
+            &[40.0],
+            0.0,
+            horizontal_baseline_flow_axes(),
+        ),
         Some(6.0)
     );
     assert_eq!(
-        baseline_aligned_block_offset(&items[1], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
+        baseline_aligned_block_offset(
+            &items[1],
+            &groups,
+            &[40.0],
+            0.0,
+            horizontal_baseline_flow_axes(),
+        ),
         Some(0.0)
     );
 }
@@ -17101,7 +17368,7 @@ fn baseline_aligned_block_offset_first_spanning_item() {
         baseline_test_item(0, 0, 2, AlignItems::Baseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 2, AlignItems::Baseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 2, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
         baseline_aligned_block_offset(
@@ -17109,7 +17376,7 @@ fn baseline_aligned_block_offset_first_spanning_item() {
             &groups,
             &[40.0, 40.0],
             7.0,
-            PhysicalAxis::Vertical,
+            horizontal_baseline_flow_axes(),
         ),
         Some(6.0)
     );
@@ -17121,14 +17388,26 @@ fn baseline_aligned_block_offset_last_single_row_item() {
         baseline_test_item(0, 0, 1, AlignItems::LastBaseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 1, AlignItems::LastBaseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 1, 2, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 1, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
+        baseline_aligned_block_offset(
+            &items[0],
+            &groups,
+            &[40.0],
+            0.0,
+            horizontal_baseline_flow_axes(),
+        ),
         Some(14.0)
     );
     assert_eq!(
-        baseline_aligned_block_offset(&items[1], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
+        baseline_aligned_block_offset(
+            &items[1],
+            &groups,
+            &[40.0],
+            0.0,
+            horizontal_baseline_flow_axes(),
+        ),
         Some(10.0)
     );
 }
@@ -17139,7 +17418,7 @@ fn baseline_aligned_block_offset_last_spanning_item() {
         baseline_test_item(0, 0, 2, AlignItems::LastBaseline, 8.0, 16.0, 20.0),
         baseline_test_item(0, 1, 2, AlignItems::LastBaseline, 14.0, 20.0, 30.0),
     ];
-    let groups = baseline_groups(&items, 2, 2, PhysicalAxis::Vertical);
+    let groups = baseline_groups(&items, 2, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
         baseline_aligned_block_offset(
@@ -17147,7 +17426,7 @@ fn baseline_aligned_block_offset_last_spanning_item() {
             &groups,
             &[40.0, 40.0],
             7.0,
-            PhysicalAxis::Vertical,
+            horizontal_baseline_flow_axes(),
         ),
         Some(61.0)
     );
@@ -17161,7 +17440,7 @@ fn baseline_aligned_block_offset_first_and_last_include_margins() {
     ];
     first_items[0].vertical_axis.margin_start = 3.0;
     first_items[0].vertical_axis.margin_end = 5.0;
-    let first_groups = baseline_groups(&first_items, 1, 2, PhysicalAxis::Vertical);
+    let first_groups = baseline_groups(&first_items, 1, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
         baseline_aligned_block_offset(
@@ -17169,7 +17448,7 @@ fn baseline_aligned_block_offset_first_and_last_include_margins() {
             &first_groups,
             &[40.0],
             0.0,
-            PhysicalAxis::Vertical,
+            horizontal_baseline_flow_axes(),
         ),
         Some(6.0)
     );
@@ -17180,7 +17459,7 @@ fn baseline_aligned_block_offset_first_and_last_include_margins() {
     ];
     last_items[0].vertical_axis.margin_start = 3.0;
     last_items[0].vertical_axis.margin_end = 5.0;
-    let last_groups = baseline_groups(&last_items, 1, 2, PhysicalAxis::Vertical);
+    let last_groups = baseline_groups(&last_items, 1, 2, horizontal_baseline_flow_axes());
 
     assert_eq!(
         baseline_aligned_block_offset(
@@ -17188,7 +17467,7 @@ fn baseline_aligned_block_offset_first_and_last_include_margins() {
             &last_groups,
             &[40.0],
             0.0,
-            PhysicalAxis::Vertical,
+            horizontal_baseline_flow_axes(),
         ),
         Some(14.0)
     );
@@ -17211,7 +17490,13 @@ fn baseline_aligned_block_offset_returns_none_without_group_baseline() {
     };
 
     assert_eq!(
-        baseline_aligned_block_offset(&items[0], &groups, &[40.0], 0.0, PhysicalAxis::Vertical),
+        baseline_aligned_block_offset(
+            &items[0],
+            &groups,
+            &[40.0],
+            0.0,
+            horizontal_baseline_flow_axes(),
+        ),
         None
     );
 }
@@ -17344,6 +17629,7 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
         },
         child_flow_axes,
         relative_offset: Point::ZERO,
+        logical_relative_offset: LogicalPointOf::new(S::ZERO, S::ZERO),
         first_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(7.0)),
         last_baseline: tagged_baseline(PhysicalAxis::Horizontal, S::from_f64(11.0)),
         location: Point::new(S::from_f64(17.0), S::from_f64(19.0)),
@@ -17380,7 +17666,7 @@ fn assert_baseline_group_axis_rejects_incompatible_application<S: LayoutScalar>(
             &groups,
             &[S::from_f64(80.0)],
             S::ZERO,
-            PhysicalAxis::Horizontal,
+            crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
         ),
         None
     );
@@ -17417,9 +17703,9 @@ fn assert_baseline_group_axis_preserves_compatible_application<S: LayoutScalar>(
             &groups,
             &[S::from_f64(80.0)],
             S::ZERO,
-            PhysicalAxis::Horizontal,
+            crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
         ),
-        Some(S::from_f64(38.0))
+        Some(S::from_f64(22.0))
     );
     let baselines = grid_container_baselines(
         std::slice::from_ref(&item),
