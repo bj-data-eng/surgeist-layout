@@ -863,7 +863,8 @@ where
         let parent_logical_available = constants.flow_axes.logical_size(input.available());
         let child_flow_axes =
             crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
-        let child_logical_node_inner_size = child_flow_axes.logical_size(node_inner_size);
+        let child_parent_size = constants.child_containing_block_size(child_flow_axes);
+        let child_logical_node_inner_size = child_flow_axes.logical_size(child_parent_size);
         let child_logical_available = child_flow_axes.logical_size(input.available());
         let child_non_auto_margin = child_flow_axes
             .logical_edges(unresolved_margin)
@@ -888,7 +889,7 @@ where
                 SizingMode::InherentSize,
                 RequestedAxis::Both,
                 child_known,
-                node_inner_size,
+                child_parent_size,
                 constants.flow_axes,
                 child_flow_axes.physical_size(LogicalSizeOf::new(
                     in_flow_child_available_inline(
@@ -2988,10 +2989,25 @@ fn auto_margin_size<S: LayoutScalar>(axis: AutoMarginAxis<S>) -> S {
 }
 
 #[derive(Clone, Copy, Debug)]
+enum ChildContainingBlockExtent<S: LayoutScalar> {
+    Definite(S),
+    FinalAutoDerived(S),
+}
+
+impl<S: LayoutScalar> ChildContainingBlockExtent<S> {
+    fn value(self) -> S {
+        match self {
+            Self::Definite(value) | Self::FinalAutoDerived(value) => value,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
 struct Constants<S: LayoutScalar> {
     flow_axes: crate::geometry::FlowAxes,
     node_outer_size: Size<Option<S>>,
     node_inner_size: Size<Option<S>>,
+    child_containing_block_extent: Size<Option<ChildContainingBlockExtent<S>>>,
     node_min_size: Size<Option<S>>,
     node_max_size: Size<Option<S>>,
     direction: Direction,
@@ -3043,8 +3059,40 @@ impl<S: LayoutScalar> Constants<S> {
             )))
     }
 
+    fn child_containing_block_size(
+        &self,
+        child_flow_axes: crate::geometry::FlowAxes,
+    ) -> Size<Option<S>> {
+        let child_logical_extent = child_flow_axes.logical_size(self.child_containing_block_extent);
+        let child_inline_extent = match child_logical_extent.inline {
+            Some(ChildContainingBlockExtent::Definite(value)) => Some(value),
+            Some(ChildContainingBlockExtent::FinalAutoDerived(value))
+                if self.flow_axes.inline_axis() == child_flow_axes.inline_axis() =>
+            {
+                Some(value)
+            }
+            Some(ChildContainingBlockExtent::FinalAutoDerived(_)) | None => None,
+        };
+        let child_block_extent = child_logical_extent
+            .block
+            .map(ChildContainingBlockExtent::value);
+        child_flow_axes.physical_size(LogicalSizeOf::new(child_inline_extent, child_block_extent))
+    }
+
     fn with_logical_node_inner_size(mut self, inner_size: LogicalSizeOf<Option<S>>) -> Self {
-        self.node_inner_size = self.flow_axes.physical_size(inner_size);
+        let final_inner_size = self.flow_axes.physical_size(inner_size);
+        self.child_containing_block_extent =
+            final_inner_size.zip_map(self.child_containing_block_extent, |value, previous| {
+                value.map(|value| match previous {
+                    Some(ChildContainingBlockExtent::Definite(_)) => {
+                        ChildContainingBlockExtent::Definite(value)
+                    }
+                    Some(ChildContainingBlockExtent::FinalAutoDerived(_)) | None => {
+                        ChildContainingBlockExtent::FinalAutoDerived(value)
+                    }
+                })
+            });
+        self.node_inner_size = final_inner_size;
         let content_box_inset = self.logical_content_box_inset();
         self.node_outer_size = self.flow_axes.physical_size(LogicalSizeOf::new(
             inner_size
@@ -3174,6 +3222,8 @@ impl<S: LayoutScalar> Constants<S> {
             flow_axes,
             node_outer_size,
             node_inner_size,
+            child_containing_block_extent: node_inner_size
+                .map(|value| value.map(ChildContainingBlockExtent::Definite)),
             node_min_size: min_size,
             node_max_size: max_size,
             direction: style.direction,

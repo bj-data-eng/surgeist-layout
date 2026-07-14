@@ -2303,6 +2303,51 @@ impl Compute for CalcBlockTree {
 }
 
 #[test]
+fn block_fixed_parent_height_keeps_orthogonal_child_inline_known() {
+    let mut tree = CalcBlockTree::default();
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(Dimension::AUTO, Dimension::px(162.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Grid,
+            writing_mode: WritingMode::VerticalRl,
+            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            ..NodeInput::default()
+        },
+    );
+
+    compute_block(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            Size::splat(Available::MAX_CONTENT),
+        ),
+    )
+    .expect("fixed-height block layout succeeds");
+
+    assert!(tree.inputs[&2].iter().any(|input| {
+        input.known().height == Some(162.0)
+            && input.parent().height == Some(162.0)
+            && input.available().height == Available::definite(162.0)
+    }));
+}
+
+#[test]
 fn block_lays_out_atomic_inline_children_on_one_line() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1, 2])

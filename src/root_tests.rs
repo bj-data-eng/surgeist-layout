@@ -6862,3 +6862,212 @@ fn subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis_f32
 fn subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis_f64() {
     assert_subgrid_orthogonal_local_cross_flow_does_not_expand_parent_intrinsic_axis::<f64>();
 }
+
+fn orthogonal_auto_child_grid<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+) -> NodeInputOf<S> {
+    let scalar = scalar::<S>;
+    let flow_axes = FlowAxes::new(writing_mode, direction);
+    NodeInputOf {
+        display: Display::Grid,
+        writing_mode,
+        direction,
+        grid_template_columns: vec![
+            TrackComponentOf::px(scalar(30.0)),
+            TrackComponentOf::px(scalar(40.0)),
+        ],
+        grid_template_rows: vec![
+            TrackComponentOf::px(scalar(50.0)),
+            TrackComponentOf::px(scalar(60.0)),
+        ],
+        gap: flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+            LengthOf::px(scalar(11.0)),
+            LengthOf::px(scalar(7.0)),
+        )),
+        ..NodeInputOf::default()
+    }
+}
+
+fn orthogonal_auto_child_subgrid<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+) -> NodeInputOf<S> {
+    NodeInputOf {
+        display: Display::Grid,
+        writing_mode,
+        direction,
+        grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+        grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+        grid_column: GridPlacement::try_lines(1, -1).expect("valid full subgrid column span"),
+        grid_row: GridPlacement::try_lines(1, -1).expect("valid full subgrid row span"),
+        ..NodeInputOf::default()
+    }
+}
+
+fn orthogonal_auto_child_subgrid_descendant<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+) -> NodeInputOf<S> {
+    NodeInputOf {
+        display: Display::Block,
+        writing_mode,
+        direction,
+        grid_column: GridPlacement::try_lines(2, 3).expect("valid second subgrid column"),
+        grid_row: GridPlacement::try_lines(2, 3).expect("valid second subgrid row"),
+        ..NodeInputOf::default()
+    }
+}
+
+fn orthogonal_auto_child_tree<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+    root_height: DimensionOf<S>,
+) -> PublicFlowTree<S> {
+    let outer_grid = orthogonal_auto_child_grid(writing_mode, direction);
+    let subgrid = orthogonal_auto_child_subgrid(writing_mode, direction);
+    let descendant = orthogonal_auto_child_subgrid_descendant(writing_mode, direction);
+
+    PublicFlowTree::default()
+        .with_children(0, [1, 4])
+        .with_children(1, [2])
+        .with_children(2, [3])
+        .with_children(3, [])
+        .with_children(4, [5])
+        .with_children(5, [6])
+        .with_children(6, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(DimensionOf::AUTO, root_height),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(1, outer_grid.clone())
+        .with_style(2, subgrid.clone())
+        .with_style(3, descendant.clone())
+        .with_style(4, outer_grid)
+        .with_style(5, subgrid)
+        .with_style(6, descendant)
+}
+
+fn assert_orthogonal_auto_child_inline_size_remains_indefinite<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let logical_outer_size = crate::geometry::LogicalSizeOf::new(scalar(81.0), scalar(117.0));
+    let logical_descendant_origin =
+        crate::geometry::LogicalPointOf::new(scalar(41.0), scalar(57.0));
+    let logical_descendant_size = crate::geometry::LogicalSizeOf::new(scalar(40.0), scalar(60.0));
+
+    for writing_mode in [
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let outer_size = flow_axes.physical_size(logical_outer_size);
+            let descendant_size = flow_axes.physical_size(logical_descendant_size);
+            let descendant_location = flow_axes.physical_point(
+                logical_descendant_origin,
+                logical_descendant_size,
+                outer_size,
+            );
+            let tree = orthogonal_auto_child_tree::<S>(writing_mode, direction, DimensionOf::AUTO);
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+                    .expect("valid auto-sized root request"),
+            )
+            .expect("orthogonal auto child layout succeeds");
+
+            let root = public_flow_output(batch.unrounded_entries(), 0);
+            assert_eq!(root.size, Size::new(scalar(117.0), scalar(162.0)));
+
+            for node in [1, 2, 4, 5] {
+                assert_eq!(
+                    public_flow_output(batch.unrounded_entries(), node).size,
+                    outer_size,
+                    "{writing_mode:?} {direction:?} node {node} must retain its intrinsic physical grid/subgrid size"
+                );
+            }
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), 1).location,
+                Point::ZERO
+            );
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), 4).location,
+                Point::new(S::ZERO, scalar(81.0))
+            );
+
+            for node in [3, 6] {
+                let descendant = public_flow_output(batch.unrounded_entries(), node);
+                assert_eq!(
+                    descendant.location, descendant_location,
+                    "{writing_mode:?} {direction:?} node {node} must use the inherited subgrid area"
+                );
+                assert_eq!(
+                    descendant.size, descendant_size,
+                    "{writing_mode:?} {direction:?} node {node} must use the inherited subgrid track size"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn orthogonal_auto_child_inline_size_remains_indefinite_f32() {
+    assert_orthogonal_auto_child_inline_size_remains_indefinite::<f32>();
+}
+
+#[test]
+fn orthogonal_auto_child_inline_size_remains_indefinite_f64() {
+    assert_orthogonal_auto_child_inline_size_remains_indefinite::<f64>();
+}
+
+fn assert_orthogonal_child_fixed_parent_height_remains_definite<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    for writing_mode in [
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let tree = orthogonal_auto_child_tree::<S>(
+                writing_mode,
+                direction,
+                DimensionOf::px(scalar(162.0)),
+            );
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+                    .expect("valid fixed-height root request"),
+            )
+            .expect("fixed-height orthogonal child layout succeeds");
+
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), 0).size,
+                Size::new(scalar(117.0), scalar(162.0))
+            );
+            assert_eq!(
+                public_flow_output(batch.unrounded_entries(), 1).size,
+                Size::new(scalar(117.0), scalar(162.0)),
+                "{writing_mode:?} {direction:?} must retain the fixed parent height"
+            );
+        }
+    }
+}
+
+#[test]
+fn orthogonal_child_fixed_parent_height_remains_definite_f32() {
+    assert_orthogonal_child_fixed_parent_height_remains_definite::<f32>();
+}
+
+#[test]
+fn orthogonal_child_fixed_parent_height_remains_definite_f64() {
+    assert_orthogonal_child_fixed_parent_height_remains_definite::<f64>();
+}
