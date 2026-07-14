@@ -1631,6 +1631,305 @@ fn nearest_css_pixel<S: LayoutScalar>(value: S) -> S {
     (value + S::from_f64(0.5)).floor()
 }
 
+fn assert_logical_ordinary_grid_absolute_static<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let logical_container_size = crate::geometry::LogicalSizeOf::new(scalar(70.5), scalar(110.25));
+    let logical_child_size = crate::geometry::LogicalSizeOf::new(scalar(11.25), scalar(13.5));
+    let explicit_margin =
+        crate::geometry::LogicalEdgesOf::new(scalar(1.25), scalar(2.5), scalar(3.75), scalar(4.25));
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_container_size = flow_axes.physical_size(logical_container_size);
+        let physical_child_size = flow_axes.physical_size(logical_child_size);
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2, 3, 4])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_children(4, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode,
+                    direction,
+                    size: physical_container_size.map(DimensionOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(scalar(30.25)),
+                        TrackComponentOf::px(scalar(40.25)),
+                    ],
+                    grid_template_rows: vec![
+                        TrackComponentOf::px(scalar(50.25)),
+                        TrackComponentOf::px(scalar(60.0)),
+                    ],
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(DimensionOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    inset: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::px(scalar(2.25)),
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::px(scalar(3.5)),
+                    )),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(DimensionOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::Center),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                3,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(DimensionOf::px),
+                    position: Position::Absolute,
+                    grid_row: GridPlacement::try_line(2).expect("valid grid row"),
+                    margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                    )),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::End),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                4,
+                NodeInputOf {
+                    display: Display::None,
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("logical ordinary-grid absolute layout succeeds");
+
+        let explicit_inset_location = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(scalar(33.75), scalar(89.0)),
+            logical_child_size,
+            physical_container_size,
+        );
+        let aligned_inline = scalar(40.25) - logical_child_size.inline - explicit_margin.inline_end;
+        let aligned_block = (scalar(60.0) - logical_child_size.block + explicit_margin.block_start
+            - explicit_margin.block_end)
+            / scalar(2.0);
+        let aligned_location = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(
+                scalar(30.25) + aligned_inline,
+                scalar(50.25) + aligned_block,
+            ),
+            logical_child_size,
+            physical_container_size,
+        );
+        let static_location = flow_axes.physical_point(
+            crate::geometry::LogicalPointOf::new(
+                (logical_container_size.inline - logical_child_size.inline) / scalar(2.0),
+                scalar(50.25) + (scalar(60.0) - logical_child_size.block) / scalar(2.0),
+            ),
+            logical_child_size,
+            physical_container_size,
+        );
+
+        for (node, expected_location) in [
+            (1, explicit_inset_location),
+            (2, aligned_location),
+            (3, static_location),
+        ] {
+            let unrounded = public_flow_output(batch.unrounded_entries(), node);
+            let rounded = public_flow_output(batch.final_entries(), node);
+            assert_eq!(
+                unrounded.location, expected_location,
+                "{writing_mode:?} {direction:?} absolute child {node} must project its logical area once"
+            );
+            assert_eq!(unrounded.size, physical_child_size);
+            assert_eq!(
+                rounded.location,
+                Point::new(
+                    nearest_css_pixel(unrounded.location.x),
+                    nearest_css_pixel(unrounded.location.y),
+                )
+            );
+        }
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 4),
+            NodeOutputOf::with_order(3)
+        );
+    }
+}
+
+#[test]
+fn logical_ordinary_grid_absolute_static_f32() {
+    assert_logical_ordinary_grid_absolute_static::<f32>();
+}
+
+#[test]
+fn logical_ordinary_grid_absolute_static_f64() {
+    assert_logical_ordinary_grid_absolute_static::<f64>();
+}
+
+fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let viewport = Size::splat(AvailableOf::definite(scalar(200.0)));
+    let containing_flow = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let grid_tree = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [3])
+        .with_children(3, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                size: Size::new(
+                    DimensionOf::px(scalar(110.0)),
+                    DimensionOf::px(scalar(70.0)),
+                ),
+                grid_template_columns: vec![
+                    TrackComponentOf::px(scalar(30.0)),
+                    TrackComponentOf::px(scalar(40.0)),
+                ],
+                grid_template_rows: vec![
+                    TrackComponentOf::px(scalar(50.0)),
+                    TrackComponentOf::px(scalar(60.0)),
+                ],
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                position: Position::Absolute,
+                size: Size::new(
+                    DimensionOf::px(scalar(10.25)),
+                    DimensionOf::px(scalar(20.25)),
+                ),
+                grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::None,
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(3, NodeInputOf::default());
+
+    let viewport_batch = compute_layout(
+        &grid_tree,
+        0,
+        LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+    )
+    .expect("viewport ordinary-grid context succeeds");
+    let child_entry = viewport_batch
+        .cache_store_entries()
+        .iter()
+        .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
+        .expect("absolute grid child stores a layout cache entry");
+    assert_eq!(child_entry.input().containing_flow_axes(), containing_flow);
+    assert_eq!(
+        child_entry.output().size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
+    assert_eq!(
+        public_flow_output(viewport_batch.final_entries(), 0).size,
+        Size::new(scalar(110.0), scalar(70.0))
+    );
+    assert_eq!(
+        public_flow_output(viewport_batch.unrounded_entries(), 2),
+        NodeOutputOf::with_order(1)
+    );
+    assert_eq!(
+        public_flow_output(viewport_batch.unrounded_entries(), 3),
+        NodeOutputOf::with_order(0)
+    );
+
+    grid_tree.apply_cache_entries(viewport_batch.cache_store_entries());
+    grid_tree.clear_cache_inputs();
+    let warm_batch = compute_layout(
+        &grid_tree,
+        0,
+        LayoutRootRequestOf::viewport(viewport).expect("valid viewport request"),
+    )
+    .expect("warm viewport ordinary-grid context succeeds");
+    assert!(
+        grid_tree
+            .cache_inputs(1)
+            .iter()
+            .any(|input| *input == *child_entry.input())
+    );
+    assert!(
+        warm_batch.cache_store_entries().iter().all(|entry| {
+            entry.node() != 1 || entry.input().run_mode() != RunMode::PerformLayout
+        })
+    );
+
+    let flex_batch = compute_layout(
+        &grid_tree,
+        0,
+        LayoutRootRequestOf::flex_item_under_viewport(
+            viewport,
+            FlexItemRootContextOf::under_viewport(viewport).expect("valid flex item root context"),
+        )
+        .expect("valid flex item root request"),
+    )
+    .expect("flex-item ordinary-grid context succeeds");
+    assert_eq!(
+        public_flow_output(flex_batch.final_entries(), 1),
+        public_flow_output(warm_batch.final_entries(), 1)
+    );
+}
+
+#[test]
+fn logical_ordinary_grid_public_contexts_f32() {
+    assert_logical_ordinary_grid_public_contexts::<f32>();
+}
+
+#[test]
+fn logical_ordinary_grid_public_contexts_f64() {
+    assert_logical_ordinary_grid_public_contexts::<f64>();
+}
+
 fn assert_logical_ordinary_grid_in_flow_placement_public_output<S: LayoutScalar>() {
     let scalar = scalar::<S>;
     let logical_container_size = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));

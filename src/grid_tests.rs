@@ -18560,41 +18560,23 @@ fn orthogonal_subgrid_grandchild_percentage_edges_use_immediate_containing_flow(
 }
 
 #[test]
-fn grid_area_physical_origin_maps_vertical_grid_tracks_without_collapsing_rows() {
-    let style = NodeInput {
-        writing_mode: WritingMode::VerticalRl,
-        ..NodeInput::default()
-    };
-    let column_offsets = [0.0, 30.0];
-    let row_offsets = [60.0, 0.0];
+fn logical_grid_area_projection_maps_vertical_grid_tracks_without_collapsing_rows() {
+    let flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
+    let containing_size = Size::new(110.0, 70.0);
 
     assert_eq!(
-        grid_area_physical_origin(
-            &style,
-            &column_offsets,
-            &row_offsets,
-            GridArea {
-                column: 0,
-                column_end: 1,
-                row: 0,
-                row_end: 1,
-                size: LogicalSizeOf::new(30.0, 50.0),
-            },
+        flow_axes.physical_point(
+            LogicalPointOf::new(0.0, 0.0),
+            LogicalSizeOf::new(30.0, 50.0),
+            containing_size,
         ),
         Point::new(60.0, 0.0)
     );
     assert_eq!(
-        grid_area_physical_origin(
-            &style,
-            &column_offsets,
-            &row_offsets,
-            GridArea {
-                column: 1,
-                column_end: 2,
-                row: 1,
-                row_end: 2,
-                size: LogicalSizeOf::new(40.0, 60.0),
-            },
+        flow_axes.physical_point(
+            LogicalPointOf::new(30.0, 50.0),
+            LogicalSizeOf::new(40.0, 60.0),
+            containing_size,
         ),
         Point::new(0.0, 30.0)
     );
@@ -18674,7 +18656,7 @@ fn absolute_grid_axis_area_uses_left_edge_for_definite_rtl_range() {
         is_reverse: true,
         explicit_start: 0,
         explicit_count: 8,
-        reverse_positive_line_offset_adjustment: 0.0,
+        positive_line_offset_adjustment: 0.0,
     });
 
     assert_eq!(area.location, 120.0);

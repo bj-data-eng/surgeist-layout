@@ -1298,6 +1298,24 @@ where
         constants.content_box_inset.top + row_alignment.start,
         row_alignment.gap,
     );
+    let logical_content_box_inset = constants
+        .flow_axes
+        .logical_edges(constants.content_box_inset);
+    let logical_column_offsets = grid_axis_logical_offsets(
+        columns,
+        None,
+        logical_content_box_inset.inline_start,
+        column_alignment,
+    );
+    let logical_row_offsets = grid_axis_logical_offsets(
+        rows,
+        None,
+        logical_content_box_inset.block_start,
+        row_alignment,
+    );
+    let containing_size = constants
+        .node_outer_size
+        .unwrap_or(container_content_size + constants.content_box_inset.sum_axes());
     let lane_axis = lane_report.lane_axis;
     let lane_axis_alignment_start = match lane_axis {
         GridAxisKind::Column => column_alignment.start + constants.content_box_inset.left,
@@ -1329,11 +1347,12 @@ where
                     AbsoluteGridContext {
                         container_style: style,
                         constants,
-                        column_offsets: &column_offsets,
-                        row_offsets: &row_offsets,
+                        containing_size,
+                        column_offsets: &logical_column_offsets,
+                        row_offsets: &logical_row_offsets,
                         columns,
                         rows,
-                        gap,
+                        gap: LogicalSizeOf::new(gap.width, gap.height),
                         lines: context.lines,
                         column: placement.absolute_column,
                         row: placement.absolute_row,

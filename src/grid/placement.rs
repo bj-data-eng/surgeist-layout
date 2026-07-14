@@ -1,5 +1,5 @@
 use super::*;
-use crate::geometry::LogicalSizeOf;
+use crate::geometry::{LogicalPointOf, LogicalSizeOf};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct GridArea<S: LayoutScalar = Scalar> {
@@ -174,7 +174,7 @@ pub(super) fn fully_definite_area<S: LayoutScalar>(
 
 pub(super) fn absolute_grid_area<S: LayoutScalar>(
     input: AbsoluteGridAreaInput<'_, S>,
-) -> AbsoluteGridArea<S> {
+) -> LogicalAbsoluteGridArea<S> {
     let AbsoluteGridAreaInput {
         column,
         row,
@@ -184,71 +184,90 @@ pub(super) fn absolute_grid_area<S: LayoutScalar>(
         row_offsets,
         gap,
         constants,
-        columns_are_rtl,
         lines,
         column_line_offset_adjustment,
     } = input;
-    let content_size = Size::new(track_sum(columns, gap.width), track_sum(rows, gap.height));
-    let padding_box_size = constants
-        .node_inner_size
-        .add_optional(constants.padding.sum_axes())
-        .unwrap_or(content_size + constants.padding.sum_axes());
-    let static_padding_box_size = constants
-        .node_outer_size
-        .sub_optional(constants.border.sum_axes())
-        .unwrap_or(padding_box_size);
-    let horizontal = absolute_grid_axis_area(AbsoluteGridAxisInput {
+    let flow_axes = constants.flow_axes;
+    let content_size =
+        LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
+    let padding = flow_axes.logical_edges(constants.padding);
+    let border = flow_axes.logical_edges(constants.border);
+    let padding_size = LogicalSizeOf::new(padding.inline_sum(), padding.block_sum());
+    let border_size = LogicalSizeOf::new(border.inline_sum(), border.block_sum());
+    let logical_inner_size = flow_axes.logical_size(constants.node_inner_size);
+    let padding_box_size = LogicalSizeOf::new(
+        logical_inner_size
+            .inline
+            .map(|size| size + padding_size.inline)
+            .unwrap_or(content_size.inline + padding_size.inline),
+        logical_inner_size
+            .block
+            .map(|size| size + padding_size.block)
+            .unwrap_or(content_size.block + padding_size.block),
+    );
+    let logical_outer_size = flow_axes.logical_size(constants.node_outer_size);
+    let static_padding_box_size = LogicalSizeOf::new(
+        logical_outer_size
+            .inline
+            .map(|size| size - border_size.inline)
+            .unwrap_or(padding_box_size.inline),
+        logical_outer_size
+            .block
+            .map(|size| size - border_size.block)
+            .unwrap_or(padding_box_size.block),
+    );
+    let inline = absolute_grid_axis_area(AbsoluteGridAxisInput {
         placement: column,
         tracks: columns,
         offsets: column_offsets,
-        gap: gap.width,
-        padding_box_location: constants.content_box_inset.left - constants.padding.left,
-        padding_box_size: padding_box_size.width,
-        is_reverse: columns_are_rtl,
+        gap: gap.inline,
+        padding_box_location: border.inline_start,
+        padding_box_size: padding_box_size.inline,
+        is_reverse: false,
         explicit_start: lines.column_explicit_start,
         explicit_count: lines.column_explicit_count,
-        reverse_positive_line_offset_adjustment: column_line_offset_adjustment,
+        positive_line_offset_adjustment: column_line_offset_adjustment,
     });
-    let vertical = absolute_grid_axis_area(AbsoluteGridAxisInput {
+    let block = absolute_grid_axis_area(AbsoluteGridAxisInput {
         placement: row,
         tracks: rows,
         offsets: row_offsets,
-        gap: gap.height,
-        padding_box_location: constants.border.top,
-        padding_box_size: padding_box_size.height,
+        gap: gap.block,
+        padding_box_location: border.block_start,
+        padding_box_size: padding_box_size.block,
         is_reverse: false,
         explicit_start: lines.row_explicit_start,
         explicit_count: lines.row_explicit_count,
-        reverse_positive_line_offset_adjustment: S::ZERO,
+        positive_line_offset_adjustment: S::ZERO,
     });
 
     let column_is_definite = has_definite_line(column);
     let row_is_definite = has_definite_line(row);
-    AbsoluteGridArea {
-        location: Point::new(horizontal.location, vertical.location),
-        static_location: Point::new(
+    LogicalAbsoluteGridArea {
+        location: LogicalPointOf::new(inline.location, block.location),
+        static_location: LogicalPointOf::new(
             if column_is_definite {
-                horizontal.location
+                inline.location
             } else {
-                constants.border.left
+                border.inline_start
             },
             if row_is_definite {
-                vertical.location
+                block.location
             } else {
-                constants.border.top
+                border.block_start
             },
         ),
-        size: Size::new(horizontal.size, vertical.size),
-        static_size: Size::new(
+        size: LogicalSizeOf::new(inline.size, block.size),
+        static_size: LogicalSizeOf::new(
             if column_is_definite {
-                horizontal.size
+                inline.size
             } else {
-                static_padding_box_size.width
+                static_padding_box_size.inline
             },
             if row_is_definite {
-                vertical.size
+                block.size
             } else {
-                static_padding_box_size.height
+                static_padding_box_size.block
             },
         ),
     }
@@ -267,7 +286,7 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
         is_reverse,
         explicit_start,
         explicit_count,
-        reverse_positive_line_offset_adjustment,
+        positive_line_offset_adjustment,
     } = input;
     let padding_box_end = padding_box_location + padding_box_size;
     if let (Some(start), None, None) = (placement.start(), placement.end(), placement.span())
@@ -278,7 +297,7 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
             is_reverse,
             explicit_start,
             explicit_count,
-            reverse_positive_line_offset_adjustment,
+            positive_line_offset_adjustment,
         )
     {
         let location = if is_reverse {
@@ -301,7 +320,7 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
             is_reverse,
             explicit_start,
             explicit_count,
-            reverse_positive_line_offset_adjustment,
+            positive_line_offset_adjustment,
         )
     {
         let location = if is_reverse {
@@ -326,7 +345,7 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
                 is_reverse,
                 explicit_start,
                 explicit_count,
-                reverse_positive_line_offset_adjustment,
+                positive_line_offset_adjustment,
             ),
             grid_line_offset(
                 end_line.get(),
@@ -335,7 +354,7 @@ pub(super) fn absolute_grid_axis_area<S: LayoutScalar>(
                 is_reverse,
                 explicit_start,
                 explicit_count,
-                reverse_positive_line_offset_adjustment,
+                positive_line_offset_adjustment,
             ),
         )
     {
@@ -378,11 +397,11 @@ pub(super) fn grid_line_offset<S: LayoutScalar>(
     is_reverse: bool,
     explicit_start: usize,
     explicit_count: usize,
-    reverse_positive_line_offset_adjustment: S,
+    positive_line_offset_adjustment: S,
 ) -> Option<S> {
     let index = grid_line_to_index(line, tracks.len(), explicit_start, explicit_count)?;
-    let adjustment = if is_reverse && line > 0 && index > 0 {
-        reverse_positive_line_offset_adjustment
+    let adjustment = if line > 0 && index > 0 {
+        positive_line_offset_adjustment
     } else {
         S::ZERO
     };

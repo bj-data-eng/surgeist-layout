@@ -250,16 +250,28 @@ where
             } else {
                 container_content_size
             });
-    let logical_content_box_size = grid_area_logical_size(
-        constants.flow_axes,
-        constants.node_inner_size.unwrap_or(container_content_size),
-    );
+    let logical_content_box_size = constants
+        .flow_axes
+        .logical_size(constants.node_inner_size.unwrap_or(container_content_size));
     let containing_size = constants
         .node_outer_size
         .unwrap_or(container_content_size + constants.content_box_inset.sum_axes());
     let logical_content_box_inset = constants
         .flow_axes
         .logical_edges(constants.content_box_inset);
+    // C07's inherited horizontal RTL carrier publishes its local origin from
+    // the physical left edge. Keep that established bridge at this boundary.
+    let inherited_rtl_column_line_adjustment = if inherited_column_offset.is_some()
+        && constants.flow_axes.inline_axis() == PhysicalAxis::Horizontal
+        && constants
+            .flow_axes
+            .logical_axis_progression(LogicalAxis::Inline)
+            .is_decreasing()
+    {
+        logical_content_box_inset.inline_start - logical_content_box_inset.inline_end
+    } else {
+        Tree::Scalar::ZERO
+    };
     let alignment_free_space = logical_content_box_size - logical_content_size;
     let column_alignment = grid_alignment(
         alignment_free_space.inline,
@@ -276,7 +288,7 @@ where
     let logical_column_offsets = grid_axis_logical_offsets(
         columns,
         inherited_column_offset,
-        logical_content_box_inset.inline_start,
+        logical_content_box_inset.inline_start - inherited_rtl_column_line_adjustment,
         column_alignment,
     );
     let logical_row_offsets = grid_axis_logical_offsets(
@@ -286,22 +298,6 @@ where
         row_alignment,
     );
     let content_box_left = effective_content_box_left(constants, container_content_size);
-    let inherited_rtl_column_line_adjustment =
-        if inherited_column_offset.is_some() && style.direction.is_rtl() {
-            constants.content_box_inset.right - constants.content_box_inset.left
-        } else {
-            Tree::Scalar::ZERO
-        };
-    let column_offsets = grid_axis_offsets(GridAxisOffsetsInput {
-        style,
-        axis: GridAxisKind::Column,
-        tracks: columns,
-        inherited_offset: inherited_column_offset,
-        content_box_left,
-        content_box_size: legacy_content_box_size,
-        content_box_inset: constants.content_box_inset,
-        alignment: column_alignment,
-    });
     let row_offsets = grid_axis_offsets(GridAxisOffsetsInput {
         style,
         axis: GridAxisKind::Row,
@@ -351,11 +347,12 @@ where
                     AbsoluteGridContext {
                         container_style: style,
                         constants,
-                        column_offsets: &column_offsets,
-                        row_offsets: &row_offsets,
+                        containing_size,
+                        column_offsets: &logical_column_offsets,
+                        row_offsets: &logical_row_offsets,
                         columns,
                         rows,
-                        gap: Size::new(gap.inline, gap.block),
+                        gap,
                         lines,
                         column: placement.absolute_column,
                         row: placement.absolute_row,
@@ -891,32 +888,6 @@ fn grid_area_track_offset<S: LayoutScalar>(offsets: &[S], start: usize, end: usi
         .unwrap_or(S::ZERO)
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C06-T5 removes this legacy helper after migrating absolute/static grid projection."
-    )
-)]
-pub(super) fn grid_area_physical_origin<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-    column_offsets: &[S],
-    row_offsets: &[S],
-    area: GridArea<S>,
-) -> Point<S> {
-    if style.writing_mode.is_vertical() {
-        Point::new(
-            grid_area_track_offset(row_offsets, area.row, area.row_end),
-            grid_area_track_offset(column_offsets, area.column, area.column_end),
-        )
-    } else {
-        Point::new(
-            grid_area_track_offset(column_offsets, area.column, area.column_end),
-            grid_area_track_offset(row_offsets, area.row, area.row_end),
-        )
-    }
-}
-
 pub(super) fn grid_area_physical_size<S: LayoutScalar>(
     containing_flow_axes: FlowAxes,
     size: LogicalSizeOf<S>,
@@ -924,11 +895,7 @@ pub(super) fn grid_area_physical_size<S: LayoutScalar>(
     containing_flow_axes.physical_size(size)
 }
 
-fn grid_area_logical_size<S: LayoutScalar>(flow_axes: FlowAxes, size: Size<S>) -> LogicalSizeOf<S> {
-    flow_axes.logical_size(size)
-}
-
-fn grid_axis_logical_offsets<S: LayoutScalar>(
+pub(super) fn grid_axis_logical_offsets<S: LayoutScalar>(
     tracks: &[S],
     inherited_offset: Option<S>,
     content_box_start: S,
@@ -954,106 +921,52 @@ pub(super) struct GridAxisOffsetsInput<'a, S: LayoutScalar = Scalar> {
 }
 
 pub(super) fn grid_axis_offsets<S: LayoutScalar>(input: GridAxisOffsetsInput<'_, S>) -> Vec<S> {
-    if !input.style.writing_mode.is_vertical() {
-        return horizontal_grid_axis_offsets(input);
-    }
+    let flow_axes = FlowAxes::new(input.style.writing_mode, input.style.direction);
+    let logical_axis = input.axis.logical_axis();
+    let physical_axis = match logical_axis {
+        LogicalAxis::Inline => flow_axes.inline_axis(),
+        LogicalAxis::Block => flow_axes.block_axis(),
+    };
+    let physical_start = match physical_axis {
+        PhysicalAxis::Horizontal
+            if input.axis == GridAxisKind::Column
+                && input.inherited_offset.is_none()
+                && flow_axes
+                    .logical_axis_progression(logical_axis)
+                    .is_decreasing() =>
+        {
+            input.content_box_left
+        }
+        PhysicalAxis::Horizontal => input.content_box_inset.left,
+        PhysicalAxis::Vertical => input.content_box_inset.top,
+    };
+    let start = input
+        .inherited_offset
+        .map(|offset| offset + physical_start)
+        .unwrap_or(physical_start);
+    let logical_content_box_size = flow_axes.logical_size(input.content_box_size);
+    let extent = match logical_axis {
+        LogicalAxis::Inline => logical_content_box_size.inline,
+        LogicalAxis::Block => logical_content_box_size.block,
+    };
 
-    match input.axis {
-        GridAxisKind::Column => {
-            let start = input
-                .inherited_offset
-                .map(|offset| offset + input.content_box_inset.top)
-                .unwrap_or(input.content_box_inset.top);
-            if input.style.direction.is_rtl() {
-                rtl_offsets(
-                    input.tracks,
-                    start,
-                    input.content_box_size.height,
-                    input.alignment.start,
-                    input.alignment.gap,
-                )
-            } else {
-                offsets(
-                    input.tracks,
-                    start + input.alignment.start,
-                    input.alignment.gap,
-                )
-            }
-        }
-        GridAxisKind::Row => {
-            let start = input
-                .inherited_offset
-                .map(|offset| offset + input.content_box_inset.left)
-                .unwrap_or(input.content_box_inset.left);
-            if input.style.writing_mode == crate::WritingMode::VerticalRl {
-                rtl_offsets(
-                    input.tracks,
-                    start,
-                    input.content_box_size.width,
-                    input.alignment.start,
-                    input.alignment.gap,
-                )
-            } else {
-                offsets(
-                    input.tracks,
-                    start + input.alignment.start,
-                    input.alignment.gap,
-                )
-            }
-        }
-    }
-}
-
-fn horizontal_grid_axis_offsets<S: LayoutScalar>(input: GridAxisOffsetsInput<'_, S>) -> Vec<S> {
-    match input.axis {
-        GridAxisKind::Column => {
-            if let Some(offset) = input.inherited_offset {
-                if input.style.direction.is_rtl() {
-                    rtl_offsets(
-                        input.tracks,
-                        offset + input.content_box_inset.left,
-                        input.content_box_size.width,
-                        input.alignment.start,
-                        input.alignment.gap,
-                    )
-                } else {
-                    offsets(
-                        input.tracks,
-                        offset + input.content_box_inset.left + input.alignment.start,
-                        input.alignment.gap,
-                    )
-                }
-            } else if input.style.direction.is_rtl() {
-                rtl_offsets(
-                    input.tracks,
-                    input.content_box_left,
-                    input.content_box_size.width,
-                    input.alignment.start,
-                    input.alignment.gap,
-                )
-            } else {
-                offsets(
-                    input.tracks,
-                    input.content_box_inset.left + input.alignment.start,
-                    input.alignment.gap,
-                )
-            }
-        }
-        GridAxisKind::Row => {
-            if let Some(offset) = input.inherited_offset {
-                offsets(
-                    input.tracks,
-                    offset + input.content_box_inset.top,
-                    input.alignment.gap,
-                )
-            } else {
-                offsets(
-                    input.tracks,
-                    input.content_box_inset.top + input.alignment.start,
-                    input.alignment.gap,
-                )
-            }
-        }
+    if flow_axes
+        .logical_axis_progression(logical_axis)
+        .is_decreasing()
+    {
+        rtl_offsets(
+            input.tracks,
+            start,
+            extent,
+            input.alignment.start,
+            input.alignment.gap,
+        )
+    } else {
+        offsets(
+            input.tracks,
+            start + input.alignment.start,
+            input.alignment.gap,
+        )
     }
 }
 
@@ -1063,37 +976,6 @@ fn grid_physical_axis_progression(
     axis: PhysicalAxis,
 ) -> PhysicalProgression {
     FlowAxes::new(writing_mode, direction).physical_axis_progression(axis)
-}
-
-#[expect(
-    dead_code,
-    reason = "C06-T5 removes this legacy helper after migrating absolute/static grid projection."
-)]
-fn grid_item_block_axis_offset<Node, S: LayoutScalar>(
-    writing_mode: crate::WritingMode,
-    item: &PendingGridItem<Node, S>,
-) -> S {
-    if writing_mode.is_vertical() {
-        item.horizontal_axis.offset
-    } else {
-        item.vertical_axis.offset
-    }
-}
-
-#[expect(
-    dead_code,
-    reason = "C06-T5 removes this legacy helper after migrating absolute/static grid projection."
-)]
-fn grid_item_physical_offset<Node, S: LayoutScalar>(
-    writing_mode: crate::WritingMode,
-    item: &PendingGridItem<Node, S>,
-    block_axis_offset: S,
-) -> Point<S> {
-    if writing_mode.is_vertical() {
-        Point::new(block_axis_offset, item.horizontal_axis.offset)
-    } else {
-        Point::new(item.horizontal_axis.offset, block_axis_offset)
-    }
 }
 
 #[derive(Clone)]
@@ -2415,13 +2297,14 @@ fn resolve_grid_item_axis<S: LayoutScalar>(
 pub(super) struct AbsoluteGridContext<'a, S: LayoutScalar = Scalar> {
     pub(super) container_style: &'a NodeInputOf<S>,
     pub(super) constants: &'a Constants<S>,
+    pub(super) containing_size: Size<S>,
     pub(super) column: super::GridPlacement,
     pub(super) row: super::GridPlacement,
     pub(super) column_offsets: &'a [S],
     pub(super) row_offsets: &'a [S],
     pub(super) columns: &'a [S],
     pub(super) rows: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) lines: GridLines,
     pub(super) column_line_offset_adjustment: S,
 }
@@ -2434,9 +2317,8 @@ pub(super) struct AbsoluteGridAreaInput<'a, S: LayoutScalar = Scalar> {
     pub(super) rows: &'a [S],
     pub(super) column_offsets: &'a [S],
     pub(super) row_offsets: &'a [S],
-    pub(super) gap: Size<S>,
+    pub(super) gap: LogicalSizeOf<S>,
     pub(super) constants: &'a Constants<S>,
-    pub(super) columns_are_rtl: bool,
     pub(super) lines: GridLines,
     pub(super) column_line_offset_adjustment: S,
 }
@@ -2452,7 +2334,7 @@ pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
     pub(super) is_reverse: bool,
     pub(super) explicit_start: usize,
     pub(super) explicit_count: usize,
-    pub(super) reverse_positive_line_offset_adjustment: S,
+    pub(super) positive_line_offset_adjustment: S,
 }
 
 pub(super) fn layout_absolute_grid_child<Tree, M>(
@@ -2468,6 +2350,7 @@ where
     let AbsoluteGridContext {
         container_style,
         constants,
+        containing_size,
         column,
         row,
         column_offsets,
@@ -2478,43 +2361,27 @@ where
         lines,
         column_line_offset_adjustment,
     } = context;
-    let area = if container_style.writing_mode.is_vertical() {
-        absolute_grid_area(AbsoluteGridAreaInput {
-            column: row,
-            row: column,
-            columns: rows,
-            rows: columns,
-            column_offsets: row_offsets,
-            row_offsets: column_offsets,
-            gap: Size::new(gap.height, gap.width),
-            constants,
-            columns_are_rtl: container_style.writing_mode == crate::WritingMode::VerticalRl,
-            lines: GridLines {
-                column_explicit_start: lines.row_explicit_start,
-                column_explicit_count: lines.row_explicit_count,
-                row_explicit_start: lines.column_explicit_start,
-                row_explicit_count: lines.column_explicit_count,
-            },
-            column_line_offset_adjustment: Tree::Scalar::ZERO,
-        })
-    } else {
-        absolute_grid_area(AbsoluteGridAreaInput {
-            column,
-            row,
-            columns,
-            rows,
-            column_offsets,
-            row_offsets,
-            gap,
-            constants,
-            columns_are_rtl: container_style.direction.is_rtl(),
-            lines,
-            column_line_offset_adjustment,
-        })
-    };
-    let area_parent = Size::new(Some(area.size.width), Some(area.size.height));
-    let containing_flow_axes =
-        crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction);
+    let containing_flow_axes = constants.flow_axes;
+    let area = absolute_grid_area(AbsoluteGridAreaInput {
+        column,
+        row,
+        columns,
+        rows,
+        column_offsets,
+        row_offsets,
+        gap,
+        constants,
+        lines,
+        column_line_offset_adjustment: if containing_flow_axes.inline_axis()
+            == PhysicalAxis::Horizontal
+        {
+            column_line_offset_adjustment
+        } else {
+            Tree::Scalar::ZERO
+        },
+    });
+    let physical_area_size = containing_flow_axes.physical_size(area.size);
+    let area_parent = physical_area_size.map(Some);
     let unresolved_margin = containing_flow_axes
         .zip_physical_edges_with_inline_extent(child_style.margin, area_parent, |length, basis| {
             resolve_auto_optional(length, basis)
@@ -2522,8 +2389,8 @@ where
         .transpose_with_node(tree, child)?;
     let non_auto_margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
     let available_size = Size::new(
-        (area.size.width - non_auto_margin.horizontal_sum()).max(Tree::Scalar::ZERO),
-        (area.size.height - non_auto_margin.vertical_sum()).max(Tree::Scalar::ZERO),
+        (physical_area_size.width - non_auto_margin.horizontal_sum()).max(Tree::Scalar::ZERO),
+        (physical_area_size.height - non_auto_margin.vertical_sum()).max(Tree::Scalar::ZERO),
     );
     let padding = containing_flow_axes
         .zip_physical_edges_with_inline_extent(child_style.padding, area_parent, |length, basis| {
@@ -2576,13 +2443,13 @@ where
     let mut known = Size::new(
         style_size.width.or_else(|| {
             inset.left.zip(inset.right).map(|(left, right)| {
-                (area.size.width - non_auto_margin.horizontal_sum() - left - right)
+                (physical_area_size.width - non_auto_margin.horizontal_sum() - left - right)
                     .max(Tree::Scalar::ZERO)
             })
         }),
         style_size.height.or_else(|| {
             inset.top.zip(inset.bottom).map(|(top, bottom)| {
-                (area.size.height - non_auto_margin.vertical_sum() - top - bottom)
+                (physical_area_size.height - non_auto_margin.vertical_sum() - top - bottom)
                     .max(Tree::Scalar::ZERO)
             })
         }),
@@ -2619,51 +2486,50 @@ where
         .clamp_optional(min_size, max_size);
     let scrollbar_size =
         scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
-    let horizontal_axis = absolute_grid_axis(AbsoluteGridAxis {
-        area_location: area.location.x,
-        static_area_location: area.static_location.x,
-        area_size: area.size.width,
-        static_area_size: area.static_size.width,
-        size: final_size.width,
-        margin_start: unresolved_margin.left,
-        margin_end: unresolved_margin.right,
-        inset_start: inset.left,
-        inset_end: inset.right,
+    let logical_size = containing_flow_axes.logical_size(final_size);
+    let logical_margin = containing_flow_axes.logical_edges(unresolved_margin);
+    let logical_inset = containing_flow_axes.logical_edges(inset);
+    let inline_axis = absolute_grid_axis(AbsoluteGridAxis {
+        area_location: area.location.inline,
+        static_area_location: area.static_location.inline,
+        area_size: area.size.inline,
+        static_area_size: area.static_size.inline,
+        size: logical_size.inline,
+        margin_start: logical_margin.inline_start,
+        margin_end: logical_margin.inline_end,
+        inset_start: logical_inset.inline_start,
+        inset_end: logical_inset.inline_end,
         alignment: child_style
             .justify_self
             .unwrap_or(container_style.justify_items.unwrap_or(AlignItems::Start)),
-        progression: grid_physical_axis_progression(
-            container_style.writing_mode,
-            container_style.direction,
-            PhysicalAxis::Horizontal,
-        ),
+        progression: PhysicalProgression::Increasing,
     });
-    let vertical_axis = absolute_grid_axis(AbsoluteGridAxis {
-        area_location: area.location.y,
-        static_area_location: area.static_location.y,
-        area_size: area.size.height,
-        static_area_size: area.static_size.height,
-        size: final_size.height,
-        margin_start: unresolved_margin.top,
-        margin_end: unresolved_margin.bottom,
-        inset_start: inset.top,
-        inset_end: inset.bottom,
+    let block_axis = absolute_grid_axis(AbsoluteGridAxis {
+        area_location: area.location.block,
+        static_area_location: area.static_location.block,
+        area_size: area.size.block,
+        static_area_size: area.static_size.block,
+        size: logical_size.block,
+        margin_start: logical_margin.block_start,
+        margin_end: logical_margin.block_end,
+        inset_start: logical_inset.block_start,
+        inset_end: logical_inset.block_end,
         alignment: child_style
             .align_self
             .unwrap_or(container_style.align_items.unwrap_or(AlignItems::Start)),
-        progression: grid_physical_axis_progression(
-            container_style.writing_mode,
-            container_style.direction,
-            PhysicalAxis::Vertical,
-        ),
+        progression: PhysicalProgression::Increasing,
     });
-    let location = Point::new(horizontal_axis.location, vertical_axis.location);
-    let margin = Edges {
-        left: horizontal_axis.margin_start,
-        right: horizontal_axis.margin_end,
-        top: vertical_axis.margin_start,
-        bottom: vertical_axis.margin_end,
-    };
+    let location = containing_flow_axes.physical_point(
+        LogicalPointOf::new(inline_axis.location, block_axis.location),
+        logical_size,
+        containing_size,
+    );
+    let margin = containing_flow_axes.physical_edges(LogicalEdgesOf::new(
+        inline_axis.margin_start,
+        inline_axis.margin_end,
+        block_axis.margin_start,
+        block_axis.margin_end,
+    ));
 
     tree.set_unrounded(
         child,
@@ -2692,11 +2558,11 @@ where
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridArea<S: LayoutScalar = Scalar> {
-    pub(super) location: Point<S>,
-    pub(super) static_location: Point<S>,
-    pub(super) size: Size<S>,
-    pub(super) static_size: Size<S>,
+pub(super) struct LogicalAbsoluteGridArea<S: LayoutScalar = Scalar> {
+    pub(super) location: LogicalPointOf<S>,
+    pub(super) static_location: LogicalPointOf<S>,
+    pub(super) size: LogicalSizeOf<S>,
+    pub(super) static_size: LogicalSizeOf<S>,
 }
 
 #[derive(Clone, Copy)]
