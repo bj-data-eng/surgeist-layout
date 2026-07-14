@@ -1464,13 +1464,15 @@ where
             padding,
         })
         .map_err(|error| subgrid_child_context_container_error(node, child, error))?;
+        let child_flow_axes =
+            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
         let child_input = ComputeInputOf::for_child(
             RunMode::PerformLayout,
             SizingMode::InherentSize,
             RequestedAxis::Both,
             item.known,
             physical_area_size.map(Some),
-            flow_axes,
+            child_flow_axes,
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         );
@@ -1510,8 +1512,6 @@ where
             block_axis.margin_end,
         ));
         let baselines = output.baselines();
-        let child_flow_axes =
-            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
         let first_baseline =
             baselines.first_or_synthesize_block_baseline(child_flow_axes, output.size);
         let last_baseline =
@@ -1558,22 +1558,25 @@ where
     }
 
     for item in &mut pending_items {
-        // WebKit currently skips masonry baseline offset calculations. Surgeist
-        // keeps grid-lanes baseline offsets disabled for lane-axis placement,
-        // but still reports synthesized container baselines from final item
-        // geometry below.
+        // Grid-lanes keeps its container baseline selection attached to the
+        // selected running bucket while final placement projects that bucket
+        // along the lane axis.
         let item_offset = lane_report
             .item_offsets
             .iter()
             .find(|offset| offset.item == item.node);
         let lane_offset = item_offset.map_or(Tree::Scalar::ZERO, |offset| offset.offset);
+        let selected_lane_offset = item_offset.map_or(lane_axis_alignment_start, |offset| {
+            let start = offset.grid_axis_start - 1;
+            grid_area_track_offset(&column_offsets, start, start + offset.grid_axis_span)
+        });
         let logical_location = match lane_axis.logical_axis() {
             LogicalAxis::Inline => LogicalPointOf::new(
-                lane_axis_alignment_start
+                selected_lane_offset
                     + lane_offset
                     + item.horizontal_axis.offset
                     + item.logical_relative_offset.inline,
-                grid_area_track_offset(&row_offsets, item.area.row, item.area.row_end)
+                grid_area_track_offset(&row_offsets, 0, 1)
                     + item.vertical_axis.offset
                     + item.logical_relative_offset.block,
             ),
@@ -1592,6 +1595,22 @@ where
             flow_axes.logical_size(item.output.size),
             containing_size,
         );
+        let baseline_location = match lane_axis.logical_axis() {
+            LogicalAxis::Inline => flow_axes.physical_point(
+                LogicalPointOf::new(
+                    lane_axis_alignment_start
+                        + lane_offset
+                        + item.horizontal_axis.offset
+                        + item.logical_relative_offset.inline,
+                    grid_area_track_offset(&row_offsets, item.area.row, item.area.row_end)
+                        + item.vertical_axis.offset
+                        + item.logical_relative_offset.block,
+                ),
+                flow_axes.logical_size(item.output.size),
+                containing_size,
+            ),
+            LogicalAxis::Block => location,
+        };
         let area_origin = LogicalPointOf::new(
             grid_area_inline_offset(&column_offsets, item.area),
             grid_area_track_offset(&row_offsets, item.area.row, item.area.row_end),
@@ -1599,7 +1618,7 @@ where
         let physical_area_origin =
             flow_axes.physical_point(area_origin, item.area.size, containing_size);
         item.block_offset = logical_location.block - area_origin.block;
-        item.location = location;
+        item.location = baseline_location;
         visible_content_size = max_size(
             visible_content_size,
             content_size_contribution(

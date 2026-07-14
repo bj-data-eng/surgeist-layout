@@ -1999,6 +1999,59 @@ fn logical_axis_margin_sum<S: LayoutScalar>(
     }
 }
 
+#[test]
+fn orthogonal_grid_lanes_selected_rows_use_column_lane_offsets() {
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::GridLanes,
+                size: Size::new(DimensionOf::px(30.0 + 40.0), DimensionOf::px(50.0 + 60.0)),
+                grid_auto_flow: GridAutoFlow::Column,
+                grid_template_columns: vec![TrackComponentOf::px(30.0), TrackComponentOf::px(40.0)],
+                grid_template_rows: vec![TrackComponentOf::px(50.0), TrackComponentOf::px(60.0)],
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(DimensionOf::px(30.0), DimensionOf::px(50.0)),
+                grid_row: GridPlacement::try_lines(1, 2).expect("valid first grid row"),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Flex,
+                writing_mode: WritingMode::VerticalRl,
+                size: Size::new(DimensionOf::px(40.0), DimensionOf::px(60.0)),
+                grid_row: GridPlacement::try_lines(2, 3).expect("valid second grid row"),
+                ..NodeInputOf::default()
+            },
+        );
+
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(200.0)))
+            .expect("valid viewport request"),
+    )
+    .expect("orthogonal grid-lanes layout succeeds");
+
+    assert_eq!(
+        public_flow_output(batch.unrounded_entries(), 2).location,
+        Point::new(30.0, 0.0),
+        "the selected second row must own the second logical column lane offset"
+    );
+}
+
 fn assert_logical_grid_lanes_axes<S: LayoutScalar>() {
     let scalar = scalar::<S>;
     let logical_track_totals = crate::geometry::LogicalSizeOf::new(scalar(70.0), scalar(110.0));
@@ -2060,7 +2113,7 @@ fn assert_logical_grid_lanes_axes<S: LayoutScalar>() {
             } else {
                 [
                     crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
-                    crate::geometry::LogicalPointOf::new(S::ZERO, scalar(61.0)),
+                    crate::geometry::LogicalPointOf::new(scalar(37.0), S::ZERO),
                     crate::geometry::LogicalPointOf::new(
                         first_margin_box + logical_gap.inline,
                         S::ZERO,
