@@ -34,13 +34,18 @@ baselines physically; `subgrid.rs`, `tracks.rs`, and `child.rs` still carry
 physical axis gaps, edges, available sizes, traversal data, and inherited
 baselines. Child compute input is projected only at the child's own flow boundary;
 shared output, cache, and geometry stay physical, and `f64` never narrows to `f32`.
+For an orthogonal subgrid whose inherited parent gap is `7px` and own mapped gap
+is `11px`, CSS Grid Level 2, WPT `grid-gap-008/009`, and Blink 149 agree that the
+half-gutter adjustment yields `48px` and `58px` tracks inside the `117px` span.
 Preserve C01-C06 behavior, especially C06 ordinary-grid evidence. Use fixed,
 definite, non-overlapping tracks for axis tests. Do not absorb GRID-001/002/003/
 005/006/007/008/010, any other FRI-08 defect, authored CSS/style resolution,
 identity, text shaping, rendering, root adapters/API artifacts, compatibility
 aliases, temporary duplicate models, unsafe, dependency/feature/MSRV changes,
-browser/parser/resolver/launch/batch/retry/helper changes, acquisition, or a
-managed-browser invocation. C08 alone prunes temporary reports.
+generator parser/resolver/launch/batch/retry/helper changes, acquisition, or a
+managed-browser invocation. The sole fixture-support exception projects the
+already-parsed CSS row/column gap pair through the fixture node's `FlowAxes`;
+it adds no syntax or resolution behavior. C08 alone prunes temporary reports.
 
 ## Impacts
 Public API, dependencies, features, docs/examples, and Rust 1.97 MSRV: unchanged.
@@ -79,7 +84,8 @@ Coordinator commit after CLEAN: `layout: project inherited grid lanes through lo
 
 ### C07-T2 - Logical Subgrid Inheritance And Projection
 Files/area: `src/grid/subgrid.rs`, inherited/traversal and rerun consumers in
-`tracks.rs` and `child.rs`, plus focused grid/root/cache tests.
+`tracks.rs` and `child.rs`, plus focused grid/root/cache tests, including the
+auto-sized orthogonal parent and mapped-gap traversal regressions.
 Depends on: T1 task-clean.
 Outcome: make mapping reports, traversal carriers, inherited contexts, parent and
 child track spans, gaps, edge MBP, available-area bases, offsets, and inherited
@@ -91,19 +97,21 @@ parallel, opposing, horizontal-parent/vertical-child, and vertical-parent/
 horizontal-child flows.
 Acceptance: subgrid child compute inputs use the child's physical flow projection,
 while inheritance remains parent logical-axis correct; final item area, offset, and
-baseline are physical and mapped; no C07 flow panics or silently becomes horizontal;
+baseline are physical and mapped; child-local cross-flow content does not become
+parent demand on a non-inherited physical axis; traversal selects `style.gap`
+through the subgrid's logical axes; no C07 flow panics or silently becomes horizontal;
 no FRI-08 placement, demand, track-sizing, auto-fit, named-line, or traversal
 outcome becomes expected behavior.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_subgrid_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; then the Rust gate below.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_subgrid_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout resolved_subgrid_axis_gap_uses_node_logical_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; then the Rust gate below.
 Coordinator commit after CLEAN: `layout: inherit subgrid axes logically`.
 
 ### C07-T3 - Exact Lanes And Subgrid Browser Matrices
-Files/area: `tests/layout/browser_parity.rs`, `tests/bin/surgeist-layout-generate/generator.rs`
-(report inventory/count assertions only), `corpus.toml`, 18 constrained HTML fixtures,
-their 72 generator-produced XML files, both new scoped reports, and all refreshed
-current reports. All generator runtime changes are prohibited: parser, helper,
-resolver, browser resolution/launch, batch/retry, job lifecycle, and locking remain
-unchanged.
+Files/area: `tests/layout/browser_parity.rs`, `support.rs` (only logical CSS-gap
+projection and focused tests), `tests/bin/surgeist-layout-generate/generator.rs`
+(report inventory/count assertions only), `corpus.toml`, 18 constrained HTML
+fixtures, their 72 generator-produced XML files, both new scoped reports, and all
+refreshed current reports. Generator parser/runtime, helper, resolver, browser
+resolution/launch, batch/retry, job lifecycle, and locking remain unchanged.
 Depends on: T2 task-clean and the sole cached ExistingPinned Chrome for Testing
 149.0.7827.115.
 Outcome: add these four-variant (`border_box_ltr`, `border_box_rtl`,
@@ -125,17 +133,20 @@ or progression reversal.
 RED: exact path/report/count assertions and named nonignored
 `runs_fri_02_grid_lanes_axis_families_against_surgeist_layout` and
 `runs_fri_02_subgrid_axis_families_against_surgeist_layout` fail before the
-manifest entries, topology guards, HTML, and XML exist.
+manifest entries, topology guards, HTML, and XML exist; the orthogonal subgrid
+comparison then fails `48px` versus `50px` until fixture gaps are flow-projected.
 Acceptance: each owned family has an exact-path rejection test for missing,
 duplicate, misplaced, and extra paths plus non-grid/wrong-grid-root, text,
 absolute, hidden-only, equal-total, indefinite, overlapping, and wrong-flow
 topology; each named parity test compares all 36 outputs through `compute_layout`.
+Focused vertical and sideways fixture tests prove `column-gap` is logical inline,
+`row-gap` is logical block, and the pair is physically stored through `FlowAxes`.
 `generation_report_manifest_requires_the_exact_temporary_inventory` asserts 15
 reports, 5,256 generated outputs, and exact 36-output scoped filters
 `grid-lanes/grid_lanes_axes` and `subgrid/subgrid_axes`. The cumulative
 artifact/report contract and serial generation predicates below pass without
 pruning any of the 13 current reports.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout grid_lanes_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout subgrid_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_grid_lanes_axis_families_against_surgeist_layout -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_subgrid_axis_families_against_surgeist_layout -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate generation_report_manifest_requires_the_exact_temporary_inventory -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate grid_lanes_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate subgrid_axes -- --nocapture`; then Completion.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fixture_gaps_project_logical_css_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout grid_lanes_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout subgrid_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_grid_lanes_axis_families_against_surgeist_layout -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_subgrid_axis_families_against_surgeist_layout -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate generation_report_manifest_requires_the_exact_temporary_inventory -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate grid_lanes_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate subgrid_axes -- --nocapture`; then Completion.
 Coordinator commit after CLEAN: `tests: add logical lanes and subgrid browser matrices`.
 
 ## Completion
