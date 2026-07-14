@@ -1112,8 +1112,10 @@ corpus classifications.
 
 `corpus.toml` retains the schema version 2 implemented by C03 and remains the
 sole fixture-phase owner of the browser pin, stable launch profile, and report
-inventory. C04-C07 change only their scoped inventory/counts and generated
-artifacts; C08 performs the final inventory cleanup. The retained schema is:
+inventory. C04-C07 change only scoped inventory/counts, generated artifacts,
+and the C07 correction that makes browser ownership, job/cleanup deadlines, and
+sealed artifact publication total; C08 performs the final inventory cleanup.
+The retained schema is:
 
 ```toml
 schema_version = 2
@@ -1127,11 +1129,11 @@ provenance_format = "chrome-for-testing/{version} ({repository_relative_executab
 
 [browser.launch]
 batch_size = 50
-navigation_timeout_ms = 10000
+job_timeout_ms = 10000
 dom_poll_interval_ms = 25
 retry_count = 1
 job_order = "sorted-sequential"
-retry_error_class = "open-load-reset-timeout"
+retry_error_class = "browser-job-fault"
 profile_scope = "per-batch-and-retry"
 page_scope = "per-job"
 disable_default_args = true
@@ -1207,23 +1209,98 @@ and scoped-report structs reject unknown or duplicate fields. Existing source
 roots, imports, and case tables retain their current schema under version 2.
 
 The launch profile digest is SHA-256 over compact UTF-8 JSON serialization of
-this ordered tuple: `(1, batch_size, navigation_timeout_ms,
+this ordered tuple: `(1, batch_size, job_timeout_ms,
 dom_poll_interval_ms, retry_count, job_order, retry_error_class, profile_scope,
 page_scope, disable_default_args, disable_cache, arguments)`. XML provenance and
 every report metadata object add the resulting
 `launch-profile-sha256`; `check-corpus` recomputes it from the manifest.
 
-The existing single-prefix selector syntax is sufficient; no report aggregator
-or new selector syntax is introduced. Artifact-writing generation accepts either
-no filter for the full run or one exact `generation_reports.scoped.filter` value
-from the selected manifest. Prefixes that are not exact manifest entries are
-rejected before browser resolution, XML mutation, report mutation, or stale-file
+Artifacts also carry `generator-sha256`. It is SHA-256 over compact UTF-8 JSON
+serialization of this exact ordered array of `[repository_path, file_sha256]`
+pairs: `Cargo.toml`, `Cargo.lock`,
+`tests/bin/surgeist-layout-generate.rs`, and
+`tests/bin/surgeist-layout-generate/generator.rs`. Each inner digest covers the
+file's exact compiled-in bytes through `include_bytes!`, binding provenance to
+the executable's generator inputs rather than mutable runtime files. XML uses
+`generator-sha256`; report metadata uses `generator_sha256`. A newly built
+`check-corpus` recomputes the compiled identity and rejects every differing or
+missing XML/report value. No binary self-hash or Git-state dependency is used.
+
+Every browser artifact also carries one deterministic
+`artifact-snapshot-sha256`; XML uses that spelling and report metadata uses
+`artifact_snapshot_sha256`. This value is the SHA-256 of compact UTF-8 JSON for
+the following exact ordered tuple:
+
+```text
+(1,
+ report_metadata_without_snapshot,
+ sorted_xml_entries,
+ sorted_full_report_entries)
+```
+
+`report_metadata_without_snapshot` is the exact ordered tuple
+`(schema_version, generator, browser_source, browser_version,
+launch_profile_sha256, helper_sha256, base_style_sha256,
+corpus_manifest_sha256, taffy_commit, generator_sha256)`. Each
+`sorted_xml_entries` member is `(output_path, provenance_without_snapshot,
+xml_body_sha256)`, where the provenance tuple is `(schema_version, source,
+source_sha256, linked_resources, linked_resources_recorded, helper_sha256,
+base_style_sha256_or_null, browser_provenance, launch_profile_sha256,
+generator_sha256)`. `xml_body_sha256` covers the exact bytes after the one
+generated-provenance line, so the commitment is not recursive.
+Each `sorted_full_report_entries` member is a tagged tuple containing the exact
+serialized fields of one full-report `generated`, `unsupported`,
+`expected_fail`, `quarantined`, or `failed_to_generate` entry. Paths and report
+entries sort by their complete tuple using bytewise UTF-8 order. The manifest
+digest commits the report inventory and expected counts. No timestamp, process
+ID, staging path, or random run identity enters the commitment.
+
+The existing single-prefix selector syntax is sufficient; no new selector
+syntax is introduced. Artifact-writing generation accepts either no filter for
+the full run or one exact `generation_reports.scoped.filter` value from the
+selected manifest. Prefixes that are not exact manifest entries are rejected
+before browser resolution, staging, canonical artifact mutation, or stale-file
 pruning. The complete accepted report-file set is therefore exactly `all.json`
-plus the five manifest entries above. The nine pre-FRI-02 scoped reports are
-obsolete after their completed focused cycles and are removed by the successful
-full generator run, not by hand. A successful full run prunes every scoped
-report not named by the manifest; a scoped run writes only its manifest-named
-report and never prunes another report.
+plus the five manifest entries above.
+
+Browser jobs never write the canonical XML or report tree. They write one
+generator-owned candidate under `target/`; a job, browser-lifecycle, or candidate
+validation failure changes no canonical artifact. A full run constructs the
+complete candidate from its own
+outcomes and may begin when the current snapshot is absent or inadmissible. A
+scoped run first requires `check-corpus` to accept the current sealed snapshot,
+then replaces only its selected outcomes in that validated baseline. A stale
+compiled generator, manifest, source, helper, report, XML, or snapshot identity
+therefore forces a full run rather than permitting a scoped repair.
+
+Both successful modes derive the full report and every scoped report from the
+same candidate full-report partition. A scoped report is an exact filter
+projection, not an independently trusted run record. Before publication the
+generator validates the candidate with the same counts, path relations,
+provenance, projection, and commitment rules as `check-corpus`. It then
+atomically replaces individual XML files and scoped reports through sibling
+temporary files, performs authorized stale deletions, and atomically replaces
+`all.json` last. The prepared seal is already in its sibling temporary file and
+all generator staging cleanup completes before that final rename; no fallible
+publication or cleanup step follows it. That last replacement is the publication
+seal. Any error or
+process interruption before the seal leaves the prior `all.json`; its snapshot
+identity or content commitment cannot validate a mixed tree. An error after all
+jobs but before sealing publishes no admissible snapshot. If a cleanup failure occurs only
+after all jobs have staged, no duplicate job failure is invented; the command
+returns an infrastructure error and still withholds the seal.
+
+The nine pre-FRI-02 scoped reports are obsolete after their completed focused
+cycles and are removed by the successful full generator publication, not by
+hand. A full publication removes every XML or report outside the manifest-owned
+candidate before sealing. A scoped publication may replace or delete only its
+selected XML outputs, but it refreshes the metadata and exact projection of all
+manifest-owned reports before sealing and never removes an unrelated output.
+
+The snapshot protocol is inventory-generic. During C07 it covers the exact
+transitional 15-report manifest without pruning the 13 reports that entered that
+cycle; after C08 it covers the final six-report manifest described here. No
+snapshot or publication code hard-codes either count.
 
 Each scoped report records its exact filter, contains exactly the named count in
 `generated`, and has zero `unsupported`, `expected_fail`, `quarantined`, and
@@ -1242,9 +1319,36 @@ and 219 subgrid fixtures.
 
 `check-corpus` derives the six-file set from `corpus.toml` and rejects any
 missing report, extra JSON or non-JSON report artifact, mismatched filter/file
-name, stale metadata or provenance, incorrect bucket/count/path union, or
-incorrect full-report relation. It does not accept a report merely because its
-filename agrees with its self-declared filter.
+name, stale metadata or provenance, incorrect bucket/count/path union,
+incorrect scoped projection, or incorrect full-report relation. It reconstructs
+the complete artifact commitment from the XML payloads and full report, requires
+every XML and every manifest-owned report to carry that same value, and requires
+the value
+to equal the `all.json` publication seal. It does not accept a report merely
+because its filename agrees with its self-declared filter.
+
+Browser XML is admissible as semantic oracle evidence only after the exact
+pinned executable has passed runtime version validation, generation completed
+without a failed/expected-fail/quarantined entry for the owned scope, and
+`check-corpus` has validated source, helper, generator, launch-profile, provenance,
+report-inventory, output-path, scoped-projection, and content-commitment relations
+for the same sealed artifact snapshot.
+Parity execution and review use that unchanged snapshot; changing source,
+manifest, helper, generator behavior, XML, or reports invalidates admissibility
+until generation and `check-corpus` pass again.
+
+A pin-valid Chrome result that conflicts with the applicable CSS algorithm is
+not layout truth merely because it was generated. Confirm a Chrome shortcoming
+by reproducing the exact pinned result, matching it to normative CSS steps and
+WPT expected output plus Chrome failure metadata when present, and inspecting
+the corresponding exact-version Blink path when causality remains uncertain;
+independent WebKit evidence may break a remaining tie. Once confirmed, retain
+the browser output only as observation and stop the affected acceptance gate.
+Do not hand-edit XML, silently exclude the case, weaken tolerance, or add an
+expected-fail/quarantine entry. A reviewed specification/sequence/cycle-plan
+amendment must instead assign semantic ownership to a CSS/WPT-derived unit or
+layout-oracle test and explicitly authorize any browser-report classification.
+Until then the zero-bucket C07 contract remains blocking.
 
 Named non-ignored tests
 `runs_fri_02_grid_axis_families_against_surgeist_layout`,
@@ -1286,7 +1390,7 @@ the primary evidence for each behavior and failure class.
 | `src/grid/mod.rs`, `tracks.rs` | Keep column/row bases, totals, gaps, intrinsic sizing, and reruns logical until projection. |
 | `src/grid/child.rs`, `subgrid.rs`, `lanes.rs` | Project areas/offsets/baselines/inherited axes through shared mapping without absorbing other grid findings. |
 | tests and browser parity | Add the required mapping, property, algorithm, topology, fixture, XML, and default regression evidence. |
-| `Cargo.toml`, generator, `corpus.toml` | C03 implemented both validated pinned-browser modes, one launch-settings owner, schema-two reports, and browser-free corpus checks. C04-C07 add five exact scoped entries cumulatively; C08 removes the nine temporary pre-FRI-02 entries and leaves the final six-file inventory. |
+| `Cargo.toml`, generator, `corpus.toml` | C03 implemented both validated pinned-browser modes, one launch-settings owner, schema-two reports, and browser-free corpus checks. C07 adds an owned-child browser session, a typed total job/cleanup lifecycle, staged sealed-snapshot publication, and generator/snapshot provenance without retuning launch or batching. C04-C07 add five exact scoped entries cumulatively; C08 removes the nine temporary pre-FRI-02 entries and leaves the final six-file inventory. |
 | `src/lib.rs`, README, rustdoc | C01-C03 document and reexport the implemented substrate. Each later cycle adds only its intentional public type/docs; C08 verifies the final front door and root boundary. |
 
 No module may define another exhaustive `WritingMode` mapping table. Direct
@@ -1320,6 +1424,12 @@ browser acquisition is an intentional generator capability. The default layout
 engine and existing `layout-golden-generate` crate feature remain the two
 relevant feature states.
 
+Changing the retry-class tuple member refreshes the launch-profile digest in
+all generator provenance and reports. The successful full run owns that metadata
+refresh and adds the compiled generator digest and artifact-snapshot commitment
+to every XML/report. All 5,184 pre-C07 XML provenance lines therefore refresh;
+their XML bodies and the 356 unsupported classification tuples remain exact.
+
 Rust 1.97 remains the crate MSRV. All source, tests, and generator-feature code
 compile with the already-installed Rust 1.97 toolchain.
 
@@ -1351,6 +1461,7 @@ Command and environment precedence is exact:
 | `check-corpus` | None | No browser-selection variable or generation filter is read and no browser resolver or executable is entered. |
 | `check-taffy-corpus` | None | Preserve the current pinned-source verification behavior. No browser-selection variable or generation filter is read. |
 | `import-taffy` | None | Preserve the current pinned Taffy import behavior and manifest contract. No browser-selection variable or generation filter is read. Agents do not invoke this acquisition-capable command without exact user permission. |
+| `__remove-generator-temp <path>` | None | Private child-process mode entered only by the running generator. Validate one direct-child path under a fixed generator-temp root, remove it, and perform no browser, source, manifest, XML, or report access. |
 | no command or any other command | None | Return a usage error without browser, source-import, or artifact access. |
 
 `SURGEIST_BROWSER_VERSION` and `SURGEIST_BROWSER_CACHE` are removed as override
@@ -1394,15 +1505,31 @@ Both methods therefore emit identical stable XML and report provenance:
 chrome-for-testing/149.0.7827.115 (target/surgeist-browser/...)
 ```
 
-One generator-owned `browser_launch_config(pinned_browser, profile)` function is
-the only production builder for the primary batch browser, retry browser, and
-existing-pinned one-shot invocation. It applies the same headless mode,
-temporary user-data profile, disabled default arguments and cache, and the exact
+One generator-owned `browser_launch_contract(pinned_browser, profile)` function
+is the only production builder for the primary batch browser, recovery browser,
+retry browser, and existing-pinned one-shot invocation. It returns the matching
+Chromiumoxide `BrowserConfig` and `HandlerConfig`, applying the same headless
+mode, unique user-data profile, disabled default arguments and cache, and exact
 ordered `browser.launch.arguments` list from `corpus.toml`; no duplicate
-production argument constant remains. That list retains `use-mock-keychain`, `no-first-run`,
-`no-default-browser-check`, pinned locale/color behavior, background-network
-suppression, and the required layout feature flags. No documented or internal
-single-use path executes Chrome directly or omits this builder.
+production argument constant remains. That list retains `use-mock-keychain`,
+`no-first-run`, `no-default-browser-check`, pinned locale/color behavior,
+background-network suppression, and the required layout feature flags. The
+handler request timeout and every outer launch/job deadline use the same
+manifest-owned `job_timeout_ms`; library defaults cannot diverge by path.
+
+The private launch phases are separate valid types. `OwnedBrowserProcess` owns
+the `chromiumoxide::async_process::Child` and validated profile path immediately
+after spawn. A successful DevTools attach consumes it into
+`OwnedBrowserSession`, which additionally owns the connected `Browser` and
+handler task; no struct stores a partially initialized set of optional owners.
+Launch calls public `BrowserConfig::launch()` to obtain the process, discovers
+the exact `DevTools listening on ws://.../devtools/browser/...` URL from its
+stderr under the launch deadline, and calls `Browser::connect_with_config` with
+the shared handler config. It does not call `Browser::launch`, whose
+error/timeout path cannot return the child handle, and it never calls
+`Browser::wait` or `Browser::kill`. Thus every post-spawn launch fault retains
+an owned process that can enter bounded teardown. No documented or internal
+single-use path executes Chrome outside this owner.
 
 ### Generator Stability Invariants
 
@@ -1413,20 +1540,107 @@ lifecycles are:
 
 | Setting | Required behavior |
 | --- | --- |
-| Batch size | Exactly 50 fixture jobs per browser process. Larger batches previously caused intermittent omitted fixtures and are not an implementation option. |
+| Batch size | At most 50 fixture jobs per primary browser process. Recovery may shorten a process lifetime but never enlarges or combines logical batches. Larger batches previously caused intermittent omitted fixtures and are not an implementation option. |
 | Job order | Deterministic sorted fixture order, processed sequentially within each batch. |
-| Navigation timeout | 10 seconds. |
+| Job timeout | 10 seconds for every initial or retry browser-job attempt. |
 | DOM poll interval | 25 milliseconds. |
-| Retry | One retry only for the existing open/load/reset timeout class, in a fresh browser process with the same launch config. |
-| Profile | One unique temporary user-data directory per batch and per retry, removed after browser shutdown. |
+| Retry | One retry only for typed `BrowserJobFault`, in a fresh browser process with the same launch config. Content failures are terminal for that job without invalidating a healthy browser. |
+| Profile | One unique temporary user-data directory per primary, recovery-primary, and retry browser, removed after bounded shutdown. |
 | Page lifecycle | One page per job, closed after measurement; browser and handler are closed/joined after the batch. |
 | Launch config | Default Chromiumoxide arguments disabled, browser cache disabled, explicit `headless=new`, and the current exact 28 custom arguments including `use-mock-keychain`. |
-| Failure accounting | Every failed job is recorded in `failed_to_generate`; no generic skip or silent omission is permitted. |
+| Failure accounting | Every failed or unattempted job is represented exactly once in the in-memory `failed_to_generate` partition; no generic skip, duplicate, or silent omission is permitted. A failed run does not publish that partition as a canonical corpus report. |
 
-The helper/base-style injection, document-write loading path, DOM-readiness wait,
-fresh-browser retry predicate, and four fixture variants remain unchanged. A
-future change to any value or lifecycle above requires separate evidence and
-corpus review; it is not incidental refactoring inside FRI-02.
+Each primary attempt's budget begins before page creation and ends after helper
+measurement is decoded and its page has closed. A retry budget begins before
+retry-browser launch. Primary and recovery launch handshakes each have the same
+10-second bound. A successful attempt stages that fixture's outputs/report
+entries only in the generator-owned candidate; no failed attempt stages output
+and no attempt writes the canonical corpus.
+
+The crate-private attempt model is closed and typed:
+
+| Failure kind | Source and browser state | Retry/accounting |
+| --- | --- | --- |
+| `LaunchFault` | Executable spawn failure, missing/invalid DevTools stderr URL, launch-handshake deadline, or connect `CdpError`. No child exists after a spawn failure; every later launch fault retains the owned child. | After successful containment/profile cleanup, account the launch's assigned jobs as specified below. It never recursively relaunches itself or consumes a job retry. |
+| `ContentFailure` | Fixture/helper/schema/value failure or `CdpError::JavascriptException`; browser remains reusable only after bounded page close succeeds. | Record the job once; no retry; continue in that primary. |
+| `BrowserJobFault` | Initial/retry outer attempt deadline, page/protocol/transport/process `CdpError` other than `JavascriptException`, or a page that cannot close inside the attempt budget; browser is invalid. | An initial attempt consumes the job's sole fresh-browser retry after successful session teardown; any retry failure is terminal. |
+| `CleanupFailure` | Handler, owned child, or generator-temp cleanup cannot reach its specified terminal state inside the bounded teardown. | Run-fatal: no retry, browser reuse, recovery process, or later batch; account every unstaged job remaining in the run exactly once. |
+
+Mapping matches `CdpError` variants, never formatted messages. Local decode and
+validation after a successful helper value are `ContentFailure`; every CDP error
+except `JavascriptException` is conservatively browser-invalidating. A content
+failure whose page cannot close becomes `BrowserJobFault` because the whole
+owned session must be discarded; it becomes `CleanupFailure` only if that
+discard cannot terminate cleanly.
+
+Launch and recovery use this finite matrix:
+
+| Transition | Required result |
+| --- | --- |
+| Initial primary launch succeeds | Process the logical batch sequentially. |
+| Initial primary `LaunchFault` | Contain any owned child and remove the profile; record every job in that logical batch as terminal failure without consuming per-job retry; continue with the next logical batch. |
+| Initial attempt has `ContentFailure` | Close the page, record the job, and continue; cleanup failure follows its row below. |
+| Initial attempt has `BrowserJobFault` | Tear down the invalid primary; if clean, run that job's one retry, then launch one recovery primary for only the untouched remainder. |
+| Retry `LaunchFault`, `ContentFailure`, or `BrowserJobFault` | Consume the retry and record that job once; contain any retry child/session, then launch a recovery primary only after clean teardown. |
+| Recovery-primary `LaunchFault` | Contain any owned child and record every untouched job in that logical batch once without consuming their retry budgets; continue with the next logical batch. |
+| Any `CleanupFailure` | Mark the current unstaged job plus every untouched job in all remaining logical batches once, stop launching immediately, suppress snapshot publication, and return a run-fatal error. |
+
+Any terminal job failure prevents publication even when later jobs run to
+complete ordinary accounting. `CleanupFailure` does not run later batches merely
+to account them; it deterministically walks the already-known sorted job list in
+memory. Before returning nonzero, the command renders every in-memory failure in
+sorted job order with its source and typed diagnostic plus the final failed-job
+count; it never directs the user to an unchanged canonical report. When cleanup
+fails after the final job has staged, there is no current or
+remaining job to record, so the generator returns only the infrastructure error
+and does not fabricate a duplicate entry. In every failure case the prior sealed
+canonical snapshot remains untouched unless publication itself was interrupted;
+an interrupted publication is rejected by its unchanged `all.json` seal.
+
+Each browser-fault segment permits one recovery-primary launch; a later job may
+start a new segment, so at most the finite job count bounds recovery. Launch
+failure never recurses.
+
+Owned-session teardown ordering is exact. First attempt `Browser::close` for at
+most 10 seconds; timeout or error is diagnostic and forces the process path but
+does not by itself mean ownership was lost. Abort the handler task and require
+its join to resolve as normal completion or expected cancellation within 10
+seconds. Then call `Child::try_wait`. If the child was not reaped, call its
+Tokio inner child's non-awaiting `start_kill` once and bound `Child::wait` by 10
+seconds. If `start_kill` reports an error, one immediate `try_wait` may prove the
+child already exited; otherwise cleanup fails. A wait error or second deadline
+is `CleanupFailure`; the run launches nothing else, drops the still-owned child
+with `kill_on_drop`, and terminates. `Browser::wait`, `Browser::kill`, and an
+unbounded browser future are never used.
+
+No teardown error short-circuits a later ownership step. Browser-close and
+handler-join defects are retained while child kill/reap still runs. Profile
+cleanup runs after a reaped child even when an earlier defect exists; it is
+skipped when the child cannot be reaped so an active profile is never removed.
+The returned `CleanupFailure` aggregates those typed defects in transition
+order. A pre-attach `OwnedBrowserProcess` performs only child kill/reap followed
+by profile cleanup.
+
+Generator temporary-directory deletion never uses `spawn_blocking` or detached
+filesystem work. The
+generator has one private `__remove-generator-temp` child mode in its current
+executable. It accepts exactly one lexically validated direct-child path under
+the fixed browser-profile or snapshot-staging root, performs `remove_dir_all`,
+and exits success only when the path is absent. Ordinary command dispatch cannot
+select it through environment state. The parent starts that helper with
+`kill_on_drop`, bounds it by 10 seconds, and on timeout calls `start_kill` and
+waits at most 10 more seconds for reaping. Exactly three helper attempts are
+allowed, separated by 25 milliseconds, and a later attempt starts only after the
+previous child was reaped. An unreaped helper, rejected path, or final present
+profile is `CleanupFailure`. This subprocess boundary makes blocking filesystem
+deletion cancellable from the generator without adding a dependency or allowing
+overlapping removal work.
+
+The helper/base-style injection, document-write loading path, DOM-readiness
+predicate/poll interval, and four fixture variants remain unchanged. The old
+`navigation_timeout_ms`, `open-load-reset-timeout`, and `browser-job-timeout`
+are rejected, not aliased. Future lifecycle changes require separate corpus
+evidence.
 
 The managed human-facing command is:
 
@@ -1451,8 +1665,9 @@ CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER= cargo run --locked --off
 `check-corpus` is browser-provenance validation over existing artifacts; it does
 not require, resolve, execute, or download a browser. It derives the required
 browser source/version from the committed pinned corpus contract, validates the
-five scoped report names/filters/counts and their XML provenance, the full-report
-208-path subset relation and exact summary, and the three HTML inventory totals.
+compiled generator digest, artifact-snapshot commitment and seal, five scoped
+report projections and their XML provenance, the full-report 208-path subset
+relation and exact summary, and the three HTML inventory totals.
 The generated artifact delta separately contains no change to any of the 356
 pre-existing unsupported `(name, source, variant, reason)` tuples. It never
 invokes the Taffy import path or either browser resolver.
@@ -1549,17 +1764,47 @@ validated; tests do not perform a network acquisition.
 Command-dispatch tests prove both generation modes reject a filter outside the
 manifest's exact scoped set before browser resolution or artifact access, an
 empty filter selects the full report, and each exact scoped filter selects only
-its manifest-named report. They also prove `check-taffy-corpus` and
+its manifest-named measurement scope. They prove the private temp-removal mode
+rejects every path outside its two fixed roots and cannot enter browser or
+artifact code. They also prove `check-taffy-corpus` and
 `import-taffy` remain recognized non-browser commands and do not construct or
 validate browser state; tests exercise dispatch boundaries without performing a
 source acquisition.
 
-One launch-config test asserts every production launch site consumes the shared
-builder and its exact 28 arguments, including `use-mock-keychain`. Stability
-tests assert batch size 50, sorted sequential jobs, 10-second timeout,
-25-millisecond polling, one fresh-browser retry, temporary-profile cleanup, and
-failure-bucket accounting. A single-filter existing-pinned test exercises the AI
-one-shot path through the same measurement and launch configuration.
+One launch-contract test asserts every production launch site consumes the
+shared config/handler owner and its exact 28 arguments, including
+`use-mock-keychain`. A source assertion rejects `Browser::launch`,
+`Browser::wait`, and `Browser::kill` in generator production code. Stability
+tests assert the 50-job maximum, sorted sequential jobs, 10-second launch and job
+deadlines, 25-millisecond polling, typed launch/content/browser-fault/cleanup
+classification, one fresh-browser retry, bounded close/handler/start-kill/wait
+and helper-process cleanup, sequential primary recovery, and exact in-memory
+failure accounting. Deterministic private harnesses prove spawn failure,
+post-spawn URL/connect timeout with retained-child teardown, initial fault then
+success, retry fault, content failure with healthy reuse,
+initial/recovery/retry launch faults, cleanup failure, child-wait timeout,
+handler abort/join, helper timeout/reap, profile-cleanup exhaustion, no overlapping
+removal attempts, exact whole-run remainder accounting/order, no duplicate
+staging, and no launch after a run-fatal outcome without wall-clock waits.
+
+Snapshot tests prove full generation can construct a new candidate without a
+baseline; scoped generation rejects an inadmissible baseline before browser
+resolution; a scoped candidate replaces only its projection; and both modes
+derive every manifest-owned report from one full partition. Commitment tests
+mutate each
+global metadata field, XML path, parsed provenance field, XML payload, and
+full-report bucket entry and require a different digest. Publication tests
+interrupt before XML replacement, during XML/scoped-report replacement, during
+stale deletion, and immediately before the final `all.json` replacement; every
+partial state is rejected while the prior seal can never accept mixed content.
+A terminal browser or cleanup failure leaves canonical artifacts byte-identical.
+Idempotent full and scoped publications reproduce the same commitment and bytes.
+Digest tests prove each of the four compiled generator inputs contributes in
+exact order, and `check-corpus` rejects stale, missing, mixed, or unsealed XML
+and report identities plus a scoped report that is not the exact full-report
+projection. A single-filter existing-pinned test exercises the AI one-shot path
+through the same measurement, owned-child launch, staging, and sealed-publication
+configuration.
 
 `check-corpus` passes without a browser environment, rejects every missing or
 extra report filename, and verifies the exact scoped/full report relationships.
@@ -1642,8 +1887,11 @@ non-ignored and green.
    later geometry remain outside layout;
 9. new HTML/XML/report artifacts are generator-produced and provenance-current,
    the report directory has exactly its manifest-owned six files, both validated
-   pinned-browser resolution methods use one launch profile, and the established
-   batch/retry/keychain-bypass generation settings remain intact;
+   pinned-browser resolution methods use one launch profile, every browser job,
+   retry, child/session teardown, and profile cleanup is finite, and the
+   established batch maximum, numeric timeout, retry count, launch arguments,
+   and keychain bypass remain intact; all browser comparisons satisfy the
+   generator-bound sealed artifact-snapshot admissibility predicate;
 10. README, rustdoc, public reexports, Rust 1.97 MSRV, feature behavior, and the
     archival root handoff match the implemented contract;
 11. every owned browser family runs in normal non-ignored verification; and
