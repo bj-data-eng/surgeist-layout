@@ -1959,6 +1959,7 @@ fn effective_content_box_left<S: LayoutScalar>(
 #[derive(Clone, Copy)]
 struct Constants<S: LayoutScalar = Scalar> {
     pub(super) flow_axes: crate::geometry::FlowAxes,
+    explicit_definite_content_size: Size<Option<S>>,
     node_outer_size: Size<Option<S>>,
     node_inner_size: Size<Option<S>>,
     node_min_size: Size<Option<S>>,
@@ -2035,6 +2036,9 @@ impl<S: LayoutScalar> Constants<S> {
             .transpose_with_node(tree, node)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
+        let explicit_definite_outer_size = input.known().or(style_size);
+        let explicit_definite_content_size =
+            explicit_definite_outer_size.sub_optional(content_box_inset.sum_axes());
         let node_outer_size = input
             .known()
             .or(style_size.clamp_optional(min_size, max_size))
@@ -2049,6 +2053,7 @@ impl<S: LayoutScalar> Constants<S> {
 
         Ok(Self {
             flow_axes: crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+            explicit_definite_content_size,
             node_outer_size,
             node_inner_size,
             node_min_size: min_size,

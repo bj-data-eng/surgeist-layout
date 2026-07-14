@@ -27,6 +27,32 @@ impl SubgridAxisReport {
     }
 }
 
+pub(super) fn inherited_subgrid_physical_axis(
+    report: SubgridAxisReport,
+    parent_flow_axes: crate::geometry::FlowAxes,
+    child_flow_axes: crate::geometry::FlowAxes,
+) -> Option<PhysicalAxis> {
+    if !report.can_inherit() {
+        return None;
+    }
+    let mapping = report.mapping.ok()?;
+    let physical_axis = physical_axis_for_grid_axis(parent_flow_axes, mapping.parent_axis);
+    if physical_axis != physical_axis_for_grid_axis(child_flow_axes, mapping.child_axis) {
+        return None;
+    }
+    Some(physical_axis)
+}
+
+fn physical_axis_for_grid_axis(
+    flow_axes: crate::geometry::FlowAxes,
+    axis: GridAxisKind,
+) -> PhysicalAxis {
+    match axis {
+        GridAxisKind::Column => flow_axes.inline_axis(),
+        GridAxisKind::Row => flow_axes.block_axis(),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct SubgridEligibility {
     pub(super) eligible: bool,
@@ -890,8 +916,10 @@ where
             resolve_length_or_zero(length, basis)
         })
         .transpose_with_node(tree, node)?;
+    let current_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
     let (margins, border, padding) = traversal_axis_edges(
         queried_axis,
+        current_flow_axes,
         resolved_margin,
         resolved_border,
         resolved_padding,
@@ -901,7 +929,6 @@ where
         - resolved_border.sum_axes()
         - resolved_padding.sum_axes())
     .max(Size::ZERO);
-    let current_flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
     let logical_content_box_size = current_flow_axes.logical_size(physical_content_box_size);
     let content_box_size = Size::new(
         logical_content_box_size.inline,
@@ -934,7 +961,6 @@ where
         content_box_size,
         item_report,
         queried_axis,
-        containing_flow_axes,
         subgrid_gap,
         parent_named_columns,
         parent_named_rows,
@@ -980,7 +1006,6 @@ fn subgrid_traversal_children<Tree, M>(
     content_box_size: Size<Tree::Scalar>,
     item_report: SubgridItemReport<<Tree as Traverse>::Node>,
     queried_axis: GridAxisKind,
-    containing_flow_axes: crate::geometry::FlowAxes,
     gap: Size<Tree::Scalar>,
     parent_named_columns: &NamedGridLines,
     parent_named_rows: &NamedGridLines,
@@ -1026,7 +1051,7 @@ where
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            containing_flow_axes,
+            crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             available,
         ),
     )?;
@@ -1271,6 +1296,7 @@ fn resolved_subgrid_axis_gap<S: LayoutScalar>(
 
 fn traversal_axis_edges<S: LayoutScalar>(
     axis: GridAxisKind,
+    flow_axes: crate::geometry::FlowAxes,
     margin: Edges<S>,
     border: Edges<S>,
     padding: Edges<S>,
@@ -1279,33 +1305,36 @@ fn traversal_axis_edges<S: LayoutScalar>(
     SubgridAxisEdges<S>,
     SubgridAxisEdges<S>,
 ) {
+    let margin = flow_axes.logical_edges(margin);
+    let border = flow_axes.logical_edges(border);
+    let padding = flow_axes.logical_edges(padding);
     match axis {
         GridAxisKind::Column => (
             SubgridAxisEdges {
-                start: margin.left,
-                end: margin.right,
+                start: margin.inline_start,
+                end: margin.inline_end,
             },
             SubgridAxisEdges {
-                start: border.left,
-                end: border.right,
+                start: border.inline_start,
+                end: border.inline_end,
             },
             SubgridAxisEdges {
-                start: padding.left,
-                end: padding.right,
+                start: padding.inline_start,
+                end: padding.inline_end,
             },
         ),
         GridAxisKind::Row => (
             SubgridAxisEdges {
-                start: margin.top,
-                end: margin.bottom,
+                start: margin.block_start,
+                end: margin.block_end,
             },
             SubgridAxisEdges {
-                start: border.top,
-                end: border.bottom,
+                start: border.block_start,
+                end: border.block_end,
             },
             SubgridAxisEdges {
-                start: padding.top,
-                end: padding.bottom,
+                start: padding.block_start,
+                end: padding.block_end,
             },
         ),
     }
@@ -1529,7 +1558,6 @@ mod tests {
             Size::new(20.0, 20.0),
             item_report,
             GridAxisKind::Column,
-            crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
             Size::ZERO,
             &named_columns,
             &named_rows,

@@ -199,16 +199,6 @@ where
                         .iter()
                         .any(|track| track_accepts_min_content_span_priority(*track))
                 });
-        let physical_area_size = grid_area_physical_size(constants.flow_axes, area.size);
-        let sizing = grid_item_sizing_for_grid_flow::<Tree, M>(
-            tree,
-            child,
-            &child_style,
-            style,
-            physical_area_size,
-            physical_area_size.map(Some),
-            grid.sizing_flow_axes,
-        )?;
         let output = if logical_available.inline == AvailableOf::MIN_CONTENT
             && grid_axis_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Column)
                 .clips_contents()
@@ -225,7 +215,6 @@ where
                     area,
                     columns: &columns,
                     rows: &rows,
-                    sizing,
                     subgrid_item: grid.subgrid_report.items.get(index).copied(),
                     input: ComputeInputOf::for_child(
                         if matches!(align_self, AlignItems::Baseline | AlignItems::LastBaseline) {
@@ -456,7 +445,6 @@ struct IntrinsicGridChildInput<'a, Node, S: LayoutScalar = Scalar> {
     area: GridArea<S>,
     columns: &'a [S],
     rows: &'a [S],
-    sizing: GridItemSizing<S>,
     subgrid_item: Option<SubgridItemReport<Node>>,
     input: ComputeInputOf<S>,
 }
@@ -475,7 +463,6 @@ where
         area,
         columns,
         rows,
-        mut sizing,
         subgrid_item,
         input,
     } = args;
@@ -483,6 +470,53 @@ where
     let Some(subgrid_item) = subgrid_item else {
         return tree.compute_child(child, input);
     };
+    if !subgrid_item.column.can_inherit() && !subgrid_item.row.can_inherit() {
+        return tree.compute_child(child, input);
+    }
+    let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+    let column_constraint =
+        intrinsic_subgrid_axis_constraint(IntrinsicSubgridAxisConstraintInput {
+            report: subgrid_item.column,
+            area,
+            parent_flow_axes: grid.constants.flow_axes,
+            child_flow_axes,
+            explicit_parent_content_size: grid.constants.explicit_definite_content_size,
+            parent_column_count: columns.len(),
+            parent_row_count: rows.len(),
+            tracks: grid.column_tracks,
+            gap: grid.gap.inline,
+        });
+    let row_constraint = intrinsic_subgrid_axis_constraint(IntrinsicSubgridAxisConstraintInput {
+        report: subgrid_item.row,
+        area,
+        parent_flow_axes: grid.constants.flow_axes,
+        child_flow_axes,
+        explicit_parent_content_size: grid.constants.explicit_definite_content_size,
+        parent_column_count: columns.len(),
+        parent_row_count: rows.len(),
+        tracks: grid.row_tracks,
+        gap: grid.gap.block,
+    });
+    let mut physical_area_size = grid_area_physical_size(grid.constants.flow_axes, area.size);
+    apply_resolved_intrinsic_subgrid_area_constraints(
+        &mut physical_area_size,
+        [column_constraint, row_constraint],
+    );
+    let sizing = grid_item_sizing_for_grid_flow::<Tree, M>(
+        tree,
+        child,
+        child_style,
+        grid.style,
+        physical_area_size,
+        physical_area_size.map(Some),
+        grid.sizing_flow_axes,
+    )?;
+    let input = intrinsic_subgrid_child_input(
+        input,
+        sizing,
+        child_flow_axes,
+        [column_constraint, row_constraint],
+    );
     if !matches!(
         child_style.display.inner_display(),
         Display::Grid | Display::GridLanes
@@ -494,8 +528,6 @@ where
         return tree.compute_child(child, input);
     }
 
-    stretch_subgridded_axes(&mut sizing, subgrid_item);
-    let physical_area_size = grid_area_physical_size(grid.constants.flow_axes, area.size);
     let area_parent = physical_area_size.map(Some);
     let padding = grid
         .constants
@@ -546,37 +578,101 @@ where
         return tree.compute_child(child, input);
     }
 
-    let (known, parent, available) = if input.run_mode().is_perform_layout() {
-        (
-            sizing.known,
-            area_parent,
-            Size::new(
-                AvailableOf::Definite(sizing.available.width.max(Tree::Scalar::ZERO)),
-                input.available().height,
-            ),
-        )
-    } else {
-        (
-            input.known(),
-            intrinsic_subgrid_child_parent(
-                input.parent(),
-                physical_area_size,
-                grid.constants.flow_axes,
-                subgrid_item,
-            ),
-            input.available(),
-        )
+    Ok(compute_grid_with_context_result(tree, child, input, child_context)?.output)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum IntrinsicSubgridAxisAuthority<S: LayoutScalar> {
+    FinalContainerContent(S),
+    FinalTrackSpan(S),
+    Unknown,
+}
+
+impl<S: LayoutScalar> IntrinsicSubgridAxisAuthority<S> {
+    fn extent(self) -> Option<S> {
+        match self {
+            Self::FinalContainerContent(extent) | Self::FinalTrackSpan(extent) => Some(extent),
+            Self::Unknown => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct IntrinsicSubgridAxisConstraint<S: LayoutScalar> {
+    physical_axis: crate::geometry::PhysicalAxis,
+    authority: IntrinsicSubgridAxisAuthority<S>,
+}
+
+struct IntrinsicSubgridAxisConstraintInput<'a, S: LayoutScalar> {
+    report: SubgridAxisReport,
+    area: GridArea<S>,
+    parent_flow_axes: FlowAxes,
+    child_flow_axes: FlowAxes,
+    explicit_parent_content_size: Size<Option<S>>,
+    parent_column_count: usize,
+    parent_row_count: usize,
+    tracks: &'a [TrackSizingOf<S>],
+    gap: S,
+}
+
+fn intrinsic_subgrid_axis_constraint<S: LayoutScalar>(
+    input: IntrinsicSubgridAxisConstraintInput<'_, S>,
+) -> Option<IntrinsicSubgridAxisConstraint<S>> {
+    let IntrinsicSubgridAxisConstraintInput {
+        report,
+        area,
+        parent_flow_axes,
+        child_flow_axes,
+        explicit_parent_content_size,
+        parent_column_count,
+        parent_row_count,
+        tracks,
+        gap,
+    } = input;
+    let physical_axis = inherited_subgrid_physical_axis(report, parent_flow_axes, child_flow_axes)?;
+    let mapping = report.mapping.ok()?;
+    let (start, end, count) = match mapping.parent_axis {
+        GridAxisKind::Column => (area.column, area.column_end, parent_column_count),
+        GridAxisKind::Row => (area.row, area.row_end, parent_row_count),
     };
-    let child_input = ComputeInputOf::for_child(
-        input.run_mode(),
-        input.sizing_mode(),
-        input.requested_axis(),
-        known,
-        parent,
-        input.containing_flow_axes(),
-        available,
-    );
-    Ok(compute_grid_with_context_result(tree, child, child_input, child_context)?.output)
+    let explicit_container_extent = if start == 0 && end == count {
+        match physical_axis {
+            crate::geometry::PhysicalAxis::Horizontal => explicit_parent_content_size.width,
+            crate::geometry::PhysicalAxis::Vertical => explicit_parent_content_size.height,
+        }
+    } else {
+        None
+    };
+    let authority = if let Some(extent) = explicit_container_extent {
+        IntrinsicSubgridAxisAuthority::FinalContainerContent(extent)
+    } else if let Some(extent) = exact_static_track_span(tracks, start, end, gap) {
+        IntrinsicSubgridAxisAuthority::FinalTrackSpan(extent)
+    } else {
+        IntrinsicSubgridAxisAuthority::Unknown
+    };
+    Some(IntrinsicSubgridAxisConstraint {
+        physical_axis,
+        authority,
+    })
+}
+
+fn exact_static_track_span<S: LayoutScalar>(
+    tracks: &[TrackSizingOf<S>],
+    start: usize,
+    end: usize,
+    gap: S,
+) -> Option<S> {
+    let span = tracks.get(start..end)?;
+    let mut extent = S::ZERO;
+    for track in span {
+        let (min, max) = (track.min.definite(None)?, track.max.definite(None)?);
+        if min != max {
+            return None;
+        }
+        extent = extent + min;
+    }
+    let gap_count = end.checked_sub(start)?.checked_sub(1)?;
+    Some(extent + gap * S::from_f64(gap_count as f64))
 }
 
 pub(super) fn needs_intrinsic_subgrid_context<Node, S: LayoutScalar>(
@@ -619,51 +715,71 @@ fn track_component_has_percent_sizing<S: LayoutScalar>(component: &TrackComponen
     }
 }
 
-fn intrinsic_subgrid_child_parent<Node, S: LayoutScalar>(
-    input_parent: Size<Option<S>>,
-    physical_area_size: Size<S>,
-    containing_flow_axes: crate::geometry::FlowAxes,
-    item: SubgridItemReport<Node>,
-) -> Size<Option<S>> {
-    let mut parent = input_parent;
-    apply_intrinsic_subgrid_axis_parent(
-        &mut parent,
-        physical_area_size,
-        containing_flow_axes,
-        item.column,
-    );
-    apply_intrinsic_subgrid_axis_parent(
-        &mut parent,
-        physical_area_size,
-        containing_flow_axes,
-        item.row,
-    );
-    parent
+fn intrinsic_subgrid_child_input<S: LayoutScalar>(
+    input: ComputeInputOf<S>,
+    sizing: GridItemSizing<S>,
+    child_flow_axes: FlowAxes,
+    constraints: [Option<IntrinsicSubgridAxisConstraint<S>>; 2],
+) -> ComputeInputOf<S> {
+    let mut known = input.known();
+    let mut parent = input.parent();
+    let mut available = input.available();
+    for constraint in constraints.into_iter().flatten() {
+        let Some(raw_area_extent) = constraint.authority.extent() else {
+            continue;
+        };
+        let border_box_extent =
+            intrinsic_subgrid_border_box_extent(sizing, constraint.physical_axis, raw_area_extent);
+        match constraint.physical_axis {
+            crate::geometry::PhysicalAxis::Horizontal => {
+                known.width = Some(border_box_extent);
+                parent.width = Some(raw_area_extent);
+                available.width = AvailableOf::Definite(border_box_extent);
+            }
+            crate::geometry::PhysicalAxis::Vertical => {
+                known.height = Some(border_box_extent);
+                parent.height = Some(raw_area_extent);
+                available.height = AvailableOf::Definite(border_box_extent);
+            }
+        }
+    }
+    ComputeInputOf::for_child(
+        input.run_mode(),
+        input.sizing_mode(),
+        input.requested_axis(),
+        known,
+        parent,
+        child_flow_axes,
+        available,
+    )
 }
 
-fn apply_intrinsic_subgrid_axis_parent<S: LayoutScalar>(
-    parent: &mut Size<Option<S>>,
-    physical_area_size: Size<S>,
-    containing_flow_axes: crate::geometry::FlowAxes,
-    report: SubgridAxisReport,
-) {
-    if !report.can_inherit() {
-        return;
-    }
-    let inherited_physical_axis = match report
-        .mapping
-        .expect("inheritable subgrid axis must have a valid mapping")
-        .parent_axis
-    {
-        GridAxisKind::Column => containing_flow_axes.inline_axis(),
-        GridAxisKind::Row => containing_flow_axes.block_axis(),
+fn intrinsic_subgrid_border_box_extent<S: LayoutScalar>(
+    sizing: GridItemSizing<S>,
+    axis: crate::geometry::PhysicalAxis,
+    extent: S,
+) -> S {
+    let margin = sizing
+        .unresolved_margin
+        .map(|value| value.unwrap_or(S::ZERO));
+    let margin_sum = match axis {
+        crate::geometry::PhysicalAxis::Horizontal => margin.left + margin.right,
+        crate::geometry::PhysicalAxis::Vertical => margin.top + margin.bottom,
     };
-    match inherited_physical_axis {
-        crate::geometry::PhysicalAxis::Horizontal => {
-            parent.width = Some(physical_area_size.width);
-        }
-        crate::geometry::PhysicalAxis::Vertical => {
-            parent.height = Some(physical_area_size.height);
+    (extent - margin_sum).max(S::ZERO)
+}
+
+fn apply_resolved_intrinsic_subgrid_area_constraints<S: LayoutScalar>(
+    area_size: &mut Size<S>,
+    constraints: [Option<IntrinsicSubgridAxisConstraint<S>>; 2],
+) {
+    for constraint in constraints.into_iter().flatten() {
+        let Some(extent) = constraint.authority.extent() else {
+            continue;
+        };
+        match constraint.physical_axis {
+            crate::geometry::PhysicalAxis::Horizontal => area_size.width = extent,
+            crate::geometry::PhysicalAxis::Vertical => area_size.height = extent,
         }
     }
 }
@@ -1099,7 +1215,6 @@ where
                 area,
                 columns,
                 rows: &zero_rows,
-                sizing,
                 subgrid_item: grid.subgrid_report.items.get(index).copied(),
                 input: ComputeInputOf::for_child(
                     if matches!(
@@ -2871,7 +2986,7 @@ mod tests {
     use crate::{Length, NodeInput, TrackComponent, TrackSizing};
 
     #[test]
-    fn vertical_intrinsic_subgrid_parent_maps_logical_axes_to_physical_lanes() {
+    fn intrinsic_subgrid_constraints_distinguish_final_authority_from_unknown_spans() {
         fn axis_report(parent_axis: GridAxisKind, eligible: bool) -> SubgridAxisReport {
             SubgridAxisReport {
                 mapping: Ok(GridAxisMappingReport {
@@ -2888,43 +3003,196 @@ mod tests {
         }
 
         fn assert_lanes<S: LayoutScalar>() {
-            let column_item = SubgridItemReport {
-                node: (),
-                column: axis_report(GridAxisKind::Column, true),
-                row: axis_report(GridAxisKind::Row, false),
-            };
-            let column_parent = intrinsic_subgrid_child_parent(
-                Size::new(Some(S::from_f64(7.0)), Some(S::from_f64(8.0))),
-                Size::new(S::from_f64(41.0), S::from_f64(97.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::VerticalRl,
-                    crate::Direction::Ltr,
-                ),
-                column_item,
-            );
+            let column_constraint =
+                intrinsic_subgrid_axis_constraint(IntrinsicSubgridAxisConstraintInput {
+                    report: axis_report(GridAxisKind::Column, true),
+                    area: GridArea {
+                        column: 0,
+                        column_end: 2,
+                        row: 0,
+                        row_end: 1,
+                        size: LogicalSizeOf::new(S::ZERO, S::ZERO),
+                    },
+                    parent_flow_axes: crate::geometry::FlowAxes::new(
+                        crate::WritingMode::VerticalRl,
+                        crate::Direction::Ltr,
+                    ),
+                    child_flow_axes: crate::geometry::FlowAxes::new(
+                        crate::WritingMode::VerticalRl,
+                        crate::Direction::Ltr,
+                    ),
+                    explicit_parent_content_size: Size::new(
+                        Some(S::from_f64(41.0)),
+                        Some(S::from_f64(97.0)),
+                    ),
+                    parent_column_count: 2,
+                    parent_row_count: 1,
+                    tracks: &[
+                        TrackSizingOf::px(S::from_f64(30.0)),
+                        TrackSizingOf::px(S::from_f64(40.0)),
+                    ],
+                    gap: S::from_f64(7.0),
+                })
+                .expect("eligible full-span column subgrid has a constraint");
             assert_eq!(
-                column_parent,
-                Size::new(Some(S::from_f64(7.0)), Some(S::from_f64(97.0)))
+                column_constraint,
+                IntrinsicSubgridAxisConstraint {
+                    physical_axis: crate::geometry::PhysicalAxis::Vertical,
+                    authority: IntrinsicSubgridAxisAuthority::FinalContainerContent(S::from_f64(
+                        97.0
+                    )),
+                }
             );
 
-            let row_item = SubgridItemReport {
-                node: (),
-                column: axis_report(GridAxisKind::Column, false),
-                row: axis_report(GridAxisKind::Row, true),
-            };
-            let row_parent = intrinsic_subgrid_child_parent(
-                Size::new(Some(S::from_f64(7.0)), Some(S::from_f64(8.0))),
-                Size::new(S::from_f64(41.0), S::from_f64(97.0)),
-                crate::geometry::FlowAxes::new(
+            let row_constraint =
+                intrinsic_subgrid_axis_constraint(IntrinsicSubgridAxisConstraintInput {
+                    report: axis_report(GridAxisKind::Row, true),
+                    area: GridArea {
+                        column: 0,
+                        column_end: 1,
+                        row: 1,
+                        row_end: 2,
+                        size: LogicalSizeOf::new(S::ZERO, S::ZERO),
+                    },
+                    parent_flow_axes: crate::geometry::FlowAxes::new(
+                        crate::WritingMode::VerticalRl,
+                        crate::Direction::Ltr,
+                    ),
+                    child_flow_axes: crate::geometry::FlowAxes::new(
+                        crate::WritingMode::VerticalRl,
+                        crate::Direction::Ltr,
+                    ),
+                    explicit_parent_content_size: Size::new(
+                        Some(S::from_f64(41.0)),
+                        Some(S::from_f64(97.0)),
+                    ),
+                    parent_column_count: 1,
+                    parent_row_count: 2,
+                    tracks: &[TrackSizingOf::AUTO, TrackSizingOf::px(S::from_f64(40.0))],
+                    gap: S::from_f64(7.0),
+                })
+                .expect("eligible partial-span row subgrid has a constraint");
+            assert_eq!(
+                row_constraint,
+                IntrinsicSubgridAxisConstraint {
+                    physical_axis: crate::geometry::PhysicalAxis::Horizontal,
+                    authority: IntrinsicSubgridAxisAuthority::FinalTrackSpan(S::from_f64(40.0)),
+                }
+            );
+
+            let unknown = intrinsic_subgrid_axis_constraint(IntrinsicSubgridAxisConstraintInput {
+                report: axis_report(GridAxisKind::Row, true),
+                area: GridArea {
+                    column: 0,
+                    column_end: 1,
+                    row: 1,
+                    row_end: 2,
+                    size: LogicalSizeOf::new(S::ZERO, S::ZERO),
+                },
+                parent_flow_axes: crate::geometry::FlowAxes::new(
                     crate::WritingMode::VerticalRl,
                     crate::Direction::Ltr,
                 ),
-                row_item,
+                child_flow_axes: crate::geometry::FlowAxes::new(
+                    crate::WritingMode::VerticalRl,
+                    crate::Direction::Ltr,
+                ),
+                explicit_parent_content_size: Size::new(
+                    Some(S::from_f64(41.0)),
+                    Some(S::from_f64(97.0)),
+                ),
+                parent_column_count: 1,
+                parent_row_count: 2,
+                tracks: &[TrackSizingOf::AUTO, TrackSizingOf::AUTO],
+                gap: S::from_f64(7.0),
+            })
+            .expect("eligible partial-span row subgrid has a constraint");
+            assert_eq!(unknown.authority, IntrinsicSubgridAxisAuthority::Unknown);
+        }
+
+        assert_lanes::<f32>();
+        assert_lanes::<f64>();
+    }
+
+    #[test]
+    fn nested_orthogonal_partial_subgrids_keep_intrinsic_axes_provisional() {
+        fn axis_report(parent_axis: GridAxisKind, child_axis: GridAxisKind) -> SubgridAxisReport {
+            SubgridAxisReport {
+                mapping: Ok(GridAxisMappingReport {
+                    queried_axis: child_axis,
+                    parent_axis,
+                    child_axis,
+                    reversed: false,
+                }),
+                eligibility: SubgridEligibility {
+                    eligible: true,
+                    reason: None,
+                },
+            }
+        }
+
+        fn assert_lanes<S: LayoutScalar>() {
+            let horizontal_style = NodeInput::default();
+            let horizontal =
+                FlowAxes::new(horizontal_style.writing_mode, horizontal_style.direction);
+            let vertical = FlowAxes::new(crate::WritingMode::VerticalLr, crate::Direction::Ltr);
+            let outer_constraint = IntrinsicSubgridAxisConstraint {
+                physical_axis: inherited_subgrid_physical_axis(
+                    axis_report(GridAxisKind::Column, GridAxisKind::Row),
+                    horizontal,
+                    vertical,
+                )
+                .expect("mapped outer partial subgrid has a physical axis"),
+                authority: IntrinsicSubgridAxisAuthority::Unknown,
+            };
+            let outer = intrinsic_subgrid_child_input(
+                ComputeInputOf::for_child(
+                    RunMode::ComputeSize,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    Size::new(None, Some(S::from_f64(19.0))),
+                    Size::new(None, Some(S::from_f64(29.0))),
+                    horizontal,
+                    Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MIN_CONTENT),
+                ),
+                GridItemSizing {
+                    known: Size::new(Some(S::from_f64(31.0)), Some(S::from_f64(37.0))),
+                    available: Size::new(S::from_f64(41.0), S::from_f64(43.0)),
+                    unresolved_margin: Edges::ZERO.map(Some),
+                    justify_self: AlignItems::Stretch,
+                    align_self: AlignItems::Stretch,
+                },
+                vertical,
+                [Some(outer_constraint), None],
             );
-            assert_eq!(
-                row_parent,
-                Size::new(Some(S::from_f64(41.0)), Some(S::from_f64(8.0)))
+            assert_eq!(outer.known().width, None);
+            assert_eq!(outer.parent().width, None);
+            assert_eq!(outer.available().width, AvailableOf::MAX_CONTENT);
+
+            let inner_constraint = IntrinsicSubgridAxisConstraint {
+                physical_axis: inherited_subgrid_physical_axis(
+                    axis_report(GridAxisKind::Row, GridAxisKind::Column),
+                    vertical,
+                    horizontal,
+                )
+                .expect("mapped inner partial subgrid has a physical axis"),
+                authority: IntrinsicSubgridAxisAuthority::Unknown,
+            };
+            let inner = intrinsic_subgrid_child_input(
+                outer,
+                GridItemSizing {
+                    known: Size::new(Some(S::from_f64(47.0)), Some(S::from_f64(53.0))),
+                    available: Size::new(S::from_f64(59.0), S::from_f64(61.0)),
+                    unresolved_margin: Edges::ZERO.map(Some),
+                    justify_self: AlignItems::Stretch,
+                    align_self: AlignItems::Stretch,
+                },
+                horizontal,
+                [Some(inner_constraint), None],
             );
+            assert_eq!(inner.known().width, None);
+            assert_eq!(inner.parent().width, None);
+            assert_eq!(inner.available().width, AvailableOf::MAX_CONTENT);
         }
 
         assert_lanes::<f32>();
@@ -2957,6 +3225,7 @@ mod tests {
                 parent_style.writing_mode,
                 parent_style.direction,
             ),
+            explicit_definite_content_size: Size::new(Some(100.0), Some(200.0)),
             node_outer_size: Size::new(Some(100.0), Some(200.0)),
             node_inner_size: Size::new(Some(100.0), Some(200.0)),
             node_min_size: Size::NONE,
@@ -2984,21 +3253,6 @@ mod tests {
             column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
             row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
         };
-        let physical_area_size = grid_area_physical_size(
-            crate::geometry::FlowAxes::new(parent_style.writing_mode, parent_style.direction),
-            area.size,
-        );
-        let sizing = grid_item_sizing_for_grid_flow::<OracleTree, core::convert::Infallible>(
-            &tree,
-            2,
-            &child_style,
-            &parent_style,
-            physical_area_size,
-            physical_area_size.map(Some),
-            constants.flow_axes,
-        )
-        .unwrap();
-
         let output = compute_intrinsic_grid_child(
             &mut tree,
             2,
@@ -3027,7 +3281,6 @@ mod tests {
                 area,
                 columns: &columns,
                 rows: &rows,
-                sizing,
                 subgrid_item: Some(subgrid_item),
                 input: ComputeInputOf::for_child(
                     RunMode::PerformLayout,
@@ -3042,7 +3295,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(output.size, Size::new(100.0, 200.0));
+        assert_eq!(output.size, Size::new(40.0, 200.0));
     }
 
     #[test]
@@ -3079,6 +3332,7 @@ mod tests {
                 parent_style.writing_mode,
                 parent_style.direction,
             ),
+            explicit_definite_content_size: Size::new(Some(100.0), Some(200.0)),
             node_outer_size: Size::new(Some(100.0), Some(200.0)),
             node_inner_size: Size::new(Some(100.0), Some(200.0)),
             node_min_size: Size::NONE,
@@ -3106,18 +3360,6 @@ mod tests {
             column: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Column),
             row: subgrid_axis_report(&parent_style, &child_style, GridAxisKind::Row),
         };
-        let physical_area_size = grid_area_physical_size(constants.flow_axes, area.size);
-        let sizing = grid_item_sizing_for_grid_flow::<OracleTree, core::convert::Infallible>(
-            &tree,
-            2,
-            &child_style,
-            &parent_style,
-            physical_area_size,
-            physical_area_size.map(Some),
-            constants.flow_axes,
-        )
-        .unwrap();
-
         compute_intrinsic_grid_child(
             &mut tree,
             2,
@@ -3146,7 +3388,6 @@ mod tests {
                 area,
                 columns: &columns,
                 rows: &rows,
-                sizing,
                 subgrid_item: Some(subgrid_item),
                 input: ComputeInputOf::for_child(
                     RunMode::PerformLayout,

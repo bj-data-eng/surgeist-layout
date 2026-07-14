@@ -2343,6 +2343,508 @@ fn logical_inherited_grid_axis_contexts_public_f64() {
     assert_logical_inherited_grid_axis_contexts_public::<f64>();
 }
 
+fn assert_logical_subgrid_axes<S: LayoutScalar>() {
+    #[derive(Clone, Copy)]
+    struct ExpectedTopology {
+        inherited_physical_axis: PhysicalAxis,
+        parent_axis: GridAxisKind,
+        reversed: bool,
+    }
+
+    fn expected_axis(
+        writing_mode: WritingMode,
+        direction: Direction,
+        axis: GridAxisKind,
+    ) -> (PhysicalAxis, bool) {
+        match (writing_mode, direction, axis) {
+            (WritingMode::HorizontalTb, Direction::Ltr, GridAxisKind::Column) => {
+                (PhysicalAxis::Horizontal, true)
+            }
+            (WritingMode::HorizontalTb, Direction::Rtl, GridAxisKind::Column) => {
+                (PhysicalAxis::Horizontal, false)
+            }
+            (WritingMode::HorizontalTb, _, GridAxisKind::Row) => (PhysicalAxis::Vertical, true),
+            (
+                WritingMode::VerticalRl | WritingMode::SidewaysRl,
+                Direction::Ltr,
+                GridAxisKind::Column,
+            ) => (PhysicalAxis::Vertical, true),
+            (
+                WritingMode::VerticalRl | WritingMode::SidewaysRl,
+                Direction::Rtl,
+                GridAxisKind::Column,
+            ) => (PhysicalAxis::Vertical, false),
+            (WritingMode::VerticalRl | WritingMode::SidewaysRl, _, GridAxisKind::Row) => {
+                (PhysicalAxis::Horizontal, false)
+            }
+            (WritingMode::VerticalLr, Direction::Ltr, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, true)
+            }
+            (WritingMode::VerticalLr, Direction::Rtl, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, false)
+            }
+            (WritingMode::VerticalLr, _, GridAxisKind::Row) => (PhysicalAxis::Horizontal, true),
+            (WritingMode::SidewaysLr, Direction::Ltr, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, false)
+            }
+            (WritingMode::SidewaysLr, Direction::Rtl, GridAxisKind::Column) => {
+                (PhysicalAxis::Vertical, true)
+            }
+            (WritingMode::SidewaysLr, _, GridAxisKind::Row) => (PhysicalAxis::Horizontal, true),
+        }
+    }
+
+    fn expected_topology(
+        parent_writing_mode: WritingMode,
+        parent_direction: Direction,
+        child_flow: LogicalFlexChildFlow,
+        child_axis: GridAxisKind,
+    ) -> ExpectedTopology {
+        let (inherited_physical_axis, child_increases) =
+            expected_axis(child_flow.writing_mode, child_flow.direction, child_axis);
+        let (parent_inline_axis, parent_inline_increases) =
+            expected_axis(parent_writing_mode, parent_direction, GridAxisKind::Column);
+        let (parent_block_axis, parent_block_increases) =
+            expected_axis(parent_writing_mode, parent_direction, GridAxisKind::Row);
+        let (parent_axis, parent_increases) = if parent_inline_axis == inherited_physical_axis {
+            (GridAxisKind::Column, parent_inline_increases)
+        } else {
+            debug_assert_eq!(parent_block_axis, inherited_physical_axis);
+            (GridAxisKind::Row, parent_block_increases)
+        };
+        ExpectedTopology {
+            inherited_physical_axis,
+            parent_axis,
+            reversed: parent_increases != child_increases,
+        }
+    }
+
+    let scalar = scalar::<S>;
+    let logical_parent_size = crate::geometry::LogicalSizeOf::new(scalar(77.0), scalar(121.0));
+    let logical_gap = crate::geometry::LogicalSizeOf::new(scalar(7.0), scalar(11.0));
+
+    for (parent_writing_mode, parent_direction) in root_writing_mode_directions() {
+        let parent_flow = LogicalFlexChildFlow {
+            writing_mode: parent_writing_mode,
+            direction: parent_direction,
+        };
+        let parent_flow_axes = FlowAxes::new(parent_writing_mode, parent_direction);
+        let parent_size = parent_flow_axes.physical_size(logical_parent_size);
+        for child_flow in [
+            parent_flow,
+            logical_flex_opposing_flow(parent_flow),
+            logical_flex_orthogonal_flow(parent_flow),
+        ] {
+            let child_flow_axes = FlowAxes::new(child_flow.writing_mode, child_flow.direction);
+            for axis in [GridAxisKind::Column, GridAxisKind::Row] {
+                let topology =
+                    expected_topology(parent_writing_mode, parent_direction, child_flow, axis);
+                let inherited_physical_axis = topology.inherited_physical_axis;
+                let parent_axis = topology.parent_axis;
+                let (cross_first_track, cross_second_track, cross_gap) = match parent_axis {
+                    GridAxisKind::Column => (scalar(50.0), scalar(60.0), scalar(11.0)),
+                    GridAxisKind::Row => (scalar(30.0), scalar(40.0), scalar(7.0)),
+                };
+                let mut child_style = NodeInputOf {
+                    display: Display::Grid,
+                    writing_mode: child_flow.writing_mode,
+                    direction: child_flow.direction,
+                    grid_column: GridPlacement::try_lines(1, -1)
+                        .expect("valid subgrid column span"),
+                    grid_row: GridPlacement::try_lines(1, -1).expect("valid subgrid row span"),
+                    ..NodeInputOf::default()
+                };
+                match axis {
+                    GridAxisKind::Column => {
+                        child_style.grid_template_columns =
+                            vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))];
+                        child_style.grid_template_rows = vec![
+                            TrackComponentOf::px(cross_first_track),
+                            TrackComponentOf::px(cross_second_track),
+                        ];
+                    }
+                    GridAxisKind::Row => {
+                        child_style.grid_template_rows =
+                            vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))];
+                        child_style.grid_template_columns = vec![
+                            TrackComponentOf::px(cross_first_track),
+                            TrackComponentOf::px(cross_second_track),
+                        ];
+                    }
+                }
+                child_style.gap =
+                    child_flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+                        if axis == GridAxisKind::Column {
+                            LengthOf::Normal
+                        } else {
+                            LengthOf::px(cross_gap)
+                        },
+                        if axis == GridAxisKind::Row {
+                            LengthOf::Normal
+                        } else {
+                            LengthOf::px(cross_gap)
+                        },
+                    ));
+                let tree = PublicFlowTree::default()
+                    .with_children(0, [1])
+                    .with_children(1, [2])
+                    .with_children(2, [])
+                    .with_style(
+                        0,
+                        NodeInputOf {
+                            display: Display::Grid,
+                            writing_mode: parent_writing_mode,
+                            direction: parent_direction,
+                            size: parent_size.map(DimensionOf::px),
+                            grid_template_columns: vec![
+                                TrackComponentOf::px(scalar(30.0)),
+                                TrackComponentOf::px(scalar(40.0)),
+                            ],
+                            grid_template_rows: vec![
+                                TrackComponentOf::px(scalar(50.0)),
+                                TrackComponentOf::px(scalar(60.0)),
+                            ],
+                            gap: parent_flow_axes.physical_size(logical_gap.map(LengthOf::px)),
+                            ..NodeInputOf::default()
+                        },
+                    )
+                    .with_style(1, child_style)
+                    .with_style(
+                        2,
+                        NodeInputOf {
+                            display: Display::Block,
+                            writing_mode: child_flow.writing_mode,
+                            direction: child_flow.direction,
+                            grid_column: if axis == GridAxisKind::Column {
+                                GridPlacement::try_lines(2, 3)
+                                    .expect("valid inherited column placement")
+                            } else {
+                                GridPlacement::try_lines(1, 2)
+                                    .expect("valid cross-axis column placement")
+                            },
+                            grid_row: if axis == GridAxisKind::Row {
+                                GridPlacement::try_lines(2, 3)
+                                    .expect("valid inherited row placement")
+                            } else {
+                                GridPlacement::try_lines(1, 2)
+                                    .expect("valid cross-axis row placement")
+                            },
+                            ..NodeInputOf::default()
+                        },
+                    );
+
+                let batch = compute_layout(
+                    &tree,
+                    0,
+                    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(
+                        200.0,
+                    ))))
+                    .expect("valid subgrid viewport request"),
+                )
+                .expect("logical subgrid public layout succeeds");
+                let child = public_flow_output(batch.unrounded_entries(), 1);
+                let inherited_extent = match inherited_physical_axis {
+                    PhysicalAxis::Horizontal => child.size.width,
+                    PhysicalAxis::Vertical => child.size.height,
+                };
+                let expected_extent = match inherited_physical_axis {
+                    PhysicalAxis::Horizontal => parent_size.width,
+                    PhysicalAxis::Vertical => parent_size.height,
+                };
+                assert_eq!(
+                    inherited_extent, expected_extent,
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must preserve the inherited physical extent"
+                );
+                let child_inputs = tree.cache_inputs(1);
+                assert!(
+                    child_inputs
+                        .iter()
+                        .any(|input| input.containing_flow_axes() == child_flow_axes),
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must compute the subgrid through its child flow: {child_inputs:?}"
+                );
+                assert!(
+                    child_inputs.iter().any(|input| {
+                        let inherited_extent = match topology.inherited_physical_axis {
+                            PhysicalAxis::Horizontal => parent_size.width,
+                            PhysicalAxis::Vertical => parent_size.height,
+                        };
+                        let (known, available) = match topology.inherited_physical_axis {
+                            PhysicalAxis::Horizontal => {
+                                (input.known().width, input.available().width)
+                            }
+                            PhysicalAxis::Vertical => {
+                                (input.known().height, input.available().height)
+                            }
+                        };
+                        input.containing_flow_axes() == child_flow_axes
+                            && known == Some(inherited_extent)
+                            && available == AvailableOf::definite(inherited_extent)
+                    }),
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must project the inherited physical size and available area through the child flow: {child_inputs:?}"
+                );
+
+                let descendant = public_flow_output(batch.unrounded_entries(), 2);
+                let descendant_origin = parent_flow_axes.logical_point(
+                    descendant.location,
+                    descendant.size,
+                    parent_size,
+                );
+                let descendant_size = parent_flow_axes.logical_size(descendant.size);
+                let (first_track, second_track, gap) = match parent_axis {
+                    GridAxisKind::Column => (scalar(30.0), scalar(40.0), scalar(7.0)),
+                    GridAxisKind::Row => (scalar(50.0), scalar(60.0), scalar(11.0)),
+                };
+                let expected_offset = if topology.reversed {
+                    S::ZERO
+                } else {
+                    first_track + gap
+                };
+                let (actual_offset, actual_extent) = match parent_axis {
+                    GridAxisKind::Column => (descendant_origin.inline, descendant_size.inline),
+                    GridAxisKind::Row => (descendant_origin.block, descendant_size.block),
+                };
+                assert_eq!(
+                    actual_offset, expected_offset,
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must place the descendant on the mapped inherited track"
+                );
+                assert_eq!(
+                    actual_extent,
+                    if topology.reversed {
+                        first_track
+                    } else {
+                        second_track
+                    },
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must preserve the mapped inherited track extent"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn logical_subgrid_axes_f32() {
+    assert_logical_subgrid_axes::<f32>();
+}
+
+#[test]
+fn logical_subgrid_axes_f64() {
+    assert_logical_subgrid_axes::<f64>();
+}
+
+fn assert_nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_provisional_other_axis<
+    S: LayoutScalar,
+>() {
+    let scalar = scalar::<S>;
+    let vertical = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [2])
+        .with_children(2, [3])
+        .with_children(3, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(DimensionOf::MAX_CONTENT, DimensionOf::px(scalar(40.0))),
+                grid_template_columns: vec![
+                    TrackComponentOf::AUTO,
+                    TrackComponentOf::AUTO,
+                    TrackComponentOf::AUTO,
+                ],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                writing_mode: WritingMode::VerticalLr,
+                grid_column: GridPlacement::try_lines(1, 3)
+                    .expect("outer subgrid spans two of three parent columns"),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(40.0))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_column: GridPlacement::try_line(1)
+                    .expect("inner subgrid spans one of two inherited tracks"),
+                grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            3,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            },
+        );
+
+    compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+            .expect("valid nested provisional subgrid viewport request"),
+    )
+    .expect("nested orthogonal partial subgrid layout succeeds");
+
+    let inputs = tree.cache_inputs(1);
+    assert!(
+        inputs.iter().any(|input| {
+            input.run_mode() == RunMode::ComputeSize
+                && input.known() == Size::new(Some(scalar(20.0)), None)
+                && input.parent() == Size::new(Some(scalar(20.0)), Some(S::ZERO))
+                && input.containing_flow_axes() == vertical
+                && input.available()
+                    == Size::new(
+                        AvailableOf::definite(scalar(20.0)),
+                        AvailableOf::MAX_CONTENT,
+                    )
+        }),
+        "nested partial subgrid node 1 must retain a resolved cross-axis span and provisional other axis: {inputs:?}"
+    );
+}
+
+#[test]
+fn nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_provisional_other_axis_f32()
+{
+    assert_nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_provisional_other_axis::<
+        f32,
+    >();
+}
+
+#[test]
+fn nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_provisional_other_axis_f64()
+{
+    assert_nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_provisional_other_axis::<
+        f64,
+    >();
+}
+
+fn assert_subgrid_mbp_preserves_area_basis_and_content_capacity<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let assert_approximately = |actual: S, expected: S, label: &str| {
+        assert!(
+            (actual - expected).abs() <= S::from_f64(0.000_1),
+            "{label}: expected {expected:?}, got {actual:?}"
+        );
+    };
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [2])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    DimensionOf::px(scalar(100.0)),
+                    DimensionOf::px(scalar(40.0)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(100.0))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
+                margin: Edges::new(
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(8.0)),
+                    LengthAutoOf::ZERO,
+                    LengthAutoOf::px(scalar(5.0)),
+                ),
+                border: Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(9.0)),
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(6.0)),
+                ),
+                padding: Edges::new(
+                    LengthOf::ZERO,
+                    LengthOf::percent(scalar(0.10)),
+                    LengthOf::ZERO,
+                    LengthOf::percent(scalar(0.07)),
+                ),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    DimensionOf::percent(scalar(1.0)),
+                    DimensionOf::px(scalar(20.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+            .expect("valid asymmetric subgrid MBP viewport request"),
+    )
+    .expect("asymmetric subgrid MBP layout succeeds");
+    let subgrid = public_flow_output(batch.unrounded_entries(), 1);
+    let descendant = public_flow_output(batch.unrounded_entries(), 2);
+
+    assert_eq!(subgrid.location.x, scalar(5.0));
+    assert_eq!(subgrid.size.width, scalar(87.0));
+    assert_eq!(subgrid.margin.left, scalar(5.0));
+    assert_eq!(subgrid.margin.right, scalar(8.0));
+    assert_eq!(subgrid.border.left, scalar(6.0));
+    assert_eq!(subgrid.border.right, scalar(9.0));
+    assert_approximately(
+        subgrid.padding.left,
+        scalar(7.0),
+        "left padding resolves against the raw 100px grid area",
+    );
+    assert_approximately(
+        subgrid.padding.right,
+        scalar(10.0),
+        "right padding resolves against the raw 100px grid area",
+    );
+    assert_approximately(
+        descendant.location.x,
+        scalar(13.0),
+        "descendant local x is the subgrid border and padding inset",
+    );
+    assert_approximately(
+        descendant.size.width,
+        scalar(55.0),
+        "descendant width is the subgrid content capacity",
+    );
+    assert_approximately(
+        subgrid.location.x + descendant.location.x,
+        scalar(18.0),
+        "subgrid and descendant local coordinates compose to the root-space x",
+    );
+}
+
+#[test]
+fn subgrid_mbp_preserves_area_basis_and_content_capacity_f32() {
+    assert_subgrid_mbp_preserves_area_basis_and_content_capacity::<f32>();
+}
+
+#[test]
+fn subgrid_mbp_preserves_area_basis_and_content_capacity_f64() {
+    assert_subgrid_mbp_preserves_area_basis_and_content_capacity::<f64>();
+}
+
 fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
     let scalar = scalar::<S>;
     let viewport = Size::splat(AvailableOf::definite(scalar(200.0)));

@@ -368,7 +368,12 @@ where
             physical_area_size.map(Some),
             constants.flow_axes,
         )?;
-        stretch_subgridded_axes(&mut item, *subgrid_item);
+        apply_final_subgrid_axis_constraints(
+            &mut item,
+            *subgrid_item,
+            constants.flow_axes,
+            FlowAxes::new(child_style.writing_mode, child_style.direction),
+        );
         let area_parent = physical_area_size.map(Some);
         let padding = constants
             .flow_axes
@@ -420,7 +425,7 @@ where
                 Some(physical_area_size.width),
                 Some(physical_area_size.height),
             ),
-            crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+            FlowAxes::new(child_style.writing_mode, child_style.direction),
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         );
@@ -677,15 +682,25 @@ where
             ),
             item.area.size,
         );
-        let mut sizing = grid_item_sizing::<Tree, M>(
+        let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
+        let mut sizing = grid_item_sizing_for_grid_flow::<Tree, M>(
             tree,
             item.node,
             &child_style,
             input.container_style,
             physical_area_size,
             physical_area_size.map(Some),
+            child_flow_axes,
         )?;
-        stretch_subgridded_axes(&mut sizing, subgrid_item);
+        apply_final_subgrid_axis_constraints(
+            &mut sizing,
+            subgrid_item,
+            FlowAxes::new(
+                input.container_style.writing_mode,
+                input.container_style.direction,
+            ),
+            child_flow_axes,
+        );
         let area_parent = physical_area_size.map(Some);
         let padding = crate::geometry::FlowAxes::new(
             input.container_style.writing_mode,
@@ -745,10 +760,7 @@ where
                 Some(physical_area_size.width),
                 Some(physical_area_size.height),
             ),
-            crate::geometry::FlowAxes::new(
-                input.container_style.writing_mode,
-                input.container_style.direction,
-            ),
+            child_flow_axes,
             sizing
                 .available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
@@ -1858,28 +1870,6 @@ pub(super) struct GridItemSizing<S: LayoutScalar = Scalar> {
     pub(super) align_self: AlignItems,
 }
 
-pub(super) fn grid_item_sizing<Tree, M>(
-    _tree: &Tree,
-    child: <Tree as Traverse>::Node,
-    child_style: &NodeInputOf<Tree::Scalar>,
-    container_style: &NodeInputOf<Tree::Scalar>,
-    area_size: Size<Tree::Scalar>,
-    containing_physical_size: Size<Option<Tree::Scalar>>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, GridItemSizing<Tree::Scalar>, Tree::Scalar, M>
-where
-    Tree: Compute<M>,
-{
-    grid_item_sizing_for_grid_flow(
-        _tree,
-        child,
-        child_style,
-        container_style,
-        area_size,
-        containing_physical_size,
-        FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
-    )
-}
-
 pub(super) fn grid_item_sizing_for_grid_flow<Tree, M>(
     _tree: &Tree,
     child: <Tree as Traverse>::Node,
@@ -1902,23 +1892,7 @@ where
     .map_err(|status| crate::compute::value_resolution_error(child, status))
 }
 
-#[cfg(test)]
-pub(super) fn grid_item_sizing_with_status<S: LayoutScalar>(
-    child_style: &NodeInputOf<S>,
-    container_style: &NodeInputOf<S>,
-    area_size: Size<S>,
-    containing_physical_size: Size<Option<S>>,
-) -> Result<GridItemSizing<S>, LengthResolutionStatus<S>> {
-    grid_item_sizing_with_grid_flow_status(
-        child_style,
-        container_style,
-        area_size,
-        containing_physical_size,
-        FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
-    )
-}
-
-fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
+pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
     child_style: &NodeInputOf<S>,
     container_style: &NodeInputOf<S>,
     area_size: Size<S>,
@@ -2081,32 +2055,37 @@ fn transpose_edges_result<T, S: LayoutScalar>(
     ))
 }
 
-pub(super) fn stretch_subgridded_axes<Node, S: LayoutScalar>(
+pub(super) fn apply_final_subgrid_axis_constraints<Node, S: LayoutScalar>(
     sizing: &mut GridItemSizing<S>,
     item: SubgridItemReport<Node>,
+    parent_flow_axes: FlowAxes,
+    child_flow_axes: FlowAxes,
 ) {
-    stretch_subgridded_axis(sizing, item.column);
-    stretch_subgridded_axis(sizing, item.row);
+    apply_final_subgrid_axis_constraint(sizing, item.column, parent_flow_axes, child_flow_axes);
+    apply_final_subgrid_axis_constraint(sizing, item.row, parent_flow_axes, child_flow_axes);
 }
 
-fn stretch_subgridded_axis<S: LayoutScalar>(
+fn apply_final_subgrid_axis_constraint<S: LayoutScalar>(
     sizing: &mut GridItemSizing<S>,
     report: SubgridAxisReport,
+    parent_flow_axes: FlowAxes,
+    child_flow_axes: FlowAxes,
 ) {
-    if !report.can_inherit() {
+    let Some(physical_axis) =
+        inherited_subgrid_physical_axis(report, parent_flow_axes, child_flow_axes)
+    else {
         return;
-    }
-
-    match report
-        .mapping
-        .expect("inheritable subgrid axis must have a valid mapping")
-        .parent_axis
-    {
-        GridAxisKind::Column => {
-            sizing.known.width = Some(sizing.available.width);
+    };
+    let extent = match physical_axis {
+        PhysicalAxis::Horizontal => sizing.available.width,
+        PhysicalAxis::Vertical => sizing.available.height,
+    };
+    match physical_axis {
+        PhysicalAxis::Horizontal => {
+            sizing.known.width = Some(extent);
         }
-        GridAxisKind::Row => {
-            sizing.known.height = Some(sizing.available.height);
+        PhysicalAxis::Vertical => {
+            sizing.known.height = Some(extent);
         }
     }
 }
