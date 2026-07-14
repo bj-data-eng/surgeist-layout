@@ -51,7 +51,7 @@ arguments = [
 
 [generation_reports.full]
 file = "all.json"
-generated = 5148
+generated = 5184
 unsupported = 356
 expected_fail = 0
 quarantined = 0
@@ -111,6 +111,11 @@ generated = 4
 filter = "grid/grid_named_template_area_generated_names"
 file = "grid_grid_named_template_area_generated_names.json"
 generated = 4
+
+[[generation_reports.scoped]]
+filter = "grid/grid_axes"
+file = "grid_grid_axes.json"
+generated = 36
 
 [source_roots.taffy]
 kind = "taffy"
@@ -457,6 +462,69 @@ status = "active"
 id = "grid/grid_calc_track_and_item_margin"
 source_root = "surgeist"
 source = "grid/grid_calc_track_and_item_margin.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_horizontal_tb_parallel"
+source_root = "surgeist"
+source = "grid/grid_axes_horizontal_tb_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_vertical_rl_parallel"
+source_root = "surgeist"
+source = "grid/grid_axes_vertical_rl_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_vertical_lr_parallel"
+source_root = "surgeist"
+source = "grid/grid_axes_vertical_lr_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_sideways_rl_parallel"
+source_root = "surgeist"
+source = "grid/grid_axes_sideways_rl_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_sideways_lr_parallel"
+source_root = "surgeist"
+source = "grid/grid_axes_sideways_lr_parallel.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_vertical_opposing"
+source_root = "surgeist"
+source = "grid/grid_axes_vertical_opposing.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_sideways_opposing"
+source_root = "surgeist"
+source = "grid/grid_axes_sideways_opposing.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_horizontal_parent_orthogonal_child"
+source_root = "surgeist"
+source = "grid/grid_axes_horizontal_parent_orthogonal_child.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/grid_axes_vertical_parent_orthogonal_child"
+source_root = "surgeist"
+source = "grid/grid_axes_vertical_parent_orthogonal_child.html"
 generator = "constrained-html"
 status = "active"
 

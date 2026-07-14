@@ -172,6 +172,75 @@ fn runs_fri_02_flex_axis_families_against_surgeist_layout() {
 }
 
 #[test]
+fn runs_fri_02_grid_axis_families_against_surgeist_layout() {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity")
+        .canonicalize()
+        .expect("browser parity fixture root should exist");
+    let fixtures = support::fixture_files("xml")
+        .expect("fixtures should load")
+        .into_iter()
+        .map(|fixture| {
+            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
+                panic!("{} should canonicalize: {error}", fixture.display())
+            });
+            let relative = fixture.strip_prefix(&corpus_root).unwrap_or_else(|error| {
+                panic!(
+                    "{} should be under {}: {error}",
+                    fixture.display(),
+                    corpus_root.display()
+                )
+            });
+            (relative.to_path_buf(), fixture)
+        })
+        .collect::<Vec<_>>();
+    let paths = grid_axis_fixture_paths(fixtures.iter().map(|(relative, _)| relative.clone()))
+        .unwrap_or_else(|error| panic!("{error}"));
+
+    for (relative, fixture) in fixtures {
+        if !paths.contains(&relative) {
+            continue;
+        }
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        assert_grid_axis_fixture_topology(&golden, &relative)
+            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} failed layout comparison: {error}", fixture.display())
+        });
+    }
+}
+
+#[test]
+fn grid_axes_fixture_matrix_is_generated() {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity")
+        .canonicalize()
+        .expect("browser parity fixture root should exist");
+    let fixtures = support::fixture_files("xml")
+        .expect("fixtures should load")
+        .into_iter()
+        .map(|fixture| {
+            let fixture = fixture.canonicalize().unwrap_or_else(|error| {
+                panic!("{} should canonicalize: {error}", fixture.display())
+            });
+            fixture
+                .strip_prefix(&corpus_root)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "{} should be under {}: {error}",
+                        fixture.display(),
+                        corpus_root.display()
+                    )
+                })
+                .to_path_buf()
+        });
+
+    grid_axis_fixture_paths(fixtures)
+        .unwrap_or_else(|error| panic!("grid_axes fixture matrix is incomplete: {error}"));
+}
+
+#[test]
 fn flex_axis_fixture_matrix_rejects_missing_duplicate_misplaced_and_leaf_lowered_topology_paths() {
     let expected = flex_axis_expected_paths();
 
@@ -265,6 +334,118 @@ fn flex_axis_fixture_matrix_rejects_missing_duplicate_misplaced_and_leaf_lowered
             Path::new("xml/flex/flex_axes_horizontal_tb_row__border_box_ltr.xml"),
         )
         .is_err()
+    );
+}
+
+#[test]
+fn grid_axis_fixture_matrix_rejects_invalid_paths_and_topology() {
+    let expected = grid_axis_expected_paths();
+
+    assert!(grid_axis_fixture_paths(expected.iter().skip(1).cloned()).is_err());
+
+    let mut duplicate = expected.clone();
+    duplicate.push(expected[0].clone());
+    assert!(grid_axis_fixture_paths(duplicate).is_err());
+
+    let mut misplaced = expected.clone();
+    misplaced[0] = PathBuf::from("xml/other/grid_axes_horizontal_tb_parallel__border_box_ltr.xml");
+    assert!(grid_axis_fixture_paths(misplaced).is_err());
+
+    let mut extra = expected.clone();
+    extra.push(PathBuf::from(
+        "xml/grid/grid_axes_extra__border_box_ltr.xml",
+    ));
+    assert!(grid_axis_fixture_paths(extra).is_err());
+
+    for (description, root_style, first_child, second_child) in [
+        (
+            "non-grid root",
+            "display=\"block\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "subgrid root",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"subgrid\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "grid-lanes root",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"lanes 30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "absolute topology",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" position=\"absolute\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "hidden-only topology",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"none\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "equal totals",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"30px 40px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "indefinite placement",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px auto\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        ),
+        (
+            "overlapping placement",
+            "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+            "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+        ),
+    ] {
+        let golden = grid_axis_test_golden(root_style, first_child, second_child, false);
+        assert!(
+            assert_grid_axis_fixture_topology(
+                &golden,
+                Path::new("xml/grid/grid_axes_horizontal_tb_parallel__border_box_ltr.xml"),
+            )
+            .is_err(),
+            "{description} must be rejected"
+        );
+    }
+
+    let text_only = grid_axis_test_golden(
+        "display=\"grid\" writing-mode=\"horizontal-tb\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+        "display=\"block\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+        "display=\"block\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        true,
+    );
+    assert!(
+        assert_grid_axis_fixture_topology(
+            &text_only,
+            Path::new("xml/grid/grid_axes_horizontal_tb_parallel__border_box_ltr.xml"),
+        )
+        .is_err(),
+        "text-only topology must be rejected"
+    );
+
+    let wrong_flow = grid_axis_test_golden(
+        "display=\"grid\" writing-mode=\"vertical-rl\" grid-template-columns=\"30px 40px\" grid-template-rows=\"50px 60px\"",
+        "display=\"block\" writing-mode=\"vertical-rl\" grid-column-start=\"1\" grid-column-end=\"2\" grid-row-start=\"1\" grid-row-end=\"2\"",
+        "display=\"block\" writing-mode=\"vertical-rl\" grid-column-start=\"2\" grid-column-end=\"3\" grid-row-start=\"2\" grid-row-end=\"3\"",
+        false,
+    );
+    assert!(
+        assert_grid_axis_fixture_topology(
+            &wrong_flow,
+            Path::new("xml/grid/grid_axes_vertical_opposing__border_box_ltr.xml"),
+        )
+        .is_err(),
+        "wrong named parent/child flow relationship must be rejected"
     );
 }
 
@@ -486,6 +667,41 @@ fn flex_axis_fixture_paths(
     Ok(discovered)
 }
 
+fn grid_axis_fixture_paths(
+    candidate_paths: impl IntoIterator<Item = PathBuf>,
+) -> Result<BTreeSet<PathBuf>, String> {
+    let expected = grid_axis_expected_paths()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let fixtures = candidate_paths
+        .into_iter()
+        .filter(|candidate| {
+            candidate
+                .extension()
+                .and_then(|extension| extension.to_str())
+                == Some("xml")
+                && candidate
+                    .file_stem()
+                    .and_then(|stem| stem.to_str())
+                    .is_some_and(|stem| stem.starts_with("grid_axes_"))
+        })
+        .collect::<Vec<_>>();
+    let discovered = fixtures.iter().cloned().collect::<BTreeSet<_>>();
+
+    if fixtures.len() != discovered.len() {
+        return Err(format!(
+            "grid-axis fixture discovery must not contain duplicate relative paths: {discovered:#?}"
+        ));
+    }
+    if discovered != expected {
+        return Err(format!(
+            "grid-axis fixture matrix must contain exactly the required relative variants: {discovered:#?}"
+        ));
+    }
+
+    Ok(discovered)
+}
+
 fn flex_axis_expected_paths() -> Vec<PathBuf> {
     const MODES: [&str; 5] = [
         "horizontal_tb",
@@ -510,6 +726,35 @@ fn flex_axis_expected_paths() -> Vec<PathBuf> {
                     PathBuf::from("xml/flex")
                         .join(format!("flex_axes_{mode}_{direction}__{variant}.xml"))
                 })
+            })
+        })
+        .collect()
+}
+
+fn grid_axis_expected_paths() -> Vec<PathBuf> {
+    const FAMILIES: [&str; 9] = [
+        "grid_axes_horizontal_tb_parallel",
+        "grid_axes_vertical_rl_parallel",
+        "grid_axes_vertical_lr_parallel",
+        "grid_axes_sideways_rl_parallel",
+        "grid_axes_sideways_lr_parallel",
+        "grid_axes_vertical_opposing",
+        "grid_axes_sideways_opposing",
+        "grid_axes_horizontal_parent_orthogonal_child",
+        "grid_axes_vertical_parent_orthogonal_child",
+    ];
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    FAMILIES
+        .into_iter()
+        .flat_map(|family| {
+            VARIANTS.into_iter().map(move |variant| {
+                PathBuf::from("xml/grid").join(format!("{family}__{variant}.xml"))
             })
         })
         .collect()
@@ -571,6 +816,155 @@ fn assert_flex_axis_fixture_topology(golden: &support::Golden, path: &Path) -> R
     }
 
     Ok(())
+}
+
+fn assert_grid_axis_fixture_topology(golden: &support::Golden, path: &Path) -> Result<(), String> {
+    let (parent_mode, child_mode) = grid_axis_family_modes(path)?;
+    if golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some("grid")
+        || golden
+            .root
+            .style
+            .get("writing-mode")
+            .unwrap_or("horizontal-tb")
+            != parent_mode
+    {
+        return Err("target root must be an ordinary grid in the named writing mode".to_string());
+    }
+    if golden.root.style.get("grid-template-columns") != Some("30px 40px")
+        || golden.root.style.get("grid-template-rows") != Some("50px 60px")
+    {
+        return Err(
+            "target root must use the exact unequal 30px 40px columns and 50px 60px rows"
+                .to_string(),
+        );
+    }
+    if golden.root.children.len() != 2 || golden.expectations.children.len() != 2 {
+        return Err("target root must have exactly two in-flow element children".to_string());
+    }
+
+    for (index, child) in golden.root.children.iter().enumerate() {
+        if child.kind != support::NodeKind::Div
+            || child.style.get("display") == Some("none")
+            || !matches!(child.style.get("position"), None | Some("static"))
+            || child.style.get("writing-mode").unwrap_or("horizontal-tb") != child_mode
+        {
+            return Err(
+                "target children must be visible in-flow elements in the named child flow"
+                    .to_string(),
+            );
+        }
+        let (column_start, column_end, row_start, row_end) = if index == 0 {
+            ("1", "2", "1", "2")
+        } else {
+            ("2", "3", "2", "3")
+        };
+        if child.style.get("grid-column-start") != Some(column_start)
+            || child.style.get("grid-column-end") != Some(column_end)
+            || child.style.get("grid-row-start") != Some(row_start)
+            || child.style.get("grid-row-end") != Some(row_end)
+        {
+            return Err(
+                "target children must occupy definite non-overlapping diagonal grid cells"
+                    .to_string(),
+            );
+        }
+    }
+
+    let first = &golden.expectations.children[0];
+    let second = &golden.expectations.children[1];
+    let (first_x, first_y, first_width, first_height) = expectation_rect(first)?;
+    let (second_x, second_y, second_width, second_height) = expectation_rect(second)?;
+    if first_width <= 0.0
+        || first_height <= 0.0
+        || second_width <= 0.0
+        || second_height <= 0.0
+        || first_x < second_x + second_width
+            && second_x < first_x + first_width
+            && first_y < second_y + second_height
+            && second_y < first_y + first_height
+    {
+        return Err(
+            "target child expectations must have positive non-overlapping physical boxes"
+                .to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn grid_axis_family_modes(path: &Path) -> Result<(&'static str, &'static str), String> {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("{} must have a UTF-8 filename", path.display()))?;
+    let family = file_name
+        .strip_prefix("grid_axes_")
+        .and_then(|name| name.split_once("__"))
+        .map(|(family, _)| family)
+        .ok_or_else(|| format!("{} must use a grid-axis family filename", path.display()))?;
+    match family {
+        "horizontal_tb_parallel" => Ok(("horizontal-tb", "horizontal-tb")),
+        "vertical_rl_parallel" => Ok(("vertical-rl", "vertical-rl")),
+        "vertical_lr_parallel" => Ok(("vertical-lr", "vertical-lr")),
+        "sideways_rl_parallel" => Ok(("sideways-rl", "sideways-rl")),
+        "sideways_lr_parallel" => Ok(("sideways-lr", "sideways-lr")),
+        "vertical_opposing" => Ok(("vertical-rl", "vertical-lr")),
+        "sideways_opposing" => Ok(("sideways-rl", "sideways-lr")),
+        "horizontal_parent_orthogonal_child" => Ok(("horizontal-tb", "vertical-rl")),
+        "vertical_parent_orthogonal_child" => Ok(("vertical-rl", "horizontal-tb")),
+        _ => Err(format!("{file_name} must name a required grid-axis family")),
+    }
+}
+
+fn expectation_rect(expectation: &support::Expectation) -> Result<(f32, f32, f32, f32), String> {
+    Ok((
+        expectation
+            .x
+            .ok_or_else(|| "target expectation must have x".to_string())?,
+        expectation
+            .y
+            .ok_or_else(|| "target expectation must have y".to_string())?,
+        expectation
+            .width
+            .ok_or_else(|| "target expectation must have width".to_string())?,
+        expectation
+            .height
+            .ok_or_else(|| "target expectation must have height".to_string())?,
+    ))
+}
+
+fn grid_axis_test_golden(
+    root_style: &str,
+    first_child_style: &str,
+    second_child_style: &str,
+    first_child_is_text: bool,
+) -> support::Golden {
+    let first_child = if first_child_is_text {
+        format!("<text {first_child_style}>text</text>")
+    } else {
+        format!("<div {first_child_style}/>")
+    };
+    support::Golden::parse(&format!(
+        r#"
+        <test name="grid_axes_horizontal_tb_parallel__border_box_ltr" use-rounding="true">
+          <viewport width="max-content" height="max-content" />
+          <input>
+            <div {root_style}>
+              {first_child}
+              <div {second_child_style}/>
+            </div>
+          </input>
+          <expectations>
+            <node x="0" y="0" width="70" height="110">
+              <node x="0" y="0" width="30" height="50" />
+              <node x="30" y="50" width="40" height="60" />
+            </node>
+          </expectations>
+        </test>
+        "#,
+    ))
+    .expect("grid-axis test golden should parse")
 }
 
 fn block_axis_expected_paths() -> Vec<PathBuf> {
@@ -744,8 +1138,8 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .count();
 
     assert_eq!(
-        taffy_plus_local_count, 1150,
-        "expected the Taffy baseline plus thirty-one Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
+        taffy_plus_local_count, 1159,
+        "expected the Taffy baseline plus forty Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
     );
     assert_eq!(subgrid_count, 210);
     assert_eq!(grid_lanes_count, 16);
@@ -787,7 +1181,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5148);
+    assert_eq!(report_json["summary"]["generated"], 5184);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -798,7 +1192,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5148,
+        5184,
         "generated bucket length must match its summary"
     );
     assert_eq!(

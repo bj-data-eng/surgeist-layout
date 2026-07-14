@@ -5145,9 +5145,9 @@ mod tests {
     fn generation_report_manifest_requires_the_exact_temporary_inventory() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let reports = generation_report_manifest(&manifest).expect("report manifest");
-        assert_eq!(reports.all_files().len(), 12);
+        assert_eq!(reports.all_files().len(), 13);
         assert_eq!(reports.full.file, "all.json");
-        assert_eq!(reports.full.generated, 5148);
+        assert_eq!(reports.full.generated, 5184);
         assert_eq!(
             reports
                 .scoped_for_filter("block/block_br_vertical")
@@ -5200,6 +5200,7 @@ mod tests {
                 "grid_grid_named_template_area_generated_names.json",
                 4,
             ),
+            ("grid/grid_axes", "grid_grid_axes.json", 36),
         ];
         for (filter, file, generated) in expected {
             let report = reports
@@ -8121,7 +8122,7 @@ status = "active"
     fn generation_report_metadata_validation_accepts_current_manifests() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let inventory = generation_report_manifest(&manifest).expect("inventory");
-        assert_eq!(inventory.all_files().len(), 12);
+        assert_eq!(inventory.all_files().len(), 13);
     }
     #[test]
     fn generation_report_validation_rejects_bucket_summary_drift() {
