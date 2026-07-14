@@ -24,6 +24,11 @@ this existing owner remains the only grid role mapping. Current C07-owned bridge
 are `grid_sizing_flow_axes` forcing horizontal axes for lanes/inherited contexts,
 the inherited RTL column adjustment, and `LegacyPhysicalGridLanes` absolute-area
 routing. C07 removes those bridges rather than preserving or replacing them.
+Current correction evidence: removing the sizing fallback and RTL adjustment fixes
+the `VerticalRl`/LTR inherited size from `121x77` to `77x121`, but exposes the
+absolute/static lane mismatch `(7.75, 41.5)` versus `(7.75, 39.25)` because
+`lanes.rs` and `LegacyPhysicalGridLanes` still consume physical offsets and areas.
+Those routes are atomic: no red commit or compatibility bridge is permitted.
 `src/grid/lanes.rs` still sizes, offsets, areas, child inputs, content extents, and
 baselines physically; `subgrid.rs`, `tracks.rs`, and `child.rs` still carry
 physical axis gaps, edges, available sizes, traversal data, and inherited
@@ -46,47 +51,36 @@ surface is retained. Generated artifacts add exactly 18 HTML, 72 XML,
 follow-up is the reviewed C08 sequence handoff. Owned Rust remains unsafe-free.
 
 ## Tasks
-### C07-T1 - Logical Inherited-Axis Contexts
-Files/area: `src/grid/axis.rs`, `mod.rs`, `child.rs`, `tracks.rs`, and direct
-subgrid-context callers/tests.
-Depends on: published C06 and the recorded base.
-Outcome: carry inherited tracks, gaps, offsets, bases, and parent/child axis
-identity through `LogicalAxis`, `LogicalSizeOf`, logical edges, and the relevant
-`FlowAxes`; make `grid_sizing_flow_axes` use the container flow for lanes and
-inherited sizing, then remove the horizontal fallback and inherited RTL adjustment.
-RED: `logical_inherited_grid_axis_contexts_f32` and `_f64` fail because unequal
-inline/block inherited tracks, gaps, and reversed progression still select physical
-width/height or a horizontal fallback.
-Acceptance: all five modes and both directions preserve Column=Inline/Row=Block;
-only named `FlowAxes` projections cross physical boundaries; ordinary-grid
-characterizations remain green; no second writing-mode table or compatibility
-carrier exists.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_inherited_grid_axis_contexts -- --nocapture`; then the Rust gate below.
-Coordinator commit after CLEAN: `layout: type inherited grid axes logically`.
-
-### C07-T2 - Logical Grid-Lanes Sizing And Placement
-Files/area: grid-lanes path in `src/grid/mod.rs`, `lanes.rs`, `child.rs`,
+### C07-T1 - Logical Grid-Lanes And Inherited-Axis Projection
+Files/area: `src/grid/axis.rs`, `mod.rs`, `lanes.rs`, `child.rs`, `tracks.rs`,
 `placement.rs`, and focused grid/root/cache tests.
-Depends on: T1 task-clean.
-Outcome: retain lane/grid track totals, intrinsic and available sizing, reruns,
-gaps, area origins/sizes, offsets, alignment, child compute inputs, visible content,
-absolute/static areas, and baselines in logical roles; project final physical output
-through the container and each child flow. Remove `LegacyPhysicalGridLanes` and
-its absolute-area route without a replacement bridge.
-RED: `logical_grid_lanes_axes_f32` and `_f64` cover unequal totals, both lane axes,
-parallel/opposing/orthogonal child flows, definite areas, offsets, intrinsic child
-measurement, content size, baseline projection, and absolute/static placement.
-Acceptance: vertical/sideways `70x110` logical totals physically yield `110x70`;
-no lane/inherited width-height branch selects column/row semantics; output and
-cache geometry remain physical; f64 stays scalar-generic; C06 ordinary-grid tests
-and existing lane behavior outside the fixed-axis scope retain their result.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_ordinary_grid -- --nocapture`; then the Rust gate below.
-Coordinator commit after CLEAN: `layout: project grid lanes through logical axes`.
+Depends on: published C06 and the recorded base.
+Outcome: carry inherited tracks, gaps, offsets, bases, and parent/child axis identity,
+and lane intrinsic/available sizing, reruns, gaps, tracks, offsets, areas, alignment,
+child compute inputs, content extents, baselines, and absolute/static placement through
+logical roles until each owning `FlowAxes` projection. Remove `grid_sizing_flow_axes`,
+`inherited_rtl_column_line_adjustment`, obsolete `column_line_offset_adjustment`, and
+the complete `LegacyPhysicalGridLanes` route without a replacement bridge.
+RED: the recorded `logical_inherited_grid_axis_contexts_f32` and `_f64` RED is
+`VerticalRl`/LTR inherited physical size `121x77` instead of `77x121`. Before
+remaining lane implementation, new/adjusted `logical_grid_lanes_axes_f32` and `_f64`
+run RED against the current partial worktree; they cover all five modes, both
+directions, both lane axes, unequal totals, parallel/opposing/orthogonal flows,
+intrinsic child measurement, definite areas/offsets, content/baselines, and
+absolute/static placement through public behavior.
+Acceptance: all five modes and both directions preserve Column=Inline/Row=Block;
+vertical/sideways `70x110` logical totals physically yield `110x70`; only named
+`FlowAxes` projections cross physical boundaries; output/cache geometry remains
+physical; f64 stays scalar-generic; C06 ordinary-grid and lane behavior outside the
+fixed-axis scope retain their result; no second mapping/carrier or legacy route
+remains. The full Rust gate passes before this combined task is reviewed or committed.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_inherited_grid_axis_contexts -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_ordinary_grid -- --nocapture`; then the Rust gate below.
+Coordinator commit after CLEAN: `layout: project inherited grid lanes through logical axes`.
 
-### C07-T3 - Logical Subgrid Inheritance And Projection
+### C07-T2 - Logical Subgrid Inheritance And Projection
 Files/area: `src/grid/subgrid.rs`, inherited/traversal and rerun consumers in
 `tracks.rs` and `child.rs`, plus focused grid/root/cache tests.
-Depends on: T2 task-clean.
+Depends on: T1 task-clean.
 Outcome: make mapping reports, traversal carriers, inherited contexts, parent and
 child track spans, gaps, edge MBP, available-area bases, offsets, and inherited
 baselines logical until each owning `FlowAxes` projection; retain existing subgrid
@@ -103,14 +97,14 @@ outcome becomes expected behavior.
 Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_subgrid_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; then the Rust gate below.
 Coordinator commit after CLEAN: `layout: inherit subgrid axes logically`.
 
-### C07-T4 - Exact Lanes And Subgrid Browser Matrices
+### C07-T3 - Exact Lanes And Subgrid Browser Matrices
 Files/area: `tests/layout/browser_parity.rs`, `tests/bin/surgeist-layout-generate/generator.rs`
 (report inventory/count assertions only), `corpus.toml`, 18 constrained HTML fixtures,
 their 72 generator-produced XML files, both new scoped reports, and all refreshed
 current reports. All generator runtime changes are prohibited: parser, helper,
 resolver, browser resolution/launch, batch/retry, job lifecycle, and locking remain
 unchanged.
-Depends on: T3 task-clean and the sole cached ExistingPinned Chrome for Testing
+Depends on: T2 task-clean and the sole cached ExistingPinned Chrome for Testing
 149.0.7827.115.
 Outcome: add these four-variant (`border_box_ltr`, `border_box_rtl`,
 `content_box_ltr`, `content_box_rtl`) grid-lanes families: `grid_lanes_axes_horizontal_tb_parallel`,
@@ -168,7 +162,7 @@ env -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT SURGEIST_BROWSER_PATH=/not/consulted 
 
 Then run `CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets`; `CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --doc`; `RUSTDOCFLAGS="-D warnings" CARGO_NET_OFFLINE=true cargo doc --locked -p surgeist-layout --no-deps`; `CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings`; `CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings`; `cargo fmt --check`; and `git diff --check`.
 
-The mapping predicates are: `bash -lc 'set -euo pipefail; if rg -n --pcre2 "\\b(?:LegacyPhysicalGridLanes(?:Context|Axis|ContextInput)?|legacy_grid_lanes|inherited_rtl_column_line_adjustment)\\b|FlowAxes::new\\(crate::WritingMode::HorizontalTb, crate::Direction::Ltr\\)" src/grid; then exit 1; else test "$?" -eq 1; fi'`; `bash -lc 'set -euo pipefail; files=(); while IFS= read -r -d "" file; do files+=("$file"); done < <(git ls-files -z --cached --others --exclude-standard -- "*.rs"); test "${#files[@]}" -gt 0; if rg -n --pcre2 '\''#\\s*!?\\s*\\[[^]]*(?:unsafe\\s*\\(|\\b(?:no_mangle|export_name|link_section|naked)\\b|\\b(?:allow|expect)\\s*\\([^]]*\\b(?:unsafe_code|unsafe_op_in_unsafe_fn)\\b)|\\bunsafe\\s*(?:\\{|fn\\b|trait\\b|impl\\b|extern\\b)|\\bstatic\\s+mut\\b|\\bextern\\s*(?:"[^"]*")?\\s*\\{'\'' "${files[@]}"; then exit 1; else test "$?" -eq 1; fi'`; and `test -z "$(git status --porcelain)"`.
+The mapping predicates are: `bash -lc 'set -euo pipefail; if rg -n --pcre2 "\\b(?:LegacyPhysicalGridLanes(?:Context|Axis|ContextInput)?|legacy_grid_lanes|inherited_rtl_column_line_adjustment|grid_sizing_flow_axes|column_line_offset_adjustment)\\b|FlowAxes::new\\(crate::WritingMode::HorizontalTb, crate::Direction::Ltr\\)" src/grid; then exit 1; else test "$?" -eq 1; fi'`; `bash -lc 'set -euo pipefail; files=(); while IFS= read -r -d "" file; do files+=("$file"); done < <(git ls-files -z --cached --others --exclude-standard -- "*.rs"); test "${#files[@]}" -gt 0; if rg -n --pcre2 '\''#\\s*!?\\s*\\[[^]]*(?:unsafe\\s*\\(|\\b(?:no_mangle|export_name|link_section|naked)\\b|\\b(?:allow|expect)\\s*\\([^]]*\\b(?:unsafe_code|unsafe_op_in_unsafe_fn)\\b)|\\bunsafe\\s*(?:\\{|fn\\b|trait\\b|impl\\b|extern\\b)|\\bstatic\\s+mut\\b|\\bextern\\s*(?:"[^"]*")?\\s*\\{'\'' "${files[@]}"; then exit 1; else test "$?" -eq 1; fi'`; and `test -z "$(git status --porcelain)"`.
 
 The aggregate ignored corpus is not claimed. The two named C07 families must be
 nonignored and green. After task-clean ranges and the status-only completion
