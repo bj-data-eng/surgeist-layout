@@ -172,8 +172,7 @@ pub(super) fn fully_definite_area<S: LayoutScalar>(
     definite_area(column, row, columns, rows, gap, lines)
 }
 
-pub(super) fn absolute_grid_area<S: LayoutScalar, F: super::child::AbsoluteGridPlacementFrame>(
-    frame: F,
+pub(super) fn absolute_grid_area<S: LayoutScalar>(
     input: AbsoluteGridAreaInput<'_, S>,
 ) -> LogicalAbsoluteGridArea<S> {
     let AbsoluteGridAreaInput {
@@ -188,13 +187,14 @@ pub(super) fn absolute_grid_area<S: LayoutScalar, F: super::child::AbsoluteGridP
         lines,
         column_line_offset_adjustment,
     } = input;
+    let flow_axes = constants.flow_axes;
     let content_size =
         LogicalSizeOf::new(track_sum(columns, gap.inline), track_sum(rows, gap.block));
-    let padding = frame.placement_edges(constants.padding);
-    let border = frame.placement_edges(constants.border);
+    let padding = flow_axes.logical_edges(constants.padding);
+    let border = flow_axes.logical_edges(constants.border);
     let padding_size = LogicalSizeOf::new(padding.inline_sum(), padding.block_sum());
     let border_size = LogicalSizeOf::new(border.inline_sum(), border.block_sum());
-    let logical_inner_size = frame.placement_size(constants.node_inner_size);
+    let logical_inner_size = flow_axes.logical_size(constants.node_inner_size);
     let padding_box_size = LogicalSizeOf::new(
         logical_inner_size
             .inline
@@ -205,7 +205,7 @@ pub(super) fn absolute_grid_area<S: LayoutScalar, F: super::child::AbsoluteGridP
             .map(|size| size + padding_size.block)
             .unwrap_or(content_size.block + padding_size.block),
     );
-    let logical_outer_size = frame.placement_size(constants.node_outer_size);
+    let logical_outer_size = flow_axes.logical_size(constants.node_outer_size);
     let static_padding_box_size = LogicalSizeOf::new(
         logical_outer_size
             .inline
@@ -223,7 +223,7 @@ pub(super) fn absolute_grid_area<S: LayoutScalar, F: super::child::AbsoluteGridP
         gap: gap.inline,
         padding_box_location: border.inline_start,
         padding_box_size: padding_box_size.inline,
-        is_reverse: frame.column_is_reverse(),
+        is_reverse: false,
         explicit_start: lines.column_explicit_start,
         explicit_count: lines.column_explicit_count,
         positive_line_offset_adjustment: column_line_offset_adjustment,
