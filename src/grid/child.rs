@@ -344,20 +344,20 @@ where
                     child,
                     order as u32,
                     &child_style,
-                    AbsoluteGridContext {
+                    AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
                         container_style: style,
                         constants,
                         containing_size,
+                        column: placement.absolute_column,
+                        row: placement.absolute_row,
                         column_offsets: &logical_column_offsets,
                         row_offsets: &logical_row_offsets,
                         columns,
                         rows,
                         gap,
                         lines,
-                        column: placement.absolute_column,
-                        row: placement.absolute_row,
                         column_line_offset_adjustment: inherited_rtl_column_line_adjustment,
-                    },
+                    }),
                 )?,
             );
             continue;
@@ -2293,8 +2293,152 @@ fn resolve_grid_item_axis<S: LayoutScalar>(
     }
 }
 
+pub(super) trait AbsoluteGridPlacementFrame: Copy {
+    fn placement_size<T>(self, physical: Size<T>) -> LogicalSizeOf<T>;
+    fn output_size<T>(self, placement: LogicalSizeOf<T>) -> Size<T>;
+    fn placement_edges<T>(self, physical: Edges<T>) -> LogicalEdgesOf<T>;
+    fn output_edges<T>(self, placement: LogicalEdgesOf<T>) -> Edges<T>;
+    fn output_point<S: LayoutScalar>(
+        self,
+        placement: LogicalPointOf<S>,
+        placement_size: LogicalSizeOf<S>,
+        containing_size: Size<S>,
+    ) -> Point<S>;
+    fn inline_progression(self) -> PhysicalProgression;
+    fn block_progression(self) -> PhysicalProgression;
+    fn column_is_reverse(self) -> bool;
+}
+
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridContext<'a, S: LayoutScalar = Scalar> {
+pub(super) struct LogicalAbsoluteGridPlacementFrame {
+    flow_axes: FlowAxes,
+}
+
+impl LogicalAbsoluteGridPlacementFrame {
+    fn ordinary(flow_axes: FlowAxes) -> Self {
+        Self { flow_axes }
+    }
+}
+
+impl AbsoluteGridPlacementFrame for LogicalAbsoluteGridPlacementFrame {
+    fn placement_size<T>(self, physical: Size<T>) -> LogicalSizeOf<T> {
+        self.flow_axes.logical_size(physical)
+    }
+
+    fn output_size<T>(self, placement: LogicalSizeOf<T>) -> Size<T> {
+        self.flow_axes.physical_size(placement)
+    }
+
+    fn placement_edges<T>(self, physical: Edges<T>) -> LogicalEdgesOf<T> {
+        self.flow_axes.logical_edges(physical)
+    }
+
+    fn output_edges<T>(self, placement: LogicalEdgesOf<T>) -> Edges<T> {
+        self.flow_axes.physical_edges(placement)
+    }
+
+    fn output_point<S: LayoutScalar>(
+        self,
+        placement: LogicalPointOf<S>,
+        placement_size: LogicalSizeOf<S>,
+        containing_size: Size<S>,
+    ) -> Point<S> {
+        self.flow_axes
+            .physical_point(placement, placement_size, containing_size)
+    }
+
+    fn inline_progression(self) -> PhysicalProgression {
+        PhysicalProgression::Increasing
+    }
+
+    fn block_progression(self) -> PhysicalProgression {
+        PhysicalProgression::Increasing
+    }
+
+    fn column_is_reverse(self) -> bool {
+        false
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct LegacyPhysicalGridLanesPlacementFrame {
+    flow_axes: FlowAxes,
+}
+
+impl LegacyPhysicalGridLanesPlacementFrame {
+    fn grid_lanes(flow_axes: FlowAxes) -> Self {
+        Self { flow_axes }
+    }
+}
+
+impl AbsoluteGridPlacementFrame for LegacyPhysicalGridLanesPlacementFrame {
+    fn placement_size<T>(self, physical: Size<T>) -> LogicalSizeOf<T> {
+        LogicalSizeOf::new(physical.width, physical.height)
+    }
+
+    fn output_size<T>(self, placement: LogicalSizeOf<T>) -> Size<T> {
+        Size::new(placement.inline, placement.block)
+    }
+
+    fn placement_edges<T>(self, physical: Edges<T>) -> LogicalEdgesOf<T> {
+        LogicalEdgesOf::new(physical.left, physical.right, physical.top, physical.bottom)
+    }
+
+    fn output_edges<T>(self, placement: LogicalEdgesOf<T>) -> Edges<T> {
+        Edges::new(
+            placement.block_start,
+            placement.inline_end,
+            placement.block_end,
+            placement.inline_start,
+        )
+    }
+
+    fn output_point<S: LayoutScalar>(
+        self,
+        placement: LogicalPointOf<S>,
+        _: LogicalSizeOf<S>,
+        _: Size<S>,
+    ) -> Point<S> {
+        Point::new(placement.inline, placement.block)
+    }
+
+    fn inline_progression(self) -> PhysicalProgression {
+        self.flow_axes
+            .physical_axis_progression(PhysicalAxis::Horizontal)
+    }
+
+    fn block_progression(self) -> PhysicalProgression {
+        self.flow_axes
+            .physical_axis_progression(PhysicalAxis::Vertical)
+    }
+
+    fn column_is_reverse(self) -> bool {
+        if self.flow_axes.inline_axis() == PhysicalAxis::Horizontal {
+            self.flow_axes.direction().is_rtl()
+        } else {
+            self.flow_axes.writing_mode() == crate::WritingMode::VerticalRl
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct AbsoluteGridContext<'a, S: LayoutScalar, F: AbsoluteGridPlacementFrame> {
+    container_style: &'a NodeInputOf<S>,
+    constants: &'a Constants<S>,
+    containing_size: Size<S>,
+    frame: F,
+    column: super::GridPlacement,
+    row: super::GridPlacement,
+    column_offsets: &'a [S],
+    row_offsets: &'a [S],
+    columns: &'a [S],
+    rows: &'a [S],
+    gap: LogicalSizeOf<S>,
+    lines: GridLines,
+    column_line_offset_adjustment: S,
+}
+
+pub(super) struct OrdinaryAbsoluteGridContextInput<'a, S: LayoutScalar> {
     pub(super) container_style: &'a NodeInputOf<S>,
     pub(super) constants: &'a Constants<S>,
     pub(super) containing_size: Size<S>,
@@ -2309,8 +2453,113 @@ pub(super) struct AbsoluteGridContext<'a, S: LayoutScalar = Scalar> {
     pub(super) column_line_offset_adjustment: S,
 }
 
+impl<'a, S: LayoutScalar> AbsoluteGridContext<'a, S, LogicalAbsoluteGridPlacementFrame> {
+    pub(super) fn ordinary(input: OrdinaryAbsoluteGridContextInput<'a, S>) -> Self {
+        let OrdinaryAbsoluteGridContextInput {
+            container_style,
+            constants,
+            containing_size,
+            column,
+            row,
+            column_offsets,
+            row_offsets,
+            columns,
+            rows,
+            gap,
+            lines,
+            column_line_offset_adjustment,
+        } = input;
+        Self {
+            container_style,
+            constants,
+            containing_size,
+            frame: LogicalAbsoluteGridPlacementFrame::ordinary(constants.flow_axes),
+            column,
+            row,
+            column_offsets,
+            row_offsets,
+            columns,
+            rows,
+            gap,
+            lines,
+            column_line_offset_adjustment,
+        }
+    }
+}
+
+pub(super) struct LegacyPhysicalGridLanesContextInput<'a, S: LayoutScalar> {
+    pub(super) container_style: &'a NodeInputOf<S>,
+    pub(super) constants: &'a Constants<S>,
+    pub(super) containing_size: Size<S>,
+    pub(super) absolute_column: super::GridPlacement,
+    pub(super) absolute_row: super::GridPlacement,
+    pub(super) column_offsets: &'a [S],
+    pub(super) row_offsets: &'a [S],
+    pub(super) columns: &'a [S],
+    pub(super) rows: &'a [S],
+    pub(super) gap: Size<S>,
+    pub(super) lines: GridLines,
+}
+
+impl<'a, S: LayoutScalar> AbsoluteGridContext<'a, S, LegacyPhysicalGridLanesPlacementFrame> {
+    pub(super) fn legacy_grid_lanes(input: LegacyPhysicalGridLanesContextInput<'a, S>) -> Self {
+        let LegacyPhysicalGridLanesContextInput {
+            container_style,
+            constants,
+            containing_size,
+            absolute_column,
+            absolute_row,
+            column_offsets,
+            row_offsets,
+            columns,
+            rows,
+            gap,
+            lines,
+        } = input;
+        let frame = LegacyPhysicalGridLanesPlacementFrame::grid_lanes(constants.flow_axes);
+        if constants.flow_axes.inline_axis() == PhysicalAxis::Vertical {
+            Self {
+                container_style,
+                constants,
+                containing_size,
+                frame,
+                column: absolute_row,
+                row: absolute_column,
+                column_offsets: row_offsets,
+                row_offsets: column_offsets,
+                columns: rows,
+                rows: columns,
+                gap: LogicalSizeOf::new(gap.height, gap.width),
+                lines: GridLines {
+                    column_explicit_start: lines.row_explicit_start,
+                    column_explicit_count: lines.row_explicit_count,
+                    row_explicit_start: lines.column_explicit_start,
+                    row_explicit_count: lines.column_explicit_count,
+                },
+                column_line_offset_adjustment: S::ZERO,
+            }
+        } else {
+            Self {
+                container_style,
+                constants,
+                containing_size,
+                frame,
+                column: absolute_column,
+                row: absolute_row,
+                column_offsets,
+                row_offsets,
+                columns,
+                rows,
+                gap: LogicalSizeOf::new(gap.width, gap.height),
+                lines,
+                column_line_offset_adjustment: S::ZERO,
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
-pub(super) struct AbsoluteGridAreaInput<'a, S: LayoutScalar = Scalar> {
+pub(super) struct AbsoluteGridAreaInput<'a, S: LayoutScalar> {
     pub(super) column: super::GridPlacement,
     pub(super) row: super::GridPlacement,
     pub(super) columns: &'a [S],
@@ -2337,20 +2586,22 @@ pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
     pub(super) positive_line_offset_adjustment: S,
 }
 
-pub(super) fn layout_absolute_grid_child<Tree, M>(
+pub(super) fn layout_absolute_grid_child<Tree, M, F>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     order: u32,
     child_style: &NodeInputOf<Tree::Scalar>,
-    context: AbsoluteGridContext<'_, Tree::Scalar>,
+    context: AbsoluteGridContext<'_, Tree::Scalar, F>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
+    F: AbsoluteGridPlacementFrame,
 {
     let AbsoluteGridContext {
         container_style,
         constants,
         containing_size,
+        frame,
         column,
         row,
         column_offsets,
@@ -2362,25 +2613,28 @@ where
         column_line_offset_adjustment,
     } = context;
     let containing_flow_axes = constants.flow_axes;
-    let area = absolute_grid_area(AbsoluteGridAreaInput {
-        column,
-        row,
-        columns,
-        rows,
-        column_offsets,
-        row_offsets,
-        gap,
-        constants,
-        lines,
-        column_line_offset_adjustment: if containing_flow_axes.inline_axis()
-            == PhysicalAxis::Horizontal
-        {
-            column_line_offset_adjustment
-        } else {
-            Tree::Scalar::ZERO
+    let area = absolute_grid_area(
+        frame,
+        AbsoluteGridAreaInput {
+            column,
+            row,
+            columns,
+            rows,
+            column_offsets,
+            row_offsets,
+            gap,
+            constants,
+            lines,
+            column_line_offset_adjustment: if containing_flow_axes.inline_axis()
+                == PhysicalAxis::Horizontal
+            {
+                column_line_offset_adjustment
+            } else {
+                Tree::Scalar::ZERO
+            },
         },
-    });
-    let physical_area_size = containing_flow_axes.physical_size(area.size);
+    );
+    let physical_area_size = frame.output_size(area.size);
     let area_parent = physical_area_size.map(Some);
     let unresolved_margin = containing_flow_axes
         .zip_physical_edges_with_inline_extent(child_style.margin, area_parent, |length, basis| {
@@ -2486,9 +2740,9 @@ where
         .clamp_optional(min_size, max_size);
     let scrollbar_size =
         scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
-    let logical_size = containing_flow_axes.logical_size(final_size);
-    let logical_margin = containing_flow_axes.logical_edges(unresolved_margin);
-    let logical_inset = containing_flow_axes.logical_edges(inset);
+    let logical_size = frame.placement_size(final_size);
+    let logical_margin = frame.placement_edges(unresolved_margin);
+    let logical_inset = frame.placement_edges(inset);
     let inline_axis = absolute_grid_axis(AbsoluteGridAxis {
         area_location: area.location.inline,
         static_area_location: area.static_location.inline,
@@ -2502,7 +2756,7 @@ where
         alignment: child_style
             .justify_self
             .unwrap_or(container_style.justify_items.unwrap_or(AlignItems::Start)),
-        progression: PhysicalProgression::Increasing,
+        progression: frame.inline_progression(),
     });
     let block_axis = absolute_grid_axis(AbsoluteGridAxis {
         area_location: area.location.block,
@@ -2517,14 +2771,14 @@ where
         alignment: child_style
             .align_self
             .unwrap_or(container_style.align_items.unwrap_or(AlignItems::Start)),
-        progression: PhysicalProgression::Increasing,
+        progression: frame.block_progression(),
     });
-    let location = containing_flow_axes.physical_point(
+    let location = frame.output_point(
         LogicalPointOf::new(inline_axis.location, block_axis.location),
         logical_size,
         containing_size,
     );
-    let margin = containing_flow_axes.physical_edges(LogicalEdgesOf::new(
+    let margin = frame.output_edges(LogicalEdgesOf::new(
         inline_axis.margin_start,
         inline_axis.margin_end,
         block_axis.margin_start,

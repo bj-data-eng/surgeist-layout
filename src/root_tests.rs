@@ -1800,6 +1800,191 @@ fn logical_ordinary_grid_absolute_static_f64() {
     assert_logical_ordinary_grid_absolute_static::<f64>();
 }
 
+fn grid_lanes_absolute_expected_location<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+    node: u32,
+) -> Point<S> {
+    let scalar = scalar::<S>;
+    let (x, y) = match (writing_mode, direction, node) {
+        (WritingMode::HorizontalTb, Direction::Ltr, 1) => (39.25, 96.75),
+        (WritingMode::HorizontalTb, Direction::Ltr, 2) => (62.25, 81.0),
+        (WritingMode::HorizontalTb, Direction::Ltr, 3) => (32.375, 81.25),
+        (WritingMode::HorizontalTb, Direction::Rtl, 1) => (31.0, 96.75),
+        (WritingMode::HorizontalTb, Direction::Rtl, 2) => (2.5, 81.0),
+        (WritingMode::HorizontalTb, Direction::Rtl, 3) => (32.375, 81.25),
+        (WritingMode::VerticalRl, Direction::Ltr, 1) => (7.75, 39.25),
+        (WritingMode::VerticalRl, Direction::Ltr, 2) => (4.25, 49.625),
+        (WritingMode::VerticalRl, Direction::Ltr, 3) => (0.0, 32.375),
+        (WritingMode::VerticalRl, Direction::Rtl, 1) => (7.75, 67.5),
+        (WritingMode::VerticalRl, Direction::Rtl, 2) => (4.25, 57.125),
+        (WritingMode::VerticalRl, Direction::Rtl, 3) => (0.0, 32.375),
+        (WritingMode::VerticalLr, Direction::Ltr, 1) => (96.75, 39.25),
+        (WritingMode::VerticalLr, Direction::Ltr, 2) => (100.25, 49.625),
+        (WritingMode::VerticalLr, Direction::Ltr, 3) => (81.25, 32.375),
+        (WritingMode::VerticalLr, Direction::Rtl, 1) => (96.75, 67.5),
+        (WritingMode::VerticalLr, Direction::Rtl, 2) => (100.25, 57.125),
+        (WritingMode::VerticalLr, Direction::Rtl, 3) => (81.25, 32.375),
+        (WritingMode::SidewaysRl, Direction::Ltr, 1) => (65.75, 39.25),
+        (WritingMode::SidewaysRl, Direction::Ltr, 2) => (62.25, 49.625),
+        (WritingMode::SidewaysRl, Direction::Ltr, 3) => (81.25, 32.375),
+        (WritingMode::SidewaysRl, Direction::Rtl, 1) => (65.75, 67.5),
+        (WritingMode::SidewaysRl, Direction::Rtl, 2) => (62.25, 57.125),
+        (WritingMode::SidewaysRl, Direction::Rtl, 3) => (81.25, 32.375),
+        (WritingMode::SidewaysLr, Direction::Ltr, 1) => (96.75, 61.25),
+        (WritingMode::SidewaysLr, Direction::Ltr, 2) => (100.25, 50.875),
+        (WritingMode::SidewaysLr, Direction::Ltr, 3) => (81.25, 32.375),
+        (WritingMode::SidewaysLr, Direction::Rtl, 1) => (96.75, 45.5),
+        (WritingMode::SidewaysLr, Direction::Rtl, 2) => (100.25, 55.875),
+        (WritingMode::SidewaysLr, Direction::Rtl, 3) => (81.25, 32.375),
+        _ => unreachable!("grid-lanes fixture has nodes 1 through 3"),
+    };
+    Point::new(scalar(x), scalar(y))
+}
+
+fn grid_lanes_nearest_css_pixel<S: LayoutScalar>(value: S) -> S {
+    (value + S::from_f64(0.5)).floor()
+}
+
+fn assert_logical_grid_lanes_absolute_static<S: LayoutScalar>() {
+    let scalar = scalar::<S>;
+    let logical_container_size = crate::geometry::LogicalSizeOf::new(scalar(76.0), scalar(118.0));
+    let logical_child_size = crate::geometry::LogicalSizeOf::new(scalar(11.25), scalar(13.5));
+    let explicit_margin =
+        crate::geometry::LogicalEdgesOf::new(scalar(1.25), scalar(2.5), scalar(3.75), scalar(4.25));
+
+    for (writing_mode, direction) in root_writing_mode_directions() {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let physical_container_size = flow_axes.physical_size(logical_container_size);
+        let physical_child_size = flow_axes.physical_size(logical_child_size);
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1, 2, 3])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::GridLanes,
+                    writing_mode,
+                    direction,
+                    size: physical_container_size.map(DimensionOf::px),
+                    grid_template_columns: vec![
+                        TrackComponentOf::px(scalar(30.25)),
+                        TrackComponentOf::px(scalar(40.25)),
+                    ],
+                    grid_template_rows: vec![
+                        TrackComponentOf::px(scalar(50.25)),
+                        TrackComponentOf::px(scalar(60.0)),
+                    ],
+                    gap: Size::new(LengthOf::px(scalar(5.5)), LengthOf::px(scalar(7.75))),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(DimensionOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    inset: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::px(scalar(2.25)),
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::px(scalar(3.5)),
+                    )),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(DimensionOf::px),
+                    position: Position::Absolute,
+                    grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
+                    grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
+                    margin: flow_axes.physical_edges(explicit_margin.map(LengthAutoOf::px)),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::Center),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                3,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: physical_child_size.map(DimensionOf::px),
+                    position: Position::Absolute,
+                    grid_row: GridPlacement::try_line(2).expect("valid grid row"),
+                    margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                        LengthAutoOf::AUTO,
+                    )),
+                    justify_self: Some(AlignItems::End),
+                    align_self: Some(AlignItems::End),
+                    ..NodeInputOf::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(scalar(200.0))))
+                .expect("valid viewport request"),
+        )
+        .expect("grid-lanes absolute layout succeeds");
+
+        for node in [1, 2, 3] {
+            let expected_location =
+                grid_lanes_absolute_expected_location(writing_mode, direction, node);
+            let unrounded = public_flow_output(batch.unrounded_entries(), node);
+            let rounded = public_flow_output(batch.final_entries(), node);
+            assert_eq!(
+                unrounded.location, expected_location,
+                "{writing_mode:?} {direction:?} grid-lanes absolute child {node} must preserve its C07 projection"
+            );
+            assert_eq!(unrounded.size, physical_child_size);
+            assert_eq!(
+                rounded.location,
+                Point::new(
+                    grid_lanes_nearest_css_pixel(unrounded.location.x),
+                    grid_lanes_nearest_css_pixel(unrounded.location.y),
+                )
+            );
+            assert_eq!(
+                rounded.size,
+                Size::new(
+                    grid_lanes_nearest_css_pixel(unrounded.location.x + unrounded.size.width)
+                        - rounded.location.x,
+                    grid_lanes_nearest_css_pixel(unrounded.location.y + unrounded.size.height)
+                        - rounded.location.y,
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn logical_grid_lanes_absolute_static_f32() {
+    assert_logical_grid_lanes_absolute_static::<f32>();
+}
+
+#[test]
+fn logical_grid_lanes_absolute_static_f64() {
+    assert_logical_grid_lanes_absolute_static::<f64>();
+}
+
 fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
     let scalar = scalar::<S>;
     let viewport = Size::splat(AvailableOf::definite(scalar(200.0)));
