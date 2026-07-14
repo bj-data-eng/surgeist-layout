@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions, TryLockError};
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::process;
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use chromiumoxide::browser::{Browser, BrowserConfig};
 use chromiumoxide::fetcher::{BrowserFetcher, BrowserFetcherOptions, BrowserKind, BrowserVersion};
@@ -21,6 +21,8 @@ const BROWSER_CACHE_ENV: &str = "SURGEIST_BROWSER_CACHE";
 const BROWSER_VERSION_ENV: &str = "SURGEIST_BROWSER_VERSION";
 const DEFAULT_ROOT: &str = "tests/layout/browser_parity";
 const SOURCE_CACHE_DIR: &str = "target/surgeist-sources";
+const GENERATION_ACQUISITION_GATE_FILE: &str = "surgeist-layout-generate.acquire.lock";
+const GENERATION_LEASE_FILE: &str = "surgeist-layout-generate.lock";
 const TAFFY_REPO: &str = "https://github.com/DioxusLabs/taffy.git";
 const TAFFY_COMMIT: &str = "d1ff7e339b9ee35b33858779f8d7653197e93d92";
 const TAFFY_EXPECTED_COUNT: usize = 1103;
@@ -75,6 +77,7 @@ pub async fn run_from_env() -> Result<(), String> {
             let environment = GenerationEnvironment::capture()?;
             let manifest = read_corpus_manifest(&config)?;
             let generation = GenerationConfig::new(config, manifest, mode, environment)?;
+            let _lease = acquire_generation_lease(&generation)?;
             generate(generation).await
         }
         CommandRequest::CheckCorpus => check_corpus(&config),
@@ -642,6 +645,150 @@ fn normalize_generation_filter(
         ));
     }
     Ok(Some(filter))
+}
+
+struct GenerationLease {
+    _file: File,
+}
+
+fn generation_lease_path(config: &GenerationConfig) -> PathBuf {
+    config
+        .repository_root
+        .join("target")
+        .join(GENERATION_LEASE_FILE)
+}
+
+fn generation_acquisition_gate_path(config: &GenerationConfig) -> PathBuf {
+    config
+        .repository_root
+        .join("target")
+        .join(GENERATION_ACQUISITION_GATE_FILE)
+}
+
+fn acquire_generation_lease(config: &GenerationConfig) -> Result<GenerationLease, String> {
+    let lease_path = generation_lease_path(config);
+    let gate_path = generation_acquisition_gate_path(config);
+    let parent = lease_path
+        .parent()
+        .expect("generation lease path must have a target directory");
+    fs::create_dir_all(parent).map_err(|error| {
+        format!(
+            "failed to create generation lease directory {}: {error}",
+            parent.display()
+        )
+    })?;
+
+    let gate = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(&gate_path)
+        .map_err(|error| {
+            format!(
+                "failed to open generation acquisition gate {}: {error}",
+                gate_path.display()
+            )
+        })?;
+
+    match gate.try_lock() {
+        Ok(()) => {}
+        Err(TryLockError::WouldBlock) => {
+            return Err(format!(
+                "generation acquisition already in progress; gate {} is held while owner metadata is published",
+                gate_path.display()
+            ));
+        }
+        Err(TryLockError::Error(error)) => {
+            return Err(format!(
+                "failed to acquire generation acquisition gate {}: {error}",
+                gate_path.display()
+            ));
+        }
+    }
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .truncate(false)
+        .open(&lease_path)
+        .map_err(|error| {
+            format!(
+                "failed to open generation lease {}: {error}",
+                lease_path.display()
+            )
+        })?;
+    match file.try_lock() {
+        Ok(()) => {}
+        Err(TryLockError::WouldBlock) => return Err(active_generation_lease_error(&lease_path)?),
+        Err(TryLockError::Error(error)) => {
+            return Err(format!(
+                "failed to acquire generation lease {}: {error}",
+                lease_path.display()
+            ));
+        }
+    }
+
+    let owner = generation_lease_owner(config)?;
+    file.set_len(0).map_err(|error| {
+        format!(
+            "failed to clear generation lease {}: {error}",
+            lease_path.display()
+        )
+    })?;
+    file.write_all(owner.as_bytes()).map_err(|error| {
+        format!(
+            "failed to record generation lease {}: {error}",
+            lease_path.display()
+        )
+    })?;
+    file.sync_data().map_err(|error| {
+        format!(
+            "failed to persist generation lease {}: {error}",
+            lease_path.display()
+        )
+    })?;
+    Ok(GenerationLease { _file: file })
+}
+
+fn active_generation_lease_error(path: &Path) -> Result<String, String> {
+    let owner = fs::read_to_string(path).map_err(|error| {
+        format!(
+            "generation already active; failed to read lease {}: {error}",
+            path.display()
+        )
+    })?;
+    if owner.is_empty() {
+        return Err(format!(
+            "generation already active; lease {} has no recorded owner metadata",
+            path.display()
+        ));
+    }
+    Ok(format!(
+        "generation already active; lease {} is held by:\n{}",
+        path.display(),
+        owner.trim_end()
+    ))
+}
+
+fn generation_lease_owner(config: &GenerationConfig) -> Result<String, String> {
+    let started_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("failed to record generation lease start time: {error}"))?
+        .as_secs();
+    let resolution_mode = match config.resolution_mode {
+        BrowserResolutionMode::ManagedPinned => "managed-pinned",
+        BrowserResolutionMode::ExistingPinned => "existing-pinned",
+    };
+    let scope = config.filter.as_deref().map_or_else(
+        || "full".to_string(),
+        |filter| format!("scoped filter={filter:?}"),
+    );
+    Ok(format!(
+        "pid={}\nresolution_mode={resolution_mode}\nscope={scope}\nstarted_at_unix_seconds={started_at}\n",
+        process::id()
+    ))
 }
 
 async fn generate(config: GenerationConfig) -> Result<(), String> {
@@ -4439,6 +4586,21 @@ mod tests {
         }
     }
 
+    fn test_generation_lock_config(
+        repository_root: PathBuf,
+        filter: Option<&str>,
+    ) -> GenerationConfig {
+        let corpus = Config {
+            root: repository_root.join("corpus"),
+            html_root: repository_root.join("corpus/html"),
+            xml_root: repository_root.join("corpus/xml"),
+        };
+        let mut config = test_generation_config(corpus);
+        config.repository_root = repository_root;
+        config.filter = filter.map(str::to_string);
+        config
+    }
+
     fn test_browser_root(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -4450,6 +4612,118 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("browser root");
         root
+    }
+
+    #[test]
+    fn generation_lock_rejects_an_independent_handle_with_owner_metadata_then_releases() {
+        let root = test_browser_root("generation-lease-owner");
+        let config = test_generation_lock_config(root.clone(), None);
+        let first = acquire_generation_lease(&config).expect("first generation lease");
+        let path = generation_lease_path(&config);
+        let gate_path = generation_acquisition_gate_path(&config);
+
+        let second_handle = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+            .expect("independent lock handle");
+        assert!(matches!(
+            second_handle.try_lock(),
+            Err(TryLockError::WouldBlock)
+        ));
+
+        let error = match acquire_generation_lease(&config) {
+            Ok(_) => panic!("second generation must fail closed"),
+            Err(error) => error,
+        };
+        assert!(error.contains("generation already active"));
+        assert!(error.contains(&format!("pid={}", process::id())));
+        assert!(error.contains("resolution_mode=existing-pinned"));
+        assert!(error.contains("scope=full"));
+        assert!(error.contains("started_at_unix_seconds="));
+
+        drop(first);
+        let second =
+            acquire_generation_lease(&config).expect("lease must release when owner drops");
+        drop(second);
+        assert!(
+            path.is_file(),
+            "releasing a lease must retain its lock file"
+        );
+        assert!(
+            gate_path.is_file(),
+            "releasing a lease must retain its acquisition gate file"
+        );
+        fs::remove_dir_all(root).expect("remove temporary generation lease root");
+    }
+
+    #[test]
+    fn generation_lock_reports_transition_without_exposing_stale_owner_metadata() {
+        let root = test_browser_root("generation-lease-transition");
+        let config = test_generation_lock_config(root.clone(), None);
+        let lease_path = generation_lease_path(&config);
+        let gate_path = generation_acquisition_gate_path(&config);
+        fs::create_dir_all(lease_path.parent().expect("generation lease parent"))
+            .expect("generation lease directory");
+        fs::write(
+            &lease_path,
+            "pid=stale\nresolution_mode=managed-pinned\nscope=scoped filter=\"stale\"\n",
+        )
+        .expect("seed stale owner metadata");
+
+        let gate = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&gate_path)
+            .expect("acquisition gate handle");
+        gate.try_lock().expect("hold acquisition gate");
+        let lease = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&lease_path)
+            .expect("generation lease handle");
+        lease
+            .try_lock()
+            .expect("hold generation lease before publication");
+
+        let error = match acquire_generation_lease(&config) {
+            Ok(_) => panic!("contender must fail while acquisition is in progress"),
+            Err(error) => error,
+        };
+        assert!(error.contains("generation acquisition already in progress"));
+        assert!(!error.contains("pid=stale"));
+        assert!(!error.contains("scope=scoped filter=\"stale\""));
+
+        drop(lease);
+        drop(gate);
+        fs::remove_dir_all(root).expect("remove temporary generation lease root");
+    }
+
+    #[test]
+    fn generation_lock_is_shared_by_full_and_scoped_generation_requests() {
+        let root = test_browser_root("generation-lease-scope");
+        let full = test_generation_lock_config(root.clone(), None);
+        let scoped = test_generation_lock_config(root.clone(), Some("grid/grid_axes"));
+        let first = acquire_generation_lease(&full).expect("full generation lease");
+
+        assert_eq!(generation_lease_path(&full), generation_lease_path(&scoped));
+        let error = match acquire_generation_lease(&scoped) {
+            Ok(_) => panic!("scoped generation must share lease"),
+            Err(error) => error,
+        };
+        assert!(error.contains("generation already active"));
+        assert!(error.contains("scope=full"));
+
+        drop(first);
+        let scoped_lease = acquire_generation_lease(&scoped)
+            .expect("scoped generation must acquire the released repository lease");
+        let owner = fs::read_to_string(generation_lease_path(&scoped))
+            .expect("scoped generation lease owner metadata");
+        assert!(owner.contains("scope=scoped filter=\"grid/grid_axes\""));
+        drop(scoped_lease);
+        fs::remove_dir_all(root).expect("remove temporary generation lease root");
     }
 
     #[cfg(unix)]
