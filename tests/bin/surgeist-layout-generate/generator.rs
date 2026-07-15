@@ -5499,13 +5499,11 @@ if (expectedReason === undefined) {{
 
         let xml = generate_xml("grid_flex_item__border_box_ltr", &node);
 
-        assert!(xml.contains(
-            concat!(
-                "  <viewport width=\"400px\" height=\"max-content\" ",
-                "root-context=\"flex-item\" parent-writing-mode=\"horizontal-tb\" ",
-                "parent-direction=\"ltr\"/>"
-            )
-        ));
+        assert!(xml.contains(concat!(
+            "  <viewport width=\"400px\" height=\"max-content\" ",
+            "root-context=\"flex-item\" parent-writing-mode=\"horizontal-tb\" ",
+            "parent-direction=\"ltr\"/>"
+        )));
     }
 
     #[test]
