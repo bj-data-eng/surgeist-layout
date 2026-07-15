@@ -1,5 +1,5 @@
 # FRI-03-C06 Ordinary-Grid Participation
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-03-C06`
 Owning repository: `surgeist-layout`
 Cycle base: `001d8efda12f9672057a73bcd11c6e3178a8dd92`
