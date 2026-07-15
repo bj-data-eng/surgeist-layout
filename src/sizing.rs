@@ -1,3 +1,11 @@
+#![cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "FRI-04 C01 intentionally stages this private sizing substrate until C02 wires it"
+    )
+)]
+
 use crate::{
     FiniteScalarErrorOf, LayoutScalar, LengthPercentageOf, LengthResolutionOf, NonNegativeFiniteOf,
     NumericResolutionOf, PercentageBasisOf,
@@ -20,6 +28,10 @@ impl core::fmt::Display for SizingCalculationError {
 impl std::error::Error for SizingCalculationError {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[expect(
+    clippy::enum_variant_names,
+    reason = "FRI-04 requires these exact coefficient-owned error names before C02 publicly reexports the type"
+)]
 pub enum CalcSizeCalculationErrorOf<S: LayoutScalar> {
     InvalidAbsolutePx(FiniteScalarErrorOf<S>),
     InvalidPercentFraction(FiniteScalarErrorOf<S>),
