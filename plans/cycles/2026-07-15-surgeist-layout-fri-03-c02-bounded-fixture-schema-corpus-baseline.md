@@ -1,6 +1,6 @@
 # FRI-03-C02 Bounded Fixture Schema And Corpus Baseline
 
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-03-C02`
 Owning repository: `surgeist-layout`
 Cycle base: `b2af2a464f4c8ad868e3b490ae16aabec2a30394`
