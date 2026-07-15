@@ -3764,7 +3764,12 @@ fn generate_xml_with_provenance(
     let root_context_attr = if root_context == "root" {
         String::new()
     } else {
-        format!(" root-context=\"{}\"", escape_attr(root_context))
+        format!(
+            " root-context=\"{}\" parent-writing-mode=\"{}\" parent-direction=\"{}\"",
+            escape_attr(root_context),
+            escape_attr(viewport["parentWritingMode"].as_str().unwrap_or_default()),
+            escape_attr(viewport["parentDirection"].as_str().unwrap_or_default()),
+        )
     };
     lines.push(format!(
         "  <viewport width=\"{}\" height=\"{}\"{}/>",
@@ -3948,6 +3953,7 @@ fn input_attrs_with_parent_writing_mode(
         Some("border-box"),
     );
     maybe(&mut attrs, "direction", string(style, "direction"), None);
+    maybe(&mut attrs, "order", string(style, "order"), Some("0"));
     if let Some(writing_mode) = writing_mode_attr(style, parent_writing_mode) {
         attrs.push(("writing-mode", writing_mode));
     }
@@ -5480,7 +5486,9 @@ if (expectedReason === undefined) {{
             "viewport": {
                 "width": {"unit": "px", "value": 400},
                 "height": {"unit": "max-content"},
-                "rootContext": "flex-item"
+                "rootContext": "flex-item",
+                "parentWritingMode": "horizontal-tb",
+                "parentDirection": "ltr"
             },
             "style": {"display": "grid"},
             "smartRoundedLayout": {"x": 0, "y": 0, "width": 160, "height": 20, "scrollWidth": 160, "scrollHeight": 20},
@@ -5492,8 +5500,76 @@ if (expectedReason === undefined) {{
         let xml = generate_xml("grid_flex_item__border_box_ltr", &node);
 
         assert!(xml.contains(
-            "  <viewport width=\"400px\" height=\"max-content\" root-context=\"flex-item\"/>"
+            concat!(
+                "  <viewport width=\"400px\" height=\"max-content\" ",
+                "root-context=\"flex-item\" parent-writing-mode=\"horizontal-tb\" ",
+                "parent-direction=\"ltr\"/>"
+            )
         ));
+    }
+
+    #[test]
+    fn xml_generation_serializes_exact_order_and_parent_axes() {
+        let flex_item = json!({
+            "useRounding": true,
+            "viewport": {
+                "width": {"unit": "px", "value": 400},
+                "height": {"unit": "max-content"},
+                "rootContext": "flex-item",
+                "parentWritingMode": "vertical-rl",
+                "parentDirection": "rtl"
+            },
+            "style": {"display": "grid", "order": "0", "writingMode": "horizontal-tb"},
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 160, "height": 20, "scrollWidth": 160, "scrollHeight": 20},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 160, "height": 20, "scrollWidth": 160, "scrollHeight": 20},
+            "naivelyRoundedLayout": {"clientWidth": 160, "clientHeight": 20},
+            "children": [
+                {
+                    "style": {"order": "-2147483648"},
+                    "smartRoundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+                    "unroundedLayout": {"x": 0, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+                    "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 20},
+                    "children": []
+                },
+                {
+                    "style": {"order": "2147483647"},
+                    "smartRoundedLayout": {"x": 80, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+                    "unroundedLayout": {"x": 80, "y": 0, "width": 80, "height": 20, "scrollWidth": 80, "scrollHeight": 20},
+                    "naivelyRoundedLayout": {"clientWidth": 80, "clientHeight": 20},
+                    "children": []
+                }
+            ]
+        });
+        let root = json!({
+            "useRounding": true,
+            "viewport": {
+                "width": {"unit": "max-content"},
+                "height": {"unit": "max-content"},
+                "rootContext": "root",
+                "parentWritingMode": "sideways-lr",
+                "parentDirection": "rtl"
+            },
+            "style": {"display": "block", "order": "0"},
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 0, "height": 0, "scrollWidth": 0, "scrollHeight": 0},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 0, "height": 0, "scrollWidth": 0, "scrollHeight": 0},
+            "naivelyRoundedLayout": {"clientWidth": 0, "clientHeight": 0},
+            "children": []
+        });
+
+        let flex_xml = generate_xml("exact_flex_item_metadata", &flex_item);
+        assert!(flex_xml.contains(concat!(
+            "<viewport width=\"400px\" height=\"max-content\" ",
+            "root-context=\"flex-item\" parent-writing-mode=\"vertical-rl\" ",
+            "parent-direction=\"rtl\"/>"
+        )));
+        assert!(!flex_xml.contains("order=\"0\""));
+        assert!(flex_xml.contains("order=\"-2147483648\""));
+        assert!(flex_xml.contains("order=\"2147483647\""));
+
+        let root_xml = generate_xml("root_omits_parent_metadata", &root);
+        assert!(!root_xml.contains("order=\"0\""));
+        assert!(!root_xml.contains("parent-writing-mode="));
+        assert!(!root_xml.contains("parent-direction="));
     }
 
     #[test]
@@ -6710,6 +6786,103 @@ if (actual !== expected) {{
         assert!(
             TEST_HELPER_SOURCE.contains("Math.round(boundingRect.width) === window.innerWidth")
         );
+    }
+
+    #[test]
+    fn bundled_helper_captures_exact_order_and_flex_parent_axes() {
+        let script = format!(
+            r#"
+const window = {{ innerWidth: 800 }};
+const document = {{
+  styleSheets: [],
+  createElement() {{
+    return {{ style: {{}}, offsetWidth: 0, clientWidth: 0, remove() {{}} }};
+  }},
+  body: {{ appendChild() {{}} }},
+}};
+
+{TEST_HELPER_SOURCE}
+
+const parent = {{
+  classList: {{ contains(name) {{ return name === "viewport"; }} }},
+  style: {{ width: "400px", height: "" }},
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 400, height: 20, right: 400, left: 0, bottom: 20, top: 0 }}; }},
+  clientLeft: 0,
+  clientTop: 0,
+}};
+const element = {{
+  tagName: "DIV",
+  classList: {{ contains() {{ return false; }} }},
+  style: {{
+    gridTemplateRows: "",
+    gridTemplateColumns: "",
+    gridAutoRows: "",
+    gridAutoColumns: "",
+    gridRowStart: "auto",
+    gridRowEnd: "auto",
+    gridColumnStart: "auto",
+    gridColumnEnd: "auto",
+  }},
+  parentNode: parent,
+  parentElement: parent,
+  childNodes: [],
+  childElementCount: 0,
+  textContent: "",
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 160, height: 20, right: 160, left: 0, bottom: 20, top: 0 }}; }},
+  scrollWidth: 160,
+  scrollHeight: 20,
+  clientWidth: 160,
+  clientHeight: 20,
+  offsetWidth: 160,
+  offsetHeight: 20,
+  offsetLeft: 0,
+  offsetTop: 0,
+  getAttribute() {{ return null; }},
+}};
+let order = "0";
+function getComputedStyle(target) {{
+  if (target === parent) {{
+    return {{ writingMode: "vertical-rl", direction: "rtl" }};
+  }}
+  return {{
+    display: "grid",
+    boxSizing: "border-box",
+    direction: "ltr",
+    writingMode: "horizontal-tb",
+    order,
+    fontFamily: "ahem",
+    fontSize: "10px",
+    lineHeight: "10px",
+    width: "160px",
+    height: "20px",
+    minWidth: "0px",
+    minHeight: "0px",
+    maxWidth: "none",
+    maxHeight: "none",
+    marginLeft: "0px",
+    marginRight: "0px",
+    marginTop: "0px",
+    marginBottom: "0px",
+  }};
+}}
+
+for (const expected of ["0", "-2147483648", "2147483647"]) {{
+  order = expected;
+  const data = describeElement(element);
+  if (data.style.order !== expected) {{
+    throw new Error(`expected exact order ${{expected}}, got ${{data.style.order}}`);
+  }}
+  if (data.viewport.rootContext !== "flex-item") {{
+    throw new Error(`expected flex-item root, got ${{data.viewport.rootContext}}`);
+  }}
+  if (data.viewport.parentWritingMode !== "vertical-rl" || data.viewport.parentDirection !== "rtl") {{
+    throw new Error(`expected parent axes, got ${{JSON.stringify(data.viewport)}}`);
+  }}
+}}
+"#
+        );
+
+        run_bundled_helper_script("exact-order-and-flex-parent-axes", script);
     }
 
     #[test]

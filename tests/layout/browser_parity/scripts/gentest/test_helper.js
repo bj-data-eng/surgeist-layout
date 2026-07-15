@@ -152,10 +152,13 @@ class TrackSizingParser {
 
 function parseViewportConstraint(e, boundingRect) {
   if (e.parentNode.classList.contains('viewport')) {
+    const parentStyle = getComputedStyle(e.parentElement);
     return {
       width: parseDimension(e.parentNode.style.width || 'max-content'),
       height: parseDimension(e.parentNode.style.height || 'max-content'),
       rootContext: 'flex-item',
+      parentWritingMode: parentStyle.writingMode,
+      parentDirection: parentStyle.direction,
     }
   } else {
     return {
@@ -455,6 +458,7 @@ function describeElement(e, expectedElement = null) {
       direction: parseEnum(computedStyle.direction),
 
       writingMode: parseEnum(computedStyle.writingMode),
+      order: computedStyle.order,
 
       cssFloat: parseEnum(styleValue("cssFloat")),
       clear: parseEnum(styleValue("clear")),
