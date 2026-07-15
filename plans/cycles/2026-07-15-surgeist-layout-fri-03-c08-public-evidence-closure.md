@@ -5,190 +5,174 @@ Owning repository: `surgeist-layout`
 Cycle base: `2c0a396bcb9299bd77fb33981d08b0a7c0244eb8`
 
 Reviewed specification: `plans/specs/2026-07-15-surgeist-layout-fri-03-box-participation-contracts.md`
-at `6ca195b4ba560ae49bc6963176234f8494cfb50a91674f6dcec358d19fa9769c`,
-commit `52d87a75751f9987251ec2fdf8200e75eba3e17b`, sections `FRI-03.5`,
+at `f05c9520196957e949dfbc55442d93cf03bbcff4f9bd4da81c4e5afe9db54572`,
+commit `beb8c5ed20fc76fd5535fbda0b1eb4708c6a3fba`, sections `FRI-03.5`,
 `FRI-03.7` through `FRI-03.13`, and all acceptance items in `FRI-03.14`.
 
 Reviewed sequence: `plans/sequences/2026-07-15-surgeist-layout-fri-03-box-participation-contracts.md`
-at `d59317e1b80337ff4041a034c062867dc7e744048eb7047d2b2e7b412aea130a`,
-commit `03e7582565fa2d4f3aa7f71973f6dfebe273c4fb`, entry `C08`.
+at `6d322ddca94053c4d99105d75bcc8b91249fc0079cb5e60ba2d148b20096a3f1`,
+commit `f11cd9f77ef430500699e8102899e912438af2ad`, entry `C08`.
 
-C07 handoff: candidate `2c0a396bcb9299bd77fb33981d08b0a7c0244eb8`
-was pushed to and read back from `origin/main`; local, tracking, and observed
-remote `main` were equal and clean. C01-C07 now implement every FRI-03-owned
-production branch.
-
-Bounded outcome: one exact nonignored 32-output browser gate and the public
-README/rustdoc describe the completed order, source identity, replacedness, and
-containing-context model. Read-only evidence seals the already-derived corpus,
-source absence, finding closure, and root handoff as one publishable leaf
-candidate.
+C07 candidate `2c0a396bcb9299bd77fb33981d08b0a7c0244eb8` is published and
+read back from `origin/main`. C01-C07 implement every FRI-03 production branch.
+Bounded outcome: correct one confirmed flex-item-root fixture phase bug, derive
+the final corpus once, seal the exact 32-output comparison, document the public
+model, and publish one independently reviewed leaf candidate.
 
 ## Boundary
-This cycle may change only `tests/layout/browser_parity.rs`, `README.md`, and
-crate-level `//!` documentation at the start of `src/lib.rs`. The implementation
-allowlist is exactly those three files.
+C08 owns only flex-item host-allocation capture/serialization/parsing/lowering,
+its generated XML/report refresh, the exact FRI-03 parity gate, and public docs.
+Allowed files are the embedded helper, existing generator and support modules,
+generated `xml/` plus `all.json`, `tests/layout/browser_parity.rs`, `README.md`,
+and crate-level `//!` comments in `src/lib.rs`.
 
-C02 candidate `127f20b4450e2196b768e78e0c97006e7ea0fc84` already performed the
-single final full ExistingPinned regeneration after its HTML, parser, and fixture
-inputs settled. Its checked-in state contains 1,406 HTML sources, 5,268 XML
-outputs, only `generation-reports/all.json`, a 5,268 generated / 356 unsupported
-summary with zero failure buckets, current provenance, and unsupported tuple SHA
-`c44aaae7f939ebc07341cb984ca3f040512ec4dd5462d75454b178a713492030`.
-C08 verifies that state read-only. It must not run full or scoped generation or
-browser capture. Scoped generation remains an optional diagnostic only when
-iterating on HTML/parser/fixture changes; C08 has no such changes.
+Confirmed cause: fixture support gives parent viewport availability both to
+`FlexItemRootContext` and to the root request. A reversible probe supplied the
+browser-observed allocated parent-inline item size separately and changed all
+selected 400/80/60 cases from 400/80/60 to browser 160/80/80; all 16 selected
+cases and the public-request control passed. The probe was removed without a
+commit. Expected geometry must never become fixture input.
 
-HTML, XML, `corpus.toml`, reports, browser-parity operational documentation,
-parser/support code, helper, generator, scripts, Justfile, manifests, lockfile,
-production algorithms, public signatures, root, and siblings are read-only.
-Generator architecture expansion, report rewriting, hand-edited XML, new
-dependencies/features, MSRV changes, root integration, and the ignored aggregate
-parity corpus remain out of scope. Owned Rust remains free of `unsafe`.
+HTML, `corpus.toml`, browser runtime/pin/profile, base style, operational README,
+production algorithms, public signatures/reexports, dependencies/features,
+MSRV, lockfile, Justfile/scripts, root, and siblings are read-only. No schema
+version, source/output count, report kind, command, module, import, acquisition,
+or generator architecture is added. No replaced fixture or hand-edited XML.
 
-Impacts: API and behavior - unchanged; dependencies/features/MSRV - unchanged;
-artifacts - unchanged and read-only; docs - complete the public participation
-contract; root - archival handoff only; unsafe - none.
+Scoped generation remains available as optional iteration diagnosis, but it is
+never mandated or accepted as verification evidence. After T1 helper/parser
+inputs settle, run the full ExistingPinned command exactly once. Every later
+command is read-only; a failed check does not authorize repeating generation.
+Owned Rust remains free of `unsafe`.
+
+Impacts: public API/production behavior/dependencies/features/MSRV - unchanged;
+fixture schema - strict additive field for flex-item roots; artifacts - one
+generator-owned final refresh; docs - completed; root - handoff only.
 
 ## Tasks
-### C08-T1 - Seal The Exact FRI-03 Browser Union
-File: `tests/layout/browser_parity.rs` only.
-Dependencies: published/read-back C01-C07, the immutable cycle base, and C02's
-checked-in full-derivation artifacts. T2 waits for T1 task-clean.
+### C08-T1 - Separate Flex Host Allocation And Derive Final Corpus
+Files: `tests/layout/browser_parity/scripts/gentest/test_helper.js`,
+`tests/bin/surgeist-layout-generate/generator.rs`,
+`tests/layout/browser_parity/support.rs`, and generated
+`tests/layout/browser_parity/xml/` including `generation-reports/all.json`.
+Dependencies: published C01-C07 and the corrected spec/sequence above. T2 waits
+for T1 task-clean.
 
-Outcome: add one exact topology/membership test and one nonignored comparison
-test for the 32-output FRI-03 union: four block-margin outputs, 12 item-order
-outputs, and 16 flex-item-root parent-axis outputs. The matrix rejects a missing,
-duplicate, misplaced, or extra output. The comparison parses and runs exactly
-that union through the real browser-parity layout front door without claiming
-`runs_all_checked_in_browser_parity_xml`.
+Outcome: flex-item viewport JSON captures `hostInlineSize` from root border-box
+width/height selected by actual parent axes. XML requires finite non-negative
+`host-inline-size="...px"` with both parent-axis attributes. Lowering keeps the
+viewport as percentage context, makes only the parent inline physical host axis
+definite at that value, and leaves the other host axis max-content. Root
+viewports reject all three flex-item attributes.
 
-RED evidence: the base test inventory has no `runs_fri_03_` test and no single
-matrix that names the exact 32-output union. This is a closure-evidence gap over
-already-implemented behavior, so no algorithm failure or artificial fixture
-change is required.
+RED: extend the existing helper/serializer/strict-schema tests first and add
+`flex_item_root_separates_host_inline_allocation_from_viewport_context`; they
+fail because capture/serialization/parsing/lowering lack the value. The existing
+filtered comparison reproduces 400 versus 160 and 60 versus 80.
 
-Acceptance:
-- `fri_03_fixture_matrix_rejects_missing_duplicate_misplaced_and_extra_outputs`
-  proves the exact eight-source/four-variant topology and all three owned groups;
-- `runs_fri_03_box_participation_against_surgeist_layout` runs exactly 32 unique
-  checked-in XML outputs and all comparisons pass;
-- the block nested-child `y=1`, order-source topology, and flex-item-root parent
-  axes remain observable rather than being replaced by path-only assertions;
-- the full report/count/inventory tests remain green and the ignored aggregate
-  parity test remains ignored and visible; and
-- no fixture, parser, report, corpus metadata, generator, or production source
-  changes.
+Acceptance: horizontal and non-square orthogonal capture select width/height;
+zero/fractional values pass; missing, stray, non-pixel, non-finite, negative, or
+partial metadata fails closed; request accessors prove host/context separation;
+all 16 affected XML carry the attribute and compare; all 5,268 XML carry current
+helper provenance; counts remain 1,406 HTML, 5,268 XML, one 5,268/356 report,
+zero failure buckets, and unsupported tuple SHA
+`c44aaae7f939ebc07341cb984ca3f040512ec4dd5462d75454b178a713492030`.
 
-Commands:
+Commands, in order:
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::fri_03_fixture_matrix_rejects_missing_duplicate_misplaced_and_extra_outputs -- --exact
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::runs_fri_03_box_participation_against_surgeist_layout -- --exact
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::browser_parity_generation_report_counts_full_scope -- --exact
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::browser_parity_generation_report_inventory_is_full_only -- --exact
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate generator::tests::bundled_helper_captures_exact_order_and_flex_parent_axes -- --exact
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate generator::tests::xml_generation_serializes_exact_order_and_parent_axes -- --exact
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::support::tests::viewport_parent_axes_schema_is_strict -- --exact
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::support::tests::flex_item_root_separates_host_inline_allocation_from_viewport_context -- --exact
+CARGO_NET_OFFLINE=true just fmt-check
+test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
+env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+SURGEIST_PARITY_FILTER=grid_available_space CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::runs_all_checked_in_browser_parity_xml -- --exact --ignored
+SURGEIST_PARITY_FILTER=chrome_issue_325928327 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::runs_all_checked_in_browser_parity_xml -- --exact --ignored
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 ```
+Commit: `fix(parity): separate flex host allocation`.
 
+### C08-T2 - Seal The Exact FRI-03 Browser Union
+File: `tests/layout/browser_parity.rs` only. Depends on T1 task-clean; T3 waits.
+Outcome: add a matrix test rejecting missing, duplicate, misplaced, or extra
+owned paths and `runs_fri_03_box_participation_against_surgeist_layout`, which
+parses and compares exactly eight source families times four variants.
+RED: both names are absent; the prior attempted comparison exposed T1's now-fixed
+input bug and created no commit.
+Acceptance: 32 unique paths comprise four block-margin, 12 order, and 16
+flex-item-root outputs; block nested `y=1`, order/source topology, explicit host
+and parent context, and real layout comparison stay observable; aggregate parity
+remains ignored and visible.
+Commands:
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::fri_03_fixture_matrix_rejects_missing_duplicate_misplaced_and_extra_outputs -- --exact
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layout::browser_parity::runs_fri_03_box_participation_against_surgeist_layout -- --exact
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just corpus-check
+```
 Commit: `test(parity): seal FRI-03 browser evidence`.
 
-### C08-T2 - Document The Completed Participation Contract
-Files: `README.md` and crate-level `//!` documentation in `src/lib.rs` only.
-Depends on: C08-T1 task-clean.
-
-Outcome: public docs explain that `ItemOrder` is a layout-ready signed value,
-`SourceIndex` is stable source identity, flex/grid/grid-lanes alone consume the
-stable order-modified traversal, and outputs remain source-associated. They
-explain the independent replaced fact and its owned block/root, flex, grid, and
-grid-lanes behavior; the complete `ContainingLayoutContext`; explicit flex-parent
-axes; cache identity; and root ownership of CSS lowering, box-generation facts,
-invalidation, consumer migration, facade composition, and API artifacts.
-
-RED evidence: neither public document currently states that complete
-participation model or its root ownership handoff. This is a documentation
-contract RED; no artificial behavior test is required.
-
-Acceptance:
-- README and crate rustdoc agree with the source and `FRI-03.5`/`FRI-03.10`;
-- replacedness remains distinct from table role, measurement, aspect ratio, and
-  explicit stretch;
-- no compatibility alias, old output-order name, bare-flow leaf constructor, or
-  inferred flex-parent axes are documented or added;
-- only crate-level comments change in `src/lib.rs`; all reexports and public
-  signatures remain identical to the cycle base; and
-- doctests, rustdoc, deterministic documentation checks, and source absence
-  checks pass.
-
+### C08-T3 - Document The Completed Participation Contract
+Files: `README.md` and crate-level `//!` comments in `src/lib.rs` only. Depends
+on T2 task-clean.
+Outcome: both docs explain typed item order/source identity, owning algorithms,
+replaced behavior, complete containing context/cache identity, separate flex host
+allocation/viewport context, and root-owned lowering/invalidation/facade/API work.
+RED: neither document states the complete model. Acceptance: docs agree with
+`FRI-03.5`/`.10`; no old alias/signature/fallback is added; reexports stay exact.
 Commands:
 ```sh
 rg -n 'ItemOrder|SourceIndex|ContainingLayoutContext|ParentFormattingContext|item_is_replaced' README.md
 rg -n '^//!.*(ItemOrder|SourceIndex|ContainingLayoutContext|ParentFormattingContext|item_is_replaced)' src/lib.rs
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --doc
 CARGO_NET_OFFLINE=true RUSTDOCFLAGS='-D warnings' cargo doc --locked --offline --no-deps -p surgeist-layout
-! rg -n 'NodeOutputOf::order|NodeOutputOf::with_order|pub order:|\bfn with_order\s*\(' src/output.rs README.md src/lib.rs
-rg -n 'pub fn leaf_(layout|content_size)' src/output.rs
-! rg -U --pcre2 'pub fn leaf_(?:layout|content_size)\([^)]*\bFlowAxes\b' src/output.rs
-! rg -U --pcre2 'leaf_(?:layout|content_size)[\s\S]{0,240}\bFlowAxes\b|\bFlowAxes\b[\s\S]{0,240}leaf_(?:layout|content_size)' README.md src/lib.rs
-! rg -n 'TODO|TBD|FIXME|\?\?\?' README.md src/lib.rs
 CARGO_NET_OFFLINE=true just fmt-check
 git diff --check
 ```
-
 Commit: `docs: close FRI-03 participation contract`.
 
 ## Completion
-Run the four focused T1 commands, then:
-
+Rerun every task command except the preflight and generation command. Then run:
 ```sh
 CARGO_NET_OFFLINE=true just fmt-check
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --doc
 CARGO_NET_OFFLINE=true RUSTDOCFLAGS='-D warnings' cargo doc --locked --offline --no-deps -p surgeist-layout
-CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 find tests/layout/browser_parity/html -type f -name '*.html' | wc -l
 find tests/layout/browser_parity/xml -type f -name '*.xml' | wc -l
 find tests/layout/browser_parity/xml/generation-reports -type f -name '*.json' -print
+rg -l 'host-inline-size=' tests/layout/browser_parity/xml --glob '*.xml' | wc -l
 jq -e '.summary.generated == 5268 and .summary.unsupported == 356 and .summary.expected_fail == 0 and .summary.quarantined == 0 and .summary.failed_to_generate == 0' tests/layout/browser_parity/xml/generation-reports/all.json
 jq -S '.unsupported | map({name, source, variant, reason}) | sort_by(.name, .source, .variant, .reason)' tests/layout/browser_parity/xml/generation-reports/all.json | shasum -a 256
 ! rg -n 'NodeOutputOf::order|NodeOutputOf::with_order|pub order:|\bfn with_order\s*\(' src/output.rs README.md src/lib.rs
-rg -n 'pub fn leaf_(layout|content_size)' src/output.rs
 ! rg -U --pcre2 'pub fn leaf_(?:layout|content_size)\([^)]*\bFlowAxes\b' src/output.rs
-! rg -U --pcre2 'leaf_(?:layout|content_size)[\s\S]{0,240}\bFlowAxes\b|\bFlowAxes\b[\s\S]{0,240}leaf_(?:layout|content_size)' README.md src/lib.rs
-rg -n 'item_order' src/flex.rs src/grid
-rg -n 'item_is_replaced' src/block.rs src/compute.rs src/flex.rs src/grid
-rg -n 'ContainingLayoutContext|ParentFormattingContext|parent_flow_axes' src
 ! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' --glob '!target/**' .
 git diff --check 2c0a396bcb9299bd77fb33981d08b0a7c0244eb8
 git diff --name-only 2c0a396bcb9299bd77fb33981d08b0a7c0244eb8
-git diff --exit-code 2c0a396bcb9299bd77fb33981d08b0a7c0244eb8 -- tests/layout/browser_parity/html tests/layout/browser_parity/xml tests/layout/browser_parity/corpus.toml tests/layout/browser_parity/README.md tests/layout/browser_parity/support.rs tests/bin scripts Cargo.toml Cargo.lock justfile
+git diff --exit-code 2c0a396bcb9299bd77fb33981d08b0a7c0244eb8 -- src ':(exclude)src/lib.rs'
+git diff --exit-code 2c0a396bcb9299bd77fb33981d08b0a7c0244eb8 -- tests/layout/browser_parity/html tests/layout/browser_parity/corpus.toml tests/layout/browser_parity/README.md tests/layout/browser_parity/scripts/gentest/test_base_style.css tests/bin/surgeist-layout-generate.rs Cargo.toml Cargo.lock justfile scripts
 git status --short
 ```
+Counts must be 1,406 HTML, 5,268 XML, one `all.json`, and 16 host attributes;
+the digest must equal the T1 SHA. The final head must be task-clean and
+holistic-clean before immutable-SHA publication and fresh remote readback. No
+final check may modify source or generated artifacts.
 
-The count commands must report 1,406 HTML and 5,268 XML; the report command must
-print only `all.json`; the unsupported digest must equal the recorded SHA; and
-both negated scans must find no executable unsafe or old output-order surface.
-`verify-generator` compiles, tests, and lints the feature configuration but does
-not generate artifacts. `corpus-check` is the read-only `check-corpus` path.
+Emit canonical `SURGEIST_HANDOFF: CRATE_CANDIDATE` with ID
+`surgeist-layout-fri-03-c08`: authority remote/URL, base/head/push/readback SHAs,
+commits, reviewed revisions, all task ranges/evidence/reviews, effects, unsafe
+and publication proof, and root actions for CSS order, box replacedness,
+flex-parent axes, invalidation, consumer rename, facade, gitlink, integration
+tests, and API artifacts. Do not edit root.
 
-Cycle acceptance: both task ranges are independently clean; the complete cycle
-is holistic clean; all commands pass at the exact head; `MODEL-001`, `CORE-005`,
-and `BLOCK-007` have traceable specification, source, focused, browser, corpus,
-docs, and absence evidence; and the immutable candidate is pushed to and read
-back from authority `origin/main`.
-
-After publication and readback, emit the complete canonical
-`SURGEIST_HANDOFF: CRATE_CANDIDATE` payload with handoff ID
-`surgeist-layout-fri-03-c08`. Record repository/crate, authority remote and URL,
-branch, base/head/push/readback SHAs, commits, objective, reviewed spec/sequence/
-plan revisions, both task ranges, behavior/final evidence, all review verdicts,
-API/dependency/artifact/docs/unsafe effects, full publication proof, no brief,
-and observations. Root actions must name CSS `order` parsing/lowering,
-box-generation replacedness, flex-parent axes, invalidation, consumer rename,
-facade, gitlink, integration tests, and API artifacts. Do not edit root.
-
-Genuine blockers are artifact/provenance drift, a named FRI-03 failure, unsafe,
-an out-of-bound change, or required generator/root expansion. A failed check or
-review returns the plan to `in_progress`; it never authorizes regeneration.
+Genuine blockers are missing cached browser, artifact/provenance/count drift,
+named FRI-03 failure, unsafe, out-of-bound change, or required architecture/root
+expansion. A failed check/review returns to `in_progress`; it never authorizes a
+second full derivation of the same settled inputs.
