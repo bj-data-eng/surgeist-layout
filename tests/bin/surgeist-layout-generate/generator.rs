@@ -194,7 +194,12 @@ impl GenerationConfig {
                 "{BROWSER_CACHE_ENV} and {BROWSER_VERSION_ENV} are manifest-owned browser settings and must be unset for generation"
             ));
         }
-        let filter = normalize_generation_filter(environment.filter, &manifest)?;
+        let filter = normalize_generation_filter(environment.filter, &corpus.html_root)?;
+        if filter.is_some() && resolution_mode != BrowserResolutionMode::ExistingPinned {
+            return Err(format!(
+                "{FILTER_ENV} is only valid with generate-existing diagnostic runs"
+            ));
+        }
         match resolution_mode {
             BrowserResolutionMode::ManagedPinned if environment.browser_path.is_some() => {
                 return Err(format!(
@@ -342,10 +347,6 @@ struct GenerationReportInventory<'a> {
 }
 
 impl<'a> GenerationReportInventory<'a> {
-    fn scoped_for_filter(&self, filter: &str) -> Option<&'a ScopedGenerationReportManifest> {
-        self.scoped.get(filter).copied()
-    }
-
     fn all_files(&self) -> BTreeSet<&'a str> {
         let mut files = BTreeSet::from([self.full.file.as_str()]);
         files.extend(self.scoped.values().map(|report| report.file.as_str()));
@@ -627,21 +628,61 @@ fn validate_generation_report_file(kind: &str, raw: &str) -> Result<(), String> 
 
 fn normalize_generation_filter(
     raw: Option<String>,
-    manifest: &CorpusManifest,
+    html_root: &Path,
 ) -> Result<Option<String>, String> {
-    let normalized = raw.map(|filter| filter.trim().to_string());
-    let Some(filter) = normalized else {
+    let Some(filter) = raw else {
         return Ok(None);
     };
     if filter.is_empty() {
         return Ok(None);
     }
-    if generation_report_manifest(manifest)?
-        .scoped_for_filter(&filter)
-        .is_none()
+    if filter.trim() != filter || filter.contains('\\') || filter.split('/').any(str::is_empty) {
+        return Err(format!(
+            "{FILTER_ENV}={filter:?} must be an unpadded normalized repository-relative path"
+        ));
+    }
+    let relative = validate_strict_relative_path(FILTER_ENV, &filter)?;
+    if relative
+        .extension()
+        .is_some_and(|extension| extension != "html")
     {
         return Err(format!(
-            "{FILTER_ENV}={filter:?} must be empty or exactly match one manifest scoped generation report"
+            "{FILTER_ENV}={filter:?} must name an HTML fixture or a directory prefix"
+        ));
+    }
+    let canonical_root = fs::canonicalize(html_root).map_err(|error| {
+        format!(
+            "failed to validate {FILTER_ENV} against {}: {error}",
+            html_root.display()
+        )
+    })?;
+    let target = html_root.join(&relative);
+    let canonical_target = fs::canonicalize(&target).map_err(|_| {
+        format!(
+            "{FILTER_ENV}={filter:?} must match an HTML fixture or directory under {}",
+            html_root.display()
+        )
+    })?;
+    if !canonical_target.starts_with(&canonical_root) {
+        return Err(format!(
+            "{FILTER_ENV}={filter:?} escapes the HTML fixture root {}",
+            html_root.display()
+        ));
+    }
+    let matches_html = if canonical_target.is_file() {
+        relative
+            .extension()
+            .and_then(|extension| extension.to_str())
+            == Some("html")
+    } else if canonical_target.is_dir() {
+        !collect_html(&canonical_target, None)?.is_empty()
+    } else {
+        false
+    };
+    if !matches_html {
+        return Err(format!(
+            "{FILTER_ENV}={filter:?} must match at least one HTML fixture under {}",
+            html_root.display()
         ));
     }
     Ok(Some(filter))
@@ -801,14 +842,16 @@ async fn generate(config: GenerationConfig) -> Result<(), String> {
     let jobs = generation_jobs(constrained_fixtures);
     if jobs.is_empty() {
         if report.has_entries() {
-            fs::create_dir_all(&config.corpus.xml_root).map_err(|error| {
-                format!(
-                    "failed to create {}: {error}",
-                    config.corpus.xml_root.display()
-                )
-            })?;
-            write_generation_report(&config, &report)?;
-            prune_stale_generation_reports_after_success(&config, &report)?;
+            if config.filter.is_none() {
+                fs::create_dir_all(&config.corpus.xml_root).map_err(|error| {
+                    format!(
+                        "failed to create {}: {error}",
+                        config.corpus.xml_root.display()
+                    )
+                })?;
+                write_generation_report(&config, &report)?;
+                prune_stale_generation_reports_after_success(&config, &report)?;
+            }
             return Ok(());
         }
         let scope = config.filter.as_ref().map_or_else(
@@ -838,12 +881,23 @@ async fn generate(config: GenerationConfig) -> Result<(), String> {
 
 fn finish_generation(config: &GenerationConfig, report: &GenerationReport) -> Result<(), String> {
     prune_stale_generated_xml_outputs_after_success(config, report)?;
+    if config.filter.is_some() {
+        if report.summary.failed_to_generate > 0 {
+            return Err(format!(
+                "{} filtered generation job(s) failed",
+                report.summary.failed_to_generate
+            ));
+        }
+        return Ok(());
+    }
     write_generation_report(config, report)?;
     if report.summary.failed_to_generate > 0 {
         return Err(format!(
             "{} generation job(s) failed; see {}",
             report.summary.failed_to_generate,
-            generation_report_path(config).display()
+            generation_report_path(config)
+                .expect("unfiltered generation has a report path")
+                .display()
         ));
     }
     prune_stale_generation_reports_after_success(config, report)?;
@@ -2842,7 +2896,9 @@ fn write_generation_report_with_hook<F>(
 where
     F: FnOnce() -> Result<(), String>,
 {
-    let path = generation_report_path(config);
+    let path = generation_report_path(config).ok_or_else(|| {
+        "filtered diagnostic generation must not write a generation report".to_string()
+    })?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
@@ -3533,19 +3589,19 @@ fn expected_linked_resource_provenance(
     Ok(Vec::new())
 }
 
-fn generation_report_path(config: &GenerationConfig) -> PathBuf {
+fn generation_report_path(config: &GenerationConfig) -> Option<PathBuf> {
+    if config.filter.is_some() {
+        return None;
+    }
     let inventory = generation_report_manifest(&config.manifest)
         .expect("generation config must contain a validated report manifest");
-    let file = config
-        .filter
-        .as_deref()
-        .and_then(|filter| {
-            inventory
-                .scoped_for_filter(filter)
-                .map(|report| report.file.as_str())
-        })
-        .unwrap_or(inventory.full.file.as_str());
-    config.corpus.xml_root.join("generation-reports").join(file)
+    Some(
+        config
+            .corpus
+            .xml_root
+            .join("generation-reports")
+            .join(&inventory.full.file),
+    )
 }
 
 fn prune_stale_generation_reports_after_success(
@@ -4809,7 +4865,7 @@ mod tests {
         .expect_err("existing resolution must require a path");
         assert!(existing_empty.contains(BROWSER_PATH_ENV));
 
-        let invalid_filter = GenerationConfig::new(
+        let diagnostic_filter = GenerationConfig::new(
             corpus,
             manifest,
             BrowserResolutionMode::ExistingPinned,
@@ -4820,8 +4876,8 @@ mod tests {
                 filter: Some("block".to_string()),
             },
         )
-        .expect_err("partial filters must be rejected");
-        assert!(invalid_filter.contains(FILTER_ENV));
+        .expect("matched directory filters are valid diagnostics");
+        assert_eq!(diagnostic_filter.filter.as_deref(), Some("block"));
     }
 
     #[test]
@@ -5155,13 +5211,10 @@ mod tests {
         assert_eq!(reports.full.file, "all.json");
         assert_eq!(reports.full.generated, 5256);
         assert_eq!(
-            reports
-                .scoped_for_filter("block/block_axes")
-                .unwrap()
-                .generated,
+            reports.scoped.get("block/block_axes").unwrap().generated,
             20
         );
-        assert!(reports.scoped_for_filter("block").is_none());
+        assert!(!reports.scoped.contains_key("block"));
 
         let expected = [
             ("block/block_axes", "block_block_axes.json", 20),
@@ -5175,9 +5228,7 @@ mod tests {
             ("subgrid/subgrid_axes", "subgrid_subgrid_axes.json", 36),
         ];
         for (filter, file, generated) in expected {
-            let report = reports
-                .scoped_for_filter(filter)
-                .expect("listed scoped report");
+            let report = reports.scoped.get(filter).expect("listed scoped report");
             assert_eq!(report.file, file);
             assert_eq!(report.generated, generated);
         }
@@ -8279,10 +8330,10 @@ status = "active"
     fn generation_report_metadata_validation_rejects_stale_scoped_reports() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         assert!(
-            generation_report_manifest(&manifest)
+            !generation_report_manifest(&manifest)
                 .unwrap()
-                .scoped_for_filter("grid")
-                .is_none()
+                .scoped
+                .contains_key("grid")
         );
     }
     #[test]
@@ -8328,14 +8379,189 @@ status = "active"
     }
 
     #[test]
-    fn generation_report_path_is_scoped_by_filter() {
+    fn generation_report_path_is_full_only() {
         let corpus = Config::from_root(PathBuf::from(DEFAULT_ROOT)).expect("config");
         let mut config = test_generation_config(corpus);
-        assert!(generation_report_path(&config).ends_with("generation-reports/all.json"));
-        config.filter = Some("grid/grid_axes".to_string());
         assert!(
-            generation_report_path(&config).ends_with("generation-reports/grid_grid_axes.json")
+            generation_report_path(&config)
+                .unwrap()
+                .ends_with("generation-reports/all.json")
         );
+        config.filter = Some("grid/grid_axes".to_string());
+        assert!(generation_report_path(&config).is_none());
+    }
+    #[test]
+    fn diagnostic_filter_is_report_free_and_manifest_independent() {
+        let root = test_browser_root("report-free-diagnostic-filter");
+        let corpus = Config {
+            root: root.clone(),
+            html_root: root.join("html"),
+            xml_root: root.join("xml"),
+        };
+        let fixture = corpus.html_root.join("grid/matched.html");
+        let matching_xml = corpus.xml_root.join("grid/matched__border_box_ltr.xml");
+        let stale_xml = corpus.xml_root.join("stale.xml");
+        let report_dir = corpus.xml_root.join("generation-reports");
+        let full_report = report_dir.join("all.json");
+        let stale_report = report_dir.join("stale.json");
+        fs::create_dir_all(fixture.parent().unwrap()).expect("fixture directory");
+        fs::create_dir_all(matching_xml.parent().unwrap()).expect("XML directory");
+        fs::create_dir_all(&report_dir).expect("report directory");
+        fs::write(&fixture, "<!doctype html>").expect("fixture");
+        fs::write(&matching_xml, "matching XML\n").expect("matching XML");
+        fs::write(&stale_xml, "stale XML\n").expect("stale XML");
+        fs::write(&full_report, "retained full report\n").expect("full report");
+        fs::write(&stale_report, "retained stale report\n").expect("stale report");
+        fs::write(root.join("corpus.toml"), test_schema_two_manifest("")).expect("corpus manifest");
+
+        let mut manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+        manifest.generation_reports.scoped.clear();
+        let config = GenerationConfig::new(
+            corpus.clone(),
+            manifest.clone(),
+            BrowserResolutionMode::ExistingPinned,
+            GenerationEnvironment {
+                browser_path: Some("target/surgeist-browser/browser".to_string()),
+                browser_cache_set: false,
+                browser_version_set: false,
+                filter: Some("grid/matched.html".to_string()),
+            },
+        )
+        .expect("matched diagnostic filter independent of report manifest");
+        assert_eq!(config.filter.as_deref(), Some("grid/matched.html"));
+
+        let mut filtered_report = GenerationReport {
+            filter: config.filter.clone(),
+            ..GenerationReport::default()
+        };
+        filtered_report.record_generated(
+            "matched".to_string(),
+            "html/grid/matched.html".to_string(),
+            "xml/grid/matched__border_box_ltr.xml".to_string(),
+            "border_box_ltr".to_string(),
+        );
+        finish_generation(&config, &filtered_report).expect("filtered diagnostic completion");
+        assert_eq!(
+            fs::read_to_string(&full_report).unwrap(),
+            "retained full report\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&stale_report).unwrap(),
+            "retained stale report\n"
+        );
+        assert!(
+            stale_xml.is_file(),
+            "filtered diagnostics must not prune XML"
+        );
+        let mut failed_filtered_report = GenerationReport {
+            filter: config.filter.clone(),
+            ..GenerationReport::default()
+        };
+        failed_filtered_report.record_failed_to_generate(
+            "matched".to_string(),
+            "html/grid/matched.html".to_string(),
+            "injected diagnostic failure".to_string(),
+        );
+        let error = finish_generation(&config, &failed_filtered_report)
+            .expect_err("filtered diagnostic failure");
+        assert!(error.contains("1 filtered generation job(s) failed"));
+        assert_eq!(
+            fs::read_to_string(&full_report).unwrap(),
+            "retained full report\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&stale_report).unwrap(),
+            "retained stale report\n"
+        );
+
+        let mut full_config = test_generation_config(corpus);
+        full_config.manifest = manifest;
+        let mut full_generation_report = GenerationReport::default();
+        full_generation_report.record_generated(
+            "matched".to_string(),
+            "html/grid/matched.html".to_string(),
+            "xml/grid/matched__border_box_ltr.xml".to_string(),
+            "border_box_ltr".to_string(),
+        );
+        finish_generation(&full_config, &full_generation_report).expect("full completion");
+        assert_ne!(
+            fs::read_to_string(&full_report).unwrap(),
+            "retained full report\n"
+        );
+        assert!(
+            !stale_report.exists(),
+            "full generation must prune stale reports"
+        );
+        assert!(!stale_xml.exists(), "full generation must prune stale XML");
+        assert!(matching_xml.is_file());
+        fs::remove_dir_all(root).ok();
+    }
+
+    #[test]
+    fn diagnostic_filter_rejects_invalid_or_unmatched_input_before_writes() {
+        let root = test_browser_root("invalid-diagnostic-filter");
+        let corpus = Config {
+            root: root.clone(),
+            html_root: root.join("html"),
+            xml_root: root.join("xml"),
+        };
+        let fixture = corpus.html_root.join("block/block_axes/case.html");
+        let xml = corpus.xml_root.join("sentinel.xml");
+        let report = corpus.xml_root.join("generation-reports/all.json");
+        fs::create_dir_all(fixture.parent().unwrap()).expect("fixture directory");
+        fs::create_dir_all(report.parent().unwrap()).expect("report directory");
+        fs::write(&fixture, "<!doctype html>").expect("fixture");
+        fs::write(&xml, "retained XML\n").expect("XML sentinel");
+        fs::write(&report, "retained report\n").expect("report sentinel");
+
+        let invalid = [
+            " block/block_axes ",
+            "/block/block_axes",
+            "../block/block_axes",
+            "block/../block_axes",
+            "block//block_axes",
+            "block\\block_axes",
+            "block/missing.html",
+        ];
+        for filter in invalid {
+            let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+            let error = GenerationConfig::new(
+                corpus.clone(),
+                manifest,
+                BrowserResolutionMode::ExistingPinned,
+                GenerationEnvironment {
+                    browser_path: Some("target/surgeist-browser/browser".to_string()),
+                    browser_cache_set: false,
+                    browser_version_set: false,
+                    filter: Some(filter.to_string()),
+                },
+            )
+            .expect_err("invalid or unmatched filter must fail");
+            assert!(
+                error.contains(FILTER_ENV),
+                "unexpected error for {filter:?}: {error}"
+            );
+            assert_eq!(fs::read_to_string(&xml).unwrap(), "retained XML\n");
+            assert_eq!(fs::read_to_string(&report).unwrap(), "retained report\n");
+        }
+
+        for filter in ["block", "block/block_axes/case.html"] {
+            let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
+            let config = GenerationConfig::new(
+                corpus.clone(),
+                manifest,
+                BrowserResolutionMode::ExistingPinned,
+                GenerationEnvironment {
+                    browser_path: Some("target/surgeist-browser/browser".to_string()),
+                    browser_cache_set: false,
+                    browser_version_set: false,
+                    filter: Some(filter.to_string()),
+                },
+            )
+            .expect("matched directory or exact HTML filter");
+            assert_eq!(config.filter.as_deref(), Some(filter));
+        }
+        fs::remove_dir_all(root).ok();
     }
     #[test]
     fn generation_report_write_failure_preserves_existing_report() {
@@ -8347,7 +8573,7 @@ status = "active"
         };
         fs::write(root.join("corpus.toml"), test_schema_two_manifest("")).expect("corpus manifest");
         let config = test_generation_config(corpus);
-        let path = generation_report_path(&config);
+        let path = generation_report_path(&config).unwrap();
         fs::create_dir_all(path.parent().unwrap()).expect("report directory");
         fs::write(&path, "old report\n").expect("old report");
 
@@ -8374,7 +8600,7 @@ status = "active"
         };
         fs::write(root.join("corpus.toml"), test_schema_two_manifest("")).expect("corpus manifest");
         let config = test_generation_config(corpus);
-        let path = generation_report_path(&config);
+        let path = generation_report_path(&config).unwrap();
         fs::create_dir_all(path.parent().unwrap()).expect("report directory");
         fs::write(&path, "old report\n").expect("old report");
 
@@ -8438,7 +8664,7 @@ status = "active"
 
         assert!(error.contains("1 generation job(s) failed"));
         assert!(
-            generation_report_path(&config).is_file(),
+            generation_report_path(&config).unwrap().is_file(),
             "failed full generation must install its canonical report"
         );
         assert!(
