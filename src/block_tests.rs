@@ -121,6 +121,74 @@ fn scalar_percentage<S: LayoutScalar>(
         .expect("test coefficients are finite")
 }
 
+#[test]
+fn block_layout_ignores_item_order_for_geometry() {
+    let layout = |item_orders: [ItemOrder; 3]| {
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1, 2, 3])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_children(3, [])
+            .with_style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    size: Size::splat(Dimension::px(100.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInput {
+                    display: Display::Block,
+                    item_order: item_orders[0],
+                    size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInput {
+                    display: Display::Block,
+                    item_order: item_orders[1],
+                    size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                3,
+                NodeInput {
+                    display: Display::Block,
+                    item_order: item_orders[2],
+                    size: Size::new(Dimension::px(30.0), Dimension::px(30.0)),
+                    ..NodeInput::default()
+                },
+            );
+        let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0)))
+            .expect("finite viewport is valid");
+        let batch = compute_layout(&tree, 0, request).expect("ordinary block layout succeeds");
+
+        [
+            public_final_output(&batch, 1),
+            public_final_output(&batch, 2),
+            public_final_output(&batch, 3),
+        ]
+    };
+
+    let source_order = layout([ItemOrder::ZERO; 3]);
+    let non_default_order = layout([ItemOrder::new(7), ItemOrder::new(-3), ItemOrder::new(2)]);
+
+    assert_eq!(non_default_order, source_order);
+    assert_eq!(
+        non_default_order.map(|output| (output.source_index, output.location)),
+        [
+            (SourceIndex::new(0), Point::new(0.0, 0.0)),
+            (SourceIndex::new(1), Point::new(0.0, 10.0)),
+            (SourceIndex::new(2), Point::new(0.0, 30.0)),
+        ]
+    );
+}
+
 fn assert_ordinary_block_flow<S: LayoutScalar>(
     writing_mode: WritingMode,
     direction: Direction,

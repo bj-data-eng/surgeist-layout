@@ -940,6 +940,24 @@ impl ItemOrder {
     }
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "used by later reviewed FRI-03 order-consuming cycles"
+    )
+)]
+pub(crate) fn item_order_permutation(
+    items: &[(ItemOrder, crate::SourceIndex)],
+) -> Vec<crate::SourceIndex> {
+    let mut ordered = items.to_vec();
+    ordered.sort_by_key(|&(item_order, source_index)| (item_order, source_index));
+    ordered
+        .into_iter()
+        .map(|(_, source_index)| source_index)
+        .collect()
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub display: Display,
@@ -1146,5 +1164,39 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
             Self::Box(_) | Self::LineBreak(_) => None,
             Self::InlineBoundary(input) => Some(*input),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::SourceIndex;
+
+    #[test]
+    fn item_order_permutation_is_signed_total_and_stable() {
+        let items = [
+            (ItemOrder::ZERO, SourceIndex::new(4)),
+            (ItemOrder::new(-1), SourceIndex::new(3)),
+            (ItemOrder::new(1), SourceIndex::new(2)),
+            (ItemOrder::new(-1), SourceIndex::new(1)),
+            (ItemOrder::ZERO, SourceIndex::new(0)),
+            (ItemOrder::new(i32::MIN), SourceIndex::new(6)),
+            (ItemOrder::new(i32::MAX), SourceIndex::new(5)),
+        ];
+        assert_eq!(
+            item_order_permutation(&items),
+            [6, 1, 3, 0, 4, 2, 5].map(SourceIndex::new)
+        );
+
+        let all_zero = [
+            (ItemOrder::ZERO, SourceIndex::new(2)),
+            (ItemOrder::default(), SourceIndex::new(0)),
+            (ItemOrder::ZERO, SourceIndex::new(1)),
+        ];
+        assert_eq!(
+            item_order_permutation(&all_zero),
+            [0, 1, 2].map(SourceIndex::new)
+        );
+        assert_eq!(item_order_permutation(&[]), Vec::new());
     }
 }
