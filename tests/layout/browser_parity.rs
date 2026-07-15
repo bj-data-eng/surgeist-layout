@@ -218,6 +218,81 @@ fn grid_lanes_item_order_variants_match_browser() {
 }
 
 #[test]
+fn fri_03_fixture_matrix_rejects_missing_duplicate_misplaced_and_extra_outputs() {
+    let expected = fri_03_expected_paths();
+
+    assert!(fri_03_fixture_paths(expected.iter().skip(1).cloned()).is_err());
+
+    let mut duplicate = expected.clone();
+    duplicate.push(expected[0].clone());
+    assert!(fri_03_fixture_paths(duplicate).is_err());
+
+    let mut misplaced = expected.clone();
+    let file = misplaced[0]
+        .file_name()
+        .expect("FRI-03 path should have a filename")
+        .to_owned();
+    misplaced[0] = PathBuf::from("xml/other").join(file);
+    assert!(fri_03_fixture_paths(misplaced).is_err());
+
+    let mut extra = expected;
+    extra.push(PathBuf::from(
+        "xml/block/block_align_baseline_child_margin_percent__extra.xml",
+    ));
+    assert!(fri_03_fixture_paths(extra).is_err());
+
+    let paths = fri_03_fixture_paths(browser_parity_fixture_paths())
+        .unwrap_or_else(|error| panic!("FRI-03 fixture matrix is incomplete: {error}"));
+    assert_eq!(paths.len(), 32);
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|path| fri_03_family(path) == Some(Fri03Family::BlockMargin))
+            .count(),
+        4
+    );
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|path| fri_03_family(path) == Some(Fri03Family::Order))
+            .count(),
+        12
+    );
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|path| fri_03_family(path) == Some(Fri03Family::FlexItemRoot))
+            .count(),
+        16
+    );
+
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+    for relative in paths {
+        let fixture = corpus_root.join(&relative);
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        assert_fri_03_fixture_topology(&golden, &relative)
+            .unwrap_or_else(|error| panic!("{}: {error}", fixture.display()));
+    }
+}
+
+#[test]
+fn runs_fri_03_box_participation_against_surgeist_layout() {
+    let paths = fri_03_fixture_paths(browser_parity_fixture_paths())
+        .unwrap_or_else(|error| panic!("FRI-03 fixture matrix is incomplete: {error}"));
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+
+    for relative in paths {
+        let fixture = corpus_root.join(relative);
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} failed layout comparison: {error}", fixture.display())
+        });
+    }
+}
+
+#[test]
 fn runs_subgrid_relative_rtl_abspos_fixture_against_surgeist_layout() {
     let golden = support::Golden::parse(include_str!(
         "browser_parity/xml/subgrid/subgrid_abspos_relative_rtl_column_3_to_5__border_box_ltr.xml"
@@ -1009,6 +1084,251 @@ fn calc_fixture_family_paths(
     }
 
     Ok(discovered)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri03Family {
+    BlockMargin,
+    Order,
+    FlexItemRoot,
+}
+
+fn fri_03_expected_paths() -> Vec<PathBuf> {
+    const FAMILIES: [&str; 8] = [
+        "block/block_align_baseline_child_margin_percent",
+        "flex/fri03_order_modified_flex",
+        "grid/fri03_order_modified_grid",
+        "grid-lanes/fri03_order_modified_lanes",
+        "grid/grid_available_space_greater_than_max_content",
+        "grid/grid_available_space_smaller_than_max_content",
+        "grid/grid_available_space_smaller_than_min_content",
+        "grid/chrome_issue_325928327",
+    ];
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    FAMILIES
+        .into_iter()
+        .flat_map(|family| {
+            VARIANTS
+                .into_iter()
+                .map(move |variant| PathBuf::from("xml").join(format!("{family}__{variant}.xml")))
+        })
+        .collect()
+}
+
+fn fri_03_fixture_paths(
+    candidate_paths: impl IntoIterator<Item = PathBuf>,
+) -> Result<BTreeSet<PathBuf>, String> {
+    let expected = fri_03_expected_paths().into_iter().collect::<BTreeSet<_>>();
+    let fixtures = candidate_paths
+        .into_iter()
+        .filter(|candidate| fri_03_family(candidate).is_some())
+        .collect::<Vec<_>>();
+    let discovered = fixtures.iter().cloned().collect::<BTreeSet<_>>();
+
+    if fixtures.len() != discovered.len() {
+        return Err(format!(
+            "FRI-03 fixture discovery must not contain duplicate relative paths: {discovered:#?}"
+        ));
+    }
+    if discovered != expected {
+        return Err(format!(
+            "FRI-03 fixture matrix must contain exactly the required relative variants: {discovered:#?}"
+        ));
+    }
+
+    Ok(discovered)
+}
+
+fn fri_03_family(path: &Path) -> Option<Fri03Family> {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("xml") {
+        return None;
+    }
+    let source = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())?
+        .split_once("__")?
+        .0;
+    match source {
+        "block_align_baseline_child_margin_percent" => Some(Fri03Family::BlockMargin),
+        "fri03_order_modified_flex"
+        | "fri03_order_modified_grid"
+        | "fri03_order_modified_lanes" => Some(Fri03Family::Order),
+        "grid_available_space_greater_than_max_content"
+        | "grid_available_space_smaller_than_max_content"
+        | "grid_available_space_smaller_than_min_content"
+        | "chrome_issue_325928327" => Some(Fri03Family::FlexItemRoot),
+        _ => None,
+    }
+}
+
+fn assert_fri_03_fixture_topology(golden: &support::Golden, path: &Path) -> Result<(), String> {
+    match fri_03_family(path) {
+        Some(Fri03Family::BlockMargin) => assert_fri_03_block_margin_topology(golden),
+        Some(Fri03Family::Order) => assert_fri_03_order_topology(golden, path),
+        Some(Fri03Family::FlexItemRoot) => assert_fri_03_flex_item_root_topology(golden, path),
+        None => Err(format!("{} is not an owned FRI-03 fixture", path.display())),
+    }
+}
+
+fn assert_fri_03_block_margin_topology(golden: &support::Golden) -> Result<(), String> {
+    if golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some("flex")
+        || golden.root.children.len() != 2
+        || golden.root.children[1].children.len() != 1
+        || golden.expectations.children.len() != 2
+        || golden.expectations.children[1].children.len() != 1
+        || golden.expectations.children[1].children[0].y != Some(1.0)
+    {
+        return Err(
+            "block-margin fixture must retain the flex boundary and nested-child y=1 topology"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn assert_fri_03_order_topology(golden: &support::Golden, path: &Path) -> Result<(), String> {
+    let source = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .and_then(|stem| stem.split_once("__"))
+        .map(|(source, _)| source)
+        .ok_or_else(|| format!("{} must have a source and variant", path.display()))?;
+    let expected_display = match source {
+        "fri03_order_modified_flex" => "flex",
+        "fri03_order_modified_grid" => "grid",
+        "fri03_order_modified_lanes" => "grid-lanes",
+        _ => return Err(format!("{source} is not an FRI-03 order source")),
+    };
+
+    if golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some(expected_display)
+        || golden.root.children.len() != 4
+        || golden.expectations.children.len() != 4
+    {
+        return Err("order fixture must retain its four-item source topology".to_string());
+    }
+    if expected_display != "flex"
+        && (golden.root.style.get("grid-template-columns") != Some("20px 20px 20px 20px")
+            || golden.root.style.get("grid-template-rows") != Some("20px"))
+    {
+        return Err("grid order fixture must retain its four definite columns".to_string());
+    }
+    if golden
+        .root
+        .children
+        .iter()
+        .map(|child| child.style.get("order").unwrap_or("0"))
+        .collect::<Vec<_>>()
+        != ["2", "-1", "2", "0"]
+        || golden.root.children.iter().any(|child| {
+            child.kind != support::NodeKind::Div
+                || child.style.get("display") != Some("flex")
+                || child.style.width() != Some("20px".to_string())
+                || child.style.get("height") != Some("20px")
+                || !child.children.is_empty()
+        })
+    {
+        return Err(
+            "order fixture must retain signed order on four source-ordered items".to_string(),
+        );
+    }
+
+    let expected_x = if path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .is_some_and(|stem| stem.ends_with("_rtl"))
+    {
+        [20.0, 60.0, 0.0, 40.0]
+    } else {
+        [40.0, 0.0, 60.0, 20.0]
+    };
+    let actual_x = golden
+        .expectations
+        .children
+        .iter()
+        .map(|child| child.x)
+        .collect::<Vec<_>>();
+    if actual_x != expected_x.map(Some)
+        || golden.expectations.children.iter().any(|child| {
+            child.y != Some(0.0)
+                || child.width != Some(20.0)
+                || child.height != Some(20.0)
+                || !child.children.is_empty()
+        })
+    {
+        return Err(
+            "order fixture expectations must stay source-indexed while geometry follows order"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn assert_fri_03_flex_item_root_topology(
+    golden: &support::Golden,
+    path: &Path,
+) -> Result<(), String> {
+    let source = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .and_then(|stem| stem.split_once("__"))
+        .map(|(source, _)| source)
+        .ok_or_else(|| format!("{} must have a source and variant", path.display()))?;
+    let (expected_width, expected_host) = match source {
+        "grid_available_space_greater_than_max_content" => {
+            (support::Available::Definite(400.0), 160.0)
+        }
+        "grid_available_space_smaller_than_max_content" => {
+            (support::Available::Definite(80.0), 80.0)
+        }
+        "grid_available_space_smaller_than_min_content" => {
+            (support::Available::Definite(60.0), 80.0)
+        }
+        "chrome_issue_325928327" => (support::Available::MaxContent, 40.0),
+        _ => return Err(format!("{source} is not an FRI-03 flex-item-root source")),
+    };
+    let expected_direction = if path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .is_some_and(|stem| stem.ends_with("_rtl"))
+    {
+        surgeist_layout::Direction::Rtl
+    } else {
+        surgeist_layout::Direction::Ltr
+    };
+
+    if golden.viewport.width != expected_width
+        || golden.viewport.height != support::Available::MaxContent
+        || golden.root.kind != support::NodeKind::Div
+        || golden.root.style.get("display") != Some("grid")
+        || golden.expectations.width != Some(expected_host)
+    {
+        return Err(
+            "flex-item-root fixture must retain separate viewport and host geometry".to_string(),
+        );
+    }
+    match golden.viewport.root_context {
+        support::RootContext::FlexItem {
+            parent_axes,
+            host_inline_size,
+        } if parent_axes.writing_mode() == surgeist_layout::WritingMode::HorizontalTb
+            && parent_axes.direction() == expected_direction
+            && parent_axes.inline_axis() == surgeist_layout::PhysicalAxis::Horizontal
+            && host_inline_size == expected_host => {}
+        context => {
+            return Err(format!(
+                "flex-item-root fixture must retain explicit horizontal parent context and host allocation, got {context:?}"
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn block_axis_fixture_paths(
