@@ -1,6 +1,6 @@
 # FRI-04-C01 Validated Sizing Calculations
 
-Status: draft
+Status: in_progress
 
 Cycle ID: `FRI-04-C01`
 
