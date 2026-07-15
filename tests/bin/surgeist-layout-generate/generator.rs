@@ -2314,7 +2314,9 @@ fn collect_constrained_fixtures_for_generation(
                         .clone()
                         .unwrap_or_else(|| "manifest marks case unsupported".to_string()),
                 );
-                prune_constrained_status_case_outputs(&config.corpus, &fixture)?;
+                if config.filter.is_none() {
+                    prune_constrained_status_case_outputs(&config.corpus, &fixture)?;
+                }
                 excluded.insert(fixture);
             }
             CorpusStatus::Quarantined => {
@@ -2325,7 +2327,9 @@ fn collect_constrained_fixtures_for_generation(
                         .clone()
                         .unwrap_or_else(|| "manifest marks case quarantined".to_string()),
                 );
-                prune_constrained_status_case_outputs(&config.corpus, &fixture)?;
+                if config.filter.is_none() {
+                    prune_constrained_status_case_outputs(&config.corpus, &fixture)?;
+                }
                 excluded.insert(fixture);
             }
         }
@@ -2346,17 +2350,18 @@ fn prune_constrained_status_case_outputs(config: &Config, fixture: &Path) -> Res
 }
 
 fn fixture_matches_filter(root: &Path, fixture: &Path, filter: &str) -> bool {
-    let filter = filter.trim_matches('/');
     if filter.is_empty() {
         return true;
     }
     let Ok(rel) = fixture.strip_prefix(root) else {
         return false;
     };
-    let rel_no_ext = rel.with_extension("");
-    rel.starts_with(filter)
-        || rel_no_ext.starts_with(filter)
-        || rel_no_ext.to_string_lossy().starts_with(filter)
+    let filter = Path::new(filter);
+    if root.join(filter).is_file() {
+        rel == filter
+    } else {
+        rel.starts_with(filter)
+    }
 }
 
 fn collect_html_into(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -7518,7 +7523,7 @@ for (const [writingMode, direction, start, end, width, height] of [
     }
 
     #[test]
-    fn collect_html_filter_matches_single_fixture_without_extension() {
+    fn collect_html_filter_matches_exact_html_fixture() {
         let root = std::env::temp_dir().join(format!(
             "surgeist-layout-filter-file-{}",
             std::process::id()
@@ -7528,28 +7533,27 @@ for (const [writingMode, direction, start, end, width, height] of [
         fs::write(html_root.join("grid-lanes/rows.html"), "").expect("rows fixture");
         fs::write(html_root.join("grid-lanes/columns.html"), "").expect("columns fixture");
 
-        let files = collect_html(&html_root, Some("grid-lanes/rows")).expect("filtered fixture");
+        let files =
+            collect_html(&html_root, Some("grid-lanes/rows.html")).expect("filtered fixture");
 
         assert_eq!(files, [html_root.join("grid-lanes/rows.html")]);
         fs::remove_dir_all(root).ok();
     }
 
     #[test]
-    fn collect_html_filter_matches_fixture_stem_prefix_within_folder() {
+    fn collect_html_filter_matches_nested_directory_without_fixture_prefix_sibling() {
         let root = std::env::temp_dir().join(format!(
             "surgeist-layout-filter-prefix-{}",
             std::process::id()
         ));
         let html_root = root.join("html");
-        fs::create_dir_all(html_root.join("subgrid")).expect("subgrid dir should exist");
-        fs::write(html_root.join("subgrid/subgrid_abspos_ltr.html"), "").expect("abspos fixture");
-        fs::write(html_root.join("subgrid/subgrid_alignment_ltr.html"), "")
-            .expect("alignment fixture");
+        fs::create_dir_all(html_root.join("grid/foo")).expect("nested dir should exist");
+        fs::write(html_root.join("grid/foo/case.html"), "").expect("nested fixture");
+        fs::write(html_root.join("grid/foobar.html"), "").expect("prefix sibling fixture");
 
-        let files =
-            collect_html(&html_root, Some("subgrid/subgrid_abspos")).expect("filtered fixtures");
+        let files = collect_html(&html_root, Some("grid/foo")).expect("filtered fixtures");
 
-        assert_eq!(files, [html_root.join("subgrid/subgrid_abspos_ltr.html")]);
+        assert_eq!(files, [html_root.join("grid/foo/case.html")]);
         fs::remove_dir_all(root).ok();
     }
 
@@ -8399,7 +8403,11 @@ status = "active"
             xml_root: root.join("xml"),
         };
         let fixture = corpus.html_root.join("grid/matched.html");
+        let unsupported_fixture = corpus.html_root.join("grid/unsupported.html");
+        let quarantined_fixture = corpus.html_root.join("grid/quarantined.html");
         let matching_xml = corpus.xml_root.join("grid/matched__border_box_ltr.xml");
+        let unsupported_xml = corpus.xml_root.join("grid/unsupported__border_box_ltr.xml");
+        let quarantined_xml = corpus.xml_root.join("grid/quarantined__border_box_ltr.xml");
         let stale_xml = corpus.xml_root.join("stale.xml");
         let report_dir = corpus.xml_root.join("generation-reports");
         let full_report = report_dir.join("all.json");
@@ -8408,7 +8416,11 @@ status = "active"
         fs::create_dir_all(matching_xml.parent().unwrap()).expect("XML directory");
         fs::create_dir_all(&report_dir).expect("report directory");
         fs::write(&fixture, "<!doctype html>").expect("fixture");
+        fs::write(&unsupported_fixture, "<!doctype html>").expect("unsupported fixture");
+        fs::write(&quarantined_fixture, "<!doctype html>").expect("quarantined fixture");
         fs::write(&matching_xml, "matching XML\n").expect("matching XML");
+        fs::write(&unsupported_xml, "unsupported XML\n").expect("unsupported XML");
+        fs::write(&quarantined_xml, "quarantined XML\n").expect("quarantined XML");
         fs::write(&stale_xml, "stale XML\n").expect("stale XML");
         fs::write(&full_report, "retained full report\n").expect("full report");
         fs::write(&stale_report, "retained stale report\n").expect("stale report");
@@ -8416,6 +8428,74 @@ status = "active"
 
         let mut manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         manifest.generation_reports.scoped.clear();
+        manifest.cases = vec![
+            CorpusCase {
+                id: "grid/unsupported".to_string(),
+                source_root: CorpusSourceRoot::Surgeist,
+                source: "grid/unsupported.html".to_string(),
+                generator: CorpusGenerator::ConstrainedHtml,
+                status: CorpusStatus::Unsupported,
+                reason: Some("unsupported diagnostic case".to_string()),
+            },
+            CorpusCase {
+                id: "grid/quarantined".to_string(),
+                source_root: CorpusSourceRoot::Surgeist,
+                source: "grid/quarantined.html".to_string(),
+                generator: CorpusGenerator::ConstrainedHtml,
+                status: CorpusStatus::Quarantined,
+                reason: Some("quarantined diagnostic case".to_string()),
+            },
+        ];
+        for (filter, expected_status, retained_xml) in [
+            (
+                "grid/unsupported.html",
+                CorpusStatus::Unsupported,
+                &unsupported_xml,
+            ),
+            (
+                "grid/quarantined.html",
+                CorpusStatus::Quarantined,
+                &quarantined_xml,
+            ),
+        ] {
+            let status_config = GenerationConfig::new(
+                corpus.clone(),
+                manifest.clone(),
+                BrowserResolutionMode::ExistingPinned,
+                GenerationEnvironment {
+                    browser_path: Some("target/surgeist-browser/browser".to_string()),
+                    browser_cache_set: false,
+                    browser_version_set: false,
+                    filter: Some(filter.to_string()),
+                },
+            )
+            .expect("matched status diagnostic filter");
+            let mut status_report = GenerationReport {
+                filter: status_config.filter.clone(),
+                ..GenerationReport::default()
+            };
+
+            let status_fixtures =
+                collect_constrained_fixtures_for_generation(&status_config, &mut status_report)
+                    .expect("filtered status collection");
+
+            assert!(status_fixtures.is_empty(), "status case must be excluded");
+            match expected_status {
+                CorpusStatus::Unsupported => {
+                    assert_eq!(status_report.summary.unsupported, 1);
+                    assert_eq!(status_report.unsupported[0].name, "grid/unsupported");
+                }
+                CorpusStatus::Quarantined => {
+                    assert_eq!(status_report.summary.quarantined, 1);
+                    assert_eq!(status_report.quarantined[0].name, "grid/quarantined");
+                }
+                _ => unreachable!("test covers excluded statuses only"),
+            }
+            assert!(
+                retained_xml.is_file(),
+                "filtered status diagnostics must retain pre-existing XML"
+            );
+        }
         let config = GenerationConfig::new(
             corpus.clone(),
             manifest.clone(),
@@ -8506,11 +8586,22 @@ status = "active"
             xml_root: root.join("xml"),
         };
         let fixture = corpus.html_root.join("block/block_axes/case.html");
+        let block_lanes_fixture = corpus.html_root.join("block-lanes/case.html");
+        let blockflex_fixture = corpus.html_root.join("blockflex/case.html");
+        let nested_fixture = corpus.html_root.join("grid/foo/case.html");
+        let nested_prefix_sibling = corpus.html_root.join("grid/foobar.html");
         let xml = corpus.xml_root.join("sentinel.xml");
         let report = corpus.xml_root.join("generation-reports/all.json");
         fs::create_dir_all(fixture.parent().unwrap()).expect("fixture directory");
+        fs::create_dir_all(block_lanes_fixture.parent().unwrap()).expect("block-lanes directory");
+        fs::create_dir_all(blockflex_fixture.parent().unwrap()).expect("blockflex directory");
+        fs::create_dir_all(nested_fixture.parent().unwrap()).expect("nested fixture directory");
         fs::create_dir_all(report.parent().unwrap()).expect("report directory");
         fs::write(&fixture, "<!doctype html>").expect("fixture");
+        fs::write(&block_lanes_fixture, "<!doctype html>").expect("block-lanes fixture");
+        fs::write(&blockflex_fixture, "<!doctype html>").expect("blockflex fixture");
+        fs::write(&nested_fixture, "<!doctype html>").expect("nested fixture");
+        fs::write(&nested_prefix_sibling, "<!doctype html>").expect("nested prefix sibling");
         fs::write(&xml, "retained XML\n").expect("XML sentinel");
         fs::write(&report, "retained report\n").expect("report sentinel");
 
@@ -8545,7 +8636,7 @@ status = "active"
             assert_eq!(fs::read_to_string(&report).unwrap(), "retained report\n");
         }
 
-        for filter in ["block", "block/block_axes/case.html"] {
+        for filter in ["block", "block/block_axes/case.html", "grid/foo"] {
             let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
             let config = GenerationConfig::new(
                 corpus.clone(),
@@ -8561,6 +8652,14 @@ status = "active"
             .expect("matched directory or exact HTML filter");
             assert_eq!(config.filter.as_deref(), Some(filter));
         }
+        assert_eq!(
+            collect_html(&corpus.html_root, Some("block")).expect("block directory filter"),
+            [fixture]
+        );
+        assert_eq!(
+            collect_html(&corpus.html_root, Some("grid/foo")).expect("nested directory filter"),
+            [nested_fixture]
+        );
         fs::remove_dir_all(root).ok();
     }
     #[test]
