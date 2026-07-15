@@ -4,9 +4,9 @@
 - Owning repository: `surgeist-layout`
 - Reviewed specification: `plans/specs/2026-07-15-surgeist-layout-fri-03-box-participation-contracts.md`
 - Specification SHA-256:
-  `56efbca03febc725bee2d829da9bfdcf45f6194b24555eb22c1aa1082d9b12f2`
+  `6ca195b4ba560ae49bc6963176234f8494cfb50a91674f6dcec358d19fa9769c`
 - Specification commit:
-  `ad342c4526802460f89d6d02125f16e419b6f81b`
+  `52d87a75751f9987251ec2fdf8200e75eba3e17b`
 - Initiative index: `plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`, `FRI-03`
 
 This sequence orders complete implementation of `MODEL-001`, `CORE-005`, and
@@ -21,8 +21,8 @@ reviewed leaf candidate; no cycle edits a root adapter, facade, gitlink, or API
 artifact.
 
 No cycle expands generator architecture. `C02` is the sole producer change:
-exact order capture, exact flex-parent axes capture, three order sources,
-bounded serializer/parser attributes, and mechanical derived-artifact refresh.
+exact order/flex-axis capture, three sources, bounded serializer/parser and
+diagnostic-filter/report fixes, and mechanical derived-artifact refresh.
 Later cycles only consume or verify that state. A
 confirmed genuine bug discovered later requires explicit replanning before any
 additional generator change.
@@ -57,8 +57,8 @@ executable under the canonical no-acquisition workflow.
 
 - Owner: `surgeist-layout`
 - Outcome: The producer emits exact item order and flex-item viewport parent
-  axes; the three order sources, four scoped reports, generated inventory, and
-  provenance are final before public context signatures change.
+  axes and report-free diagnostic filters; the three order sources, single full
+  report, generated inventory, and provenance are final before API changes.
 - Specification: fixture/parser scope in `FRI-03.2`; `E-PARITY`; `FRI-03.8`;
   fixture paths in `FRI-03.9`; generator constraints in `FRI-03.11`;
   artifact portions of acceptance items 7 and 8.
@@ -68,8 +68,8 @@ executable under the canonical no-acquisition workflow.
 - Exit evidence: Helper, serializer, parser, stale-provenance, report, and
   inventory checks prove exact order handling, strict parent-axis attributes,
   three new order sources, 16 updated flex-item-root XML files, 1,406 HTML,
-  5,268 XML, 356 unchanged unsupported tuples, ten reports, current hashes, and
-  byte-idempotent derived state.
+  5,268 XML, 356 unchanged unsupported tuples, one full report, and current
+  hashes/full-only docs; scopes are diagnostic only, and final evidence is one full offline ExistingPinned run plus read-only checks with no repeated full run.
 - Handoff: `C03` immediately makes flex-parent metadata mandatory at the
   consumer/API boundary; `C04` through `C07` make generated expectations pass.
 
@@ -189,8 +189,8 @@ executable under the canonical no-acquisition workflow.
 - Entry state: Every owned production branch is implemented, but
   initiative-wide topology, absence, documentation, report, and handoff evidence
   is not yet sealed as one candidate.
-- Exit evidence: Exact 32-output inventory, four scopes, full 5,268/356 report,
-  ten reports, provenance, generated-tree cleanliness, public API/docs, source
+- Exit evidence: Exact 32-output inventory, single full 5,268/356 report,
+  provenance, generated-tree cleanliness, public API/docs, source
   absence gates, focused/full/generator/corpus/doc/rustdoc/format/diff checks,
   and unsafe scan are green while unrelated ignored aggregate parity remains
   visible and unclaimed.
