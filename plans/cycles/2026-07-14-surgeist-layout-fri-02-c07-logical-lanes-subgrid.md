@@ -1,5 +1,5 @@
 # FRI-02-C07 Logical Lanes And Subgrid
-Status: in_progress
+Status: complete
 Cycle ID: FRI-02-C07
 Owning repository: surgeist-layout
 Cycle base: 78ed8be9cb16cf415aa45be7b40263969976c61a
