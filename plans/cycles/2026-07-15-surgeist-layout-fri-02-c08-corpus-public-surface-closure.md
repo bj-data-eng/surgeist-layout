@@ -33,7 +33,8 @@ or second writing-mode owner. Required public reexports exist. README and crate
 rustdoc do not yet state the complete model.
 
 This cycle may change only report inventory in `corpus.toml`, the four generator
-inventory/pruning tests, generator-owned report files, README, and crate rustdoc.
+inventory/pruning tests, one parity integration inventory test, generator-owned
+report files, README, and crate rustdoc.
 It must not expand or refactor generator architecture. Generator implementation
 changes require a focused genuine-bug RED; no parser update or new fixture is
 needed or authorized. Do not change HTML/XML bodies, layout code, public symbols,
@@ -58,7 +59,9 @@ Files: `tests/layout/browser_parity/corpus.toml`; tests
 `generation_report_manifest_pruning_keeps_manifest_reports_and_scoped_runs_isolated`,
 and `generation_report_metadata_validation_accepts_current_manifests` in
 `tests/bin/surgeist-layout-generate/generator.rs`, plus
-`generation_report_path_is_scoped_by_filter` there; report JSON only.
+`generation_report_path_is_scoped_by_filter` there; report JSON; and only
+`browser_parity_generation_report_inventory_includes_c07_axis_scopes` in
+`tests/layout/browser_parity.rs`.
 Depends on: published C01-C07 and exact cycle base; T2 waits for T1 task-clean.
 Outcome: manifest/report directory own `all.json`, `block_block_axes.json`,
 `flex_flex_axes.json`, `grid_grid_axes.json`, `grid-lanes_grid_lanes_axes.json`,
@@ -68,15 +71,17 @@ RED: rename/update both 15-count inventory tests to require the final six while
 the manifest still has 15; both focused tests fail. Adapt pruning from temporary
 `block/block_br_vertical` to retained `block/block_axes`. After manifest GREEN,
 the path test must replace its removed temporary grid filter/report with retained
-`grid/grid_axes` and `grid_grid_axes.json`.
+`grid/grid_axes` and `grid_grid_axes.json`. The parity inventory test is then RED
+at 6 versus 15; rename it for final FRI-02 and require the exact six filenames
+plus all five scoped filter/count tuples.
 Acceptance: scoped summaries are 20/80/36/36/36 with other buckets zero; their
 208 outputs are unique and a subset of full; full summary and unsupported/helper/
 launch hashes match below; HTML categories are 1,159/25/219 and total 1,403; XML
 is 5,256; exact filenames, browser-free freshness, and artifact idempotence pass.
 Any fixture/XML-body/parser/runtime/launch/helper/resolver/lifecycle/dependency/
 feature diff is a blocker.
-Commands: both inventory RED/GREEN tests and both retained-scope tests; Artifact
-Gate; `CARGO_NET_OFFLINE=true
+Commands: both inventory RED/GREEN tests, both retained-scope tests, and the
+parity inventory test; Artifact Gate; `CARGO_NET_OFFLINE=true
 just corpus-check`; `CARGO_NET_OFFLINE=true just verify-generator`; `git diff --check`.
 Coordinator commit after task-review CLEAN: `tests: finalize FRI-02 report inventory`.
 
