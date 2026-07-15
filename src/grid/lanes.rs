@@ -880,7 +880,11 @@ where
     let mut content_size = Tree::Scalar::ZERO;
 
     let children = tree.children(node).collect::<Vec<_>>();
-    for (child, placement) in placements.checked_child_placements(&children) {
+    let _ = placements.checked_child_placements(&children);
+    for source_index in &placements.order_modified_indexes {
+        let source_slot = source_index.get();
+        let child = children[source_slot];
+        let placement = placements.items[source_slot];
         let child_style = tree.node_input(child).clone();
         if !is_in_flow_grid_child(&child_style) {
             continue;
@@ -1040,7 +1044,11 @@ where
 
     let children = tree.children(node).collect::<Vec<_>>();
     let mut items = Vec::new();
-    for (child, placement) in placements.checked_child_placements(&children) {
+    let _ = placements.checked_child_placements(&children);
+    for source_index in &placements.order_modified_indexes {
+        let source_slot = source_index.get();
+        let child = children[source_slot];
+        let placement = placements.items[source_slot];
         let child_style = tree.node_input(child).clone();
         if !is_in_flow_grid_child(&child_style) {
             continue;
@@ -1756,10 +1764,13 @@ where
             LogicalAxis::Inline => {
                 let available_inline =
                     (grid_axis_size - logical_margin.inline_sum()).max(Tree::Scalar::ZERO);
-                let justify_self = child_style
-                    .justify_self
-                    .or(container_style.justify_items)
-                    .unwrap_or(AlignItems::Stretch);
+                let justify_self = resolve_grid_item_normal_alignment(
+                    child_style.justify_self,
+                    container_style.justify_items,
+                    child_style.item_is_replaced,
+                    logical_style_size.inline.is_auto(),
+                    AlignItems::Stretch,
+                );
                 logical_known.inline =
                     resolve_dimension(logical_style_size.inline, Some(grid_axis_size))
                         .map_err(|status| crate::compute::value_resolution_error(child, status))?
@@ -1772,10 +1783,13 @@ where
             LogicalAxis::Block => {
                 let available_block =
                     (grid_axis_size - logical_margin.block_sum()).max(Tree::Scalar::ZERO);
-                let align_self = child_style
-                    .align_self
-                    .or(container_style.align_items)
-                    .unwrap_or(AlignItems::Stretch);
+                let align_self = resolve_grid_item_normal_alignment(
+                    child_style.align_self,
+                    container_style.align_items,
+                    child_style.item_is_replaced,
+                    logical_style_size.block.is_auto(),
+                    AlignItems::Stretch,
+                );
                 logical_known.block =
                     resolve_dimension(logical_style_size.block, Some(grid_axis_size))
                         .map_err(|status| crate::compute::value_resolution_error(child, status))?

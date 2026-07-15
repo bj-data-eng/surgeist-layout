@@ -11,6 +11,286 @@ use crate::test_support::{
 use crate::*;
 
 #[test]
+fn grid_lanes_order_modified_sequence_drives_running_offsets_and_intrinsic_contributions_in_both_scalar_lanes()
+ {
+    assert_grid_lanes_order_modified_sequence::<f32>();
+    assert_grid_lanes_order_modified_sequence::<f64>();
+}
+
+fn assert_grid_lanes_order_modified_sequence<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let item_style = |order, width, height| NodeInputOf::<S> {
+        item_order: ItemOrder::new(order),
+        size: Size::new(
+            DimensionOf::px(S::from_f64(width)),
+            DimensionOf::px(S::from_f64(height)),
+        ),
+        grid_column: GridPlacement::try_line(1).expect("one is a valid grid line"),
+        ..NodeInputOf::default()
+    };
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(0, [1, 2, 3, 4, 5, 6])
+        .children(1, [])
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .children(5, [])
+        .children(6, [])
+        .style(
+            0,
+            NodeInputOf {
+                display: Display::GridLanes,
+                grid_template_columns: vec![TrackComponentOf::AUTO, TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::px(S::ZERO)],
+                grid_flow_tolerance: GridFlowToleranceOf::Length(LengthOf::ZERO),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf {
+                grid_column: GridPlacement::try_line_span(1, 2)
+                    .expect("line one with span two is valid"),
+                ..item_style(2, 100.0, 10.0)
+            },
+        )
+        .style(
+            2,
+            NodeInputOf {
+                display: Display::None,
+                item_order: ItemOrder::new(i32::MIN),
+                ..item_style(0, 500.0, 500.0)
+            },
+        )
+        .style(3, item_style(-1, 80.0, 20.0))
+        .style(
+            4,
+            NodeInputOf {
+                position: Position::Absolute,
+                item_order: ItemOrder::new(i32::MIN),
+                ..item_style(0, 500.0, 500.0)
+            },
+        )
+        .style(5, item_style(0, 0.0, 30.0))
+        .style(6, item_style(2, 0.0, 40.0));
+
+    let placement = |column, in_flow| ResolvedGridItemPlacement {
+        column,
+        row: GridPlacement::try_line(1).expect("one is a valid grid line"),
+        absolute_column: column,
+        absolute_row: GridPlacement::try_line(1).expect("one is a valid grid line"),
+        in_flow,
+    };
+    let placements = GridPlacementContext::new(
+        vec![1, 2, 3, 4, 5, 6],
+        vec![
+            placement(
+                GridPlacement::try_line_span(1, 2).expect("line-span placement is valid"),
+                true,
+            ),
+            placement(GridPlacement::AUTO, false),
+            placement(
+                GridPlacement::try_line(1).expect("one is a valid grid line"),
+                true,
+            ),
+            placement(GridPlacement::AUTO, false),
+            placement(
+                GridPlacement::try_line(1).expect("one is a valid grid line"),
+                true,
+            ),
+            placement(
+                GridPlacement::try_line(1).expect("one is a valid grid line"),
+                true,
+            ),
+        ],
+    )
+    .with_order_modified_indexes(vec![
+        SourceIndex::new(2),
+        SourceIndex::new(4),
+        SourceIndex::new(0),
+        SourceIndex::new(5),
+    ]);
+    let constants = Constants {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        explicit_definite_content_size: Size::NONE,
+        node_outer_size: Size::NONE,
+        node_inner_size: Size::NONE,
+        node_min_size: Size::NONE,
+        node_max_size: Size::NONE,
+        available_inner_size: Size::NONE,
+        content_box_inset: Edges::ZERO,
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+    };
+    let tracks = [TrackSizingOf::AUTO, TrackSizingOf::AUTO];
+    let intrinsic_sizes = lane_intrinsic_track_sizes(
+        &mut tree,
+        0,
+        LaneIntrinsicTrackSizeInput {
+            constants: &constants,
+            axis: GridAxisKind::Column,
+            tracks: &tracks,
+            gap: S::ZERO,
+            available: AvailableOf::MAX_CONTENT,
+            available_basis: None,
+            lines: GridLines {
+                column_explicit_start: 0,
+                column_explicit_count: 2,
+                row_explicit_start: 0,
+                row_explicit_count: 1,
+            },
+            placements: &placements,
+        },
+    )
+    .expect("intrinsic collection succeeds")
+    .expect("intrinsic placement is valid");
+    assert_eq!(
+        intrinsic_sizes,
+        vec![S::from_f64(90.0), S::from_f64(10.0)],
+        "overlapping definite spans apply in the order-modified sequence"
+    );
+
+    let output = compute_grid(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
+        ),
+    )
+    .expect("order-modified grid-lanes layout succeeds");
+
+    assert_eq!(output.size.width, S::from_f64(140.0));
+    for (node, expected_y) in [(3, 0.0), (5, 20.0), (1, 50.0), (6, 60.0)] {
+        let layout = tree.layout(node).expect("in-flow lane child is staged");
+        assert_eq!(layout.source_index, SourceIndex::new((node - 1) as usize));
+        assert_eq!(layout.location.y, S::from_f64(expected_y));
+    }
+    assert_eq!(
+        Traverse::children(&tree, 0).collect::<Vec<_>>(),
+        [1, 2, 3, 4, 5, 6],
+        "final traversal stays in source order"
+    );
+    assert!(tree.inputs(2).iter().any(|input| {
+        input.run_mode() == RunMode::PerformHiddenLayout
+            && input.parent_formatting_context() == ParentFormattingContext::Grid
+    }));
+    assert_eq!(
+        tree.layout(4)
+            .expect("absolute lane child is staged")
+            .source_index,
+        SourceIndex::new(3)
+    );
+}
+
+#[test]
+fn grid_lanes_replaced_normal_preplacement_starts_while_explicit_stretch_remains_in_both_scalar_lanes()
+ {
+    assert_grid_lanes_replaced_normal_preplacement::<f32>();
+    assert_grid_lanes_replaced_normal_preplacement::<f64>();
+}
+
+fn assert_grid_lanes_replaced_normal_preplacement<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    for grid_axis in [GridAxisKind::Column, GridAxisKind::Row] {
+        for (label, replaced, item_alignment, container_alignment, stretches) in [
+            ("replaced normal", true, None, None, false),
+            ("non-replaced normal", false, None, None, true),
+            (
+                "explicit item stretch",
+                true,
+                Some(AlignItems::Stretch),
+                None,
+                true,
+            ),
+            (
+                "explicit container stretch",
+                true,
+                None,
+                Some(AlignItems::Stretch),
+                true,
+            ),
+        ] {
+            let grid_axis_size = match grid_axis {
+                GridAxisKind::Column => S::from_f64(100.0),
+                GridAxisKind::Row => S::from_f64(80.0),
+            };
+            let measured =
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(30.0), S::from_f64(20.0)));
+            let container_style = NodeInputOf {
+                justify_items: container_alignment,
+                align_items: container_alignment,
+                ..NodeInputOf::default()
+            };
+            let child_style = NodeInputOf {
+                item_is_replaced: replaced,
+                justify_self: item_alignment,
+                align_self: item_alignment,
+                ..NodeInputOf::default()
+            };
+            let mut tree = OracleTreeOf::<S>::new()
+                .children(1, [])
+                .style(1, child_style.clone())
+                .measure(1, measured);
+            let constants = Constants {
+                flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                explicit_definite_content_size: Size::NONE,
+                node_outer_size: Size::NONE,
+                node_inner_size: Size::NONE,
+                node_min_size: Size::NONE,
+                node_max_size: Size::NONE,
+                available_inner_size: Size::NONE,
+                content_box_inset: Edges::ZERO,
+                padding: Edges::ZERO,
+                border: Edges::ZERO,
+            };
+            measure_lane_axis_margin_box_with_grid_axis(
+                &mut tree,
+                1,
+                LaneAxisMarginBoxMeasureInput {
+                    child_style: &child_style,
+                    container_style: &container_style,
+                    constants: &constants,
+                    lane_axis: match grid_axis {
+                        GridAxisKind::Column => GridAxisKind::Row,
+                        GridAxisKind::Row => GridAxisKind::Column,
+                    },
+                    grid_axis,
+                    grid_axis_size,
+                },
+            )
+            .expect("grid-lanes pre-placement measurement succeeds");
+
+            let input = tree
+                .inputs(1)
+                .last()
+                .expect("measurement input is recorded");
+            let expected = stretches.then_some(grid_axis_size);
+            assert_eq!(
+                match grid_axis {
+                    GridAxisKind::Column => input.known().width,
+                    GridAxisKind::Row => input.known().height,
+                },
+                expected,
+                "{label} must resolve pre-placement {grid_axis:?} alignment"
+            );
+        }
+    }
+}
+
+#[test]
 fn ordinary_grid_order_modified_placement_precedes_mixed_phases_and_preserves_source_identity_in_both_scalar_lanes()
  {
     assert_ordinary_grid_order_modified_placement::<f32>();

@@ -161,6 +161,63 @@ fn grid_item_order_variants_match_browser() {
 }
 
 #[test]
+fn grid_lanes_item_order_variants_match_browser() {
+    let fixtures = [
+        include_str!(
+            "browser_parity/xml/grid-lanes/fri03_order_modified_lanes__border_box_ltr.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/grid-lanes/fri03_order_modified_lanes__border_box_rtl.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/grid-lanes/fri03_order_modified_lanes__content_box_ltr.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/grid-lanes/fri03_order_modified_lanes__content_box_rtl.xml"
+        ),
+    ];
+
+    for fixture in fixtures {
+        let golden =
+            support::Golden::parse(fixture).expect("settled grid-lanes order fixture parses");
+        assert_eq!(golden.root.kind, support::NodeKind::Div);
+        assert_eq!(golden.root.style.get("display"), Some("grid-lanes"));
+        assert_eq!(
+            golden.root.style.get("grid-template-columns"),
+            Some("20px 20px 20px 20px")
+        );
+        assert_eq!(golden.root.style.get("grid-template-rows"), Some("20px"));
+        assert_eq!(golden.root.children.len(), 4);
+        assert_eq!(golden.expectations.children.len(), 4);
+        assert!(golden.root.children.iter().all(|child| {
+            child.kind == support::NodeKind::Div
+                && child.style.get("display") == Some("flex")
+                && child.style.width() == Some("20px".to_string())
+                && child.style.get("height") == Some("20px")
+                && child.children.is_empty()
+        }));
+        assert_eq!(
+            golden
+                .root
+                .children
+                .iter()
+                .map(|child| child.style.get("order").unwrap_or("0"))
+                .collect::<Vec<_>>(),
+            ["2", "-1", "2", "0"]
+        );
+        assert_eq!(
+            (golden.expectations.width, golden.expectations.height),
+            (Some(80.0), Some(20.0))
+        );
+        assert!(golden.expectations.children.iter().all(|child| {
+            child.children.is_empty() && child.width == Some(20.0) && child.height == Some(20.0)
+        }));
+        support::assert_surgeist_matches(&golden)
+            .unwrap_or_else(|error| panic!("{} failed layout comparison: {error}", golden.name));
+    }
+}
+
+#[test]
 fn runs_subgrid_relative_rtl_abspos_fixture_against_surgeist_layout() {
     let golden = support::Golden::parse(include_str!(
         "browser_parity/xml/subgrid/subgrid_abspos_relative_rtl_column_3_to_5__border_box_ltr.xml"
