@@ -225,6 +225,172 @@ impl<S: LayoutScalar> LayoutTree for PublicFlowTree<S> {
     }
 }
 
+#[test]
+fn flex_item_root_uses_explicit_parent_axes_for_percentage_and_cache_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let parent_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let item_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+        let viewport = Size::new(
+            AvailableOf::definite(scalar::<S>(200.0)),
+            AvailableOf::definite(scalar::<S>(80.0)),
+        );
+        let available = Size::new(
+            AvailableOf::definite(scalar::<S>(140.0)),
+            AvailableOf::definite(scalar::<S>(300.0)),
+        );
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: Direction::Rtl,
+            padding: Edges::new(
+                LengthOf::percent(scalar::<S>(0.0625)),
+                LengthOf::percent(scalar::<S>(0.125)),
+                LengthOf::percent(scalar::<S>(0.25)),
+                LengthOf::percent(scalar::<S>(0.5)),
+            ),
+            ..NodeInputOf::<S>::default()
+        };
+        let child_style = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                DimensionOf::px(scalar::<S>(10.0)),
+                DimensionOf::px(scalar::<S>(20.0)),
+            ),
+            ..NodeInputOf::<S>::default()
+        };
+        let tree = PublicFlowTree::default()
+            .with_children(0, [])
+            .with_style(0, root_style.clone());
+        let request = LayoutRootRequestOf::flex_item_under_viewport(
+            available,
+            FlexItemRootContextOf::under_viewport(viewport, parent_axes)
+                .expect("finite flex-item root context"),
+        )
+        .expect("finite flex-item root request");
+
+        let cold = compute_layout(&tree, 0, request).expect("cold flex-item root layout");
+        let root_entry = cold
+            .cache_store_entries()
+            .iter()
+            .find(|entry| {
+                entry.node() == 0 && entry.input().run_mode() == RunMode::PerformRootLayout
+            })
+            .expect("cold root compute is cached");
+        let root_input = *root_entry.input();
+        let root_output = root_entry.output();
+        let descendant_tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(0, root_style)
+            .with_style(1, child_style);
+        let descendant_batch =
+            compute_layout(&descendant_tree, 0, request).expect("root with descendant layout");
+        let child_input = descendant_batch
+            .cache_store_entries()
+            .iter()
+            .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
+            .expect("child layout compute is cached")
+            .input();
+
+        assert_eq!(
+            root_input.containing_layout_context(),
+            ContainingLayoutContext::new(parent_axes, ParentFormattingContext::Flex)
+        );
+        assert_eq!(
+            root_input.known(),
+            Size::new(Some(scalar::<S>(140.0)), None)
+        );
+        assert_eq!(
+            child_input.containing_layout_context(),
+            ContainingLayoutContext::new(item_axes, ParentFormattingContext::BlockFlow)
+        );
+
+        let root = public_flow_output(cold.unrounded_entries(), 0);
+        let expected_padding = Edges::new(
+            scalar::<S>(12.5),
+            scalar::<S>(25.0),
+            scalar::<S>(50.0),
+            scalar::<S>(100.0),
+        );
+        assert_eq!(root.padding, expected_padding);
+        let logical_padding = parent_axes.logical_edges(root.padding);
+        assert_eq!(logical_padding.inline_start, scalar::<S>(100.0));
+        assert_eq!(logical_padding.inline_end, scalar::<S>(25.0));
+        assert_eq!(logical_padding.block_start, scalar::<S>(12.5));
+        assert_eq!(logical_padding.block_end, scalar::<S>(50.0));
+
+        let cache_context = CacheKeyContext::new();
+        let mut cache = CacheOf::<S>::new();
+        cache.store_with_context(&root_input, cache_context, root_output);
+        assert_eq!(
+            cache.get_with_context(&root_input, cache_context),
+            Some(root_output)
+        );
+        let role_only = ComputeInputOf::flex_item_root(
+            root_input.known(),
+            root_input.parent(),
+            ContainingLayoutContext::new(parent_axes, ParentFormattingContext::NoParent),
+            root_input.available(),
+        );
+        assert_eq!(cache.get_with_context(&role_only, cache_context), None);
+        let axes_only = ComputeInputOf::flex_item_root(
+            root_input.known(),
+            root_input.parent(),
+            ContainingLayoutContext::new(item_axes, ParentFormattingContext::Flex),
+            root_input.available(),
+        );
+        assert_eq!(cache.get_with_context(&axes_only, cache_context), None);
+
+        tree.apply_cache_entries(cold.cache_store_entries());
+        tree.clear_cache_inputs();
+        let warm = compute_layout(&tree, 0, request).expect("warm flex-item root layout");
+        assert_eq!(
+            public_flow_output(warm.unrounded_entries(), 0),
+            public_flow_output(cold.unrounded_entries(), 0)
+        );
+        assert_eq!(
+            public_flow_output(warm.final_entries(), 0),
+            public_flow_output(cold.final_entries(), 0)
+        );
+        assert!(
+            warm.cache_store_entries()
+                .iter()
+                .all(|entry| entry.node() != 0),
+            "the identical root context should hit the applied cold cache"
+        );
+
+        let viewport_tree = PublicFlowTree::default().with_children(0, []).with_style(
+            0,
+            NodeInputOf {
+                writing_mode: WritingMode::VerticalRl,
+                direction: Direction::Rtl,
+                ..NodeInputOf::<S>::default()
+            },
+        );
+        let viewport_batch = compute_layout(
+            &viewport_tree,
+            0,
+            LayoutRootRequestOf::viewport(available).expect("finite viewport request"),
+        )
+        .expect("viewport layout");
+        let viewport_input = viewport_batch
+            .cache_store_entries()
+            .iter()
+            .find(|entry| {
+                entry.node() == 0 && entry.input().run_mode() == RunMode::PerformRootLayout
+            })
+            .expect("viewport root compute is cached")
+            .input();
+        assert_eq!(
+            viewport_input.containing_layout_context(),
+            ContainingLayoutContext::new(item_axes, ParentFormattingContext::NoParent)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 struct FlowRootLeafTree<S: LayoutScalar> {
     style: NodeInputOf<S>,
     measurement: RefCell<Option<LeafMeasureInputOf<S>>>,
@@ -3088,7 +3254,8 @@ fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
         0,
         LayoutRootRequestOf::flex_item_under_viewport(
             viewport,
-            FlexItemRootContextOf::under_viewport(viewport).expect("valid flex item root context"),
+            FlexItemRootContextOf::under_viewport(viewport, containing_flow)
+                .expect("valid flex item root context"),
         )
         .expect("valid flex item root request"),
     )
@@ -3788,7 +3955,7 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
         0,
         LayoutRootRequestOf::flex_item_under_viewport(
             viewport,
-            FlexItemRootContextOf::under_viewport(viewport)
+            FlexItemRootContextOf::under_viewport(viewport, vertical_containing_flow)
                 .expect("valid flex item root viewport context"),
         )
         .expect("valid flex item root request"),
@@ -4122,7 +4289,7 @@ fn assert_ordinary_block_root_contexts<S: LayoutScalar>() {
             0,
             LayoutRootRequestOf::flex_item_under_viewport(
                 viewport,
-                FlexItemRootContextOf::under_viewport(viewport)
+                FlexItemRootContextOf::under_viewport(viewport, flow_axes)
                     .expect("valid flex root viewport context"),
             )
             .expect("valid flex root request"),
@@ -4434,8 +4601,11 @@ fn assert_root_and_flex_root_percentage_edges_use_logical_inline_basis<S: Layout
         0,
         LayoutRootRequestOf::flex_item_under_viewport(
             Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
-            FlexItemRootContextOf::under_viewport(viewport)
-                .expect("valid flex root viewport context"),
+            FlexItemRootContextOf::under_viewport(
+                viewport,
+                FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+            )
+            .expect("valid flex root viewport context"),
         )
         .expect("valid flex root request"),
     )
@@ -4496,8 +4666,11 @@ fn assert_flex_root_percentage_parent_is_separate_from_host_fill<S: LayoutScalar
                 0,
                 LayoutRootRequestOf::flex_item_under_viewport(
                     host,
-                    FlexItemRootContextOf::under_viewport(viewport)
-                        .expect("valid flex root viewport context"),
+                    FlexItemRootContextOf::under_viewport(
+                        viewport,
+                        FlowAxes::new(writing_mode, Direction::Ltr),
+                    )
+                    .expect("valid flex root viewport context"),
                 )
                 .expect("valid flex root request"),
             )
@@ -4563,8 +4736,11 @@ fn assert_flex_root_flow_known_inline_uses_host_availability<S: LayoutScalar>() 
             0,
             LayoutRootRequestOf::flex_item_under_viewport(
                 host,
-                FlexItemRootContextOf::under_viewport(viewport)
-                    .expect("valid flex root viewport context"),
+                FlexItemRootContextOf::under_viewport(
+                    viewport,
+                    FlowAxes::new(writing_mode, Direction::Ltr),
+                )
+                .expect("valid flex root viewport context"),
             )
             .expect("valid flex root request"),
         )
@@ -4583,8 +4759,11 @@ fn assert_flex_root_flow_known_inline_uses_host_availability<S: LayoutScalar>() 
                     AvailableOf::definite(scalar(70.0)),
                     AvailableOf::MAX_CONTENT,
                 ),
-                FlexItemRootContextOf::under_viewport(viewport)
-                    .expect("valid flex root viewport context"),
+                FlexItemRootContextOf::under_viewport(
+                    viewport,
+                    FlowAxes::new(writing_mode, Direction::Ltr),
+                )
+                .expect("valid flex root viewport context"),
             )
             .expect("valid intrinsic flex root request"),
         )
@@ -4963,7 +5142,11 @@ fn root_request_rejects_invalid_definite_availability() {
     }
 
     let valid_viewport = Size::new(Available::definite(100.0), Available::definite(80.0));
-    let flex_context = FlexItemRootContext::under_viewport(valid_viewport).unwrap();
+    let flex_context = FlexItemRootContext::under_viewport(
+        valid_viewport,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    )
+    .unwrap();
     let error = LayoutRootRequest::flex_item_under_viewport(
         Size::new(Available::definite(-2.0), Available::MAX_CONTENT),
         flex_context,
@@ -4980,7 +5163,8 @@ fn root_request_rejects_invalid_definite_availability() {
 fn root_request_preserves_distinct_validated_contexts_and_rounding_policy() {
     let available = Size::new(Available::definite(640.0), Available::definite(480.0));
     let viewport = LayoutRootRequest::viewport(available).unwrap();
-    let flex_context = FlexItemRootContext::under_viewport(available).unwrap();
+    let parent_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let flex_context = FlexItemRootContext::under_viewport(available, parent_axes).unwrap();
     let flex_item = LayoutRootRequest::flex_item_under_viewport(available, flex_context).unwrap();
 
     assert_eq!(viewport.available(), available);
@@ -4994,6 +5178,7 @@ fn root_request_preserves_distinct_validated_contexts_and_rounding_policy() {
         LayoutRootContext::FlexItemUnderViewport(flex_context)
     );
     assert_eq!(flex_context.viewport_available(), available);
+    assert_eq!(flex_context.parent_flow_axes(), parent_axes);
 }
 
 #[test]
@@ -5554,7 +5739,11 @@ fn compute_layout_uses_flex_root_viewport_context_as_parent_basis() {
     let viewport = Size::new(Available::definite(200.0), Available::definite(80.0));
     let request = LayoutRootRequest::flex_item_under_viewport(
         Size::splat(Available::MAX_CONTENT),
-        FlexItemRootContext::under_viewport(viewport).unwrap(),
+        FlexItemRootContext::under_viewport(
+            viewport,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        )
+        .unwrap(),
     )
     .unwrap();
 

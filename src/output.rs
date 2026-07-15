@@ -297,9 +297,22 @@ impl<S: LayoutScalar> RootAvailabilityErrorOf<S> {
     }
 }
 
+/// Explicit context for a root that participates as an item in a viewport's flex layout.
+///
+/// The flex parent's resolved axes are required separately from the root item's
+/// own writing mode so containing-boundary resolution cannot infer the wrong
+/// logical mapping.
+///
+/// ```compile_fail
+/// use surgeist_layout::{Available, FlexItemRootContext, Size};
+///
+/// let viewport = Size::splat(Available::definite(100.0));
+/// let _ = FlexItemRootContext::under_viewport(viewport);
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FlexItemRootContextOf<S: LayoutScalar = DefaultScalar> {
     viewport_available: Size<AvailableOf<S>>,
+    parent_flow_axes: FlowAxes,
 }
 
 pub type FlexItemRootContext = FlexItemRootContextOf<DefaultScalar>;
@@ -307,15 +320,23 @@ pub type FlexItemRootContext = FlexItemRootContextOf<DefaultScalar>;
 impl<S: LayoutScalar> FlexItemRootContextOf<S> {
     pub fn under_viewport(
         viewport_available: Size<AvailableOf<S>>,
+        parent_flow_axes: FlowAxes,
     ) -> Result<Self, RootAvailabilityErrorOf<S>> {
         Ok(Self {
             viewport_available: validate_root_available_size(viewport_available)?,
+            parent_flow_axes,
         })
     }
 
     #[must_use]
     pub const fn viewport_available(&self) -> Size<AvailableOf<S>> {
         self.viewport_available
+    }
+
+    /// Returns the explicitly supplied flow mapping of the flex parent.
+    #[must_use]
+    pub const fn parent_flow_axes(&self) -> FlowAxes {
+        self.parent_flow_axes
     }
 }
 

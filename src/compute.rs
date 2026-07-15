@@ -590,7 +590,7 @@ where
     Tree: Compute<M>,
 {
     let style = tree.node_input(root).clone();
-    let containing_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let containing_flow_axes = context.parent_flow_axes();
     let containing_layout_context = super::ContainingLayoutContext::new(
         containing_flow_axes,
         super::ParentFormattingContext::Flex,

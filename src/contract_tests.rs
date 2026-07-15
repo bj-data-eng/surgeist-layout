@@ -85,6 +85,30 @@ fn containing_layout_context_keeps_flow_and_role_together() {
 }
 
 #[test]
+fn flex_item_root_context_requires_explicit_parent_axes() {
+    fn assert_traits<T: Clone + Copy + std::fmt::Debug + PartialEq>() {}
+
+    assert_traits::<FlexItemRootContextOf<f32>>();
+    assert_traits::<FlexItemRootContextOf<f64>>();
+
+    fn assert_lane<S: LayoutScalar>() {
+        let viewport = Size::new(
+            AvailableOf::definite(S::from_f64(640.0)),
+            AvailableOf::definite(S::from_f64(480.0)),
+        );
+        let parent_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+        let context = FlexItemRootContextOf::<S>::under_viewport(viewport, parent_axes)
+            .expect("finite viewport availability is valid");
+
+        assert_eq!(context.viewport_available(), viewport);
+        assert_eq!(context.parent_flow_axes(), parent_axes);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn value_types_support_f64_scalar_lane() {
     let length = crate::LengthOf::<f64>::percent(0.25);
     let length = length.resolve(400.0);

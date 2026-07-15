@@ -122,8 +122,8 @@ fn root_request(
 ) -> Result<layout::LayoutRootRequest, Error> {
     match root_context {
         RootContext::Root => layout::LayoutRootRequest::viewport(available),
-        RootContext::FlexItem { .. } => {
-            let context = layout::FlexItemRootContext::under_viewport(available)
+        RootContext::FlexItem { parent_axes } => {
+            let context = layout::FlexItemRootContext::under_viewport(available, parent_axes)
                 .map_err(|error| Error::new(format!("invalid flex viewport: {error:?}")))?;
             layout::LayoutRootRequest::flex_item_under_viewport(available, context)
         }
