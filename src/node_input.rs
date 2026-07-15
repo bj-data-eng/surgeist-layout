@@ -940,13 +940,6 @@ impl ItemOrder {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "used by later reviewed FRI-03 order-consuming cycles"
-    )
-)]
 pub(crate) fn item_order_permutation(
     items: &[(ItemOrder, crate::SourceIndex)],
 ) -> Vec<crate::SourceIndex> {

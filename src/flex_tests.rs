@@ -4941,6 +4941,119 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
 }
 
 #[test]
+fn flex_order_modified_sequence_precedes_wrapping_and_preserves_source_identity_in_both_scalar_lanes()
+ {
+    assert_flex_order_modified_sequence_precedes_wrapping::<f32>();
+    assert_flex_order_modified_sequence_precedes_wrapping::<f64>();
+}
+
+fn assert_flex_order_modified_sequence_precedes_wrapping<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    for (direction, expected_x) in [
+        (FlexDirection::Row, [0.0, 30.0, 0.0, 30.0]),
+        (FlexDirection::RowReverse, [30.0, 0.0, 30.0, 0.0]),
+    ] {
+        let item_style = |order| NodeInputOf::<S> {
+            size: Size::new(
+                DimensionOf::px(S::from_f64(30.0)),
+                DimensionOf::px(S::from_f64(10.0)),
+            ),
+            item_order: ItemOrder::new(order),
+            flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
+            ..NodeInputOf::default()
+        };
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [1, 2, 3, 4, 5, 6])
+            .children(1, [])
+            .children(2, [])
+            .children(3, [])
+            .children(4, [])
+            .children(5, [])
+            .children(6, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Flex,
+                    flex_direction: direction,
+                    flex_wrap: FlexWrap::Wrap,
+                    align_content: Some(AlignContent::FlexStart),
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(60.0)),
+                        DimensionOf::px(S::from_f64(20.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(1, item_style(2))
+            .style(
+                2,
+                NodeInputOf {
+                    display: Display::None,
+                    item_order: ItemOrder::new(i32::MIN),
+                    ..item_style(0)
+                },
+            )
+            .style(3, item_style(-1))
+            .style(
+                4,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    item_order: ItemOrder::new(i32::MIN),
+                    ..item_style(0)
+                },
+            )
+            .style(5, item_style(2))
+            .style(6, item_style(0));
+
+        compute_flex(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(S::from_f64(60.0)), Some(S::from_f64(20.0))),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::new(
+                    AvailableOf::definite(S::from_f64(60.0)),
+                    AvailableOf::definite(S::from_f64(20.0)),
+                ),
+            ),
+        )
+        .expect("order-modified wrapped flex layout succeeds");
+
+        for (node, expected_source, x, y) in [
+            (3, 2, expected_x[0], 0.0),
+            (6, 5, expected_x[1], 0.0),
+            (1, 0, expected_x[2], 10.0),
+            (5, 4, expected_x[3], 10.0),
+        ] {
+            let layout = tree.layout(node).expect("in-flow child layout is staged");
+            assert_eq!(layout.source_index, SourceIndex::new(expected_source));
+            assert_eq!(layout.location, Point::new(S::from_f64(x), S::from_f64(y)));
+        }
+        assert!(
+            tree.inputs(2)
+                .iter()
+                .any(|input| input.run_mode() == RunMode::PerformHiddenLayout),
+            "hidden child scheduling remains outside the in-flow permutation"
+        );
+        assert_eq!(
+            tree.layout(4)
+                .expect("absolute child layout is staged")
+                .source_index,
+            SourceIndex::new(3)
+        );
+    }
+}
+
+#[test]
 fn flex_row_justifies_items_on_the_main_axis() {
     #[derive(Default)]
     struct FlexTree {
@@ -6206,6 +6319,128 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
 
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(200.0, 100.0));
+}
+
+#[test]
+fn flex_replaced_automatic_minimum_selects_smaller_suggestion_and_preserves_cross_stretch_in_both_scalar_lanes()
+ {
+    assert_flex_replaced_automatic_minimum_selects_smaller_suggestion::<f32>();
+    assert_flex_replaced_automatic_minimum_selects_smaller_suggestion::<f64>();
+}
+
+fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutScalar>() {
+    #[derive(Default)]
+    struct FlexTree<S: LayoutScalar> {
+        styles: HashMap<u32, NodeInputOf<S>>,
+        layouts: HashMap<u32, NodeOutputOf<S>>,
+    }
+
+    impl<S: LayoutScalar> Traverse for FlexTree<S> {
+        type Node = u32;
+        type Scalar = S;
+        type Children<'a>
+            = std::iter::Copied<std::slice::Iter<'a, u32>>
+        where
+            Self: 'a;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            match node {
+                1 => [2].iter().copied(),
+                _ => [].iter().copied(),
+            }
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            usize::from(node == 1)
+        }
+
+        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+            2
+        }
+    }
+
+    impl<S: LayoutScalar> Compute for FlexTree<S> {
+        fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+            &self.styles[&node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+            LayoutInputOf::box_input(self.node_input(node).clone())
+        }
+
+        fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
+            self.layouts.insert(node, layout);
+        }
+
+        fn compute_child(
+            &mut self,
+            _node: Self::Node,
+            input: ComputeInputOf<S>,
+        ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S> {
+            let size = Size::new(
+                input.known().width.unwrap_or(S::from_f64(90.0)),
+                input.known().height.unwrap_or(S::from_f64(10.0)),
+            );
+            Ok(ComputeOutputOf::from_sizes(size, size))
+        }
+    }
+
+    let mut widths = Vec::new();
+    let mut heights = Vec::new();
+    for item_is_replaced in [true, false] {
+        let mut tree = FlexTree::default();
+        tree.styles.insert(
+            1,
+            NodeInputOf {
+                display: Display::Flex,
+                align_items: Some(AlignItems::Stretch),
+                size: Size::new(
+                    DimensionOf::px(S::from_f64(60.0)),
+                    DimensionOf::px(S::from_f64(20.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+        tree.styles.insert(
+            2,
+            NodeInputOf {
+                item_is_replaced,
+                aspect_ratio: AspectRatioOf::new(S::from_f64(2.0)),
+                flex_basis: DimensionOf::px(S::from_f64(90.0)),
+                flex_grow: FlexGrowOf::try_new(S::ZERO).expect("zero is a valid flex grow"),
+                flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
+                ..NodeInputOf::default()
+            },
+        );
+
+        compute_flex(
+            &mut tree,
+            1,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(S::from_f64(60.0)), Some(S::from_f64(20.0))),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::new(
+                    AvailableOf::definite(S::from_f64(60.0)),
+                    AvailableOf::definite(S::from_f64(20.0)),
+                ),
+            ),
+        )
+        .expect("replaced automatic-minimum flex layout succeeds");
+
+        let layout = tree.layouts[&2];
+        widths.push(layout.size.width);
+        heights.push(layout.size.height);
+    }
+
+    assert_eq!(widths, [S::from_f64(60.0), S::from_f64(90.0)]);
+    assert_eq!(heights, [S::from_f64(20.0), S::from_f64(20.0)]);
 }
 
 #[test]

@@ -7,6 +7,7 @@ use super::{
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
+use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
@@ -45,7 +46,30 @@ where
         )));
     }
 
-    let mut collected_items = collect_items(tree, node, &constants, input.run_mode())?;
+    let collected_items = collect_items(tree, node, &constants, input.run_mode())?;
+    let permutation = item_order_permutation(
+        &collected_items
+            .iter()
+            .map(|item| {
+                (
+                    tree.node_input(item.node).item_order,
+                    crate::SourceIndex::new(item.source_index),
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+    let mut items_by_source = collected_items
+        .into_iter()
+        .map(|item| (crate::SourceIndex::new(item.source_index), item))
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut collected_items = permutation
+        .into_iter()
+        .map(|source_index| {
+            items_by_source
+                .remove(&source_index)
+                .expect("the flex order permutation contains every collected source index")
+        })
+        .collect::<Vec<_>>();
     let mut lines = collect_flex_lines(&collected_items, &constants);
 
     let mut layout_constants = resolved_layout_constants(
@@ -1287,7 +1311,11 @@ where
             .main_size_from_cross_aspect(cross, ratio)
             .clamp_optional(None, constants.axes.main_size(authored_size))
             .clamp_optional(None, constants.axes.main_size(resolved_max_size));
-        min_content = min_content.max(transferred);
+        min_content = if style.item_is_replaced {
+            min_content.min(transferred)
+        } else {
+            min_content.max(transferred)
+        };
     }
     Ok(Some(
         min_content.max(constants.axes.main_size(padding_border.sum_axes())),
