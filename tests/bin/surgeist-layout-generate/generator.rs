@@ -3825,11 +3825,16 @@ fn generate_xml_with_provenance(
     let root_context_attr = if root_context == "root" {
         String::new()
     } else {
+        let host_inline_size = viewport["hostInlineSize"]
+            .as_f64()
+            .filter(|value| value.is_finite() && *value >= 0.0)
+            .expect("flex-item viewport host inline size must be finite and non-negative");
         format!(
-            " root-context=\"{}\" parent-writing-mode=\"{}\" parent-direction=\"{}\"",
+            " root-context=\"{}\" parent-writing-mode=\"{}\" parent-direction=\"{}\" host-inline-size=\"{}px\"",
             escape_attr(root_context),
             escape_attr(viewport["parentWritingMode"].as_str().unwrap_or_default()),
             escape_attr(viewport["parentDirection"].as_str().unwrap_or_default()),
+            number_attr_value(host_inline_size),
         )
     };
     lines.push(format!(
@@ -5523,7 +5528,8 @@ if (expectedReason === undefined) {{
                 "height": {"unit": "max-content"},
                 "rootContext": "flex-item",
                 "parentWritingMode": "horizontal-tb",
-                "parentDirection": "ltr"
+                "parentDirection": "ltr",
+                "hostInlineSize": 160
             },
             "style": {"display": "grid"},
             "smartRoundedLayout": {"x": 0, "y": 0, "width": 160, "height": 20, "scrollWidth": 160, "scrollHeight": 20},
@@ -5537,7 +5543,7 @@ if (expectedReason === undefined) {{
         assert!(xml.contains(concat!(
             "  <viewport width=\"400px\" height=\"max-content\" ",
             "root-context=\"flex-item\" parent-writing-mode=\"horizontal-tb\" ",
-            "parent-direction=\"ltr\"/>"
+            "parent-direction=\"ltr\" host-inline-size=\"160px\"/>"
         )));
     }
 
@@ -5550,7 +5556,8 @@ if (expectedReason === undefined) {{
                 "height": {"unit": "max-content"},
                 "rootContext": "flex-item",
                 "parentWritingMode": "vertical-rl",
-                "parentDirection": "rtl"
+                "parentDirection": "rtl",
+                "hostInlineSize": 37.5
             },
             "style": {"display": "grid", "order": "0", "writingMode": "horizontal-tb"},
             "smartRoundedLayout": {"x": 0, "y": 0, "width": 160, "height": 20, "scrollWidth": 160, "scrollHeight": 20},
@@ -5593,11 +5600,16 @@ if (expectedReason === undefined) {{
         assert!(flex_xml.contains(concat!(
             "<viewport width=\"400px\" height=\"max-content\" ",
             "root-context=\"flex-item\" parent-writing-mode=\"vertical-rl\" ",
-            "parent-direction=\"rtl\"/>"
+            "parent-direction=\"rtl\" host-inline-size=\"37.5px\"/>"
         )));
         assert!(!flex_xml.contains("order=\"0\""));
         assert!(flex_xml.contains("order=\"-2147483648\""));
         assert!(flex_xml.contains("order=\"2147483647\""));
+
+        let mut zero_host = flex_item.clone();
+        zero_host["viewport"]["hostInlineSize"] = json!(0);
+        let zero_host_xml = generate_xml("zero_flex_host_allocation", &zero_host);
+        assert!(zero_host_xml.contains("host-inline-size=\"0px\""));
 
         let root_xml = generate_xml("root_omits_parent_metadata", &root);
         assert!(!root_xml.contains("order=\"0\""));
@@ -6836,6 +6848,10 @@ const document = {{
 
 {TEST_HELPER_SOURCE}
 
+let parentWritingMode = "horizontal-tb";
+let parentDirection = "ltr";
+let rootWidth = 160;
+let rootHeight = 20;
 const parent = {{
   classList: {{ contains(name) {{ return name === "viewport"; }} }},
   style: {{ width: "400px", height: "" }},
@@ -6861,7 +6877,7 @@ const element = {{
   childNodes: [],
   childElementCount: 0,
   textContent: "",
-  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: 160, height: 20, right: 160, left: 0, bottom: 20, top: 0 }}; }},
+  getBoundingClientRect() {{ return {{ x: 0, y: 0, width: rootWidth, height: rootHeight, right: rootWidth, left: 0, bottom: rootHeight, top: 0 }}; }},
   scrollWidth: 160,
   scrollHeight: 20,
   clientWidth: 160,
@@ -6875,7 +6891,7 @@ const element = {{
 let order = "0";
 function getComputedStyle(target) {{
   if (target === parent) {{
-    return {{ writingMode: "vertical-rl", direction: "rtl" }};
+    return {{ writingMode: parentWritingMode, direction: parentDirection }};
   }}
   return {{
     display: "grid",
@@ -6899,17 +6915,28 @@ function getComputedStyle(target) {{
   }};
 }}
 
-for (const expected of ["0", "-2147483648", "2147483647"]) {{
-  order = expected;
+for (const testCase of [
+  {{ order: "0", writingMode: "horizontal-tb", direction: "ltr", width: 160, height: 20, hostInlineSize: 160 }},
+  {{ order: "-2147483648", writingMode: "vertical-rl", direction: "rtl", width: 160, height: 37.5, hostInlineSize: 37.5 }},
+  {{ order: "2147483647", writingMode: "horizontal-tb", direction: "rtl", width: 80, height: 60, hostInlineSize: 80 }},
+]) {{
+  order = testCase.order;
+  parentWritingMode = testCase.writingMode;
+  parentDirection = testCase.direction;
+  rootWidth = testCase.width;
+  rootHeight = testCase.height;
   const data = describeElement(element);
-  if (data.style.order !== expected) {{
-    throw new Error(`expected exact order ${{expected}}, got ${{data.style.order}}`);
+  if (data.style.order !== testCase.order) {{
+    throw new Error(`expected exact order ${{testCase.order}}, got ${{data.style.order}}`);
   }}
   if (data.viewport.rootContext !== "flex-item") {{
     throw new Error(`expected flex-item root, got ${{data.viewport.rootContext}}`);
   }}
-  if (data.viewport.parentWritingMode !== "vertical-rl" || data.viewport.parentDirection !== "rtl") {{
+  if (data.viewport.parentWritingMode !== testCase.writingMode || data.viewport.parentDirection !== testCase.direction) {{
     throw new Error(`expected parent axes, got ${{JSON.stringify(data.viewport)}}`);
+  }}
+  if (data.viewport.hostInlineSize !== testCase.hostInlineSize) {{
+    throw new Error(`expected host inline size ${{testCase.hostInlineSize}}, got ${{data.viewport.hostInlineSize}}`);
   }}
 }}
 "#

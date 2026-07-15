@@ -153,12 +153,16 @@ class TrackSizingParser {
 function parseViewportConstraint(e, boundingRect) {
   if (e.parentNode.classList.contains('viewport')) {
     const parentStyle = getComputedStyle(e.parentElement);
+    const hostInlineSize = parentStyle.writingMode === 'horizontal-tb'
+      ? boundingRect.width
+      : boundingRect.height;
     return {
       width: parseDimension(e.parentNode.style.width || 'max-content'),
       height: parseDimension(e.parentNode.style.height || 'max-content'),
       rootContext: 'flex-item',
       parentWritingMode: parentStyle.writingMode,
       parentDirection: parentStyle.direction,
+      hostInlineSize,
     }
   } else {
     return {

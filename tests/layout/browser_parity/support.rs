@@ -122,10 +122,23 @@ fn root_request(
 ) -> Result<layout::LayoutRootRequest, Error> {
     match root_context {
         RootContext::Root => layout::LayoutRootRequest::viewport(available),
-        RootContext::FlexItem { parent_axes } => {
+        RootContext::FlexItem {
+            parent_axes,
+            host_inline_size,
+        } => {
             let context = layout::FlexItemRootContext::under_viewport(available, parent_axes)
                 .map_err(|error| Error::new(format!("invalid flex viewport: {error:?}")))?;
-            layout::LayoutRootRequest::flex_item_under_viewport(available, context)
+            let host_available = match parent_axes.inline_axis() {
+                layout::PhysicalAxis::Horizontal => layout::Size::new(
+                    layout::Available::Definite(host_inline_size),
+                    layout::Available::MaxContent,
+                ),
+                layout::PhysicalAxis::Vertical => layout::Size::new(
+                    layout::Available::MaxContent,
+                    layout::Available::Definite(host_inline_size),
+                ),
+            };
+            layout::LayoutRootRequest::flex_item_under_viewport(host_available, context)
         }
     }
     .map_err(|error| Error::new(format!("invalid layout root request: {error:?}")))
@@ -145,10 +158,13 @@ pub struct Viewport {
     pub root_context: RootContext,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum RootContext {
     Root,
-    FlexItem { parent_axes: layout::FlowAxes },
+    FlexItem {
+        parent_axes: layout::FlowAxes,
+        host_inline_size: Scalar,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -302,12 +318,16 @@ fn parse_root_context(viewport: roxmltree::Node<'_, '_>) -> Result<RootContext, 
     let raw = viewport.attribute("root-context").unwrap_or("root");
     let parent_writing_mode = viewport.attribute("parent-writing-mode");
     let parent_direction = viewport.attribute("parent-direction");
+    let host_inline_size = viewport.attribute("host-inline-size");
 
     match raw {
         "root" => {
-            if parent_writing_mode.is_some() || parent_direction.is_some() {
+            if parent_writing_mode.is_some()
+                || parent_direction.is_some()
+                || host_inline_size.is_some()
+            {
                 return Err(Error::new(
-                    "root viewport must not specify parent writing mode or direction",
+                    "root viewport must not specify flex-item metadata",
                 ));
             }
             Ok(RootContext::Root)
@@ -316,12 +336,26 @@ fn parse_root_context(viewport: roxmltree::Node<'_, '_>) -> Result<RootContext, 
             let writing_mode =
                 parse_writing_mode(Some(required_attr(viewport, "parent-writing-mode")?))?;
             let direction = parse_direction(required_attr(viewport, "parent-direction")?)?;
+            let host_inline_size =
+                parse_host_inline_size(required_attr(viewport, "host-inline-size")?)?;
             Ok(RootContext::FlexItem {
                 parent_axes: layout::FlowAxes::new(writing_mode, direction),
+                host_inline_size,
             })
         }
         _ => Err(Error::new(format!("unsupported root context `{raw}`"))),
     }
+}
+
+fn parse_host_inline_size(raw: &str) -> Result<Scalar, Error> {
+    let value = raw
+        .strip_suffix("px")
+        .ok_or_else(|| Error::new(format!("invalid host inline size `{raw}`")))
+        .and_then(parse_number)?;
+    if !value.is_finite() || value < 0.0 {
+        return Err(Error::new(format!("invalid host inline size `{raw}`")));
+    }
+    Ok(value)
 }
 
 fn parse_item_order(raw: &str) -> Result<layout::ItemOrder, Error> {
@@ -2100,9 +2134,10 @@ mod tests {
 
         assert_eq!(parse_viewport("", "")?, RootContext::Root);
         for attrs in [
+            r#"host-inline-size="100px""#,
             r#"parent-writing-mode="horizontal-tb""#,
             r#"parent-direction="ltr""#,
-            r#"parent-writing-mode="horizontal-tb" parent-direction="ltr""#,
+            r#"parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="100px""#,
         ] {
             assert!(
                 parse_viewport(attrs, "").is_err(),
@@ -2111,11 +2146,11 @@ mod tests {
         }
 
         let vertical_rtl = parse_viewport(
-            r#"root-context="flex-item" parent-writing-mode="vertical-rl" parent-direction="rtl""#,
+            r#"root-context="flex-item" parent-writing-mode="vertical-rl" parent-direction="rtl" host-inline-size="37.5px""#,
             r#"writing-mode="horizontal-tb" direction="ltr""#,
         )?;
         let horizontal_ltr = parse_viewport(
-            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="0px""#,
             r#"writing-mode="vertical-lr" direction="rtl""#,
         )?;
         assert_ne!(
@@ -2127,10 +2162,19 @@ mod tests {
             r#"root-context="flex-item""#,
             r#"root-context="flex-item" parent-writing-mode="horizontal-tb""#,
             r#"root-context="flex-item" parent-direction="ltr""#,
+            r#"root-context="flex-item" host-inline-size="100px""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" host-inline-size="100px""#,
+            r#"root-context="flex-item" parent-direction="ltr" host-inline-size="100px""#,
             r#"root-context="flex-item" parent-writing-mode="horizontal" parent-direction="ltr""#,
             r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="left-to-right""#,
             r#"root-context="flex-item" parent-writing-mode=" horizontal-tb" parent-direction="ltr""#,
             r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr ""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="100""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="max-content""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="NaNpx""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="infpx""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="-0.5px""#,
         ] {
             assert!(
                 parse_viewport(attrs, r#"writing-mode="vertical-lr" direction="rtl""#).is_err(),
@@ -2142,11 +2186,65 @@ mod tests {
     }
 
     #[test]
+    fn flex_item_root_separates_host_inline_allocation_from_viewport_context() -> Result<(), Error>
+    {
+        fn request(attrs: &str) -> Result<layout::LayoutRootRequest, Error> {
+            let golden = Golden::parse(&format!(
+                r#"
+                <test name="flex-host-allocation" use-rounding="true">
+                    <viewport width="400px" height="60px" {attrs} />
+                    <input><div display="grid" /></input>
+                    <expectations><node x="0" y="0" width="0" height="0" /></expectations>
+                </test>
+                "#
+            ))?;
+            let viewport_available = layout::Size::new(
+                to_layout_available(golden.viewport.width),
+                to_layout_available(golden.viewport.height),
+            );
+            root_request(viewport_available, golden.viewport.root_context)
+        }
+
+        for (attrs, expected_available) in [
+            (
+                r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="160px""#,
+                layout::Size::new(
+                    layout::Available::Definite(160.0),
+                    layout::Available::MaxContent,
+                ),
+            ),
+            (
+                r#"root-context="flex-item" parent-writing-mode="vertical-rl" parent-direction="rtl" host-inline-size="80.5px""#,
+                layout::Size::new(
+                    layout::Available::MaxContent,
+                    layout::Available::Definite(80.5),
+                ),
+            ),
+        ] {
+            let request = request(attrs)?;
+            assert_eq!(request.available(), expected_available);
+            let layout::LayoutRootContext::FlexItemUnderViewport(context) = request.context()
+            else {
+                panic!("expected flex-item root context");
+            };
+            assert_eq!(
+                context.viewport_available(),
+                layout::Size::new(
+                    layout::Available::Definite(400.0),
+                    layout::Available::Definite(60.0),
+                )
+            );
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn parses_viewport_root_context_metadata() {
         let golden = Golden::parse(
             r#"
             <test name="viewport-flex-item" use-rounding="true">
-                <viewport width="400px" height="max-content" root-context="flex-item" parent-writing-mode="vertical-rl" parent-direction="rtl" />
+                <viewport width="400px" height="max-content" root-context="flex-item" parent-writing-mode="vertical-rl" parent-direction="rtl" host-inline-size="20px" />
                 <input>
                     <div display="grid" />
                 </input>
@@ -2165,6 +2263,7 @@ mod tests {
                     layout::WritingMode::VerticalRl,
                     layout::Direction::Rtl,
                 ),
+                host_inline_size: 20.0,
             }
         );
     }
@@ -2174,7 +2273,7 @@ mod tests {
         let golden = Golden::parse(
             r#"
             <test name="viewport-flex-item" use-rounding="true">
-                <viewport width="400px" height="80px" root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" />
+                <viewport width="400px" height="80px" root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" host-inline-size="400px" />
                 <input>
                     <div display="flex" width="50%" height="20px" />
                 </input>
@@ -2193,6 +2292,7 @@ mod tests {
                     layout::WritingMode::HorizontalTb,
                     layout::Direction::Ltr,
                 ),
+                host_inline_size: 400.0,
             }
         );
 
