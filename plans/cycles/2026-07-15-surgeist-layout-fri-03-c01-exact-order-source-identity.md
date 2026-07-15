@@ -1,6 +1,6 @@
 # FRI-03-C01 Exact Order And Source Identity
 
-Status: in_progress
+Status: reviewed
 Cycle ID: `FRI-03-C01`
 Owning repository: `surgeist-layout`
 Cycle base: `05401beb53853a5eaf1c622050cfa0d7cebc0c4c`
@@ -66,7 +66,7 @@ are missing.
 Acceptance: the exact new test and existing f64-lane test each execute once and
 pass; no primitive conversion or scalar-generic order value is added.
 Commands: first two exact focused-test list/run gates below;
-`CARGO_NET_OFFLINE=true just fmt-check`.
+`CARGO_NET_OFFLINE=true just verify`.
 Intended commit: `api: distinguish item order from source index`.
 
 ### C01-T2 - Rename Source Identity Carriers
@@ -86,8 +86,7 @@ Acceptance: no production `order: u32`, source-ordinal `order` accessor, or
 `with_order` call remains; existing block/flex/grid/root/inline behavior remains
 source-identical for default order.
 Commands: third and fourth exact focused-test list/run gates below; C01
-legacy-name absence gate;
-`CARGO_NET_OFFLINE=true just test`; `CARGO_NET_OFFLINE=true just fmt-check`.
+legacy-name absence gate; `CARGO_NET_OFFLINE=true just verify`.
 Intended commit: `layout: rename source identity carriers`.
 
 ### C01-T3 - Stable Permutation And Absence Gates
