@@ -11,6 +11,259 @@ use crate::test_support::{
 use crate::*;
 
 #[test]
+fn ordinary_grid_order_modified_placement_precedes_mixed_phases_and_preserves_source_identity_in_both_scalar_lanes()
+ {
+    assert_ordinary_grid_order_modified_placement::<f32>();
+    assert_ordinary_grid_order_modified_placement::<f64>();
+}
+
+fn assert_ordinary_grid_order_modified_placement<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    for auto_flow in [
+        GridAutoFlow::Row,
+        GridAutoFlow::RowDense,
+        GridAutoFlow::Column,
+        GridAutoFlow::ColumnDense,
+    ] {
+        let column_flow = auto_flow.is_column();
+        let item_style = |order| NodeInputOf::<S> {
+            item_order: ItemOrder::new(order),
+            size: Size::splat(DimensionOf::px(S::from_f64(10.0))),
+            ..NodeInputOf::default()
+        };
+        let definite_major = |order| NodeInputOf::<S> {
+            grid_column: if column_flow {
+                GridPlacement::try_line(1).expect("one is a valid grid line")
+            } else {
+                GridPlacement::AUTO
+            },
+            grid_row: if column_flow {
+                GridPlacement::AUTO
+            } else {
+                GridPlacement::try_line(1).expect("one is a valid grid line")
+            },
+            ..item_style(order)
+        };
+        let mut tree = OracleTreeOf::<S>::new()
+            .children(0, [1, 2, 3, 4, 5, 6, 7, 8])
+            .children(1, [])
+            .children(2, [])
+            .children(3, [])
+            .children(4, [])
+            .children(5, [])
+            .children(6, [])
+            .children(7, [])
+            .children(8, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    size: Size::splat(DimensionOf::px(S::from_f64(80.0))),
+                    grid_template_columns: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
+                    grid_template_rows: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
+                    grid_auto_flow: auto_flow,
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(1, item_style(2))
+            .style(
+                2,
+                NodeInputOf {
+                    display: Display::None,
+                    item_order: ItemOrder::new(i32::MIN),
+                    ..item_style(0)
+                },
+            )
+            .style(
+                3,
+                NodeInputOf {
+                    grid_column: GridPlacement::try_line(2).expect("two is a valid grid line"),
+                    grid_row: GridPlacement::try_line(2).expect("two is a valid grid line"),
+                    item_order: ItemOrder::new(i32::MAX),
+                    ..item_style(0)
+                },
+            )
+            .style(4, definite_major(2))
+            .style(
+                5,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    item_order: ItemOrder::new(i32::MIN),
+                    ..item_style(0)
+                },
+            )
+            .style(6, definite_major(-1))
+            .style(7, item_style(0))
+            .style(8, item_style(2));
+
+        let computation = compute_grid_with_report(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(S::from_f64(80.0))),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::splat(AvailableOf::definite(S::from_f64(80.0))),
+            ),
+        )
+        .expect("order-modified ordinary-grid layout succeeds");
+        assert!(computation.report().is_empty());
+
+        let expected_cells = if column_flow {
+            [
+                (6, 0, 0),
+                (3, 1, 1),
+                (4, 0, 1),
+                (7, 0, 2),
+                (1, 0, 3),
+                (8, 1, 0),
+            ]
+        } else {
+            [
+                (6, 0, 0),
+                (3, 1, 1),
+                (4, 1, 0),
+                (7, 2, 0),
+                (1, 3, 0),
+                (8, 0, 1),
+            ]
+        };
+        for (node, column, row) in expected_cells {
+            let layout = tree.layout(node).expect("in-flow child layout is staged");
+            assert_eq!(layout.source_index, SourceIndex::new((node - 1) as usize));
+            assert_eq!(
+                layout.location,
+                Point::new(S::from_usize(column * 20), S::from_usize(row * 20)),
+                "{auto_flow:?} node {node} must use order-modified placement"
+            );
+        }
+        assert!(
+            tree.inputs(2)
+                .iter()
+                .any(|input| input.run_mode() == RunMode::PerformHiddenLayout),
+            "hidden children remain outside the ordinary-grid permutation"
+        );
+        assert_eq!(
+            tree.layout(5)
+                .expect("absolute child layout is staged")
+                .source_index,
+            SourceIndex::new(4)
+        );
+    }
+}
+
+#[test]
+fn ordinary_grid_replaced_normal_alignment_starts_while_explicit_stretch_remains_in_both_scalar_lanes()
+ {
+    assert_ordinary_grid_replaced_normal_alignment::<f32>();
+    assert_ordinary_grid_replaced_normal_alignment::<f64>();
+}
+
+fn assert_ordinary_grid_replaced_normal_alignment<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let measured =
+        ComputeOutputOf::from_outer_size(Size::new(S::from_f64(30.0), S::from_f64(20.0)));
+    for (label, replaced, item_alignment, container_alignment, expected_known) in [
+        ("replaced normal", true, None, None, Size::NONE),
+        (
+            "non-replaced normal",
+            false,
+            None,
+            None,
+            Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(80.0))),
+        ),
+        (
+            "explicit item stretch",
+            true,
+            Some(AlignItems::Stretch),
+            None,
+            Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(80.0))),
+        ),
+        (
+            "explicit container stretch",
+            true,
+            None,
+            Some(AlignItems::Stretch),
+            Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(80.0))),
+        ),
+    ] {
+        let mut tree = OracleTreeOf::<S>::new()
+            .children(0, [1])
+            .children(1, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Grid,
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(100.0)),
+                        DimensionOf::px(S::from_f64(80.0)),
+                    ),
+                    grid_template_columns: vec![TrackComponentOf::px(S::from_f64(100.0))],
+                    grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
+                    justify_items: container_alignment,
+                    align_items: container_alignment,
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                1,
+                NodeInputOf {
+                    item_is_replaced: replaced,
+                    justify_self: item_alignment,
+                    align_self: item_alignment,
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(1, measured);
+
+        compute_grid(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(80.0))),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::new(
+                    AvailableOf::definite(S::from_f64(100.0)),
+                    AvailableOf::definite(S::from_f64(80.0)),
+                ),
+            ),
+        )
+        .expect("replaced ordinary-grid alignment succeeds");
+
+        let layout = tree.layout(1).expect("grid child layout is staged");
+        assert_eq!(layout.location, Point::ZERO, "{label} starts in its area");
+        assert_eq!(layout.size, measured.size, "{label} keeps measured output");
+        let layout_input = tree
+            .inputs(1)
+            .iter()
+            .find(|input| input.run_mode() == RunMode::PerformLayout)
+            .expect("grid child receives a perform-layout request");
+        assert_eq!(
+            layout_input.known(),
+            expected_known,
+            "{label} resolves normal alignment on both axes"
+        );
+    }
+}
+
+#[test]
 fn grid_and_lanes_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
     assert_grid_child_context_is_complete::<f32>();
     assert_grid_child_context_is_complete::<f64>();

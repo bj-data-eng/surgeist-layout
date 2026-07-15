@@ -9,6 +9,7 @@ use super::{
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::geometry::{LogicalAxis, LogicalSizeOf};
+use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{ScrollbarReservationOf, content_box_inset_with_scrollbar};
 
@@ -766,6 +767,7 @@ pub(super) struct ResolvedGridItemPlacement {
 pub(super) struct GridPlacementContext<Node> {
     pub(super) children: Vec<Node>,
     pub(super) items: Vec<ResolvedGridItemPlacement>,
+    pub(super) order_modified_indexes: Vec<crate::SourceIndex>,
 }
 
 impl<Node> GridPlacementContext<Node> {
@@ -775,7 +777,28 @@ impl<Node> GridPlacementContext<Node> {
             items.len(),
             "grid placement context must preserve one placement per child"
         );
-        Self { children, items }
+        let order_modified_indexes = items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| item.in_flow.then_some(crate::SourceIndex::new(index)))
+            .collect();
+        Self {
+            children,
+            items,
+            order_modified_indexes,
+        }
+    }
+
+    fn with_order_modified_indexes(
+        mut self,
+        order_modified_indexes: Vec<crate::SourceIndex>,
+    ) -> Self {
+        debug_assert_eq!(
+            order_modified_indexes.len(),
+            self.items.iter().filter(|item| item.in_flow).count()
+        );
+        self.order_modified_indexes = order_modified_indexes;
+        self
     }
 }
 
@@ -1121,7 +1144,24 @@ where
             in_flow: style.position != Position::Absolute,
         });
     }
-    (GridPlacementContext::new(children.to_vec(), items), report)
+    let order_modified_indexes = item_order_permutation(
+        &items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| item.in_flow)
+            .map(|(index, _)| {
+                (
+                    tree.node_input(children[index]).item_order,
+                    crate::SourceIndex::new(index),
+                )
+            })
+            .collect::<Vec<_>>(),
+    );
+    (
+        GridPlacementContext::new(children.to_vec(), items)
+            .with_order_modified_indexes(order_modified_indexes),
+        report,
+    )
 }
 
 fn resolve_grid_item_axis_placements_with_report(

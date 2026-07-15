@@ -595,8 +595,21 @@ pub(super) fn resolve_grid_child_areas<Node, S: LayoutScalar>(
         style.grid_auto_flow.is_column()
     };
     let dense_flow = style.grid_auto_flow.is_dense();
+    let source_order;
+    let traversal = if style.display.establishes_grid_lanes_formatting_context() {
+        source_order = placements
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| item.in_flow.then_some(crate::SourceIndex::new(index)))
+            .collect::<Vec<_>>();
+        &source_order
+    } else {
+        &placements.order_modified_indexes
+    };
     place_grid_child_area_phase(
         placements,
+        traversal,
         &mut areas,
         &mut occupancy,
         PlacementPhase::DefiniteMajor,
@@ -612,6 +625,7 @@ pub(super) fn resolve_grid_child_areas<Node, S: LayoutScalar>(
     );
     place_grid_child_area_phase(
         placements,
+        traversal,
         &mut areas,
         &mut occupancy,
         PlacementPhase::Auto,
@@ -647,13 +661,16 @@ pub(super) enum PlacementPhase {
 
 pub(super) fn place_grid_child_area_phase<Node, S: LayoutScalar>(
     placements: &GridPlacementContext<Node>,
+    traversal: &[crate::SourceIndex],
     areas: &mut [Option<GridArea<S>>],
     occupancy: &mut [bool],
     phase: PlacementPhase,
     grid: PlacementContext<'_, S>,
 ) {
     debug_assert_eq!(areas.len(), placements.items.len());
-    for (index, placement) in placements.items.iter().enumerate() {
+    for source_index in traversal {
+        let index = source_index.get();
+        let placement = &placements.items[index];
         if areas[index].is_some() {
             continue;
         }

@@ -1996,41 +1996,36 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
     .apply_aspect_ratio(child_style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
     let logical_inherent_size = grid_flow_axes.logical_size(inherent_size);
-    let justify_self = child_style
-        .justify_self
-        .or(container_style.justify_items)
-        .unwrap_or_else(|| {
-            if logical_inherent_size.inline.is_some()
-                || !grid_flow_axes
-                    .logical_size(child_style.size)
-                    .inline
-                    .is_auto()
-            {
-                AlignItems::Start
-            } else {
-                AlignItems::Stretch
-            }
-        });
-    let align_self = child_style
-        .align_self
-        .or(container_style.align_items)
-        .unwrap_or_else(|| {
-            if logical_inherent_size.block.is_some()
-                || !grid_flow_axes
-                    .logical_size(child_style.size)
+    let logical_style_size = grid_flow_axes.logical_size(child_style.size);
+    let justify_self = resolve_grid_item_normal_alignment(
+        child_style.justify_self,
+        container_style.justify_items,
+        child_style.item_is_replaced,
+        logical_style_size.inline.is_auto(),
+        if logical_inherent_size.inline.is_some() || !logical_style_size.inline.is_auto() {
+            AlignItems::Start
+        } else {
+            AlignItems::Stretch
+        },
+    );
+    let align_self = resolve_grid_item_normal_alignment(
+        child_style.align_self,
+        container_style.align_items,
+        child_style.item_is_replaced,
+        logical_style_size.block.is_auto(),
+        if logical_inherent_size.block.is_some()
+            || !logical_style_size.block.is_auto()
+            || (child_style.aspect_ratio.is_some()
+                && grid_flow_axes
+                    .logical_size(child_style.min_size)
                     .block
-                    .is_auto()
-                || (child_style.aspect_ratio.is_some()
-                    && grid_flow_axes
-                        .logical_size(child_style.min_size)
-                        .block
-                        .is_auto())
-            {
-                AlignItems::Start
-            } else {
-                AlignItems::Stretch
-            }
-        });
+                    .is_auto())
+        {
+            AlignItems::Start
+        } else {
+            AlignItems::Stretch
+        },
+    );
     let logical_unresolved_margin = grid_flow_axes.logical_edges(unresolved_margin);
     let inline_stretches = logical_unresolved_margin.inline_start.is_some()
         && logical_unresolved_margin.inline_end.is_some()
@@ -2071,6 +2066,22 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         unresolved_margin,
         justify_self,
         align_self,
+    })
+}
+
+pub(crate) fn resolve_grid_item_normal_alignment(
+    item_alignment: Option<AlignItems>,
+    container_alignment: Option<AlignItems>,
+    item_is_replaced: bool,
+    axis_is_auto_sized: bool,
+    non_replaced_normal: AlignItems,
+) -> AlignItems {
+    item_alignment.or(container_alignment).unwrap_or({
+        if item_is_replaced && axis_is_auto_sized {
+            AlignItems::Start
+        } else {
+            non_replaced_normal
+        }
     })
 }
 
