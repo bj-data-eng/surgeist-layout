@@ -5209,34 +5209,13 @@ mod tests {
     }
 
     #[test]
-    fn generation_report_manifest_requires_the_exact_final_inventory() {
+    fn generation_report_manifest_requires_full_only_fri_03_inventory() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let reports = generation_report_manifest(&manifest).expect("report manifest");
-        assert_eq!(reports.all_files().len(), 6);
+        assert_eq!(reports.all_files().len(), 1);
         assert_eq!(reports.full.file, "all.json");
-        assert_eq!(reports.full.generated, 5256);
-        assert_eq!(
-            reports.scoped.get("block/block_axes").unwrap().generated,
-            20
-        );
-        assert!(!reports.scoped.contains_key("block"));
-
-        let expected = [
-            ("block/block_axes", "block_block_axes.json", 20),
-            ("flex/flex_axes", "flex_flex_axes.json", 80),
-            ("grid/grid_axes", "grid_grid_axes.json", 36),
-            (
-                "grid-lanes/grid_lanes_axes",
-                "grid-lanes_grid_lanes_axes.json",
-                36,
-            ),
-            ("subgrid/subgrid_axes", "subgrid_subgrid_axes.json", 36),
-        ];
-        for (filter, file, generated) in expected {
-            let report = reports.scoped.get(filter).expect("listed scoped report");
-            assert_eq!(report.file, file);
-            assert_eq!(report.generated, generated);
-        }
+        assert_eq!(reports.full.generated, 5268);
+        assert!(reports.scoped.is_empty());
     }
 
     #[test]
@@ -5262,7 +5241,7 @@ mod tests {
         config.filter = None;
         prune_stale_generation_reports_after_success(&config, &report).expect("full pruning");
         assert!(report_dir.join("all.json").exists());
-        assert!(report_dir.join("block_block_axes.json").exists());
+        assert!(!report_dir.join("block_block_axes.json").exists());
         assert!(!report_dir.join("stale.json").exists());
         fs::remove_dir_all(root).ok();
     }
@@ -8313,7 +8292,7 @@ status = "active"
     fn generation_report_metadata_validation_accepts_current_manifests() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let inventory = generation_report_manifest(&manifest).expect("inventory");
-        assert_eq!(inventory.all_files().len(), 6);
+        assert_eq!(inventory.all_files().len(), 1);
     }
     #[test]
     fn generation_report_validation_rejects_bucket_summary_drift() {

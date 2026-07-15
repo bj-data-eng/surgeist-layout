@@ -1913,13 +1913,21 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .filter(|fixture| is_under_suite(fixture, "grid-lanes"))
         .count();
 
-    assert_eq!(
-        taffy_plus_local_count, 1159,
-        "expected the Taffy baseline plus forty Surgeist constrained additions and sixteen BR coverage fixtures, including four layout-ready vertical BR fixtures"
-    );
+    assert_eq!(taffy_plus_local_count, 1161);
     assert_eq!(subgrid_count, 219);
-    assert_eq!(grid_lanes_count, 25);
-    assert_eq!(fixtures.len(), 1403);
+    assert_eq!(grid_lanes_count, 26);
+    assert_eq!(fixtures.len(), 1406);
+
+    for source in [
+        "flex/fri03_order_modified_flex.html",
+        "grid/fri03_order_modified_grid.html",
+        "grid-lanes/fri03_order_modified_lanes.html",
+    ] {
+        assert!(
+            fixtures.contains(&html_root.join(source)),
+            "missing FRI-03 source {source}"
+        );
+    }
 }
 
 #[test]
@@ -1958,7 +1966,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5256);
+    assert_eq!(report_json["summary"]["generated"], 5268);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -1969,7 +1977,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5256,
+        5268,
         "generated bucket length must match its summary"
     );
     assert_eq!(
@@ -2020,10 +2028,30 @@ fn browser_parity_generation_report_counts_full_scope() {
         unique_reported_outputs, actual_outputs,
         "generated full report outputs must match checked-in XML exactly"
     );
+
+    for output in [
+        "xml/flex/fri03_order_modified_flex__border_box_ltr.xml",
+        "xml/flex/fri03_order_modified_flex__border_box_rtl.xml",
+        "xml/flex/fri03_order_modified_flex__content_box_ltr.xml",
+        "xml/flex/fri03_order_modified_flex__content_box_rtl.xml",
+        "xml/grid/fri03_order_modified_grid__border_box_ltr.xml",
+        "xml/grid/fri03_order_modified_grid__border_box_rtl.xml",
+        "xml/grid/fri03_order_modified_grid__content_box_ltr.xml",
+        "xml/grid/fri03_order_modified_grid__content_box_rtl.xml",
+        "xml/grid-lanes/fri03_order_modified_lanes__border_box_ltr.xml",
+        "xml/grid-lanes/fri03_order_modified_lanes__border_box_rtl.xml",
+        "xml/grid-lanes/fri03_order_modified_lanes__content_box_ltr.xml",
+        "xml/grid-lanes/fri03_order_modified_lanes__content_box_rtl.xml",
+    ] {
+        assert!(
+            unique_reported_outputs.contains(output),
+            "missing FRI-03 generated output {output}"
+        );
+    }
 }
 
 #[test]
-fn browser_parity_generation_report_inventory_matches_final_fri_02_scopes() {
+fn browser_parity_generation_report_inventory_is_full_only() {
     let report_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/layout/browser_parity/xml/generation-reports");
     let reports = support::fixture_files_in(&report_root, "json")
@@ -2036,41 +2064,7 @@ fn browser_parity_generation_report_inventory_matches_final_fri_02_scopes() {
                 .unwrap_or_else(|| panic!("{} should have a UTF-8 basename", path.display()))
         })
         .collect::<BTreeSet<_>>();
-    assert_eq!(
-        report_basenames,
-        BTreeSet::from([
-            "all.json",
-            "block_block_axes.json",
-            "flex_flex_axes.json",
-            "grid-lanes_grid_lanes_axes.json",
-            "grid_grid_axes.json",
-            "subgrid_subgrid_axes.json",
-        ])
-    );
-
-    for (file, filter, generated) in [
-        ("block_block_axes.json", "block/block_axes", 20),
-        ("flex_flex_axes.json", "flex/flex_axes", 80),
-        ("grid_grid_axes.json", "grid/grid_axes", 36),
-        (
-            "grid-lanes_grid_lanes_axes.json",
-            "grid-lanes/grid_lanes_axes",
-            36,
-        ),
-        ("subgrid_subgrid_axes.json", "subgrid/subgrid_axes", 36),
-    ] {
-        let path = report_root.join(file);
-        let raw = std::fs::read_to_string(&path)
-            .unwrap_or_else(|error| panic!("{} should read: {error}", path.display()));
-        let report: serde_json::Value = serde_json::from_str(&raw)
-            .unwrap_or_else(|error| panic!("{} should parse: {error}", path.display()));
-        assert_eq!(report["filter"], filter);
-        assert_eq!(report["summary"]["generated"], generated);
-        assert_eq!(report["summary"]["unsupported"], 0);
-        assert_eq!(report["summary"]["expected_fail"], 0);
-        assert_eq!(report["summary"]["quarantined"], 0);
-        assert_eq!(report["summary"]["failed_to_generate"], 0);
-    }
+    assert_eq!(report_basenames, BTreeSet::from(["all.json"]));
 }
 
 #[test]

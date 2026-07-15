@@ -49,38 +49,16 @@ arguments = [
   "use-mock-keychain",
 ]
 
+[generation_reports]
+scoped = []
+
 [generation_reports.full]
 file = "all.json"
-generated = 5256
+generated = 5268
 unsupported = 356
 expected_fail = 0
 quarantined = 0
 failed_to_generate = 0
-
-[[generation_reports.scoped]]
-filter = "block/block_axes"
-file = "block_block_axes.json"
-generated = 20
-
-[[generation_reports.scoped]]
-filter = "flex/flex_axes"
-file = "flex_flex_axes.json"
-generated = 80
-
-[[generation_reports.scoped]]
-filter = "grid/grid_axes"
-file = "grid_grid_axes.json"
-generated = 36
-
-[[generation_reports.scoped]]
-filter = "grid-lanes/grid_lanes_axes"
-file = "grid-lanes_grid_lanes_axes.json"
-generated = 36
-
-[[generation_reports.scoped]]
-filter = "subgrid/subgrid_axes"
-file = "subgrid_subgrid_axes.json"
-generated = 36
 
 [source_roots.taffy]
 kind = "taffy"
@@ -105,6 +83,27 @@ excluded_destination_dirs = ["subgrid", "grid-lanes"]
 id = "grid/grid_named_negative_occurrence"
 source_root = "surgeist"
 source = "grid/grid_named_negative_occurrence.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/fri03_order_modified_flex"
+source_root = "surgeist"
+source = "flex/fri03_order_modified_flex.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri03_order_modified_grid"
+source_root = "surgeist"
+source = "grid/fri03_order_modified_grid.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/fri03_order_modified_lanes"
+source_root = "surgeist"
+source = "grid-lanes/fri03_order_modified_lanes.html"
 generator = "constrained-html"
 status = "active"
 
