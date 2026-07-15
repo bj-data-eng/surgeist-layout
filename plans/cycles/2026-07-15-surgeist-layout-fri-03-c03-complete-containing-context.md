@@ -1,5 +1,5 @@
 # FRI-03-C03 Complete Containing Context And Cache Identity
-Status: in_progress
+Status: reviewed
 Cycle ID: `FRI-03-C03`
 Owning repository: `surgeist-layout`
 Cycle base: `127f20b4450e2196b768e78e0c97006e7ea0fc84`
@@ -49,9 +49,12 @@ recursive callers cannot encode parent role; hidden recursion has no explicit
 `NoParent`; `FlexItemRootContextOf::under_viewport` takes one argument; and
 `compute_flex_item_root` substitutes item axes for parent axes.
 
-Public impact: breaking pre-release complete-context leaf input, additive
-context types, and the reviewed two-argument flex-root constructor. Everything
-else named above is unchanged; root integration remains deferred to C08.
+Impacts: API - breaking pre-release complete-context leaf input, additive
+context types, and the reviewed two-argument flex-root constructor;
+dependencies/features and MSRV - unchanged; artifacts - unchanged, with
+`verify-generator` and `corpus-check` serving as read-only verification rather
+than generation; docs/examples - source rustdoc updates only, with README and
+examples unchanged; root follow-up - deferred to C08; unsafe - none.
 
 ## Tasks
 ### C03-T1 - Public Resolved Context Types
@@ -99,7 +102,7 @@ Commands: exact library list/run for
 `cache_tests::cache_misses_for_parent_formatting_context_only_in_both_scalar_lanes`,
 `block_tests::block_child_context_is_complete_for_layout_sizing_and_absolute_paths`,
 `flex_tests::flex_child_context_is_complete_for_layout_sizing_and_absolute_paths`,
-`grid_tests::grid_and_lanes_child_context_is_complete_for_layout_sizing_and_absolute_paths`,
+`grid::tests::grid_and_lanes_child_context_is_complete_for_layout_sizing_and_absolute_paths`,
 and `root_tests::root_and_hidden_contexts_are_explicit_in_both_scalar_lanes`;
 `just fmt-check`; `just verify`; `just verify-generator`; `just corpus-check`;
 `git diff --check`, all with `CARGO_NET_OFFLINE=true` where applicable.
