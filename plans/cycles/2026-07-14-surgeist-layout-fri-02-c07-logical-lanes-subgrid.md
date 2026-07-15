@@ -1,157 +1,197 @@
-# FRI-02-C07 Logical Lanes, Subgrid, And Sealed Browser Evidence
+# FRI-02-C07 Logical Lanes And Subgrid
 Status: in_progress
 Cycle ID: FRI-02-C07
 Owning repository: surgeist-layout
 Cycle base: 78ed8be9cb16cf415aa45be7b40263969976c61a
-Reviewed specification: plans/specs/2026-07-12-surgeist-layout-fri-02-logical-geometry-writing-modes.md at ed20972484206e22c3b28ab27671390a218d3083adf4b2480c8a4f78a702a177, commit 0fd7f3f67a825a2176e76c83ead44f76039498e7.
-Sections: lanes/subgrid behavior in FRI-02.10; fixture, report, snapshot, and
-oracle contracts in FRI-02.13; corresponding rows of FRI-02.14; generator
-lifecycle/artifact impact in FRI-02.16; grid/generator evidence in FRI-02.17;
-verification in FRI-02.18; GRID-004 closure in FRI-02.19; acceptance items 7 and
-9 plus applicable artifact/safety items in FRI-02.20.
-Reviewed sequence: plans/sequences/2026-07-12-surgeist-layout-fri-02-logical-geometry-writing-modes.md at 4f101019b4d253f7e9203a71c7f8246cae3fd7f014de412590f2e601f1916b66, commit bcfbbc026fe61b02ffa2b4795a21270b7b603d51, entry C07.
-Bounded outcome: grid-lanes and subgrid preserve logical column/row identity;
-their exact browser matrices run through finite owned processes and publish one
-sealed, generator-bound artifact snapshot.
+Reviewed specification: plans/specs/2026-07-12-surgeist-layout-fri-02-logical-geometry-writing-modes.md at 9f3b3587c2feaafb02c28500034b29c6d47b58f1233b6dc8f530716ce6bf17ba, commit ddb23fed47297bcdd1df67f67f0ee1ac20de7876.
+Sections: lanes/subgrid behavior in FRI-02.10; their fixture matrices and C07
+cumulative report state in FRI-02.13; corresponding rows of FRI-02.14; grid
+evidence in FRI-02.17; verification in FRI-02.18; GRID-004 closure portion of
+FRI-02.19; remainder of acceptance item 7 and applicable artifact/safety items
+in FRI-02.20.
+Reviewed sequence: plans/sequences/2026-07-12-surgeist-layout-fri-02-logical-geometry-writing-modes.md at fbadf235adc6e38e4be2c93477a4002865c20f09e081ee5403ab56c9fac2de6a, commit 21e21305718fbf3273ca90044091e87d7d0c821e, entry C07.
+Bounded outcome: Grid-lanes and subgrid inheritance, offsets, areas, and baseline
+projection preserve logical column/row identity across parent and child flows.
+Exit evidence: Parallel, opposing, orthogonal, inherited-track, area, and baseline
+evidence passes with exact 36-output grid-lanes and 36-output subgrid browser
+matrices; both manifest entries and the refreshed full report validate; GRID-004
+is closed without absorbing FRI-08 defects.
 
 ## Boundary
-C06 left logical ordinary-grid tracks and one `FlowAxes` projection boundary.
-`GridAxisKind::Column` remains Inline and Row remains Block. C07 removes
-`grid_sizing_flow_axes`, inherited RTL adjustment, and
-`LegacyPhysicalGridLanes`; output/cache geometry stays physical and `f64` never
-narrows. CSS Grid Level 2, WPT `grid-gap-008/009`, and pinned Blink 149 agree
-that an orthogonal subgrid with inherited `7px` and own mapped `11px` gaps yields
-`48px` and `58px` tracks in `117px`.
-
-T1, T2, and T2A are task-clean at `36f87ac1`, `3f2da986`, and `e3f9d04b`.
-The fixture candidate then exposed a real batch-24 CDP hang: only DOM polling was
-bounded; protocol evaluation, launch ownership, teardown, and profile removal
-were not total, and reports did not content-bind XML. Its earlier task review is
-invalidated by the reviewed specification/sequence amendment. T3 first lands
-that already-generated candidate without another browser run. T4 runs a browser
-only after its owned-lifecycle and snapshot focused tests are green.
-
-Preserve C01-C06 and fixed definite non-overlapping axis-test tracks. Do not
-absorb FRI-08 defects, authored CSS/style, identity, text, rendering, root
-adapters/API artifacts, compatibility aliases, duplicate models, unsafe,
-dependencies/features/MSRV changes, pin/version/batch/argument/helper retuning,
-managed-browser acquisition, or hand-edited XML. A confirmed pinned-Chrome
-shortcoming follows FRI-02.13 CSS/WPT/Blink adjudication before expectations move.
+C06 left logical ordinary-grid tracks and a single `FlowAxes` projection boundary.
+`GridAxisKind::Column` is `LogicalAxis::Inline` and `Row` is `LogicalAxis::Block`;
+this existing owner remains the only grid role mapping. Current C07-owned bridges
+are `grid_sizing_flow_axes` forcing horizontal axes for lanes/inherited contexts,
+the inherited RTL column adjustment, and `LegacyPhysicalGridLanes` absolute-area
+routing. C07 removes those bridges rather than preserving or replacing them.
+Current correction evidence: removing the sizing fallback and RTL adjustment fixes
+the `VerticalRl`/LTR inherited size from `121x77` to `77x121`, but exposes the
+absolute/static lane mismatch `(7.75, 41.5)` versus `(7.75, 39.25)` because
+`lanes.rs` and `LegacyPhysicalGridLanes` still consume physical offsets and areas.
+Those routes are atomic: no red commit or compatibility bridge is permitted.
+`src/grid/lanes.rs` still sizes, offsets, areas, child inputs, content extents, and
+baselines physically; `subgrid.rs`, `tracks.rs`, and `child.rs` still carry
+physical axis gaps, edges, available sizes, traversal data, and inherited
+baselines. Child compute input is projected only at the child's own flow boundary;
+shared output, cache, and geometry stay physical, and `f64` never narrows to `f32`.
+For an orthogonal subgrid whose inherited parent gap is `7px` and own mapped gap
+is `11px`, CSS Grid Level 2, WPT `grid-gap-008/009`, and Blink 149 agree that the
+half-gutter adjustment yields `48px` and `58px` tracks inside the `117px` span.
+Preserve C01-C06 behavior, especially C06 ordinary-grid evidence. Use fixed,
+definite, non-overlapping tracks for axis tests. Do not absorb GRID-001/002/003/
+005/006/007/008/010, any other FRI-08 defect, authored CSS/style resolution,
+identity, text shaping, rendering, root adapters/API artifacts, compatibility
+aliases, temporary duplicate models, unsafe, dependency/feature/MSRV changes,
+generator parser/resolver/launch/batch/retry/helper changes, acquisition, or a
+managed-browser invocation. The sole fixture-support exception projects the
+already-parsed CSS row/column gap pair through the fixture node's `FlowAxes`;
+it adds no syntax or resolution behavior. C08 alone prunes temporary reports.
 
 ## Impacts
-Public layout API, dependencies, features, docs/examples, and Rust 1.97 MSRV:
-unchanged. Generator-only manifest names change without aliases to
-`job_timeout_ms` and `browser-job-fault`. Crate-private owned process/session,
-typed failure, generator identity, and sealed snapshot models are internal.
-Artifacts add 18 HTML and 72 XML, retain 1,403 HTML, 5,256 XML, and the current
-15 reports, and refresh provenance lines on all 5,184 prior XML plus all reports;
-prior XML bodies and 356 unsupported tuples remain exact. C08 owns final report
-pruning and root owns later integration/API artifacts. Owned Rust stays unsafe-free.
+Public API, dependencies, features, docs/examples, and Rust 1.97 MSRV: unchanged.
+Crate-private lane and inherited-axis carriers become logical; no compatibility
+surface is retained. Generated artifacts add exactly 18 HTML, 72 XML,
+`grid-lanes_grid_lanes_axes.json`, and `subgrid_subgrid_axes.json`; retain all
+13 current report entries/files for 1,403 HTML, 5,256 XML, and 15 reports. Root
+follow-up is the reviewed C08 sequence handoff. Owned Rust remains unsafe-free.
 
 ## Tasks
 ### C07-T1 - Logical Grid-Lanes And Inherited-Axis Projection
-Files/area: `src/grid/{axis,mod,lanes,child,tracks,placement}.rs` and focused
-grid/root/cache tests. Depends on: published C06 and cycle base.
-Outcome: carry inherited tracks, gaps, offsets, areas, lane sizing, child inputs,
-content, baselines, and absolute/static placement logically until `FlowAxes`;
-remove every named bridge without replacement.
-RED: `logical_inherited_grid_axis_contexts_f32/f64` produced `121x77` instead of
-`77x121`; `logical_grid_lanes_axes_f32/f64` covered all modes/directions, axes,
-unequal totals, flow relations, measurement, areas, baselines, and positioning.
-Acceptance: Column=Inline/Row=Block; `70x110` maps to `110x70` vertically;
-physical output/cache and scalar genericity remain; C06 ordinary-grid remains.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_inherited_grid_axis_contexts -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_ordinary_grid -- --nocapture`; then the Rust gate.
+Files/area: `src/grid/axis.rs`, `mod.rs`, `lanes.rs`, `child.rs`, `tracks.rs`,
+`placement.rs`, and focused grid/root/cache tests.
+Depends on: published C06 and the recorded base.
+Outcome: carry inherited tracks, gaps, offsets, bases, and parent/child axis identity,
+and lane intrinsic/available sizing, reruns, gaps, tracks, offsets, areas, alignment,
+child compute inputs, content extents, baselines, and absolute/static placement through
+logical roles until each owning `FlowAxes` projection. Remove `grid_sizing_flow_axes`,
+`inherited_rtl_column_line_adjustment`, obsolete `column_line_offset_adjustment`, and
+the complete `LegacyPhysicalGridLanes` route without a replacement bridge.
+RED: the recorded `logical_inherited_grid_axis_contexts_f32` and `_f64` RED is
+`VerticalRl`/LTR inherited physical size `121x77` instead of `77x121`. Before
+remaining lane implementation, new/adjusted `logical_grid_lanes_axes_f32` and `_f64`
+run RED against the current partial worktree; they cover all five modes, both
+directions, both lane axes, unequal totals, parallel/opposing/orthogonal flows,
+intrinsic child measurement, definite areas/offsets, content/baselines, and
+absolute/static placement through public behavior.
+Acceptance: all five modes and both directions preserve Column=Inline/Row=Block;
+vertical/sideways `70x110` logical totals physically yield `110x70`; only named
+`FlowAxes` projections cross physical boundaries; output/cache geometry remains
+physical; f64 stays scalar-generic; C06 ordinary-grid and lane behavior outside the
+fixed-axis scope retain their result; no second mapping/carrier or legacy route
+remains. The full Rust gate passes before this combined task is reviewed or committed.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_inherited_grid_axis_contexts -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_ordinary_grid -- --nocapture`; then the Rust gate below.
 Coordinator commit after CLEAN: `layout: project inherited grid lanes through logical axes`.
 
 ### C07-T2 - Logical Subgrid Inheritance And Projection
-Files/area: `src/grid/{subgrid,tracks,child}.rs` and focused grid/root/cache tests.
+Files/area: `src/grid/subgrid.rs`, inherited/traversal and rerun consumers in
+`tracks.rs` and `child.rs`, plus focused grid/root/cache tests, including the
+auto-sized orthogonal parent and mapped-gap traversal regressions.
 Depends on: T1 task-clean.
-Outcome: inherited/traversal tracks, spans, gaps, edge MBP, available bases,
-offsets, and baselines remain logical until the owning parent/child projection.
-RED: `logical_subgrid_axes_f32/f64` covered columns/rows subgrid, unequal tracks,
-swap/reversal, parallel, opposing, and both orthogonal directions.
-Acceptance: child inputs use child flow; inheritance uses parent logical roles;
-mapped gaps and cross-flow demand are correct; no C07 flow becomes horizontal.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_subgrid_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout resolved_subgrid_axis_gap_uses_node_logical_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; then the Rust gate.
+Outcome: make mapping reports, traversal carriers, inherited contexts, parent and
+child track spans, gaps, edge MBP, available-area bases, offsets, and inherited
+baselines logical until each owning `FlowAxes` projection; retain existing subgrid
+eligibility and error behavior.
+RED: `logical_subgrid_axes_f32` and `_f64` fail for columns- and rows-subgrid
+with unequal explicit inherited tracks, axis swap/progression reversal, and
+parallel, opposing, horizontal-parent/vertical-child, and vertical-parent/
+horizontal-child flows.
+Acceptance: subgrid child compute inputs use the child's physical flow projection,
+while inheritance remains parent logical-axis correct; final item area, offset, and
+baseline are physical and mapped; child-local cross-flow content does not become
+parent demand on a non-inherited physical axis; traversal selects `style.gap`
+through the subgrid's logical axes; no C07 flow panics or silently becomes horizontal;
+no FRI-08 placement, demand, track-sizing, auto-fit, named-line, or traversal
+outcome becomes expected behavior.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_subgrid_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout resolved_subgrid_axis_gap_uses_node_logical_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout logical_grid_lanes_axes -- --nocapture`; then the Rust gate below.
 Coordinator commit after CLEAN: `layout: inherit subgrid axes logically`.
 
 ### C07-T2A - Preserve Indefinite Orthogonal Auto Child Sizing
 Files/area: `src/block.rs` and focused block/root tests. Depends on: T2 task-clean.
-Outcome: a parent auto-derived physical extent stays provisional when it maps to
-an orthogonal child's auto inline axis; only definite context becomes known input.
-RED: an f32/f64 four-mode/two-direction matrix sized siblings `117x162` each.
-Acceptance: root `117x162`, siblings `117x81` at y `0/81`, explicit heights unchanged.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout orthogonal_auto_child_inline_size_remains_indefinite -- --nocapture`; then the Rust gate.
+Outcome: a parent block's auto-derived final physical extent remains provisional
+when it maps to an orthogonal child's auto inline axis; only genuinely definite
+parent context becomes child known/definite input.
+RED: a public f32/f64 matrix over four vertical/sideways modes and both directions
+sizes two orthogonal auto grid/subgrid siblings as `117x162` each instead of `117x81`.
+Acceptance: the root remains `117x162`, siblings are `117x81` at y `0/81`, explicit
+parent heights retain current behavior, and no FRI-08 grid behavior changes.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout orthogonal_auto_child_inline_size_remains_indefinite -- --nocapture`; then the Rust gate below.
 Coordinator commit after CLEAN: `layout: preserve orthogonal auto child sizing`.
 
-### C07-T3 - Exact Lanes And Subgrid Fixture Candidate
-Files/area: `tests/layout/browser_parity.rs`, `support.rs`, current generator
-inventory assertions, `corpus.toml`, 18 HTML, 72 generated XML, and 15 reports.
-Depends on: T2A task-clean. This task does not execute a browser.
-Outcome: register the exact nine four-variant grid-lanes and nine four-variant
-subgrid families from FRI-02.13, flow-project parsed gaps, enforce topology, and
-land the already-generated candidate as the explicit input to T4's provenance
-migration. T4 removes the old launch fields and replaces all artifact metadata.
-RED: path/topology matrices reject missing, duplicate, misplaced, extra,
-non-grid/wrong-root, text, absolute, hidden, equal-total, indefinite, overlap,
-and wrong-flow cases; orthogonal subgrid is `48px` versus old `50px` before gap
-projection. Named nonignored parity tests fail before valid generated artifacts.
-Acceptance: both 36-output families compare through `compute_layout`; logical CSS
-gaps project correctly; exact 1,403 HTML/5,256 XML/15 reports and zero owned
-failure buckets validate under the entering generator; no old XML body or 356
-unsupported tuple changes and no generator process starts.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fixture_gaps_project_logical_css_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout grid_lanes_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout subgrid_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_grid_lanes_axis_families_against_surgeist_layout -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_subgrid_axis_families_against_surgeist_layout -- --nocapture`; `env -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT SURGEIST_BROWSER_PATH=/not/consulted SURGEIST_BROWSER_CACHE=/not/consulted SURGEIST_BROWSER_VERSION=wrong SURGEIST_LAYOUT_GENERATE_FILTER=wrong CARGO_NET_OFFLINE=true cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- check-corpus`; then the Rust gate.
-Coordinator commit after CLEAN: `tests: add logical lanes and subgrid fixture candidate`.
-
-### C07-T4 - Total Owned Browser Lifecycle And Sealed Matrices
-Files/area: generator entry/implementation/tests, `corpus.toml` launch fields,
-all 5,256 XML provenance lines, all 15 reports, and fixture corrections if needed.
-Depends on: T3 task-clean and cached ExistingPinned Chrome 149.0.7827.115.
-Outcome: implement FRI-02.13/.16/.17 exactly: compiled generator identity;
-owned process-to-session phases; typed failures/retry; bounded child/helper cleanup;
-staged full/scoped candidates; deterministic commitment/projections; `all.json`
-seal last; reject old fields without dependency, alias, or profile retuning.
-RED: `owned_browser_lifecycle_`, `private_temp_cleanup_`,
-`generator_source_digest_`, and `artifact_snapshot_` tests fail against the
-unbounded, directly-writing generator for their named missing behavior.
-Acceptance: every transition/remainder is finite and exact; failures do not seal;
-partial publication is inadmissible; scoped generation requires a clean baseline;
-no process/removal overlaps; full plus every scope runs serially; both 36-output
-families, counts, tuples, prior bodies, snapshot equality, and idempotence pass.
-Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate owned_browser_lifecycle_ -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate private_temp_cleanup_ -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate generator_source_digest_ -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate artifact_snapshot_ -- --nocapture`; then Completion.
-Coordinator commit after CLEAN: `tests: bound generation and seal logical browser matrices`.
+### C07-T3 - Exact Lanes And Subgrid Browser Matrices
+Files/area: `tests/layout/browser_parity.rs`, `support.rs` (only logical CSS-gap
+projection and focused tests), `tests/bin/surgeist-layout-generate/generator.rs`
+(report inventory/count assertions only), `corpus.toml`, 18 constrained HTML
+fixtures, their 72 generator-produced XML files, both new scoped reports, and all
+refreshed current reports. Generator parser/runtime, helper, resolver, browser
+resolution/launch, batch/retry, job lifecycle, and locking remain unchanged.
+Depends on: T2A task-clean and the sole cached ExistingPinned Chrome for Testing
+149.0.7827.115.
+Outcome: add these four-variant (`border_box_ltr`, `border_box_rtl`,
+`content_box_ltr`, `content_box_rtl`) grid-lanes families: `grid_lanes_axes_horizontal_tb_parallel`,
+`grid_lanes_axes_vertical_rl_parallel`, `grid_lanes_axes_vertical_lr_parallel`,
+`grid_lanes_axes_sideways_rl_parallel`, `grid_lanes_axes_sideways_lr_parallel`,
+`grid_lanes_axes_vertical_opposing`, `grid_lanes_axes_sideways_opposing`,
+`grid_lanes_axes_horizontal_parent_orthogonal_child`, and
+`grid_lanes_axes_vertical_parent_orthogonal_child`; each HTML has one
+columns-lanes and one rows-lanes container with unequal logical totals and the
+named flow relation. Add these subgrid families: `subgrid_axes_horizontal_tb_parallel`,
+`subgrid_axes_vertical_rl_parallel`, `subgrid_axes_vertical_lr_parallel`,
+`subgrid_axes_sideways_rl_parallel`, `subgrid_axes_sideways_lr_parallel`,
+`subgrid_axes_vertical_opposing`, `subgrid_axes_sideways_opposing`,
+`subgrid_axes_horizontal_parent_orthogonal_child`, and
+`subgrid_axes_vertical_parent_orthogonal_child`; each HTML has one columns-subgrid
+and one rows-subgrid case with unequal inherited tracks and an item exposing swap
+or progression reversal.
+RED: exact path/report/count assertions and named nonignored
+`runs_fri_02_grid_lanes_axis_families_against_surgeist_layout` and
+`runs_fri_02_subgrid_axis_families_against_surgeist_layout` fail before the
+manifest entries, topology guards, HTML, and XML exist; the orthogonal subgrid
+comparison then fails `48px` versus `50px` until fixture gaps are flow-projected.
+Acceptance: each owned family has an exact-path rejection test for missing,
+duplicate, misplaced, and extra paths plus non-grid/wrong-grid-root, text,
+absolute, hidden-only, equal-total, indefinite, overlapping, and wrong-flow
+topology; each named parity test compares all 36 outputs through `compute_layout`.
+Focused vertical and sideways fixture tests prove `column-gap` is logical inline,
+`row-gap` is logical block, and the pair is physically stored through `FlowAxes`.
+`generation_report_manifest_requires_the_exact_temporary_inventory` asserts 15
+reports, 5,256 generated outputs, and exact 36-output scoped filters
+`grid-lanes/grid_lanes_axes` and `subgrid/subgrid_axes`. The cumulative
+artifact/report contract and serial generation predicates below pass without
+pruning any of the 13 current reports.
+Commands: `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fixture_gaps_project_logical_css_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout grid_lanes_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout subgrid_axis_fixture_matrix -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_grid_lanes_axis_families_against_surgeist_layout -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout runs_fri_02_subgrid_axis_families_against_surgeist_layout -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate generation_report_manifest_requires_the_exact_temporary_inventory -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate grid_lanes_axes -- --nocapture`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate subgrid_axes -- --nocapture`; then Completion.
+Coordinator commit after CLEAN: `tests: add logical lanes and subgrid browser matrices`.
 
 ## Completion
-Rust gate: `CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets`; `CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --doc`; `RUSTDOCFLAGS="-D warnings" CARGO_NET_OFFLINE=true cargo doc --locked -p surgeist-layout --no-deps`; `CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings`; `CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings`; `cargo fmt --check`; `git diff --check`.
+Every Rust task's gate is: `CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout`; `CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings`; `cargo fmt --check`; `git diff --check`.
 
-Use only the sole cached executable and run one generator at a time:
+Use only the cached ExistingPinned browser and invoke generation strictly serially:
 ```sh
 /bin/bash -lc 'set -euo pipefail
 unset SURGEIST_BROWSER_PATH SURGEIST_BROWSER_CACHE SURGEIST_BROWSER_VERSION SURGEIST_LAYOUT_GENERATE_FILTER SURGEIST_LAYOUT_BROWSER_PARITY_ROOT
 matches=$(find target/surgeist-browser -type f -path "*/mac_arm-149.0.7827.115/*/Contents/MacOS/Google Chrome for Testing" -perm -111 -print); test "$(printf "%s\n" "$matches" | sed "/^$/d" | wc -l | tr -d " ")" -eq 1; export SURGEIST_BROWSER_PATH="$matches"
 run_generation() { env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="$SURGEIST_BROWSER_PATH" SURGEIST_LAYOUT_GENERATE_FILTER="$1" cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing; }
 run_generation ""
-for filter in block/block_axes block/block_br_vertical block/block_calc_width_margin block/block_margin_x_percentage_intrinsic_size_self_negative block/block_margin_x_percentage_intrinsic_size_self_positive flex/flex_axes flex/flex_calc_basis_margin_gap grid/grid_axes grid/grid_calc_track_and_item_margin grid/grid_max_content_single_item_margin_percent grid/grid_min_content_flex_single_item_margin_percent grid/grid_named_template_area_generated_names grid-lanes/grid_lanes_axes subgrid/subgrid_axes; do run_generation "$filter"; done
-test "$(find tests/layout/browser_parity/html -type f -name "*.html" | wc -l | tr -d " ")" -eq 1403; test "$(find tests/layout/browser_parity/xml -type f -name "*.xml" | wc -l | tr -d " ")" -eq 5256; test "$(find tests/layout/browser_parity/xml/generation-reports -maxdepth 1 -type f -name "*.json" | wc -l | tr -d " ")" -eq 15
+for filter in block/block_axes block/block_br_vertical block/block_calc_width_margin block/block_margin_x_percentage_intrinsic_size_self_negative block/block_margin_x_percentage_intrinsic_size_self_positive flex/flex_calc_basis_margin_gap flex/flex_axes grid/grid_calc_track_and_item_margin grid/grid_max_content_single_item_margin_percent grid/grid_min_content_flex_single_item_margin_percent grid/grid_named_template_area_generated_names grid/grid_axes grid-lanes/grid_lanes_axes subgrid/subgrid_axes; do run_generation "$filter"; done
+test "$(find tests/layout/browser_parity/html -type f -name "*.html" | wc -l | tr -d " ")" -eq 1403; test "$(find tests/layout/browser_parity/xml -type f -name "*.xml" | wc -l | tr -d " ")" -eq 5256
+reports=(all.json block_block_axes.json block_block_br_vertical.json block_block_calc_width_margin.json block_block_margin_x_percentage_intrinsic_size_self_negative.json block_block_margin_x_percentage_intrinsic_size_self_positive.json flex_flex_calc_basis_margin_gap.json flex_flex_axes.json grid_grid_axes.json grid_grid_calc_track_and_item_margin.json grid_grid_max_content_single_item_margin_percent.json grid_grid_min_content_flex_single_item_margin_percent.json grid_grid_named_template_area_generated_names.json grid-lanes_grid_lanes_axes.json subgrid_subgrid_axes.json); test "$(find tests/layout/browser_parity/xml/generation-reports -maxdepth 1 -type f -name "*.json" | wc -l | tr -d " ")" -eq 15; test "$(printf "%s\n" "${reports[@]}" | sort)" = "$(find tests/layout/browser_parity/xml/generation-reports -maxdepth 1 -type f -name "*.json" -exec basename {} \; | sort)"
 report=tests/layout/browser_parity/xml/generation-reports/all.json; test "$(jq -r ".summary.generated" "$report")" -eq 5256; test "$(jq -r ".summary.unsupported" "$report")" -eq 356; test "$(jq -r ".summary.expected_fail + .summary.quarantined + .summary.failed_to_generate" "$report")" -eq 0
-snapshot=$(jq -r ".metadata.artifact_snapshot_sha256" "$report"); test "${#snapshot}" -eq 64; test "$(for file in tests/layout/browser_parity/xml/generation-reports/*.json; do jq -r ".metadata.artifact_snapshot_sha256" "$file"; done | sort -u)" = "$snapshot"; test "$(rg -o --no-filename "artifact-snapshot-sha256=\"[0-9a-f]{64}\"" tests/layout/browser_parity/xml -g "*.xml" | sort -u)" = "artifact-snapshot-sha256=\"$snapshot\""
-for file in tests/layout/browser_parity/xml/generation-reports/grid-lanes_grid_lanes_axes.json tests/layout/browser_parity/xml/generation-reports/subgrid_subgrid_axes.json; do test "$(jq -r ".summary.generated" "$file")" -eq 36; test "$(jq -r ".summary.unsupported + .summary.expected_fail + .summary.quarantined + .summary.failed_to_generate" "$file")" -eq 0; done
-unsupported_hash=$(jq -S ".unsupported | map({name, source, variant, reason}) | sort_by(.name, .source, .variant, .reason)" "$report" | shasum -a 256 | awk "{print \$1}"); test "$unsupported_hash" = c44aaae7f939ebc07341cb984ca3f040512ec4dd5462d75454b178a713492030
+for report in tests/layout/browser_parity/xml/generation-reports/grid-lanes_grid_lanes_axes.json tests/layout/browser_parity/xml/generation-reports/subgrid_subgrid_axes.json; do test "$(jq -r ".summary.generated" "$report")" -eq 36; test "$(jq -r ".summary.unsupported + .summary.expected_fail + .summary.quarantined + .summary.failed_to_generate" "$report")" -eq 0; done
+test "$(jq -r ".metadata.helper_sha256" tests/layout/browser_parity/xml/generation-reports/all.json)" = 298fb04ffd4811de3871977c350ecfd3e66a60a2eb7cdf6da9810503fed7853c; test "$(jq -r ".metadata.launch_profile_sha256" tests/layout/browser_parity/xml/generation-reports/all.json)" = 9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb; test "$(shasum -a 256 tests/layout/browser_parity/scripts/gentest/test_helper.js | awk "{print \$1}")" = 298fb04ffd4811de3871977c350ecfd3e66a60a2eb7cdf6da9810503fed7853c
+unsupported_hash=$(jq -S ".unsupported | map({name, source, variant, reason}) | sort_by(.name, .source, .variant, .reason)" tests/layout/browser_parity/xml/generation-reports/all.json | shasum -a 256 | awk "{print \$1}"); test "$unsupported_hash" = c44aaae7f939ebc07341cb984ca3f040512ec4dd5462d75454b178a713492030
 base_body_hash=$(git ls-tree -r --name-only 78ed8be9cb16cf415aa45be7b40263969976c61a -- tests/layout/browser_parity/xml | rg "[.]xml$" | sort | while IFS= read -r file; do printf "%s\0" "$file"; tail -n +2 "$file"; done | shasum -a 256 | awk "{print \$1}"); test "$base_body_hash" = 327b081fc5b4215306b62b87faa263f41d7e02d929303c53484b9abdc6c1d77f
 artifact_hash() { find tests/layout/browser_parity/xml -type f \( -name "*.xml" -o -path "*/generation-reports/*.json" \) -print0 | sort -z | while IFS= read -r -d "" file; do printf "%s\0" "$file"; shasum -a 256 "$file"; done | shasum -a 256 | awk "{print \$1}"; }; before=$(artifact_hash); run_generation grid-lanes/grid_lanes_axes; run_generation subgrid/subgrid_axes; test "$before" = "$(artifact_hash)"
-for dir in target/surgeist-browser-profile target/surgeist-layout-generate-staging; do if test -d "$dir"; then test -z "$(find "$dir" -mindepth 1 -print -quit)"; fi; done
 env -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT SURGEIST_BROWSER_PATH=/not/consulted SURGEIST_BROWSER_CACHE=/not/consulted SURGEIST_BROWSER_VERSION=wrong SURGEIST_LAYOUT_GENERATE_FILTER=wrong CARGO_NET_OFFLINE=true cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- check-corpus'
 ```
 
-Then rerun the Rust gate and these exact predicates:
-`bash -lc 'set -euo pipefail; if rg -n --pcre2 "\\b(?:LegacyPhysicalGridLanes(?:Context|Axis|ContextInput)?|legacy_grid_lanes|inherited_rtl_column_line_adjustment|grid_sizing_flow_axes|column_line_offset_adjustment)\\b|FlowAxes::new\\(crate::WritingMode::HorizontalTb, crate::Direction::Ltr\\)" src/grid; then exit 1; else test "$?" -eq 1; fi'`;
-`bash -lc 'set -euo pipefail; files=(); while IFS= read -r -d "" file; do files+=("$file"); done < <(git ls-files -z --cached --others --exclude-standard -- "*.rs"); test "${#files[@]}" -gt 0; if rg -n --pcre2 '\''#\\s*!?\\s*\\[[^]]*(?:unsafe\\s*\\(|\\b(?:no_mangle|export_name|link_section|naked)\\b|\\b(?:allow|expect)\\s*\\([^]]*\\b(?:unsafe_code|unsafe_op_in_unsafe_fn)\\b)|\\bunsafe\\s*(?:\\{|fn\\b|trait\\b|impl\\b|extern\\b)|\\bstatic\\s+mut\\b|\\bextern\\s*(?:"[^"]*")?\\s*\\{'\'' "${files[@]}"; then exit 1; else test "$?" -eq 1; fi'`;
-`test -z "$(git status --porcelain)"`.
-The feature tests contain the exact production-source assertion for absent
-`Browser::{launch,wait,kill}` and `spawn_blocking`. The two C07 families are nonignored and green;
-the aggregate ignored corpus remains FRI-13. After task-clean ranges, make the
-status-only `complete` commit, run final checks, obtain a fresh holistic review,
-publish/read back main, and hand C08 only the reviewed sequence state. Genuine
-blockers are a pin mismatch, non-finite lifecycle, failed seal/check, count/hash/
-tuple/body drift, non-idempotence, represented-flow panic, unsafe, confirmed
-Chrome defect pending adjudication, or required FRI-08/cross-repository change.
+Then run `CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets`; `CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate`; `CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --doc`; `RUSTDOCFLAGS="-D warnings" CARGO_NET_OFFLINE=true cargo doc --locked -p surgeist-layout --no-deps`; `CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings`; `CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets --features layout-golden-generate -- -F unsafe-code -D warnings`; `cargo fmt --check`; and `git diff --check`.
+
+The mapping predicates are: `bash -lc 'set -euo pipefail; if rg -n --pcre2 "\\b(?:LegacyPhysicalGridLanes(?:Context|Axis|ContextInput)?|legacy_grid_lanes|inherited_rtl_column_line_adjustment|grid_sizing_flow_axes|column_line_offset_adjustment)\\b|FlowAxes::new\\(crate::WritingMode::HorizontalTb, crate::Direction::Ltr\\)" src/grid; then exit 1; else test "$?" -eq 1; fi'`; `bash -lc 'set -euo pipefail; files=(); while IFS= read -r -d "" file; do files+=("$file"); done < <(git ls-files -z --cached --others --exclude-standard -- "*.rs"); test "${#files[@]}" -gt 0; if rg -n --pcre2 '\''#\\s*!?\\s*\\[[^]]*(?:unsafe\\s*\\(|\\b(?:no_mangle|export_name|link_section|naked)\\b|\\b(?:allow|expect)\\s*\\([^]]*\\b(?:unsafe_code|unsafe_op_in_unsafe_fn)\\b)|\\bunsafe\\s*(?:\\{|fn\\b|trait\\b|impl\\b|extern\\b)|\\bstatic\\s+mut\\b|\\bextern\\s*(?:"[^"]*")?\\s*\\{'\'' "${files[@]}"; then exit 1; else test "$?" -eq 1; fi'`; and `test -z "$(git status --porcelain)"`.
+
+The aggregate ignored corpus is not claimed. The two named C07 families must be
+nonignored and green. After task-clean ranges and the status-only completion
+transition, follow the canonical final checks, holistic review, landing, and
+publication gate. The resulting candidate hands C08 only the reviewed sequence
+handoff that all algorithm families are ready for initiative-wide surface and
+corpus closure. Genuine blockers are a cached-pin mismatch, count/hash/tuple
+drift, non-idempotence, a represented-flow panic, executable unsafe, or a required
+change outside C07/into FRI-08 behavior.

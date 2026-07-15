@@ -6,9 +6,9 @@
 - Reviewed specification:
   `plans/specs/2026-07-12-surgeist-layout-fri-02-logical-geometry-writing-modes.md`
 - Specification normalized SHA-256:
-  `ed20972484206e22c3b28ab27671390a218d3083adf4b2480c8a4f78a702a177`
+  `9f3b3587c2feaafb02c28500034b29c6d47b58f1233b6dc8f530716ce6bf17ba`
 - Specification commit:
-  `0fd7f3f67a825a2176e76c83ead44f76039498e7`
+  `ddb23fed47297bcdd1df67f67f0ee1ac20de7876`
 - Initiative index:
   `plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`,
   `FRI-02`
@@ -29,8 +29,7 @@ temporary bridge before initiative closure.
 Browser-backed evidence uses the already-present pinned executable and the
 specification's `ExistingPinned` path unless the user separately authorizes an
 acquisition. No cycle retunes the experimentally established fixture-generation
-profile. C07 closes the observed whole-job, owned-process, cleanup, and sealed-
-snapshot gaps without changing those settings.
+profile.
 
 ## C01 - Shared Flow And Compute Context
 
@@ -85,18 +84,16 @@ snapshot gaps without changing those settings.
 - Entry state: Browser overrides are environment-driven, explicit paths are not
   version-validated, and primary/retry launch construction is duplicated.
 - Exit evidence: Both resolution modes fail closed on pin/path/provenance errors;
-  every launch site uses the exact shared profile; configured batch, ordering,
-  DOM wait, retry, profile, polling, keychain-bypass, and version regressions pass;
+  every launch site uses the exact shared profile; batch, lifecycle, retry,
+  timeout, polling, keychain-bypass, and failure-accounting regressions pass;
   Taffy maintenance commands remain browser-free. The schema-v2 manifest and
   regenerated metadata temporarily inventory exactly the current `all.json` and
   nine committed pre-FRI-02 scoped reports, and `check-corpus` is green against
   that state.
 - Handoff: The current nine scoped report records are the only temporary live
   inventory consumer. `C04` through `C07` add their five manifest entries and
-  refresh the full report cumulatively; C07 also closes the later-observed total
-  job/process/publication defect without retuning the profile. `C08` removes the
-  nine temporary entries and prunes their files. No compatibility manifest reader
-  survives `C03`.
+  refresh the full report cumulatively; `C08` removes the nine temporary entries
+  and prunes their files. No compatibility manifest reader survives `C03`.
 
 ## C04 - Logical Block Flow
 
@@ -159,23 +156,16 @@ snapshot gaps without changing those settings.
 
 - Owner: `surgeist-layout`
 - Outcome: Grid-lanes and subgrid inheritance, offsets, areas, and baseline
-  projection preserve logical column/row identity across parent and child flows;
-  their browser evidence runs through finite owned processes and one sealed,
-  generator-bound artifact snapshot.
+  projection preserve logical column/row identity across parent and child flows.
 - Specification: lanes/subgrid behavior in `FRI-02.10`, their fixture matrices in
-  `FRI-02.13`, its report/snapshot/oracle contract, corresponding generator rows
-  of `FRI-02.14`, generator lifecycle and artifact impact in `FRI-02.16`, grid and
-  generator evidence in `FRI-02.17`, and acceptance items 7 and 9 in `FRI-02.20`.
+  `FRI-02.13`, corresponding rows of `FRI-02.14`, grid evidence in `FRI-02.17`,
+  and the remainder of acceptance item 7 in `FRI-02.20`.
 - Prerequisites: `C01` through `C06`.
 - Entry state: Lanes and subgrid consumers still project inherited roles through
-  physical assumptions. CDP work outside the DOM wait can hang indefinitely,
-  browser launch can lose child ownership on timeout, cleanup can outlive its
-  bound, and reports do not content-bind one admissible XML snapshot.
+  physical assumptions.
 - Exit evidence: Parallel, opposing, orthogonal, inherited-track, area, and
   baseline evidence passes with exact 36-output grid-lanes and 36-output subgrid
-  browser matrices; owned launch/job/teardown transitions are finite and tested;
-  full and scoped publication share one generator-bound commitment and `all.json`
-  seal; the transitional 15-report manifest and refreshed full run validate;
+  browser matrices; both manifest entries and the refreshed full report validate;
   `GRID-004` is closed without absorbing `FRI-08` defects.
 - Handoff: All algorithm families are ready for initiative-wide surface and
   corpus closure.
