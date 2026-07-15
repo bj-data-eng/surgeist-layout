@@ -37,6 +37,37 @@ fn runs_browser_parity_smoke_fixture_against_surgeist_layout() {
 }
 
 #[test]
+fn block_item_boundary_margin_variants_match_browser() {
+    let fixtures = [
+        include_str!(
+            "browser_parity/xml/block/block_align_baseline_child_margin_percent__border_box_ltr.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/block/block_align_baseline_child_margin_percent__border_box_rtl.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/block/block_align_baseline_child_margin_percent__content_box_ltr.xml"
+        ),
+        include_str!(
+            "browser_parity/xml/block/block_align_baseline_child_margin_percent__content_box_rtl.xml"
+        ),
+    ];
+
+    for fixture in fixtures {
+        let golden = support::Golden::parse(fixture).expect("settled block fixture should parse");
+        assert_eq!(golden.root.kind, support::NodeKind::Div);
+        assert_eq!(golden.root.style.get("display"), Some("flex"));
+        assert_eq!(golden.root.children.len(), 2);
+        assert_eq!(golden.root.children[1].children.len(), 1);
+        assert_eq!(golden.expectations.children.len(), 2);
+        assert_eq!(golden.expectations.children[1].children.len(), 1);
+        assert_eq!(golden.expectations.children[1].children[0].y, Some(1.0));
+        support::assert_surgeist_matches(&golden)
+            .unwrap_or_else(|error| panic!("{} failed layout comparison: {error}", golden.name));
+    }
+}
+
+#[test]
 fn runs_subgrid_relative_rtl_abspos_fixture_against_surgeist_layout() {
     let golden = support::Golden::parse(include_str!(
         "browser_parity/xml/subgrid/subgrid_abspos_relative_rtl_column_3_to_5__border_box_ltr.xml"

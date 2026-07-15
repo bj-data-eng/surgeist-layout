@@ -673,6 +673,7 @@ where
 {
     let inline_axis = containing_flow_axes.inline_axis();
     if style.display.is_inline_level()
+        || style.item_is_replaced
         || !root_physical_axis_value(style.size, inline_axis).is_auto()
         || !root_physical_axis_value(style.min_size, inline_axis).is_auto()
     {
@@ -1129,7 +1130,9 @@ where
         PhysicalAxis::Vertical => node_min_size.height,
     };
 
-    let prevents_margin_collapse = style.display != super::Display::Block
+    let prevents_margin_collapse = input.parent_formatting_context()
+        != super::ParentFormattingContext::BlockFlow
+        || style.display != super::Display::Block
         || style.overflow.x.blocks_margin_collapse()
         || style.overflow.y.blocks_margin_collapse()
         || style.position == Position::Absolute

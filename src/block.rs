@@ -2106,6 +2106,7 @@ where
         crate::PhysicalAxis::Vertical => style.size.height,
     };
     if !style.item_is_table
+        && !style.item_is_replaced
         && known.inline.is_none()
         && !inline_size.is_min_content()
         && !inline_size.is_max_content()
@@ -3244,10 +3245,13 @@ impl<S: LayoutScalar> Constants<S> {
             _ => None,
         });
         let is_root = input.run_mode() == RunMode::PerformRootLayout;
+        let boundary_margins_can_collapse =
+            input.parent_formatting_context() == ParentFormattingContext::BlockFlow;
         let blocks_margin_collapse =
             style.overflow.x.blocks_margin_collapse() || style.overflow.y.blocks_margin_collapse();
         let is_margin_collapsing_block = style.display == super::Display::Block;
         let can_collapse_through = is_margin_collapsing_block
+            && boundary_margins_can_collapse
             && !is_root
             && !blocks_margin_collapse
             && style.position == Position::Relative
@@ -3291,12 +3295,14 @@ impl<S: LayoutScalar> Constants<S> {
                 logical_margin.block_end.unwrap_or(S::ZERO),
             ),
             collapse_top_margin: is_margin_collapsing_block
+                && boundary_margins_can_collapse
                 && !is_root
                 && style.position == Position::Relative
                 && !blocks_margin_collapse
                 && logical_padding.block_start == S::ZERO
                 && logical_border.block_start == S::ZERO,
             collapse_bottom_margin: is_margin_collapsing_block
+                && boundary_margins_can_collapse
                 && !is_root
                 && style.position == Position::Relative
                 && !blocks_margin_collapse

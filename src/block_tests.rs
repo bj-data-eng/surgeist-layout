@@ -234,6 +234,174 @@ fn scalar_percentage<S: LayoutScalar>(
 }
 
 #[test]
+fn parent_context_gates_only_block_boundary_collapse_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>()
+    where
+        crate::test_support::layout_tree::OracleTreeOf<S>:
+            Compute + Traverse<Node = u32, Scalar = S>,
+    {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        for (parent_context, expected_collapse) in [
+            (ParentFormattingContext::BlockFlow, true),
+            (ParentFormattingContext::Flex, false),
+            (ParentFormattingContext::Grid, false),
+            (ParentFormattingContext::NoParent, false),
+        ] {
+            let mut child_output =
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(40.0), S::ZERO));
+            child_output.block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
+                flow_axes,
+                CollapsibleMarginOf::from_margin(S::from_f64(3.0)),
+                CollapsibleMarginOf::from_margin(S::from_f64(5.0)),
+                true,
+            );
+            let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(
+                    0,
+                    NodeInputOf {
+                        display: Display::Block,
+                        size: Size::new(DimensionOf::px(S::from_f64(40.0)), DimensionOf::AUTO),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .style(
+                    1,
+                    NodeInputOf {
+                        display: Display::Block,
+                        margin: Edges::new(
+                            LengthAutoOf::px(S::from_f64(3.0)),
+                            LengthAutoOf::ZERO,
+                            LengthAutoOf::px(S::from_f64(5.0)),
+                            LengthAutoOf::ZERO,
+                        ),
+                        ..NodeInputOf::default()
+                    },
+                )
+                .measure(1, child_output);
+            let output = crate::compute_block(
+                &mut tree,
+                0,
+                ComputeInputOf::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    Size::NONE,
+                    Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(100.0))),
+                    ContainingLayoutContext::new(flow_axes, parent_context),
+                    Size::new(
+                        AvailableOf::definite(S::from_f64(100.0)),
+                        AvailableOf::MAX_CONTENT,
+                    ),
+                ),
+            )
+            .expect("block layout succeeds");
+
+            let collapse = output.block_margin_collapse;
+            assert_eq!(
+                collapse.at(flow_axes.block_start()).resolve(),
+                if expected_collapse {
+                    S::from_f64(3.0)
+                } else {
+                    S::ZERO
+                },
+                "unexpected block-start collapse for {parent_context:?}"
+            );
+            assert_eq!(
+                collapse.at(flow_axes.block_end()).resolve(),
+                if expected_collapse {
+                    S::from_f64(5.0)
+                } else {
+                    S::ZERO
+                },
+                "unexpected block-end collapse for {parent_context:?}"
+            );
+            assert_eq!(
+                collapse.can_collapse_through(flow_axes),
+                expected_collapse,
+                "unexpected boundary collapse for {parent_context:?}"
+            );
+        }
+
+        let mut root_tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [])
+            .style(0, NodeInputOf::default());
+        let root_output = crate::compute_block(
+            &mut root_tree,
+            0,
+            ComputeInputOf::root_layout(
+                Size::NONE,
+                Size::new(Some(S::from_f64(100.0)), Some(S::from_f64(100.0))),
+                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::BlockFlow),
+                Size::splat(AvailableOf::definite(S::from_f64(100.0))),
+            ),
+        )
+        .expect("root-mode block layout succeeds");
+        assert!(
+            !root_output
+                .block_margin_collapse
+                .can_collapse_through(flow_axes)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn replaced_block_child_keeps_measured_auto_inline_size_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let scalar = scalar_value::<S>;
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1, 2])
+            .with_children(1, [])
+            .with_children(2, [])
+            .with_style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    size: Size::new(DimensionOf::px(scalar(200.0)), DimensionOf::AUTO),
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    item_is_replaced: true,
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    ..NodeInputOf::default()
+                },
+            )
+            .with_measurement(1, Size::new(scalar(50.0), scalar(10.0)))
+            .with_measurement(2, Size::new(scalar(50.0), scalar(10.0)));
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::new(
+                AvailableOf::definite(scalar(200.0)),
+                AvailableOf::MAX_CONTENT,
+            ))
+            .expect("finite viewport request"),
+        )
+        .expect("measured block children lay out");
+
+        assert_eq!(public_final_output(&batch, 1).size.width, scalar(50.0));
+        assert_eq!(public_final_output(&batch, 2).size.width, scalar(200.0));
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn block_layout_ignores_item_order_for_geometry() {
     let layout = |item_orders: [ItemOrder; 3]| {
         let tree = PublicBlockTree::default()
@@ -6592,7 +6760,7 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
                     crate::WritingMode::HorizontalTb,
                     crate::Direction::Ltr,
                 ),
-                crate::ParentFormattingContext::NoParent,
+                crate::ParentFormattingContext::BlockFlow,
             ),
             Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         ),
@@ -6932,7 +7100,7 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
                     crate::WritingMode::HorizontalTb,
                     crate::Direction::Ltr,
                 ),
-                crate::ParentFormattingContext::NoParent,
+                crate::ParentFormattingContext::BlockFlow,
             ),
             Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         ),
@@ -7260,7 +7428,7 @@ fn block_empty_auto_height_can_collapse_through() {
                     crate::WritingMode::HorizontalTb,
                     crate::Direction::Ltr,
                 ),
-                crate::ParentFormattingContext::NoParent,
+                crate::ParentFormattingContext::BlockFlow,
             ),
             Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         ),
@@ -7951,7 +8119,7 @@ fn block_relative_child_inset_offsets_final_layout_location() {
                     crate::WritingMode::HorizontalTb,
                     crate::Direction::Ltr,
                 ),
-                crate::ParentFormattingContext::NoParent,
+                crate::ParentFormattingContext::BlockFlow,
             ),
             Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         ),

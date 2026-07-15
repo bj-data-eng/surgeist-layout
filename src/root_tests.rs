@@ -393,6 +393,7 @@ fn flex_item_root_uses_explicit_parent_axes_for_percentage_and_cache_in_both_sca
 
 struct FlowRootLeafTree<S: LayoutScalar> {
     style: NodeInputOf<S>,
+    natural_size: Size<S>,
     measurement: RefCell<Option<LeafMeasureInputOf<S>>>,
 }
 
@@ -400,8 +401,14 @@ impl<S: LayoutScalar> FlowRootLeafTree<S> {
     fn new(style: NodeInputOf<S>) -> Self {
         Self {
             style,
+            natural_size: Size::ZERO,
             measurement: RefCell::new(None),
         }
+    }
+
+    fn with_natural_size(mut self, natural_size: Size<S>) -> Self {
+        self.natural_size = natural_size;
+        self
     }
 }
 
@@ -447,7 +454,7 @@ impl<S: LayoutScalar> LayoutTree for FlowRootLeafTree<S> {
         input: LeafMeasureInputOf<Self::Scalar>,
     ) -> Option<Result<Size<Self::Scalar>, Self::MeasureError>> {
         self.measurement.replace(Some(input));
-        Some(Ok(Size::ZERO))
+        Some(Ok(self.natural_size))
     }
 }
 
@@ -472,6 +479,63 @@ fn public_flow_output<S: LayoutScalar>(
         .find(|entry| entry.node() == node)
         .expect("public layout batch contains the requested node")
         .output()
+}
+
+#[test]
+fn replaced_viewport_and_flex_item_roots_keep_measured_auto_inline_size_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let scalar = scalar::<S>;
+        let available = Size::new(
+            AvailableOf::definite(scalar(200.0)),
+            AvailableOf::MAX_CONTENT,
+        );
+        let parent_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl);
+
+        for replaced in [true, false] {
+            let style = NodeInputOf {
+                display: Display::Block,
+                item_is_replaced: replaced,
+                ..NodeInputOf::default()
+            };
+            let viewport_tree = FlowRootLeafTree::new(style.clone())
+                .with_natural_size(Size::new(scalar(50.0), scalar(10.0)));
+            let viewport = compute_layout(
+                &viewport_tree,
+                0,
+                LayoutRootRequestOf::viewport(available).expect("finite viewport request"),
+            )
+            .expect("measured viewport root lays out");
+            assert_eq!(
+                single_final_output(&viewport).size.width,
+                scalar(if replaced { 50.0 } else { 200.0 })
+            );
+
+            let flex_tree = FlowRootLeafTree::new(style)
+                .with_natural_size(Size::new(scalar(50.0), scalar(10.0)));
+            let flex = compute_layout(
+                &flex_tree,
+                0,
+                LayoutRootRequestOf::flex_item_under_viewport(
+                    available,
+                    FlexItemRootContextOf::under_viewport(available, parent_axes)
+                        .expect("finite flex-item context"),
+                )
+                .expect("finite flex-item request"),
+            )
+            .expect("measured flex-item root lays out");
+            assert_eq!(
+                single_final_output(&flex).size.width,
+                scalar(if replaced { 50.0 } else { 200.0 })
+            );
+            assert!(flex.cache_store_entries().iter().any(|entry| {
+                entry.input().containing_layout_context()
+                    == ContainingLayoutContext::new(parent_axes, ParentFormattingContext::Flex)
+            }));
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]
