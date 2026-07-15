@@ -2,7 +2,7 @@ use super::{
     AvailableOf, ComputeInputOf, ComputeOutputOf, DefaultScalar, LayoutScalar, RequestedAxis,
     RunMode, Size, SizingMode,
 };
-use crate::geometry::FlowAxes;
+use crate::ContainingLayoutContext;
 
 const CACHE_SIZE: usize = 9;
 
@@ -23,7 +23,7 @@ struct CacheKeyOf<S: LayoutScalar = DefaultScalar> {
     axis: RequestedAxis,
     known: Size<Option<S>>,
     parent: Size<Option<S>>,
-    containing_flow_axes: FlowAxes,
+    containing_layout_context: ContainingLayoutContext,
     available: Size<AvailableOf<S>>,
     context: CacheKeyContext,
 }
@@ -36,7 +36,7 @@ impl<S: LayoutScalar> CacheKeyOf<S> {
             axis: input.requested_axis(),
             known: input.known(),
             parent: input.parent(),
-            containing_flow_axes: input.containing_flow_axes(),
+            containing_layout_context: input.containing_layout_context(),
             available: input.available(),
             context,
         }
@@ -184,7 +184,7 @@ fn matches_output<S: LayoutScalar, T>(
         && input.sizing_mode() == entry.key.sizing_mode
         && input.requested_axis() == entry.key.axis
         && input.parent() == entry.key.parent
-        && input.containing_flow_axes() == entry.key.containing_flow_axes
+        && input.containing_layout_context() == entry.key.containing_layout_context
         && context == entry.key.context
         && (input.known().width == entry.key.known.width
             || input.known().width == Some(cached_size.width))

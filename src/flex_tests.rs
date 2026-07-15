@@ -4,6 +4,27 @@ use crate::flex::FlexAxes;
 use crate::geometry::PhysicalProgression;
 use crate::*;
 
+#[test]
+fn flex_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
+    let context = crate::ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+        crate::ParentFormattingContext::Flex,
+    );
+    let input = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::ContentSize,
+        RequestedAxis::Horizontal,
+        Size::NONE,
+        Size::NONE,
+        context,
+        Size::splat(AvailableOf::MAX_CONTENT),
+    );
+    assert_eq!(
+        input.parent_formatting_context(),
+        crate::ParentFormattingContext::Flex
+    );
+}
+
 #[derive(Clone, Copy)]
 struct FlexAxesExpectation {
     main_logical_axis: LogicalAxis,
@@ -892,7 +913,13 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -957,7 +984,13 @@ fn f64_flex_layout_preserves_fractional_growth() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(container_width), None),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::definite(container_width),
                 AvailableOf::MAX_CONTENT,
@@ -1027,7 +1060,13 @@ fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panickin
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(120.0), Some(40.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(120.0), Available::definite(40.0)),
         ),
     )
@@ -1123,7 +1162,13 @@ fn flex_content_size_includes_visible_child_overflow_content() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(300.0), Available::MAX_CONTENT),
         ),
     )
@@ -1224,7 +1269,13 @@ fn flex_final_content_size_uses_rerun_output() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(80.0), None),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(80.0), Available::MAX_CONTENT),
         ),
     )
@@ -1322,7 +1373,13 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -1415,7 +1472,13 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -1493,7 +1556,13 @@ fn flex_compute_size_short_circuits_when_container_size_is_definite() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -1584,7 +1653,13 @@ fn flex_compute_size_measures_children_without_perform_layout() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -1673,7 +1748,13 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(50.0), Some(10.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(50.0), Available::MAX_CONTENT),
         ),
     )
@@ -1781,7 +1862,13 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(20.0), Some(50.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(20.0), Available::MAX_CONTENT),
         ),
     )
@@ -1889,7 +1976,13 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(20.0), Some(50.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(20.0), Available::MAX_CONTENT),
         ),
     )
@@ -1997,7 +2090,13 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(20.0), Some(50.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(20.0), Available::MAX_CONTENT),
         ),
     )
@@ -2077,7 +2176,13 @@ fn flex_compute_size_uses_definite_min_max_without_measuring_children() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2184,7 +2289,13 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2197,9 +2308,9 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
     );
     assert_eq!(
         tree.inputs[&3],
-        vec![ComputeInput::hidden(crate::geometry::FlowAxes::new(
-            crate::WritingMode::HorizontalTb,
-            crate::Direction::Ltr,
+        vec![ComputeInput::hidden(crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr,),
+            crate::ParentFormattingContext::Flex
         ))]
     );
 }
@@ -2285,7 +2396,13 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2378,7 +2495,13 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2468,7 +2591,13 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2580,7 +2709,13 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2682,7 +2817,13 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2787,7 +2928,13 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -2925,7 +3072,13 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(100.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         ),
     )
@@ -3034,9 +3187,12 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
                     RequestedAxis::Both,
                     Size::NONE,
                     Size::new(Some(100.0), Some(100.0)),
-                    crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
+                    crate::ContainingLayoutContext::new(
+                        crate::geometry::FlowAxes::new(
+                            crate::WritingMode::HorizontalTb,
+                            crate::Direction::Ltr,
+                        ),
+                        crate::ParentFormattingContext::NoParent,
                     ),
                     Size::new(Available::definite(100.0), Available::MAX_CONTENT),
                 ),
@@ -3155,7 +3311,13 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(100.0), Some(100.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         ),
     )
@@ -3261,7 +3423,13 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(100.0), Some(100.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         ),
     )
@@ -3354,9 +3522,12 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::NONE,
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -3483,7 +3654,13 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -3576,7 +3753,13 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -3676,7 +3859,13 @@ fn flex_absolute_child_expands_auto_margins() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -3768,7 +3957,13 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -3869,7 +4064,13 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -3971,7 +4172,13 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4074,7 +4281,13 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4176,7 +4389,13 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(730.0), Some(300.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4301,7 +4520,13 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4400,7 +4625,13 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4496,7 +4727,13 @@ fn flex_row_wraps_items_into_multiple_lines() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4594,7 +4831,13 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(100.0), Available::MAX_CONTENT),
         ),
     )
@@ -4690,7 +4933,13 @@ fn flex_row_justifies_items_on_the_main_axis() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4780,7 +5029,13 @@ fn flex_row_aligns_items_on_the_cross_axis() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4875,7 +5130,13 @@ fn flex_row_reports_first_child_baseline() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -4939,7 +5200,10 @@ where
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(S::from_f64(200.0)), Some(S::from_f64(160.0))),
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::definite(S::from_f64(200.0)),
                 AvailableOf::definite(S::from_f64(160.0)),
@@ -5030,7 +5294,10 @@ where
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(S::from_f64(200.0)), Some(S::from_f64(160.0))),
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::definite(S::from_f64(200.0)),
                 AvailableOf::definite(S::from_f64(160.0)),
@@ -5171,7 +5438,10 @@ fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
             RequestedAxis::Both,
             Size::NONE,
             Size::new(None, Some(S::from_f64(container_main))),
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::MAX_CONTENT,
                 AvailableOf::definite(S::from_f64(container_main)),
@@ -5363,7 +5633,10 @@ fn assert_logical_flex_final_size_selector_uses_vertical_row_main_axis<S: Layout
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(S::from_f64(200.0)), Some(S::from_f64(100.0))),
-            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::definite(S::from_f64(200.0)),
                 AvailableOf::definite(S::from_f64(100.0)),
@@ -5516,7 +5789,13 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -5615,7 +5894,13 @@ fn flex_row_stretches_auto_cross_size_items() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -5716,7 +6001,13 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -5811,7 +6102,13 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -5903,7 +6200,13 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::definite(100.0)),
         ),
     )
@@ -5998,7 +6301,13 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6095,7 +6404,13 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6192,7 +6507,13 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6298,7 +6619,13 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6398,7 +6725,13 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6488,7 +6821,13 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6583,7 +6922,13 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6682,7 +7027,13 @@ fn flex_row_growth_respects_max_main_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6778,7 +7129,13 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6873,7 +7230,13 @@ fn flex_row_distributes_cross_axis_auto_margins() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6971,7 +7334,13 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7068,7 +7437,13 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7173,7 +7548,13 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7270,7 +7651,13 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7366,7 +7753,13 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7464,7 +7857,13 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7561,7 +7960,13 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7677,7 +8082,13 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -7779,7 +8190,13 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )

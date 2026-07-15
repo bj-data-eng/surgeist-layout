@@ -4,6 +4,21 @@ use std::collections::{HashMap, HashSet};
 use crate::test_support::layout_tree::OracleTreeOf;
 use crate::*;
 
+#[test]
+fn root_and_hidden_contexts_are_explicit_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+        let incoming =
+            crate::ContainingLayoutContext::new(axes, crate::ParentFormattingContext::Grid);
+        let hidden = ComputeInputOf::<S>::hidden(incoming);
+        assert_eq!(hidden.containing_layout_context(), incoming);
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+    assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow::<f32>();
+    assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow::<f64>();
+}
+
 fn assert_positive_physical_range<S: LayoutScalar>(
     range: PhysicalScrollRangeOf<S>,
     maximum: Size<S>,
@@ -2678,8 +2693,8 @@ fn assert_logical_subgrid_axes<S: LayoutScalar>() {
                 assert!(
                     child_inputs
                         .iter()
-                        .any(|input| input.containing_flow_axes() == child_flow_axes),
-                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must compute the subgrid through its child flow: {child_inputs:?}"
+                        .any(|input| input.containing_flow_axes() == parent_flow_axes),
+                    "{parent_writing_mode:?} {parent_direction:?} {child_flow:?} {axis:?} must compute the subgrid through its parent flow: {child_inputs:?}"
                 );
                 assert!(
                     child_inputs.iter().any(|input| {
@@ -2695,7 +2710,7 @@ fn assert_logical_subgrid_axes<S: LayoutScalar>() {
                                 (input.known().height, input.available().height)
                             }
                         };
-                        input.containing_flow_axes() == child_flow_axes
+                        input.containing_flow_axes() == parent_flow_axes
                             && known == Some(inherited_extent)
                             && available == AvailableOf::definite(inherited_extent)
                     }),
@@ -2754,7 +2769,7 @@ fn assert_nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_pr
     S: LayoutScalar,
 >() {
     let scalar = scalar::<S>;
-    let vertical = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
+    let parent_flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
     let tree = PublicFlowTree::default()
         .with_children(0, [1])
         .with_children(1, [2])
@@ -2820,7 +2835,7 @@ fn assert_nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_pr
             input.run_mode() == RunMode::ComputeSize
                 && input.known() == Size::new(Some(scalar(20.0)), None)
                 && input.parent() == Size::new(Some(scalar(20.0)), Some(S::ZERO))
-                && input.containing_flow_axes() == vertical
+                && input.containing_flow_axes() == parent_flow_axes
                 && input.available()
                     == Size::new(
                         AvailableOf::definite(scalar(20.0)),
@@ -4598,7 +4613,10 @@ fn root_cache_input(available: Size<Available>) -> ComputeInput {
         RequestedAxis::Both,
         Size::NONE,
         available.map(Available::into_option),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         available,
     )
 }
@@ -4803,7 +4821,10 @@ fn scroll_geometry_error_maps_rounding_overflow_through_the_public_front_door() 
             RequestedAxis::Both,
             Size::NONE,
             available.map(Available::into_option),
-            flow_axes,
+            crate::ContainingLayoutContext::new(
+                flow_axes,
+                crate::ParentFormattingContext::NoParent,
+            ),
             available,
         ),
         CacheKeyContext::new(),
@@ -5671,9 +5692,20 @@ fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_fl
         ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar>
         {
             let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
-            assert_eq!(input, ComputeInputOf::hidden(expected_axes));
+            assert_eq!(
+                input,
+                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+                    expected_axes,
+                    crate::ParentFormattingContext::NoParent
+                ))
+            );
             self.calls.push((node, input));
-            compute_hidden(self, node, SourceIndex::ZERO, input.containing_flow_axes())
+            compute_hidden(
+                self,
+                node,
+                SourceIndex::ZERO,
+                input.containing_layout_context(),
+            )
         }
     }
 
@@ -5728,7 +5760,10 @@ fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_fl
                 RequestedAxis::Both,
                 Size::splat(Some(scalar::<S>(1.0))),
                 Size::NONE,
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    crate::ParentFormattingContext::NoParent,
+                ),
                 Size::splat(AvailableOf::MAX_CONTENT),
             ),
             CacheKeyContext::new(),
@@ -5737,9 +5772,21 @@ fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_fl
     }
 
     let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
-    let expected_input = ComputeInputOf::hidden(expected_axes);
+    let expected_input = ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+        expected_axes,
+        crate::ParentFormattingContext::NoParent,
+    ));
     assert_eq!(
-        compute_hidden(&mut tree, 1, SourceIndex::ZERO, expected_axes).unwrap(),
+        compute_hidden(
+            &mut tree,
+            1,
+            SourceIndex::ZERO,
+            crate::ContainingLayoutContext::new(
+                expected_axes,
+                crate::ParentFormattingContext::Grid,
+            ),
+        )
+        .unwrap(),
         ComputeOutputOf::HIDDEN
     );
     assert_eq!(tree.calls, vec![(2, expected_input), (3, expected_input)]);
@@ -5817,9 +5864,12 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
             Ok({
                 assert_eq!(
                     input,
-                    ComputeInput::hidden(crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
+                    ComputeInput::hidden(crate::ContainingLayoutContext::new(
+                        crate::geometry::FlowAxes::new(
+                            crate::WritingMode::HorizontalTb,
+                            crate::Direction::Ltr,
+                        ),
+                        crate::ParentFormattingContext::NoParent
                     ))
                 );
                 let _ = self.node_input(node);
@@ -5883,7 +5933,13 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
             &mut tree,
             1,
             SourceIndex::ZERO,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
         )
         .unwrap(),
         ComputeOutput::HIDDEN
@@ -5954,9 +6010,12 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
             Ok({
                 assert_eq!(
                     input,
-                    ComputeInput::hidden(crate::geometry::FlowAxes::new(
-                        crate::WritingMode::HorizontalTb,
-                        crate::Direction::Ltr,
+                    ComputeInput::hidden(crate::ContainingLayoutContext::new(
+                        crate::geometry::FlowAxes::new(
+                            crate::WritingMode::HorizontalTb,
+                            crate::Direction::Ltr,
+                        ),
+                        crate::ParentFormattingContext::NoParent
                     ))
                 );
                 let _ = self.node_input(node);
@@ -6023,7 +6082,13 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
             &mut tree,
             1,
             SourceIndex::ZERO,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
         )
         .unwrap(),
         ComputeOutput::HIDDEN
@@ -6455,7 +6520,13 @@ fn root_layout_stores_child_output_as_root_layout() {
             RequestedAxis::Both,
             Size::new(Some(200.0), None),
             Size::new(Some(200.0), Some(100.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Rtl),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Rtl
+                ),
+                crate::ParentFormattingContext::NoParent
+            ),
             Size::new(Available::definite(200.0), Available::definite(100.0))
         ))
     );

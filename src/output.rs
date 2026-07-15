@@ -102,7 +102,7 @@ pub(crate) enum RequestedAxis {
 /// Direct and recursive compute state.
 ///
 /// Direct leaf callers construct this state with `leaf_layout` or
-/// `leaf_content_size` and must supply the containing `FlowAxes` explicitly.
+/// `leaf_content_size` and must supply the complete containing context explicitly.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
     run_mode: RunMode,
@@ -110,7 +110,7 @@ pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
     axis: RequestedAxis,
     known: Size<Option<S>>,
     parent: Size<Option<S>>,
-    containing_flow_axes: FlowAxes,
+    containing_layout_context: ContainingLayoutContext,
     available: Size<AvailableOf<S>>,
 }
 
@@ -119,12 +119,12 @@ pub type ComputeInput = ComputeInputOf<DefaultScalar>;
 impl<S: LayoutScalar> ComputeInputOf<S> {
     /// Constructs direct leaf input for a full layout operation.
     ///
-    /// `containing_flow_axes` describes the containing block and is never
-    /// inferred from the measured leaf.
+    /// `containing_layout_context` describes the containing boundary and is
+    /// never inferred from the measured leaf.
     pub fn leaf_layout(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
-        containing_flow_axes: FlowAxes,
+        containing_layout_context: ContainingLayoutContext,
         available: Size<AvailableOf<S>>,
     ) -> Result<Self, RootAvailabilityErrorOf<S>> {
         Ok(Self {
@@ -133,19 +133,19 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             axis: RequestedAxis::Both,
             known: validate_optional_size(known)?,
             parent: validate_optional_size(parent)?,
-            containing_flow_axes,
+            containing_layout_context,
             available: validate_root_available_size(available)?,
         })
     }
 
     /// Constructs direct leaf input for a content-size operation.
     ///
-    /// `containing_flow_axes` describes the containing block and is never
-    /// inferred from the measured leaf.
+    /// `containing_layout_context` describes the containing boundary and is
+    /// never inferred from the measured leaf.
     pub fn leaf_content_size(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
-        containing_flow_axes: FlowAxes,
+        containing_layout_context: ContainingLayoutContext,
         available: Size<AvailableOf<S>>,
     ) -> Result<Self, RootAvailabilityErrorOf<S>> {
         Ok(Self {
@@ -154,22 +154,34 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             axis: RequestedAxis::Both,
             known: validate_optional_size(known)?,
             parent: validate_optional_size(parent)?,
-            containing_flow_axes,
+            containing_layout_context,
             available: validate_root_available_size(available)?,
         })
     }
 
-    /// Returns the explicitly supplied containing flow mapping.
+    /// Returns the complete explicitly supplied containing context.
+    #[must_use]
+    pub const fn containing_layout_context(&self) -> ContainingLayoutContext {
+        self.containing_layout_context
+    }
+
+    /// Returns the explicitly supplied parent formatting role.
+    #[must_use]
+    pub const fn parent_formatting_context(&self) -> ParentFormattingContext {
+        self.containing_layout_context.formatting_context()
+    }
+
+    /// Returns the explicitly supplied containing flow mapping projection.
     #[must_use]
     pub const fn containing_flow_axes(&self) -> FlowAxes {
-        self.containing_flow_axes
+        self.containing_layout_context.flow_axes()
     }
 
     #[must_use]
     pub(crate) const fn root_layout(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
-        containing_flow_axes: FlowAxes,
+        containing_layout_context: ContainingLayoutContext,
         available: Size<AvailableOf<S>>,
     ) -> Self {
         Self::for_child(
@@ -178,7 +190,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             RequestedAxis::Both,
             known,
             parent,
-            containing_flow_axes,
+            containing_layout_context,
             available,
         )
     }
@@ -187,10 +199,10 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
     pub(crate) const fn flex_item_root(
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
-        containing_flow_axes: FlowAxes,
+        containing_layout_context: ContainingLayoutContext,
         available: Size<AvailableOf<S>>,
     ) -> Self {
-        Self::root_layout(known, parent, containing_flow_axes, available)
+        Self::root_layout(known, parent, containing_layout_context, available)
     }
 
     #[must_use]
@@ -200,7 +212,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
         axis: RequestedAxis,
         known: Size<Option<S>>,
         parent: Size<Option<S>>,
-        containing_flow_axes: FlowAxes,
+        containing_layout_context: ContainingLayoutContext,
         available: Size<AvailableOf<S>>,
     ) -> Self {
         Self {
@@ -209,20 +221,20 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             axis,
             known,
             parent,
-            containing_flow_axes,
+            containing_layout_context,
             available,
         }
     }
 
     #[must_use]
-    pub(crate) const fn hidden(containing_flow_axes: FlowAxes) -> Self {
+    pub(crate) const fn hidden(containing_layout_context: ContainingLayoutContext) -> Self {
         Self::for_child(
             RunMode::PerformHiddenLayout,
             SizingMode::InherentSize,
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            containing_flow_axes,
+            containing_layout_context,
             Size::splat(AvailableOf::MAX_CONTENT),
         )
     }

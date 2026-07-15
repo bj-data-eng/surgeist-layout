@@ -1140,7 +1140,10 @@ where
                 constants.node_inner_size.width,
                 constants.node_inner_size.height,
             ),
-            constants.flow_axes,
+            crate::ContainingLayoutContext::new(
+                constants.flow_axes,
+                crate::ParentFormattingContext::Grid,
+            ),
             min_available,
         ),
     )?;
@@ -1155,7 +1158,10 @@ where
                 constants.node_inner_size.width,
                 constants.node_inner_size.height,
             ),
-            constants.flow_axes,
+            crate::ContainingLayoutContext::new(
+                constants.flow_axes,
+                crate::ParentFormattingContext::Grid,
+            ),
             max_available,
         ),
     )?;
@@ -1254,7 +1260,13 @@ where
                 child,
                 NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
             );
-            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
+            tree.compute_child(
+                child,
+                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    crate::ParentFormattingContext::Grid,
+                )),
+            )?;
         }
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
@@ -1350,7 +1362,13 @@ where
                 child,
                 NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
             );
-            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
+            tree.compute_child(
+                child,
+                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    crate::ParentFormattingContext::Grid,
+                )),
+            )?;
             continue;
         }
         if child_style.position == Position::Absolute {
@@ -1480,7 +1498,10 @@ where
             RequestedAxis::Both,
             item.known,
             physical_area_size.map(Some),
-            child_flow_axes,
+            crate::ContainingLayoutContext::new(
+                constants.flow_axes,
+                crate::ParentFormattingContext::Grid,
+            ),
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         );
@@ -1782,7 +1803,7 @@ where
             RequestedAxis::Both,
             known,
             parent,
-            flow_axes,
+            crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::Grid),
             available,
         ),
     )?;

@@ -35,18 +35,18 @@ fn layout_scalar_supports_f32_and_f64() {
 fn parent_formatting_context_is_closed_and_exact() {
     fn name(context: ParentFormattingContext) -> &'static str {
         match context {
-            ParentFormattingContext::NoParent => "no-parent",
-            ParentFormattingContext::BlockFlow => "block-flow",
-            ParentFormattingContext::Flex => "flex",
-            ParentFormattingContext::Grid => "grid",
+            crate::ParentFormattingContext::NoParent => "no-parent",
+            crate::ParentFormattingContext::BlockFlow => "block-flow",
+            crate::ParentFormattingContext::Flex => "flex",
+            crate::ParentFormattingContext::Grid => "grid",
         }
     }
 
     let contexts = [
-        ParentFormattingContext::NoParent,
-        ParentFormattingContext::BlockFlow,
-        ParentFormattingContext::Flex,
-        ParentFormattingContext::Grid,
+        crate::ParentFormattingContext::NoParent,
+        crate::ParentFormattingContext::BlockFlow,
+        crate::ParentFormattingContext::Flex,
+        crate::ParentFormattingContext::Grid,
     ];
 
     assert_eq!(
@@ -68,15 +68,15 @@ fn containing_layout_context_keeps_flow_and_role_together() {
         FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
     ];
     let formatting_contexts = [
-        ParentFormattingContext::NoParent,
-        ParentFormattingContext::BlockFlow,
-        ParentFormattingContext::Flex,
-        ParentFormattingContext::Grid,
+        crate::ParentFormattingContext::NoParent,
+        crate::ParentFormattingContext::BlockFlow,
+        crate::ParentFormattingContext::Flex,
+        crate::ParentFormattingContext::Grid,
     ];
 
     for flow_axes in flow_axes {
         for formatting_context in formatting_contexts {
-            let context = ContainingLayoutContext::new(flow_axes, formatting_context);
+            let context = crate::ContainingLayoutContext::new(flow_axes, formatting_context);
 
             assert_eq!(context.flow_axes(), flow_axes);
             assert_eq!(context.formatting_context(), formatting_context);
@@ -730,13 +730,45 @@ fn public_leaf_construction_retains_explicit_containing_flow() {
     let parent = Size::new(Some(640.0), Some(480.0));
     let available = Size::new(Available::definite(640.0), Available::definite(480.0));
 
-    let layout = ComputeInput::leaf_layout(known, parent, flow_axes, available)
-        .expect("finite direct leaf layout input");
-    let content_size = ComputeInput::leaf_content_size(known, parent, flow_axes, available)
-        .expect("finite direct leaf content-size input");
+    let layout = ComputeInput::leaf_layout(
+        known,
+        parent,
+        crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::NoParent),
+        available,
+    )
+    .expect("finite direct leaf layout input");
+    let content_size = ComputeInput::leaf_content_size(
+        known,
+        parent,
+        crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::NoParent),
+        available,
+    )
+    .expect("finite direct leaf content-size input");
 
     assert_eq!(layout.containing_flow_axes(), flow_axes);
     assert_eq!(content_size.containing_flow_axes(), flow_axes);
+}
+
+#[test]
+fn compute_input_requires_complete_containing_layout_context() {
+    let context = crate::ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+        crate::ParentFormattingContext::Grid,
+    );
+    let input = ComputeInput::leaf_layout(
+        Size::NONE,
+        Size::new(Some(640.0), Some(480.0)),
+        context,
+        Size::new(Available::definite(640.0), Available::definite(480.0)),
+    )
+    .expect("finite direct leaf input");
+
+    assert_eq!(input.containing_layout_context(), context);
+    assert_eq!(
+        input.parent_formatting_context(),
+        crate::ParentFormattingContext::Grid
+    );
+    assert_eq!(input.containing_flow_axes(), context.flow_axes());
 }
 
 #[test]
@@ -750,7 +782,7 @@ fn public_diagnostics_report_physical_axes() {
     let input = ComputeInput::leaf_layout(
         Size::NONE,
         Size::new(Some(640.0), Some(480.0)),
-        flow_axes,
+        crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::NoParent),
         Size::new(Available::definite(640.0), Available::definite(480.0)),
     )
     .expect("finite direct leaf input");

@@ -9,6 +9,24 @@ use crate::test_support::{
     layout_tree::{OracleMeasurement, OracleTree, OracleTreeOf},
 };
 use crate::*;
+
+#[test]
+fn grid_and_lanes_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
+    let context = crate::ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl),
+        crate::ParentFormattingContext::Grid,
+    );
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        context,
+        Size::splat(AvailableOf::MAX_CONTENT),
+    );
+    assert_eq!(input.containing_layout_context(), context);
+}
 use lts::oracle::grid::{
     AlignmentSafety, AutoPlacer, ContributionSize, DefiniteTracks, Flow,
     GridArea as OracleGridArea, GridTrack, ItemContributionFacts, LinePlacement, Track,
@@ -74,7 +92,13 @@ fn compute_oracle_grid_output(tree: &mut OracleTree) -> ComputeOutput {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(120.0), Some(120.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::Definite(120.0), Available::Definite(120.0)),
         ),
     )
@@ -118,7 +142,10 @@ where
                 RequestedAxis::Both,
                 known_size,
                 Size::splat(Some(containing_width)),
-                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    crate::ParentFormattingContext::NoParent,
+                ),
                 Size::new(
                     AvailableOf::Definite(containing_width),
                     AvailableOf::Definite(containing_width),
@@ -412,9 +439,12 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::NONE,
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -540,9 +570,12 @@ fn grid_lanes_content_size_uses_measured_lane_margin_boxes() {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::NONE,
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -579,7 +612,13 @@ fn grid_lanes_content_size_preserves_resolved_track_sum() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -680,7 +719,13 @@ fn named_grid_lanes_intrinsic_sizing_uses_resolved_raw_grid_axis_placement() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -739,7 +784,13 @@ fn named_grid_lanes_resolve_repeated_named_start_and_end_lines() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -791,7 +842,13 @@ fn grid_lanes_with_rows_template_uses_columns_as_lane_axis_for_intrinsic_width()
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -963,7 +1020,13 @@ fn grid_lanes_lane_measurement_honors_min_content_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -1303,7 +1366,10 @@ where
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(80.0))),
-                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    crate::ParentFormattingContext::NoParent,
+                ),
                 Size::new(
                     AvailableOf::definite(S::from_f64(120.0)),
                     AvailableOf::definite(S::from_f64(80.0)),
@@ -1486,7 +1552,13 @@ where
                         RequestedAxis::Both,
                         Size::NONE,
                         physical_container_size.map(Some),
-                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                        crate::ContainingLayoutContext::new(
+                            crate::geometry::FlowAxes::new(
+                                WritingMode::HorizontalTb,
+                                Direction::Ltr,
+                            ),
+                            crate::ParentFormattingContext::NoParent,
+                        ),
                         physical_container_size.map(AvailableOf::definite),
                     ),
                 )
@@ -1664,7 +1736,13 @@ where
                         RequestedAxis::Both,
                         Size::NONE,
                         physical_container_size.map(Some),
-                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                        crate::ContainingLayoutContext::new(
+                            crate::geometry::FlowAxes::new(
+                                WritingMode::HorizontalTb,
+                                Direction::Ltr,
+                            ),
+                            crate::ParentFormattingContext::NoParent,
+                        ),
                         physical_container_size.map(AvailableOf::definite),
                     ),
                 )
@@ -1905,7 +1983,10 @@ where
                     RequestedAxis::Both,
                     Size::NONE,
                     parent_physical_size.map(Some),
-                    parent_flow_axes,
+                    crate::ContainingLayoutContext::new(
+                        parent_flow_axes,
+                        crate::ParentFormattingContext::NoParent,
+                    ),
                     parent_physical_size.map(AvailableOf::definite),
                 ),
                 context,
@@ -2109,7 +2190,13 @@ fn subgrid_template_resolves_to_empty_explicit_tracks_and_grows_implicit_tracks(
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -2227,7 +2314,13 @@ fn row_subgrid_intrinsic_width_uses_inherited_rows_for_column_auto_flow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -2291,7 +2384,13 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -2382,7 +2481,13 @@ fn row_subgrid_auto_track_sizing_fixed_then_auto_uses_descendant_contribution_on
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -2408,7 +2513,13 @@ fn row_subgrid_auto_track_sizing_auto_then_fixed_uses_descendant_contribution_on
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -2474,7 +2585,13 @@ fn row_subgrid_intrinsic_width_accumulates_standalone_percent_columns() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -2537,7 +2654,13 @@ fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(None, Some(100.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::Definite(100.0)),
         ),
         parent_context,
@@ -2934,7 +3057,13 @@ fn grid_subgrid_declaration_without_parent_grid_keeps_ordinary_grid_fallback() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -3060,7 +3189,13 @@ fn assert_non_grid_child_with_subgrid_tracks_lays_out_as_ordinary_child(display:
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -3156,7 +3291,13 @@ fn grid_absolute_child_with_subgrid_tracks_does_not_participate_as_subgrid() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -3297,7 +3438,10 @@ where
                 RequestedAxis::Both,
                 Size::NONE,
                 root_size.map(Some),
-                flow_axes,
+                crate::ContainingLayoutContext::new(
+                    flow_axes,
+                    crate::ParentFormattingContext::NoParent,
+                ),
                 root_size.map(AvailableOf::definite),
             ),
         )
@@ -3734,7 +3878,10 @@ fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(S::from_f64(120.0)), Some(S::from_f64(80.0))),
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::definite(S::from_f64(120.0)),
                 AvailableOf::definite(S::from_f64(80.0)),
@@ -3817,7 +3964,13 @@ fn column_subgrid_baseline_alignment_does_not_grow_auto_parent_row_twice() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -3923,7 +4076,13 @@ fn grid_auto_places_children_into_declared_column_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4022,7 +4181,13 @@ fn grid_column_gap_separates_declared_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4133,7 +4298,13 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4244,7 +4415,13 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4351,7 +4528,13 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4463,7 +4646,13 @@ fn vertical_grid_absolute_child_maps_rows_to_physical_x_and_columns_to_y() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4613,7 +4802,13 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4722,7 +4917,13 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4827,7 +5028,13 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -4933,7 +5140,13 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5041,7 +5254,13 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5152,7 +5371,13 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5254,7 +5479,13 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5358,7 +5589,13 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5459,7 +5696,13 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5563,7 +5806,13 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5668,7 +5917,13 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5770,7 +6025,13 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -5870,7 +6131,13 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -5978,7 +6245,13 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -6085,7 +6358,13 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -6190,7 +6469,13 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -6292,7 +6577,13 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -6379,7 +6670,13 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6465,7 +6762,13 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6545,7 +6848,13 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -6642,7 +6951,13 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6721,7 +7036,13 @@ fn grid_content_size_mode_ignores_authored_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(400.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(500.0), Available::MAX_CONTENT),
         ),
     )
@@ -6827,7 +7148,13 @@ fn grid_item_margins_reduce_stretched_grid_area() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -6934,7 +7261,13 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7042,7 +7375,13 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7145,7 +7484,13 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7252,7 +7597,13 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7374,7 +7725,13 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7476,7 +7833,13 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7576,7 +7939,13 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7681,7 +8050,13 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -7826,7 +8201,13 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8002,7 +8383,13 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(120.0), Some(120.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8106,7 +8493,13 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8210,7 +8603,13 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8333,7 +8732,13 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8498,7 +8903,13 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8599,7 +9010,13 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8703,7 +9120,13 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8807,7 +9230,13 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -8901,7 +9330,13 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -9006,7 +9441,13 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -9101,7 +9542,13 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -9210,7 +9657,13 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -9308,9 +9761,12 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(300.0), Some(200.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -9422,7 +9878,13 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -9533,7 +9995,13 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(120.0), Available::MAX_CONTENT),
         ),
     )
@@ -9631,7 +10099,13 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(500.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(120.0), Available::MAX_CONTENT),
         ),
     )
@@ -9734,7 +10208,13 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(200.0), Some(100.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -9830,7 +10310,13 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(220.0), Some(100.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -9944,7 +10430,13 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10099,7 +10591,13 @@ fn grid_auto_width_does_not_stretch_auto_tracks_to_available_space() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(400.0), None),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(400.0), Available::MAX_CONTENT),
         ),
     )
@@ -10201,7 +10699,13 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(None, None),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10297,7 +10801,13 @@ fn grid_row_intrinsic_sizing_uses_resolved_column_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10402,7 +10912,13 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10501,7 +11017,13 @@ fn nested_subgrid_percent_columns_rerun_rows_after_inherited_width_and_margin() 
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10582,7 +11104,13 @@ fn row_subgrid_percent_column_leaf_uses_spanned_inline_size_for_row_contribution
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10683,7 +11211,13 @@ fn orthogonal_nested_subgrid_width_includes_full_horizontal_leaf_contribution() 
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10727,7 +11261,13 @@ fn vertical_rl_grid_places_distinct_rows_on_physical_x_axis() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -10781,7 +11321,13 @@ fn logical_ordinary_grid_carriers_project_fixed_tracks() {
                         RequestedAxis::Both,
                         Size::NONE,
                         Size::NONE,
-                        crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                        crate::ContainingLayoutContext::new(
+                            crate::geometry::FlowAxes::new(
+                                WritingMode::HorizontalTb,
+                                Direction::Ltr,
+                            ),
+                            crate::ParentFormattingContext::NoParent,
+                        ),
                         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
                     ),
                 )
@@ -10880,7 +11426,10 @@ where
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::NONE,
-                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    crate::ParentFormattingContext::NoParent,
+                ),
                 Size::splat(AvailableOf::MAX_CONTENT),
             ),
         )
@@ -10926,7 +11475,10 @@ where
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::splat(AvailableOf::MAX_CONTENT),
         ),
     )
@@ -11059,7 +11611,13 @@ fn grid_row_intrinsic_sizing_includes_item_vertical_margins() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(50.0), Some(100.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(50.0), Available::MAX_CONTENT),
         ),
     )
@@ -11156,7 +11714,13 @@ fn grid_minmax_max_content_minimum_overrides_fixed_maximum() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -11261,7 +11825,13 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -11378,7 +11948,13 @@ fn grid_intrinsic_column_sizing_resolves_horizontal_percent_margins_against_cont
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -11513,7 +12089,13 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -11647,7 +12229,13 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -11757,7 +12345,13 @@ fn grid_recomputes_min_content_columns_from_resolved_row_height() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -11890,7 +12484,13 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12000,7 +12600,13 @@ fn grid_spanning_item_grows_auto_track_after_min_content_track() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12112,7 +12718,13 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12242,7 +12854,13 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12376,7 +12994,13 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12527,7 +13151,13 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12638,7 +13268,13 @@ fn grid_content_size_includes_visible_child_overflow_content() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12738,7 +13374,13 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12859,7 +13501,13 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -12966,7 +13614,13 @@ fn grid_auto_size_ignores_ineligible_row_subgrid_when_resolving_percent_columns(
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -13056,7 +13710,13 @@ fn grid_percent_rows_resolve_against_known_layout_height() {
             RequestedAxis::Both,
             Size::new(Some(20.0), Some(10.0)),
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -13160,7 +13820,13 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -13269,7 +13935,13 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -13393,9 +14065,12 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(300.0), Some(200.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -13499,7 +14174,13 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -13601,7 +14282,13 @@ fn grid_align_self_overrides_parent_align_items() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -14328,7 +15015,13 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -14434,7 +15127,13 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(100.0), Some(40.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::Definite(100.0), Available::Definite(40.0)),
         ),
     )
@@ -14538,7 +15237,13 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -14640,7 +15345,13 @@ fn grid_justify_self_overrides_parent_justify_items() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(300.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
         ),
     )
@@ -14866,7 +15577,13 @@ fn invalid_named_grid_context_is_reported() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(120.0), Some(20.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::Definite(120.0), Available::Definite(20.0)),
         ),
     )
@@ -14906,7 +15623,13 @@ fn invalid_named_grid_context_fallback_is_reported() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(40.0), Some(20.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::Definite(40.0), Available::Definite(20.0)),
         ),
     )
@@ -14950,7 +15673,13 @@ fn invalid_grid_item_placement_reports_one_authored_fallback_once() {
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(40.0), Some(20.0)),
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::Definite(40.0), Available::Definite(20.0)),
         ),
     )
@@ -15779,7 +16508,13 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
             RequestedAxis::Both,
             Size::NONE,
             Size::NONE,
-            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::splat(AvailableOf::MAX_CONTENT),
         ),
     )
@@ -18396,7 +19131,10 @@ where
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(S::from_f64(80.0)), Some(S::from_f64(60.0))),
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::definite(S::from_f64(80.0)),
                 AvailableOf::definite(S::from_f64(60.0)),
@@ -18499,7 +19237,10 @@ where
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(S::from_f64(70.0)), Some(S::from_f64(80.0))),
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(
                 AvailableOf::definite(S::from_f64(70.0)),
                 AvailableOf::definite(S::from_f64(80.0)),
@@ -18780,7 +19521,10 @@ fn vertical_grid_child_percentage_padding_uses_unequal_physical_area_height_basi
             RequestedAxis::Both,
             Size::NONE,
             Size::new(Some(100.0), Some(200.0)),
-            crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(Available::definite(100.0), Available::definite(200.0)),
         ),
     )
@@ -23447,9 +24191,12 @@ mod root_oracle {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(300.0), Some(200.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -23608,9 +24355,12 @@ mod root_oracle {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(300.0), Some(200.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -28252,9 +29002,12 @@ mod root_layout_oracle {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(100.0), Some(100.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -28429,9 +29182,12 @@ mod root_layout_oracle {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(140.0), Some(140.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -28527,9 +29283,12 @@ mod root_layout_oracle {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(120.0), Some(120.0)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),

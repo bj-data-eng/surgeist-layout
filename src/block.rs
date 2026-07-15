@@ -8,12 +8,13 @@ use super::inline::{
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute,
-    ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, Float, InlineBoundaryInputOf,
-    LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant,
-    LayoutOperation, LayoutResultOf, LayoutScalar, LayoutUnsupportedCapability, LengthAutoOf,
-    LengthOf, LengthResolutionOf, LengthResolutionStatus, LineBreakInputOf, NodeInputOf,
-    NodeOutputOf, Overflow, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis, RunMode,
-    Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, DimensionOf, Direction, Edges, Float,
+    InlineBoundaryInputOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf,
+    LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar,
+    LayoutUnsupportedCapability, LengthAutoOf, LengthOf, LengthResolutionOf,
+    LengthResolutionStatus, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
+    ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
+    RunMode, Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
@@ -785,7 +786,13 @@ where
                     child,
                     NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(source_index)),
                 );
-                tree.compute_child(child, ComputeInputOf::<S>::hidden(constants.flow_axes))?;
+                tree.compute_child(
+                    child,
+                    ComputeInputOf::<S>::hidden(ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        ParentFormattingContext::BlockFlow,
+                    )),
+                )?;
             }
             index += 1;
             continue;
@@ -898,7 +905,10 @@ where
                 RequestedAxis::Both,
                 child_known,
                 child_parent_size,
-                constants.flow_axes,
+                ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    ParentFormattingContext::BlockFlow,
+                ),
                 child_flow_axes.physical_size(LogicalSizeOf::new(
                     in_flow_child_available_inline(
                         &child_style,
@@ -1510,7 +1520,13 @@ where
                     child,
                     NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(source_index)),
                 );
-                tree.compute_child(child, ComputeInputOf::<S>::hidden(constants.flow_axes))?;
+                tree.compute_child(
+                    child,
+                    ComputeInputOf::<S>::hidden(ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        ParentFormattingContext::BlockFlow,
+                    )),
+                )?;
             }
             continue;
         }
@@ -1547,7 +1563,10 @@ where
                 constants
                     .flow_axes
                     .physical_size(LogicalSizeOf::new(logical_node_inner_size.inline, None)),
-                constants.flow_axes,
+                ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    ParentFormattingContext::BlockFlow,
+                ),
                 constants.flow_axes.physical_size(LogicalSizeOf::new(
                     available_inline_extent,
                     AvailableOf::<S>::MAX_CONTENT,
@@ -2750,7 +2769,10 @@ where
                 RequestedAxis::Both,
                 known_size,
                 area_size.map(Some),
-                constants.flow_axes,
+                ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    ParentFormattingContext::BlockFlow,
+                ),
                 available,
             ),
         )?;

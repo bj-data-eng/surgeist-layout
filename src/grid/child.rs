@@ -226,9 +226,9 @@ where
             );
             tree.compute_child(
                 child,
-                ComputeInputOf::hidden(crate::geometry::FlowAxes::new(
-                    style.writing_mode,
-                    style.direction,
+                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+                    crate::ParentFormattingContext::Grid,
                 )),
             )?;
         }
@@ -326,7 +326,13 @@ where
                 child,
                 NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
             );
-            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
+            tree.compute_child(
+                child,
+                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    crate::ParentFormattingContext::Grid,
+                )),
+            )?;
             continue;
         }
         if child_style.position == Position::Absolute {
@@ -363,7 +369,13 @@ where
                 child,
                 NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
             );
-            tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
+            tree.compute_child(
+                child,
+                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    crate::ParentFormattingContext::Grid,
+                )),
+            )?;
             continue;
         }
 
@@ -434,7 +446,10 @@ where
                 Some(physical_area_size.width),
                 Some(physical_area_size.height),
             ),
-            FlowAxes::new(child_style.writing_mode, child_style.direction),
+            crate::ContainingLayoutContext::new(
+                constants.flow_axes,
+                crate::ParentFormattingContext::Grid,
+            ),
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         );
@@ -775,7 +790,13 @@ where
                 Some(physical_area_size.width),
                 Some(physical_area_size.height),
             ),
-            child_flow_axes,
+            crate::ContainingLayoutContext::new(
+                FlowAxes::new(
+                    input.container_style.writing_mode,
+                    input.container_style.direction,
+                ),
+                crate::ParentFormattingContext::Grid,
+            ),
             sizing
                 .available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
@@ -2442,7 +2463,13 @@ where
             RequestedAxis::Both,
             known,
             area_parent,
-            crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction),
+            crate::ContainingLayoutContext::new(
+                crate::geometry::FlowAxes::new(
+                    container_style.writing_mode,
+                    container_style.direction,
+                ),
+                crate::ParentFormattingContext::Grid,
+            ),
             Size::new(
                 AvailableOf::definite(available_size.width),
                 AvailableOf::definite(available_size.height),

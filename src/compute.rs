@@ -232,7 +232,7 @@ where
                 self,
                 node,
                 self.staged_source_index(node),
-                input.containing_flow_axes(),
+                input.containing_layout_context(),
             ),
             super::Display::InlineBlock
             | super::Display::InlineGrid
@@ -383,7 +383,7 @@ where
                 self,
                 node,
                 self.staged_source_index(node),
-                input.containing_flow_axes(),
+                input.containing_layout_context(),
             );
         }
 
@@ -469,7 +469,7 @@ pub(crate) fn compute_hidden<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     source_index: crate::SourceIndex,
-    containing_flow_axes: crate::geometry::FlowAxes,
+    containing_layout_context: crate::ContainingLayoutContext,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
     ComputeOutputOf<<Tree as Traverse>::Scalar>,
@@ -491,7 +491,11 @@ where
                     child,
                     NodeOutputOf::with_source_index(crate::SourceIndex::new(index)),
                 );
-                tree.compute_child(child, ComputeInputOf::hidden(containing_flow_axes))?;
+                let descendant_context = crate::ContainingLayoutContext::new(
+                    containing_layout_context.flow_axes(),
+                    crate::ParentFormattingContext::NoParent,
+                );
+                tree.compute_child(child, ComputeInputOf::hidden(descendant_context))?;
             }
             LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
@@ -516,12 +520,16 @@ where
 {
     let style = tree.node_input(root).clone();
     let containing_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let containing_layout_context = super::ContainingLayoutContext::new(
+        containing_flow_axes,
+        super::ParentFormattingContext::NoParent,
+    );
     let parent = available.map(AvailableOf::into_option);
     let known =
         root_known_inline::<Tree, M>(tree, root, &style, containing_flow_axes, available, parent)?;
     let output = tree.compute_child(
         root,
-        ComputeInputOf::root_layout(known, parent, containing_flow_axes, available),
+        ComputeInputOf::root_layout(known, parent, containing_layout_context, available),
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
     let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get());
@@ -583,12 +591,16 @@ where
 {
     let style = tree.node_input(root).clone();
     let containing_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let containing_layout_context = super::ContainingLayoutContext::new(
+        containing_flow_axes,
+        super::ParentFormattingContext::Flex,
+    );
     let parent = context.viewport_available().map(AvailableOf::into_option);
     let known =
         root_known_inline::<Tree, M>(tree, root, &style, containing_flow_axes, available, parent)?;
     let output = tree.compute_child(
         root,
-        ComputeInputOf::flex_item_root(known, parent, containing_flow_axes, available),
+        ComputeInputOf::flex_item_root(known, parent, containing_layout_context, available),
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
     tree.set_unrounded(

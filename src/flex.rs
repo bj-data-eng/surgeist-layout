@@ -1,9 +1,9 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
-    ComputeInputOf, ComputeOutputOf, DimensionOf, Direction, Edges, FlexDirection, FlexWrap,
-    LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
-    LengthResolutionStatus, NodeInputOf, NodeOutputOf, Overflow, Point, Position, RequestedAxis,
-    RunMode, Size, SizingMode, Traverse,
+    ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, DimensionOf, Direction, Edges,
+    FlexDirection, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
+    LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, Overflow,
+    ParentFormattingContext, Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
 use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
@@ -1059,7 +1059,7 @@ where
             RequestedAxis::Both,
             child_known,
             available_inner_size,
-            constants.flow_axes,
+            ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
             child_available,
         ),
     )?;
@@ -1090,7 +1090,10 @@ where
                         constants.axes.main_requested_axis(),
                         child_known_for_base,
                         constants.axes.with_main_size(available_inner_size, None),
-                        constants.flow_axes,
+                        ContainingLayoutContext::new(
+                            constants.flow_axes,
+                            ParentFormattingContext::Flex,
+                        ),
                         constants
                             .axes
                             .with_main_size(child_available, AvailableOf::MAX_CONTENT),
@@ -1266,7 +1269,7 @@ where
             constants
                 .axes
                 .with_main_size(constants.node_inner_size, None),
-            constants.flow_axes,
+            ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
             available,
         ),
     )?;
@@ -1608,7 +1611,10 @@ where
                         authored_cross,
                     ),
                     constants.node_inner_size,
-                    constants.flow_axes,
+                    ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        ParentFormattingContext::Flex,
+                    ),
                     constants.axes.size_from_main_cross(
                         constants
                             .axes
@@ -2800,7 +2806,10 @@ where
                         constants.axes.main_requested_axis(),
                         child_known,
                         constants.node_inner_size,
-                        constants.flow_axes,
+                        ContainingLayoutContext::new(
+                            constants.flow_axes,
+                            ParentFormattingContext::Flex,
+                        ),
                         child_available,
                     ),
                 )?
@@ -2991,7 +3000,7 @@ where
                 RequestedAxis::Both,
                 known,
                 constants.node_inner_size,
-                constants.flow_axes,
+                ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
                 constants.axes.size_from_main_cross(
                     constants
                         .axes
@@ -3267,7 +3276,7 @@ where
                 RequestedAxis::Both,
                 known_size,
                 constants.node_inner_size,
-                constants.flow_axes,
+                ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
                 available,
             ),
         )?;
@@ -3333,7 +3342,13 @@ where
             child,
             NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
         );
-        tree.compute_child(child, ComputeInputOf::hidden(containing_flow_axes))?;
+        tree.compute_child(
+            child,
+            ComputeInputOf::hidden(ContainingLayoutContext::new(
+                containing_flow_axes,
+                ParentFormattingContext::Flex,
+            )),
+        )?;
     }
     Ok(())
 }

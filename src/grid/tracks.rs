@@ -229,7 +229,10 @@ where
                             constants.node_inner_size.width,
                             constants.node_inner_size.height,
                         ),
-                        grid.constants.flow_axes,
+                        crate::ContainingLayoutContext::new(
+                            grid.constants.flow_axes,
+                            crate::ParentFormattingContext::Grid,
+                        ),
                         available,
                     ),
                 },
@@ -511,12 +514,7 @@ where
         physical_area_size.map(Some),
         grid.sizing_flow_axes,
     )?;
-    let input = intrinsic_subgrid_child_input(
-        input,
-        sizing,
-        child_flow_axes,
-        [column_constraint, row_constraint],
-    );
+    let input = intrinsic_subgrid_child_input(input, sizing, [column_constraint, row_constraint]);
     if !matches!(
         child_style.display.inner_display(),
         Display::Grid | Display::GridLanes
@@ -718,7 +716,6 @@ fn track_component_has_percent_sizing<S: LayoutScalar>(component: &TrackComponen
 fn intrinsic_subgrid_child_input<S: LayoutScalar>(
     input: ComputeInputOf<S>,
     sizing: GridItemSizing<S>,
-    child_flow_axes: FlowAxes,
     constraints: [Option<IntrinsicSubgridAxisConstraint<S>>; 2],
 ) -> ComputeInputOf<S> {
     let mut known = input.known();
@@ -749,7 +746,7 @@ fn intrinsic_subgrid_child_input<S: LayoutScalar>(
         input.requested_axis(),
         known,
         parent,
-        child_flow_axes,
+        input.containing_layout_context(),
         available,
     )
 }
@@ -906,7 +903,10 @@ where
                     input.constants.node_inner_size.width,
                     input.constants.node_inner_size.height,
                 ),
-                input.constants.flow_axes,
+                crate::ContainingLayoutContext::new(
+                    input.constants.flow_axes,
+                    crate::ParentFormattingContext::Grid,
+                ),
                 available,
             ),
         )?;
@@ -1230,7 +1230,10 @@ where
                     grid.sizing_flow_axes
                         .physical_size(LogicalSizeOf::new(logical_sizing_known.inline, None)),
                     physical_area_size.map(Some),
-                    grid.constants.flow_axes,
+                    crate::ContainingLayoutContext::new(
+                        grid.constants.flow_axes,
+                        crate::ParentFormattingContext::Grid,
+                    ),
                     grid.sizing_flow_axes.physical_size(LogicalSizeOf::new(
                         AvailableOf::definite(logical_sizing_available.inline),
                         AvailableOf::MAX_CONTENT,
@@ -1395,7 +1398,10 @@ where
                 grid.sizing_flow_axes
                     .physical_size(LogicalSizeOf::new(None, logical_sizing_known.block)),
                 physical_area_size.map(Some),
-                grid.constants.flow_axes,
+                crate::ContainingLayoutContext::new(
+                    grid.constants.flow_axes,
+                    crate::ParentFormattingContext::Grid,
+                ),
                 grid.sizing_flow_axes.physical_size(LogicalSizeOf::new(
                     AvailableOf::MIN_CONTENT,
                     AvailableOf::definite(logical_sizing_available.block),
@@ -1509,7 +1515,10 @@ where
                     constants.node_inner_size.width,
                     constants.node_inner_size.height,
                 ),
-                constants.flow_axes,
+                crate::ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    crate::ParentFormattingContext::Grid,
+                ),
                 Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
             ),
         )?;
@@ -3152,7 +3161,10 @@ mod tests {
                     RequestedAxis::Both,
                     Size::new(None, Some(S::from_f64(19.0))),
                     Size::new(None, Some(S::from_f64(29.0))),
-                    horizontal,
+                    crate::ContainingLayoutContext::new(
+                        horizontal,
+                        crate::ParentFormattingContext::Grid,
+                    ),
                     Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MIN_CONTENT),
                 ),
                 GridItemSizing {
@@ -3162,7 +3174,6 @@ mod tests {
                     justify_self: AlignItems::Stretch,
                     align_self: AlignItems::Stretch,
                 },
-                vertical,
                 [Some(outer_constraint), None],
             );
             assert_eq!(outer.known().width, None);
@@ -3187,7 +3198,6 @@ mod tests {
                     justify_self: AlignItems::Stretch,
                     align_self: AlignItems::Stretch,
                 },
-                horizontal,
                 [Some(inner_constraint), None],
             );
             assert_eq!(inner.known().width, None);
@@ -3288,7 +3298,10 @@ mod tests {
                     RequestedAxis::Both,
                     Size::NONE,
                     Size::NONE,
-                    constants.flow_axes,
+                    crate::ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        crate::ParentFormattingContext::Grid,
+                    ),
                     Size::new(AvailableOf::definite(100.0), AvailableOf::definite(200.0)),
                 ),
             },
@@ -3395,7 +3408,10 @@ mod tests {
                     RequestedAxis::Both,
                     Size::NONE,
                     Size::NONE,
-                    constants.flow_axes,
+                    crate::ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        crate::ParentFormattingContext::Grid,
+                    ),
                     Size::new(AvailableOf::definite(100.0), AvailableOf::definite(200.0)),
                 ),
             },

@@ -8,7 +8,10 @@ fn cache_test_input() -> ComputeInput {
         RequestedAxis::Both,
         Size::new(None, None),
         Size::new(Some(300.0), Some(200.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     )
 }
@@ -17,13 +20,58 @@ fn static_cache_context() -> CacheKeyContext {
     CacheKeyContext::new()
 }
 
+#[test]
+fn cache_misses_for_parent_formatting_context_only_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+        let input = ComputeInputOf::leaf_layout(
+            Size::NONE,
+            Size::new(Some(scalar(300.0)), Some(scalar(200.0))),
+            crate::ContainingLayoutContext::new(axes, crate::ParentFormattingContext::Flex),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        )
+        .expect("valid cache input");
+        let changed = ComputeInputOf::leaf_layout(
+            Size::NONE,
+            input.parent(),
+            crate::ContainingLayoutContext::new(axes, crate::ParentFormattingContext::Grid),
+            input.available(),
+        )
+        .expect("valid cache input");
+        let output = complete_compute_size_output();
+        let mut cache = CacheOf::<S>::new();
+        cache.store_with_context(&input, static_cache_context(), output);
+        assert_eq!(
+            cache.get_with_context(&input, static_cache_context()),
+            Some(output)
+        );
+        let warm = cache
+            .get_with_context(&input, static_cache_context())
+            .expect("an unchanged complete context hits");
+        assert_eq!(warm.size, output.size);
+        assert_eq!(warm.content_size, output.content_size);
+        assert_eq!(warm.first_baselines, output.first_baselines);
+        assert_eq!(warm.last_baselines, output.last_baselines);
+        assert_eq!(warm.block_margin_collapse, output.block_margin_collapse);
+        assert_eq!(
+            cache.get_with_context(&changed, static_cache_context()),
+            None
+        );
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn cache_input_with_containing_flow(
     containing_flow_axes: crate::geometry::FlowAxes,
 ) -> ComputeInput {
     ComputeInput::leaf_layout(
         Size::new(None, None),
         Size::new(Some(300.0), Some(200.0)),
-        containing_flow_axes,
+        crate::ContainingLayoutContext::new(
+            containing_flow_axes,
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     )
     .expect("test cache input is valid")
@@ -50,7 +98,10 @@ fn assert_cache_distinguishes_all_containing_flow_axes<S: LayoutScalar>() {
         let input = ComputeInputOf::leaf_layout(
             Size::new(None, None),
             Size::new(Some(scalar(300.0)), Some(scalar(200.0))),
-            flow_axes,
+            crate::ContainingLayoutContext::new(
+                flow_axes,
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
         )
         .expect("test cache input is valid");
@@ -65,7 +116,10 @@ fn assert_cache_distinguishes_all_containing_flow_axes<S: LayoutScalar>() {
                 let distinct_input = ComputeInputOf::leaf_layout(
                     Size::new(None, None),
                     Size::new(Some(scalar(300.0)), Some(scalar(200.0))),
-                    distinct_flow_axes,
+                    crate::ContainingLayoutContext::new(
+                        distinct_flow_axes,
+                        crate::ParentFormattingContext::NoParent,
+                    ),
                     Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
                 )
                 .expect("test cache input is valid");
@@ -87,7 +141,10 @@ fn compute_size_cache_input<S: LayoutScalar>() -> ComputeInputOf<S> {
         RequestedAxis::Both,
         Size::new(None, None),
         Size::new(Some(scalar(300.0)), Some(scalar(200.0))),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
     )
 }
@@ -179,7 +236,10 @@ fn cache_reuses_measure_and_layout_results_for_matching_inputs() {
         RequestedAxis::Both,
         Size::new(None, None),
         Size::new(Some(300.0), Some(200.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
     let output = ComputeOutput::from_outer_size(Size::new(120.0, 40.0));
@@ -235,7 +295,10 @@ fn cache_miss_when_run_mode_changes() {
         base.requested_axis(),
         base.known(),
         base.parent(),
-        base.containing_flow_axes(),
+        crate::ContainingLayoutContext::new(
+            base.containing_flow_axes(),
+            crate::ParentFormattingContext::NoParent,
+        ),
         base.available(),
     );
 
@@ -261,7 +324,10 @@ fn cache_miss_when_sizing_mode_changes() {
         base.requested_axis(),
         base.known(),
         base.parent(),
-        base.containing_flow_axes(),
+        crate::ContainingLayoutContext::new(
+            base.containing_flow_axes(),
+            crate::ParentFormattingContext::NoParent,
+        ),
         base.available(),
     );
 
@@ -287,7 +353,10 @@ fn cache_miss_when_requested_axis_changes() {
         RequestedAxis::Horizontal,
         base.known(),
         base.parent(),
-        base.containing_flow_axes(),
+        crate::ContainingLayoutContext::new(
+            base.containing_flow_axes(),
+            crate::ParentFormattingContext::NoParent,
+        ),
         base.available(),
     );
 
@@ -313,7 +382,10 @@ fn cache_miss_when_parent_size_changes() {
         base.requested_axis(),
         base.known(),
         Size::new(Some(200.0), Some(40.0)),
-        base.containing_flow_axes(),
+        crate::ContainingLayoutContext::new(
+            base.containing_flow_axes(),
+            crate::ParentFormattingContext::NoParent,
+        ),
         base.available(),
     );
 
@@ -336,7 +408,10 @@ fn cache_hit_when_known_width_matches_cached_size_even_if_available_width_change
         base.requested_axis(),
         Size::new(Some(20.0), base.known().height),
         base.parent(),
-        base.containing_flow_axes(),
+        crate::ContainingLayoutContext::new(
+            base.containing_flow_axes(),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MIN_CONTENT, base.available().height),
     );
 
@@ -395,7 +470,10 @@ fn cached_compute_uses_tree_cache_before_running_expensive_layout() {
         RequestedAxis::Both,
         Size::new(Some(80.0), Some(24.0)),
         Size::new(None, None),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
 
@@ -433,7 +511,10 @@ fn f64_cache_key_distinguishes_available_values_that_collide_as_f32() {
         RequestedAxis::Horizontal,
         Size::NONE,
         Size::NONE,
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(
             AvailableOf::definite(16_777_216.0),
             AvailableOf::MAX_CONTENT,
@@ -445,7 +526,10 @@ fn f64_cache_key_distinguishes_available_values_that_collide_as_f32() {
         base.requested_axis(),
         base.known(),
         base.parent(),
-        base.containing_flow_axes(),
+        crate::ContainingLayoutContext::new(
+            base.containing_flow_axes(),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(
             AvailableOf::definite(16_777_217.0),
             AvailableOf::MAX_CONTENT,

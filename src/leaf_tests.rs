@@ -18,7 +18,10 @@ fn assert_measured_leaf_block_margin_collapse_uses_own_logical_block_extent<S: L
         let input = ComputeInputOf::<S>::leaf_layout(
             Size::NONE,
             Size::NONE,
-            containing_flow,
+            crate::ContainingLayoutContext::new(
+                containing_flow,
+                crate::ParentFormattingContext::NoParent,
+            ),
             Size::splat(AvailableOf::MAX_CONTENT),
         )
         .expect("valid direct leaf input");
@@ -72,7 +75,10 @@ fn assert_leaf_uses_containing_flow_for_percentage_edges<S: LayoutScalar>() {
     let input = ComputeInputOf::<S>::leaf_layout(
         Size::NONE,
         Size::new(Some(S::from_f64(5_000.0)), Some(S::from_f64(3_000.0))),
-        crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(
             AvailableOf::definite(S::from_f64(5_000.0)),
             AvailableOf::definite(S::from_f64(8_000.0)),
@@ -117,7 +123,10 @@ fn leaf_layout_returns_known_size_without_calling_measure() {
         RequestedAxis::Both,
         Size::new(Some(120.0), Some(48.0)),
         Size::new(Some(500.0), Some(400.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
 
@@ -137,7 +146,10 @@ fn leaf_layout_uses_measure_for_auto_dimensions() {
         RequestedAxis::Both,
         Size::new(None, None),
         Size::new(Some(500.0), Some(400.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::definite(300.0), Available::MAX_CONTENT),
     );
 
@@ -165,7 +177,10 @@ fn leaf_layout_adds_padding_and_border_to_measured_outer_size() {
         RequestedAxis::Both,
         Size::new(None, None),
         Size::new(Some(200.0), Some(100.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
     let node_input = NodeInput {
@@ -191,7 +206,10 @@ fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(200.0), Some(100.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::definite(100.0), Available::definite(50.0)),
     );
     let node_input = NodeInput {
@@ -228,7 +246,10 @@ fn leaf_measurement_available_size_floors_below_insets_at_zero() {
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(200.0), Some(100.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::definite(8.0), Available::definite(6.0)),
     );
     let node_input = NodeInput {
@@ -262,7 +283,10 @@ fn leaf_measurement_known_size_is_content_space_and_floored() {
         RequestedAxis::Both,
         Size::new(Some(4.0), None),
         Size::new(Some(200.0), Some(100.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
     let node_input = NodeInput {
@@ -289,7 +313,10 @@ fn leaf_measurement_provider_error_is_preserved() {
         RequestedAxis::Both,
         Size::NONE,
         Size::NONE,
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
 
@@ -314,7 +341,10 @@ fn leaf_measurement_rejects_negative_provider_width() {
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(200.0), Some(100.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
 
@@ -344,7 +374,10 @@ fn leaf_measurement_rejects_nan_provider_height() {
         RequestedAxis::Both,
         Size::NONE,
         Size::NONE,
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
     );
 
@@ -374,7 +407,10 @@ fn leaf_layout_preserves_physical_end_scrollbar_gutter_for_rtl() {
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(200.0), Some(100.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::definite(100.0), Available::definite(50.0)),
     );
     let node_input = NodeInput {
@@ -412,7 +448,10 @@ fn leaf_uses_validated_aspect_ratio() {
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(120.0), Some(80.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(Available::definite(120.0), Available::MAX_CONTENT),
     );
     let style = NodeInput {
@@ -434,7 +473,10 @@ fn f64_leaf_layout_preserves_fractional_precision() {
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(200.0), Some(100.0)),
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(AvailableOf::definite(123.125), AvailableOf::MAX_CONTENT),
     );
     let style = NodeInputOf::<f64> {
@@ -467,7 +509,10 @@ fn f64_leaf_measurement_rejects_infinite_provider_height() {
         RequestedAxis::Both,
         Size::NONE,
         Size::NONE,
-        crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+        crate::ContainingLayoutContext::new(
+            crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+            crate::ParentFormattingContext::NoParent,
+        ),
         Size::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT),
     );
 

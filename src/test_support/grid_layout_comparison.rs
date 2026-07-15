@@ -251,9 +251,12 @@ impl GridLayoutComparison {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(Some(self.container.width), Some(self.container.height)),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
@@ -312,9 +315,12 @@ impl GridLayoutComparison {
                 RequestedAxis::Both,
                 Size::NONE,
                 Size::new(None, None),
-                crate::geometry::FlowAxes::new(
-                    crate::WritingMode::HorizontalTb,
-                    crate::Direction::Ltr,
+                crate::ContainingLayoutContext::new(
+                    crate::geometry::FlowAxes::new(
+                        crate::WritingMode::HorizontalTb,
+                        crate::Direction::Ltr,
+                    ),
+                    crate::ParentFormattingContext::NoParent,
                 ),
                 Size::new(Available::MAX_CONTENT, Available::MAX_CONTENT),
             ),
