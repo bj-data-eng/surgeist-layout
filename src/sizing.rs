@@ -1,5 +1,6 @@
 use crate::{
-    LayoutScalar, LengthPercentageOf, LengthResolutionOf, NumericResolutionOf, PercentageBasisOf,
+    FiniteScalarErrorOf, LayoutScalar, LengthPercentageOf, LengthResolutionOf, NonNegativeFiniteOf,
+    NumericResolutionOf, PercentageBasisOf,
 };
 use core::num::NonZeroUsize;
 
@@ -19,6 +20,25 @@ impl core::fmt::Display for SizingCalculationError {
 impl std::error::Error for SizingCalculationError {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CalcSizeCalculationErrorOf<S: LayoutScalar> {
+    InvalidAbsolutePx(FiniteScalarErrorOf<S>),
+    InvalidPercentFraction(FiniteScalarErrorOf<S>),
+    InvalidSizeFraction(FiniteScalarErrorOf<S>),
+}
+
+impl<S: LayoutScalar> core::fmt::Display for CalcSizeCalculationErrorOf<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InvalidAbsolutePx(_) => f.write_str("absolute length coefficient must be finite"),
+            Self::InvalidPercentFraction(_) => f.write_str("percentage coefficient must be finite"),
+            Self::InvalidSizeFraction(_) => f.write_str("size coefficient must be finite"),
+        }
+    }
+}
+
+impl<S: LayoutScalar> std::error::Error for CalcSizeCalculationErrorOf<S> {}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 enum Instruction<S: LayoutScalar> {
     Value(LengthPercentageOf<S>),
     Min(NonZeroUsize),
@@ -33,6 +53,31 @@ enum Instruction<S: LayoutScalar> {
 pub struct SizingCalculationOf<S: LayoutScalar> {
     instructions: Vec<Instruction<S>>,
     depends_on_basis: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CalcSizeCoefficients<S: LayoutScalar> {
+    absolute_px: S,
+    percent_fraction: S,
+    size_fraction: S,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CalcSizeInstruction<S: LayoutScalar> {
+    Value(CalcSizeCoefficients<S>),
+    Min(NonZeroUsize),
+    Max(NonZeroUsize),
+    Clamp {
+        has_minimum: bool,
+        has_maximum: bool,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CalcSizeCalculationOf<S: LayoutScalar> {
+    instructions: Vec<CalcSizeInstruction<S>>,
+    depends_on_percentage_basis: bool,
+    depends_on_size: bool,
 }
 
 impl<S: LayoutScalar> SizingCalculationOf<S> {
@@ -157,6 +202,227 @@ impl<S: LayoutScalar> SizingCalculationOf<S> {
     }
 }
 
+impl<S: LayoutScalar> CalcSizeCalculationOf<S> {
+    #[must_use]
+    pub fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::from_validated_coefficients(value.absolute_px(), value.percent_fraction(), S::ZERO)
+    }
+
+    #[must_use]
+    pub fn size() -> Self {
+        Self::from_validated_coefficients(S::ZERO, S::ZERO, S::ONE)
+    }
+
+    pub fn from_coefficients(
+        absolute_px: S,
+        percent_fraction: S,
+        size_fraction: S,
+    ) -> Result<Self, CalcSizeCalculationErrorOf<S>> {
+        let absolute_px = finite_calc_size_coefficient(absolute_px)
+            .map_err(CalcSizeCalculationErrorOf::InvalidAbsolutePx)?;
+        let percent_fraction = finite_calc_size_coefficient(percent_fraction)
+            .map_err(CalcSizeCalculationErrorOf::InvalidPercentFraction)?;
+        let size_fraction = finite_calc_size_coefficient(size_fraction)
+            .map_err(CalcSizeCalculationErrorOf::InvalidSizeFraction)?;
+        Ok(Self::from_validated_coefficients(
+            absolute_px,
+            percent_fraction,
+            size_fraction,
+        ))
+    }
+
+    pub fn min(arguments: Vec<Self>) -> Result<Self, SizingCalculationError> {
+        Self::extremum(arguments, CalcSizeInstruction::Min)
+    }
+
+    pub fn max(arguments: Vec<Self>) -> Result<Self, SizingCalculationError> {
+        Self::extremum(arguments, CalcSizeInstruction::Max)
+    }
+
+    #[must_use]
+    pub fn clamp(minimum: Option<Self>, preferred: Self, maximum: Option<Self>) -> Self {
+        let has_minimum = minimum.is_some();
+        let has_maximum = maximum.is_some();
+        let mut depends_on_percentage_basis = preferred.depends_on_percentage_basis;
+        let mut depends_on_size = preferred.depends_on_size;
+
+        let mut instructions = if let Some(minimum) = minimum {
+            depends_on_percentage_basis |= minimum.depends_on_percentage_basis;
+            depends_on_size |= minimum.depends_on_size;
+            let mut instructions = minimum.instructions;
+            instructions.extend(preferred.instructions);
+            instructions
+        } else {
+            preferred.instructions
+        };
+
+        if let Some(maximum) = maximum {
+            depends_on_percentage_basis |= maximum.depends_on_percentage_basis;
+            depends_on_size |= maximum.depends_on_size;
+            instructions.extend(maximum.instructions);
+        }
+        instructions.push(CalcSizeInstruction::Clamp {
+            has_minimum,
+            has_maximum,
+        });
+
+        Self {
+            instructions,
+            depends_on_percentage_basis,
+            depends_on_size,
+        }
+    }
+
+    #[must_use]
+    pub const fn depends_on_size(&self) -> bool {
+        self.depends_on_size
+    }
+
+    #[must_use]
+    pub fn resolve_against(
+        &self,
+        basis_size: Option<NonNegativeFiniteOf<S>>,
+        percentage_basis: PercentageBasisOf<S>,
+    ) -> LengthResolutionOf<S> {
+        let depends_on_basis = self.depends_on_percentage_basis || self.depends_on_size;
+        if self.depends_on_size && basis_size.is_none() {
+            return LengthResolutionOf::unresolved(true);
+        }
+
+        let percentage_basis = percentage_basis
+            .definite_value()
+            .map_or(S::ZERO, NonNegativeFiniteOf::get);
+        let basis_size = basis_size.map_or(S::ZERO, NonNegativeFiniteOf::get);
+        let mut values = Vec::new();
+
+        for instruction in &self.instructions {
+            match *instruction {
+                CalcSizeInstruction::Value(coefficients) => {
+                    let value = match evaluate_calc_size_coefficients(
+                        coefficients,
+                        percentage_basis,
+                        basis_size,
+                    ) {
+                        Ok(value) => value,
+                        Err(value) => {
+                            return LengthResolutionOf::invalid_numeric(value, depends_on_basis);
+                        }
+                    };
+                    values.push(value);
+                }
+                CalcSizeInstruction::Min(argument_count) => {
+                    reduce_extremum(&mut values, argument_count, LayoutScalar::min);
+                    canonicalize_last(&mut values);
+                }
+                CalcSizeInstruction::Max(argument_count) => {
+                    reduce_extremum(&mut values, argument_count, LayoutScalar::max);
+                    canonicalize_last(&mut values);
+                }
+                CalcSizeInstruction::Clamp {
+                    has_minimum,
+                    has_maximum,
+                } => {
+                    let maximum = has_maximum.then(|| pop_value(&mut values));
+                    let preferred = pop_value(&mut values);
+                    let minimum = has_minimum.then(|| pop_value(&mut values));
+                    let bounded_above = maximum.map_or(preferred, |maximum| preferred.min(maximum));
+                    let result =
+                        minimum.map_or(bounded_above, |minimum| minimum.max(bounded_above));
+                    values.push(canonical_calc_size_zero(result));
+                }
+            }
+        }
+
+        debug_assert_eq!(values.len(), 1, "validated postfix program has one result");
+        LengthResolutionOf::definite(pop_value(&mut values), depends_on_basis)
+    }
+
+    fn from_validated_coefficients(absolute_px: S, percent_fraction: S, size_fraction: S) -> Self {
+        Self {
+            instructions: vec![CalcSizeInstruction::Value(CalcSizeCoefficients {
+                absolute_px,
+                percent_fraction,
+                size_fraction,
+            })],
+            depends_on_percentage_basis: percent_fraction != S::ZERO,
+            depends_on_size: size_fraction != S::ZERO,
+        }
+    }
+
+    fn extremum(
+        arguments: Vec<Self>,
+        instruction: fn(NonZeroUsize) -> CalcSizeInstruction<S>,
+    ) -> Result<Self, SizingCalculationError> {
+        let Some(argument_count) = NonZeroUsize::new(arguments.len()) else {
+            return Err(SizingCalculationError::EmptyArguments);
+        };
+
+        let mut arguments = arguments.into_iter();
+        let first = arguments.next().expect("nonzero argument count");
+        let mut instructions = first.instructions;
+        let mut depends_on_percentage_basis = first.depends_on_percentage_basis;
+        let mut depends_on_size = first.depends_on_size;
+        for argument in arguments {
+            depends_on_percentage_basis |= argument.depends_on_percentage_basis;
+            depends_on_size |= argument.depends_on_size;
+            instructions.extend(argument.instructions);
+        }
+        instructions.push(instruction(argument_count));
+
+        Ok(Self {
+            instructions,
+            depends_on_percentage_basis,
+            depends_on_size,
+        })
+    }
+}
+
+fn finite_calc_size_coefficient<S: LayoutScalar>(value: S) -> Result<S, FiniteScalarErrorOf<S>> {
+    if value.is_finite() {
+        Ok(canonical_calc_size_zero(value))
+    } else {
+        Err(FiniteScalarErrorOf::NonFinite { value })
+    }
+}
+
+fn evaluate_calc_size_coefficients<S: LayoutScalar>(
+    coefficients: CalcSizeCoefficients<S>,
+    percentage_basis: S,
+    basis_size: S,
+) -> Result<S, S> {
+    let percentage = checked_calc_size_product(coefficients.percent_fraction, percentage_basis)?;
+    let size = checked_calc_size_product(coefficients.size_fraction, basis_size)?;
+    let value = checked_calc_size_sum(coefficients.absolute_px, percentage)?;
+    checked_calc_size_sum(value, size)
+}
+
+fn checked_calc_size_product<S: LayoutScalar>(left: S, right: S) -> Result<S, S> {
+    let value = left * right;
+    if value.is_finite() {
+        Ok(canonical_calc_size_zero(value))
+    } else {
+        Err(value)
+    }
+}
+
+fn checked_calc_size_sum<S: LayoutScalar>(left: S, right: S) -> Result<S, S> {
+    let value = left + right;
+    if value.is_finite() {
+        Ok(canonical_calc_size_zero(value))
+    } else {
+        Err(value)
+    }
+}
+
+fn canonicalize_last<S: LayoutScalar>(values: &mut [S]) {
+    let value = values.last_mut().expect("validated postfix arity");
+    *value = canonical_calc_size_zero(*value);
+}
+
+fn canonical_calc_size_zero<S: LayoutScalar>(value: S) -> S {
+    if value == S::ZERO { S::ZERO } else { value }
+}
+
 fn reduce_extremum<S: LayoutScalar>(
     values: &mut Vec<S>,
     argument_count: NonZeroUsize,
@@ -180,8 +446,14 @@ fn pop_value<S>(values: &mut Vec<S>) -> S {
 
 #[cfg(test)]
 mod tests {
-    use super::{SizingCalculationError, SizingCalculationOf};
-    use crate::{LengthPercentageOf, LengthResolutionStatus, PercentageBasisOf};
+    use super::{
+        CalcSizeCalculationErrorOf, CalcSizeCalculationOf, SizingCalculationError,
+        SizingCalculationOf,
+    };
+    use crate::{
+        FiniteScalarErrorOf, LengthPercentageOf, LengthResolutionStatus, NonNegativeFiniteOf,
+        PercentageBasisOf,
+    };
 
     fn px_f32(value: f32) -> SizingCalculationOf<f32> {
         SizingCalculationOf::value(LengthPercentageOf::px(value).expect("finite px"))
@@ -196,6 +468,304 @@ mod tests {
             .resolve_against(PercentageBasisOf::MISSING)
             .value
             .expect("basis-independent calculation")
+    }
+
+    fn calc_px_f32(value: f32) -> CalcSizeCalculationOf<f32> {
+        CalcSizeCalculationOf::value(LengthPercentageOf::px(value).expect("finite px"))
+    }
+
+    fn calc_px_f64(value: f64) -> CalcSizeCalculationOf<f64> {
+        CalcSizeCalculationOf::value(LengthPercentageOf::px(value).expect("finite px"))
+    }
+
+    fn size_f32(value: f32) -> NonNegativeFiniteOf<f32> {
+        NonNegativeFiniteOf::new(value).expect("non-negative finite size")
+    }
+
+    fn size_f64(value: f64) -> NonNegativeFiniteOf<f64> {
+        NonNegativeFiniteOf::new(value).expect("non-negative finite size")
+    }
+
+    fn resolved_calc_f32(
+        calculation: &CalcSizeCalculationOf<f32>,
+        basis_size: Option<NonNegativeFiniteOf<f32>>,
+        percentage_basis: PercentageBasisOf<f32>,
+    ) -> f32 {
+        calculation
+            .resolve_against(basis_size, percentage_basis)
+            .value
+            .expect("resolved calc-size calculation")
+    }
+
+    #[test]
+    fn calc_size_calculation_constructors_cover_values_size_and_nonempty_extrema() {
+        let value = CalcSizeCalculationOf::value(
+            LengthPercentageOf::from_coefficients(5.0f32, 0.25).expect("finite length-percentage"),
+        );
+        let size = CalcSizeCalculationOf::<f32>::size();
+        let one_min = CalcSizeCalculationOf::min(vec![calc_px_f32(7.0)]).expect("nonempty min");
+        let many_min = CalcSizeCalculationOf::min(vec![calc_px_f32(8.0), calc_px_f32(-3.0)])
+            .expect("nonempty min");
+        let one_max = CalcSizeCalculationOf::max(vec![calc_px_f64(-4.0)]).expect("nonempty max");
+        let many_max = CalcSizeCalculationOf::max(vec![calc_px_f64(-9.0), calc_px_f64(-2.0)])
+            .expect("nonempty max");
+
+        assert_eq!(
+            resolved_calc_f32(
+                &value,
+                None,
+                PercentageBasisOf::definite(20.0).expect("finite percentage basis")
+            ),
+            10.0
+        );
+        assert_eq!(
+            resolved_calc_f32(&size, Some(size_f32(13.0)), PercentageBasisOf::MISSING),
+            13.0
+        );
+        assert_eq!(
+            resolved_calc_f32(&one_min, None, PercentageBasisOf::MISSING),
+            7.0
+        );
+        assert_eq!(
+            resolved_calc_f32(&many_min, None, PercentageBasisOf::MISSING),
+            -3.0
+        );
+        assert_eq!(
+            one_max
+                .resolve_against(None, PercentageBasisOf::MISSING)
+                .value,
+            Some(-4.0)
+        );
+        assert_eq!(
+            many_max
+                .resolve_against(None, PercentageBasisOf::MISSING)
+                .value,
+            Some(-2.0)
+        );
+        assert_eq!(
+            CalcSizeCalculationOf::<f32>::min(Vec::new()),
+            Err(SizingCalculationError::EmptyArguments)
+        );
+        assert_eq!(
+            CalcSizeCalculationOf::<f64>::max(Vec::new()),
+            Err(SizingCalculationError::EmptyArguments)
+        );
+    }
+
+    #[test]
+    fn calc_size_calculation_invalid_coefficients_return_exact_owned_errors() {
+        assert_eq!(
+            CalcSizeCalculationOf::<f32>::from_coefficients(f32::INFINITY, 0.0, 0.0),
+            Err(CalcSizeCalculationErrorOf::InvalidAbsolutePx(
+                FiniteScalarErrorOf::NonFinite {
+                    value: f32::INFINITY
+                }
+            ))
+        );
+        assert!(matches!(
+            CalcSizeCalculationOf::<f64>::from_coefficients(0.0, f64::NAN, 0.0),
+            Err(CalcSizeCalculationErrorOf::InvalidPercentFraction(
+                FiniteScalarErrorOf::NonFinite { value }
+            )) if value.is_nan()
+        ));
+        assert_eq!(
+            CalcSizeCalculationOf::<f64>::from_coefficients(0.0, 0.0, f64::INFINITY),
+            Err(CalcSizeCalculationErrorOf::InvalidSizeFraction(
+                FiniteScalarErrorOf::NonFinite {
+                    value: f64::INFINITY
+                }
+            ))
+        );
+    }
+
+    #[test]
+    fn calc_size_calculation_coefficients_canonicalize_signed_zero() {
+        let f32_calculation = CalcSizeCalculationOf::from_coefficients(-0.0f32, -0.0, -0.0)
+            .expect("finite coefficients");
+        let f64_calculation = CalcSizeCalculationOf::from_coefficients(-0.0f64, -0.0, -0.0)
+            .expect("finite coefficients");
+
+        assert!(!f32_calculation.depends_on_size());
+        assert!(!f64_calculation.depends_on_size());
+        assert_eq!(
+            resolved_calc_f32(&f32_calculation, None, PercentageBasisOf::MISSING).to_bits(),
+            0.0f32.to_bits()
+        );
+        assert_eq!(
+            f64_calculation
+                .resolve_against(None, PercentageBasisOf::MISSING)
+                .value
+                .expect("resolved zero")
+                .to_bits(),
+            0.0f64.to_bits()
+        );
+    }
+
+    #[test]
+    fn calc_size_calculation_depends_on_size_is_exact_across_program() {
+        let independent = CalcSizeCalculationOf::<f32>::from_coefficients(3.0, 0.5, 0.0)
+            .expect("finite coefficients");
+        let dependent = CalcSizeCalculationOf::<f32>::size();
+        let nested = CalcSizeCalculationOf::clamp(
+            Some(independent.clone()),
+            CalcSizeCalculationOf::max(vec![independent, dependent]).expect("nonempty max"),
+            None,
+        );
+
+        assert!(!calc_px_f32(1.0).depends_on_size());
+        assert!(nested.depends_on_size());
+    }
+
+    #[test]
+    fn calc_size_calculation_percentage_basis_is_explicit_and_missing_contributes_zero() {
+        let calculation = CalcSizeCalculationOf::<f32>::from_coefficients(4.0, 0.5, 2.0)
+            .expect("finite coefficients");
+
+        assert_eq!(
+            resolved_calc_f32(
+                &calculation,
+                Some(size_f32(3.0)),
+                PercentageBasisOf::definite(20.0).expect("finite percentage basis")
+            ),
+            20.0
+        );
+        assert_eq!(
+            resolved_calc_f32(
+                &calculation,
+                Some(size_f32(3.0)),
+                PercentageBasisOf::MISSING
+            ),
+            10.0
+        );
+    }
+
+    #[test]
+    fn calc_size_calculation_clamp_supports_all_endpoints_and_minimum_wins() {
+        let none = CalcSizeCalculationOf::clamp(None, calc_px_f32(12.0), None);
+        let minimum =
+            CalcSizeCalculationOf::clamp(Some(calc_px_f32(15.0)), calc_px_f32(12.0), None);
+        let maximum =
+            CalcSizeCalculationOf::clamp(None, calc_px_f32(12.0), Some(calc_px_f32(10.0)));
+        let both = CalcSizeCalculationOf::clamp(
+            Some(calc_px_f32(5.0)),
+            calc_px_f32(12.0),
+            Some(calc_px_f32(20.0)),
+        );
+        let conflicting = CalcSizeCalculationOf::clamp(
+            Some(calc_px_f32(20.0)),
+            calc_px_f32(15.0),
+            Some(calc_px_f32(10.0)),
+        );
+
+        assert_eq!(
+            resolved_calc_f32(&none, None, PercentageBasisOf::MISSING),
+            12.0
+        );
+        assert_eq!(
+            resolved_calc_f32(&minimum, None, PercentageBasisOf::MISSING),
+            15.0
+        );
+        assert_eq!(
+            resolved_calc_f32(&maximum, None, PercentageBasisOf::MISSING),
+            10.0
+        );
+        assert_eq!(
+            resolved_calc_f32(&both, None, PercentageBasisOf::MISSING),
+            12.0
+        );
+        assert_eq!(
+            resolved_calc_f32(&conflicting, None, PercentageBasisOf::MISSING),
+            20.0
+        );
+    }
+
+    #[test]
+    fn calc_size_calculation_nested_program_keeps_negative_finite_result() {
+        let minimum = CalcSizeCalculationOf::min(vec![calc_px_f32(-12.0), calc_px_f32(-8.0)])
+            .expect("nonempty min");
+        let preferred = CalcSizeCalculationOf::max(vec![calc_px_f32(-10.0), calc_px_f32(-6.0)])
+            .expect("nonempty max");
+        let nested =
+            CalcSizeCalculationOf::clamp(Some(minimum), preferred, Some(calc_px_f32(-7.0)));
+
+        assert_eq!(
+            resolved_calc_f32(&nested, None, PercentageBasisOf::MISSING),
+            -7.0
+        );
+    }
+
+    #[test]
+    fn calc_size_calculation_missing_size_is_syntactic_and_precedes_overflow() {
+        let dominated =
+            CalcSizeCalculationOf::min(vec![calc_px_f32(0.0), CalcSizeCalculationOf::size()])
+                .expect("nonempty min");
+        let canceling = CalcSizeCalculationOf::from_coefficients(10.0f32, 0.0, -1.0)
+            .expect("finite coefficients");
+        let overflowing = CalcSizeCalculationOf::from_coefficients(f32::MAX, f32::MAX, 1.0)
+            .expect("finite coefficients");
+        let nested = CalcSizeCalculationOf::clamp(
+            Some(calc_px_f32(0.0)),
+            CalcSizeCalculationOf::max(vec![dominated.clone(), canceling.clone()])
+                .expect("nonempty max"),
+            Some(calc_px_f32(20.0)),
+        );
+
+        for calculation in [dominated, canceling, nested, overflowing] {
+            let resolution = calculation.resolve_against(
+                None,
+                PercentageBasisOf::definite(f32::MAX).expect("finite percentage basis"),
+            );
+            assert_eq!(resolution.value, None);
+            assert_eq!(resolution.status(), LengthResolutionStatus::MissingBasis);
+        }
+    }
+
+    #[test]
+    fn calc_size_calculation_overflow_is_invalid_numeric_for_f32_and_f64() {
+        let f32_calculation = CalcSizeCalculationOf::from_coefficients(f32::MAX, 1.0, 0.0)
+            .expect("finite coefficients");
+        let f64_calculation = CalcSizeCalculationOf::from_coefficients(f64::MAX, 0.0, 1.0)
+            .expect("finite coefficients");
+
+        assert_eq!(
+            f32_calculation
+                .resolve_against(
+                    None,
+                    PercentageBasisOf::definite(f32::MAX).expect("finite percentage basis")
+                )
+                .status(),
+            LengthResolutionStatus::InvalidNumeric {
+                value: f32::INFINITY
+            }
+        );
+        assert_eq!(
+            f64_calculation
+                .resolve_against(Some(size_f64(f64::MAX)), PercentageBasisOf::MISSING)
+                .status(),
+            LengthResolutionStatus::InvalidNumeric {
+                value: f64::INFINITY
+            }
+        );
+    }
+
+    #[test]
+    fn calc_size_calculation_deep_nesting_evaluates_and_drops_iteratively() {
+        const DEPTH: usize = 100_000;
+
+        let mut calculation = calc_px_f32(3.0);
+        for depth in 0..DEPTH {
+            calculation = if depth % 2 == 0 {
+                CalcSizeCalculationOf::max(vec![calculation]).expect("nonempty max")
+            } else {
+                CalcSizeCalculationOf::clamp(None, calculation, None)
+            };
+        }
+
+        assert_eq!(
+            resolved_calc_f32(&calculation, None, PercentageBasisOf::MISSING),
+            3.0
+        );
+        drop(calculation);
     }
 
     #[test]
