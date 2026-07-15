@@ -80,6 +80,7 @@ mod node_input;
 mod output;
 mod scalar;
 mod scroll;
+mod sizing;
 mod traits;
 mod value;
 
