@@ -474,6 +474,7 @@ struct InheritedTextContext {
     line_height: LineHeightState,
     grid_lanes_text: bool,
     inline_level_text: bool,
+    containing_flow: Option<layout::FlowAxes>,
 }
 
 impl TestTree {
@@ -487,6 +488,7 @@ impl TestTree {
                 line_height: LineHeightState::Normal,
                 grid_lanes_text: false,
                 inline_level_text: false,
+                containing_flow: None,
             },
         )?;
         Ok(tree)
@@ -501,8 +503,11 @@ impl TestTree {
             None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
-        let layout_input = to_layout_input(&node.style)?;
+        let layout_input = to_layout_input_in_flow(&node.style, inherited.containing_flow)?;
         let box_display = layout_input.as_box().map(|input| input.display);
+        let containing_flow = layout_input
+            .as_box()
+            .map(|input| layout::FlowAxes::new(input.writing_mode, input.direction));
         let grid_lanes_text = inherited.grid_lanes_text
             || box_display.is_some_and(layout::Display::establishes_grid_lanes_formatting_context);
         let inline_level_text = inherited.inline_level_text
@@ -534,6 +539,7 @@ impl TestTree {
                         line_height,
                         grid_lanes_text,
                         inline_level_text,
+                        containing_flow,
                     },
                 )
             })
@@ -972,11 +978,20 @@ fn compare_optional_number(
 }
 
 fn to_layout_input(attrs: &StyleAttrs) -> Result<layout::LayoutInput, Error> {
+    to_layout_input_in_flow(attrs, None)
+}
+
+fn to_layout_input_in_flow(
+    attrs: &StyleAttrs,
+    containing_flow: Option<layout::FlowAxes>,
+) -> Result<layout::LayoutInput, Error> {
     let input = to_node_input(attrs)?;
     if attrs.get("source-tag") == Some("br") {
+        let flow = containing_flow
+            .unwrap_or_else(|| layout::FlowAxes::new(input.writing_mode, input.direction));
         let mut br = layout::LineBreakInput::new()
-            .with_direction(input.direction)
-            .with_writing_mode(input.writing_mode)
+            .with_direction(flow.direction())
+            .with_writing_mode(flow.writing_mode())
             .with_vertical_align(input.vertical_align)
             .with_clear(input.clear);
         if input.display == layout::Display::None {
@@ -2694,6 +2709,41 @@ mod tests {
         assert_eq!(input.writing_mode(), layout::WritingMode::VerticalRl);
         assert_eq!(input.vertical_align(), layout::VerticalAlign::Top);
         assert_eq!(input.clear(), layout::Clear::Both);
+    }
+
+    #[test]
+    fn source_tag_br_uses_containing_inline_flow_when_descendant_style_differs() {
+        let golden = Golden::parse(
+            r#"
+            <test name="br-containing-flow" use-rounding="true">
+                <viewport width="100px" height="100px" />
+                <input>
+                    <div direction="rtl" writing-mode="vertical-rl">
+                        <div source-tag="br" direction="ltr" writing-mode="horizontal-tb" />
+                    </div>
+                </input>
+                <expectations>
+                    <node x="0" y="0" width="0" height="0">
+                        <node x="0" y="0" width="0" height="0" />
+                    </node>
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("fixture should parse");
+
+        let tree = TestTree::from_golden(&golden.root).expect("test tree should build");
+        let layout::LayoutInput::LineBreak(input) = tree.nodes[1].layout_input else {
+            panic!("br should lower to line break");
+        };
+
+        assert_eq!(input.direction(), layout::Direction::Rtl);
+        assert_eq!(input.writing_mode(), layout::WritingMode::VerticalRl);
+        assert_eq!(golden.root.children[0].style.get("direction"), Some("ltr"));
+        assert_eq!(
+            golden.root.children[0].style.get("writing-mode"),
+            Some("horizontal-tb")
+        );
     }
 
     #[test]
