@@ -1,5 +1,5 @@
 # FRI-03-C04 Block And Root Participation
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-03-C04`
 Owning repository: `surgeist-layout`
 Cycle base: `c44e06fc0d5fb00ea744fb2ae3ac230d240f2e9b`
