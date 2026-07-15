@@ -1,5 +1,5 @@
 # FRI-03-C07 Grid-Lanes Participation
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-03-C07`
 Owning repository: `surgeist-layout`
 Cycle base: `574cb4526a1d92b5d94b656cafd90c0dc35fc107`
