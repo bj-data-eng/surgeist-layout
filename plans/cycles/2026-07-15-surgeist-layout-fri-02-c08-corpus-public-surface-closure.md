@@ -1,6 +1,6 @@
 # FRI-02-C08 Corpus, Public Surface, And Initiative Closure
 
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-02-C08`
 Owning repository: `surgeist-layout`
 Cycle base: `cf93e080593a5742d957db3c908eac7262f44f87`
