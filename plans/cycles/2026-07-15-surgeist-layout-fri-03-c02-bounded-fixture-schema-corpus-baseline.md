@@ -104,7 +104,10 @@ Outcome: add `flex/fri03_order_modified_flex`,
 children whose source-order values are `2, -1, 2, 0`. The final manifest has an
 empty scoped-report inventory. The README distinguishes optional diagnostics
 from final evidence. After source/test GREEN, run the Final Derivation exactly
-once; it writes all 5,268 XML and `all.json` and prunes scoped reports.
+once at the generator-process boundary; it writes all 5,268 XML and `all.json`
+and prunes scoped reports. Read-only executable preflight does not consume that
+one invocation. The generator's existing pinned-browser validation owns version
+normalization and exact manifest comparison; do not duplicate it in shell.
 RED: the four T4 focused tests below fail at 1,403 HTML, 5,256 XML, six reports,
 and missing source/output paths.
 Acceptance: 1,406 HTML (1,161 ordinary, 26 grid-lanes, 219 subgrid), 5,268 XML,
@@ -145,21 +148,14 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout layo
 
 ## Final Derivation
 Optional scoped diagnostics may occur before this gate and are not evidence.
-After T4 source/tests settle, execute this block once and only once.
+After T4 source/tests settle, confirm the resolved executable is present, then
+execute `generate-existing` once and only once. Count actual generator-process
+executions, not read-only preflight commands. The prior preflight stopped before
+`cargo run`, so the authorized full-generator invocation remains unused.
 
 ```sh
-/bin/bash <<'BASH'
-set -euo pipefail
-unset SURGEIST_BROWSER_PATH SURGEIST_BROWSER_CACHE SURGEIST_BROWSER_VERSION
-unset SURGEIST_LAYOUT_GENERATE_FILTER SURGEIST_LAYOUT_BROWSER_PARITY_ROOT
-browser=$(find target/surgeist-browser -type f -path '*/mac_arm-149.0.7827.115/*/Contents/MacOS/Google Chrome for Testing' -perm -111 -print)
-test "$(printf '%s\n' "$browser" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1
-test "$("$browser" --version)" = 'Google Chrome for Testing 149.0.7827.115'
-env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT \
-  CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH="$browser" \
-  cargo run --locked --offline -p surgeist-layout --features layout-golden-generate \
-  --bin surgeist-layout-generate -- generate-existing
-BASH
+test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
+env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
 ## Read-Only Audit
