@@ -922,11 +922,30 @@ fn validate_numeric_property<S: LayoutScalar>(
     Ok(if value == S::ZERO { S::ZERO } else { value })
 }
 
+/// A layout item's signed order value, independent of its source identity.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ItemOrder(i32);
+
+impl ItemOrder {
+    pub const ZERO: Self = Self(0);
+
+    #[must_use]
+    pub const fn new(value: i32) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> i32 {
+        self.0
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub display: Display,
     pub item_is_table: bool,
     pub item_is_replaced: bool,
+    pub item_order: ItemOrder,
     pub box_sizing: BoxSizing,
     pub direction: Direction,
     pub text_align: TextAlign,
@@ -977,6 +996,7 @@ impl NodeInputOf<DefaultScalar> {
         display: Display::Flex,
         item_is_table: false,
         item_is_replaced: false,
+        item_order: ItemOrder::ZERO,
         box_sizing: BoxSizing::BorderBox,
         direction: Direction::Ltr,
         text_align: TextAlign::Auto,
@@ -1030,6 +1050,7 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             display: Display::Flex,
             item_is_table: false,
             item_is_replaced: false,
+            item_order: ItemOrder::ZERO,
             box_sizing: BoxSizing::BorderBox,
             direction: Direction::Ltr,
             text_align: TextAlign::Auto,

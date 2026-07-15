@@ -110,7 +110,7 @@ pub use node_input::{
     AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexGrow,
     FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float, GridAutoFlow, GridFlowTolerance,
     GridFlowToleranceOf, GridPlacement, InlineBoundaryInput, InlineBoundaryInputOf,
-    InlineBoundaryKind, InlineMetrics, InlineMetricsError, InlineMetricsOf, LayoutInput,
+    InlineBoundaryKind, InlineMetrics, InlineMetricsError, InlineMetricsOf, ItemOrder, LayoutInput,
     LayoutInputOf, LineBreakDisplay, LineBreakInput, LineBreakInputOf, NodeInput, NodeInputOf,
     Overflow, Position, RawGridLine, RawGridPlacement, ScrollbarWidth, ScrollbarWidthOf, TextAlign,
     VerticalAlign, WritingMode,
@@ -122,7 +122,7 @@ pub use output::{
     LayoutCacheStoreEntryOf, LayoutOutputEntry, LayoutOutputEntryOf, LayoutRootContext,
     LayoutRootContextOf, LayoutRootRequest, LayoutRootRequestOf, LayoutRoundingMode, NodeOutput,
     NodeOutputOf, PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf,
-    RootAvailabilityError, RootAvailabilityErrorOf,
+    RootAvailabilityError, RootAvailabilityErrorOf, SourceIndex,
 };
 pub(crate) use output::{RequestedAxis, RunMode, SizingMode};
 /// Supported scalar contract for generic layout APIs.

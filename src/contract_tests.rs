@@ -82,6 +82,29 @@ fn node_input_and_output_support_f64_scalar_lane() {
 }
 
 #[test]
+fn public_order_source_types_and_defaults_are_exact() {
+    use crate::{ItemOrder, SourceIndex};
+
+    assert_eq!(ItemOrder::default(), ItemOrder::ZERO);
+    assert_eq!(NodeInput::DEFAULT.item_order, ItemOrder::ZERO);
+    assert_eq!(NodeInputOf::<f32>::default().item_order, ItemOrder::ZERO);
+    assert_eq!(NodeInputOf::<f64>::default().item_order, ItemOrder::ZERO);
+
+    let mut orders = [
+        ItemOrder::new(i32::MAX),
+        ItemOrder::new(0),
+        ItemOrder::new(i32::MIN),
+    ];
+    assert_eq!(orders.map(ItemOrder::get), [i32::MAX, 0, i32::MIN]);
+    orders.sort();
+    assert_eq!(orders.map(ItemOrder::get), [i32::MIN, 0, i32::MAX]);
+
+    assert_eq!(SourceIndex::ZERO.get(), 0);
+    assert_eq!(SourceIndex::new(7).get(), 7);
+    assert!(SourceIndex::new(2) < SourceIndex::new(7));
+}
+
+#[test]
 fn compute_output_defaults_to_no_scroll_geometry() {
     let output = ComputeOutput::from_outer_size(Size::new(10.0, 20.0));
 

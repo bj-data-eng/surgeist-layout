@@ -862,6 +862,24 @@ impl<S: LayoutScalar> ComputeOutputOf<S> {
     }
 }
 
+/// A node's zero-based source-sibling index, independent of item order.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct SourceIndex(usize);
+
+impl SourceIndex {
+    pub const ZERO: Self = Self(0);
+
+    #[must_use]
+    pub const fn new(value: usize) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {
     pub order: u32,
