@@ -169,7 +169,7 @@ This table describes clean published commit
 | `E-FLEX-REPLACED` | Flex automatic minimum always takes the larger content/transferred suggestion. | Use the smaller suggestion for replaced items and the larger for non-replaced items. |
 | `E-PARENT-CONTEXT` | `ComputeInputOf` carries containing flow axes but no parent formatting context; `CacheKeyOf` mirrors that omission. `FlexItemRootContextOf` carries only viewport availability, so `compute_flex_item_root` substitutes the item's own axes for its flex parent's axes. | Carry one closed context value through every constructor, recursive call, and cache key, and require the flex-item-root front door to supply its parent axes explicitly. |
 | `E-COLLAPSE` | Block constants and leaf collapse output decide eligibility only from the current node's style and run mode. | Flex/grid participation blocks collapse across the item boundary while preserving internal sibling collapse. |
-| `E-PARITY` | The four `block_align_baseline_child_margin_percent` variants expect nested-child `y=1`; the engine produces `y=0`. No checked-in XML can encode CSS order, and existing `root-context="flex-item"` XML carries no parent axes. | Make all four variants pass, add narrow exact-integer order capture/parser/fixtures, and make the existing flex-item viewport schema carry its actual parent axes without a fallback. |
+| `E-PARITY` | The four `block_align_baseline_child_margin_percent` variants expect nested-child `y=1`; the engine produces `y=0`. No checked-in XML can encode CSS order, existing `root-context="flex-item"` XML carries no parent axes, and fixture support reuses parent viewport availability as the root item's host allocation. | Make all four variants pass, add narrow exact-integer order capture/parser/fixtures, and make the existing flex-item viewport schema carry its actual parent axes and browser-observed host inline allocation without a fallback. |
 
 The current browser corpus has 5,256 generated cases, 356 unsupported cases,
 zero expected failures, and six reports (one full plus five retained FRI-02
@@ -318,6 +318,15 @@ cache identity. It does not derive containing flow from the root item's own
 writing mode. The root item's axes remain authoritative only when that box
 schedules its descendants. There is no one-argument compatibility constructor
 or implicit horizontal fallback.
+
+The public root request's `available` value remains distinct from
+`FlexItemRootContextOf::viewport_available()`. For a browser fixture whose root
+is already allocated as a flex item, `available` carries that host allocation:
+the parent inline physical axis is definite at the browser-observed item border
+box size and the other physical axis is max-content. The context retains the
+parent viewport dimensions for percentage bases. Reusing the viewport size as
+the host allocation incorrectly turns 400/60-unit parents into 400/60-unit
+items instead of the browser's max/min-content-clamped 160/80-unit items.
 
 A hidden node preserves the context supplied by the algorithm that encountered
 it, but hidden computation does not consult the role and gives that
@@ -489,28 +498,32 @@ The existing constrained-HTML pipeline changes only as follows:
    integer string with initial value zero;
 2. for an existing `.viewport` flex-item root, `parseViewportConstraint`
    captures `getComputedStyle(e.parentElement).writingMode` and `.direction` as
-   exact computed tokens alongside `rootContext: "flex-item"`;
+   exact computed tokens plus `hostInlineSize`, the root border-box width or
+   height selected by those parent axes, alongside `rootContext: "flex-item"`;
 3. the Rust serializer emits non-default `order="..."` attributes and emits
-   `parent-writing-mode="..."` plus `parent-direction="..."` on every
-   `root-context="flex-item"` viewport;
+   `parent-writing-mode="..."`, `parent-direction="..."`, and a finite
+   non-negative `host-inline-size="...px"` on every `root-context="flex-item"`
+   viewport;
 4. `support.rs` parses order directly into `ItemOrder` without a layout scalar,
-   and requires both parent-axis attributes for a flex-item viewport, using the
-   existing strict writing-mode/direction token domains to construct
-   `FlowAxes`;
-5. a root viewport omits both parent-axis attributes, while a flex-item viewport
-   with either attribute missing, invalid, or silently defaulted is a fixture
-   error; and
+   requires all three flex-item attributes, constructs `FlowAxes`, and builds
+   request availability with the parent inline physical axis definite at the
+   host inline size and the other axis max-content;
+5. a root viewport omits all three flex-item attributes, while a flex-item
+   viewport with any attribute missing, invalid, non-pixel, non-finite,
+   negative, or silently defaulted is a fixture error; and
 6. exactly three new active Surgeist HTML sources exercise flex, ordinary-grid,
    and grid-lanes order behavior; and
 7. a filtered ExistingPinned run accepts one normalized fixture path/prefix
    that matches at least one source, writes only matching XML, writes or prunes
    no generation report, and never substitutes for the final full run.
 
-This additional viewport metadata is a bounded parser/schema correction for a
-confirmed front-door bug: the 16 existing flex-item-root outputs cannot satisfy
-the public parent-context contract otherwise. It adds no source or output,
-changes no browser launch/import mechanism, and does not infer the parent axes
-from the item root.
+This additional viewport metadata is a bounded parser/schema correction for two
+confirmed front-door bugs: the 16 existing flex-item-root outputs cannot supply
+the public parent-context contract without parent axes, and cannot distinguish
+the root request's host allocation from viewport percentage context without the
+browser-observed host inline size. It adds no source or output, changes no
+browser launch/import mechanism, does not infer parent facts from the item root,
+and does not feed oracle expectations back into fixture input.
 
 The existing filter/report coupling is a confirmed generator workflow bug:
 diagnostic filtering currently requires a manifest report and therefore turns
@@ -546,11 +559,12 @@ The corpus retains exactly one generation report,
 retired from final evidence, and the final manifest has an empty scoped-report
 inventory. Scoped runs remain optional diagnostic tools while
 iterating, but are neither mandatory gates nor retained verification evidence.
-After the implementation and fixtures settle, exactly one successful full
-ExistingPinned run must produce all 5,268 XML outputs, write `all.json`, and
-prune every non-manifest scoped report. Manual report deletion and a second full
-regeneration are forbidden. The exact nonignored inventory test covers the 32
-owned outputs without requiring scoped evidence.
+After the final schema implementation and fixtures settle, exactly one
+successful full ExistingPinned run must produce all 5,268 XML outputs, write
+`all.json`, and prune every non-manifest scoped report. Manual report deletion
+and a repeated full regeneration of those same settled inputs are forbidden.
+The exact nonignored inventory test covers the 32 owned outputs without
+requiring scoped evidence.
 The full report contains exactly 5,268 generated and 356 unsupported cases,
 with every failure-class count zero. The unsupported tuple set remains
 byte-semantically identical to the published base, with normalized tuple SHA-256
@@ -561,12 +575,12 @@ outputs. Its HTML split is 26 grid-lanes, 219 subgrid, and 1,161 other sources.
 
 Changing the embedded helper changes its provenance hash. The crate-owned
 derived state therefore contains current helper provenance on all 5,268
-outputs, including the explicit parent-axis attributes on the 16 existing
-flex-item-root outputs. The full report carries the current helper and manifest
-hashes, and corpus validation checks its output set against the complete XML
-inventory. One full derivation followed by read-only checks proves the bounded
-parser/schema update; it is not authority to refactor the generator, change
-launch/runtime policy, import a corpus, or hand-edit XML.
+outputs, including the explicit parent-axis and host-inline-size attributes on
+the 16 existing flex-item-root outputs. The full report carries the current
+helper and manifest hashes, and corpus validation checks its output set against
+the complete XML inventory. One full derivation followed by read-only checks
+proves the bounded parser/schema update; it is not authority to refactor the
+generator, change launch/runtime policy, import a corpus, or hand-edit XML.
 
 Browser-derived evidence identifies the already-present pinned Chrome
 `149.0.7827.115`, the repository-relative cached executable, and the unchanged
@@ -595,9 +609,16 @@ The implementation supplies at least:
   out-of-range values, fractions, exponents, text, `+1`, leading zeros, `-0`,
   and surrounding whitespace;
 - helper/serializer/parser tests proving a flex-item viewport captures and
-  requires its actual parent computed writing-mode/direction tokens, a root
-  viewport omits them, missing/invalid/stray combinations fail closed, and an
-  inline non-square orthogonal case preserves parent/root axis disagreement;
+  requires its actual parent computed writing-mode/direction tokens and
+  browser-observed host inline size, a root viewport omits all three,
+  missing/invalid/stray combinations fail closed, and an inline non-square
+  orthogonal case selects the host height while preserving parent/root axis
+  disagreement;
+- request-lowering tests proving parent viewport availability remains the
+  percentage context while the definite host inline allocation is separate,
+  the other host axis is max-content, and the 400/80/60-unit fixtures produce
+  their browser-observed 160/80/80-unit item widths without reading expected
+  geometry as input;
 - generator tests proving a valid matched diagnostic filter writes matching XML
   without changing report files, invalid or unmatched filters fail before
   writes, and only a full run writes `all.json` and prunes scoped reports;
@@ -649,9 +670,9 @@ The implementation supplies at least:
 | `src/grid/lanes.rs` | Use the permutation for production placement and intrinsic contributions and reuse replaced-aware default alignment. |
 | `src/grid/subgrid.rs` and `src/inline.rs` | Rename source-index carriers without adopting CSS ordering. |
 | `src/lib.rs` and `README.md` | Reexport and explain the layout-ready order, source identity, replaced, and containing-context contracts. |
-| `tests/layout/browser_parity/scripts/gentest/test_helper.js` | Capture exact computed order and the actual computed axes of an existing flex-item viewport parent. |
-| `tests/bin/surgeist-layout-generate/generator.rs` | Serialize order and flex-parent axes, decouple diagnostic filters from report persistence, and preserve full-report provenance/pruning invariants. |
-| `tests/layout/browser_parity/support.rs` | Parse exact item order into `NodeInput` and require flex-item viewport parent axes for the public root request. |
+| `tests/layout/browser_parity/scripts/gentest/test_helper.js` | Capture exact computed order plus the actual computed axes and browser-observed allocated inline size of an existing flex-item viewport parent. |
+| `tests/bin/surgeist-layout-generate/generator.rs` | Serialize order, flex-parent axes, and host inline size; decouple diagnostic filters from report persistence; and preserve full-report provenance/pruning invariants. |
+| `tests/layout/browser_parity/support.rs` | Parse exact item order, require complete flex-item viewport metadata, and keep host request availability separate from viewport percentage context. |
 | `tests/layout/browser_parity.rs` | Own the exact 32-output inventory/topology gate and nonignored FRI-03 comparison. |
 | `tests/layout/browser_parity/README.md` | Document optional diagnostic scoped runs and one final full ExistingPinned regeneration followed by read-only verification, with no repeated full run. |
 | `tests/layout/browser_parity/html/` and `xml/` | Own the three generated order sources, the existing participation fixture, the 16 existing flex-item-root schema cases, and all derived XML. |
@@ -697,6 +718,9 @@ non-style box facts. This leaf does not guess either missing fact or edit root.
   its old one-argument signature is absent.
 - `item_is_replaced` retains its public field shape but gains specified
   behavior; callers already setting it observe corrected geometry.
+- Browser fixture flex-item roots require explicit host inline allocation in
+  addition to parent axes; public root request types and signatures do not
+  change.
 - Default item order zero and ordinary non-replaced/block-flow contexts preserve
   existing geometry except where `BLOCK-007` identifies illegal collapse.
 - `place_lanes`, `LaneItemOf`, traversal traits, root request shape, scalar
@@ -753,7 +777,8 @@ FRI-03 is complete only when:
    provenance, and corpus checks are green without claiming the aggregate parity
    test;
 8. no replaced fixture, unsupported bucket, XML hand edit, generator change
-   beyond the bounded diagnostic-report bug fix, software acquisition, root
-   edit, dependency, feature, MSRV change, or `unsafe` is present;
+   beyond the bounded metadata/schema and diagnostic-report bug fixes, software
+   acquisition, root edit, dependency, feature, MSRV change, or `unsafe` is
+   present;
 9. public docs, README, source, tests, manifest, reports, and root integration
    requirements agree.
