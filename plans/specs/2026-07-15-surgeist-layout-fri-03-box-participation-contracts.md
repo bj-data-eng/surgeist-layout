@@ -526,25 +526,17 @@ existing outputs from these four source IDs:
 The exact FRI-03 browser union is therefore 32 outputs: 12 order, four margin
 participation, and 16 flex-item-root parent-axis schema outputs.
 
-The four retained FRI-03 report filters and files are exactly:
-
-| Filter | Report file | Generated |
-| --- | --- | ---: |
-| `block/block_align_baseline_child_margin_percent` | `block_block_align_baseline_child_margin_percent.json` | 4 |
-| `flex/fri03_order_modified_flex` | `flex_fri03_order_modified_flex.json` | 4 |
-| `grid/fri03_order_modified_grid` | `grid_fri03_order_modified_grid.json` | 4 |
-| `grid-lanes/fri03_order_modified_lanes` | `grid-lanes_fri03_order_modified_lanes.json` | 4 |
-
-Each has no unsupported, expected-fail, quarantined, or failed-to-generate case.
-These four scopes cover the owned order/participation algorithm cases. The four
-pre-existing flex-item source IDs have no single exact shared filter, so their
-16-output schema set is covered by the exact nonignored inventory test and the
-full report rather than by broadening a scope or renaming fixtures.
-With the five retained FRI-02 scopes, the manifest contains ten reports total:
-one full report plus nine scopes. The full report contains exactly 5,268
-generated and 356 unsupported cases, with every failure-class count zero. The
-unsupported tuple set remains byte-semantically identical to the published
-base, with normalized tuple SHA-256
+The corpus retains exactly one generation report,
+`generation-reports/all.json`. Existing scoped report entries and files are
+retired so an HTML, parser, or fixture update requires one full ExistingPinned
+regeneration followed only by read-only verification. That one successful run
+must itself produce all 5,268 XML outputs, write `all.json`, and prune every
+non-manifest scoped report; manual report deletion and a second derivation run
+are forbidden. The exact nonignored inventory test covers the 32 owned outputs
+without additional browser runs.
+The full report contains exactly 5,268 generated and 356 unsupported cases,
+with every failure-class count zero. The unsupported tuple set remains
+byte-semantically identical to the published base, with normalized tuple SHA-256
 `c44aaae7f939ebc07341cb984ca3f040512ec4dd5462d75454b178a713492030`.
 
 The generated inventory contains exactly 1,406 HTML sources and 5,268 XML
@@ -553,10 +545,10 @@ outputs. Its HTML split is 26 grid-lanes, 219 subgrid, and 1,161 other sources.
 Changing the embedded helper changes its provenance hash. The crate-owned
 derived state therefore contains current helper provenance on all 5,268
 outputs, including the explicit parent-axis attributes on the 16 existing
-flex-item-root outputs. All ten reports carry the current helper and manifest
-hashes, repeated derivation is byte-idempotent, and corpus validation checks
-every manifest report. This mechanical refresh is a consequence of the bounded
-parser/schema updates; it is not authority to refactor the generator, change
+flex-item-root outputs. The full report carries the current helper and manifest
+hashes, and corpus validation checks its output set against the complete XML
+inventory. One full derivation followed by read-only checks proves the bounded
+parser/schema update; it is not authority to refactor the generator, change
 launch/runtime policy, import a corpus, or hand-edit XML.
 
 Browser-derived evidence identifies the already-present pinned Chrome
@@ -589,9 +581,9 @@ The implementation supplies at least:
   requires its actual parent computed writing-mode/direction tokens, a root
   viewport omits them, missing/invalid/stray combinations fail closed, and an
   inline non-square orthogonal case preserves parent/root axis disagreement;
-- stale-helper provenance coverage, an exact ten-report manifest inventory,
-  and proof that each new scoped report matches exactly four outputs from the
-  full report;
+- stale-helper provenance coverage and direct evidence that the one successful
+  full run writes the exact one-report inventory, prunes every scoped report,
+  and leaves full-report outputs exactly matching the XML inventory;
 - flex negative/equal/positive order tests, including reverse direction,
   wrapping, and unchanged source indexes in both scalar lanes;
 - ordinary-grid row/column and sparse/dense auto-placement tests with mixed
@@ -641,8 +633,9 @@ The implementation supplies at least:
 | `tests/bin/surgeist-layout-generate/generator.rs` | Serialize order plus the bounded flex-item viewport parent-axis attributes and preserve provenance/report invariants. |
 | `tests/layout/browser_parity/support.rs` | Parse exact item order into `NodeInput` and require flex-item viewport parent axes for the public root request. |
 | `tests/layout/browser_parity.rs` | Own the exact 32-output inventory/topology gate and nonignored FRI-03 comparison. |
+| `tests/layout/browser_parity/README.md` | Document one full ExistingPinned regeneration followed by read-only verification, with no scoped or repeated runs. |
 | `tests/layout/browser_parity/html/` and `xml/` | Own the three generated order sources, the existing participation fixture, the 16 existing flex-item-root schema cases, and all derived XML. |
-| `tests/layout/browser_parity/corpus.toml` | Record the three active sources and four exact FRI-03 scopes. |
+| `tests/layout/browser_parity/corpus.toml` | Record the three active sources and the single full generation report. |
 
 No new module, feature, dependency, build script, proc macro, code generator,
 or external crate is introduced.
@@ -695,7 +688,7 @@ non-style box facts. This leaf does not guess either missing fact or edit root.
 ## FRI-03.12 Initiative-Wide Evidence
 
 Geometry evidence covers both scalar lanes. The generator's focused tests,
-corpus validation, the four scoped FRI-03 reports, the full report, and
+corpus validation, the full report, exact owned-output inventory, and
 generated-tree cleanliness together prove that no order-sensitive algorithm,
 context constructor, cache component, replaced branch, old source-order name,
 hand-authored XML, or generator expansion escaped the bounded contracts above.
@@ -733,7 +726,7 @@ FRI-03 is complete only when:
    sibling block-margin collapse or duplicating logical-axis mapping;
 6. every FRI-03-owned replaced branch and paired non-replaced/explicit control
    passes in `f32` and `f64`;
-7. the exact nonignored 32-output FRI-03 browser union, four scoped reports,
+7. the exact nonignored 32-output FRI-03 browser union, single full
    5,268/356 generation report, unchanged unsupported tuples, complete generated
    provenance, and corpus checks are green without claiming the aggregate parity
    test;
