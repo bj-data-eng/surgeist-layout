@@ -4,9 +4,9 @@
 - Owning repository: `surgeist-layout`
 - Reviewed specification: `plans/specs/2026-07-15-surgeist-layout-fri-03-box-participation-contracts.md`
 - Specification SHA-256:
-  `6ca195b4ba560ae49bc6963176234f8494cfb50a91674f6dcec358d19fa9769c`
+  `f05c9520196957e949dfbc55442d93cf03bbcff4f9bd4da81c4e5afe9db54572`
 - Specification commit:
-  `52d87a75751f9987251ec2fdf8200e75eba3e17b`
+  `beb8c5ed20fc76fd5535fbda0b1eb4708c6a3fba`
 - Initiative index: `plans/specs/2026-07-11-surgeist-layout-findings-resolution-index.md`, `FRI-03`
 
 This sequence orders complete implementation of `MODEL-001`, `CORE-005`, and
@@ -20,12 +20,11 @@ outside mutation scope. Root integration is an archival handoff after the
 reviewed leaf candidate; no cycle edits a root adapter, facade, gitlink, or API
 artifact.
 
-No cycle expands generator architecture. `C02` is the sole producer change:
-exact order/flex-axis capture, three sources, bounded serializer/parser and
-diagnostic-filter/report fixes, and mechanical derived-artifact refresh.
-Later cycles only consume or verify that state. A
-confirmed genuine bug discovered later requires explicit replanning before any
-additional generator change.
+No cycle expands generator architecture. `C02` owns exact order/flex-axis
+capture, three sources, bounded serializer/parser and diagnostic-filter/report
+fixes, and its published derived baseline. `C08` alone corrects the later
+confirmed missing flex-host allocation schema input, then performs one final
+full derivation. All other later cycles only consume or verify generated state.
 
 Every cycle keeps item order separate from source identity, retains
 source-indexed output/storage, and adds no compatibility alias or fallback. No
@@ -57,8 +56,8 @@ executable under the canonical no-acquisition workflow.
 
 - Owner: `surgeist-layout`
 - Outcome: The producer emits exact item order and flex-item viewport parent
-  axes and report-free diagnostic filters; the three order sources, single full
-  report, generated inventory, and provenance are final before API changes.
+  axes and report-free diagnostic filters; three order sources, a single full
+  report, generated inventory, and provenance form the published baseline.
 - Specification: fixture/parser scope in `FRI-03.2`; `E-PARITY`; `FRI-03.8`;
   fixture paths in `FRI-03.9`; generator constraints in `FRI-03.11`;
   artifact portions of acceptance items 7 and 8.
@@ -71,7 +70,8 @@ executable under the canonical no-acquisition workflow.
   5,268 XML, 356 unchanged unsupported tuples, one full report, and current
   hashes/full-only docs; scopes are diagnostic only, and final evidence is one full offline ExistingPinned run plus read-only checks with no repeated full run.
 - Handoff: `C03` immediately makes flex-parent metadata mandatory at the
-  consumer/API boundary; `C04` through `C07` make generated expectations pass.
+  consumer/API boundary; `C04`-`C07` make expectations pass; `C08` may supersede
+  artifacts only for its confirmed missing host-allocation schema input.
 
 ## C03 - Complete Containing Context And Cache Identity
 
@@ -179,18 +179,18 @@ executable under the canonical no-acquisition workflow.
 ## C08 - Public Surface, Evidence, And Initiative Closure
 
 - Owner: `surgeist-layout`
-- Outcome: Public docs, exact browser topology, corpus metadata, source absence
-  gates, finding evidence, and root integration requirements describe only the
-  completed participation model.
+- Outcome: A bounded flex-host allocation schema correction makes the exact
+  browser union executable; public docs, corpus metadata, absence gates,
+  finding evidence, and root requirements describe the completed model.
 - Specification: `FRI-03.5`; `FRI-03.7`; `FRI-03.8`; `FRI-03.9` through
   `FRI-03.12`; closure matrix `FRI-03.13`; and all acceptance items in
   `FRI-03.14`.
 - Prerequisites: `C01` through `C07`; `C05` and `C06` may complete in either order after `C04`.
-- Entry state: Every owned production branch is implemented, but
-  initiative-wide topology, absence, documentation, report, and handoff evidence
-  is not yet sealed as one candidate.
-- Exit evidence: Exact 32-output inventory, single full 5,268/356 report,
-  provenance, generated-tree cleanliness, public API/docs, source
+- Entry state: Production branches are complete, but 16 flex-item-root fixtures
+  cannot separate host inline allocation from viewport percentage context, and
+  initiative-wide closure evidence is not sealed.
+- Exit evidence: Strict host-allocation metadata, exact 32-output comparison,
+  one final full 5,268/356 report, provenance, public API/docs, source
   absence gates, focused/full/generator/corpus/doc/rustdoc/format/diff checks,
   and unsafe scan are green while unrelated ignored aggregate parity remains
   visible and unclaimed.
