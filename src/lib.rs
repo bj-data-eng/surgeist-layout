@@ -156,6 +156,13 @@ pub use scroll::{
     ScrollGeometryOf, ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRect,
     ScrollRectOf, ScrollUnsupportedFeature, ScrollbarGutterRects, ScrollbarGutterRectsOf,
 };
+pub use sizing::{
+    CalcSizeCalculation, CalcSizeCalculationErrorOf, CalcSizeCalculationOf,
+    CalcSizeConstructionError, FlexBasis, FlexBasisCalcBasis, FlexBasisOf, MaxSize,
+    MaxSizeCalcBasis, MaxSizeOf, MinSize, MinSizeCalcBasis, MinSizeOf, PreferredSize,
+    PreferredSizeCalcBasis, PreferredSizeOf, SizingCalculation, SizingCalculationError,
+    SizingCalculationOf,
+};
 #[cfg(test)]
 pub(crate) use traits::compute_cached;
 pub(crate) use traits::{CacheAccess, Compute, Round};

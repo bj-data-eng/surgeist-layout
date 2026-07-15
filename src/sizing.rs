@@ -1,14 +1,6 @@
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "FRI-04 C01 intentionally stages this private sizing substrate until C02 wires it"
-    )
-)]
-
 use crate::{
-    FiniteScalarErrorOf, LayoutScalar, LengthPercentageOf, LengthResolutionOf, NonNegativeFiniteOf,
-    NumericResolutionOf, PercentageBasisOf,
+    DefaultScalar, FiniteScalarErrorOf, LayoutScalar, LengthPercentageOf, LengthResolutionOf,
+    NonNegativeFiniteOf, NumericResolutionOf, PercentageBasisOf,
 };
 use core::num::NonZeroUsize;
 
@@ -28,10 +20,6 @@ impl core::fmt::Display for SizingCalculationError {
 impl std::error::Error for SizingCalculationError {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[expect(
-    clippy::enum_variant_names,
-    reason = "FRI-04 requires these exact coefficient-owned error names before C02 publicly reexports the type"
-)]
 pub enum CalcSizeCalculationErrorOf<S: LayoutScalar> {
     InvalidAbsolutePx(FiniteScalarErrorOf<S>),
     InvalidPercentFraction(FiniteScalarErrorOf<S>),
@@ -92,6 +80,730 @@ pub struct CalcSizeCalculationOf<S: LayoutScalar> {
     depends_on_size: bool,
 }
 
+pub type SizingCalculation = SizingCalculationOf<DefaultScalar>;
+pub type CalcSizeCalculation = CalcSizeCalculationOf<DefaultScalar>;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum CalcSizeConstructionError {
+    SizeReferenceWithAnyBasis,
+}
+
+impl core::fmt::Display for CalcSizeConstructionError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::SizeReferenceWithAnyBasis => {
+                f.write_str("an Any calc-size basis cannot be combined with a size reference")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CalcSizeConstructionError {}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum PreferredSizeCalcBasis {
+    Any,
+    FullPercentage,
+    Auto,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum MinSizeCalcBasis {
+    Any,
+    FullPercentage,
+    Auto,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum MaxSizeCalcBasis {
+    Any,
+    FullPercentage,
+    None,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum FlexBasisCalcBasis {
+    Any,
+    FullPercentage,
+    Auto,
+    Content,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum PreferredSizeValue<S: LayoutScalar> {
+    Zero,
+    Calculation(SizingCalculationOf<S>),
+    Auto,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(SizingCalculationOf<S>),
+    CalcSize(PreferredSizeCalcBasis, CalcSizeCalculationOf<S>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum MinSizeValue<S: LayoutScalar> {
+    Zero,
+    Calculation(SizingCalculationOf<S>),
+    Auto,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(SizingCalculationOf<S>),
+    CalcSize(MinSizeCalcBasis, CalcSizeCalculationOf<S>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum MaxSizeValue<S: LayoutScalar> {
+    Zero,
+    Calculation(SizingCalculationOf<S>),
+    None,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(SizingCalculationOf<S>),
+    CalcSize(MaxSizeCalcBasis, CalcSizeCalculationOf<S>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum FlexBasisValue<S: LayoutScalar> {
+    Zero,
+    Calculation(SizingCalculationOf<S>),
+    Auto,
+    Content,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(SizingCalculationOf<S>),
+    CalcSize(FlexBasisCalcBasis, CalcSizeCalculationOf<S>),
+}
+
+/// A closed preferred-size value.
+///
+/// ```compile_fail
+/// use surgeist_layout::PreferredSize;
+/// let _ = PreferredSize::fr(1.0);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::PreferredSize;
+/// let _ = PreferredSize::CONTENT;
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::PreferredSize;
+/// fn requires_copy<T: Copy>() {}
+/// requires_copy::<PreferredSize>();
+/// ```
+///
+/// ```
+/// use surgeist_layout::{
+///     CalcSizeCalculation, FlexBasis, MaxSize, MinSize, PreferredSize,
+///     SizingCalculation,
+/// };
+///
+/// let _preferred = PreferredSize::AUTO;
+/// let _minimum = MinSize::ZERO;
+/// let _maximum = MaxSize::NONE;
+/// let _flex_basis = FlexBasis::CONTENT;
+/// let _calculation: SizingCalculation = SizingCalculation::value(
+///     surgeist_layout::LengthPercentageOf::ZERO,
+/// );
+/// let _calc_size = CalcSizeCalculation::size();
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct PreferredSizeOf<S: LayoutScalar = DefaultScalar> {
+    value: PreferredSizeValue<S>,
+}
+
+/// A closed minimum-size value.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MinSizeOf<S: LayoutScalar = DefaultScalar> {
+    value: MinSizeValue<S>,
+}
+
+/// A closed maximum-size value.
+///
+/// ```compile_fail
+/// use surgeist_layout::MaxSize;
+/// let _ = MaxSize::AUTO;
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct MaxSizeOf<S: LayoutScalar = DefaultScalar> {
+    value: MaxSizeValue<S>,
+}
+
+/// A closed flex-basis value.
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlexBasis, PreferredSize};
+/// let _: PreferredSize = FlexBasis::AUTO.into();
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::FlexBasis;
+/// let _ = FlexBasis::fr(1.0);
+/// ```
+#[derive(Clone, Debug, PartialEq)]
+pub struct FlexBasisOf<S: LayoutScalar = DefaultScalar> {
+    value: FlexBasisValue<S>,
+}
+
+pub type PreferredSize = PreferredSizeOf<DefaultScalar>;
+pub type MinSize = MinSizeOf<DefaultScalar>;
+pub type MaxSize = MaxSizeOf<DefaultScalar>;
+pub type FlexBasis = FlexBasisOf<DefaultScalar>;
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PreferredSizeView<'a, S: LayoutScalar> {
+    Zero,
+    Calculation(&'a SizingCalculationOf<S>),
+    Auto,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(&'a SizingCalculationOf<S>),
+    CalcSize(PreferredSizeCalcBasis, &'a CalcSizeCalculationOf<S>),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MinSizeView<'a, S: LayoutScalar> {
+    Zero,
+    Calculation(&'a SizingCalculationOf<S>),
+    Auto,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(&'a SizingCalculationOf<S>),
+    CalcSize(MinSizeCalcBasis, &'a CalcSizeCalculationOf<S>),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MaxSizeView<'a, S: LayoutScalar> {
+    Zero,
+    Calculation(&'a SizingCalculationOf<S>),
+    None,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(&'a SizingCalculationOf<S>),
+    CalcSize(MaxSizeCalcBasis, &'a CalcSizeCalculationOf<S>),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum FlexBasisView<'a, S: LayoutScalar> {
+    Zero,
+    Calculation(&'a SizingCalculationOf<S>),
+    Auto,
+    Content,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+    FitContentFunction(&'a SizingCalculationOf<S>),
+    CalcSize(FlexBasisCalcBasis, &'a CalcSizeCalculationOf<S>),
+}
+
+impl<S: LayoutScalar> PreferredSizeOf<S> {
+    pub const AUTO: Self = Self::new(PreferredSizeValue::Auto);
+    pub const MIN_CONTENT: Self = Self::new(PreferredSizeValue::MinContent);
+    pub const MAX_CONTENT: Self = Self::new(PreferredSizeValue::MaxContent);
+    pub const STRETCH: Self = Self::new(PreferredSizeValue::Stretch);
+    pub const FIT_CONTENT: Self = Self::new(PreferredSizeValue::FitContent);
+    pub const CONTAIN: Self = Self::new(PreferredSizeValue::Contain);
+
+    const fn new(value: PreferredSizeValue<S>) -> Self {
+        Self { value }
+    }
+
+    #[must_use]
+    pub fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::calculation(SizingCalculationOf::value(value))
+    }
+
+    #[must_use]
+    pub fn calculation(calculation: SizingCalculationOf<S>) -> Self {
+        if calculation.is_zero_value() {
+            Self::new(PreferredSizeValue::Zero)
+        } else {
+            Self::new(PreferredSizeValue::Calculation(calculation))
+        }
+    }
+
+    #[must_use]
+    pub fn fit_content_function(calculation: SizingCalculationOf<S>) -> Self {
+        Self::new(PreferredSizeValue::FitContentFunction(calculation))
+    }
+
+    pub fn calc_size(
+        basis: PreferredSizeCalcBasis,
+        calculation: CalcSizeCalculationOf<S>,
+    ) -> Result<Self, CalcSizeConstructionError> {
+        reject_any_size_reference(basis == PreferredSizeCalcBasis::Any, &calculation)?;
+        Ok(Self::new(PreferredSizeValue::CalcSize(basis, calculation)))
+    }
+
+    #[must_use]
+    pub const fn is_auto(&self) -> bool {
+        matches!(self.view(), PreferredSizeView::Auto)
+    }
+
+    #[must_use]
+    pub const fn is_min_content(&self) -> bool {
+        matches!(self.view(), PreferredSizeView::MinContent)
+    }
+
+    #[must_use]
+    pub const fn is_max_content(&self) -> bool {
+        matches!(self.view(), PreferredSizeView::MaxContent)
+    }
+
+    #[must_use]
+    pub fn is_calculation(&self) -> bool {
+        match self.view() {
+            PreferredSizeView::Zero => true,
+            PreferredSizeView::Calculation(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_fit_content_function(&self) -> bool {
+        match self.view() {
+            PreferredSizeView::FitContentFunction(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_calc_size(&self) -> bool {
+        match self.view() {
+            PreferredSizeView::CalcSize(basis, value) => {
+                let _ = (basis, value);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) const fn view(&self) -> PreferredSizeView<'_, S> {
+        match &self.value {
+            PreferredSizeValue::Zero => PreferredSizeView::Zero,
+            PreferredSizeValue::Calculation(value) => PreferredSizeView::Calculation(value),
+            PreferredSizeValue::Auto => PreferredSizeView::Auto,
+            PreferredSizeValue::MinContent => PreferredSizeView::MinContent,
+            PreferredSizeValue::MaxContent => PreferredSizeView::MaxContent,
+            PreferredSizeValue::Stretch => PreferredSizeView::Stretch,
+            PreferredSizeValue::FitContent => PreferredSizeView::FitContent,
+            PreferredSizeValue::Contain => PreferredSizeView::Contain,
+            PreferredSizeValue::FitContentFunction(value) => {
+                PreferredSizeView::FitContentFunction(value)
+            }
+            PreferredSizeValue::CalcSize(basis, value) => {
+                PreferredSizeView::CalcSize(*basis, value)
+            }
+        }
+    }
+}
+
+impl<S: LayoutScalar> Default for PreferredSizeOf<S> {
+    fn default() -> Self {
+        Self::AUTO
+    }
+}
+
+impl<S: LayoutScalar> MinSizeOf<S> {
+    pub const ZERO: Self = Self::new(MinSizeValue::Zero);
+    pub const AUTO: Self = Self::new(MinSizeValue::Auto);
+    pub const MIN_CONTENT: Self = Self::new(MinSizeValue::MinContent);
+    pub const MAX_CONTENT: Self = Self::new(MinSizeValue::MaxContent);
+    pub const STRETCH: Self = Self::new(MinSizeValue::Stretch);
+    pub const FIT_CONTENT: Self = Self::new(MinSizeValue::FitContent);
+    pub const CONTAIN: Self = Self::new(MinSizeValue::Contain);
+
+    const fn new(value: MinSizeValue<S>) -> Self {
+        Self { value }
+    }
+
+    #[must_use]
+    pub fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::calculation(SizingCalculationOf::value(value))
+    }
+
+    #[must_use]
+    pub fn calculation(calculation: SizingCalculationOf<S>) -> Self {
+        if calculation.is_zero_value() {
+            Self::ZERO
+        } else {
+            Self::new(MinSizeValue::Calculation(calculation))
+        }
+    }
+
+    #[must_use]
+    pub fn fit_content_function(calculation: SizingCalculationOf<S>) -> Self {
+        Self::new(MinSizeValue::FitContentFunction(calculation))
+    }
+
+    pub fn calc_size(
+        basis: MinSizeCalcBasis,
+        calculation: CalcSizeCalculationOf<S>,
+    ) -> Result<Self, CalcSizeConstructionError> {
+        reject_any_size_reference(basis == MinSizeCalcBasis::Any, &calculation)?;
+        Ok(Self::new(MinSizeValue::CalcSize(basis, calculation)))
+    }
+
+    #[must_use]
+    pub const fn is_auto(&self) -> bool {
+        matches!(self.view(), MinSizeView::Auto)
+    }
+
+    #[must_use]
+    pub const fn is_min_content(&self) -> bool {
+        matches!(self.view(), MinSizeView::MinContent)
+    }
+
+    #[must_use]
+    pub const fn is_max_content(&self) -> bool {
+        matches!(self.view(), MinSizeView::MaxContent)
+    }
+
+    #[must_use]
+    pub fn is_calculation(&self) -> bool {
+        match self.view() {
+            MinSizeView::Zero => true,
+            MinSizeView::Calculation(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_fit_content_function(&self) -> bool {
+        match self.view() {
+            MinSizeView::FitContentFunction(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_calc_size(&self) -> bool {
+        match self.view() {
+            MinSizeView::CalcSize(basis, value) => {
+                let _ = (basis, value);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) const fn view(&self) -> MinSizeView<'_, S> {
+        match &self.value {
+            MinSizeValue::Zero => MinSizeView::Zero,
+            MinSizeValue::Calculation(value) => MinSizeView::Calculation(value),
+            MinSizeValue::Auto => MinSizeView::Auto,
+            MinSizeValue::MinContent => MinSizeView::MinContent,
+            MinSizeValue::MaxContent => MinSizeView::MaxContent,
+            MinSizeValue::Stretch => MinSizeView::Stretch,
+            MinSizeValue::FitContent => MinSizeView::FitContent,
+            MinSizeValue::Contain => MinSizeView::Contain,
+            MinSizeValue::FitContentFunction(value) => MinSizeView::FitContentFunction(value),
+            MinSizeValue::CalcSize(basis, value) => MinSizeView::CalcSize(*basis, value),
+        }
+    }
+}
+
+impl<S: LayoutScalar> Default for MinSizeOf<S> {
+    fn default() -> Self {
+        Self::AUTO
+    }
+}
+
+impl<S: LayoutScalar> MaxSizeOf<S> {
+    pub const ZERO: Self = Self::new(MaxSizeValue::Zero);
+    pub const NONE: Self = Self::new(MaxSizeValue::None);
+    pub const MIN_CONTENT: Self = Self::new(MaxSizeValue::MinContent);
+    pub const MAX_CONTENT: Self = Self::new(MaxSizeValue::MaxContent);
+    pub const STRETCH: Self = Self::new(MaxSizeValue::Stretch);
+    pub const FIT_CONTENT: Self = Self::new(MaxSizeValue::FitContent);
+    pub const CONTAIN: Self = Self::new(MaxSizeValue::Contain);
+
+    const fn new(value: MaxSizeValue<S>) -> Self {
+        Self { value }
+    }
+
+    #[must_use]
+    pub fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::calculation(SizingCalculationOf::value(value))
+    }
+
+    #[must_use]
+    pub fn calculation(calculation: SizingCalculationOf<S>) -> Self {
+        if calculation.is_zero_value() {
+            Self::ZERO
+        } else {
+            Self::new(MaxSizeValue::Calculation(calculation))
+        }
+    }
+
+    #[must_use]
+    pub fn fit_content_function(calculation: SizingCalculationOf<S>) -> Self {
+        Self::new(MaxSizeValue::FitContentFunction(calculation))
+    }
+
+    pub fn calc_size(
+        basis: MaxSizeCalcBasis,
+        calculation: CalcSizeCalculationOf<S>,
+    ) -> Result<Self, CalcSizeConstructionError> {
+        reject_any_size_reference(basis == MaxSizeCalcBasis::Any, &calculation)?;
+        Ok(Self::new(MaxSizeValue::CalcSize(basis, calculation)))
+    }
+
+    #[must_use]
+    pub const fn is_none(&self) -> bool {
+        matches!(self.view(), MaxSizeView::None)
+    }
+
+    #[must_use]
+    pub const fn is_min_content(&self) -> bool {
+        matches!(self.view(), MaxSizeView::MinContent)
+    }
+
+    #[must_use]
+    pub const fn is_max_content(&self) -> bool {
+        matches!(self.view(), MaxSizeView::MaxContent)
+    }
+
+    #[must_use]
+    pub fn is_calculation(&self) -> bool {
+        match self.view() {
+            MaxSizeView::Zero => true,
+            MaxSizeView::Calculation(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_fit_content_function(&self) -> bool {
+        match self.view() {
+            MaxSizeView::FitContentFunction(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_calc_size(&self) -> bool {
+        match self.view() {
+            MaxSizeView::CalcSize(basis, value) => {
+                let _ = (basis, value);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) const fn view(&self) -> MaxSizeView<'_, S> {
+        match &self.value {
+            MaxSizeValue::Zero => MaxSizeView::Zero,
+            MaxSizeValue::Calculation(value) => MaxSizeView::Calculation(value),
+            MaxSizeValue::None => MaxSizeView::None,
+            MaxSizeValue::MinContent => MaxSizeView::MinContent,
+            MaxSizeValue::MaxContent => MaxSizeView::MaxContent,
+            MaxSizeValue::Stretch => MaxSizeView::Stretch,
+            MaxSizeValue::FitContent => MaxSizeView::FitContent,
+            MaxSizeValue::Contain => MaxSizeView::Contain,
+            MaxSizeValue::FitContentFunction(value) => MaxSizeView::FitContentFunction(value),
+            MaxSizeValue::CalcSize(basis, value) => MaxSizeView::CalcSize(*basis, value),
+        }
+    }
+}
+
+impl<S: LayoutScalar> Default for MaxSizeOf<S> {
+    fn default() -> Self {
+        Self::NONE
+    }
+}
+
+impl<S: LayoutScalar> FlexBasisOf<S> {
+    pub const ZERO: Self = Self::new(FlexBasisValue::Zero);
+    pub const AUTO: Self = Self::new(FlexBasisValue::Auto);
+    pub const CONTENT: Self = Self::new(FlexBasisValue::Content);
+    pub const MIN_CONTENT: Self = Self::new(FlexBasisValue::MinContent);
+    pub const MAX_CONTENT: Self = Self::new(FlexBasisValue::MaxContent);
+    pub const STRETCH: Self = Self::new(FlexBasisValue::Stretch);
+    pub const FIT_CONTENT: Self = Self::new(FlexBasisValue::FitContent);
+    pub const CONTAIN: Self = Self::new(FlexBasisValue::Contain);
+
+    const fn new(value: FlexBasisValue<S>) -> Self {
+        Self { value }
+    }
+
+    #[must_use]
+    pub fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::calculation(SizingCalculationOf::value(value))
+    }
+
+    #[must_use]
+    pub fn calculation(calculation: SizingCalculationOf<S>) -> Self {
+        if calculation.is_zero_value() {
+            Self::ZERO
+        } else {
+            Self::new(FlexBasisValue::Calculation(calculation))
+        }
+    }
+
+    #[must_use]
+    pub fn fit_content_function(calculation: SizingCalculationOf<S>) -> Self {
+        Self::new(FlexBasisValue::FitContentFunction(calculation))
+    }
+
+    pub fn calc_size(
+        basis: FlexBasisCalcBasis,
+        calculation: CalcSizeCalculationOf<S>,
+    ) -> Result<Self, CalcSizeConstructionError> {
+        reject_any_size_reference(basis == FlexBasisCalcBasis::Any, &calculation)?;
+        Ok(Self::new(FlexBasisValue::CalcSize(basis, calculation)))
+    }
+
+    #[must_use]
+    pub const fn is_auto(&self) -> bool {
+        matches!(self.view(), FlexBasisView::Auto)
+    }
+
+    #[must_use]
+    pub const fn is_content(&self) -> bool {
+        matches!(self.view(), FlexBasisView::Content)
+    }
+
+    #[must_use]
+    pub const fn is_min_content(&self) -> bool {
+        matches!(self.view(), FlexBasisView::MinContent)
+    }
+
+    #[must_use]
+    pub const fn is_max_content(&self) -> bool {
+        matches!(self.view(), FlexBasisView::MaxContent)
+    }
+
+    #[must_use]
+    pub fn is_calculation(&self) -> bool {
+        match self.view() {
+            FlexBasisView::Zero => true,
+            FlexBasisView::Calculation(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_fit_content_function(&self) -> bool {
+        match self.view() {
+            FlexBasisView::FitContentFunction(value) => {
+                let _ = value;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    pub fn is_calc_size(&self) -> bool {
+        match self.view() {
+            FlexBasisView::CalcSize(basis, value) => {
+                let _ = (basis, value);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) const fn view(&self) -> FlexBasisView<'_, S> {
+        match &self.value {
+            FlexBasisValue::Zero => FlexBasisView::Zero,
+            FlexBasisValue::Calculation(value) => FlexBasisView::Calculation(value),
+            FlexBasisValue::Auto => FlexBasisView::Auto,
+            FlexBasisValue::Content => FlexBasisView::Content,
+            FlexBasisValue::MinContent => FlexBasisView::MinContent,
+            FlexBasisValue::MaxContent => FlexBasisView::MaxContent,
+            FlexBasisValue::Stretch => FlexBasisView::Stretch,
+            FlexBasisValue::FitContent => FlexBasisView::FitContent,
+            FlexBasisValue::Contain => FlexBasisView::Contain,
+            FlexBasisValue::FitContentFunction(value) => FlexBasisView::FitContentFunction(value),
+            FlexBasisValue::CalcSize(basis, value) => FlexBasisView::CalcSize(*basis, value),
+        }
+    }
+}
+
+impl<S: LayoutScalar> Default for FlexBasisOf<S> {
+    fn default() -> Self {
+        Self::AUTO
+    }
+}
+
+fn reject_any_size_reference<S: LayoutScalar>(
+    basis_is_any: bool,
+    calculation: &CalcSizeCalculationOf<S>,
+) -> Result<(), CalcSizeConstructionError> {
+    if basis_is_any && calculation.depends_on_size() {
+        Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+    } else {
+        Ok(())
+    }
+}
+
 impl<S: LayoutScalar> SizingCalculationOf<S> {
     #[must_use]
     pub fn value(value: LengthPercentageOf<S>) -> Self {
@@ -142,6 +854,14 @@ impl<S: LayoutScalar> SizingCalculationOf<S> {
     #[must_use]
     pub const fn depends_on_basis(&self) -> bool {
         self.depends_on_basis
+    }
+
+    fn is_zero_value(&self) -> bool {
+        matches!(
+            self.instructions.as_slice(),
+            [Instruction::Value(value)]
+                if value.absolute_px() == S::ZERO && value.percent_fraction() == S::ZERO
+        )
     }
 
     #[must_use]
@@ -459,12 +1179,14 @@ fn pop_value<S>(values: &mut Vec<S>) -> S {
 #[cfg(test)]
 mod tests {
     use super::{
-        CalcSizeCalculationErrorOf, CalcSizeCalculationOf, SizingCalculationError,
-        SizingCalculationOf,
+        CalcSizeCalculationErrorOf, CalcSizeCalculationOf, CalcSizeConstructionError,
+        FlexBasisCalcBasis, FlexBasisOf, FlexBasisView, MaxSizeCalcBasis, MaxSizeOf, MaxSizeView,
+        MinSizeCalcBasis, MinSizeOf, MinSizeView, PreferredSizeCalcBasis, PreferredSizeOf,
+        PreferredSizeView, SizingCalculationError, SizingCalculationOf,
     };
     use crate::{
-        FiniteScalarErrorOf, LengthPercentageOf, LengthResolutionStatus, NonNegativeFiniteOf,
-        PercentageBasisOf,
+        FiniteScalarErrorOf, LayoutScalar, LengthPercentageOf, LengthResolutionStatus,
+        NonNegativeFiniteOf, PercentageBasisOf,
     };
 
     fn px_f32(value: f32) -> SizingCalculationOf<f32> {
@@ -507,6 +1229,328 @@ mod tests {
             .resolve_against(basis_size, percentage_basis)
             .value
             .expect("resolved calc-size calculation")
+    }
+
+    fn assert_property_sizing_lane<S: LayoutScalar>() {
+        assert_eq!(PreferredSizeOf::<S>::default(), PreferredSizeOf::AUTO);
+        assert_eq!(MinSizeOf::<S>::default(), MinSizeOf::AUTO);
+        assert_eq!(MaxSizeOf::<S>::default(), MaxSizeOf::NONE);
+        assert_eq!(FlexBasisOf::<S>::default(), FlexBasisOf::AUTO);
+        assert_eq!(
+            [
+                PreferredSizeOf::<S>::AUTO,
+                PreferredSizeOf::MIN_CONTENT,
+                PreferredSizeOf::MAX_CONTENT,
+                PreferredSizeOf::STRETCH,
+                PreferredSizeOf::FIT_CONTENT,
+                PreferredSizeOf::CONTAIN,
+            ]
+            .len(),
+            6
+        );
+        assert_eq!(
+            [
+                MinSizeOf::<S>::AUTO,
+                MinSizeOf::MIN_CONTENT,
+                MinSizeOf::MAX_CONTENT,
+                MinSizeOf::STRETCH,
+                MinSizeOf::FIT_CONTENT,
+                MinSizeOf::CONTAIN,
+                MinSizeOf::ZERO,
+            ]
+            .len(),
+            7
+        );
+        assert_eq!(
+            [
+                MaxSizeOf::<S>::NONE,
+                MaxSizeOf::MIN_CONTENT,
+                MaxSizeOf::MAX_CONTENT,
+                MaxSizeOf::STRETCH,
+                MaxSizeOf::FIT_CONTENT,
+                MaxSizeOf::CONTAIN,
+                MaxSizeOf::ZERO,
+            ]
+            .len(),
+            7
+        );
+        assert_eq!(
+            [
+                FlexBasisOf::<S>::AUTO,
+                FlexBasisOf::CONTENT,
+                FlexBasisOf::MIN_CONTENT,
+                FlexBasisOf::MAX_CONTENT,
+                FlexBasisOf::STRETCH,
+                FlexBasisOf::FIT_CONTENT,
+                FlexBasisOf::CONTAIN,
+                FlexBasisOf::ZERO,
+            ]
+            .len(),
+            8
+        );
+
+        let value = LengthPercentageOf::px(S::ONE).expect("finite px");
+        let calculation = SizingCalculationOf::value(value);
+        for property in [
+            PreferredSizeOf::<S>::value(value),
+            PreferredSizeOf::calculation(calculation.clone()),
+            PreferredSizeOf::fit_content_function(calculation.clone()),
+        ] {
+            assert!(!format!("{property:?}").is_empty());
+            assert_eq!(property, property.clone());
+        }
+        assert_eq!(
+            MinSizeOf::<S>::value(value),
+            MinSizeOf::calculation(calculation.clone())
+        );
+        assert_eq!(
+            MaxSizeOf::<S>::value(value),
+            MaxSizeOf::calculation(calculation.clone())
+        );
+        assert_eq!(
+            FlexBasisOf::<S>::value(value),
+            FlexBasisOf::calculation(calculation.clone())
+        );
+        assert!(MinSizeOf::fit_content_function(calculation.clone()).is_fit_content_function());
+        assert!(MaxSizeOf::fit_content_function(calculation.clone()).is_fit_content_function());
+        assert!(FlexBasisOf::fit_content_function(calculation).is_fit_content_function());
+
+        let dependent = CalcSizeCalculationOf::<S>::size();
+        let independent = CalcSizeCalculationOf::value(LengthPercentageOf::<S>::ZERO);
+        for basis in [
+            PreferredSizeCalcBasis::FullPercentage,
+            PreferredSizeCalcBasis::Auto,
+            PreferredSizeCalcBasis::MinContent,
+            PreferredSizeCalcBasis::MaxContent,
+            PreferredSizeCalcBasis::Stretch,
+            PreferredSizeCalcBasis::FitContent,
+            PreferredSizeCalcBasis::Contain,
+        ] {
+            assert!(PreferredSizeOf::calc_size(basis, dependent.clone()).is_ok());
+        }
+        assert!(
+            PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, independent.clone()).is_ok()
+        );
+        assert_eq!(
+            PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, dependent.clone()),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+
+        for basis in [
+            MinSizeCalcBasis::FullPercentage,
+            MinSizeCalcBasis::Auto,
+            MinSizeCalcBasis::MinContent,
+            MinSizeCalcBasis::MaxContent,
+            MinSizeCalcBasis::Stretch,
+            MinSizeCalcBasis::FitContent,
+            MinSizeCalcBasis::Contain,
+        ] {
+            assert!(MinSizeOf::calc_size(basis, dependent.clone()).is_ok());
+        }
+        assert!(MinSizeOf::calc_size(MinSizeCalcBasis::Any, independent.clone()).is_ok());
+        assert_eq!(
+            MinSizeOf::calc_size(MinSizeCalcBasis::Any, dependent.clone()),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+
+        for basis in [
+            MaxSizeCalcBasis::FullPercentage,
+            MaxSizeCalcBasis::None,
+            MaxSizeCalcBasis::MinContent,
+            MaxSizeCalcBasis::MaxContent,
+            MaxSizeCalcBasis::Stretch,
+            MaxSizeCalcBasis::FitContent,
+            MaxSizeCalcBasis::Contain,
+        ] {
+            assert!(MaxSizeOf::calc_size(basis, dependent.clone()).is_ok());
+        }
+        assert!(MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, independent.clone()).is_ok());
+        assert_eq!(
+            MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, dependent.clone()),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+
+        for basis in [
+            FlexBasisCalcBasis::FullPercentage,
+            FlexBasisCalcBasis::Auto,
+            FlexBasisCalcBasis::Content,
+            FlexBasisCalcBasis::MinContent,
+            FlexBasisCalcBasis::MaxContent,
+            FlexBasisCalcBasis::Stretch,
+            FlexBasisCalcBasis::FitContent,
+            FlexBasisCalcBasis::Contain,
+        ] {
+            assert!(FlexBasisOf::calc_size(basis, dependent.clone()).is_ok());
+        }
+        assert!(FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, independent).is_ok());
+        assert_eq!(
+            FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, dependent),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+    }
+
+    #[test]
+    fn property_sizing_defaults_and_keyword_domains_are_exact() {
+        assert_eq!(PreferredSizeOf::<f32>::default(), PreferredSizeOf::AUTO);
+        assert_eq!(MinSizeOf::<f64>::default(), MinSizeOf::AUTO);
+        assert_eq!(MaxSizeOf::<f32>::default(), MaxSizeOf::NONE);
+        assert_eq!(FlexBasisOf::<f64>::default(), FlexBasisOf::AUTO);
+
+        assert!(PreferredSizeOf::<f32>::MIN_CONTENT.is_min_content());
+        assert!(PreferredSizeOf::<f64>::MAX_CONTENT.is_max_content());
+        assert!(MinSizeOf::<f32>::AUTO.is_auto());
+        assert!(MaxSizeOf::<f64>::NONE.is_none());
+        assert!(FlexBasisOf::<f32>::CONTENT.is_content());
+
+        let preferred_keywords = [
+            PreferredSizeOf::<f32>::AUTO,
+            PreferredSizeOf::MIN_CONTENT,
+            PreferredSizeOf::MAX_CONTENT,
+            PreferredSizeOf::STRETCH,
+            PreferredSizeOf::FIT_CONTENT,
+            PreferredSizeOf::CONTAIN,
+        ];
+        let minimum_keywords = [
+            MinSizeOf::<f64>::AUTO,
+            MinSizeOf::MIN_CONTENT,
+            MinSizeOf::MAX_CONTENT,
+            MinSizeOf::STRETCH,
+            MinSizeOf::FIT_CONTENT,
+            MinSizeOf::CONTAIN,
+            MinSizeOf::ZERO,
+        ];
+        let maximum_keywords = [
+            MaxSizeOf::<f32>::NONE,
+            MaxSizeOf::MIN_CONTENT,
+            MaxSizeOf::MAX_CONTENT,
+            MaxSizeOf::STRETCH,
+            MaxSizeOf::FIT_CONTENT,
+            MaxSizeOf::CONTAIN,
+            MaxSizeOf::ZERO,
+        ];
+        let flex_keywords = [
+            FlexBasisOf::<f64>::AUTO,
+            FlexBasisOf::CONTENT,
+            FlexBasisOf::MIN_CONTENT,
+            FlexBasisOf::MAX_CONTENT,
+            FlexBasisOf::STRETCH,
+            FlexBasisOf::FIT_CONTENT,
+            FlexBasisOf::CONTAIN,
+            FlexBasisOf::ZERO,
+        ];
+        assert_eq!(preferred_keywords.len(), 6);
+        assert_eq!(minimum_keywords.len(), 7);
+        assert_eq!(maximum_keywords.len(), 7);
+        assert_eq!(flex_keywords.len(), 8);
+        assert!(
+            !format!(
+                "{preferred_keywords:?}{minimum_keywords:?}{maximum_keywords:?}{flex_keywords:?}"
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn property_sizing_construction_and_calc_size_rules_cover_both_scalar_lanes() {
+        let f32_value = LengthPercentageOf::px(12.0f32).expect("finite px");
+        let f64_value = LengthPercentageOf::px(12.0f64).expect("finite px");
+        assert_eq!(
+            PreferredSizeOf::value(f32_value),
+            PreferredSizeOf::calculation(px_f32(12.0))
+        );
+        assert_eq!(
+            MinSizeOf::value(f64_value),
+            MinSizeOf::calculation(px_f64(12.0))
+        );
+
+        let independent_f32 = CalcSizeCalculationOf::value(f32_value);
+        let independent_f64 = CalcSizeCalculationOf::value(f64_value);
+        let dependent_f32 = CalcSizeCalculationOf::<f32>::size();
+        let dependent_f64 = CalcSizeCalculationOf::<f64>::size();
+
+        assert!(PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, independent_f32).is_ok());
+        assert!(MinSizeOf::calc_size(MinSizeCalcBasis::Auto, dependent_f32.clone()).is_ok());
+        assert!(MaxSizeOf::calc_size(MaxSizeCalcBasis::None, dependent_f64.clone()).is_ok());
+        assert!(FlexBasisOf::calc_size(FlexBasisCalcBasis::Content, dependent_f64).is_ok());
+        assert_eq!(
+            PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Any, dependent_f32),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+        assert_eq!(
+            MaxSizeOf::calc_size(MaxSizeCalcBasis::Any, CalcSizeCalculationOf::<f64>::size()),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+        assert_eq!(
+            MinSizeOf::calc_size(MinSizeCalcBasis::Any, CalcSizeCalculationOf::<f64>::size()),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+        assert_eq!(
+            FlexBasisOf::calc_size(
+                FlexBasisCalcBasis::Any,
+                CalcSizeCalculationOf::<f32>::size()
+            ),
+            Err(CalcSizeConstructionError::SizeReferenceWithAnyBasis)
+        );
+
+        assert!(FlexBasisOf::calc_size(FlexBasisCalcBasis::Any, independent_f64).is_ok());
+        assert_eq!(
+            MinSizeOf::<f32>::ZERO,
+            MinSizeOf::value(LengthPercentageOf::ZERO)
+        );
+        assert_eq!(
+            MaxSizeOf::<f64>::ZERO,
+            MaxSizeOf::value(LengthPercentageOf::ZERO)
+        );
+        assert_eq!(
+            FlexBasisOf::<f32>::ZERO,
+            FlexBasisOf::value(LengthPercentageOf::ZERO)
+        );
+
+        let negative_zero_f32 = LengthPercentageOf::px(-0.0f32).expect("finite signed zero");
+        let negative_zero_f64 = LengthPercentageOf::px(-0.0f64).expect("finite signed zero");
+        assert_eq!(MinSizeOf::<f32>::ZERO, MinSizeOf::value(negative_zero_f32));
+        assert_eq!(MaxSizeOf::<f32>::ZERO, MaxSizeOf::value(negative_zero_f32));
+        assert_eq!(
+            FlexBasisOf::<f32>::ZERO,
+            FlexBasisOf::value(negative_zero_f32)
+        );
+        assert_eq!(MinSizeOf::<f64>::ZERO, MinSizeOf::value(negative_zero_f64));
+        assert_eq!(MaxSizeOf::<f64>::ZERO, MaxSizeOf::value(negative_zero_f64));
+        assert_eq!(
+            FlexBasisOf::<f64>::ZERO,
+            FlexBasisOf::value(negative_zero_f64)
+        );
+    }
+
+    #[test]
+    fn property_sizing_calc_size_accepts_every_non_any_basis_and_independent_any() {
+        assert_property_sizing_lane::<f32>();
+        assert_property_sizing_lane::<f64>();
+    }
+
+    #[test]
+    fn property_sizing_exhaustive_views_preserve_constructor_semantics() {
+        let calculation_f32 = px_f32(9.0);
+        let calculation_f64 = px_f64(11.0);
+
+        assert!(matches!(
+            PreferredSizeOf::calculation(calculation_f32.clone()).view(),
+            PreferredSizeView::Calculation(value) if value == &calculation_f32
+        ));
+        assert!(matches!(
+            MinSizeOf::fit_content_function(calculation_f64.clone()).view(),
+            MinSizeView::FitContentFunction(value) if value == &calculation_f64
+        ));
+        assert!(matches!(
+            MaxSizeOf::calc_size(MaxSizeCalcBasis::None, CalcSizeCalculationOf::<f32>::size())
+                .expect("valid basis")
+                .view(),
+            MaxSizeView::CalcSize(MaxSizeCalcBasis::None, value) if value.depends_on_size()
+        ));
+        assert!(matches!(
+            FlexBasisOf::fit_content_function(calculation_f64.clone()).view(),
+            FlexBasisView::FitContentFunction(value) if value == &calculation_f64
+        ));
     }
 
     #[test]
