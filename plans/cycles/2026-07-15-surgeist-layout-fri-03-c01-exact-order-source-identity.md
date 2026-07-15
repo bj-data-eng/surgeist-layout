@@ -1,6 +1,6 @@
 # FRI-03-C01 Exact Order And Source Identity
 
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-03-C01`
 Owning repository: `surgeist-layout`
 Cycle base: `05401beb53853a5eaf1c622050cfa0d7cebc0c4c`
