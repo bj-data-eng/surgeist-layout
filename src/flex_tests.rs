@@ -6,23 +6,113 @@ use crate::*;
 
 #[test]
 fn flex_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
-    let context = crate::ContainingLayoutContext::new(
-        FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
-        crate::ParentFormattingContext::Flex,
-    );
-    let input = ComputeInput::for_child(
-        RunMode::ComputeSize,
-        SizingMode::ContentSize,
-        RequestedAxis::Horizontal,
-        Size::NONE,
-        Size::NONE,
-        context,
-        Size::splat(AvailableOf::MAX_CONTENT),
-    );
-    assert_eq!(
-        input.parent_formatting_context(),
-        crate::ParentFormattingContext::Flex
-    );
+    assert_flex_child_context_is_complete::<f32>();
+    assert_flex_child_context_is_complete::<f64>();
+}
+
+fn assert_flex_child_context_is_complete<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let flow_axes = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
+    let expected =
+        crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::Flex);
+
+    for run_mode in [RunMode::ComputeSize, RunMode::PerformLayout] {
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [1, 2])
+            .children(1, [])
+            .children(2, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Flex,
+                    writing_mode: WritingMode::VerticalLr,
+                    direction: Direction::Ltr,
+                    size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(1, NodeInputOf::default())
+            .style(
+                2,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(30.0)),
+                        DimensionOf::px(S::from_f64(12.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(
+                1,
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(40.0), S::from_f64(20.0))),
+            )
+            .measure(
+                2,
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(30.0), S::from_f64(12.0))),
+            );
+
+        crate::compute_flex(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                run_mode,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(S::from_f64(300.0)), Some(S::from_f64(240.0))),
+                crate::ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+                    crate::ParentFormattingContext::NoParent,
+                ),
+                Size::splat(AvailableOf::definite(S::from_f64(300.0))),
+            ),
+        )
+        .expect("flex context capture layout succeeds");
+
+        let normal_inputs = tree.inputs(1);
+        assert!(
+            !normal_inputs.is_empty(),
+            "flex must request its in-flow child"
+        );
+        assert!(
+            normal_inputs
+                .iter()
+                .all(|input| input.containing_layout_context() == expected),
+            "every flex in-flow request must use the parent axes and Flex role: {normal_inputs:#?}"
+        );
+
+        if run_mode == RunMode::ComputeSize {
+            assert!(
+                normal_inputs
+                    .iter()
+                    .any(|input| input.run_mode() == RunMode::ComputeSize),
+                "flex intrinsic sizing must request the child through the complete context"
+            );
+        } else {
+            assert!(
+                normal_inputs
+                    .iter()
+                    .any(|input| input.run_mode() == RunMode::PerformLayout),
+                "flex normal layout must request the child through the complete context"
+            );
+            let absolute_inputs = tree.inputs(2);
+            assert!(
+                absolute_inputs
+                    .iter()
+                    .any(|input| input.run_mode() == RunMode::PerformLayout),
+                "flex absolute scheduling must request the child"
+            );
+            assert!(
+                absolute_inputs
+                    .iter()
+                    .all(|input| input.containing_layout_context() == expected),
+                "every flex absolute request must use the parent axes and Flex role: {absolute_inputs:#?}"
+            );
+        }
+    }
 }
 
 #[derive(Clone, Copy)]

@@ -6,20 +6,114 @@ use crate::*;
 
 #[test]
 fn block_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
-    let context = crate::ContainingLayoutContext::new(
-        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
-        crate::ParentFormattingContext::BlockFlow,
-    );
-    let input = ComputeInput::for_child(
-        RunMode::PerformLayout,
-        SizingMode::InherentSize,
-        RequestedAxis::Both,
-        Size::NONE,
-        Size::NONE,
-        context,
-        Size::splat(AvailableOf::MAX_CONTENT),
-    );
-    assert_eq!(input.containing_layout_context(), context);
+    assert_block_child_context_is_complete::<f32>();
+    assert_block_child_context_is_complete::<f64>();
+}
+
+fn assert_block_child_context_is_complete<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let flow_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let expected =
+        crate::ContainingLayoutContext::new(flow_axes, crate::ParentFormattingContext::BlockFlow);
+
+    for run_mode in [RunMode::ComputeSize, RunMode::PerformLayout] {
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [1, 2])
+            .children(1, [])
+            .children(2, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: WritingMode::VerticalRl,
+                    direction: Direction::Rtl,
+                    size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(1, NodeInputOf::default())
+            .style(
+                2,
+                NodeInputOf {
+                    position: Position::Absolute,
+                    size: Size::new(
+                        DimensionOf::px(S::from_f64(30.0)),
+                        DimensionOf::px(S::from_f64(12.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(
+                1,
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(40.0), S::from_f64(20.0))),
+            )
+            .measure(
+                2,
+                ComputeOutputOf::from_outer_size(Size::new(S::from_f64(30.0), S::from_f64(12.0))),
+            );
+
+        crate::compute_block(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                run_mode,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(S::from_f64(300.0)), Some(S::from_f64(240.0))),
+                crate::ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    crate::ParentFormattingContext::NoParent,
+                ),
+                Size::splat(AvailableOf::definite(S::from_f64(300.0))),
+            ),
+        )
+        .expect("block context capture layout succeeds");
+
+        let normal_inputs = tree.inputs(1);
+        assert!(
+            !normal_inputs.is_empty(),
+            "block must request its in-flow child"
+        );
+        assert!(
+            normal_inputs
+                .iter()
+                .all(|input| input.containing_layout_context() == expected),
+            "every block in-flow request must use the parent axes and BlockFlow role: {normal_inputs:#?}"
+        );
+
+        if run_mode == RunMode::ComputeSize {
+            assert!(
+                normal_inputs.iter().any(|input| {
+                    input.run_mode() == RunMode::ComputeSize
+                        && input.sizing_mode() == SizingMode::InherentSize
+                }),
+                "block intrinsic sizing must request the child through the complete context"
+            );
+        } else {
+            assert!(
+                normal_inputs
+                    .iter()
+                    .any(|input| input.run_mode() == RunMode::PerformLayout),
+                "block normal layout must request the child through the complete context"
+            );
+            let absolute_inputs = tree.inputs(2);
+            assert!(
+                absolute_inputs
+                    .iter()
+                    .any(|input| input.run_mode() == RunMode::PerformLayout),
+                "block absolute scheduling must request the child"
+            );
+            assert!(
+                absolute_inputs
+                    .iter()
+                    .all(|input| input.containing_layout_context() == expected),
+                "every block absolute request must use the parent axes and BlockFlow role: {absolute_inputs:#?}"
+            );
+        }
+    }
 }
 
 fn assert_positive_physical_range(range: PhysicalScrollRange, maximum: Size) {
