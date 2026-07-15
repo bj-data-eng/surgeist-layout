@@ -444,6 +444,7 @@ impl<S: LayoutScalar> LengthOf<S> {
     pub const ZERO: Self = Self::Value(LengthPercentageOf::ZERO);
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn px(value: S) -> Self {
         Self::Value(LengthPercentageOf::px(value).expect("trusted crate length px literal"))
     }
@@ -830,8 +831,54 @@ impl<S: LayoutScalar> From<LengthAutoOf<S>> for DimensionOf<S> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TrackFlexFactorOf<S: LayoutScalar = DefaultScalar> {
+    value: S,
+}
+
+pub type TrackFlexFactor = TrackFlexFactorOf<DefaultScalar>;
+
+impl<S: LayoutScalar> TrackFlexFactorOf<S> {
+    pub const ZERO: Self = Self { value: S::ZERO };
+
+    pub fn try_new(value: S) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        if !value.is_finite() {
+            return Err(NonNegativeFiniteScalarErrorOf::NonFinite { value });
+        }
+        if value < S::ZERO {
+            return Err(NonNegativeFiniteScalarErrorOf::Negative { value });
+        }
+        Ok(Self {
+            value: canonical_zero(value),
+        })
+    }
+
+    #[must_use]
+    pub const fn get(self) -> S {
+        self.value
+    }
+}
+
+impl<S: LayoutScalar> Default for TrackFlexFactorOf<S> {
+    fn default() -> Self {
+        Self::ZERO
+    }
+}
+
+/// A minimum track breadth.
+///
+/// ```compile_fail
+/// use surgeist_layout::{MinTrackSizing, TrackFlexFactor};
+/// let factor = TrackFlexFactor::try_new(1.0).unwrap();
+/// let _ = MinTrackSizing::Flex(factor);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{Length, MinTrackSizing};
+/// let _: MinTrackSizing = Length::Normal.into();
+/// ```
+#[derive(Clone, Debug, PartialEq)]
 pub enum MinTrackSizingOf<S: LayoutScalar = DefaultScalar> {
-    Length(LengthOf<S>),
+    Calculation(crate::SizingCalculationOf<S>),
     Auto,
     MinContent,
     MaxContent,
@@ -843,74 +890,77 @@ impl<S: LayoutScalar> MinTrackSizingOf<S> {
     pub const AUTO: Self = Self::Auto;
     pub const MIN_CONTENT: Self = Self::MinContent;
     pub const MAX_CONTENT: Self = Self::MaxContent;
-    pub const ZERO: Self = Self::Length(LengthOf::ZERO);
 
     #[must_use]
     pub(crate) fn px(value: S) -> Self {
-        Self::Length(LengthOf::px(value))
+        Self::Calculation(crate::SizingCalculationOf::value(
+            LengthPercentageOf::px(value).expect("trusted crate track px literal"),
+        ))
     }
 
     #[must_use]
     #[cfg(test)]
     pub(crate) fn percent(value: S) -> Self {
-        Self::Length(LengthOf::percent(value))
+        Self::Calculation(crate::SizingCalculationOf::value(
+            LengthPercentageOf::from_percent_fraction(value)
+                .expect("trusted crate track percent literal"),
+        ))
     }
 
     #[must_use]
-    pub const fn is_intrinsic(self) -> bool {
+    pub const fn is_intrinsic(&self) -> bool {
         matches!(self, Self::Auto | Self::MinContent | Self::MaxContent)
     }
 
     #[must_use]
-    pub fn depends_on_basis(self) -> bool {
+    pub fn depends_on_basis(&self) -> bool {
         match self {
-            Self::Length(length) => length.depends_on_basis(),
+            Self::Calculation(calculation) => calculation.depends_on_basis(),
             Self::Auto | Self::MinContent | Self::MaxContent => false,
         }
     }
 
     #[must_use]
-    pub fn percent_fraction(self) -> S {
+    pub(crate) fn percent_fraction(&self) -> S {
         match self {
-            Self::Length(length) => length.percent_fraction(),
+            Self::Calculation(calculation) => calculation
+                .affine_value()
+                .map_or(S::ZERO, |value| value.percent_fraction()),
             Self::Auto | Self::MinContent | Self::MaxContent => S::ZERO,
         }
     }
 
     #[must_use]
-    pub fn definite(self, basis: Option<S>) -> Option<S> {
+    pub(crate) fn definite(&self, basis: Option<S>) -> Option<S> {
         match self {
-            Self::Length(length) => length.resolve_optional(basis),
+            Self::Calculation(calculation) => calculation
+                .affine_value()
+                .and_then(|value| LengthOf::value(value).resolve_optional(basis)),
             Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
 }
 
-impl<S: LayoutScalar> From<LengthOf<S>> for MinTrackSizingOf<S> {
-    fn from(value: LengthOf<S>) -> Self {
-        Self::Length(value)
+impl<S: LayoutScalar> From<LengthPercentageOf<S>> for MinTrackSizingOf<S> {
+    fn from(value: LengthPercentageOf<S>) -> Self {
+        Self::Calculation(crate::SizingCalculationOf::value(value))
     }
 }
 
-impl<S: LayoutScalar> From<DimensionOf<S>> for MinTrackSizingOf<S> {
-    fn from(value: DimensionOf<S>) -> Self {
-        match value {
-            DimensionOf::Value(value) => Self::Length(LengthOf::value(value)),
-            DimensionOf::Fr(_) | DimensionOf::Auto => Self::Auto,
-            DimensionOf::MinContent => Self::MinContent,
-            DimensionOf::MaxContent => Self::MaxContent,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// A maximum track breadth.
+///
+/// ```compile_fail
+/// use surgeist_layout::MaxTrackSizing;
+/// let _ = MaxTrackSizing::fr(1.0);
+/// ```
+#[derive(Clone, Debug, PartialEq)]
 pub enum MaxTrackSizingOf<S: LayoutScalar = DefaultScalar> {
-    Length(LengthOf<S>),
-    Flex(S),
+    Calculation(crate::SizingCalculationOf<S>),
+    Flex(TrackFlexFactorOf<S>),
     Auto,
     MinContent,
     MaxContent,
-    FitContent(LengthOf<S>),
+    FitContent(crate::SizingCalculationOf<S>),
 }
 
 pub type MaxTrackSizing = MaxTrackSizingOf<DefaultScalar>;
@@ -919,36 +969,40 @@ impl<S: LayoutScalar> MaxTrackSizingOf<S> {
     pub const AUTO: Self = Self::Auto;
     pub const MIN_CONTENT: Self = Self::MinContent;
     pub const MAX_CONTENT: Self = Self::MaxContent;
-    pub const ZERO: Self = Self::Length(LengthOf::ZERO);
 
     #[must_use]
     pub(crate) fn px(value: S) -> Self {
-        Self::Length(LengthOf::px(value))
+        Self::Calculation(crate::SizingCalculationOf::value(
+            LengthPercentageOf::px(value).expect("trusted crate track px literal"),
+        ))
     }
 
     #[must_use]
     #[cfg(test)]
     pub(crate) fn percent(value: S) -> Self {
-        Self::Length(LengthOf::percent(value))
+        Self::Calculation(crate::SizingCalculationOf::value(
+            LengthPercentageOf::from_percent_fraction(value)
+                .expect("trusted crate track percent literal"),
+        ))
     }
 
     #[must_use]
-    pub const fn fr(value: S) -> Self {
+    pub const fn flex(value: TrackFlexFactorOf<S>) -> Self {
         Self::Flex(value)
     }
 
     #[must_use]
-    pub const fn fit_content(limit: LengthOf<S>) -> Self {
+    pub const fn fit_content(limit: crate::SizingCalculationOf<S>) -> Self {
         Self::FitContent(limit)
     }
 
     #[must_use]
-    pub const fn is_flexible(self) -> bool {
+    pub const fn is_flexible(&self) -> bool {
         matches!(self, Self::Flex(_))
     }
 
     #[must_use]
-    pub const fn is_intrinsic(self) -> bool {
+    pub const fn is_intrinsic(&self) -> bool {
         matches!(
             self,
             Self::Auto | Self::MinContent | Self::MaxContent | Self::FitContent(_)
@@ -956,25 +1010,31 @@ impl<S: LayoutScalar> MaxTrackSizingOf<S> {
     }
 
     #[must_use]
-    pub fn depends_on_basis(self) -> bool {
+    pub fn depends_on_basis(&self) -> bool {
         match self {
-            Self::Length(length) | Self::FitContent(length) => length.depends_on_basis(),
+            Self::Calculation(calculation) | Self::FitContent(calculation) => {
+                calculation.depends_on_basis()
+            }
             Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
         }
     }
 
     #[must_use]
-    pub fn percent_fraction(self) -> S {
+    pub(crate) fn percent_fraction(&self) -> S {
         match self {
-            Self::Length(length) | Self::FitContent(length) => length.percent_fraction(),
+            Self::Calculation(calculation) | Self::FitContent(calculation) => calculation
+                .affine_value()
+                .map_or(S::ZERO, |value| value.percent_fraction()),
             Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => S::ZERO,
         }
     }
 
     #[must_use]
-    pub fn definite(self, basis: Option<S>) -> Option<S> {
+    pub(crate) fn definite(&self, basis: Option<S>) -> Option<S> {
         match self {
-            Self::Length(length) => length.resolve_optional(basis),
+            Self::Calculation(calculation) => calculation
+                .affine_value()
+                .and_then(|value| LengthOf::value(value).resolve_optional(basis)),
             Self::Flex(_)
             | Self::Auto
             | Self::MinContent
@@ -982,35 +1042,31 @@ impl<S: LayoutScalar> MaxTrackSizingOf<S> {
             | Self::FitContent(_) => None,
         }
     }
+}
 
-    #[must_use]
-    pub fn fit_limit(self, basis: Option<S>) -> Option<S> {
-        match self {
-            Self::FitContent(limit) => limit.resolve_optional(basis),
-            _ => None,
-        }
+impl<S: LayoutScalar> From<LengthPercentageOf<S>> for MaxTrackSizingOf<S> {
+    fn from(value: LengthPercentageOf<S>) -> Self {
+        Self::Calculation(crate::SizingCalculationOf::value(value))
     }
 }
 
-impl<S: LayoutScalar> From<LengthOf<S>> for MaxTrackSizingOf<S> {
-    fn from(value: LengthOf<S>) -> Self {
-        Self::Length(value)
-    }
-}
-
-impl<S: LayoutScalar> From<DimensionOf<S>> for MaxTrackSizingOf<S> {
-    fn from(value: DimensionOf<S>) -> Self {
-        match value {
-            DimensionOf::Value(value) => Self::Length(LengthOf::value(value)),
-            DimensionOf::Fr(value) => Self::fr(value),
-            DimensionOf::Auto => Self::Auto,
-            DimensionOf::MinContent => Self::MinContent,
-            DimensionOf::MaxContent => Self::MaxContent,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// A complete track sizing pair.
+///
+/// ```compile_fail
+/// use surgeist_layout::TrackSizing;
+/// let _ = TrackSizing::fr(1.0);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{Dimension, TrackSizing};
+/// let _: TrackSizing = Dimension::AUTO.into();
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{PreferredSize, TrackSizing};
+/// let _: TrackSizing = PreferredSize::AUTO.into();
+/// ```
+#[derive(Clone, Debug, PartialEq)]
 pub struct TrackSizingOf<S: LayoutScalar = DefaultScalar> {
     pub min: MinTrackSizingOf<S>,
     pub max: MaxTrackSizingOf<S>,
@@ -1030,10 +1086,6 @@ impl<S: LayoutScalar> TrackSizingOf<S> {
     pub const MAX_CONTENT: Self = Self {
         min: MinTrackSizingOf::MAX_CONTENT,
         max: MaxTrackSizingOf::MAX_CONTENT,
-    };
-    pub const ZERO: Self = Self {
-        min: MinTrackSizingOf::ZERO,
-        max: MaxTrackSizingOf::ZERO,
     };
 
     #[must_use]
@@ -1056,12 +1108,20 @@ impl<S: LayoutScalar> TrackSizingOf<S> {
     }
 
     #[must_use]
-    pub const fn fr(value: S) -> Self {
-        Self::new(MinTrackSizingOf::AUTO, MaxTrackSizingOf::fr(value))
+    pub fn calculation(calculation: crate::SizingCalculationOf<S>) -> Self {
+        Self::new(
+            MinTrackSizingOf::Calculation(calculation.clone()),
+            MaxTrackSizingOf::Calculation(calculation),
+        )
     }
 
     #[must_use]
-    pub const fn fit_content(limit: LengthOf<S>) -> Self {
+    pub const fn flex(value: TrackFlexFactorOf<S>) -> Self {
+        Self::new(MinTrackSizingOf::AUTO, MaxTrackSizingOf::flex(value))
+    }
+
+    #[must_use]
+    pub const fn fit_content(limit: crate::SizingCalculationOf<S>) -> Self {
         Self::new(MinTrackSizingOf::AUTO, MaxTrackSizingOf::fit_content(limit))
     }
 
@@ -1071,12 +1131,12 @@ impl<S: LayoutScalar> TrackSizingOf<S> {
     }
 
     #[must_use]
-    pub fn depends_on_basis(self) -> bool {
+    pub fn depends_on_basis(&self) -> bool {
         self.min.depends_on_basis() || self.max.depends_on_basis()
     }
 
     #[must_use]
-    pub fn percent_fraction(self) -> S {
+    pub(crate) fn percent_fraction(&self) -> S {
         self.min.percent_fraction().max(self.max.percent_fraction())
     }
 }
@@ -1087,15 +1147,9 @@ impl<S: LayoutScalar> Default for TrackSizingOf<S> {
     }
 }
 
-impl<S: LayoutScalar> From<DimensionOf<S>> for TrackSizingOf<S> {
-    fn from(value: DimensionOf<S>) -> Self {
-        Self::new(value.into(), value.into())
-    }
-}
-
-impl<S: LayoutScalar> From<LengthOf<S>> for TrackSizingOf<S> {
-    fn from(value: LengthOf<S>) -> Self {
-        Self::new(value.into(), value.into())
+impl<S: LayoutScalar> From<LengthPercentageOf<S>> for TrackSizingOf<S> {
+    fn from(value: LengthPercentageOf<S>) -> Self {
+        Self::calculation(crate::SizingCalculationOf::value(value))
     }
 }
 
@@ -1311,7 +1365,6 @@ impl<S: LayoutScalar> TrackComponentOf<S> {
     pub const AUTO: Self = Self::Track(TrackSizingOf::AUTO);
     pub const MIN_CONTENT: Self = Self::Track(TrackSizingOf::MIN_CONTENT);
     pub const MAX_CONTENT: Self = Self::Track(TrackSizingOf::MAX_CONTENT);
-    pub const ZERO: Self = Self::Track(TrackSizingOf::ZERO);
 
     #[must_use]
     #[cfg(test)]
@@ -1326,12 +1379,12 @@ impl<S: LayoutScalar> TrackComponentOf<S> {
     }
 
     #[must_use]
-    pub const fn fr(value: S) -> Self {
-        Self::Track(TrackSizingOf::fr(value))
+    pub const fn flex(value: TrackFlexFactorOf<S>) -> Self {
+        Self::Track(TrackSizingOf::flex(value))
     }
 
     #[must_use]
-    pub const fn fit_content(limit: LengthOf<S>) -> Self {
+    pub const fn fit_content(limit: crate::SizingCalculationOf<S>) -> Self {
         Self::Track(TrackSizingOf::fit_content(limit))
     }
 
@@ -1352,14 +1405,8 @@ impl<S: LayoutScalar> From<TrackSizingOf<S>> for TrackComponentOf<S> {
     }
 }
 
-impl<S: LayoutScalar> From<DimensionOf<S>> for TrackComponentOf<S> {
-    fn from(value: DimensionOf<S>) -> Self {
-        Self::Track(value.into())
-    }
-}
-
-impl<S: LayoutScalar> From<LengthOf<S>> for TrackComponentOf<S> {
-    fn from(value: LengthOf<S>) -> Self {
+impl<S: LayoutScalar> From<LengthPercentageOf<S>> for TrackComponentOf<S> {
+    fn from(value: LengthPercentageOf<S>) -> Self {
         Self::Track(value.into())
     }
 }
@@ -1386,13 +1433,13 @@ pub fn track_sizing_components_of<S: LayoutScalar>(
     let mut tracks = Vec::new();
     for component in components {
         match component {
-            TrackComponentOf::Track(track) => tracks.push(*track),
+            TrackComponentOf::Track(track) => tracks.push(track.clone()),
             TrackComponentOf::Repeat(repetition) => {
                 let repeated_tracks = repetition.sizing_tracks();
                 match repetition.repeat() {
                     TrackRepeat::Count(count) => {
                         for _ in 0..count.get() {
-                            tracks.extend(repeated_tracks.iter().copied());
+                            tracks.extend(repeated_tracks.iter().cloned());
                         }
                     }
                     TrackRepeat::AutoFill | TrackRepeat::AutoFit => {
@@ -1416,8 +1463,114 @@ fn track_sizing_components_from_tracks<S: LayoutScalar>(
 mod value_tests {
     use super::{
         DimensionOf, LengthAutoOf, LengthOf, LengthPercentageOf, LengthResolutionStatus,
-        NumericResolutionOf, PercentageBasisOf,
+        MaxTrackSizingOf, MinTrackSizingOf, NumericResolutionOf, PercentageBasisOf,
+        TrackFlexFactorOf, TrackSizingOf,
     };
+    use crate::SizingCalculationOf;
+
+    #[test]
+    fn track_sizing_flex_factor_validates_both_scalar_lanes() {
+        let f32_factor = TrackFlexFactorOf::<f32>::try_new(1.25).expect("valid f32 factor");
+        let f64_factor = TrackFlexFactorOf::<f64>::try_new(2.5).expect("valid f64 factor");
+        assert_eq!(f32_factor.get(), 1.25);
+        assert_eq!(f64_factor.get(), 2.5);
+        assert_eq!(TrackFlexFactorOf::<f32>::default(), TrackFlexFactorOf::ZERO);
+        assert_eq!(TrackFlexFactorOf::<f64>::default(), TrackFlexFactorOf::ZERO);
+
+        assert!(matches!(
+            TrackFlexFactorOf::<f32>::try_new(-1.0),
+            Err(super::NonNegativeFiniteScalarErrorOf::Negative { value: -1.0 })
+        ));
+        assert!(matches!(
+            TrackFlexFactorOf::<f64>::try_new(-1.0),
+            Err(super::NonNegativeFiniteScalarErrorOf::Negative { value: -1.0 })
+        ));
+        assert!(matches!(
+            TrackFlexFactorOf::<f32>::try_new(f32::INFINITY),
+            Err(super::NonNegativeFiniteScalarErrorOf::NonFinite { value }) if value.is_infinite()
+        ));
+        assert!(matches!(
+            TrackFlexFactorOf::<f32>::try_new(f32::NAN),
+            Err(super::NonNegativeFiniteScalarErrorOf::NonFinite { value }) if value.is_nan()
+        ));
+        assert!(matches!(
+            TrackFlexFactorOf::<f64>::try_new(f64::NEG_INFINITY),
+            Err(super::NonNegativeFiniteScalarErrorOf::NonFinite { value }) if value.is_infinite()
+        ));
+        assert!(matches!(
+            TrackFlexFactorOf::<f64>::try_new(f64::NAN),
+            Err(super::NonNegativeFiniteScalarErrorOf::NonFinite { value }) if value.is_nan()
+        ));
+
+        assert_eq!(
+            TrackFlexFactorOf::<f32>::try_new(-0.0)
+                .expect("signed zero is valid")
+                .get()
+                .to_bits(),
+            0.0f32.to_bits()
+        );
+        assert_eq!(
+            TrackFlexFactorOf::<f64>::try_new(-0.0)
+                .expect("signed zero is valid")
+                .get()
+                .to_bits(),
+            0.0f64.to_bits()
+        );
+    }
+
+    #[test]
+    fn track_sizing_construction_matrix_uses_calculations_and_validated_flex() {
+        let calculation = SizingCalculationOf::<f64>::value(
+            LengthPercentageOf::from_coefficients(12.0, 0.25).expect("finite affine value"),
+        );
+        let factor = TrackFlexFactorOf::<f64>::try_new(1.5).expect("valid factor");
+
+        let fixed = TrackSizingOf::calculation(calculation.clone());
+        assert_eq!(
+            fixed,
+            TrackSizingOf::new(
+                MinTrackSizingOf::Calculation(calculation.clone()),
+                MaxTrackSizingOf::Calculation(calculation.clone()),
+            )
+        );
+        assert_eq!(
+            TrackSizingOf::flex(factor),
+            TrackSizingOf::minmax(MinTrackSizingOf::Auto, MaxTrackSizingOf::Flex(factor))
+        );
+        assert_eq!(
+            TrackSizingOf::fit_content(calculation.clone()),
+            TrackSizingOf::minmax(
+                MinTrackSizingOf::Auto,
+                MaxTrackSizingOf::FitContent(calculation.clone()),
+            )
+        );
+
+        assert_eq!(TrackSizingOf::<f64>::default(), TrackSizingOf::AUTO);
+        let f32_calculation = SizingCalculationOf::<f32>::value(
+            LengthPercentageOf::from_coefficients(8.0, 0.5).expect("finite affine value"),
+        );
+        assert_eq!(
+            TrackSizingOf::calculation(f32_calculation.clone()),
+            TrackSizingOf::new(
+                MinTrackSizingOf::Calculation(f32_calculation.clone()),
+                MaxTrackSizingOf::Calculation(f32_calculation),
+            )
+        );
+        assert_eq!(
+            TrackSizingOf::<f64>::MIN_CONTENT,
+            TrackSizingOf::minmax(MinTrackSizingOf::MinContent, MaxTrackSizingOf::MinContent,)
+        );
+        assert_eq!(
+            TrackSizingOf::<f64>::MAX_CONTENT,
+            TrackSizingOf::minmax(MinTrackSizingOf::MaxContent, MaxTrackSizingOf::MaxContent,)
+        );
+        assert_eq!(
+            TrackSizingOf::<f64>::calculation(
+                SizingCalculationOf::value(LengthPercentageOf::ZERO,)
+            ),
+            TrackSizingOf::calculation(SizingCalculationOf::value(LengthPercentageOf::ZERO))
+        );
+    }
 
     #[test]
     fn value_length_percentage_constructs_f32_px_percent_and_mixed_values() {

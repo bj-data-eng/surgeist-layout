@@ -2,7 +2,26 @@ use super::*;
 use crate::geometry::{FlowAxes, LogicalSizeOf};
 use crate::{
     LengthOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf,
+    SizingCalculationOf,
 };
+
+fn resolve_track_calculation<S: LayoutScalar>(
+    calculation: &SizingCalculationOf<S>,
+    basis: Option<S>,
+) -> LengthResolutionOf<S> {
+    calculation
+        .affine_value()
+        .map_or_else(LengthResolutionOf::non_numeric, |value| {
+            LengthOf::value(value).resolve_with_status(basis)
+        })
+}
+
+fn resolve_track_calculation_optional<S: LayoutScalar>(
+    calculation: &SizingCalculationOf<S>,
+    basis: Option<S>,
+) -> Option<S> {
+    resolution_optional(resolve_track_calculation(calculation, basis))
+}
 #[derive(Clone, Copy)]
 pub(super) struct IntrinsicGrid<'a, Node, S: LayoutScalar = Scalar> {
     pub(super) style: &'a NodeInputOf<S>,
@@ -164,11 +183,8 @@ where
                 grid.sizing_flow_axes,
                 GridAxisKind::Column,
             )
-            && column_span_tracks.is_some_and(|tracks| {
-                tracks
-                    .iter()
-                    .any(|track| track_accepts_intrinsic_contribution(*track))
-            });
+            && column_span_tracks
+                .is_some_and(|tracks| tracks.iter().any(track_accepts_intrinsic_contribution));
         let align_self = child_style
             .align_self
             .or(style.align_items)
@@ -179,11 +195,8 @@ where
                 grid.sizing_flow_axes,
                 GridAxisKind::Row,
             )
-            && row_span_tracks.is_some_and(|tracks| {
-                tracks
-                    .iter()
-                    .any(|track| track_accepts_intrinsic_contribution(*track))
-            });
+            && row_span_tracks
+                .is_some_and(|tracks| tracks.iter().any(track_accepts_intrinsic_contribution));
         let row_baseline_candidate = !inherited_row_subgrid
             && row_span_tracks.is_some()
             && matches!(align_self, AlignItems::Baseline | AlignItems::LastBaseline);
@@ -191,14 +204,9 @@ where
             continue;
         }
 
-        let spans_min_content_column =
-            column_tracks
-                .get(column_start..column_end)
-                .is_some_and(|tracks| {
-                    tracks
-                        .iter()
-                        .any(|track| track_accepts_min_content_span_priority(*track))
-                });
+        let spans_min_content_column = column_tracks
+            .get(column_start..column_end)
+            .is_some_and(|tracks| tracks.iter().any(track_accepts_min_content_span_priority));
         let output = if logical_available.inline == AvailableOf::MIN_CONTENT
             && grid_axis_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Column)
                 .clips_contents()
@@ -262,7 +270,7 @@ where
                         .any(|track| track_percent_fraction(track) > Tree::Scalar::ZERO)
                         && tracks
                             .iter()
-                            .all(|track| track_flex_factor(*track).is_none())
+                            .all(|track| track_flex_factor(track).is_none())
                 })
             {
                 distribute_min_content_span_with_percent(
@@ -867,10 +875,7 @@ where
         let Some(span_tracks) = input.tracks.get(start..end) else {
             continue;
         };
-        if !span_tracks
-            .iter()
-            .any(|track| track_accepts_intrinsic_contribution(*track))
-        {
+        if !span_tracks.iter().any(track_accepts_intrinsic_contribution) {
             continue;
         }
 
@@ -939,7 +944,7 @@ where
                 .any(|track| track_percent_fraction(track) > Tree::Scalar::ZERO)
             && span_tracks
                 .iter()
-                .all(|track| track_flex_factor(*track).is_none())
+                .all(|track| track_flex_factor(track).is_none())
         {
             distribute_min_content_span_with_percent(
                 &mut input.sizes[start..end],
@@ -1287,11 +1292,8 @@ where
         let shim = if grid
             .row_tracks
             .get(item.start..item.end)
-            .is_some_and(|tracks| {
-                tracks
-                    .iter()
-                    .any(|track| track_accepts_intrinsic_contribution(*track))
-            }) {
+            .is_some_and(|tracks| tracks.iter().any(track_accepts_intrinsic_contribution))
+        {
             row_baseline_shim(
                 item,
                 &row_baseline_groups,
@@ -1492,14 +1494,10 @@ where
         let row_span = &row_tracks[area.row..area.row_end.min(row_tracks.len())];
         let spans_percent_column = logical_node_inner_size.inline.is_none()
             && { column_span.iter().any(track_has_percent_sizing) }
-            && !column_span
-                .iter()
-                .any(|track| track_accepts_intrinsic_contribution(*track));
+            && !column_span.iter().any(track_accepts_intrinsic_contribution);
         let spans_percent_row = logical_node_inner_size.block.is_none()
             && { row_span.iter().any(track_has_percent_sizing) }
-            && !row_span
-                .iter()
-                .any(|track| track_accepts_intrinsic_contribution(*track));
+            && !row_span.iter().any(track_accepts_intrinsic_contribution);
         if !spans_percent_column && !spans_percent_row {
             continue;
         }
@@ -1642,7 +1640,7 @@ pub(super) fn distribute_intrinsic_span<S: LayoutScalar>(
     let flex_indexes = tracks
         .iter()
         .enumerate()
-        .filter_map(|(index, track)| track_flex_factor(*track).is_some().then_some(index))
+        .filter_map(|(index, track)| track_flex_factor(track).is_some().then_some(index))
         .collect::<Vec<_>>();
     if !flex_indexes.is_empty() {
         let contribution =
@@ -1659,11 +1657,11 @@ pub(super) fn distribute_intrinsic_span<S: LayoutScalar>(
 
         let flex_sum = flex_indexes
             .iter()
-            .map(|index| track_flex_factor(tracks[*index]).unwrap_or(S::ZERO))
+            .map(|index| track_flex_factor(&tracks[*index]).unwrap_or(S::ZERO))
             .fold(S::ZERO, |sum, value| sum + value);
         for index in flex_indexes.iter().copied() {
             let share = if flex_sum > S::ZERO {
-                extra * track_flex_factor(tracks[index]).unwrap_or(S::ZERO) / flex_sum
+                extra * track_flex_factor(&tracks[index]).unwrap_or(S::ZERO) / flex_sum
             } else {
                 extra / S::from_usize(flex_indexes.len())
             };
@@ -1759,7 +1757,7 @@ pub(super) fn distribute_min_content_span_with_percent<S: LayoutScalar>(
         .iter()
         .enumerate()
         .filter_map(|(index, track)| {
-            let accepts = track_accepts_percent_min_content_span(*track, overflow, percent_basis);
+            let accepts = track_accepts_percent_min_content_span(track, overflow, percent_basis);
             accepts.then_some(index)
         })
         .collect::<Vec<_>>();
@@ -1778,7 +1776,7 @@ pub(super) fn intrinsic_span_distribution_indexes<S: LayoutScalar>(
             .iter()
             .enumerate()
             .filter_map(|(index, track)| {
-                track_accepts_min_content_span_priority(*track).then_some(index)
+                track_accepts_min_content_span_priority(track).then_some(index)
             })
             .collect::<Vec<_>>();
         if !min_content_indexes.is_empty() {
@@ -1791,7 +1789,7 @@ pub(super) fn intrinsic_span_distribution_indexes<S: LayoutScalar>(
             .iter()
             .enumerate()
             .filter_map(|(index, track)| {
-                track_accepts_max_content_span_priority(*track).then_some(index)
+                track_accepts_max_content_span_priority(track).then_some(index)
             })
             .collect::<Vec<_>>();
         if !max_content_indexes.is_empty() {
@@ -1801,7 +1799,7 @@ pub(super) fn intrinsic_span_distribution_indexes<S: LayoutScalar>(
         let auto_indexes = tracks
             .iter()
             .enumerate()
-            .filter_map(|(index, track)| track_accepts_auto_span_priority(*track).then_some(index))
+            .filter_map(|(index, track)| track_accepts_auto_span_priority(track).then_some(index))
             .collect::<Vec<_>>();
         if !auto_indexes.is_empty() {
             return auto_indexes;
@@ -1811,7 +1809,7 @@ pub(super) fn intrinsic_span_distribution_indexes<S: LayoutScalar>(
     tracks
         .iter()
         .enumerate()
-        .filter_map(|(index, track)| track_accepts_intrinsic_contribution(*track).then_some(index))
+        .filter_map(|(index, track)| track_accepts_intrinsic_contribution(track).then_some(index))
         .collect::<Vec<_>>()
 }
 
@@ -1845,7 +1843,7 @@ pub(super) fn intrinsic_span_distribution_count<S: LayoutScalar>(
         let count = tracks
             .iter()
             .filter(|track| {
-                track_accepts_intrinsic_contribution(**track)
+                track_accepts_intrinsic_contribution(track)
                     || track_percent_fraction(track) > S::ZERO
             })
             .count();
@@ -1866,9 +1864,9 @@ pub(super) fn intrinsic_span_definite_space<S: LayoutScalar>(
     tracks
         .iter()
         .filter(|track| {
-            track_percent_fraction(track) == S::ZERO && track_flex_factor(**track).is_none()
+            track_percent_fraction(track) == S::ZERO && track_flex_factor(track).is_none()
         })
-        .map(|track| track_min_floor_space(*track))
+        .map(track_min_floor_space)
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
@@ -1878,11 +1876,11 @@ pub(super) fn intrinsic_span_definite_track_space<S: LayoutScalar>(
     tracks
         .iter()
         .filter(|track| {
-            !track_accepts_intrinsic_contribution(**track)
-                && track_flex_factor(**track).is_none()
+            !track_accepts_intrinsic_contribution(track)
+                && track_flex_factor(track).is_none()
                 && track_percent_fraction(track) == S::ZERO
         })
-        .map(|track| track_base_size(*track, None, S::ZERO))
+        .map(|track| track_base_size(track, None, S::ZERO))
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
@@ -1892,19 +1890,21 @@ pub(super) fn intrinsic_span_minimum_floor_space<S: LayoutScalar>(
     tracks
         .iter()
         .filter(|track| {
-            track_percent_fraction(track) == S::ZERO && track_flex_factor(**track).is_none()
+            track_percent_fraction(track) == S::ZERO && track_flex_factor(track).is_none()
         })
-        .map(|track| track_min_floor_space(*track))
+        .map(|track| track_min_floor_space(track))
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
-pub(super) fn track_min_floor_space<S: LayoutScalar>(track: TrackSizingOf<S>) -> S {
+pub(super) fn track_min_floor_space<S: LayoutScalar>(track: &TrackSizingOf<S>) -> S {
     track
         .min
         .percent_fraction()
         .eq(&S::ZERO)
-        .then(|| match track.min {
-            MinTrackSizingOf::Length(length) => length.resolve_optional(None),
+        .then(|| match &track.min {
+            MinTrackSizingOf::Calculation(calculation) => {
+                resolve_track_calculation_optional(calculation, None)
+            }
             MinTrackSizingOf::Auto
             | MinTrackSizingOf::MinContent
             | MinTrackSizingOf::MaxContent => None,
@@ -1926,14 +1926,16 @@ pub(super) fn span_contribution<S: LayoutScalar>(contribution: S, span: usize, g
 }
 
 pub(super) fn track_accepts_intrinsic_contribution<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
 ) -> bool {
     track.min.is_intrinsic() || track.max.is_intrinsic()
 }
 
-pub(super) fn track_has_definite_min_floor<S: LayoutScalar>(track: TrackSizingOf<S>) -> bool {
-    match track.min {
-        MinTrackSizingOf::Length(length) => length.resolve_optional(None).is_some(),
+pub(super) fn track_has_definite_min_floor<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
+    match &track.min {
+        MinTrackSizingOf::Calculation(calculation) => {
+            resolve_track_calculation_optional(calculation, None).is_some()
+        }
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {
             false
         }
@@ -1941,14 +1943,14 @@ pub(super) fn track_has_definite_min_floor<S: LayoutScalar>(track: TrackSizingOf
 }
 
 pub(super) fn track_accepts_min_content_span_priority<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
 ) -> bool {
     matches!(track.min, MinTrackSizingOf::MinContent)
         || matches!(track.max, MaxTrackSizingOf::MinContent)
 }
 
 pub(super) fn track_accepts_max_content_span_priority<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
 ) -> bool {
     (matches!(track.min, MinTrackSizingOf::MaxContent)
         && !matches!(track.max, MaxTrackSizingOf::MinContent))
@@ -1961,16 +1963,16 @@ pub(super) fn track_accepts_max_content_span_priority<S: LayoutScalar>(
         )
 }
 
-pub(super) fn track_accepts_auto_span_priority<S: LayoutScalar>(track: TrackSizingOf<S>) -> bool {
+pub(super) fn track_accepts_auto_span_priority<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
     matches!(track.min, MinTrackSizingOf::Auto) || matches!(track.max, MaxTrackSizingOf::Auto)
 }
 
 pub(super) fn track_accepts_percent_min_content_span<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     overflow: Overflow,
     percent_basis: Option<S>,
 ) -> bool {
-    if percent_basis.is_none() && track_percent_fraction(&track) > S::ZERO {
+    if percent_basis.is_none() && track_percent_fraction(track) > S::ZERO {
         return true;
     }
     if track_has_definite_min_floor(track) {
@@ -2015,9 +2017,9 @@ pub(super) fn resolve_tracks<S: LayoutScalar>(
         .enumerate()
         .map(|(index, track)| match track.max {
             MaxTrackSizingOf::Flex(_) => {
-                track_min_size(track.min, basis, intrinsic_at(intrinsic_sizes, index))
+                track_min_size(&track.min, basis, intrinsic_at(intrinsic_sizes, index))
             }
-            _ => track_base_size(*track, basis, intrinsic_at(intrinsic_sizes, index)),
+            _ => track_base_size(track, basis, intrinsic_at(intrinsic_sizes, index)),
         })
         .collect::<Vec<_>>();
     let auto_count = tracks
@@ -2037,13 +2039,13 @@ pub(super) fn resolve_tracks<S: LayoutScalar>(
         .iter()
         .enumerate()
         .filter_map(|(index, track)| {
-            track_flex_factor(*track).map(|factor| base_sizes[index].max(factor * fr_size))
+            track_flex_factor(track).map(|factor| base_sizes[index].max(factor * fr_size))
         })
         .fold(S::ZERO, |sum, value| sum + value);
     let fixed_sum = tracks
         .iter()
         .enumerate()
-        .filter(|(_, track)| track_flex_factor(**track).is_none())
+        .filter(|(_, track)| track_flex_factor(track).is_none())
         .map(|(index, _)| base_sizes[index])
         .fold(S::ZERO, |sum, value| sum + value);
     let auto_size = if alignment == AlignContent::Stretch && auto_count > 0 {
@@ -2064,7 +2066,7 @@ pub(super) fn resolve_tracks<S: LayoutScalar>(
             TrackSizingOf {
                 max: MaxTrackSizingOf::Flex(value),
                 ..
-            } => base_sizes[index].max(*value * fr_size),
+            } => base_sizes[index].max(value.get() * fr_size),
             TrackSizingOf {
                 min: MinTrackSizingOf::Auto,
                 max: MaxTrackSizingOf::Auto,
@@ -2072,8 +2074,8 @@ pub(super) fn resolve_tracks<S: LayoutScalar>(
             track => {
                 let intrinsic = intrinsic_at(intrinsic_sizes, index);
                 let base = base_sizes[index];
-                let min = track_growth_floor(*track, basis, intrinsic);
-                track_growth_limit(*track, basis, intrinsic)
+                let min = track_growth_floor(track, basis, intrinsic);
+                track_growth_limit(track, basis, intrinsic)
                     .map(|limit| base.min(limit.max(min)))
                     .unwrap_or(base)
             }
@@ -2082,11 +2084,11 @@ pub(super) fn resolve_tracks<S: LayoutScalar>(
 }
 
 pub(super) fn track_growth_floor<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     basis: Option<S>,
     intrinsic: S,
 ) -> S {
-    match track.min {
+    match &track.min {
         MinTrackSizingOf::Auto => S::ZERO,
         min => track_min_size(min, basis, intrinsic),
     }
@@ -2112,7 +2114,7 @@ pub(super) fn resolve_flex_fraction<S: LayoutScalar>(
         .iter()
         .enumerate()
         .filter_map(|(index, track)| {
-            track_flex_factor(*track).map(|factor| {
+            track_flex_factor(track).map(|factor| {
                 if factor > S::ONE {
                     base_sizes[index] / factor
                 } else {
@@ -2125,7 +2127,7 @@ pub(super) fn resolve_flex_fraction<S: LayoutScalar>(
         .iter()
         .enumerate()
         .filter_map(|(index, track)| {
-            let factor = track_flex_factor(*track)?;
+            let factor = track_flex_factor(track)?;
             (base_sizes.get(index).copied().unwrap_or(S::ZERO) > S::ZERO && factor < S::ONE)
                 .then_some(factor)
         })
@@ -2153,7 +2155,7 @@ pub(super) fn find_size_of_fr<S: LayoutScalar>(
         let mut used_space = S::ZERO;
         let mut flex_sum = S::ZERO;
         for (index, track) in tracks.iter().enumerate() {
-            if let Some(factor) = track_flex_factor(*track)
+            if let Some(factor) = track_flex_factor(track)
                 && factor * hypothetical >= base_sizes[index]
             {
                 flex_sum = flex_sum + factor;
@@ -2164,7 +2166,7 @@ pub(super) fn find_size_of_fr<S: LayoutScalar>(
 
         hypothetical = (space_to_fill - used_space) / flex_sum.max(S::ONE);
         let valid = tracks.iter().enumerate().all(|(index, track)| {
-            if let Some(factor) = track_flex_factor(*track) {
+            if let Some(factor) = track_flex_factor(track) {
                 factor * hypothetical >= base_sizes[index] || factor * previous < base_sizes[index]
             } else {
                 true
@@ -2176,9 +2178,9 @@ pub(super) fn find_size_of_fr<S: LayoutScalar>(
     }
 }
 
-pub(super) fn track_flex_factor<S: LayoutScalar>(track: TrackSizingOf<S>) -> Option<S> {
-    if let MaxTrackSizingOf::Flex(value) = track.max {
-        Some(value)
+pub(super) fn track_flex_factor<S: LayoutScalar>(track: &TrackSizingOf<S>) -> Option<S> {
+    if let MaxTrackSizingOf::Flex(value) = &track.max {
+        Some(value.get())
     } else {
         None
     }
@@ -2297,7 +2299,7 @@ pub(super) fn resolve_track_min_bounds<S: LayoutScalar>(
                 MinTrackSizingOf::MaxContent => intrinsic_at(max_intrinsic_sizes, index),
                 _ => intrinsic_at(min_intrinsic_sizes, index),
             };
-            track_min_size(track.min, basis, intrinsic)
+            track_min_size(&track.min, basis, intrinsic)
         })
         .collect()
 }
@@ -2319,12 +2321,12 @@ pub(super) fn resolve_tracks_with_intrinsics<S: LayoutScalar>(
             let max_intrinsic = intrinsic_at(max_intrinsic_sizes, index);
             match track.max {
                 MaxTrackSizingOf::Flex(_) => max_intrinsic.max(track_min_size_for_intrinsics(
-                    track.min,
+                    &track.min,
                     basis,
                     min_intrinsic,
                     max_intrinsic,
                 )),
-                _ => track_base_size_for_intrinsics(*track, basis, min_intrinsic, max_intrinsic),
+                _ => track_base_size_for_intrinsics(track, basis, min_intrinsic, max_intrinsic),
             }
         })
         .collect::<Vec<_>>();
@@ -2345,13 +2347,13 @@ pub(super) fn resolve_tracks_with_intrinsics<S: LayoutScalar>(
         .iter()
         .enumerate()
         .filter_map(|(index, track)| {
-            track_flex_factor(*track).map(|factor| base_sizes[index].max(factor * fr_size))
+            track_flex_factor(track).map(|factor| base_sizes[index].max(factor * fr_size))
         })
         .fold(S::ZERO, |sum, value| sum + value);
     let fixed_sum = tracks
         .iter()
         .enumerate()
-        .filter(|(_, track)| track_flex_factor(**track).is_none())
+        .filter(|(_, track)| track_flex_factor(track).is_none())
         .map(|(index, _)| base_sizes[index])
         .fold(S::ZERO, |sum, value| sum + value);
     let auto_size = if alignment == AlignContent::Stretch && auto_count > 0 {
@@ -2375,7 +2377,7 @@ pub(super) fn resolve_tracks_with_intrinsics<S: LayoutScalar>(
                 TrackSizingOf {
                     max: MaxTrackSizingOf::Flex(value),
                     ..
-                } => base_sizes[index].max(*value * fr_size),
+                } => base_sizes[index].max(value.get() * fr_size),
                 TrackSizingOf {
                     min: MinTrackSizingOf::Auto,
                     max: MaxTrackSizingOf::Auto,
@@ -2383,12 +2385,12 @@ pub(super) fn resolve_tracks_with_intrinsics<S: LayoutScalar>(
                 track => {
                     let base = base_sizes[index];
                     let min = track_growth_floor_for_intrinsics(
-                        *track,
+                        track,
                         basis,
                         min_intrinsic,
                         max_intrinsic,
                     );
-                    track_growth_limit_for_intrinsics(*track, basis, min_intrinsic, max_intrinsic)
+                    track_growth_limit_for_intrinsics(track, basis, min_intrinsic, max_intrinsic)
                         .map(|limit| base.min(limit.max(min)))
                         .unwrap_or(base)
                 }
@@ -2398,25 +2400,28 @@ pub(super) fn resolve_tracks_with_intrinsics<S: LayoutScalar>(
 }
 
 pub(super) fn track_base_size_for_intrinsics<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     basis: Option<S>,
     min_intrinsic: S,
     max_intrinsic: S,
 ) -> S {
-    let min = track_min_size_for_intrinsics(track.min, basis, min_intrinsic, max_intrinsic);
-    let max_base = match track.max {
-        MaxTrackSizingOf::Length(length) => {
-            resolution_or_else(length.resolve_with_status(basis), || match length {
-                length if length.depends_on_basis() => max_intrinsic,
-                LengthOf::Normal => S::ZERO,
-                LengthOf::Value(_) => resolution_or_zero(length.resolve_with_status(None)),
+    let min = track_min_size_for_intrinsics(&track.min, basis, min_intrinsic, max_intrinsic);
+    let max_base = match &track.max {
+        MaxTrackSizingOf::Calculation(calculation) => {
+            resolution_or_else(resolve_track_calculation(calculation, basis), || {
+                if calculation.depends_on_basis() {
+                    max_intrinsic
+                } else {
+                    resolution_or_zero(resolve_track_calculation(calculation, None))
+                }
             })
         }
         MaxTrackSizingOf::Flex(_) => S::ZERO,
         MaxTrackSizingOf::Auto | MaxTrackSizingOf::MaxContent => max_intrinsic,
         MaxTrackSizingOf::MinContent => min_intrinsic,
         MaxTrackSizingOf::FitContent(limit) => {
-            let limit = resolution_or_fallback(limit.resolve_with_status(basis), max_intrinsic);
+            let limit =
+                resolution_or_fallback(resolve_track_calculation(limit, basis), max_intrinsic);
             max_intrinsic.min(limit)
         }
     };
@@ -2424,43 +2429,42 @@ pub(super) fn track_base_size_for_intrinsics<S: LayoutScalar>(
 }
 
 pub(super) fn track_min_size_for_intrinsics<S: LayoutScalar>(
-    min: MinTrackSizingOf<S>,
+    min: &MinTrackSizingOf<S>,
     basis: Option<S>,
     min_intrinsic: S,
     max_intrinsic: S,
 ) -> S {
     match min {
-        MinTrackSizingOf::Length(length) => resolution_or_zero(length.resolve_with_status(basis)),
+        MinTrackSizingOf::Calculation(calculation) => {
+            resolution_or_zero(resolve_track_calculation(calculation, basis))
+        }
         MinTrackSizingOf::Auto | MinTrackSizingOf::MaxContent => max_intrinsic,
         MinTrackSizingOf::MinContent => min_intrinsic,
     }
 }
 
 pub(super) fn track_growth_floor_for_intrinsics<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     basis: Option<S>,
     min_intrinsic: S,
     max_intrinsic: S,
 ) -> S {
-    match track.min {
+    match &track.min {
         MinTrackSizingOf::Auto => S::ZERO,
         min => track_min_size_for_intrinsics(min, basis, min_intrinsic, max_intrinsic),
     }
 }
 
 pub(super) fn track_growth_limit_for_intrinsics<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     basis: Option<S>,
     min_intrinsic: S,
     max_intrinsic: S,
 ) -> Option<S> {
-    match track.max {
-        MaxTrackSizingOf::Length(length) | MaxTrackSizingOf::FitContent(length) => {
-            resolution_optional(length.resolve_with_status(basis)).or(match length {
-                length if length.depends_on_basis() => Some(max_intrinsic),
-                LengthOf::Normal => Some(S::ZERO),
-                LengthOf::Value(_) => None,
-            })
+    match &track.max {
+        MaxTrackSizingOf::Calculation(calculation) | MaxTrackSizingOf::FitContent(calculation) => {
+            resolution_optional(resolve_track_calculation(calculation, basis))
+                .or_else(|| calculation.depends_on_basis().then_some(max_intrinsic))
         }
         MaxTrackSizingOf::MinContent => Some(min_intrinsic),
         MaxTrackSizingOf::MaxContent | MaxTrackSizingOf::Auto => Some(max_intrinsic),
@@ -2477,15 +2481,16 @@ pub(super) fn resolve_fit_content_tracks<S: LayoutScalar>(
     tracks
         .iter()
         .enumerate()
-        .map(|(index, track)| match track.max {
+        .map(|(index, track)| match &track.max {
             MaxTrackSizingOf::FitContent(limit) => {
                 let min_content = intrinsic_at(min_intrinsic_sizes, index);
                 let max_content = intrinsic_at(max_intrinsic_sizes, index);
-                let limit = resolution_or_fallback(limit.resolve_with_status(basis), max_content);
+                let limit =
+                    resolution_or_fallback(resolve_track_calculation(limit, basis), max_content);
                 max_content.min(min_content.max(limit))
             }
             _ => track_base_size_for_intrinsics(
-                *track,
+                track,
                 basis,
                 intrinsic_at(min_intrinsic_sizes, index),
                 intrinsic_at(max_intrinsic_sizes, index),
@@ -2541,7 +2546,7 @@ pub(super) fn extend_auto_tracks<S: LayoutScalar>(
         let track = if auto_tracks.is_empty() {
             TrackSizingOf::AUTO
         } else {
-            auto_tracks[index]
+            auto_tracks[index].clone()
         };
         tracks.push(track);
         if !auto_tracks.is_empty() {
@@ -2572,7 +2577,7 @@ pub(super) fn prepend_auto_tracks<S: LayoutScalar>(
                 let phase = (auto_tracks.len() + index + auto_tracks.len()
                     - required_count % auto_tracks.len())
                     % auto_tracks.len();
-                auto_tracks[phase]
+                auto_tracks[phase].clone()
             })
             .collect::<Vec<_>>()
     };
@@ -2595,7 +2600,7 @@ pub(super) fn expand_track_components<S: LayoutScalar>(
     let reserved = reserved_track_space(components, basis, gap);
     for component in components {
         match component {
-            TrackComponentOf::Track(track) => tracks.push(*track),
+            TrackComponentOf::Track(track) => tracks.push(track.clone()),
             TrackComponentOf::Repeat(repetition) => {
                 let repeated_tracks = repetition.sizing_tracks();
                 let count = match repetition.repeat() {
@@ -2610,7 +2615,7 @@ pub(super) fn expand_track_components<S: LayoutScalar>(
                     }
                 };
                 for _ in 0..count {
-                    tracks.extend(repeated_tracks.iter().copied());
+                    tracks.extend(repeated_tracks.iter().cloned());
                 }
             }
             TrackComponentOf::LineNames(_) => {}
@@ -2628,7 +2633,7 @@ fn validate_track_components<S: LayoutScalar>(
 ) -> Result<(), LengthResolutionStatus<S>> {
     for component in components {
         match component {
-            TrackComponentOf::Track(track) => validate_track_sizing(*track, basis)?,
+            TrackComponentOf::Track(track) => validate_track_sizing(track, basis)?,
             TrackComponentOf::Repeat(repetition) => {
                 validate_track_components(repetition.components(), basis)?;
             }
@@ -2639,15 +2644,15 @@ fn validate_track_components<S: LayoutScalar>(
 }
 
 fn validate_track_sizing<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     basis: Option<S>,
 ) -> Result<(), LengthResolutionStatus<S>> {
-    if let MinTrackSizingOf::Length(length) = track.min {
-        validate_track_length(length, basis)?;
+    if let MinTrackSizingOf::Calculation(calculation) = &track.min {
+        validate_track_calculation(calculation, basis)?;
     }
-    match track.max {
-        MaxTrackSizingOf::Length(length) | MaxTrackSizingOf::FitContent(length) => {
-            validate_track_length(length, basis)?;
+    match &track.max {
+        MaxTrackSizingOf::Calculation(calculation) | MaxTrackSizingOf::FitContent(calculation) => {
+            validate_track_calculation(calculation, basis)?;
         }
         MaxTrackSizingOf::Flex(_)
         | MaxTrackSizingOf::Auto
@@ -2657,16 +2662,15 @@ fn validate_track_sizing<S: LayoutScalar>(
     Ok(())
 }
 
-fn validate_track_length<S: LayoutScalar>(
-    length: LengthOf<S>,
+fn validate_track_calculation<S: LayoutScalar>(
+    calculation: &SizingCalculationOf<S>,
     basis: Option<S>,
 ) -> Result<(), LengthResolutionStatus<S>> {
-    let resolution = length.resolve_with_status(basis);
+    let resolution = resolve_track_calculation(calculation, basis);
     match resolution.status() {
         LengthResolutionStatus::InvalidNumeric { .. } => Err(resolution.status()),
-        LengthResolutionStatus::Resolved
-        | LengthResolutionStatus::MissingBasis
-        | LengthResolutionStatus::NonNumeric => Ok(()),
+        LengthResolutionStatus::Resolved | LengthResolutionStatus::MissingBasis => Ok(()),
+        LengthResolutionStatus::NonNumeric => Err(LengthResolutionStatus::NonNumeric),
     }
 }
 
@@ -2725,7 +2729,7 @@ pub(super) fn reserved_track_space<S: LayoutScalar>(
         match component {
             TrackComponentOf::Track(track) => {
                 count += 1;
-                size = size + track_base_size(*track, basis, S::ZERO);
+                size = size + track_base_size(track, basis, S::ZERO);
             }
             TrackComponentOf::Repeat(repetition) => {
                 if let TrackRepeat::Count(repeat_count) = repetition.repeat() {
@@ -2735,7 +2739,7 @@ pub(super) fn reserved_track_space<S: LayoutScalar>(
                         + S::from_usize(repeat_count.get())
                             * repeated_tracks
                                 .iter()
-                                .map(|track| track_base_size(*track, basis, S::ZERO))
+                                .map(|track| track_base_size(track, basis, S::ZERO))
                                 .fold(S::ZERO, |sum, value| sum + value);
                 }
             }
@@ -2764,7 +2768,7 @@ pub(super) fn auto_repeat_count<S: LayoutScalar>(
     }
     let track_sum = tracks
         .iter()
-        .map(|track| track_base_size(*track, Some(basis), S::ZERO).max(S::ONE))
+        .map(|track| track_base_size(track, Some(basis), S::ZERO).max(S::ONE))
         .fold(S::ZERO, |sum, value| sum + value);
     let repeat_size = track_sum + gap * S::from_usize(tracks.len());
     if repeat_size <= S::ZERO {
@@ -2796,11 +2800,11 @@ pub(super) fn track_resolution_intrinsic_sizes<S: LayoutScalar>(
         .enumerate()
         .map(|(index, track)| {
             if track.min == MinTrackSizingOf::MaxContent
-                || match track.max {
+                || match &track.max {
                     MaxTrackSizingOf::Auto
                     | MaxTrackSizingOf::Flex(_)
                     | MaxTrackSizingOf::MaxContent => true,
-                    MaxTrackSizingOf::Length(length) => length.depends_on_basis(),
+                    MaxTrackSizingOf::Calculation(calculation) => calculation.depends_on_basis(),
                     MaxTrackSizingOf::FitContent(_) | MaxTrackSizingOf::MinContent => false,
                 }
             {
@@ -2817,19 +2821,21 @@ pub(super) fn track_resolution_intrinsic_sizes<S: LayoutScalar>(
 }
 
 pub(super) fn track_base_size<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     basis: Option<S>,
     intrinsic: S,
 ) -> S {
-    let min = track_min_size(track.min, basis, intrinsic);
-    let max_base = match track.max {
-        MaxTrackSizingOf::Length(length) => resolution_or_zero(length.resolve_with_status(basis)),
+    let min = track_min_size(&track.min, basis, intrinsic);
+    let max_base = match &track.max {
+        MaxTrackSizingOf::Calculation(calculation) => {
+            resolution_or_zero(resolve_track_calculation(calculation, basis))
+        }
         MaxTrackSizingOf::Flex(_) => S::ZERO,
         MaxTrackSizingOf::Auto | MaxTrackSizingOf::MinContent | MaxTrackSizingOf::MaxContent => {
             intrinsic
         }
         MaxTrackSizingOf::FitContent(limit) => {
-            let limit = resolution_or_fallback(limit.resolve_with_status(basis), intrinsic);
+            let limit = resolution_or_fallback(resolve_track_calculation(limit, basis), intrinsic);
             intrinsic.min(limit)
         }
     };
@@ -2837,12 +2843,14 @@ pub(super) fn track_base_size<S: LayoutScalar>(
 }
 
 pub(super) fn track_min_size<S: LayoutScalar>(
-    min: MinTrackSizingOf<S>,
+    min: &MinTrackSizingOf<S>,
     basis: Option<S>,
     intrinsic: S,
 ) -> S {
     match min {
-        MinTrackSizingOf::Length(length) => resolution_or_zero(length.resolve_with_status(basis)),
+        MinTrackSizingOf::Calculation(calculation) => {
+            resolution_or_zero(resolve_track_calculation(calculation, basis))
+        }
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {
             intrinsic
         }
@@ -2850,16 +2858,18 @@ pub(super) fn track_min_size<S: LayoutScalar>(
 }
 
 pub(super) fn track_growth_limit<S: LayoutScalar>(
-    track: TrackSizingOf<S>,
+    track: &TrackSizingOf<S>,
     basis: Option<S>,
     intrinsic: S,
 ) -> Option<S> {
-    match track.max {
-        MaxTrackSizingOf::Length(length) => resolution_optional(length.resolve_with_status(basis)),
+    match &track.max {
+        MaxTrackSizingOf::Calculation(calculation) => {
+            resolution_optional(resolve_track_calculation(calculation, basis))
+        }
         MaxTrackSizingOf::FitContent(limit) => {
-            let min = track_min_size(track.min, basis, intrinsic);
+            let min = track_min_size(&track.min, basis, intrinsic);
             Some(intrinsic.max(min).min(resolution_or_fallback(
-                limit.resolve_with_status(basis),
+                resolve_track_calculation(limit, basis),
                 intrinsic,
             )))
         }
@@ -2923,7 +2933,7 @@ fn sub_one_flex_unfilled_space<S: LayoutScalar>(tracks: &[TrackSizingOf<S>], siz
         .enumerate()
         .filter_map(|(index, track)| {
             let factor =
-                track_flex_factor(*track).filter(|factor| *factor > S::ZERO && *factor < S::ONE)?;
+                track_flex_factor(track).filter(|factor| *factor > S::ZERO && *factor < S::ONE)?;
             let size = sizes.get(index).copied().unwrap_or(S::ZERO);
             (size > S::ZERO).then_some(size / factor)
         })
@@ -2936,7 +2946,7 @@ fn sub_one_flex_unfilled_space<S: LayoutScalar>(tracks: &[TrackSizingOf<S>], siz
     let mut occupied_fraction = S::ZERO;
     for (index, track) in tracks.iter().enumerate() {
         let Some(factor) =
-            track_flex_factor(*track).filter(|factor| *factor > S::ZERO && *factor < S::ONE)
+            track_flex_factor(track).filter(|factor| *factor > S::ZERO && *factor < S::ONE)
         else {
             continue;
         };

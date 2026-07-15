@@ -856,6 +856,14 @@ impl<S: LayoutScalar> SizingCalculationOf<S> {
         self.depends_on_basis
     }
 
+    #[must_use]
+    pub(crate) fn affine_value(&self) -> Option<LengthPercentageOf<S>> {
+        match self.instructions.as_slice() {
+            [Instruction::Value(value)] => Some(*value),
+            _ => None,
+        }
+    }
+
     fn is_zero_value(&self) -> bool {
         matches!(
             self.instructions.as_slice(),

@@ -2,8 +2,9 @@ use crate::{
     Available, Baselines, CollapsibleMarginOf, ComputeOutput, Dimension, Direction, Display, Edges,
     FlowAxes, LayoutScalar, Length, LengthAuto, LengthPercentageOf, LengthResolutionStatus,
     MaxTrackSizing, MinTrackSizing, PhysicalAxis, PhysicalBlockMarginCollapse,
-    PhysicalBlockMarginCollapseOf, PhysicalSide, Point, Scalar, Size, TrackComponent,
-    TrackComponentList, TrackRepeatCount, TrackSizing, WritingMode,
+    PhysicalBlockMarginCollapseOf, PhysicalSide, Point, Scalar, Size, SizingCalculation,
+    TrackComponent, TrackComponentList, TrackFlexFactor, TrackRepeatCount, TrackSizing,
+    WritingMode,
 };
 
 fn assert_physical_block_margin_collapse_maps_all_flow_axes<S: LayoutScalar>() {
@@ -185,8 +186,8 @@ fn affine_values_report_basis_dependency_and_percent_fraction() {
 fn affine_track_sizing_reports_signed_percent_fraction() {
     let value = mixed(0.0, 0.25);
     let track = TrackSizing::new(
-        MinTrackSizing::Length(Length::value(value)),
-        MaxTrackSizing::Length(Length::px(80.0)),
+        MinTrackSizing::Calculation(SizingCalculation::value(value)),
+        MaxTrackSizing::Calculation(SizingCalculation::value(mixed(80.0, 0.0))),
     );
 
     assert_eq!(track.percent_fraction(), 0.25);
@@ -249,15 +250,19 @@ fn track_sizing_components_empty_slice_uses_default_scalar_api() {
 fn track_sizing_reports_basis_dependency() {
     assert!(!TrackSizing::px(12.0).depends_on_basis());
     assert!(TrackSizing::percent(0.25).depends_on_basis());
-    assert!(TrackSizing::fit_content(Length::percent(0.25)).depends_on_basis());
-    assert!(!TrackSizing::fr(1.0).depends_on_basis());
+    assert!(
+        TrackSizing::fit_content(SizingCalculation::value(mixed(0.0, 0.25))).depends_on_basis()
+    );
+    assert!(
+        !TrackSizing::flex(TrackFlexFactor::try_new(1.0).expect("valid factor")).depends_on_basis()
+    );
 }
 
 #[test]
 fn affine_percent_track_participates_in_percent_detection() {
     let track = TrackSizing::new(
-        MinTrackSizing::Length(Length::value(mixed(20.0, 0.10))),
-        MaxTrackSizing::Length(Length::px(80.0)),
+        MinTrackSizing::Calculation(SizingCalculation::value(mixed(20.0, 0.10))),
+        MaxTrackSizing::Calculation(SizingCalculation::value(mixed(80.0, 0.0))),
     );
 
     assert!(track.depends_on_basis());
@@ -267,8 +272,8 @@ fn affine_percent_track_participates_in_percent_detection() {
 #[test]
 fn affine_px_only_track_does_not_request_percent_rerun() {
     let track = TrackSizing::new(
-        MinTrackSizing::Length(Length::value(mixed(30.0, 0.0))),
-        MaxTrackSizing::Length(Length::px(80.0)),
+        MinTrackSizing::Calculation(SizingCalculation::value(mixed(30.0, 0.0))),
+        MaxTrackSizing::Calculation(SizingCalculation::value(mixed(80.0, 0.0))),
     );
 
     assert!(!track.depends_on_basis());

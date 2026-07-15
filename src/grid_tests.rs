@@ -10,6 +10,14 @@ use crate::test_support::{
 };
 use crate::*;
 
+fn track_flex<S: LayoutScalar>(value: S) -> TrackSizingOf<S> {
+    TrackSizingOf::flex(TrackFlexFactorOf::try_new(value).expect("valid test track flex factor"))
+}
+
+fn track_component_flex<S: LayoutScalar>(value: S) -> TrackComponentOf<S> {
+    TrackComponentOf::flex(TrackFlexFactorOf::try_new(value).expect("valid test track flex factor"))
+}
+
 #[test]
 fn grid_lanes_order_modified_sequence_drives_running_offsets_and_intrinsic_contributions_in_both_scalar_lanes()
  {
@@ -4695,7 +4703,7 @@ fn grid_auto_places_children_into_declared_column_tracks() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
         },
@@ -4799,7 +4807,7 @@ fn grid_column_gap_separates_declared_tracks() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(210.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
             ..NodeInput::default()
@@ -4915,8 +4923,8 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(205.0), Dimension::px(75.0)),
-            grid_template_columns: vec![TrackComponent::px(100.0), Dimension::px(100.0).into()],
-            grid_template_rows: vec![TrackComponent::px(30.0), Dimension::px(40.0).into()],
+            grid_template_columns: vec![TrackComponent::px(100.0), TrackComponent::px(100.0)],
+            grid_template_rows: vec![TrackComponent::px(30.0), TrackComponent::px(40.0)],
             gap: Size::new(Length::px(5.0), Length::px(5.0)),
             ..NodeInput::default()
         },
@@ -5028,7 +5036,7 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
         },
@@ -5139,7 +5147,7 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
         },
@@ -6091,7 +6099,7 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(120.0), Dimension::px(80.0).into()],
+            grid_template_columns: vec![TrackComponent::px(120.0), TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
         },
@@ -6199,7 +6207,7 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(120.0), Dimension::px(80.0).into()],
+            grid_template_columns: vec![TrackComponent::px(120.0), TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
         },
@@ -7085,7 +7093,7 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::AUTO),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(30.0)],
             grid_auto_rows: vec![TrackComponent::px(40.0)],
             gap: Size::new(Length::ZERO, Length::px(5.0)),
@@ -7198,7 +7206,7 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
             display: Display::Grid,
             size: Size::new(Dimension::px(50.0), Dimension::AUTO),
             grid_template_columns: vec![TrackComponent::px(50.0)],
-            grid_auto_rows: vec![TrackComponent::px(10.0), Dimension::px(20.0).into()],
+            grid_auto_rows: vec![TrackComponent::px(10.0), TrackComponent::px(20.0)],
             gap: Size::new(Length::ZERO, Length::px(5.0)),
             ..NodeInput::default()
         },
@@ -8104,7 +8112,7 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
             display: Display::Grid,
             size: Size::new(Dimension::AUTO, Dimension::px(50.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
-            grid_template_rows: vec![TrackComponent::px(20.0), Dimension::px(30.0).into()],
+            grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(30.0)],
             grid_auto_columns: vec![TrackComponent::px(40.0)],
             grid_auto_flow: GridAutoFlow::Column,
             ..NodeInput::default()
@@ -8210,7 +8218,7 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
         },
@@ -8339,7 +8347,7 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
             display: Display::Grid,
             size: Size::new(Dimension::px(80.0), Dimension::px(60.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
-            grid_template_rows: vec![TrackComponent::px(20.0), Dimension::px(40.0).into()],
+            grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(40.0)],
             ..NodeInput::default()
         },
     );
@@ -8446,7 +8454,7 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(210.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
             ..NodeInput::default()
@@ -8553,7 +8561,7 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
             display: Display::Grid,
             size: Size::new(Dimension::px(80.0), Dimension::px(70.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
-            grid_template_rows: vec![TrackComponent::px(20.0), Dimension::px(40.0).into()],
+            grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(40.0)],
             gap: Size::new(Length::ZERO, Length::px(10.0)),
             ..NodeInput::default()
         },
@@ -8661,8 +8669,8 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
             size: Size::new(Dimension::px(150.0), Dimension::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(40.0),
-                Dimension::px(50.0).into(),
-                Dimension::px(60.0).into(),
+                TrackComponent::px(50.0),
+                TrackComponent::px(60.0),
             ],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             ..NodeInput::default()
@@ -8804,10 +8812,10 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
             size: Size::new(Dimension::px(90.0), Dimension::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(30.0),
-                Dimension::px(30.0).into(),
-                Dimension::px(30.0).into(),
+                TrackComponent::px(30.0),
+                TrackComponent::px(30.0),
             ],
-            grid_template_rows: vec![TrackComponent::px(10.0), Dimension::px(10.0).into()],
+            grid_template_rows: vec![TrackComponent::px(10.0), TrackComponent::px(10.0)],
             grid_auto_flow: GridAutoFlow::RowDense,
             ..NodeInput::default()
         },
@@ -9106,8 +9114,8 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
-            grid_template_columns: vec![TrackComponent::px(80.0), Dimension::px(120.0).into()],
-            grid_template_rows: vec![TrackComponent::px(20.0), Dimension::px(20.0).into()],
+            grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
+            grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(20.0)],
             ..NodeInput::default()
         },
     );
@@ -9214,8 +9222,8 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
             size: Size::new(Dimension::px(150.0), Dimension::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(30.0),
-                Dimension::px(40.0).into(),
-                Dimension::px(50.0).into(),
+                TrackComponent::px(40.0),
+                TrackComponent::px(50.0),
             ],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(5.0), Length::ZERO),
@@ -9343,8 +9351,8 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
             size: Size::new(Dimension::px(150.0), Dimension::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(30.0),
-                Dimension::px(40.0).into(),
-                Dimension::px(50.0).into(),
+                TrackComponent::px(40.0),
+                TrackComponent::px(50.0),
             ],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(5.0), Length::ZERO),
@@ -9515,8 +9523,8 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
             grid_template_columns: vec![TrackComponent::px(50.0)],
             grid_auto_rows: vec![
                 TrackComponent::px(10.0),
-                Dimension::px(20.0).into(),
-                Dimension::px(30.0).into(),
+                TrackComponent::px(20.0),
+                TrackComponent::px(30.0),
             ],
             gap: Size::new(Length::ZERO, Length::px(5.0)),
             ..NodeInput::default()
@@ -9624,7 +9632,7 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
             size: Size::new(Dimension::AUTO, Dimension::px(10.0)),
             grid_template_columns: vec![TrackComponent::px(20.0)],
             grid_template_rows: vec![TrackComponent::px(10.0)],
-            grid_auto_columns: vec![TrackComponent::px(30.0), Dimension::px(40.0).into()],
+            grid_auto_columns: vec![TrackComponent::px(30.0), TrackComponent::px(40.0)],
             gap: Size::new(Length::px(5.0), Length::ZERO),
             ..NodeInput::default()
         },
@@ -9731,8 +9739,8 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
             size: Size::new(Dimension::px(120.0), Dimension::px(10.0)),
             grid_template_columns: vec![
                 TrackComponent::px(20.0),
-                Dimension::px(30.0).into(),
-                Dimension::px(40.0).into(),
+                TrackComponent::px(30.0),
+                TrackComponent::px(40.0),
             ],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             gap: Size::new(Length::px(5.0), Length::ZERO),
@@ -9842,8 +9850,8 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
             grid_template_columns: vec![TrackComponent::px(20.0)],
             grid_template_rows: vec![
                 TrackComponent::px(10.0),
-                Dimension::px(20.0).into(),
-                Dimension::px(30.0).into(),
+                TrackComponent::px(20.0),
+                TrackComponent::px(30.0),
             ],
             gap: Size::new(Length::ZERO, Length::px(5.0)),
             ..NodeInput::default()
@@ -10274,7 +10282,7 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
-            grid_template_columns: vec![TrackComponent::px(50.0), Dimension::px(50.0).into()],
+            grid_template_columns: vec![TrackComponent::px(50.0), TrackComponent::px(50.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
             justify_content: Some(AlignContent::SpaceBetween),
@@ -10378,7 +10386,7 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
             NodeInput {
                 display: Display::Grid,
                 size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
-                grid_template_columns: vec![TrackComponent::px(50.0), Dimension::px(50.0).into()],
+                grid_template_columns: vec![TrackComponent::px(50.0), TrackComponent::px(50.0)],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 gap: Size::new(Length::px(10.0), Length::ZERO),
                 justify_content: Some(alignment),
@@ -10493,8 +10501,8 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
             size: Size::new(Dimension::px(300.0), Dimension::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(50.0),
-                TrackComponent::fr(1.0),
-                Dimension::fr(2.0).into(),
+                track_component_flex(1.0),
+                track_component_flex(2.0),
             ],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
@@ -10613,7 +10621,7 @@ fn grid_fraction_tracks_use_available_space_when_container_size_is_auto() {
         1,
         NodeInput {
             display: Display::Grid,
-            grid_template_columns: vec![TrackComponent::fr(1.0), Dimension::fr(2.0).into()],
+            grid_template_columns: vec![track_component_flex(1.0), track_component_flex(2.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(12.0), Length::ZERO),
             ..NodeInput::default()
@@ -10717,7 +10725,7 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
         NodeInput {
             display: Display::Grid,
             min_size: Size::new(Dimension::px(180.0), Dimension::AUTO),
-            grid_template_columns: vec![TrackComponent::fr(1.0), Dimension::fr(2.0).into()],
+            grid_template_columns: vec![track_component_flex(1.0), track_component_flex(2.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(12.0), Length::ZERO),
             ..NodeInput::default()
@@ -10822,7 +10830,7 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
             size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
             grid_template_columns: vec![TrackComponent::px(50.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
-            grid_auto_columns: vec![TrackComponent::fr(1.0)],
+            grid_auto_columns: vec![track_component_flex(1.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
             ..NodeInput::default()
         },
@@ -10928,7 +10936,7 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(220.0), Dimension::px(20.0)),
-            grid_template_columns: vec![TrackComponent::AUTO, Dimension::AUTO.into()],
+            grid_template_columns: vec![TrackComponent::AUTO, TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(20.0), Length::ZERO),
             ..NodeInput::default()
@@ -12438,7 +12446,7 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::AUTO, Dimension::AUTO),
-            grid_template_columns: vec![TrackComponent::AUTO, Dimension::AUTO.into()],
+            grid_template_columns: vec![TrackComponent::AUTO, TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             justify_content: Some(AlignContent::Start),
             align_content: Some(AlignContent::Start),
@@ -13079,7 +13087,7 @@ fn grid_spanning_item_redistributes_beyond_fit_content_limit() {
                 }),
                 TrackComponent::Track(crate::TrackSizing {
                     min: MinTrackSizing::Auto,
-                    max: MaxTrackSizing::FitContent(Length::px(10.0)),
+                    max: MaxTrackSizing::FitContent(SizingCalculation::value(lp(10.0, 0.0))),
                 }),
             ],
             grid_template_rows: vec![TrackComponent::px(40.0)],
@@ -13442,13 +13450,13 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
             grid_template_columns: vec![
                 TrackComponent::AUTO,
                 TrackComponent::AUTO,
-                TrackComponent::fr(1.0),
+                track_component_flex(1.0),
             ],
             grid_template_rows: vec![
                 TrackComponent::AUTO,
                 TrackComponent::AUTO,
                 TrackComponent::AUTO,
-                TrackComponent::fr(1.0),
+                track_component_flex(1.0),
             ],
             ..NodeInput::default()
         },
@@ -13601,7 +13609,9 @@ fn grid_spanning_item_reserves_percent_track_from_max_content_size() {
             grid_template_columns: vec![
                 TrackComponent::MIN_CONTENT,
                 TrackComponent::MAX_CONTENT,
-                TrackComponent::Track(crate::TrackSizing::fit_content(Length::px(20.0))),
+                TrackComponent::Track(crate::TrackSizing::fit_content(SizingCalculation::value(
+                    lp(20.0, 0.0),
+                ))),
                 TrackComponent::AUTO,
                 TrackComponent::px(10.0),
                 TrackComponent::percent(0.2),
@@ -13751,7 +13761,9 @@ fn grid_spanning_item_counts_definite_minmax_floors_when_reserving_percent_track
             grid_template_columns: vec![
                 TrackComponent::MIN_CONTENT,
                 TrackComponent::MAX_CONTENT,
-                TrackComponent::Track(crate::TrackSizing::fit_content(Length::px(20.0))),
+                TrackComponent::Track(crate::TrackSizing::fit_content(SizingCalculation::value(
+                    lp(20.0, 0.0),
+                ))),
                 TrackComponent::AUTO,
                 TrackComponent::px(10.0),
                 TrackComponent::percent(0.2),
@@ -13981,7 +13993,7 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::px(100.0), Dimension::AUTO),
-            grid_template_columns: vec![TrackComponent::px(50.0), Dimension::px(50.0).into()],
+            grid_template_columns: vec![TrackComponent::px(50.0), TrackComponent::px(50.0)],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             justify_content: Some(AlignContent::Start),
             align_content: Some(AlignContent::Start),
@@ -14545,7 +14557,7 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(Dimension::AUTO, Dimension::AUTO),
-            grid_template_columns: vec![TrackComponent::AUTO, Dimension::AUTO.into()],
+            grid_template_columns: vec![TrackComponent::AUTO, TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             justify_content: Some(AlignContent::Start),
             align_content: Some(AlignContent::Start),
@@ -14672,7 +14684,7 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
         }
     }
 
-    fn run(track: Dimension) -> (ComputeOutput, NodeOutput) {
+    fn run(track: TrackComponent) -> (ComputeOutput, NodeOutput) {
         let mut tree = GridTree::default();
         tree.children.insert(1, vec![2]);
         tree.children.insert(2, vec![]);
@@ -14681,7 +14693,7 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
             NodeInput {
                 display: Display::Grid,
                 size: Size::new(Dimension::AUTO, Dimension::AUTO),
-                grid_template_columns: vec![track.into()],
+                grid_template_columns: vec![track],
                 grid_template_rows: vec![TrackComponent::AUTO],
                 justify_content: Some(AlignContent::Start),
                 align_content: Some(AlignContent::Start),
@@ -14716,7 +14728,7 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
         (output, tree.layouts[&2])
     }
 
-    for track in [Dimension::MIN_CONTENT, Dimension::MAX_CONTENT] {
+    for track in [TrackComponent::MIN_CONTENT, TrackComponent::MAX_CONTENT] {
         let (output, child_layout) = run(track);
         assert_eq!(output.content_size, Size::new(90.0, 22.0));
         assert_eq!(child_layout.location, Point::new(0.0, 0.0));
@@ -16745,7 +16757,7 @@ fn resolve_inline_tracks_accepts_f64_track_inputs() {
     let tracks = [
         TrackSizingOf::<f64>::px(10.25),
         TrackSizingOf::<f64>::AUTO,
-        TrackSizingOf::<f64>::fr(0.5),
+        track_flex::<f64>(0.5),
     ];
     let sizes = resolve_inline_tracks(InlineTrackInput {
         tracks: &tracks,
@@ -16795,7 +16807,7 @@ fn distribute_intrinsic_span_preserves_f64_fractional_shares() {
 fn px_only_affine_max_track_does_not_force_max_intrinsic_resolution() {
     let tracks = [TrackSizing::new(
         MinTrackSizing::MinContent,
-        MaxTrackSizing::Length(Length::value(lp(24.0, 0.0))),
+        MaxTrackSizing::Calculation(SizingCalculation::value(lp(24.0, 0.0))),
     )];
 
     let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0]);
@@ -16807,7 +16819,7 @@ fn px_only_affine_max_track_does_not_force_max_intrinsic_resolution() {
 fn basis_dependent_affine_max_track_uses_max_intrinsic_resolution() {
     let tracks = [TrackSizing::new(
         MinTrackSizing::MinContent,
-        MaxTrackSizing::Length(Length::value(lp(0.0, 0.5))),
+        MaxTrackSizing::Calculation(SizingCalculation::value(lp(0.0, 0.5))),
     )];
 
     let sizes = track_resolution_intrinsic_sizes(&tracks, &[11.0], &[99.0]);
@@ -16818,7 +16830,7 @@ fn basis_dependent_affine_max_track_uses_max_intrinsic_resolution() {
 #[test]
 fn track_intrinsic_min_resolution_handles_invalid_affine_numeric_result() {
     let size = track_min_size_for_intrinsics(
-        MinTrackSizing::Length(Length::value(invalid_numeric_lp())),
+        &MinTrackSizing::Calculation(SizingCalculation::value(invalid_numeric_lp())),
         Some(2.0),
         11.0,
         99.0,
@@ -16830,9 +16842,9 @@ fn track_intrinsic_min_resolution_handles_invalid_affine_numeric_result() {
 #[test]
 fn track_intrinsic_max_resolution_handles_invalid_affine_numeric_result() {
     let size = track_base_size_for_intrinsics(
-        TrackSizing::new(
+        &TrackSizing::new(
             MinTrackSizing::MinContent,
-            MaxTrackSizing::Length(Length::value(invalid_numeric_lp())),
+            MaxTrackSizing::Calculation(SizingCalculation::value(invalid_numeric_lp())),
         ),
         Some(2.0),
         11.0,
@@ -16845,9 +16857,9 @@ fn track_intrinsic_max_resolution_handles_invalid_affine_numeric_result() {
 #[test]
 fn track_fit_content_limit_handles_invalid_affine_numeric_result() {
     let limit = track_growth_limit(
-        TrackSizing::new(
+        &TrackSizing::new(
             MinTrackSizing::MinContent,
-            MaxTrackSizing::FitContent(Length::value(invalid_numeric_lp())),
+            MaxTrackSizing::FitContent(SizingCalculation::value(invalid_numeric_lp())),
         ),
         Some(2.0),
         99.0,
@@ -16863,7 +16875,7 @@ fn grid_lane_track_base_rejects_positive_invalid_affine_numeric_result() {
         available: Some(2.0),
         gap: 0.0,
         tracks: vec![TrackSizing::new(
-            MinTrackSizing::Length(Length::value(invalid_numeric_lp())),
+            MinTrackSizing::Calculation(SizingCalculation::value(invalid_numeric_lp())),
             MaxTrackSizing::Auto,
         )],
         content_sized_tracks: vec![0],
@@ -16889,7 +16901,7 @@ fn grid_lane_track_base_rejects_signed_invalid_affine_numeric_result() {
         available: Some(f32::MAX),
         gap: 0.0,
         tracks: vec![TrackSizing::new(
-            MinTrackSizing::Length(Length::value(lp(-f32::MAX, -1.0))),
+            MinTrackSizing::Calculation(SizingCalculation::value(lp(-f32::MAX, -1.0))),
             MaxTrackSizing::Auto,
         )],
         content_sized_tracks: vec![0],
@@ -16919,7 +16931,7 @@ fn grid_lane_track_base_rejects_positive_and_signed_invalid_f64_affine_numeric_r
             available: Some(f64::MAX),
             gap: 0.0,
             tracks: vec![TrackSizingOf::new(
-                MinTrackSizingOf::Length(LengthOf::value(
+                MinTrackSizingOf::Calculation(SizingCalculationOf::value(
                     LengthPercentageOf::from_coefficients(absolute, percent)
                         .expect("test coefficients are finite"),
                 )),
@@ -20134,8 +20146,8 @@ fn vertical_grid_child_percentage_padding_uses_unequal_physical_area_height_basi
                 display: Display::Grid,
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
-                grid_template_columns: vec![TrackComponent::from(Length::px(200.0))],
-                grid_template_rows: vec![TrackComponent::from(Length::px(100.0))],
+                grid_template_columns: vec![TrackComponent::from(lp(200.0, 0.0))],
+                grid_template_rows: vec![TrackComponent::from(lp(100.0, 0.0))],
                 ..NodeInput::default()
             },
         )
@@ -21801,7 +21813,7 @@ fn subgrid_traversal_rejects_standalone_subgrid_explicitly() {
 
 #[test]
 fn fr_span_contribution_distributes_by_flex_factor() {
-    let tracks = [TrackSizing::fr(1.0), TrackSizing::fr(2.0)];
+    let tracks = [track_flex(1.0), track_flex(2.0)];
     let mut sizes = [0.0, 0.0];
 
     distribute_intrinsic_span(
@@ -21817,7 +21829,7 @@ fn fr_span_contribution_distributes_by_flex_factor() {
 
 #[test]
 fn fr_span_contribution_subtracts_non_flex_base_tracks() {
-    let tracks = [TrackSizing::MIN_CONTENT, TrackSizing::fr(1.0)];
+    let tracks = [TrackSizing::MIN_CONTENT, track_flex(1.0)];
     let mut sizes = [10.0, 0.0];
 
     distribute_intrinsic_span(
@@ -21833,7 +21845,7 @@ fn fr_span_contribution_subtracts_non_flex_base_tracks() {
 
 #[test]
 fn fr_span_contribution_normalizes_sub_one_factors() {
-    let tracks = [TrackSizing::fr(0.2), TrackSizing::fr(0.3)];
+    let tracks = [track_flex(0.2), track_flex(0.3)];
     let mut sizes = [0.0, 0.0];
 
     distribute_intrinsic_span(
@@ -21849,11 +21861,7 @@ fn fr_span_contribution_normalizes_sub_one_factors() {
 
 #[test]
 fn fr_span_contribution_normalizes_sub_one_factors_after_non_flex_tracks() {
-    let tracks = [
-        TrackSizing::px(9.0),
-        TrackSizing::fr(0.5),
-        TrackSizing::fr(0.5),
-    ];
+    let tracks = [TrackSizing::px(9.0), track_flex(0.5), track_flex(0.5)];
     let mut sizes = [0.0, 0.0, 0.0];
 
     distribute_intrinsic_span(
@@ -21869,7 +21877,7 @@ fn fr_span_contribution_normalizes_sub_one_factors_after_non_flex_tracks() {
 
 #[test]
 fn fr_span_contribution_splits_zero_factors_evenly() {
-    let tracks = [TrackSizing::fr(0.0), TrackSizing::fr(0.0)];
+    let tracks = [track_flex(0.0), track_flex(0.0)];
     let mut sizes = [0.0, 0.0];
 
     distribute_intrinsic_span(
@@ -21888,12 +21896,12 @@ fn fr_span_contribution_keeps_indefinite_percent_tracks_for_initial_sizing() {
     let tracks = [
         TrackSizing::MIN_CONTENT,
         TrackSizing::MAX_CONTENT,
-        TrackSizing::fit_content(Length::px(20.0)),
+        TrackSizing::fit_content(SizingCalculation::value(lp(20.0, 0.0))),
         TrackSizing::AUTO,
         TrackSizing::px(10.0),
         TrackSizing::percent(0.2),
-        TrackSizing::fr(1.0),
-        TrackSizing::fr(2.0),
+        track_flex(1.0),
+        track_flex(2.0),
     ];
     let mut sizes = [0.0; 8];
 
@@ -21913,12 +21921,12 @@ fn fr_span_contribution_reserves_resolved_percent_tracks() {
     let tracks = [
         TrackSizing::MIN_CONTENT,
         TrackSizing::MAX_CONTENT,
-        TrackSizing::fit_content(Length::px(20.0)),
+        TrackSizing::fit_content(SizingCalculation::value(lp(20.0, 0.0))),
         TrackSizing::AUTO,
         TrackSizing::px(10.0),
         TrackSizing::percent(0.2),
-        TrackSizing::fr(1.0),
-        TrackSizing::fr(2.0),
+        track_flex(1.0),
+        track_flex(2.0),
     ];
     let mut sizes = [0.0; 8];
 
@@ -22039,7 +22047,7 @@ fn max_content_span_reserves_resolved_percent_tracks() {
 
 #[test]
 fn indefinite_flex_tracks_keep_span_resolved_bases() {
-    let tracks = [TrackSizing::fr(1.0), TrackSizing::fr(2.0)];
+    let tracks = [track_flex(1.0), track_flex(2.0)];
     let sizes = resolve_tracks(&tracks, None, 0.0, AlignContent::Start, &[20.0, 40.0]);
 
     assert_eq!(sizes, [20.0, 40.0]);
@@ -22047,11 +22055,7 @@ fn indefinite_flex_tracks_keep_span_resolved_bases() {
 
 #[test]
 fn inline_sub_one_flex_tracks_keep_non_spanned_track_proportional_to_used_fraction() {
-    let tracks = [
-        TrackSizing::fr(0.2),
-        TrackSizing::fr(0.3),
-        TrackSizing::fr(0.5),
-    ];
+    let tracks = [track_flex(0.2), track_flex(0.3), track_flex(0.5)];
     let sizes = resolve_inline_tracks(InlineTrackInput {
         tracks: &tracks,
         basis: None,
@@ -22069,11 +22073,7 @@ fn inline_sub_one_flex_tracks_keep_non_spanned_track_proportional_to_used_fracti
 
 #[test]
 fn sub_one_flex_track_content_sum_includes_unfilled_fraction() {
-    let tracks = [
-        TrackSizing::fr(0.2),
-        TrackSizing::fr(0.3),
-        TrackSizing::fr(0.5),
-    ];
+    let tracks = [track_flex(0.2), track_flex(0.3), track_flex(0.5)];
 
     assert_eq!(track_content_sum(&tracks, &[24.0, 36.0, 9.0], 0.0), 78.0);
 }
@@ -22182,11 +22182,7 @@ fn inline_minmax_auto_minimum_allows_fixed_maximum() {
 
 #[test]
 fn definite_flex_tracks_respect_larger_base_tracks() {
-    let tracks = [
-        TrackSizing::px(40.0),
-        TrackSizing::fr(1.0),
-        TrackSizing::fr(1.0),
-    ];
+    let tracks = [TrackSizing::px(40.0), track_flex(1.0), track_flex(1.0)];
     let sizes = resolve_tracks(
         &tracks,
         Some(200.0),
@@ -22201,8 +22197,8 @@ fn definite_flex_tracks_respect_larger_base_tracks() {
 #[test]
 fn grid_affine_percent_track_needs_layout_resolution() {
     let track = TrackSizing::new(
-        MinTrackSizing::Length(Length::value(lp(20.0, 0.10))),
-        MaxTrackSizing::Length(Length::px(100.0)),
+        MinTrackSizing::Calculation(SizingCalculation::value(lp(20.0, 0.10))),
+        MaxTrackSizing::Calculation(SizingCalculation::value(lp(100.0, 0.0))),
     );
 
     assert!(track.depends_on_basis());
@@ -27137,11 +27133,15 @@ mod root_layout_oracle {
         LaneIntrinsicSizingInput as ProductionLaneIntrinsicSizingInput,
         LaneItem as ProductionLaneItem, LanePlacementInput as ProductionLanePlacementInput, Length,
         LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput, Point, Position, RawGridLine,
-        RawGridPlacement, RequestedAxis, RunMode, Size, SizingMode, TrackComponent,
-        TrackSizing as ProductionTrackSizing, WritingMode, compute_root,
-        lane_intrinsic_sizing as production_lane_intrinsic_sizing,
+        RawGridPlacement, RequestedAxis, RunMode, Size, SizingCalculation, SizingMode,
+        TrackComponent, TrackFlexFactor, TrackSizing as ProductionTrackSizing, WritingMode,
+        compute_root, lane_intrinsic_sizing as production_lane_intrinsic_sizing,
         place_lanes as production_place_lanes, round_layout,
     };
+
+    fn track_component_flex(value: f32) -> TrackComponent {
+        TrackComponent::flex(TrackFlexFactor::try_new(value).expect("valid test flex factor"))
+    }
 
     fn oracle_lane_span(value: usize) -> grid::LaneTrackSpanLength {
         grid::LaneTrackSpanLength::new(value).expect("valid oracle lane span length")
@@ -27874,8 +27874,8 @@ mod root_layout_oracle {
             .columns(vec![
                 TrackComponent::px(80.0),
                 TrackComponent::percent(0.25),
-                TrackComponent::fr(1.0),
-                TrackComponent::fr(3.0),
+                track_component_flex(1.0),
+                track_component_flex(3.0),
             ])
             .rows(vec![TrackComponent::px(40.0)])
             .gap(Size::new(20.0, 0.0))
@@ -27896,7 +27896,7 @@ mod root_layout_oracle {
 
         GridLayoutComparison::new()
             .container(Size::new(200.0, 30.0))
-            .columns(vec![TrackComponent::px(50.0), TrackComponent::fr(0.5)])
+            .columns(vec![TrackComponent::px(50.0), track_component_flex(0.5)])
             .rows(vec![TrackComponent::px(30.0)])
             .expected_tracks(expected_columns, fixed_rows(30.0))
             .child(GridArea::new(1, 1, 1, 1))
@@ -28191,7 +28191,7 @@ mod root_layout_oracle {
             .container(Size::new(40.0, 20.0))
             .columns(vec![TrackComponent::minmax(
                 MinTrackSizing::AUTO,
-                MaxTrackSizing::fit_content(Length::px(40.0)),
+                MaxTrackSizing::fit_content(SizingCalculation::value(super::lp(40.0, 0.0))),
             )])
             .rows(vec![TrackComponent::px(20.0)])
             .expected_tracks(expected_columns, fixed_rows(20.0))

@@ -526,7 +526,7 @@ where
     let mut final_track_sizes = input
         .tracks
         .iter()
-        .map(|track| initialized_track_base(*track, input.available, site))
+        .map(|track| initialized_track_base(track.clone(), input.available, site))
         .collect::<LayoutResultOf<Node, Vec<_>, S, M>>()?;
     for item in definite_items
         .iter()
@@ -628,11 +628,11 @@ where
     let full_end_index = full_span.end - 1;
     let full_target = tracks[full_start_index..full_end_index]
         .iter()
-        .map(|track| masonry_track_minimum_size(*track, group))
+        .map(|track| masonry_track_minimum_size(track.clone(), group))
         .fold(S::ZERO, S::max);
     let full_existing = tracks[full_start_index..full_end_index]
         .iter()
-        .map(|track| initialized_track_base(*track, available, site))
+        .map(|track| initialized_track_base(track.clone(), available, site))
         .collect::<LayoutResultOf<Node, Vec<_>, S, M>>()?
         .into_iter()
         .fold(S::ZERO, |sum, size| sum + size)
@@ -645,7 +645,7 @@ where
             );
     let content_existing = tracks[start_index..end_index]
         .iter()
-        .map(|track| initialized_track_base(*track, available, site))
+        .map(|track| initialized_track_base(track.clone(), available, site))
         .collect::<LayoutResultOf<Node, Vec<_>, S, M>>()?
         .into_iter()
         .fold(S::ZERO, |sum, size| sum + size)
@@ -662,7 +662,7 @@ where
     let size = content_existing + deficit_share;
     let max_content = tracks[start_index..end_index]
         .iter()
-        .map(|track| masonry_track_maximum_size(*track, size, group))
+        .map(|track| masonry_track_maximum_size(track.clone(), size, group))
         .fold(S::ZERO, S::max);
 
     Ok(DefiniteLaneIntrinsicItemOf {
@@ -684,7 +684,7 @@ fn masonry_track_minimum_size<S: LayoutScalar>(
     match track.min {
         MinTrackSizingOf::MinContent => group.max_min_content,
         MinTrackSizingOf::MaxContent => group.max_max_content,
-        MinTrackSizingOf::Auto | MinTrackSizingOf::Length(_) => group.max_min_size,
+        MinTrackSizingOf::Auto | MinTrackSizingOf::Calculation(_) => group.max_min_size,
     }
 }
 
@@ -698,7 +698,7 @@ fn masonry_track_maximum_size<S: LayoutScalar>(
         MaxTrackSizingOf::MaxContent | MaxTrackSizingOf::Auto | MaxTrackSizingOf::FitContent(_) => {
             group.max_max_content
         }
-        MaxTrackSizingOf::Length(_) | MaxTrackSizingOf::Flex(_) => minimum_size,
+        MaxTrackSizingOf::Calculation(_) | MaxTrackSizingOf::Flex(_) => minimum_size,
     }
 }
 
@@ -711,8 +711,13 @@ where
     S: LayoutScalar,
 {
     match track.min {
-        MinTrackSizingOf::Length(length) => {
-            resolution_or_zero(length.resolve_with_status(available), site)
+        MinTrackSizingOf::Calculation(calculation) => {
+            let resolution = calculation
+                .affine_value()
+                .map_or_else(LengthResolutionOf::non_numeric, |value| {
+                    crate::LengthOf::value(value).resolve_with_status(available)
+                });
+            resolution_or_zero(resolution, site)
         }
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {
             Ok(S::ZERO)
@@ -769,7 +774,7 @@ where
     let contribution = item.contribution.contributions();
     if end == start + 1 {
         sizes[start] = sizes[start].max(lane_track_minimum_size(
-            span_tracks[0],
+            span_tracks[0].clone(),
             contribution,
             available,
             site,
@@ -785,10 +790,10 @@ where
         + span_tracks
             .iter()
             .map(|track| {
-                if track_accepts_intrinsic_contribution(*track) {
+                if track_accepts_intrinsic_contribution(track) {
                     Ok(S::ZERO)
                 } else {
-                    initialized_track_base(*track, available, site)
+                    initialized_track_base(track.clone(), available, site)
                 }
             })
             .collect::<LayoutResultOf<Node, Vec<_>, S, M>>()?
@@ -818,7 +823,7 @@ where
         MinTrackSizingOf::MinContent => Ok(contribution.min_content),
         MinTrackSizingOf::MaxContent => Ok(contribution.max_content),
         MinTrackSizingOf::Auto => Ok(contribution.minimum),
-        MinTrackSizingOf::Length(_) => initialized_track_base(track, available, site),
+        MinTrackSizingOf::Calculation(_) => initialized_track_base(track, available, site),
     }
 }
 
@@ -1036,7 +1041,7 @@ where
     let content_sized_tracks = tracks
         .iter()
         .enumerate()
-        .filter_map(|(index, track)| track_accepts_intrinsic_contribution(*track).then_some(index))
+        .filter_map(|(index, track)| track_accepts_intrinsic_contribution(track).then_some(index))
         .collect::<Vec<_>>();
     if tracks.is_empty() || content_sized_tracks.is_empty() {
         return Ok(Ok(vec![Tree::Scalar::ZERO; tracks.len()]));

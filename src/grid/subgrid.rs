@@ -1511,7 +1511,7 @@ mod tests {
     use super::*;
     use crate::{
         Compute, ComputeInput, ComputeOutput, DefaultScalar, Dimension, LayoutErrorKind,
-        LayoutErrorSite, LayoutInput, LayoutInvalidInput, LayoutOperation, LayoutResultOf, Length,
+        LayoutErrorSite, LayoutInput, LayoutInvalidInput, LayoutOperation, LayoutResultOf,
         LengthPercentageOf, NodeInput, NodeOutput, Size, SubgridTrack, TrackComponent, Traverse,
     };
 
@@ -1619,7 +1619,7 @@ mod tests {
         let style = NodeInput {
             display: Display::Grid,
             grid_template_columns: vec![TrackComponent::Subgrid(SubgridTrack::new(vec![]))],
-            grid_template_rows: vec![TrackComponent::from(Length::value(overflowing))],
+            grid_template_rows: vec![TrackComponent::from(overflowing)],
             size: Size::new(Dimension::AUTO, Dimension::px(f32::MAX)),
             ..NodeInput::default()
         };

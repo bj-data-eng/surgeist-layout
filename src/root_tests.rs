@@ -5825,7 +5825,7 @@ fn compute_layout_uses_flex_root_viewport_context_as_parent_basis() {
 fn compute_layout_rejects_overflowing_affine_grid_auto_fit_track() {
     let overflowing =
         LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
-    let track = TrackSizing::from(Length::value(overflowing));
+    let track = TrackSizing::from(overflowing);
     let repeat = TrackRepetition::auto_fit(vec![track]).expect("nonempty repeated track list");
     let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
         0,
@@ -5852,6 +5852,37 @@ fn compute_layout_rejects_overflowing_affine_grid_auto_fit_track() {
 }
 
 #[test]
+fn track_sizing_non_affine_calculation_returns_later_fri_behavior() {
+    let non_affine = SizingCalculation::min(vec![
+        SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite track")),
+        SizingCalculation::value(LengthPercentageOf::px(20.0).expect("finite track")),
+    ])
+    .expect("nonempty minimum");
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::Grid,
+            grid_template_columns: vec![TrackSizing::calculation(non_affine).into()],
+            ..NodeInput::default()
+        },
+    );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(20.0),
+    ))
+    .unwrap();
+
+    let error = compute_layout(&tree, 0, request).unwrap_err();
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
+    );
+}
+
+#[test]
 fn compute_layout_preserves_nested_subgrid_resolution_failure() {
     let overflowing =
         LengthPercentageOf::from_coefficients(f32::MAX, 1.0).expect("finite coefficients");
@@ -5862,8 +5893,12 @@ fn compute_layout_preserves_nested_subgrid_resolution_failure() {
             0,
             NodeInput {
                 display: Display::Grid,
-                grid_template_columns: vec![TrackComponent::from(Length::px(20.0))],
-                grid_template_rows: vec![TrackComponent::from(Length::px(20.0))],
+                grid_template_columns: vec![TrackComponent::from(
+                    LengthPercentageOf::px(20.0).expect("finite track"),
+                )],
+                grid_template_rows: vec![TrackComponent::from(
+                    LengthPercentageOf::px(20.0).expect("finite track"),
+                )],
                 ..NodeInput::default()
             },
         )
@@ -5872,7 +5907,7 @@ fn compute_layout_preserves_nested_subgrid_resolution_failure() {
             NodeInput {
                 display: Display::Grid,
                 grid_template_columns: vec![TrackComponent::Subgrid(SubgridTrack::new(vec![]))],
-                grid_template_rows: vec![TrackComponent::from(Length::value(overflowing))],
+                grid_template_rows: vec![TrackComponent::from(overflowing)],
                 size: Size::new(Dimension::AUTO, Dimension::px(f32::MAX)),
                 ..NodeInput::default()
             },

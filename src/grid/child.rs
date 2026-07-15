@@ -1557,7 +1557,7 @@ pub(super) fn synthesized_baseline_would_cycle<S: LayoutScalar>(
         && row_span_tracks.len() > 1
         && row_span_tracks
             .iter()
-            .any(|track| track_accepts_intrinsic_contribution(*track))
+            .any(track_accepts_intrinsic_contribution)
 }
 
 #[derive(Clone, Copy)]

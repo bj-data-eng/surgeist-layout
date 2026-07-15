@@ -1732,32 +1732,28 @@ fn dimension_px(value: Scalar) -> layout::Dimension {
 
 #[cfg(test)]
 fn min_track_px(value: Scalar) -> layout::MinTrackSizing {
-    layout::Length::value(layout::LengthPercentageOf::px(value).expect("finite test min track px"))
+    layout::LengthPercentageOf::px(value)
+        .expect("finite test min track px")
         .into()
 }
 
 #[cfg(test)]
 fn max_track_px(value: Scalar) -> layout::MaxTrackSizing {
-    layout::Length::value(layout::LengthPercentageOf::px(value).expect("finite test max track px"))
+    layout::LengthPercentageOf::px(value)
+        .expect("finite test max track px")
         .into()
 }
 
 #[cfg(test)]
 fn track_px(value: Scalar) -> layout::TrackSizing {
-    layout::Length::value(layout::LengthPercentageOf::px(value).expect("finite test track px"))
+    layout::LengthPercentageOf::px(value)
+        .expect("finite test track px")
         .into()
 }
 
 #[cfg(test)]
 fn track_component_px(value: Scalar) -> layout::TrackComponent {
     layout::TrackComponent::Track(track_px(value))
-}
-
-#[cfg(test)]
-fn length_percent_for_test(value: Scalar) -> layout::Length {
-    layout::Length::value(
-        layout::LengthPercentageOf::from_percent_fraction(value).expect("finite test percent"),
-    )
 }
 
 fn parse_track_component_list(raw: &str) -> Result<Vec<layout::TrackComponent>, Error> {
@@ -1865,11 +1861,19 @@ fn parse_track_sizing_with_calc(raw: &str) -> Result<layout::TrackSizing, Error>
         ));
     }
     if let Some(body) = function_body(raw, "fit-content") {
-        return Ok(layout::TrackSizing::fit_content(parse_length_with_calc(
+        return Ok(layout::TrackSizing::fit_content(parse_track_calculation(
             body.trim(),
         )?));
     }
-    Ok(parse_dimension_with_calc(raw)?.into())
+    match raw {
+        "auto" => Ok(layout::TrackSizing::AUTO),
+        "min-content" => Ok(layout::TrackSizing::MIN_CONTENT),
+        "max-content" => Ok(layout::TrackSizing::MAX_CONTENT),
+        _ if raw.ends_with("fr") => Ok(layout::TrackSizing::flex(parse_track_flex(raw)?)),
+        _ => Ok(layout::TrackSizing::calculation(parse_track_calculation(
+            raw,
+        )?)),
+    }
 }
 
 fn parse_min_track_sizing_with_calc(raw: &str) -> Result<layout::MinTrackSizing, Error> {
@@ -1877,7 +1881,9 @@ fn parse_min_track_sizing_with_calc(raw: &str) -> Result<layout::MinTrackSizing,
         "auto" => Ok(layout::MinTrackSizing::AUTO),
         "min-content" => Ok(layout::MinTrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::MinTrackSizing::MAX_CONTENT),
-        _ => Ok(parse_length_with_calc(raw)?.into()),
+        _ => Ok(layout::MinTrackSizing::Calculation(
+            parse_track_calculation(raw)?,
+        )),
     }
 }
 
@@ -1886,12 +1892,32 @@ fn parse_max_track_sizing_with_calc(raw: &str) -> Result<layout::MaxTrackSizing,
         "auto" => Ok(layout::MaxTrackSizing::AUTO),
         "min-content" => Ok(layout::MaxTrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::MaxTrackSizing::MAX_CONTENT),
-        _ if raw.ends_with("fr") => {
-            let value = raw.trim_end_matches("fr");
-            Ok(layout::MaxTrackSizing::fr(parse_number(value)?))
-        }
-        _ => Ok(parse_length_with_calc(raw)?.into()),
+        _ if raw.ends_with("fr") => Ok(layout::MaxTrackSizing::Flex(parse_track_flex(raw)?)),
+        _ => Ok(layout::MaxTrackSizing::Calculation(
+            parse_track_calculation(raw)?,
+        )),
     }
+}
+
+fn parse_track_calculation(raw: &str) -> Result<layout::SizingCalculation, Error> {
+    let value = if raw.trim_start().starts_with("calc(") {
+        parse_calc_expression(raw)?
+    } else if let Some(px) = raw.strip_suffix("px") {
+        length_percentage_px(parse_number(px)?, raw)?
+    } else if let Some(percent) = raw.strip_suffix('%') {
+        length_percentage_percent(parse_number(percent)? / 100.0, raw)?
+    } else {
+        length_percentage_px(parse_number(raw)?, raw)?
+    };
+    Ok(layout::SizingCalculation::value(value))
+}
+
+fn parse_track_flex(raw: &str) -> Result<layout::TrackFlexFactor, Error> {
+    let value = raw
+        .strip_suffix("fr")
+        .ok_or_else(|| Error::new(format!("invalid track flex `{raw}`")))?;
+    layout::TrackFlexFactor::try_new(parse_number(value)?)
+        .map_err(|error| Error::new(format!("invalid track flex `{raw}`: {error}")))
 }
 
 fn function_body<'a>(raw: &'a str, name: &str) -> Option<&'a str> {
@@ -2549,17 +2575,18 @@ mod tests {
                 tree.box_node_input(0).grid_template_columns
             );
         };
-        let layout::MinTrackSizing::Length(layout::Length::Value(min)) = track.min else {
+        let layout::MinTrackSizing::Calculation(min) = &track.min else {
             panic!("expected affine calc min track, got {:?}", track.min);
         };
-        let layout::MaxTrackSizing::Length(layout::Length::Value(max)) = track.max else {
+        let layout::MaxTrackSizing::Calculation(max) = &track.max else {
             panic!("expected affine calc max track, got {:?}", track.max);
         };
         assert_eq!(min, max);
-        assert_eq!(min.absolute_px(), 20.0);
-        assert_eq!(min.percent_fraction(), 0.25);
-        assert_eq!(track.min.definite(Some(240.0)), Some(80.0));
-        assert_eq!(track.max.definite(Some(240.0)), Some(80.0));
+        assert_eq!(
+            min.resolve_against(layout::PercentageBasisOf::definite(240.0).unwrap())
+                .value,
+            Some(80.0)
+        );
     }
 
     #[test]
@@ -2577,18 +2604,36 @@ mod tests {
         );
         assert_eq!(
             tracks[2],
-            layout::TrackComponent::fit_content(length_percent_for_test(0.5))
+            layout::TrackComponent::fit_content(layout::SizingCalculation::value(
+                layout::LengthPercentageOf::from_percent_fraction(0.5).unwrap()
+            ))
         );
         assert_eq!(
             tracks[3],
             layout::TrackComponent::Repeat(
                 layout::TrackRepetition::count(
                     2,
-                    vec![layout::TrackSizing::fr(1.0), layout::TrackSizing::AUTO]
+                    vec![
+                        layout::TrackSizing::flex(layout::TrackFlexFactor::try_new(1.0).unwrap()),
+                        layout::TrackSizing::AUTO
+                    ]
                 )
                 .expect("valid track repetition")
             )
         );
+    }
+
+    #[test]
+    fn track_sizing_parser_accepts_role_valid_values_and_rejects_invalid_flex() {
+        assert!(parse_track_sizing_with_calc("calc(20px + 25%)").is_ok());
+        assert!(parse_track_sizing_with_calc("fit-content(50%)").is_ok());
+        assert!(parse_track_sizing_with_calc("1fr").is_ok());
+        assert!(parse_track_sizing_with_calc("minmax(10px,2fr)").is_ok());
+
+        assert!(parse_track_sizing_with_calc("minmax(1fr,20px)").is_err());
+        assert!(parse_track_sizing_with_calc("-1fr").is_err());
+        assert!(parse_track_sizing_with_calc("NaNfr").is_err());
+        assert!(parse_track_sizing_with_calc("inffr").is_err());
     }
 
     #[test]
@@ -2599,7 +2644,7 @@ mod tests {
             layout::TrackComponent::Repeat(
                 layout::TrackRepetition::auto_fill(vec![layout::TrackSizing::minmax(
                     min_track_px(150.0),
-                    layout::MaxTrackSizing::fr(1.0)
+                    layout::MaxTrackSizing::Flex(layout::TrackFlexFactor::try_new(1.0).unwrap())
                 )])
                 .expect("valid track repetition")
             )

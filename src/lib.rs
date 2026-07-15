@@ -178,8 +178,9 @@ pub use value::{
     GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MaxTrackSizingOf,
     MinTrackSizing, MinTrackSizingOf, SubgridLineNameComponent, SubgridLineNameRepeatCount,
     SubgridTrack, TrackComponent, TrackComponentList, TrackComponentListOf, TrackComponentOf,
-    TrackRepeat, TrackRepeatCount, TrackRepetition, TrackRepetitionError, TrackRepetitionOf,
-    TrackSizing, TrackSizingOf, track_sizing_components, track_sizing_components_of,
+    TrackFlexFactor, TrackFlexFactorOf, TrackRepeat, TrackRepeatCount, TrackRepetition,
+    TrackRepetitionError, TrackRepetitionOf, TrackSizing, TrackSizingOf, track_sizing_components,
+    track_sizing_components_of,
 };
 
 #[cfg(test)]
