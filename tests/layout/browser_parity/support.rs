@@ -54,9 +54,7 @@ impl Golden {
             viewport: Viewport {
                 width: parse_available(required_attr(viewport, "width")?)?,
                 height: parse_available(required_attr(viewport, "height")?)?,
-                root_context: parse_root_context(
-                    viewport.attribute("root-context").unwrap_or("root"),
-                )?,
+                root_context: parse_root_context(viewport)?,
             },
             root: parse_node(one_element_child(input)?)?,
             expectations: parse_expectation(one_element_child(expectations)?)?,
@@ -124,7 +122,7 @@ fn root_request(
 ) -> Result<layout::LayoutRootRequest, Error> {
     match root_context {
         RootContext::Root => layout::LayoutRootRequest::viewport(available),
-        RootContext::FlexItem => {
+        RootContext::FlexItem { .. } => {
             let context = layout::FlexItemRootContext::under_viewport(available)
                 .map_err(|error| Error::new(format!("invalid flex viewport: {error:?}")))?;
             layout::LayoutRootRequest::flex_item_under_viewport(available, context)
@@ -150,7 +148,7 @@ pub struct Viewport {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RootContext {
     Root,
-    FlexItem,
+    FlexItem { parent_axes: layout::FlowAxes },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -300,12 +298,47 @@ fn parse_available(raw: &str) -> Result<Available, Error> {
     }
 }
 
-fn parse_root_context(raw: &str) -> Result<RootContext, Error> {
+fn parse_root_context(viewport: roxmltree::Node<'_, '_>) -> Result<RootContext, Error> {
+    let raw = viewport.attribute("root-context").unwrap_or("root");
+    let parent_writing_mode = viewport.attribute("parent-writing-mode");
+    let parent_direction = viewport.attribute("parent-direction");
+
     match raw {
-        "root" => Ok(RootContext::Root),
-        "flex-item" => Ok(RootContext::FlexItem),
+        "root" => {
+            if parent_writing_mode.is_some() || parent_direction.is_some() {
+                return Err(Error::new(
+                    "root viewport must not specify parent writing mode or direction",
+                ));
+            }
+            Ok(RootContext::Root)
+        }
+        "flex-item" => {
+            let writing_mode =
+                parse_writing_mode(Some(required_attr(viewport, "parent-writing-mode")?))?;
+            let direction = parse_direction(required_attr(viewport, "parent-direction")?)?;
+            Ok(RootContext::FlexItem {
+                parent_axes: layout::FlowAxes::new(writing_mode, direction),
+            })
+        }
         _ => Err(Error::new(format!("unsupported root context `{raw}`"))),
     }
+}
+
+fn parse_item_order(raw: &str) -> Result<layout::ItemOrder, Error> {
+    let bytes = raw.as_bytes();
+    let digits = match bytes {
+        [b'0'] => &bytes[1..],
+        [b'-', first, rest @ ..] if first.is_ascii_digit() && *first != b'0' => rest,
+        [first, rest @ ..] if first.is_ascii_digit() && *first != b'0' => rest,
+        _ => return Err(Error::new(format!("invalid item order `{raw}`"))),
+    };
+    if !digits.iter().all(u8::is_ascii_digit) {
+        return Err(Error::new(format!("invalid item order `{raw}`")));
+    }
+
+    raw.parse::<i32>()
+        .map(layout::ItemOrder::new)
+        .map_err(|_| Error::new(format!("invalid item order `{raw}`")))
 }
 
 fn parse_bool(raw: &str) -> Result<bool, Error> {
@@ -935,6 +968,9 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
             _ => input.display,
         },
     };
+    if let Some(value) = attrs.get("order") {
+        input.item_order = parse_item_order(value)?;
+    }
     if let Some(value) = attrs.get("box-sizing") {
         input.box_sizing = parse_box_sizing(value)?;
     }
@@ -1986,11 +2022,131 @@ mod tests {
     }
 
     #[test]
+    fn item_order_parser_is_canonical_and_scalar_independent() {
+        fn parse_fixture_order(raw: Option<&str>) -> Result<layout::ItemOrder, Error> {
+            let order = raw
+                .map(|value| format!(r#" order="{value}""#))
+                .unwrap_or_default();
+            let golden = Golden::parse(&format!(
+                r#"
+                <test name="item-order" use-rounding="true">
+                    <viewport width="100px" height="100px" />
+                    <input>
+                        <div{order} />
+                    </input>
+                    <expectations>
+                        <node x="0" y="0" width="0" height="0" />
+                    </expectations>
+                </test>
+                "#
+            ))?;
+            let tree = TestTree::from_golden(&golden.root)?;
+            Ok(tree.box_node_input(0).item_order)
+        }
+
+        assert_eq!(
+            parse_fixture_order(None).expect("missing order should default"),
+            layout::ItemOrder::ZERO
+        );
+        for (raw, expected) in [
+            ("-2147483648", i32::MIN),
+            ("0", 0),
+            ("2147483647", i32::MAX),
+        ] {
+            assert_eq!(
+                parse_fixture_order(Some(raw)).expect("canonical i32 order should parse"),
+                layout::ItemOrder::new(expected),
+                "{raw}"
+            );
+        }
+
+        for raw in [
+            "+1",
+            "01",
+            "-0",
+            "1.0",
+            "1e0",
+            "order",
+            " 1",
+            "1 ",
+            "2147483648",
+            "-2147483649",
+        ] {
+            assert!(
+                parse_fixture_order(Some(raw)).is_err(),
+                "noncanonical order `{raw}` should fail"
+            );
+        }
+    }
+
+    #[test]
+    fn viewport_parent_axes_schema_is_strict() -> Result<(), Error> {
+        fn parse_viewport(attrs: &str, root_attrs: &str) -> Result<RootContext, Error> {
+            Golden::parse(&format!(
+                r#"
+                <test name="viewport-parent-axes" use-rounding="true">
+                    <viewport width="100px" height="100px" {attrs} />
+                    <input>
+                        <div {root_attrs} />
+                    </input>
+                    <expectations>
+                        <node x="0" y="0" width="0" height="0" />
+                    </expectations>
+                </test>
+                "#
+            ))
+            .map(|golden| golden.viewport.root_context)
+        }
+
+        assert_eq!(parse_viewport("", "")?, RootContext::Root);
+        for attrs in [
+            r#"parent-writing-mode="horizontal-tb""#,
+            r#"parent-direction="ltr""#,
+            r#"parent-writing-mode="horizontal-tb" parent-direction="ltr""#,
+        ] {
+            assert!(
+                parse_viewport(attrs, "").is_err(),
+                "root viewport metadata `{attrs}` should be rejected"
+            );
+        }
+
+        let vertical_rtl = parse_viewport(
+            r#"root-context="flex-item" parent-writing-mode="vertical-rl" parent-direction="rtl""#,
+            r#"writing-mode="horizontal-tb" direction="ltr""#,
+        )?;
+        let horizontal_ltr = parse_viewport(
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr""#,
+            r#"writing-mode="vertical-lr" direction="rtl""#,
+        )?;
+        assert_ne!(
+            vertical_rtl, horizontal_ltr,
+            "fixture root context should retain the parsed parent axes"
+        );
+
+        for attrs in [
+            r#"root-context="flex-item""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb""#,
+            r#"root-context="flex-item" parent-direction="ltr""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal" parent-direction="ltr""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="left-to-right""#,
+            r#"root-context="flex-item" parent-writing-mode=" horizontal-tb" parent-direction="ltr""#,
+            r#"root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr ""#,
+        ] {
+            assert!(
+                parse_viewport(attrs, r#"writing-mode="vertical-lr" direction="rtl""#).is_err(),
+                "invalid flex-item viewport metadata `{attrs}` should be rejected"
+            );
+        }
+
+        Ok::<(), Error>(())
+    }
+
+    #[test]
     fn parses_viewport_root_context_metadata() {
         let golden = Golden::parse(
             r#"
             <test name="viewport-flex-item" use-rounding="true">
-                <viewport width="400px" height="max-content" root-context="flex-item" />
+                <viewport width="400px" height="max-content" root-context="flex-item" parent-writing-mode="vertical-rl" parent-direction="rtl" />
                 <input>
                     <div display="grid" />
                 </input>
@@ -2002,7 +2158,15 @@ mod tests {
         )
         .expect("viewport root context should parse");
 
-        assert_eq!(golden.viewport.root_context, RootContext::FlexItem);
+        assert_eq!(
+            golden.viewport.root_context,
+            RootContext::FlexItem {
+                parent_axes: layout::FlowAxes::new(
+                    layout::WritingMode::VerticalRl,
+                    layout::Direction::Rtl,
+                ),
+            }
+        );
     }
 
     #[test]
@@ -2010,7 +2174,7 @@ mod tests {
         let golden = Golden::parse(
             r#"
             <test name="viewport-flex-item" use-rounding="true">
-                <viewport width="400px" height="80px" root-context="flex-item" />
+                <viewport width="400px" height="80px" root-context="flex-item" parent-writing-mode="horizontal-tb" parent-direction="ltr" />
                 <input>
                     <div display="flex" width="50%" height="20px" />
                 </input>
@@ -2021,6 +2185,16 @@ mod tests {
             "#,
         )
         .expect("flex-item root fixture should parse");
+
+        assert_eq!(
+            golden.viewport.root_context,
+            RootContext::FlexItem {
+                parent_axes: layout::FlowAxes::new(
+                    layout::WritingMode::HorizontalTb,
+                    layout::Direction::Ltr,
+                ),
+            }
+        );
 
         assert_surgeist_matches(&golden)
             .expect("flex-item root should be computed through the public request");
