@@ -23,12 +23,13 @@ crate-local tests when a behavior specifically needs `f64` coverage.
 
 The browser-parity corpus pins its Chrome-for-Testing source, executable version,
 cache root, launch profile, and report inventory in
-`tests/layout/browser_parity/corpus.toml`. `generate` resolves that managed pin;
-it is the only command that may use the configured browser fetcher. The no-fetch
-artifact command is `generate-existing`: it requires `SURGEIST_BROWSER_PATH` to
-be a repository-relative executable beneath the manifest cache and verifies its
-exact `--version` output before any XML or report write. Both modes use the same
-headless launch profile, including `use-mock-keychain`.
+`tests/layout/browser_parity/corpus.toml`. `generate` is the managed-pinned mode;
+it is the only command that may use the configured browser fetcher.
+`generate-existing` is the existing-pinned, no-fetch artifact mode: it requires
+`SURGEIST_BROWSER_PATH` to be a repository-relative executable beneath the
+manifest cache and verifies its exact `--version` output before any XML or
+report write. Both modes use the same headless launch profile, including
+`use-mock-keychain`.
 
 `check-corpus`, `check-taffy-corpus`, and `import-taffy` are browser-free command
 paths. In particular, `check-corpus` validates the committed report and XML
@@ -57,9 +58,34 @@ algorithm modes remain internal.
 receives non-negative content-space constraints, and invalid provider output or a
 provider error becomes a typed layout error.
 
-Root `surgeist` owns cross-crate adapters, including lowering authored style
+Root `surgeist` owns cross-crate adapters, including lowering computed-style
 values into these layout contracts, and owns generated API artifacts. This crate
 does not carry root adapters or API artifact copies.
+
+## Geometry, Flow, And Scroll Contracts
+
+The public physical geometry contract uses x/y points, width/height sizes, and
+top/right/bottom/left edges. Public layout outputs, cached geometry, and scroll
+geometry remain physical. Layout algorithms may use
+crate-private logical algorithm geometry while working in inline/block
+coordinates. Those carriers stay private until the owning `FlowAxes` projects
+them to physical geometry at a contextual boundary.
+
+`FlowAxes` is the sole production owner of writing-mode mapping for
+`HorizontalTb`, `VerticalRl`, `VerticalLr`, `SidewaysRl`, and `SidewaysLr`. Its
+`Direction` is the already-resolved used inline direction, not authored or
+otherwise unresolved CSS. Root `surgeist` owns computed-style lowering and
+supplies that used value through its cross-crate adapters.
+
+The signed physical scroll ranges and signed flow-relative scroll ranges keep
+finite ordered minimum and maximum bounds. When an axis runs in reverse,
+`FlowAxes` swaps and negates the endpoints so negative minima and maxima retain
+their meaning. Layout owns scroll-container geometry, not a current offset;
+root integration owns live scroll state and host/CSSOM policy.
+
+Root also owns generated API artifacts.
+The later inline, overflow, flex, grid, alignment, and positioned initiatives
+remain outside this geometry closure and are not claimed here.
 
 ## Inline Metrics Contract
 

@@ -1,9 +1,25 @@
 //! Native layout algorithm boundary for Surgeist.
 //!
-//! This crate owns normalized layout-ready values, algorithm-facing geometry,
-//! traversal contracts, layout caches, and final box output. It does not parse
-//! authored CSS or own retained tree identity, cross-crate adapters, or generated
-//! API artifacts; root `surgeist` owns those integration concerns.
+//! The public physical geometry contract uses x/y points, width/height sizes,
+//! and top/right/bottom/left edges. Public layout outputs, cached geometry, and
+//! scroll geometry remain physical. Layout algorithms may use
+//! crate-private logical algorithm geometry while working in inline/block
+//! coordinates. Those carriers stay private until the owning [`FlowAxes`]
+//! projects them to physical geometry at a contextual boundary.
+//!
+//! [`FlowAxes`] is the sole production owner of writing-mode mapping for
+//! [`WritingMode::HorizontalTb`], [`WritingMode::VerticalRl`],
+//! [`WritingMode::VerticalLr`], [`WritingMode::SidewaysRl`], and
+//! [`WritingMode::SidewaysLr`]. Its [`Direction`] is the already-resolved
+//! used inline direction, not authored or otherwise unresolved CSS. Root
+//! `surgeist` owns computed-style lowering and supplies that used value through
+//! its cross-crate adapters.
+//!
+//! The signed physical scroll ranges and signed flow-relative scroll ranges keep
+//! finite ordered minimum and maximum bounds. When an axis runs in reverse,
+//! [`FlowAxes`] swaps and negates the endpoints so negative minima and maxima
+//! retain their meaning. Layout owns scroll-container geometry, not a current
+//! offset; root integration owns live scroll state and host/CSSOM policy.
 //!
 //! `LengthPercentageOf<S>` is a normalized finite affine value (px plus a
 //! percentage coefficient) resolved explicitly with `PercentageBasisOf<S>`.
@@ -17,11 +33,19 @@
 //! become typed layout errors. `DefaultScalar` and `Scalar` use `f32`; generic
 //! `*Of<S>` contracts support end-to-end `f32` and `f64` scalar lanes.
 //!
-//! Browser-parity generation is crate-local tooling. Its corpus manifest pins
-//! Chrome-for-Testing and the shared headless launch profile, including the
-//! mock-keychain argument. `generate-existing` accepts only a validated,
-//! repository-relative executable under that manifest cache; corpus freshness
-//! checks remain browser-free.
+//! Browser-parity generation is crate-local tooling. `generate` is the
+//! managed-pinned mode and may use the configured fetcher for the exact manifest
+//! pin. `generate-existing` is the existing-pinned, no-fetch mode and accepts
+//! only a repository-relative executable under that manifest cache whose exact
+//! `--version` matches the pin. Both use the shared headless launch profile,
+//! including the mock-keychain argument; corpus freshness checks remain
+//! browser-free.
+//!
+//! Root `surgeist` owns computed-style lowering, cross-crate adapters, retained
+//! identity, live scroll state, and generated API artifacts. This crate does not
+//! parse authored CSS or own those integration concerns.
+//! The later inline, overflow, flex, grid, alignment, and positioned initiatives
+//! remain outside this geometry closure and are not claimed here.
 //!
 //! ```compile_fail
 //! use surgeist_layout::{LogicalEdgesOf, LogicalPointOf, LogicalRectOf, LogicalSizeOf};
