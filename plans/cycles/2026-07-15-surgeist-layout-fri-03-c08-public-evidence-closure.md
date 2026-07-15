@@ -1,5 +1,5 @@
 # FRI-03-C08 Public Surface, Evidence, And Initiative Closure
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-03-C08`
 Owning repository: `surgeist-layout`
 Cycle base: `2c0a396bcb9299bd77fb33981d08b0a7c0244eb8`
