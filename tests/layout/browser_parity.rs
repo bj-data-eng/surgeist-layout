@@ -2023,19 +2023,41 @@ fn browser_parity_generation_report_counts_full_scope() {
 }
 
 #[test]
-fn browser_parity_generation_report_inventory_includes_c07_axis_scopes() {
+fn browser_parity_generation_report_inventory_matches_final_fri_02_scopes() {
     let report_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/layout/browser_parity/xml/generation-reports");
     let reports = support::fixture_files_in(&report_root, "json")
         .expect("generation reports should be readable");
-    assert_eq!(reports.len(), 15);
+    let report_basenames = reports
+        .iter()
+        .map(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_else(|| panic!("{} should have a UTF-8 basename", path.display()))
+        })
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        report_basenames,
+        BTreeSet::from([
+            "all.json",
+            "block_block_axes.json",
+            "flex_flex_axes.json",
+            "grid-lanes_grid_lanes_axes.json",
+            "grid_grid_axes.json",
+            "subgrid_subgrid_axes.json",
+        ])
+    );
 
-    for (file, filter) in [
+    for (file, filter, generated) in [
+        ("block_block_axes.json", "block/block_axes", 20),
+        ("flex_flex_axes.json", "flex/flex_axes", 80),
+        ("grid_grid_axes.json", "grid/grid_axes", 36),
         (
             "grid-lanes_grid_lanes_axes.json",
             "grid-lanes/grid_lanes_axes",
+            36,
         ),
-        ("subgrid_subgrid_axes.json", "subgrid/subgrid_axes"),
+        ("subgrid_subgrid_axes.json", "subgrid/subgrid_axes", 36),
     ] {
         let path = report_root.join(file);
         let raw = std::fs::read_to_string(&path)
@@ -2043,7 +2065,7 @@ fn browser_parity_generation_report_inventory_includes_c07_axis_scopes() {
         let report: serde_json::Value = serde_json::from_str(&raw)
             .unwrap_or_else(|error| panic!("{} should parse: {error}", path.display()));
         assert_eq!(report["filter"], filter);
-        assert_eq!(report["summary"]["generated"], 36);
+        assert_eq!(report["summary"]["generated"], generated);
         assert_eq!(report["summary"]["unsupported"], 0);
         assert_eq!(report["summary"]["expected_fail"], 0);
         assert_eq!(report["summary"]["quarantined"], 0);

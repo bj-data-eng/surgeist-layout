@@ -5142,64 +5142,24 @@ mod tests {
     }
 
     #[test]
-    fn generation_report_manifest_requires_the_exact_temporary_inventory() {
+    fn generation_report_manifest_requires_the_exact_final_inventory() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let reports = generation_report_manifest(&manifest).expect("report manifest");
-        assert_eq!(reports.all_files().len(), 15);
+        assert_eq!(reports.all_files().len(), 6);
         assert_eq!(reports.full.file, "all.json");
         assert_eq!(reports.full.generated, 5256);
         assert_eq!(
             reports
-                .scoped_for_filter("block/block_br_vertical")
+                .scoped_for_filter("block/block_axes")
                 .unwrap()
                 .generated,
-            16
+            20
         );
         assert!(reports.scoped_for_filter("block").is_none());
 
         let expected = [
             ("block/block_axes", "block_block_axes.json", 20),
-            (
-                "block/block_calc_width_margin",
-                "block_block_calc_width_margin.json",
-                4,
-            ),
-            (
-                "block/block_margin_x_percentage_intrinsic_size_self_negative",
-                "block_block_margin_x_percentage_intrinsic_size_self_negative.json",
-                4,
-            ),
-            (
-                "block/block_margin_x_percentage_intrinsic_size_self_positive",
-                "block_block_margin_x_percentage_intrinsic_size_self_positive.json",
-                4,
-            ),
-            (
-                "flex/flex_calc_basis_margin_gap",
-                "flex_flex_calc_basis_margin_gap.json",
-                4,
-            ),
             ("flex/flex_axes", "flex_flex_axes.json", 80),
-            (
-                "grid/grid_calc_track_and_item_margin",
-                "grid_grid_calc_track_and_item_margin.json",
-                4,
-            ),
-            (
-                "grid/grid_max_content_single_item_margin_percent",
-                "grid_grid_max_content_single_item_margin_percent.json",
-                4,
-            ),
-            (
-                "grid/grid_min_content_flex_single_item_margin_percent",
-                "grid_grid_min_content_flex_single_item_margin_percent.json",
-                4,
-            ),
-            (
-                "grid/grid_named_template_area_generated_names",
-                "grid_grid_named_template_area_generated_names.json",
-                4,
-            ),
             ("grid/grid_axes", "grid_grid_axes.json", 36),
             (
                 "grid-lanes/grid_lanes_axes",
@@ -5230,18 +5190,17 @@ mod tests {
         let report_dir = config.corpus.xml_root.join("generation-reports");
         fs::create_dir_all(&report_dir).expect("report dir");
         fs::write(report_dir.join("all.json"), "retained").expect("full report");
-        fs::write(report_dir.join("block_block_br_vertical.json"), "retained")
-            .expect("scoped report");
+        fs::write(report_dir.join("block_block_axes.json"), "retained").expect("scoped report");
         fs::write(report_dir.join("stale.json"), "stale").expect("stale report");
 
-        config.filter = Some("block/block_br_vertical".to_string());
+        config.filter = Some("block/block_axes".to_string());
         prune_stale_generation_reports_after_success(&config, &report).expect("scoped pruning");
         assert!(report_dir.join("stale.json").exists());
 
         config.filter = None;
         prune_stale_generation_reports_after_success(&config, &report).expect("full pruning");
         assert!(report_dir.join("all.json").exists());
-        assert!(report_dir.join("block_block_br_vertical.json").exists());
+        assert!(report_dir.join("block_block_axes.json").exists());
         assert!(!report_dir.join("stale.json").exists());
         fs::remove_dir_all(root).ok();
     }
@@ -8128,7 +8087,7 @@ status = "active"
     fn generation_report_metadata_validation_accepts_current_manifests() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let inventory = generation_report_manifest(&manifest).expect("inventory");
-        assert_eq!(inventory.all_files().len(), 15);
+        assert_eq!(inventory.all_files().len(), 6);
     }
     #[test]
     fn generation_report_validation_rejects_bucket_summary_drift() {
@@ -8202,10 +8161,9 @@ status = "active"
         let corpus = Config::from_root(PathBuf::from(DEFAULT_ROOT)).expect("config");
         let mut config = test_generation_config(corpus);
         assert!(generation_report_path(&config).ends_with("generation-reports/all.json"));
-        config.filter = Some("grid/grid_named_template_area_generated_names".to_string());
+        config.filter = Some("grid/grid_axes".to_string());
         assert!(
-            generation_report_path(&config)
-                .ends_with("generation-reports/grid_grid_named_template_area_generated_names.json")
+            generation_report_path(&config).ends_with("generation-reports/grid_grid_axes.json")
         );
     }
     #[test]

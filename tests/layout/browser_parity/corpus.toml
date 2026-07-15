@@ -63,54 +63,9 @@ file = "block_block_axes.json"
 generated = 20
 
 [[generation_reports.scoped]]
-filter = "block/block_br_vertical"
-file = "block_block_br_vertical.json"
-generated = 16
-
-[[generation_reports.scoped]]
-filter = "block/block_calc_width_margin"
-file = "block_block_calc_width_margin.json"
-generated = 4
-
-[[generation_reports.scoped]]
-filter = "block/block_margin_x_percentage_intrinsic_size_self_negative"
-file = "block_block_margin_x_percentage_intrinsic_size_self_negative.json"
-generated = 4
-
-[[generation_reports.scoped]]
-filter = "block/block_margin_x_percentage_intrinsic_size_self_positive"
-file = "block_block_margin_x_percentage_intrinsic_size_self_positive.json"
-generated = 4
-
-[[generation_reports.scoped]]
-filter = "flex/flex_calc_basis_margin_gap"
-file = "flex_flex_calc_basis_margin_gap.json"
-generated = 4
-
-[[generation_reports.scoped]]
 filter = "flex/flex_axes"
 file = "flex_flex_axes.json"
 generated = 80
-
-[[generation_reports.scoped]]
-filter = "grid/grid_calc_track_and_item_margin"
-file = "grid_grid_calc_track_and_item_margin.json"
-generated = 4
-
-[[generation_reports.scoped]]
-filter = "grid/grid_max_content_single_item_margin_percent"
-file = "grid_grid_max_content_single_item_margin_percent.json"
-generated = 4
-
-[[generation_reports.scoped]]
-filter = "grid/grid_min_content_flex_single_item_margin_percent"
-file = "grid_grid_min_content_flex_single_item_margin_percent.json"
-generated = 4
-
-[[generation_reports.scoped]]
-filter = "grid/grid_named_template_area_generated_names"
-file = "grid_grid_named_template_area_generated_names.json"
-generated = 4
 
 [[generation_reports.scoped]]
 filter = "grid/grid_axes"
