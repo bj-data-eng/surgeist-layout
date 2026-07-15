@@ -1,5 +1,5 @@
 # FRI-03-C05 Flex Participation
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-03-C05`
 Owning repository: `surgeist-layout`
 Cycle base: `6f080db86a8f571ba3108771dfa49d95b46fd765`
