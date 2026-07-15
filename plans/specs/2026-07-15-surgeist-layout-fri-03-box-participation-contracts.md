@@ -63,7 +63,9 @@ This specification owns:
 - exact order capture, XML parsing, new order fixtures, and generated provenance
   required to exercise these contracts;
 - exact flex-item-root parent-axis capture and XML parsing for the existing
-  viewport fixture front door; and
+  viewport fixture front door;
+- bounded decoupling of optional diagnostic fixture filters from retained
+  generation reports for the confirmed generator workflow bug; and
 - public reexports, crate docs, focused tests, reports, and root integration
   requirements.
 
@@ -74,8 +76,9 @@ This specification does not:
 - expand or redesign the generator architecture; generator changes are limited
   to capturing and serializing one exact integer, capturing and serializing the
   existing flex-item viewport parent's computed writing mode and direction,
-  parsing those three attributes, adding three order fixtures, and regenerating
-  derived artifacts;
+  parsing those three attributes, adding three order fixtures, decoupling the
+  existing diagnostic filter from report persistence, and regenerating derived
+  artifacts;
 - teach the browser harness a natural-size or replaced-element measurement
   model, infer replacedness from a tag, or add replaced browser fixtures;
 - parse authored CSS, run cascade, compute `order`, or decide which DOM elements
@@ -498,13 +501,25 @@ The existing constrained-HTML pipeline changes only as follows:
    with either attribute missing, invalid, or silently defaulted is a fixture
    error; and
 6. exactly three new active Surgeist HTML sources exercise flex, ordinary-grid,
-   and grid-lanes order behavior.
+   and grid-lanes order behavior; and
+7. a filtered ExistingPinned run accepts one normalized fixture path/prefix
+   that matches at least one source, writes only matching XML, writes or prunes
+   no generation report, and never substitutes for the final full run.
 
 This additional viewport metadata is a bounded parser/schema correction for a
 confirmed front-door bug: the 16 existing flex-item-root outputs cannot satisfy
 the public parent-context contract otherwise. It adds no source or output,
 changes no browser launch/import mechanism, and does not infer the parent axes
 from the item root.
+
+The existing filter/report coupling is a confirmed generator workflow bug:
+diagnostic filtering currently requires a manifest report and therefore turns
+iteration into retained verification state. The bounded fix uses the existing
+filter and `generate-existing` command, rejects absolute, escaping, whitespace-
+padded, or unmatched filters before artifact writes, emits no diagnostic report,
+and leaves full generation as the sole report writer and stale-report pruner.
+It adds no command, module, script, dependency, schema version, report kind,
+browser behavior, or acquisition path.
 
 The new source IDs are:
 
@@ -528,12 +543,14 @@ participation, and 16 flex-item-root parent-axis schema outputs.
 
 The corpus retains exactly one generation report,
 `generation-reports/all.json`. Existing scoped report entries and files are
-retired so an HTML, parser, or fixture update requires one full ExistingPinned
-regeneration followed only by read-only verification. That one successful run
-must itself produce all 5,268 XML outputs, write `all.json`, and prune every
-non-manifest scoped report; manual report deletion and a second derivation run
-are forbidden. The exact nonignored inventory test covers the 32 owned outputs
-without additional browser runs.
+retired from final evidence, and the final manifest has an empty scoped-report
+inventory. Scoped runs remain optional diagnostic tools while
+iterating, but are neither mandatory gates nor retained verification evidence.
+After the implementation and fixtures settle, exactly one successful full
+ExistingPinned run must produce all 5,268 XML outputs, write `all.json`, and
+prune every non-manifest scoped report. Manual report deletion and a second full
+regeneration are forbidden. The exact nonignored inventory test covers the 32
+owned outputs without requiring scoped evidence.
 The full report contains exactly 5,268 generated and 356 unsupported cases,
 with every failure-class count zero. The unsupported tuple set remains
 byte-semantically identical to the published base, with normalized tuple SHA-256
@@ -581,6 +598,9 @@ The implementation supplies at least:
   requires its actual parent computed writing-mode/direction tokens, a root
   viewport omits them, missing/invalid/stray combinations fail closed, and an
   inline non-square orthogonal case preserves parent/root axis disagreement;
+- generator tests proving a valid matched diagnostic filter writes matching XML
+  without changing report files, invalid or unmatched filters fail before
+  writes, and only a full run writes `all.json` and prunes scoped reports;
 - stale-helper provenance coverage and direct evidence that the one successful
   full run writes the exact one-report inventory, prunes every scoped report,
   and leaves full-report outputs exactly matching the XML inventory;
@@ -630,10 +650,10 @@ The implementation supplies at least:
 | `src/grid/subgrid.rs` and `src/inline.rs` | Rename source-index carriers without adopting CSS ordering. |
 | `src/lib.rs` and `README.md` | Reexport and explain the layout-ready order, source identity, replaced, and containing-context contracts. |
 | `tests/layout/browser_parity/scripts/gentest/test_helper.js` | Capture exact computed order and the actual computed axes of an existing flex-item viewport parent. |
-| `tests/bin/surgeist-layout-generate/generator.rs` | Serialize order plus the bounded flex-item viewport parent-axis attributes and preserve provenance/report invariants. |
+| `tests/bin/surgeist-layout-generate/generator.rs` | Serialize order and flex-parent axes, decouple diagnostic filters from report persistence, and preserve full-report provenance/pruning invariants. |
 | `tests/layout/browser_parity/support.rs` | Parse exact item order into `NodeInput` and require flex-item viewport parent axes for the public root request. |
 | `tests/layout/browser_parity.rs` | Own the exact 32-output inventory/topology gate and nonignored FRI-03 comparison. |
-| `tests/layout/browser_parity/README.md` | Document one full ExistingPinned regeneration followed by read-only verification, with no scoped or repeated runs. |
+| `tests/layout/browser_parity/README.md` | Document optional diagnostic scoped runs and one final full ExistingPinned regeneration followed by read-only verification, with no repeated full run. |
 | `tests/layout/browser_parity/html/` and `xml/` | Own the three generated order sources, the existing participation fixture, the 16 existing flex-item-root schema cases, and all derived XML. |
 | `tests/layout/browser_parity/corpus.toml` | Record the three active sources and the single full generation report. |
 
@@ -681,6 +701,8 @@ non-style box facts. This leaf does not guess either missing fact or edit root.
   existing geometry except where `BLOCK-007` identifies illegal collapse.
 - `place_lanes`, `LaneItemOf`, traversal traits, root request shape, scalar
   aliases, and layout error types do not change.
+- Filtered ExistingPinned runs become report-free diagnostics; the unfiltered
+  run remains the only persisted generation-report producer.
 - No Cargo feature, dependency, lockfile entry, task-runner recipe, browser pin,
   launch profile, import provenance, or MSRV changes.
 - Source remains authoritative; root owns generated API artifacts.
@@ -730,8 +752,8 @@ FRI-03 is complete only when:
    5,268/356 generation report, unchanged unsupported tuples, complete generated
    provenance, and corpus checks are green without claiming the aggregate parity
    test;
-8. no replaced fixture, unsupported bucket, XML hand edit, generator
-   refactoring, software acquisition, root edit, dependency, feature, MSRV
-   change, or `unsafe` is present;
+8. no replaced fixture, unsupported bucket, XML hand edit, generator change
+   beyond the bounded diagnostic-report bug fix, software acquisition, root
+   edit, dependency, feature, MSRV change, or `unsafe` is present;
 9. public docs, README, source, tests, manifest, reports, and root integration
    requirements agree.
