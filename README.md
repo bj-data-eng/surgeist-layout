@@ -58,9 +58,28 @@ algorithm modes remain internal.
 receives non-negative content-space constraints, and invalid provider output or a
 provider error becomes a typed layout error.
 
+`ItemOrder` is the layout-ready signed order value. `SourceIndex` is stable
+source-sibling identity: outputs remain source-associated while flex, ordinary
+grid, and grid-lanes consume one stable order-modified traversal sorted by item
+order and then source index.
+
+`item_is_replaced` is an independent box-generation fact. It is not inferred
+from table role, measurement, aspect ratio, or stretch. Block and root sizing
+use it to avoid ordinary auto-inline fill, flex uses it when selecting automatic
+main-size suggestions, and grid and grid-lanes use it when resolving normal
+alignment while preserving explicit stretch.
+
+`ContainingLayoutContext` keeps the containing flow axes and
+`ParentFormattingContext` role together as the complete containing context and
+cache identity. Flex-item roots require explicit parent flow axes and keep the
+host allocation in the root request separate from the viewport percentage
+context in `FlexItemRootContext`.
+
 Root `surgeist` owns cross-crate adapters, including lowering computed-style
-values into these layout contracts, and owns generated API artifacts. This crate
-does not carry root adapters or API artifact copies.
+values and authored CSS order into these layout contracts. Root also owns
+box-generation replacedness, invalidation, consumer migration and renames,
+facade composition, integration, and generated API artifacts. This crate does
+not carry root adapters or API artifact copies.
 
 ## Geometry, Flow, And Scroll Contracts
 

@@ -33,6 +33,23 @@
 //! become typed layout errors. `DefaultScalar` and `Scalar` use `f32`; generic
 //! `*Of<S>` contracts support end-to-end `f32` and `f64` scalar lanes.
 //!
+//! [`ItemOrder`] is the layout-ready signed order value. [`SourceIndex`] is
+//! stable source-sibling identity: outputs remain source-associated while flex,
+//! ordinary grid, and grid-lanes consume one stable order-modified traversal
+//! sorted by item order and then source index.
+//!
+//! [`NodeInputOf::item_is_replaced`] is an independent box-generation fact, not
+//! inferred from table role, measurement, aspect ratio, or stretch. Block and
+//! root sizing use it to avoid ordinary auto-inline fill; flex uses it for
+//! automatic main-size suggestion selection; and grid and grid-lanes use it for
+//! normal alignment while preserving explicit stretch.
+//!
+//! [`ContainingLayoutContext`] and [`ParentFormattingContext`] form the complete
+//! containing context and cache identity, including explicit containing flow and
+//! parent role. Flex-item roots require explicit parent flow axes and keep host
+//! allocation in the root request separate from the viewport percentage context
+//! in [`FlexItemRootContext`].
+//!
 //! Browser-parity generation is crate-local tooling. `generate` is the
 //! managed-pinned mode and may use the configured fetcher for the exact manifest
 //! pin. `generate-existing` is the existing-pinned, no-fetch mode and accepts
@@ -41,9 +58,10 @@
 //! including the mock-keychain argument; corpus freshness checks remain
 //! browser-free.
 //!
-//! Root `surgeist` owns computed-style lowering, cross-crate adapters, retained
-//! identity, live scroll state, and generated API artifacts. This crate does not
-//! parse authored CSS or own those integration concerns.
+//! Root `surgeist` owns authored CSS order lowering, box-generation replacedness,
+//! invalidation, consumer migration and renames, facade composition, cross-crate
+//! integration, retained identity, live scroll state, and generated API artifacts.
+//! This crate does not parse authored CSS or own those integration concerns.
 //! The later inline, overflow, flex, grid, alignment, and positioned initiatives
 //! remain outside this geometry closure and are not claimed here.
 //!
