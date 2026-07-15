@@ -293,6 +293,72 @@ fn public_flow_output<S: LayoutScalar>(
         .output()
 }
 
+#[test]
+fn source_index_identity_survives_root_hidden_rounding_and_batch() {
+    let tree = PublicFlowTree::default()
+        .with_children(10, [20, 30])
+        .with_children(20, [])
+        .with_children(30, [40])
+        .with_children(40, [])
+        .with_style(
+            10,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(100.25), DimensionOf::px(50.25)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            20,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(DimensionOf::px(25.25), DimensionOf::px(10.25)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            30,
+            NodeInput {
+                display: Display::None,
+                ..NodeInput::default()
+            },
+        )
+        .with_style(40, NodeInput::default());
+
+    let batch = compute_layout(
+        &tree,
+        10,
+        LayoutRootRequest::viewport(Size::splat(AvailableOf::definite(200.0)))
+            .expect("valid viewport request"),
+    )
+    .expect("root layout with a hidden subtree succeeds");
+
+    let expected_identity = [
+        (10, SourceIndex::ZERO),
+        (20, SourceIndex::new(0)),
+        (30, SourceIndex::new(1)),
+        (40, SourceIndex::new(0)),
+    ];
+    for entries in [batch.unrounded_entries(), batch.final_entries()] {
+        for (node, source_index) in expected_identity {
+            assert_eq!(public_flow_output(entries, node).source_index, source_index);
+        }
+    }
+
+    let unrounded_nodes = batch
+        .unrounded_entries()
+        .iter()
+        .map(LayoutOutputEntry::node)
+        .collect::<Vec<_>>();
+    let final_nodes = batch
+        .final_entries()
+        .iter()
+        .map(LayoutOutputEntry::node)
+        .collect::<Vec<_>>();
+    assert_ne!(unrounded_nodes, final_nodes);
+    assert_eq!(final_nodes, vec![10, 20, 30, 40]);
+}
+
 fn logical_flex_leaf<S: LayoutScalar>(width: f64, height: f64) -> NodeInputOf<S> {
     NodeInputOf {
         display: Display::Block,
@@ -1785,7 +1851,7 @@ fn assert_logical_ordinary_grid_absolute_static<S: LayoutScalar>() {
         }
         assert_eq!(
             public_flow_output(batch.unrounded_entries(), 4),
-            NodeOutputOf::with_order(3)
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(3))
         );
     }
 }
@@ -2975,11 +3041,11 @@ fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
     );
     assert_eq!(
         public_flow_output(viewport_batch.unrounded_entries(), 2),
-        NodeOutputOf::with_order(1)
+        NodeOutputOf::with_source_index(crate::SourceIndex::new(1))
     );
     assert_eq!(
         public_flow_output(viewport_batch.unrounded_entries(), 3),
-        NodeOutputOf::with_order(0)
+        NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
     );
 
     grid_tree.apply_cache_entries(viewport_batch.cache_store_entries());
@@ -3771,7 +3837,7 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
         NodeOutputOf {
             location: Point::new(S::ZERO, scalar(80.0)),
             size: Size::new(scalar(10.0), scalar(20.0)),
-            ..NodeOutputOf::with_order(0)
+            ..NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
         }
     );
 
@@ -3858,11 +3924,11 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
     for node in [1, 2] {
         assert_eq!(
             public_flow_output(hidden_batch.unrounded_entries(), node),
-            NodeOutputOf::with_order(0)
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
         );
         assert_eq!(
             public_flow_output(hidden_batch.final_entries(), node),
-            NodeOutputOf::with_order(0)
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
         );
     }
 
@@ -4115,11 +4181,11 @@ fn assert_ordinary_block_root_contexts_clear_hidden_descendants<S: LayoutScalar>
         for node in [1, 2] {
             assert_eq!(
                 public_flow_output(batch.unrounded_entries(), node),
-                NodeOutputOf::with_order(0)
+                NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
             );
             assert_eq!(
                 public_flow_output(batch.final_entries(), node),
-                NodeOutputOf::with_order(0)
+                NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
             );
         }
     }
@@ -5607,7 +5673,7 @@ fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_fl
             let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
             assert_eq!(input, ComputeInputOf::hidden(expected_axes));
             self.calls.push((node, input));
-            compute_hidden(self, node, input.containing_flow_axes())
+            compute_hidden(self, node, SourceIndex::ZERO, input.containing_flow_axes())
         }
     }
 
@@ -5673,12 +5739,15 @@ fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_fl
     let expected_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
     let expected_input = ComputeInputOf::hidden(expected_axes);
     assert_eq!(
-        compute_hidden(&mut tree, 1, expected_axes).unwrap(),
+        compute_hidden(&mut tree, 1, SourceIndex::ZERO, expected_axes).unwrap(),
         ComputeOutputOf::HIDDEN
     );
     assert_eq!(tree.calls, vec![(2, expected_input), (3, expected_input)]);
     for node in [1, 2, 3] {
-        assert_eq!(tree.layouts[&node], NodeOutputOf::with_order(0));
+        assert_eq!(
+            tree.layouts[&node],
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
+        );
         assert!(tree.caches[&node].is_empty());
     }
     assert_eq!(tree.cache_get_calls.get(), 0);
@@ -5813,14 +5882,21 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
         compute_hidden(
             &mut tree,
             1,
+            SourceIndex::ZERO,
             crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         )
         .unwrap(),
         ComputeOutput::HIDDEN
     );
     assert_eq!(tree.hidden_children, vec![2]);
-    assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
-    assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
+    assert_eq!(
+        tree.layouts[&1],
+        NodeOutput::with_source_index(crate::SourceIndex::new(0))
+    );
+    assert_eq!(
+        tree.layouts[&3],
+        NodeOutput::with_source_index(crate::SourceIndex::new(1))
+    );
     assert!(tree.caches[&1].is_empty());
     assert!(tree.caches[&3].is_empty());
 }
@@ -5946,14 +6022,21 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
         compute_hidden(
             &mut tree,
             1,
+            SourceIndex::ZERO,
             crate::geometry::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
         )
         .unwrap(),
         ComputeOutput::HIDDEN
     );
     assert_eq!(tree.hidden_children, vec![2]);
-    assert_eq!(tree.layouts[&1], NodeOutput::with_order(0));
-    assert_eq!(tree.layouts[&3], NodeOutput::with_order(0));
+    assert_eq!(
+        tree.layouts[&1],
+        NodeOutput::with_source_index(crate::SourceIndex::new(0))
+    );
+    assert_eq!(
+        tree.layouts[&3],
+        NodeOutput::with_source_index(crate::SourceIndex::new(1))
+    );
     assert!(tree.caches[&1].is_empty());
     assert!(tree.caches[&3].is_empty());
 }

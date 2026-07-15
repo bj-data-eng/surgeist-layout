@@ -882,7 +882,11 @@ impl SourceIndex {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {
-    pub order: u32,
+    /// Zero-based index among the node's source siblings.
+    ///
+    /// Root and standalone outputs use [`SourceIndex::ZERO`]. This identity is
+    /// independent of CSS item order and output slice position.
+    pub source_index: SourceIndex,
     pub location: Point<S>,
     pub size: Size<S>,
     pub content_size: Size<S>,
@@ -898,13 +902,13 @@ pub type NodeOutput = NodeOutputOf<DefaultScalar>;
 impl<S: LayoutScalar> NodeOutputOf<S> {
     #[must_use]
     pub const fn new() -> Self {
-        Self::with_order(0)
+        Self::with_source_index(SourceIndex::ZERO)
     }
 
     #[must_use]
-    pub const fn with_order(order: u32) -> Self {
+    pub const fn with_source_index(source_index: SourceIndex) -> Self {
         Self {
-            order,
+            source_index,
             location: Point::<S>::ZERO,
             size: Size::<S>::ZERO,
             content_size: Size::<S>::ZERO,
@@ -1064,11 +1068,21 @@ where
         }
     }
 
+    /// Returns staged entries in computation order.
+    ///
+    /// Slice position is not source, CSS, painting, or accessibility order.
+    /// Identify an entry by [`LayoutOutputEntryOf::node`] together with
+    /// [`NodeOutputOf::source_index`].
     #[must_use]
     pub fn unrounded_entries(&self) -> &[LayoutOutputEntryOf<Node, S>] {
         &self.unrounded_entries
     }
 
+    /// Returns rounded entries in source-tree rounding traversal order.
+    ///
+    /// Slice position is not CSS, painting, or accessibility order. Identify
+    /// an entry by [`LayoutOutputEntryOf::node`] together with
+    /// [`NodeOutputOf::source_index`].
     #[must_use]
     pub fn final_entries(&self) -> &[LayoutOutputEntryOf<Node, S>] {
         &self.final_entries

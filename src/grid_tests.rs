@@ -15999,7 +15999,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
     };
     let item = PendingGridItem::<_, f64> {
         node: "child",
-        order: 0,
+        source_index: 0,
         area,
         output: ComputeOutputOf::<f64>::from_sizes_and_baselines(
             Size::new(40.0, 30.0),
@@ -17469,7 +17469,7 @@ fn baseline_test_item(
 ) -> PendingGridItem<()> {
     PendingGridItem {
         node: (),
-        order: 0,
+        source_index: 0,
         area: GridArea {
             row,
             column,
@@ -18162,7 +18162,7 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
     let child_flow_axes = crate::geometry::FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
     PendingGridItem {
         node: (),
-        order: 0,
+        source_index: 0,
         area: GridArea {
             column: 0,
             row: 0,

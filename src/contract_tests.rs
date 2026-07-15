@@ -105,6 +105,20 @@ fn public_order_source_types_and_defaults_are_exact() {
 }
 
 #[test]
+fn node_output_source_index_is_unambiguous() {
+    fn assert_source_index(_: SourceIndex) {}
+
+    let default_output = NodeOutput::default();
+    let constructed_output = NodeOutput::new();
+    let indexed_output = NodeOutput::with_source_index(SourceIndex::new(7));
+
+    assert_source_index(default_output.source_index);
+    assert_eq!(default_output.source_index, SourceIndex::ZERO);
+    assert_eq!(constructed_output.source_index, SourceIndex::ZERO);
+    assert_eq!(indexed_output.source_index, SourceIndex::new(7));
+}
+
+#[test]
 fn compute_output_defaults_to_no_scroll_geometry() {
     let output = ComputeOutput::from_outer_size(Size::new(10.0, 20.0));
 
@@ -113,7 +127,7 @@ fn compute_output_defaults_to_no_scroll_geometry() {
 
 #[test]
 fn node_output_defaults_to_no_scroll_geometry() {
-    let output = NodeOutput::with_order(7);
+    let output = NodeOutput::with_source_index(crate::SourceIndex::new(7));
 
     assert_eq!(output.scroll_geometry, None);
 }

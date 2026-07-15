@@ -2191,7 +2191,10 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
     .unwrap();
 
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&3], NodeOutput::with_order(1));
+    assert_eq!(
+        tree.layouts[&3],
+        NodeOutput::with_source_index(crate::SourceIndex::new(1))
+    );
     assert_eq!(
         tree.inputs[&3],
         vec![ComputeInput::hidden(crate::geometry::FlowAxes::new(

@@ -237,7 +237,10 @@ impl Compute for OracleTree {
             Display::Flex => compute_flex(self, node, input),
             Display::Grid | Display::GridLanes => compute_grid(self, node, input),
             Display::None => {
-                self.set_unrounded(node, NodeOutput::with_order(0));
+                self.set_unrounded(
+                    node,
+                    NodeOutput::with_source_index(crate::SourceIndex::ZERO),
+                );
                 Ok(ComputeOutputOf::HIDDEN)
             }
             Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
@@ -284,7 +287,10 @@ impl Compute for OracleTreeOf<f64> {
             Display::Flex => compute_flex(self, node, input),
             Display::Grid | Display::GridLanes => compute_grid(self, node, input),
             Display::None => {
-                self.set_unrounded(node, NodeOutputOf::with_order(0));
+                self.set_unrounded(
+                    node,
+                    NodeOutputOf::with_source_index(crate::SourceIndex::ZERO),
+                );
                 Ok(ComputeOutputOf::HIDDEN)
             }
             Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {

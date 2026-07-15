@@ -14,7 +14,7 @@ pub(super) struct InlineRunInput<S: LayoutScalar = DefaultScalar> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct AtomicInlineBoxParticipant<S: LayoutScalar = DefaultScalar> {
-    pub order: u32,
+    pub source_index: usize,
     pub size: Size<S>,
     pub content_size: Size<S>,
     pub margin: Edges<S>,
@@ -79,7 +79,7 @@ impl From<VerticalAlign> for InlineControlAlignment {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct ForcedLineBreakControlOf<S: LayoutScalar = DefaultScalar> {
-    order: u32,
+    source_index: usize,
     flow: InlineFlowOf<S>,
     metrics: InlineMetricsOf<S>,
     alignment: InlineControlAlignment,
@@ -89,14 +89,14 @@ pub(super) struct ForcedLineBreakControlOf<S: LayoutScalar = DefaultScalar> {
 impl<S: LayoutScalar> ForcedLineBreakControlOf<S> {
     #[must_use]
     pub(super) const fn new(
-        order: u32,
+        source_index: usize,
         flow: InlineFlowOf<S>,
         metrics: InlineMetricsOf<S>,
         alignment: InlineControlAlignment,
         clear: Clear,
     ) -> Self {
         Self {
-            order,
+            source_index,
             flow,
             metrics,
             alignment,
@@ -105,8 +105,8 @@ impl<S: LayoutScalar> ForcedLineBreakControlOf<S> {
     }
 
     #[must_use]
-    pub(super) const fn order(self) -> u32 {
-        self.order
+    pub(super) const fn source_index(self) -> usize {
+        self.source_index
     }
 
     #[allow(dead_code)]
@@ -135,7 +135,7 @@ impl<S: LayoutScalar> ForcedLineBreakControlOf<S> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct InlineBoundaryControlOf<S: LayoutScalar = DefaultScalar> {
-    order: u32,
+    source_index: usize,
     kind: InlineBoundaryKind,
     flow: InlineFlowOf<S>,
     metrics: InlineMetricsOf<S>,
@@ -146,14 +146,14 @@ pub(super) struct InlineBoundaryControlOf<S: LayoutScalar = DefaultScalar> {
 impl<S: LayoutScalar> InlineBoundaryControlOf<S> {
     #[must_use]
     pub(super) const fn new(
-        order: u32,
+        source_index: usize,
         kind: InlineBoundaryKind,
         flow: InlineFlowOf<S>,
         metrics: InlineMetricsOf<S>,
         alignment: InlineControlAlignment,
     ) -> Self {
         Self {
-            order,
+            source_index,
             kind,
             flow,
             metrics,
@@ -162,8 +162,8 @@ impl<S: LayoutScalar> InlineBoundaryControlOf<S> {
     }
 
     #[must_use]
-    pub(super) const fn order(self) -> u32 {
-        self.order
+    pub(super) const fn source_index(self) -> usize {
+        self.source_index
     }
 
     #[must_use]
@@ -199,13 +199,13 @@ pub(super) enum InlineControlItemOf<S: LayoutScalar = DefaultScalar> {
 impl<S: LayoutScalar> InlineParticipant<S> {
     #[cfg(test)]
     pub(super) const fn new(
-        order: u32,
+        source_index: usize,
         size: Size<S>,
         margin: Edges<S>,
         first_baseline: Option<S>,
     ) -> Self {
         Self::Box(AtomicInlineBoxParticipant {
-            order,
+            source_index,
             size,
             content_size: size,
             margin,
@@ -272,7 +272,7 @@ pub(super) enum InlineParticipantLayoutKind {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct InlineParticipantLayoutItem<S: LayoutScalar = DefaultScalar> {
     pub kind: InlineParticipantLayoutKind,
-    pub order: u32,
+    pub source_index: usize,
     pub location: Point<S>,
     pub size: Size<S>,
     pub content_size: Size<S>,
@@ -298,7 +298,7 @@ enum PendingInlineItem<S: LayoutScalar = DefaultScalar> {
         x: S,
     },
     ForcedLineBreak {
-        order: u32,
+        source_index: usize,
         x: S,
     },
     Boundary {
@@ -344,7 +344,7 @@ impl<S: LayoutScalar> InlineLine<S> {
         self.baseline = self.baseline.max(metrics.baseline());
         self.descent = self.descent.max(metrics.after_baseline());
         self.items.push(PendingInlineItem::ForcedLineBreak {
-            order: control.order(),
+            source_index: control.source_index(),
             x: self.width,
         });
     }
@@ -372,7 +372,7 @@ enum PendingVerticalInlineItem<S: LayoutScalar = DefaultScalar> {
         logical_inline_start: S,
     },
     ForcedLineBreak {
-        order: u32,
+        source_index: usize,
         logical_inline_start: S,
         baseline: S,
     },
@@ -420,7 +420,7 @@ impl<S: LayoutScalar> VerticalInlineLine<S> {
         self.last_report_baseline = Some(self.inline_extent);
         self.block_extent = self.block_extent.max(metrics.line_extent());
         self.items.push(PendingVerticalInlineItem::ForcedLineBreak {
-            order: control.order(),
+            source_index: control.source_index(),
             logical_inline_start: self.inline_extent,
             baseline: metrics.baseline(),
         });
@@ -510,7 +510,7 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                 PendingInlineItem::Box { item, x } => {
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::Box,
-                        order: item.order,
+                        source_index: item.source_index,
                         location: flow_axes.physical_point(
                             LogicalPointOf::new(x, y + line.baseline - item.baseline()),
                             LogicalSizeOf::new(item.size.width, item.size.height),
@@ -527,10 +527,10 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                         scrollbar_size: item.scrollbar_size,
                     });
                 }
-                PendingInlineItem::ForcedLineBreak { order, x } => {
+                PendingInlineItem::ForcedLineBreak { source_index, x } => {
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::ForcedLineBreak,
-                        order,
+                        source_index,
                         location: flow_axes.physical_point(
                             LogicalPointOf::new(x, line_baseline),
                             LogicalSizeOf::new(S::ZERO, S::ZERO),
@@ -550,7 +550,7 @@ pub(super) fn layout_inline_run<S: LayoutScalar>(input: InlineRunInput<S>) -> In
                 PendingInlineItem::Boundary { control, x } => {
                     items.push(InlineParticipantLayoutItem {
                         kind: inline_boundary_layout_kind(control.kind()),
-                        order: control.order(),
+                        source_index: control.source_index(),
                         location: flow_axes.physical_point(
                             LogicalPointOf::new(x, line_baseline),
                             LogicalSizeOf::new(S::ZERO, S::ZERO),
@@ -662,7 +662,7 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                     };
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::Box,
-                        order: item.order,
+                        source_index: item.source_index,
                         location: flow_axes.physical_point(
                             LogicalPointOf::new(logical_inline_start, logical_block_start_for_item),
                             LogicalSizeOf::new(item.size.height, item.size.width),
@@ -680,13 +680,13 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                     });
                 }
                 PendingVerticalInlineItem::ForcedLineBreak {
-                    order,
+                    source_index,
                     logical_inline_start,
                     baseline,
                 } => {
                     items.push(InlineParticipantLayoutItem {
                         kind: InlineParticipantLayoutKind::ForcedLineBreak,
-                        order,
+                        source_index,
                         location: flow_axes.physical_point(
                             LogicalPointOf::new(
                                 logical_inline_start,
@@ -713,7 +713,7 @@ fn layout_vertical_inline_lines<S: LayoutScalar>(
                 } => {
                     items.push(InlineParticipantLayoutItem {
                         kind: inline_boundary_layout_kind(control.kind()),
-                        order: control.order(),
+                        source_index: control.source_index(),
                         location: flow_axes.physical_point(
                             LogicalPointOf::new(
                                 logical_inline_start,

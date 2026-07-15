@@ -214,13 +214,16 @@ where
     } = context;
 
     if columns.is_empty() || rows.is_empty() {
-        for (order, child) in tree
+        for (source_index, child) in tree
             .children(node)
             .collect::<Vec<_>>()
             .into_iter()
             .enumerate()
         {
-            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
+            );
             tree.compute_child(
                 child,
                 ComputeInputOf::hidden(crate::geometry::FlowAxes::new(
@@ -311,7 +314,7 @@ where
     };
     let mut visible_content_size = Size::ZERO;
     let mut pending_items = Vec::new();
-    for (order, (((child, placement), area), subgrid_item)) in placements
+    for (source_index, (((child, placement), area), subgrid_item)) in placements
         .checked_child_placements(&children)
         .zip(placed_areas)
         .zip(subgrid_report.items.iter())
@@ -319,7 +322,10 @@ where
     {
         let child_style = tree.node_input(child).clone();
         if child_style.display == super::Display::None {
-            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
+            );
             tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
             continue;
         }
@@ -329,7 +335,7 @@ where
                 layout_absolute_grid_child(
                     tree,
                     child,
-                    order as u32,
+                    source_index,
                     &child_style,
                     AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
                         container_style: style,
@@ -353,7 +359,10 @@ where
             continue;
         };
         if area.row >= rows.len() || area.column >= columns.len() {
-            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
+            );
             tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
             continue;
         }
@@ -485,7 +494,7 @@ where
         );
         pending_items.push(PendingGridItem {
             node: child,
-            order: order as u32,
+            source_index,
             area,
             output,
             horizontal_axis: inline_axis,
@@ -588,7 +597,7 @@ where
             constants
                 .flow_axes
                 .physical_point(area_origin, item.area.size, containing_size);
-        let subgrid_item = subgrid_report.items[item.order as usize];
+        let subgrid_item = subgrid_report.items[item.source_index];
         item.location = location;
         visible_content_size = max_size(
             visible_content_size,
@@ -612,7 +621,7 @@ where
         tree.set_unrounded(
             item.node,
             NodeOutputOf {
-                order: item.order,
+                source_index: crate::SourceIndex::new(item.source_index),
                 location,
                 size: item.output.size,
                 content_size: item.output.content_size,
@@ -673,8 +682,7 @@ where
     Tree: Compute<M>,
 {
     for item in pending_items.iter_mut() {
-        let Some(subgrid_item) = input.subgrid_report.items.get(item.order as usize).copied()
-        else {
+        let Some(subgrid_item) = input.subgrid_report.items.get(item.source_index).copied() else {
             continue;
         };
         if !subgrid_item.column.can_inherit() && !subgrid_item.row.can_inherit() {
@@ -988,7 +996,7 @@ fn grid_physical_axis_progression(
 #[derive(Clone)]
 pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) node: Node,
-    pub(super) order: u32,
+    pub(super) source_index: usize,
     pub(super) area: GridArea<S>,
     pub(super) output: ComputeOutputOf<S>,
     pub(super) horizontal_axis: ResolvedGridItemAxis<S>,
@@ -2317,7 +2325,7 @@ pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
 pub(super) fn layout_absolute_grid_child<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
-    order: u32,
+    source_index: usize,
     child_style: &NodeInputOf<Tree::Scalar>,
     context: AbsoluteGridContext<'_, Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
@@ -2500,7 +2508,7 @@ where
     tree.set_unrounded(
         child,
         NodeOutputOf {
-            order,
+            source_index: crate::SourceIndex::new(source_index),
             location,
             size: final_size,
             content_size: output.content_size,

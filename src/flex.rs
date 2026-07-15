@@ -729,7 +729,7 @@ impl<S: LayoutScalar> FlexItemBaseline<S> {
 #[derive(Clone, Copy, Debug)]
 struct CollectedFlexItem<Node, S: LayoutScalar> {
     node: Node,
-    order: u32,
+    source_index: usize,
     size: Size<Option<S>>,
     initial_output: ComputeOutputOf<S>,
     flex_basis: S,
@@ -759,7 +759,7 @@ struct CollectedFlexItem<Node, S: LayoutScalar> {
 #[derive(Clone, Copy, Debug)]
 struct ResolvedFlexItem<Node, S: LayoutScalar> {
     node: Node,
-    order: u32,
+    source_index: usize,
     size: Size<Option<S>>,
     initial_output: ComputeOutputOf<S>,
     flex_basis: S,
@@ -810,7 +810,7 @@ impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexIte
     fn from(item: CollectedFlexItem<Node, S>) -> Self {
         Self {
             node: item.node,
-            order: item.order,
+            source_index: item.source_index,
             size: item.size,
             initial_output: item.initial_output,
             flex_basis: item.flex_basis,
@@ -860,14 +860,14 @@ where
 {
     let children = tree.children(node).collect::<Vec<_>>();
     let mut items = Vec::with_capacity(children.len());
-    for (order, child) in children.into_iter().enumerate() {
+    for (source_index, child) in children.into_iter().enumerate() {
         let child_style = tree.node_input(child).clone();
         if child_style.position == Position::Absolute || child_style.display == super::Display::None
         {
             continue;
         }
 
-        let child = build_item(tree, child, order as u32, &child_style, constants, run_mode)?;
+        let child = build_item(tree, child, source_index, &child_style, constants, run_mode)?;
         items.push(child);
     }
     Ok(items)
@@ -880,7 +880,7 @@ where
 fn build_item<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
-    order: u32,
+    source_index: usize,
     style: &NodeInputOf<Tree::Scalar>,
     constants: &Constants<Tree::Scalar>,
     run_mode: RunMode,
@@ -1158,7 +1158,7 @@ where
 
     Ok(CollectedFlexItem {
         node,
-        order,
+        source_index,
         size: authored_size,
         initial_output: output,
         flex_basis,
@@ -3027,7 +3027,7 @@ where
         tree.set_unrounded(
             item.node,
             NodeOutputOf {
-                order: item.order,
+                source_index: crate::SourceIndex::new(item.source_index),
                 location,
                 size: output.size,
                 content_size: output.content_size,
@@ -3163,7 +3163,7 @@ where
             .unwrap_or(AvailableOf::MAX_CONTENT),
     );
 
-    for (order, child) in children.into_iter().enumerate() {
+    for (source_index, child) in children.into_iter().enumerate() {
         let style = tree.node_input(child).clone();
         if style.position != Position::Absolute || style.display == super::Display::None {
             continue;
@@ -3287,7 +3287,7 @@ where
         tree.set_unrounded(
             child,
             NodeOutputOf {
-                order: order as u32,
+                source_index: crate::SourceIndex::new(source_index),
                 location,
                 size: final_size,
                 content_size: output.content_size,
@@ -3324,12 +3324,15 @@ where
     Tree: Compute<M>,
 {
     let children = tree.children(node).collect::<Vec<_>>();
-    for (order, child) in children.into_iter().enumerate() {
+    for (source_index, child) in children.into_iter().enumerate() {
         if tree.node_input(child).display != super::Display::None {
             continue;
         }
 
-        tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+        tree.set_unrounded(
+            child,
+            NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
+        );
         tree.compute_child(child, ComputeInputOf::hidden(containing_flow_axes))?;
     }
     Ok(())

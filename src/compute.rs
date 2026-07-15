@@ -202,6 +202,15 @@ where
         )
     }
 
+    fn staged_source_index(&self, node: Tree::Node) -> crate::SourceIndex {
+        self.unrounded_entries
+            .iter()
+            .rev()
+            .find(|entry| entry.node() == node)
+            .map(|entry| entry.output().source_index)
+            .unwrap_or(crate::SourceIndex::ZERO)
+    }
+
     fn compute_child_uncached(
         &mut self,
         node: Tree::Node,
@@ -219,7 +228,12 @@ where
             super::Display::Grid | super::Display::GridLanes => {
                 crate::grid::compute_grid(self, node, input)
             }
-            super::Display::None => compute_hidden(self, node, input.containing_flow_axes()),
+            super::Display::None => compute_hidden(
+                self,
+                node,
+                self.staged_source_index(node),
+                input.containing_flow_axes(),
+            ),
             super::Display::InlineBlock
             | super::Display::InlineGrid
             | super::Display::InlineGridLanes => {
@@ -365,7 +379,12 @@ where
         let style = self.node_input(node).clone();
         if input.run_mode() == RunMode::PerformHiddenLayout || style.display == super::Display::None
         {
-            return compute_hidden(self, node, input.containing_flow_axes());
+            return compute_hidden(
+                self,
+                node,
+                self.staged_source_index(node),
+                input.containing_flow_axes(),
+            );
         }
 
         if input.run_mode().is_perform_layout() && self.child_count(node) != 0 {
@@ -449,6 +468,7 @@ where
 pub(crate) fn compute_hidden<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
+    source_index: crate::SourceIndex,
     containing_flow_axes: crate::geometry::FlowAxes,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
@@ -461,17 +481,24 @@ where
         + CacheAccess<M, Node = <Tree as Traverse>::Node, Scalar = <Tree as Traverse>::Scalar>,
 {
     tree.cache_clear(node);
-    tree.set_unrounded(node, NodeOutputOf::with_order(0));
+    tree.set_unrounded(node, NodeOutputOf::with_source_index(source_index));
 
     for index in 0..tree.child_count(node) {
         let child = tree.child(node, index);
         match tree.layout_input(child) {
             LayoutInputOf::Box(_) => {
+                tree.set_unrounded(
+                    child,
+                    NodeOutputOf::with_source_index(crate::SourceIndex::new(index)),
+                );
                 tree.compute_child(child, ComputeInputOf::hidden(containing_flow_axes))?;
             }
             LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
-                tree.set_unrounded(child, NodeOutputOf::with_order(0));
+                tree.set_unrounded(
+                    child,
+                    NodeOutputOf::with_source_index(crate::SourceIndex::new(index)),
+                );
             }
         }
     }
@@ -531,7 +558,7 @@ where
     tree.set_unrounded(
         root,
         NodeOutputOf {
-            order: 0,
+            source_index: crate::SourceIndex::ZERO,
             location,
             size: output.size,
             content_size: output.content_size,
@@ -567,7 +594,7 @@ where
     tree.set_unrounded(
         root,
         NodeOutputOf {
-            order: 0,
+            source_index: crate::SourceIndex::ZERO,
             location: Point::ZERO,
             size: output.size,
             content_size: output.content_size,

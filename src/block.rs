@@ -258,7 +258,7 @@ where
 
 struct PendingFloat<Node, S: LayoutScalar> {
     node: Node,
-    order: u32,
+    source_index: usize,
     side: Float,
     clear: Clear,
     y: S,
@@ -660,14 +660,19 @@ where
 
     let mut index = 0;
     while index < children.len() {
-        let order = index;
+        let source_index = index;
         let child = children[index];
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
                     if set_layout {
-                        tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order as u32));
+                        tree.set_unrounded(
+                            child,
+                            NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
+                                source_index,
+                            )),
+                        );
                     }
                     index += 1;
                     continue;
@@ -696,7 +701,7 @@ where
                     run_start,
                     index,
                     InlineRunContext {
-                        order_start: run_start as u32,
+                        source_index_start: run_start,
                         cursor_block,
                         constants,
                         input,
@@ -747,7 +752,7 @@ where
                     run_start,
                     index,
                     InlineRunContext {
-                        order_start: run_start as u32,
+                        source_index_start: run_start,
                         cursor_block,
                         constants,
                         input,
@@ -776,7 +781,10 @@ where
         };
         if child_style.display == super::Display::None {
             if set_layout {
-                tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order as u32));
+                tree.set_unrounded(
+                    child,
+                    NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(source_index)),
+                );
                 tree.compute_child(child, ComputeInputOf::<S>::hidden(constants.flow_axes))?;
             }
             index += 1;
@@ -813,7 +821,7 @@ where
                 run_start,
                 index,
                 InlineRunContext {
-                    order_start: run_start as u32,
+                    source_index_start: run_start,
                     cursor_block,
                     constants,
                     input,
@@ -926,7 +934,7 @@ where
             .map_err(|error| block_child_scroll_error(node, child, error))?;
             let pending_float = PendingFloat {
                 node: child,
-                order: order as u32,
+                source_index,
                 side: child_style.float,
                 clear: child_style.clear,
                 y: float_bfc_cursor_y,
@@ -1051,7 +1059,7 @@ where
             tree.set_unrounded(
                 child,
                 NodeOutputOf::<S> {
-                    order: order as u32,
+                    source_index: crate::SourceIndex::new(source_index),
                     location,
                     size: output.size,
                     content_size: output.content_size,
@@ -1182,7 +1190,7 @@ struct InlineRunPlacement<Node, S: LayoutScalar> {
 }
 
 struct InlineRunContext<'a, S: LayoutScalar> {
-    order_start: u32,
+    source_index_start: usize,
     cursor_block: S,
     constants: &'a Constants<S>,
     input: ComputeInputOf<S>,
@@ -1191,7 +1199,7 @@ struct InlineRunContext<'a, S: LayoutScalar> {
 }
 
 struct InlineSegmentsContext<'a, S: LayoutScalar> {
-    order_start: u32,
+    source_index_start: usize,
     cursor_block: S,
     constants: &'a Constants<S>,
     input: ComputeInputOf<S>,
@@ -1200,12 +1208,12 @@ struct InlineSegmentsContext<'a, S: LayoutScalar> {
 }
 
 fn forced_line_break_control<S: LayoutScalar>(
-    order: u32,
+    source_index: usize,
     input: LineBreakInputOf<S>,
     available_inline_extent: AvailableOf<S>,
 ) -> ForcedLineBreakControlOf<S> {
     ForcedLineBreakControlOf::new(
-        order,
+        source_index,
         InlineFlowOf::new(
             input.writing_mode(),
             input.direction(),
@@ -1218,12 +1226,12 @@ fn forced_line_break_control<S: LayoutScalar>(
 }
 
 fn inline_boundary_control<S: LayoutScalar>(
-    order: u32,
+    source_index: usize,
     input: InlineBoundaryInputOf<S>,
     available_inline_extent: AvailableOf<S>,
 ) -> InlineBoundaryControlOf<S> {
     InlineBoundaryControlOf::new(
-        order,
+        source_index,
         input.kind(),
         InlineFlowOf::new(
             input.writing_mode(),
@@ -1238,17 +1246,17 @@ fn inline_boundary_control<S: LayoutScalar>(
 enum InlineRunChild<Node, S: LayoutScalar> {
     Box {
         child: Node,
-        order: u32,
+        source_index: usize,
         style: Box<NodeInputOf<S>>,
         output: ComputeOutputOf<S>,
     },
     LineBreak {
         child: Node,
-        order: u32,
+        source_index: usize,
     },
     Boundary {
         child: Node,
-        order: u32,
+        source_index: usize,
     },
 }
 
@@ -1264,7 +1272,7 @@ where
     S: LayoutScalar,
 {
     let InlineSegmentsContext {
-        order_start,
+        source_index_start,
         mut cursor_block,
         constants,
         input,
@@ -1296,7 +1304,7 @@ where
                 container,
                 &run[offset..candidate.end],
                 InlineRunContext {
-                    order_start: order_start + offset as u32,
+                    source_index_start: source_index_start + offset,
                     cursor_block,
                     constants,
                     input,
@@ -1318,7 +1326,7 @@ where
             container,
             &run[offset..segment_end],
             InlineRunContext {
-                order_start: order_start + offset as u32,
+                source_index_start: source_index_start + offset,
                 cursor_block,
                 constants,
                 input,
@@ -1404,7 +1412,7 @@ where
         container,
         &children[run_start..run_end],
         InlineSegmentsContext {
-            order_start: context.order_start,
+            source_index_start: context.source_index_start,
             cursor_block: context.cursor_block,
             constants: context.constants,
             input: context.input,
@@ -1426,7 +1434,7 @@ where
     S: LayoutScalar,
 {
     let InlineRunContext {
-        order_start,
+        source_index_start,
         cursor_block,
         constants,
         input,
@@ -1443,13 +1451,18 @@ where
     let mut run_children = Vec::with_capacity(run.len());
     let mut static_positions = Vec::new();
     for (offset, child) in run.iter().copied().enumerate() {
-        let order = order_start + offset as u32;
+        let source_index = source_index_start + offset;
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
                     if set_layout {
-                        tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order));
+                        tree.set_unrounded(
+                            child,
+                            NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
+                                source_index,
+                            )),
+                        );
                     }
                     continue;
                 }
@@ -1461,9 +1474,12 @@ where
                 )
                 .unwrap();
 
-                run_children.push(InlineRunChild::LineBreak { child, order });
+                run_children.push(InlineRunChild::LineBreak {
+                    child,
+                    source_index,
+                });
                 items.push(InlineParticipant::forced_line_break(
-                    forced_line_break_control(order, line_break, available_inline_extent),
+                    forced_line_break_control(source_index, line_break, available_inline_extent),
                 ));
                 continue;
             }
@@ -1476,9 +1492,12 @@ where
                 )
                 .unwrap();
 
-                run_children.push(InlineRunChild::Boundary { child, order });
+                run_children.push(InlineRunChild::Boundary {
+                    child,
+                    source_index,
+                });
                 items.push(InlineParticipant::inline_boundary(inline_boundary_control(
-                    order,
+                    source_index,
                     boundary,
                     available_inline_extent,
                 )));
@@ -1487,7 +1506,10 @@ where
         };
         if child_style.display == super::Display::None {
             if set_layout {
-                tree.set_unrounded(child, NodeOutputOf::<S>::with_order(order));
+                tree.set_unrounded(
+                    child,
+                    NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(source_index)),
+                );
                 tree.compute_child(child, ComputeInputOf::<S>::hidden(constants.flow_axes))?;
             }
             continue;
@@ -1545,7 +1567,7 @@ where
         let child_flow_axes =
             crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
         let item = InlineParticipant::Box(AtomicInlineBoxParticipant {
-            order,
+            source_index,
             size: output.size,
             content_size: output.content_size,
             margin: child_margin,
@@ -1563,7 +1585,7 @@ where
         });
         run_children.push(InlineRunChild::Box {
             child,
-            order,
+            source_index,
             style: Box::new(child_style),
             output,
         });
@@ -1601,11 +1623,11 @@ where
         Point::new(Overflow::Visible, Overflow::Visible),
     );
 
-    let report_items_by_order = report
+    let report_items_by_source_index = report
         .items
         .iter()
         .copied()
-        .map(|item| (item.order, item))
+        .map(|item| (item.source_index, item))
         .collect::<BTreeMap<_, _>>();
     let inline_subject = run.first().copied();
     let mut run_scrollable_overflow = ScrollableOverflowAccumulator::new(Point::ZERO, report.size)
@@ -1617,11 +1639,11 @@ where
         match run_child {
             InlineRunChild::Box {
                 child,
-                order,
+                source_index,
                 style: child_style,
                 output,
             } => {
-                let item = report_items_by_order[order];
+                let item = report_items_by_source_index[source_index];
                 let inset_offset = relative_inset_offset(
                     constants
                         .flow_axes
@@ -1677,7 +1699,7 @@ where
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
-                            order: item.order,
+                            source_index: crate::SourceIndex::new(item.source_index),
                             location,
                             size: item.size,
                             content_size: item.content_size,
@@ -1702,13 +1724,16 @@ where
                     );
                 }
             }
-            InlineRunChild::LineBreak { child, order } => {
+            InlineRunChild::LineBreak {
+                child,
+                source_index,
+            } => {
                 if set_layout {
-                    let item = report_items_by_order[order];
+                    let item = report_items_by_source_index[source_index];
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
-                            order: item.order,
+                            source_index: crate::SourceIndex::new(item.source_index),
                             location: project_inline_report_item(
                                 item.location,
                                 Size::ZERO,
@@ -1729,13 +1754,16 @@ where
                     );
                 }
             }
-            InlineRunChild::Boundary { child, order } => {
+            InlineRunChild::Boundary {
+                child,
+                source_index,
+            } => {
                 if set_layout {
-                    let item = report_items_by_order[order];
+                    let item = report_items_by_source_index[source_index];
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
-                            order: item.order,
+                            source_index: crate::SourceIndex::new(item.source_index),
                             location: project_inline_report_item(
                                 item.location,
                                 Size::ZERO,
@@ -1941,7 +1969,7 @@ where
         tree.set_unrounded(
             float.node,
             NodeOutputOf::<S> {
-                order: float.order,
+                source_index: crate::SourceIndex::new(float.source_index),
                 location,
                 size: float.size,
                 content_size: float.content_size,
@@ -2605,7 +2633,7 @@ where
 
     let mut absolute_content_size = Size::ZERO;
     let mut absolute_scrollable_overflow: Option<super::ScrollRectOf<S>> = None;
-    for (order, child) in children.iter().copied().enumerate() {
+    for (source_index, child) in children.iter().copied().enumerate() {
         let LayoutInputOf::Box(style) = tree.layout_input(child) else {
             continue;
         };
@@ -2822,7 +2850,7 @@ where
         tree.set_unrounded(
             child,
             NodeOutputOf::<S> {
-                order: order as u32,
+                source_index: crate::SourceIndex::new(source_index),
                 location,
                 size: final_size,
                 content_size: output.content_size,

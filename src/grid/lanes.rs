@@ -1244,13 +1244,16 @@ where
     } = input;
 
     if columns.is_empty() || rows.is_empty() {
-        for (order, child) in tree
+        for (source_index, child) in tree
             .children(node)
             .collect::<Vec<_>>()
             .into_iter()
             .enumerate()
         {
-            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
+            );
             tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
         }
         return Ok(GridChildrenLayout {
@@ -1338,10 +1341,15 @@ where
     let mut pending_items = Vec::new();
     let mut visible_content_size = Size::ZERO;
 
-    for (order, (child, placement)) in placements.checked_child_placements(&children).enumerate() {
+    for (source_index, (child, placement)) in
+        placements.checked_child_placements(&children).enumerate()
+    {
         let child_style = tree.node_input(child).clone();
         if child_style.display == Display::None {
-            tree.set_unrounded(child, NodeOutputOf::with_order(order as u32));
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::with_source_index(crate::SourceIndex::new(source_index)),
+            );
             tree.compute_child(child, ComputeInputOf::hidden(constants.flow_axes))?;
             continue;
         }
@@ -1351,7 +1359,7 @@ where
                 layout_absolute_grid_child(
                     tree,
                     child,
-                    order as u32,
+                    source_index,
                     &child_style,
                     AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
                         container_style: style,
@@ -1447,7 +1455,7 @@ where
         let child_context = subgrid_child_parent_context(SubgridChildParentContextInput {
             item: *subgrid_report
                 .items
-                .get(order)
+                .get(source_index)
                 .expect("grid-lanes subgrid report must preserve one item per child"),
             child_style: &child_style,
             area,
@@ -1532,7 +1540,7 @@ where
         );
         pending_items.push(PendingGridItem {
             node: child,
-            order: order as u32,
+            source_index,
             area,
             output,
             horizontal_axis: inline_axis,
@@ -1634,7 +1642,7 @@ where
         tree.set_unrounded(
             item.node,
             NodeOutputOf {
-                order: item.order,
+                source_index: crate::SourceIndex::new(item.source_index),
                 location,
                 size: item.output.size,
                 content_size: item.output.content_size,

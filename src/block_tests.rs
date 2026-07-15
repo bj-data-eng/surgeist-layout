@@ -8428,7 +8428,10 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
     assert_eq!(tree.layouts[&2].location, Point::new(1.0, 1.0));
     assert_eq!(tree.layouts[&3].location, Point::new(8.0, 10.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&4], NodeOutput::with_order(2));
+    assert_eq!(
+        tree.layouts[&4],
+        NodeOutput::with_source_index(crate::SourceIndex::new(2))
+    );
     assert_eq!(
         tree.inputs[&4],
         vec![ComputeInput::hidden(crate::geometry::FlowAxes::new(

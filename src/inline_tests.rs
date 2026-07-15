@@ -5,18 +5,23 @@ use crate::inline::{
 };
 use crate::*;
 
-fn forced_line_break(order: u32, metrics: InlineMetrics) -> InlineParticipant {
-    forced_line_break_for(order, WritingMode::HorizontalTb, Direction::Ltr, metrics)
+fn forced_line_break(source_index: usize, metrics: InlineMetrics) -> InlineParticipant {
+    forced_line_break_for(
+        source_index,
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        metrics,
+    )
 }
 
 fn forced_line_break_for(
-    order: u32,
+    source_index: usize,
     writing_mode: WritingMode,
     direction: Direction,
     metrics: InlineMetrics,
 ) -> InlineParticipant {
     InlineParticipant::forced_line_break(crate::inline::ForcedLineBreakControlOf::new(
-        order,
+        source_index,
         crate::inline::InlineFlowOf::new(writing_mode, direction, Available::MAX_CONTENT),
         metrics,
         crate::inline::InlineControlAlignment::Baseline,
@@ -25,7 +30,7 @@ fn forced_line_break_for(
 }
 
 fn inline_boundary_control(
-    order: u32,
+    source_index: usize,
     kind: InlineBoundaryKind,
     writing_mode: WritingMode,
     direction: Direction,
@@ -33,7 +38,7 @@ fn inline_boundary_control(
     alignment: crate::inline::InlineControlAlignment,
 ) -> crate::inline::InlineBoundaryControlOf {
     crate::inline::InlineBoundaryControlOf::new(
-        order,
+        source_index,
         kind,
         crate::inline::InlineFlowOf::new(writing_mode, direction, Available::MAX_CONTENT),
         metrics,
@@ -42,14 +47,14 @@ fn inline_boundary_control(
 }
 
 fn inline_boundary_participant(
-    order: u32,
+    source_index: usize,
     kind: InlineBoundaryKind,
     writing_mode: WritingMode,
     direction: Direction,
     metrics: InlineMetrics,
 ) -> InlineParticipant {
     InlineParticipant::inline_boundary(inline_boundary_control(
-        order,
+        source_index,
         kind,
         writing_mode,
         direction,
@@ -322,7 +327,7 @@ fn forced_line_break_control_preserves_layout_ready_fields() {
         Clear::Both,
     );
 
-    assert_eq!(control.order(), 7);
+    assert_eq!(control.source_index(), 7);
     assert_eq!(control.flow().writing_mode(), WritingMode::HorizontalTb);
     assert_eq!(control.flow().direction(), Direction::Rtl);
     assert_eq!(
@@ -349,7 +354,7 @@ fn inline_boundary_control_preserves_layout_ready_fields() {
         crate::inline::InlineControlAlignment::Top,
     );
 
-    assert_eq!(control.order(), 9);
+    assert_eq!(control.source_index(), 9);
     assert_eq!(control.kind(), InlineBoundaryKind::Start);
     assert_eq!(control.flow().writing_mode(), WritingMode::VerticalRl);
     assert_eq!(control.flow().direction(), Direction::Rtl);
@@ -556,7 +561,7 @@ fn forced_line_break_control_can_be_used_as_atomic_inline_item() {
         report.items[1].kind,
         InlineParticipantLayoutKind::ForcedLineBreak
     );
-    assert_eq!(report.items[1].order, 1);
+    assert_eq!(report.items[1].source_index, 1);
     assert_eq!(report.items[1].location, Point::new(20.0, 10.0));
     assert_eq!(report.items[1].size, Size::ZERO);
 }
