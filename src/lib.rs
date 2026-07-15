@@ -118,11 +118,12 @@ pub use node_input::{
 pub use output::{
     Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, CompletedLayoutBatch,
     CompletedLayoutBatchOf, ComputeInput, ComputeInputOf, ComputeOutput, ComputeOutputOf,
-    FlexItemRootContext, FlexItemRootContextOf, LayoutCacheClearEntry, LayoutCacheStoreEntry,
-    LayoutCacheStoreEntryOf, LayoutOutputEntry, LayoutOutputEntryOf, LayoutRootContext,
-    LayoutRootContextOf, LayoutRootRequest, LayoutRootRequestOf, LayoutRoundingMode, NodeOutput,
-    NodeOutputOf, PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf,
-    RootAvailabilityError, RootAvailabilityErrorOf, SourceIndex,
+    ContainingLayoutContext, FlexItemRootContext, FlexItemRootContextOf, LayoutCacheClearEntry,
+    LayoutCacheStoreEntry, LayoutCacheStoreEntryOf, LayoutOutputEntry, LayoutOutputEntryOf,
+    LayoutRootContext, LayoutRootContextOf, LayoutRootRequest, LayoutRootRequestOf,
+    LayoutRoundingMode, NodeOutput, NodeOutputOf, ParentFormattingContext,
+    PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf, RootAvailabilityError,
+    RootAvailabilityErrorOf, SourceIndex,
 };
 pub(crate) use output::{RequestedAxis, RunMode, SizingMode};
 /// Supported scalar contract for generic layout APIs.

@@ -32,6 +32,59 @@ fn layout_scalar_supports_f32_and_f64() {
 }
 
 #[test]
+fn parent_formatting_context_is_closed_and_exact() {
+    fn name(context: ParentFormattingContext) -> &'static str {
+        match context {
+            ParentFormattingContext::NoParent => "no-parent",
+            ParentFormattingContext::BlockFlow => "block-flow",
+            ParentFormattingContext::Flex => "flex",
+            ParentFormattingContext::Grid => "grid",
+        }
+    }
+
+    let contexts = [
+        ParentFormattingContext::NoParent,
+        ParentFormattingContext::BlockFlow,
+        ParentFormattingContext::Flex,
+        ParentFormattingContext::Grid,
+    ];
+
+    assert_eq!(
+        contexts.map(name),
+        ["no-parent", "block-flow", "flex", "grid"]
+    );
+}
+
+#[test]
+fn containing_layout_context_keeps_flow_and_role_together() {
+    fn assert_traits<T: Clone + Copy + std::fmt::Debug + Eq + PartialEq>() {}
+
+    assert_traits::<ParentFormattingContext>();
+    assert_traits::<ContainingLayoutContext>();
+
+    let flow_axes = [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+    ];
+    let formatting_contexts = [
+        ParentFormattingContext::NoParent,
+        ParentFormattingContext::BlockFlow,
+        ParentFormattingContext::Flex,
+        ParentFormattingContext::Grid,
+    ];
+
+    for flow_axes in flow_axes {
+        for formatting_context in formatting_contexts {
+            let context = ContainingLayoutContext::new(flow_axes, formatting_context);
+
+            assert_eq!(context.flow_axes(), flow_axes);
+            assert_eq!(context.formatting_context(), formatting_context);
+        }
+    }
+}
+
+#[test]
 fn value_types_support_f64_scalar_lane() {
     let length = crate::LengthOf::<f64>::percent(0.25);
     let length = length.resolve(400.0);

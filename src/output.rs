@@ -4,6 +4,67 @@ use super::{
 };
 use crate::geometry::{FlowAxes, PhysicalSide};
 
+/// The resolved formatting algorithm of the generated parent containing a box.
+///
+/// This layout-ready role describes the parent that schedules the current box;
+/// it does not describe the current box's own display or whether the box is in
+/// flow. [`Self::Grid`] covers both ordinary grid and grid-lanes scheduling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParentFormattingContext {
+    /// No generated parent contains the box.
+    NoParent,
+    /// A block formatting algorithm contains the box.
+    BlockFlow,
+    /// A flex formatting algorithm contains the box.
+    Flex,
+    /// A grid or grid-lanes formatting algorithm contains the box.
+    Grid,
+}
+
+/// Resolved, layout-ready context supplied by the box's containing boundary.
+///
+/// The containing flow mapping and parent formatting role travel as one value.
+/// Every combination is valid: flow axes remain meaningful for percentage and
+/// logical-axis resolution even when [`ParentFormattingContext::NoParent`] is
+/// selected.
+///
+/// This context has no implicit default; its owner must supply both resolved
+/// components explicitly.
+///
+/// ```compile_fail
+/// use surgeist_layout::ContainingLayoutContext;
+///
+/// let _ = ContainingLayoutContext::default();
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ContainingLayoutContext {
+    flow_axes: FlowAxes,
+    formatting_context: ParentFormattingContext,
+}
+
+impl ContainingLayoutContext {
+    /// Keeps the resolved containing flow and parent role together.
+    #[must_use]
+    pub const fn new(flow_axes: FlowAxes, formatting_context: ParentFormattingContext) -> Self {
+        Self {
+            flow_axes,
+            formatting_context,
+        }
+    }
+
+    /// Returns the resolved flow mapping of the containing boundary.
+    #[must_use]
+    pub const fn flow_axes(self) -> FlowAxes {
+        self.flow_axes
+    }
+
+    /// Returns the resolved formatting role of the generated parent.
+    #[must_use]
+    pub const fn formatting_context(self) -> ParentFormattingContext {
+        self.formatting_context
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RunMode {
     PerformRootLayout,
