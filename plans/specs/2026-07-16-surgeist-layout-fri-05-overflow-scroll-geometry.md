@@ -156,7 +156,9 @@ axis computes to `auto` or `hidden`, respectively, when paired with a scrollable
 axis. A computed `hidden` value has a used value of `clip` on a replaced box.
 
 CSS Grid Level 2 and CSS Flexbox define a content-based automatic minimum only
-when the item's computed overflow in the applicable axis is non-scrollable:
+when the item's computed overflow in the applicable axis is non-scrollable. For
+a flex item, that applicable axis is the completed flex container's main axis,
+not either physical axis:
 
 - <https://www.w3.org/TR/css-grid-2/#min-size-auto>
 - <https://www.w3.org/TR/css-flexbox-1/#min-size-auto>
@@ -172,8 +174,14 @@ out-of-flow overflow does not enlarge that adjustment:
 CSS Scroll Snap Level 1 defines physical and logical snap axes, proximity and
 mandatory strictness, the scrollport-derived optimal viewing region and
 snapport, absolute scroll-margin outsets, block/inline snap alignment, and snap
-stop. It intentionally leaves scroll physics and final snap-position choice to
-the user agent:
+stop. Omitted `scroll-snap-type` strictness means `proximity`. A target is
+captured by the nearest snap-position-capturing ancestor, which can be a scroll
+container or a non-scroll container with non-`none` snap type; the latter is a
+capture barrier rather than a reason to continue to a farther scroll container.
+Block/inline target alignment normally uses the snap container's writing mode,
+while start/end alignment for an oversized snap area uses the target box's
+writing mode. The specification intentionally leaves scroll physics and final
+snap-position choice to the user agent:
 
 - <https://www.w3.org/TR/css-scroll-snap-1/#scroll-snap-type>
 - <https://www.w3.org/TR/css-scroll-snap-1/#scroll-padding>
@@ -280,7 +288,8 @@ Every other current overflow decision names its phase:
 
 | Decision | Owning value | Exact rule |
 | --- | --- | --- |
-| Grid/flex content-based automatic minimum | One computed `Overflow` axis | `Hidden`, `Scroll`, and `Auto` are scrollable; `Visible` and `Clip` are non-scrollable. |
+| Grid content-based automatic minimum | One computed `Overflow` axis selected through the grid container's `FlowAxes` and `GridAxisKind` | `Hidden`, `Scroll`, and `Auto` are scrollable; `Visible` and `Clip` are non-scrollable. |
+| Flex main-axis automatic minimum | One computed `Overflow` axis selected through the completed container `FlexAxes::main_physical_axis()` | Select x for `PhysicalAxis::Horizontal` and y for `PhysicalAxis::Vertical`; `Hidden`, `Scroll`, and `Auto` zero the automatic minimum, while `Visible` and `Clip` retain the content-based minimum. The cross-axis value never participates. |
 | Grid intrinsic/min-content and percent-track contribution | One used-overflow axis selected through the grid container's `FlowAxes` | Only `Visible` admits nested `content_size`; `Clip`, `Hidden`, `Scroll`, and `Auto` trap it and use the item box/min-track priority. |
 | Independent formatting context for a non-replaced block container | Complete `ComputedOverflow` pair | Every canonical pair from the scrollable group establishes one; every canonical `Visible`/`Clip` pair does not. |
 | Block child-margin collapse | Complete `ComputedOverflow` pair | Collapse is blocked exactly when the pair establishes that independent formatting context. |
@@ -314,6 +323,18 @@ One crate-private helper derives the used axis from `ComputedOverflow`,
 Columns select the container inline physical axis and rows select its block
 physical axis. Ordinary-grid, intrinsic-subgrid, and grid-lanes callers use
 that helper; no context-free column-to-x/row-to-y overflow match remains.
+
+Flex has a separate crate-private selector because its applicable axis is the
+container's main axis. It receives the item's `ComputedOverflow` and the
+completed `FlexAxes`, selects x or y only through
+`FlexAxes::main_physical_axis()`, and returns whether that selected value is
+scrollable. Both current callers, `automatic_min_main_size` and the intrinsic
+main-size contribution branch, use this one selector. Row versus column changes
+which physical axis is selected after the container's `FlowAxes` mapping;
+row-reverse, column-reverse, and wrap-reverse change progression or sides but
+never change the selected main physical axis. Focused evidence distinguishes
+main-only from cross-only scrollable overflow for all four flex directions and
+all ten `WritingMode`/`Direction` mappings.
 
 Rejected alternative: retaining `Point<Overflow>` permits a post-construction
 mixed pair that contradicts computed CSS.
@@ -446,9 +467,31 @@ Each laid-out box also returns immutable `ScrollTargetGeometryOf<S>` containing:
 This target value is emitted even when snap alignment is `none`, because scroll
 margin also affects root-owned focus, target, and scroll-into-view operations.
 Root maps the border box through transforms, expands the resulting axis-aligned
-bounds by scroll margin, associates it with the nearest scroll container on the
-containing-block chain, and chooses live snap positions. Layout does not retain
-that association.
+bounds by scroll margin, and chooses live scroll or snap positions. Layout does
+not retain an ancestor association.
+
+Root applies two distinct ancestor rules. Focus, fragment targeting, and
+`scrollIntoView` use root's nearest-scroll-container policy and use the expanded
+target area even when snapping is disabled. Snap association instead walks the
+containing-block chain to the nearest snap-position-capturing ancestor. A box
+captures when it is a scroll container or its computed `scroll-snap-type` is not
+`None`. The target has a snap container only when that nearest capturer is both
+a scroll container and has non-`None` snap type. A nearer non-scroll capturer,
+or a nearer scroll container with `None`, is a capture barrier that yields no
+snap container; root must not skip it to reach a farther enabled scroller.
+
+When a snap container exists, its `ScrollSnapType::Enabled` `Block` and `Inline`
+axes are interpreted through that container's retained `FlowAxes`. The two
+`ScrollSnapAlign` values likewise mean block and inline in the snap container's
+writing mode for an ordinary target. Root first transforms the target border
+box into container coordinates and then applies the target's physical scroll
+margin to form the axis-aligned snap area. If that final snap area is larger
+than the snapport in a relevant physical axis, `Start` and `End` on that axis
+are interpreted through the target's own retained `FlowAxes`; `Center` remains
+physical center alignment. Oversize is decided independently per physical
+axis, so an orthogonal or transformed target can use container interpretation
+on one axis and target interpretation on the other. Root still owns the set of
+valid positions across an oversized area and final live snap selection.
 
 `ScrollGeometryOf<S>` owns exactly one target value and exposes it through:
 
@@ -1051,12 +1094,14 @@ until FRI-09 adds block content alignment.
 Flex performs its sizing and placement with the effective scrollbar reservation
 for the current pass. After final placement it accumulates every in-flow item and
 current absolute item in source/output identity order, retains child geometry,
-and emits its own canonical geometry. Auto minimum uses the computed overflow
-predicate. Flex derives main/cross scroll-origin progression from `FlexAxes`,
-including row/column reverse and wrap-reverse, and supplies the final applicable
-justify/align-content subjects independently from out-of-flow overflow. FRI-07
-remains responsible for missing flex sizing and positioning semantics, not for a
-second overflow path.
+and emits its own canonical geometry. Both automatic-minimum callers use one
+crate-private computed-overflow selector keyed only by the completed
+`FlexAxes::main_physical_axis()`; scrollable cross-axis overflow cannot zero a
+main-axis automatic minimum. Flex derives main/cross scroll-origin progression
+from `FlexAxes`, including row/column reverse and wrap-reverse, and supplies the
+final applicable justify/align-content subjects independently from out-of-flow
+overflow. FRI-07 remains responsible for missing flex sizing and positioning
+semantics, not for a second overflow path.
 
 ### Grid, Subgrid, And Grid-Lanes
 
@@ -1109,6 +1154,7 @@ The initiative requires these named evidence families:
 | Block blockers | The named negative-margin and smaller-than-scrollbar browser families complete without panic and match geometry. |
 | Nested contribution | Under block, flex, grid, and lanes, used `Visible` propagates only its physical-axis descendant interval; `Clip`, `Hidden`, `Scroll`, and `Auto` trap nested overflow even when their local clip or full scrollable-overflow rectangle is non-empty. Partial-axis cases prove the two decisions are independent, and current absolute children are included once. |
 | Zero-area contribution | `0xN` and `Nx0` child boxes prove that a real used-visible propagatable descendant interval survives on the non-zero axis in block, flex, grid, and grid-lanes, while the same nested geometry under every trapped value contributes zero to the parent. |
+| Flex automatic minimum | Main-only versus cross-only `Hidden`, `Scroll`, and `Auto` prove that both current callers select exactly the completed flex main physical axis for row, row-reverse, column, and column-reverse across all ten flow mappings; reverse and wrap-reverse do not change axis selection. |
 | Grid automatic minimum | Hidden, scroll, auto, visible, and clip cases through ordinary grid and lanes front doors. |
 | Grid intrinsic used overflow | All five values through ordinary grid, intrinsic subgrid, and lanes callers prove the physical axis selected through all `FlowAxes` mappings, the visible-only `content_size` branch, trapped alternatives, and replaced-hidden conversion. |
 | Grid origin | An item at non-zero container origin contributes through its final end; old area-relative expectation no longer passes. |
@@ -1137,7 +1183,7 @@ executable `unsafe`.
 | `src/output.rs` | Existing optional geometry carriers, complete compute-to-node propagation, removal of independent scrollbar field, canonical helper methods. |
 | `src/compute.rs` | Root/leaf pass integration, nested target construction, contextual geometry errors, final rounding, cache-safe publication. |
 | `src/block.rs` | Shared accumulation calls, saturated constants, auto-gutter pass, retained child geometry. |
-| `src/flex.rs` | Flow-aware reservation, auto-gutter pass, retained child/absolute geometry, shared accumulation, `FlexAxes` scroll origin, and final content-distribution subjects. |
+| `src/flex.rs` | One `FlexAxes::main_physical_axis()` computed-overflow selector shared by both automatic-minimum callers, flow-aware reservation, auto-gutter pass, retained child/absolute geometry, shared accumulation, `FlexAxes` scroll origin, and final content-distribution subjects. |
 | `src/grid/mod.rs` | Grid container reservation/pass integration, final content-distribution subjects, and final geometry. |
 | `src/grid/child.rs` | Final container-local item contribution, retained child/absolute geometry, zero-axis behavior. |
 | `src/grid/lanes.rs` and `src/grid/subgrid.rs` | Shared origin, contribution, clipping, and geometry behavior for lanes/subgrid paths. |
@@ -1279,14 +1325,18 @@ At inspected root revision
 `surgeist-style@fcc42de2c32a318e073233dd51508dd4cc28041a` each expose
 only four overflow keywords. CSS rejects `auto`, style has no computed-pair
 type or coupling finalization, and `src/adapters/style_layout.rs` lowers raw x
-and y independently. The leaf candidate handoff resolves that missing upstream
-design as this phase chain, without performing the work here:
+and y independently. The pinned sources also lack typed models for clip margin,
+gutter, scroll padding/margin, and snap metadata; `scrollbar-width` is currently
+an unconstrained number. The leaf candidate handoff resolves those missing
+upstream phases without performing the work here.
+
+Computed overflow follows this phase chain:
 
 | Phase | Owner | Required representation and transition |
 | --- | --- | --- |
 | Authored CSS | `surgeist-css` | `CssOverflow` adds `Auto`; strict longhand and one/two-value shorthand parsing preserve it as authored syntax and retain typed rejection for unknown tokens. |
 | Specified style | `surgeist-style` | `Overflow` adds `Auto`; `OverflowAxes` remains the unconstrained two-axis specified value used by Rust-authored declarations and the root CSS adapter. |
-| Computed style | `surgeist-style` | New private-field `ComputedOverflowAxes` owns exactly the same thirteen valid pairs as layout. `Resolver::resolve` couples the final longhands simultaneously after rule, local, animated, and global-keyword resolution, stores the coupled x/y values before cache insertion, and exposes the pair through `Resolved::computed_overflow()`. No root adapter computes or repairs this pair. |
+| Computed style | `surgeist-style` | New private-field `ComputedOverflowAxes` owns exactly the same thirteen valid pairs as layout. One resolver-private conversion couples the final longhands simultaneously after rule, local, animated, and global-keyword resolution, stores the coupled x/y values before cache insertion, and exposes the pair only through `Resolved::computed_overflow()`. No public API can couple an arbitrary pre-cascade `OverflowAxes`; no root adapter computes or repairs this pair. |
 | Layout lowering | Root `surgeist` | `src/adapters/style_layout.rs` reads `Resolved::computed_overflow()` once, maps all five keywords losslessly, and calls `layout::ComputedOverflow::try_new(x, y)` once. It never assigns independent raw axes. |
 
 The style-owned computed carrier has this minimum public contract:
@@ -1295,7 +1345,6 @@ The style-owned computed carrier has this minimum public contract:
 pub struct ComputedOverflowAxes { /* private x/y */ }
 
 impl ComputedOverflowAxes {
-    pub const fn from_specified(specified: OverflowAxes) -> Self;
     pub const fn x(self) -> Overflow;
     pub const fn y(self) -> Overflow;
 }
@@ -1305,11 +1354,15 @@ impl Resolved {
 }
 ```
 
-There is no raw computed-pair constructor or mutable axis. The CSS and style
-enum additions are breaking for exhaustive downstream matches; their candidates
-update every match explicitly and provide no `Auto => Scroll` compatibility
-shim. Neither leaf adds a dependency on the other or on layout; root owns both
-phase adapters.
+There is no public raw computed-pair constructor, `Default`, `From`/`TryFrom`,
+specified-to-computed conversion, or mutable axis. Only resolver-private code
+constructs the carrier, and `Resolved::computed_overflow()` is the sole public
+route to one. A compile consumer and API audit prove that `OverflowAxes` cannot
+be converted directly.
+The CSS and style enum additions are breaking for exhaustive downstream
+matches; their candidates update every match explicitly and provide no
+`Auto => Scroll` compatibility shim. Neither leaf adds a dependency on the
+other or on layout; root owns both phase adapters.
 
 For original specified pair `(x, y)`, style computes both axes from that original
 pair, not from a partially converted intermediate:
@@ -1328,23 +1381,98 @@ leaf pair, it returns the existing
 `AdapterErrorKind::StyleLayoutValue { property: "overflow", .. }`; it never
 defaults either axis or retries with a repaired pair.
 
+Every other D-02 field follows this property-by-property upstream contract.
+The CSS column is the bounded grammar required by this handoff, not a claim that
+the root parser now accepts every CSS unit or the Level 4 per-edge expansion of
+`overflow-clip-margin`. Existing strict `0`, `px`, percentage where allowed,
+and well-typed `calc()` support is retained; any other unit remains an existing
+typed unsupported-syntax result. All rows also accept CSS-wide keywords through
+the existing cascade machinery.
+
+| Layout field | `surgeist-css` authored grammar and initial value | `surgeist-style` specified/computed ownership | Root normalized lowering |
+| --- | --- | --- | --- |
+| `overflow_clip_margin` | Level 3 box-model subset: `overflow-clip-margin: [ content-box | padding-box | border-box ] || <length [0,infinity]>`; either component can be omitted, defaulting to `padding-box` and `0px`. Percentages, negative values, Level 4 per-edge properties, and SVG-only visual-box keywords are typed unsupported syntax. | One typed specified value and one private-field computed value hold the box plus finite non-negative absolute length. No logical mapping applies. `Resolved::overflow_clip_margin()` returns the computed value. | Map the three box keywords exhaustively and call `layout::OverflowClipMargin::try_new` once; no box or length default is supplied by the adapter. |
+| `scrollbar_gutter` | `scrollbar-gutter: auto | stable && both-edges?`; initial `auto`. `both-edges` without `stable`, duplicates, or extra tokens are invalid. | Closed `ScrollbarGutter` normalizes only to `Auto`, `Stable`, or `StableBothEdges`; computed value is as specified. `Resolved::scrollbar_gutter()` is the normalized accessor. | Exhaustively map the three values. Overlay versus classic behavior comes only from the explicit scrollbar environment below; the adapter does not reinterpret gutter syntax. |
+| `scrollbar_width` | Replace the numeric grammar with `scrollbar-width: auto | thin | none`; initial `auto`. Numbers are no longer accepted. | Closed `ScrollbarWidth::{Auto, Thin, None}` is computed as specified and returned by `Resolved::scrollbar_width()`. It is never represented as `Value::Number`. | Resolve the keyword through the required host scrollbar environment below, validate the resulting scalar once, and pass one `layout::ScrollbarWidth`. |
+| `scroll_padding` | `scroll-padding: [ auto | <length-percentage [0,infinity]> ]{1,4}`, four physical longhands, four flow-relative longhands, and the one/two-value `scroll-padding-block`/`scroll-padding-inline` shorthands; initial `auto` per side. Negative values are invalid. | Physical and logical declarations remain distinct through cascade. After final `writing-mode` and `direction` resolution, the resolver maps the winning declarations to one physical top/right/bottom/left aggregate, preserving `Auto` and computed length-percentage/calc values. `Resolved::scroll_padding()` returns only that physical aggregate. | Map each physical edge to `layout::ScrollPaddingValue`; calc values use the existing lowering session and calc store. The no-store convenience path reports `scroll-padding` when calc is present, as it does for other calc-owned properties. Root performs no logical mapping and supplies no heuristic for `Auto`; layout's documented used zero policy remains authoritative. |
+| `scroll_margin` | `scroll-margin: <length>{1,4}`, four physical longhands, four flow-relative longhands, and the one/two-value `scroll-margin-block`/`scroll-margin-inline` shorthands; initial `0px` per side. Signed lengths are valid and percentages are invalid. | The same post-cascade physical/logical conflict resolution uses the target box's computed `writing-mode` and `direction`. Computed edges are finite signed absolute lengths and `Resolved::scroll_margin()` returns the physical aggregate. | Call `layout::ScrollMargin::try_new` once with all four edges. An unresolved or non-finite absolute length is an error, never zero. Transform application remains a later root runtime operation. |
+| `scroll_snap_type` | `scroll-snap-type: none | [ x | y | block | inline | both ] [ mandatory | proximity ]?`; initial `none`. Omitted strictness is accepted. | A closed type normalizes omitted strictness to explicit `Proximity` during declaration construction/resolution; `Resolved::scroll_snap_type()` never exposes an enabled value without strictness. Logical `Block`/`Inline` remains semantic rather than being prematurely physicalized. | Exhaustively map `None` or axis plus explicit strictness. Runtime axis interpretation uses the eventual snap container's retained `FlowAxes`, not the styled target or the adapter's current node axes. |
+| `scroll_snap_align` | `scroll-snap-align: [ none | start | end | center ]{1,2}`; initial `none`. One token duplicates to both block and inline computed values. | Private-field `ScrollSnapAlign` always stores explicit block and inline values. `Resolved::scroll_snap_align()` preserves those semantic roles; it does not map them to the target's physical axes. | Map both values losslessly into layout target metadata. Root interprets them with the snap-container/oversized-target rules below after association and transform. |
+| `scroll_snap_stop` | `scroll-snap-stop: normal | always`; initial `normal`. | Closed computed-as-specified enum returned by `Resolved::scroll_snap_stop()`. | Exhaustive one-to-one mapping; live pass-over behavior remains root runtime policy. |
+
+For scroll padding and scroll margin, each shorthand expands at its declaration's
+cascade position. Physical and logical longhands are not collapsed before
+`writing-mode` and `direction` are computed. The resolver then applies the
+winning physical/logical declarations in cascade order through the same ten
+flow mappings used by layout and caches only the normalized physical aggregate.
+The CSS-to-style adapter transfers authored semantic values and source locations
+but never chooses physical edges. Snap type and snap alignment are deliberately
+excluded from that physical-edge normalization because their logical axes are
+defined by the eventual snap container, with the oversized target exception.
+
+The normalized style accessors above are the only style-to-layout inputs for
+these fields. Their computed carriers have private fields and read-only
+accessors. Root does not read generic `Resolved::get` entries for these
+properties, reconstruct CSS defaults, inspect paired logical longhands, or
+repair invalid combinations.
+
+Scrollbar thickness requires explicit root-owned host policy. Root adds a
+validated lowering environment with exactly these semantic states:
+
+| Environment | Authored `auto` | Authored `thin` | Authored `none` |
+| --- | ---: | ---: | ---: |
+| Overlay | `0` | `0` | `0` |
+| Classic `{ auto_width, thin_width }` | `auto_width` | `thin_width` | `0` |
+
+Classic widths must be finite and non-negative, and `thin_width` must not exceed
+`auto_width`; invalid metrics fail construction through a dedicated typed root
+configuration error before any node is lowered. The environment has no
+`Default`. Every public lowering entry point and `LayoutLoweringSession`
+construction receives it explicitly, so callers must choose `Overlay` rather
+than receiving an implicit zero fallback. A missing capability is therefore
+unrepresentable, not guessed. Zero thickness still preserves overflow clipping,
+range, and semantic gutter state while producing no layout reservation.
+
+Failure ownership is phase-specific. Invalid grammar produces the existing CSS
+property/location diagnostic. A CSS-to-style representation mismatch produces
+the existing source-located CSS/style adapter diagnostic. Non-finite computed
+lengths fail typed style resolution. A layout constructor rejection produces
+`AdapterErrorKind::StyleLayoutValue` naming the exact CSS property; root neither
+substitutes the initial value nor retries with a simpler value. The only defaults
+are the initial values recorded in the table and installed by style metadata.
+
+Cross-repository evidence for the matrix is mandatory: CSS parser tables cover
+every grammar, omission/default normalization, shorthand expansion, and invalid
+token class; style tests cover initial values, CSS-wide keywords, cache hits,
+physical/logical precedence in all ten flow mappings, omitted snap strictness,
+and one-value snap alignment; root tests carry each authored property through
+CSS, style, and the public layout-lowering entry point. Root tests also cover
+overlay, classic auto, classic thin, none, invalid metrics, calc/no-store
+diagnostics, every layout constructor failure mapping, and an API/static proof
+that no raw number, generic-value read, adapter-side logical mapping, or silent
+default path remains.
+
 The cross-repository handoff requires:
 
-1. a published `surgeist-css` candidate that adds authored `Auto` and parser
-   evidence for longhands plus one/two-value shorthand;
-2. a published `surgeist-style` candidate that adds `Auto`, the computed-pair
-   model, post-cascade simultaneous coupling, and exhaustive 25-pair/default/
-   cached-resolution evidence;
-3. root `src/adapters/css_style.rs` evidence that transfers all five authored
-   keywords losslessly and leaves coupling to style;
+1. a published `surgeist-css` candidate that adds authored `Auto` plus every
+   bounded D-02 grammar in the property matrix, with parser, shorthand,
+   omission, default-component, and typed-invalid evidence;
+2. a published `surgeist-style` candidate that adds `Auto`, the resolver-only
+   computed-overflow carrier, every typed D-02 model and normalized accessor,
+   post-cascade simultaneous coupling, physical/logical edge resolution, and
+   exhaustive default/cached-resolution evidence;
+3. root `src/adapters/css_style.rs` evidence that transfers all authored
+   overflow and D-02 values losslessly, preserves declaration locations and
+   logical roles, and leaves coupling and physical-edge resolution to style;
 4. root `src/adapters/style_layout.rs` evidence that all 25 specified pairs
    reach the exact expected leaf `ComputedOverflow`, including mixed
    `Visible`/`Clip` conversion and distinct `Auto`, plus the named typed drift
    diagnostic;
-5. lowering used classic scrollbar thickness to `ScrollbarWidthOf`, computed
-   gutter policy to `ScrollbarGutter`, and clip margin, physical scroll padding,
-   finite absolute scroll margin, snap type, snap alignment, and snap stop to
-   the new fields;
+5. root `src/adapters/style_layout.rs` evidence for every D-02 row through the
+   normalized style accessors, including explicit overlay/classic scrollbar
+   environment injection, calc-store behavior, all ten logical edge mappings,
+   omitted snap strictness as `Proximity`, and the exact typed failures named
+   above;
 6. migration of removed scroll constructors,
    `ScrollOverflowExposure`/`ScrollContainerAxis`/`ScrollContainerFacts`,
    `ScrollGeometryOf::container()`, and the removed
@@ -1355,12 +1483,19 @@ The cross-repository handoff requires:
    signed physical range including content-distribution origin adjustment, and
    nested target geometry through `ScrollGeometryOf::target()` without
    recomputing leaf box invariants;
-8. preservation of root ownership for transformed coordinate mapping,
-   nearest-container association, current offsets, host events, scroll UI,
-   CSSOM adaptation, target/focus scrolling, snap selection, and re-snapping;
-9. promotion of the exact published CSS, style, and layout candidate gitlinks
+8. separate root integration evidence for nearest-scroll-container focus,
+   fragment, and `scrollIntoView` behavior versus nearest-capturer snap
+   association, including non-scroll and snap-type-`None` capture barriers;
+9. snap-axis evidence for orthogonal container/target writing modes, ordinary
+   container-relative block/inline alignment, and the per-axis target-writing-
+   mode exception after transform plus scroll margin makes a snap area larger
+   than its snapport;
+10. preservation of root ownership for transformed coordinate mapping, current
+   offsets, host events, scroll UI, CSSOM adaptation, target/focus scrolling,
+   oversized-area valid-position ranges, snap selection, and re-snapping;
+11. promotion of the exact published CSS, style, and layout candidate gitlinks
    before the root adapter commit; and
-10. refresh and check of root-owned `api/crates/surgeist-css.txt`,
+12. refresh and check of root-owned `api/crates/surgeist-css.txt`,
     `api/crates/surgeist-style.txt`, `api/crates/surgeist-layout.txt`, and
     `api/public-api.txt` from those promoted sources, with all three exact leaf
     SHAs and the breaking API inventory retained in the root promotion evidence.
@@ -1394,10 +1529,11 @@ integration into FRI-05.
 
 The leaf sequence ends at boundary 6. Section FRI-05.12 defines the subsequent
 cross-repository dependency boundary rather than a seventh leaf cycle:
-`surgeist-css` authored-overflow and `surgeist-style` computed-overflow
-candidates remain separate owner work and may proceed independently, while the
-root adapter/gitlink/API-artifact integration waits for those two published
-candidates and the published FRI-05 layout candidate.
+`surgeist-css` authored-overflow/D-02 syntax and `surgeist-style`
+computed-overflow/D-02 normalization candidates remain separate owner work and
+may proceed independently, while the root adapter/gitlink/API-artifact
+integration waits for those two published candidates and the published FRI-05
+layout candidate.
 
 ## FRI-05.14 Finding Traceability
 
@@ -1428,10 +1564,10 @@ FRI-05 is complete only when:
 3. every successfully laid-out block, flex, grid, subgrid, and grid-lanes box
    emits coherent geometry through the shared contract;
 4. computed versus used overflow, all thirteen valid pairs, twelve invalid
-   pairs, five axis values, current IFC/margin predicates, grid automatic
-   minimum and flow-aware intrinsic mapping, partial clips, stable/both-edge
-   gutters, auto cross-axis coupling, and replaced hidden behavior have focused
-   proof;
+   pairs, five axis values, current IFC/margin predicates, flex main-axis-only
+   and grid automatic minimum, grid flow-aware intrinsic mapping, partial clips,
+   stable/both-edge gutters, auto cross-axis coupling, and replaced hidden
+   behavior have focused proof;
 5. all ten flow mappings produce correct physical gutter placement and signed
    range spans before and after rounding in both scalar lanes, including flex
    reverse origins and the bounded start-side adjustment for current flex/grid
@@ -1458,7 +1594,9 @@ FRI-05 is complete only when:
 13. no dependency, feature, MSRV, generator architecture, root, sibling,
     aggregate FRI-13 gate, or unrelated formatting behavior changes; and
 14. Section FRI-05.12 records the complete breaking leaf-to-root integration
-    contract, including upstream computed-overflow phase ownership, the
-    canonical geometry and target carriers, removed-surface migrations, and
+    contract, including resolver-only computed-overflow construction, every
+    D-02 CSS/style/root phase and diagnostic, explicit scrollbar environment,
+    physical/logical edge normalization, snap capture barriers and axis rules,
+    the canonical geometry and target carriers, removed-surface migrations, and
     the three-candidate pointer/API-artifact dependency required of the eventual
     root promotion.
