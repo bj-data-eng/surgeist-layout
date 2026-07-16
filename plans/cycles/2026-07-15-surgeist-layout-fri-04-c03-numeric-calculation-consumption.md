@@ -127,18 +127,20 @@ just verify-generator
 ### `C03-T4` Grid/Lanes Evidence And Track Numeric Correction
 **Files:** `src/value.rs`, `src/grid/mod.rs`, `src/grid/child.rs`,
 `src/grid/lanes.rs`, `src/grid/tracks.rs`, and `src/grid_tests.rs`.
-**Outcome:** Persist evidence that grid/grid-lanes consume complete property
-calculations, and correct track algorithms to resolve complete numeric min/max
-breadths and `fit-content()` limits instead of affine-only fallback.
+**Outcome:** Persist grid/grid-lanes property evidence and replace every track
+classification and runtime consumer's affine-only coefficient/value fallback
+with full-program dependency and resolution semantics.
 **RED:** Add tests named with the `fri04_c03_grid_track_` prefix first. Grid and
 grid-lanes paths may characterize T1 behavior; nested track and fit-content
 programs must fail through the affine-only helper before its focused correction.
-**Acceptance:** Real grid and grid-lanes layouts cover nested property
-calculations, both axes, negative final clamping, missing and definite bases,
-and invalid numeric errors. Track tests cover nested fixed min/max breadths,
-fit-content limits, dependency/definite classification, non-negative used
-values, cyclic missing-basis handling, and invalid numeric propagation. No valid
-numeric track calculation uses `NonNumeric`; intrinsic and flex tracks remain distinct.
+**Acceptance:** Real grid and grid-lanes layouts cover nested property values,
+both axes, range clamping, missing/definite bases, and invalid numeric errors.
+Track runtime resolves nested min/max breadths and fit-content limits, clamps
+the complete result, preserves cyclic missing-basis behavior, and propagates
+invalid numeric. Classification uses exact `depends_on_basis()` rather than a
+percent coefficient; a track is definite only when its full program resolves
+at the supplied basis. Tests cover exact static spans and intrinsic space/floor
+decisions. No valid numeric uses `NonNumeric`; intrinsic/flex states are unchanged.
 **Commands:**
 ```sh
 cargo test --locked -p surgeist-layout fri04_c03_grid_track_
