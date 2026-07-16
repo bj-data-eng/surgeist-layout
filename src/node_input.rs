@@ -93,6 +93,22 @@ impl Direction {
     }
 }
 
+/// A computed overflow keyword for one physical axis.
+///
+/// Pair-level construction goes through [`ComputedOverflow`]. Phase-specific
+/// clipping and margin-collapse predicates are not available per axis.
+///
+/// ```compile_fail
+/// use surgeist_layout::Overflow;
+///
+/// let _ = Overflow::Hidden.clips_contents();
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::Overflow;
+///
+/// let _ = Overflow::Hidden.blocks_margin_collapse();
+/// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Overflow {
     #[default]
@@ -110,6 +126,24 @@ impl Overflow {
     }
 }
 
+/// A canonical computed overflow pair for layout input.
+///
+/// Both axes are constructed atomically through [`Self::try_new`]; callers
+/// cannot supply the former raw physical point or mutate one axis independently.
+///
+/// ```compile_fail
+/// use surgeist_layout::{NodeInput, Overflow, Point};
+///
+/// let mut input = NodeInput::DEFAULT;
+/// input.overflow = Point::new(Overflow::Visible, Overflow::Visible);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{ComputedOverflow, Overflow};
+///
+/// let mut overflow = ComputedOverflow::try_new(Overflow::Visible, Overflow::Clip).unwrap();
+/// overflow.x = Overflow::Hidden;
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ComputedOverflow {
     x: Overflow,
