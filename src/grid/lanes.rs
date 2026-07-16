@@ -1,5 +1,8 @@
 use super::*;
-use crate::compute::{resolve_preferred_optional, sizing_resolution_error};
+use crate::compute::{
+    ResolvedPreferredSize, SizingResolutionError, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_sizing, sizing_resolution_error,
+};
 use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::scroll::scrollbar_size_from_overflow;
 use crate::{
@@ -1131,12 +1134,20 @@ fn lane_child_contribution_facts<Tree, M>(
 where
     Tree: Compute<M>,
 {
+    let preferred_size = grid_lanes_child_sizing_preflight(
+        child_style,
+        Size::new(
+            constants.node_inner_size.width,
+            constants.node_inner_size.height,
+        ),
+    )
+    .map_err(|error| sizing_resolution_error(child, error))?;
     let min_available =
-        lane_child_intrinsic_available(constants.flow_axes, axis, child_style, available);
+        lane_child_intrinsic_available(constants.flow_axes, axis, preferred_size, available);
     let max_available = lane_child_intrinsic_available(
         constants.flow_axes,
         axis,
-        child_style,
+        preferred_size,
         AvailableOf::MAX_CONTENT,
     );
     let min_output = tree.compute_child(
@@ -1737,6 +1748,9 @@ where
         LogicalAxis::Block => LogicalSizeOf::new(None, Some(grid_axis_size)),
     };
     let containing_physical_size = flow_axes.physical_size(logical_parent);
+    let preferred_size = grid_lanes_child_sizing_preflight(child_style, containing_physical_size)
+        .map_err(|error| sizing_resolution_error(child, error))?;
+    let logical_preferred_size = flow_axes.logical_size(preferred_size);
     let (margin, known, parent, available) = {
         let unresolved_margin = flow_axes
             .zip_physical_edges_with_inline_extent(
@@ -1755,11 +1769,11 @@ where
         match lane_axis.logical_axis() {
             LogicalAxis::Inline => {
                 logical_available.inline =
-                    intrinsic_available_for_dimension(&logical_style_size.inline);
+                    intrinsic_available_for_dimension(logical_preferred_size.inline);
             }
             LogicalAxis::Block => {
                 logical_available.block =
-                    intrinsic_available_for_dimension(&logical_style_size.block);
+                    intrinsic_available_for_dimension(logical_preferred_size.block);
             }
         }
         match grid_axis.logical_axis() {
@@ -1773,15 +1787,8 @@ where
                     logical_style_size.inline.is_auto(),
                     AlignItems::Stretch,
                 );
-                logical_known.inline = resolve_preferred_optional(
-                    &logical_style_size.inline,
-                    sizing_algorithm_for_grid_display(container_style.display),
-                    flow_axes.inline_axis(),
-                    Some(grid_axis_size),
-                    true,
-                )
-                .map_err(|error| sizing_resolution_error(child, error))?
-                .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_inline));
+                logical_known.inline = definite_preferred_size(logical_preferred_size.inline)
+                    .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_inline));
                 logical_parent.inline = Some(grid_axis_size);
                 logical_available.inline = AvailableOf::Definite(available_inline);
             }
@@ -1795,18 +1802,11 @@ where
                     logical_style_size.block.is_auto(),
                     AlignItems::Stretch,
                 );
-                logical_known.block = resolve_preferred_optional(
-                    &logical_style_size.block,
-                    sizing_algorithm_for_grid_display(container_style.display),
-                    flow_axes.block_axis(),
-                    Some(grid_axis_size),
-                    true,
-                )
-                .map_err(|error| sizing_resolution_error(child, error))?
-                .or_else(|| {
-                    (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
-                        .then_some(available_block)
-                });
+                logical_known.block = definite_preferred_size(logical_preferred_size.block)
+                    .or_else(|| {
+                        (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
+                            .then_some(available_block)
+                    });
                 logical_parent.block = Some(grid_axis_size);
                 logical_available.block = AvailableOf::Definite(available_block);
             }
@@ -1839,17 +1839,17 @@ where
 fn lane_child_intrinsic_available<S: LayoutScalar>(
     flow_axes: crate::geometry::FlowAxes,
     grid_axis: GridAxisKind,
-    child_style: &NodeInputOf<S>,
+    preferred_size: Size<ResolvedPreferredSize<S>>,
     grid_axis_available: AvailableOf<S>,
 ) -> Size<AvailableOf<S>> {
-    let logical_size = flow_axes.logical_size(child_style.size.clone());
+    let logical_size = flow_axes.logical_size(preferred_size);
     let logical_available = match grid_axis.logical_axis() {
         LogicalAxis::Inline => LogicalSizeOf::new(
             grid_axis_available,
-            intrinsic_available_for_dimension(&logical_size.block),
+            intrinsic_available_for_dimension(logical_size.block),
         ),
         LogicalAxis::Block => LogicalSizeOf::new(
-            intrinsic_available_for_dimension(&logical_size.inline),
+            intrinsic_available_for_dimension(logical_size.inline),
             grid_axis_available,
         ),
     };
@@ -1857,20 +1857,74 @@ fn lane_child_intrinsic_available<S: LayoutScalar>(
 }
 
 fn intrinsic_available_for_dimension<S: LayoutScalar>(
-    dimension: &PreferredSizeOf<S>,
+    dimension: ResolvedPreferredSize<S>,
 ) -> AvailableOf<S> {
-    match dimension.view() {
-        crate::sizing::PreferredSizeView::MinContent => AvailableOf::MIN_CONTENT,
-        crate::sizing::PreferredSizeView::MaxContent => AvailableOf::MAX_CONTENT,
-        crate::sizing::PreferredSizeView::Zero
-        | crate::sizing::PreferredSizeView::Calculation(_)
-        | crate::sizing::PreferredSizeView::Auto
-        | crate::sizing::PreferredSizeView::Stretch
-        | crate::sizing::PreferredSizeView::FitContent
-        | crate::sizing::PreferredSizeView::Contain
-        | crate::sizing::PreferredSizeView::FitContentFunction(_)
-        | crate::sizing::PreferredSizeView::CalcSize(_, _) => AvailableOf::MAX_CONTENT,
+    match dimension {
+        ResolvedPreferredSize::MinContent => AvailableOf::MIN_CONTENT,
+        ResolvedPreferredSize::MaxContent
+        | ResolvedPreferredSize::Auto
+        | ResolvedPreferredSize::Definite(_) => AvailableOf::MAX_CONTENT,
     }
+}
+
+fn definite_preferred_size<S: LayoutScalar>(dimension: ResolvedPreferredSize<S>) -> Option<S> {
+    match dimension {
+        ResolvedPreferredSize::Definite(value) => Some(value),
+        ResolvedPreferredSize::Auto
+        | ResolvedPreferredSize::MinContent
+        | ResolvedPreferredSize::MaxContent => None,
+    }
+}
+
+fn grid_lanes_child_sizing_preflight<S: LayoutScalar>(
+    child_style: &NodeInputOf<S>,
+    parent: Size<Option<S>>,
+) -> Result<Size<ResolvedPreferredSize<S>>, SizingResolutionError<S>> {
+    let preferred_size = Size::new(
+        resolve_preferred_sizing(
+            &child_style.size.width,
+            SizingAlgorithm::GridLanes,
+            PhysicalAxis::Horizontal,
+            parent.width,
+            true,
+        )?,
+        resolve_preferred_sizing(
+            &child_style.size.height,
+            SizingAlgorithm::GridLanes,
+            PhysicalAxis::Vertical,
+            parent.height,
+            true,
+        )?,
+    );
+    resolve_minimum_optional(
+        &child_style.min_size.width,
+        SizingAlgorithm::GridLanes,
+        PhysicalAxis::Horizontal,
+        parent.width,
+        true,
+    )?;
+    resolve_minimum_optional(
+        &child_style.min_size.height,
+        SizingAlgorithm::GridLanes,
+        PhysicalAxis::Vertical,
+        parent.height,
+        true,
+    )?;
+    resolve_maximum_optional(
+        &child_style.max_size.width,
+        SizingAlgorithm::GridLanes,
+        PhysicalAxis::Horizontal,
+        parent.width,
+        true,
+    )?;
+    resolve_maximum_optional(
+        &child_style.max_size.height,
+        SizingAlgorithm::GridLanes,
+        PhysicalAxis::Vertical,
+        parent.height,
+        true,
+    )?;
+    Ok(preferred_size)
 }
 
 fn lane_grid_axis_facts(

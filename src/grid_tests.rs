@@ -500,6 +500,24 @@ fn fri04_c04_grid_dispatch_nested_items_and_absolute_children_keep_actual_algori
 }
 
 #[test]
+fn fri04_c04_grid_dispatch_scrollable_auto_minimum_lane_reports_exact_grid_lanes_payload() {
+    fri04_c04_grid_dispatch_assert_error(
+        Display::GridLanes,
+        NodeInput {
+            display: Display::Flex,
+            min_size: Size::new(MinSize::AUTO, MinSize::STRETCH),
+            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            ..NodeInput::default()
+        },
+        SizingProperty::Minimum,
+        SizingBehavior::Stretch,
+        SizingAlgorithm::GridLanes,
+        PhysicalAxis::Vertical,
+        1,
+    );
+}
+
+#[test]
 fn grid_lanes_order_modified_sequence_drives_running_offsets_and_intrinsic_contributions_in_both_scalar_lanes()
  {
     assert_grid_lanes_order_modified_sequence::<f32>();
