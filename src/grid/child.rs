@@ -1,5 +1,9 @@
 use super::*;
 use crate::BaselinesOf;
+use crate::compute::{
+    SizingResolutionError, resolve_maximum_optional, resolve_minimum_optional,
+    resolve_preferred_optional, sizing_resolution_error,
+};
 use crate::geometry::{
     FlowAxes, LogicalAxis, LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis,
     PhysicalProgression,
@@ -1925,7 +1929,7 @@ where
         containing_physical_size,
         grid_flow_axes,
     )
-    .map_err(|status| crate::compute::value_resolution_error(child, status))
+    .map_err(|error| sizing_resolution_error(child, error))
 }
 
 pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
@@ -1934,7 +1938,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
     area_size: Size<S>,
     containing_physical_size: Size<Option<S>>,
     grid_flow_axes: FlowAxes,
-) -> Result<GridItemSizing<S>, LengthResolutionStatus<S>> {
+) -> Result<GridItemSizing<S>, SizingResolutionError<S>> {
     let container_flow_axes =
         crate::geometry::FlowAxes::new(container_style.writing_mode, container_style.direction);
     let unresolved_margin =
@@ -1969,36 +1973,61 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         Size::ZERO
     };
     let area_parent = area_size.map(Some);
-    let inherent_size = transpose_size_result(child_style.size.clone().zip_map(
-        area_parent,
-        |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        },
-    ))?
+    let algorithm = sizing_algorithm_for_grid_display(container_style.display);
+    let inherent_size = Size::new(
+        resolve_preferred_optional(
+            &child_style.size.width,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            area_parent.width,
+            true,
+        )?,
+        resolve_preferred_optional(
+            &child_style.size.height,
+            algorithm,
+            PhysicalAxis::Vertical,
+            area_parent.height,
+            true,
+        )?,
+    )
     .apply_aspect_ratio(child_style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
-    let min_size = transpose_size_result(child_style.min_size.clone().zip_map(
-        area_parent,
-        |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        },
-    ))?
+    let min_size = Size::new(
+        resolve_minimum_optional(
+            &child_style.min_size.width,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            area_parent.width,
+            true,
+        )?,
+        resolve_minimum_optional(
+            &child_style.min_size.height,
+            algorithm,
+            PhysicalAxis::Vertical,
+            area_parent.height,
+            true,
+        )?,
+    )
     .add_optional(box_sizing_adjustment)
     .or((padding + border).sum_axes().map(Some))
     .max_optional((padding + border).sum_axes().map(Some))
     .apply_aspect_ratio(child_style.aspect_ratio);
-    let max_size = transpose_size_result(child_style.max_size.clone().zip_map(
-        area_parent,
-        |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        },
-    ))?
+    let max_size = Size::new(
+        resolve_maximum_optional(
+            &child_style.max_size.width,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            area_parent.width,
+            true,
+        )?,
+        resolve_maximum_optional(
+            &child_style.max_size.height,
+            algorithm,
+            PhysicalAxis::Vertical,
+            area_parent.height,
+            true,
+        )?,
+    )
     .apply_aspect_ratio(child_style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
     let logical_inherent_size = grid_flow_axes.logical_size(inherent_size);
@@ -2089,12 +2118,6 @@ pub(crate) fn resolve_grid_item_normal_alignment(
             non_replaced_normal
         }
     })
-}
-
-fn transpose_size_result<T, S: LayoutScalar>(
-    size: Size<Result<T, LengthResolutionStatus<S>>>,
-) -> Result<Size<T>, LengthResolutionStatus<S>> {
-    Ok(Size::new(size.width?, size.height?))
 }
 
 fn transpose_edges_result<T, S: LayoutScalar>(
@@ -2413,42 +2436,69 @@ where
     } else {
         Size::ZERO
     };
-    let style_size = child_style
-        .size
-        .clone()
-        .zip_map(area_parent, |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        })
-        .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(child_style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
+    let style_size = Size::new(
+        resolve_preferred_optional(
+            &child_style.size.width,
+            SizingAlgorithm::Positioned,
+            PhysicalAxis::Horizontal,
+            area_parent.width,
+            true,
+        )
+        .map_err(|error| sizing_resolution_error(child, error))?,
+        resolve_preferred_optional(
+            &child_style.size.height,
+            SizingAlgorithm::Positioned,
+            PhysicalAxis::Vertical,
+            area_parent.height,
+            true,
+        )
+        .map_err(|error| sizing_resolution_error(child, error))?,
+    )
+    .apply_aspect_ratio(child_style.aspect_ratio)
+    .add_optional(box_sizing_adjustment);
     let padding_border_size = (padding + border).sum_axes();
-    let min_size = child_style
-        .min_size
-        .clone()
-        .zip_map(area_parent, |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        })
-        .transpose_with_node(tree, child)?
-        .add_optional(box_sizing_adjustment)
-        .or(padding_border_size.map(Some))
-        .max_optional(padding_border_size.map(Some))
-        .apply_aspect_ratio(child_style.aspect_ratio);
-    let max_size = child_style
-        .max_size
-        .clone()
-        .zip_map(area_parent, |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        })
-        .transpose_with_node(tree, child)?
-        .apply_aspect_ratio(child_style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
+    let min_size = Size::new(
+        resolve_minimum_optional(
+            &child_style.min_size.width,
+            SizingAlgorithm::Positioned,
+            PhysicalAxis::Horizontal,
+            area_parent.width,
+            true,
+        )
+        .map_err(|error| sizing_resolution_error(child, error))?,
+        resolve_minimum_optional(
+            &child_style.min_size.height,
+            SizingAlgorithm::Positioned,
+            PhysicalAxis::Vertical,
+            area_parent.height,
+            true,
+        )
+        .map_err(|error| sizing_resolution_error(child, error))?,
+    )
+    .add_optional(box_sizing_adjustment)
+    .or(padding_border_size.map(Some))
+    .max_optional(padding_border_size.map(Some))
+    .apply_aspect_ratio(child_style.aspect_ratio);
+    let max_size = Size::new(
+        resolve_maximum_optional(
+            &child_style.max_size.width,
+            SizingAlgorithm::Positioned,
+            PhysicalAxis::Horizontal,
+            area_parent.width,
+            true,
+        )
+        .map_err(|error| sizing_resolution_error(child, error))?,
+        resolve_maximum_optional(
+            &child_style.max_size.height,
+            SizingAlgorithm::Positioned,
+            PhysicalAxis::Vertical,
+            area_parent.height,
+            true,
+        )
+        .map_err(|error| sizing_resolution_error(child, error))?,
+    )
+    .apply_aspect_ratio(child_style.aspect_ratio)
+    .add_optional(box_sizing_adjustment);
     let inset = child_style
         .inset
         .zip_size(area_parent, |length, basis| {

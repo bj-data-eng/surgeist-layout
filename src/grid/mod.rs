@@ -4,11 +4,15 @@ use super::{
     GridPlacement, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInternalInvariant,
     LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
     LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf, NodeOutputOf,
-    Overflow, Point, Position, PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size, SizingMode,
-    TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
+    Overflow, Point, Position, PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size,
+    SizingAlgorithm, SizingMode, TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
-use crate::compute::{EdgesResultExt, SizeResultExt};
-use crate::geometry::{LogicalAxis, LogicalSizeOf};
+use crate::compute::{
+    EdgesResultExt, ResolvedPreferredSize, SizeResultExt, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional, resolve_preferred_sizing,
+    sizing_resolution_error,
+};
+use crate::geometry::{LogicalAxis, LogicalSizeOf, PhysicalAxis};
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{ScrollbarReservationOf, content_box_inset_with_scrollbar};
@@ -142,13 +146,38 @@ impl<S: LayoutScalar> GridComputeResult<S> {
     }
 }
 
+fn sizing_algorithm_for_grid_display(display: Display) -> SizingAlgorithm {
+    if display.inner_display() == Display::GridLanes {
+        SizingAlgorithm::GridLanes
+    } else {
+        SizingAlgorithm::Grid
+    }
+}
+
 fn intrinsic_container_available<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     constants: &Constants<S>,
     sizing_flow_axes: crate::geometry::FlowAxes,
+    parent: Size<Option<S>>,
     available: Size<AvailableOf<S>>,
-) -> LogicalSizeOf<AvailableOf<S>> {
-    let style_size = sizing_flow_axes.logical_size(style.size.clone());
+) -> Result<LogicalSizeOf<AvailableOf<S>>, crate::compute::SizingResolutionError<S>> {
+    let algorithm = sizing_algorithm_for_grid_display(style.display);
+    let style_size = sizing_flow_axes.logical_size(Size::new(
+        resolve_preferred_sizing(
+            &style.size.width,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            parent.width,
+            true,
+        )?,
+        resolve_preferred_sizing(
+            &style.size.height,
+            algorithm,
+            PhysicalAxis::Vertical,
+            parent.height,
+            true,
+        )?,
+    ));
     let available = sizing_flow_axes.logical_size(available);
     let max_size = sizing_flow_axes.logical_size(constants.node_max_size);
     let content_box_inset_size =
@@ -159,24 +188,22 @@ fn intrinsic_container_available<S: LayoutScalar>(
             .map(|max| max - content_box_inset_size.inline),
         max_size.block.map(|max| max - content_box_inset_size.block),
     );
-    LogicalSizeOf::new(
+    Ok(LogicalSizeOf::new(
         intrinsic_available_for_dimension(style_size.inline).unwrap_or_else(|| {
             intrinsic_available_for_axis(available.inline, max_inner_size.inline)
         }),
         intrinsic_available_for_dimension(style_size.block)
             .unwrap_or_else(|| intrinsic_available_for_axis(available.block, max_inner_size.block)),
-    )
+    ))
 }
 
 fn intrinsic_available_for_dimension<S: LayoutScalar>(
-    dimension: PreferredSizeOf<S>,
+    dimension: ResolvedPreferredSize<S>,
 ) -> Option<AvailableOf<S>> {
-    if dimension.is_min_content() {
-        Some(AvailableOf::MIN_CONTENT)
-    } else if dimension.is_max_content() {
-        Some(AvailableOf::MAX_CONTENT)
-    } else {
-        None
+    match dimension {
+        ResolvedPreferredSize::MinContent => Some(AvailableOf::MIN_CONTENT),
+        ResolvedPreferredSize::MaxContent => Some(AvailableOf::MAX_CONTENT),
+        ResolvedPreferredSize::Auto | ResolvedPreferredSize::Definite(_) => None,
     }
 }
 
@@ -295,8 +322,14 @@ where
     debug_assert_eq!(lines.row_explicit_start, context.leading_rows);
     debug_assert_eq!(lines.row_explicit_count, context.explicit_rows);
     let sizing_flow_axes = constants.flow_axes;
-    let track_available =
-        intrinsic_container_available(&style, &constants, sizing_flow_axes, input.available());
+    let track_available = intrinsic_container_available(
+        &style,
+        &constants,
+        sizing_flow_axes,
+        input.parent(),
+        input.available(),
+    )
+    .map_err(|error| sizing_resolution_error(node, error))?;
     let track_resolution = resolve_grid_track_sizes(
         tree,
         node,
@@ -512,8 +545,14 @@ where
     } = initialized_tracks;
     let GridContainerContext { gap, lines, .. } = context.clone();
     let sizing_flow_axes = constants.flow_axes;
-    let track_available =
-        intrinsic_container_available(&style, &constants, sizing_flow_axes, input.available());
+    let track_available = intrinsic_container_available(
+        &style,
+        &constants,
+        sizing_flow_axes,
+        input.parent(),
+        input.available(),
+    )
+    .map_err(|error| sizing_resolution_error(node, error))?;
     let track_resolution = resolve_grid_track_sizes(
         tree,
         node,
@@ -2049,43 +2088,71 @@ impl<S: LayoutScalar> Constants<S> {
         } else {
             Size::ZERO
         };
+        let algorithm = sizing_algorithm_for_grid_display(style.display);
         let style_size = if input.sizing_mode() == SizingMode::InherentSize {
-            style
-                .size
-                .clone()
-                .zip_map(input.parent(), |dimension, basis| {
-                    dimension
-                        .resolve_simple_with_status(basis)
-                        .and_then(resolution_optional)
-                })
-                .transpose_with_node(tree, node)?
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment)
+            Size::new(
+                resolve_preferred_optional(
+                    &style.size.width,
+                    algorithm,
+                    PhysicalAxis::Horizontal,
+                    input.parent().width,
+                    true,
+                )
+                .map_err(|error| sizing_resolution_error(node, error))?,
+                resolve_preferred_optional(
+                    &style.size.height,
+                    algorithm,
+                    PhysicalAxis::Vertical,
+                    input.parent().height,
+                    true,
+                )
+                .map_err(|error| sizing_resolution_error(node, error))?,
+            )
+            .apply_aspect_ratio(style.aspect_ratio)
+            .add_optional(box_sizing_adjustment)
         } else {
             Size::NONE
         };
-        let min_size = style
-            .min_size
-            .clone()
-            .zip_map(input.parent(), |dimension, basis| {
-                dimension
-                    .resolve_simple_with_status(basis)
-                    .and_then(resolution_optional)
-            })
-            .transpose_with_node(tree, node)?
-            .apply_aspect_ratio(style.aspect_ratio)
-            .add_optional(box_sizing_adjustment);
-        let max_size = style
-            .max_size
-            .clone()
-            .zip_map(input.parent(), |dimension, basis| {
-                dimension
-                    .resolve_simple_with_status(basis)
-                    .and_then(resolution_optional)
-            })
-            .transpose_with_node(tree, node)?
-            .apply_aspect_ratio(style.aspect_ratio)
-            .add_optional(box_sizing_adjustment);
+        let min_size = Size::new(
+            resolve_minimum_optional(
+                &style.min_size.width,
+                algorithm,
+                PhysicalAxis::Horizontal,
+                input.parent().width,
+                true,
+            )
+            .map_err(|error| sizing_resolution_error(node, error))?,
+            resolve_minimum_optional(
+                &style.min_size.height,
+                algorithm,
+                PhysicalAxis::Vertical,
+                input.parent().height,
+                true,
+            )
+            .map_err(|error| sizing_resolution_error(node, error))?,
+        )
+        .apply_aspect_ratio(style.aspect_ratio)
+        .add_optional(box_sizing_adjustment);
+        let max_size = Size::new(
+            resolve_maximum_optional(
+                &style.max_size.width,
+                algorithm,
+                PhysicalAxis::Horizontal,
+                input.parent().width,
+                true,
+            )
+            .map_err(|error| sizing_resolution_error(node, error))?,
+            resolve_maximum_optional(
+                &style.max_size.height,
+                algorithm,
+                PhysicalAxis::Vertical,
+                input.parent().height,
+                true,
+            )
+            .map_err(|error| sizing_resolution_error(node, error))?,
+        )
+        .apply_aspect_ratio(style.aspect_ratio)
+        .add_optional(box_sizing_adjustment);
         let explicit_definite_outer_size = input.known().or(style_size);
         let explicit_definite_content_size =
             explicit_definite_outer_size.sub_optional(content_box_inset.sum_axes());

@@ -19,6 +19,487 @@ fn track_component_flex<S: LayoutScalar>(value: S) -> TrackComponentOf<S> {
 }
 
 #[test]
+fn fri04_c04_grid_dispatch_container_reports_exact_grid_capability() {
+    let mut tree = OracleTree::new().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(PreferredSize::STRETCH, PreferredSize::px(40.0)),
+            ..NodeInput::default()
+        },
+    );
+
+    let error = compute_grid(
+        &mut tree,
+        0,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(100.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::definite(100.0)),
+        ),
+    )
+    .expect_err("later-owned grid sizing must be rejected");
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(0));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        unsupported,
+    )) = error.kind()
+    else {
+        panic!("expected exact sizing capability, got {:?}", error.kind());
+    };
+    assert_eq!(unsupported.property(), SizingProperty::Preferred);
+    assert_eq!(unsupported.behavior(), SizingBehavior::Stretch);
+    assert_eq!(unsupported.algorithm(), SizingAlgorithm::Grid);
+    assert_eq!(unsupported.axis(), PhysicalAxis::Horizontal);
+}
+
+fn fri04_c04_grid_dispatch_input(parent: Size<Option<f32>>) -> ComputeInput {
+    ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        parent,
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::new(
+            parent
+                .width
+                .map_or(Available::MAX_CONTENT, Available::Definite),
+            parent
+                .height
+                .map_or(Available::MAX_CONTENT, Available::Definite),
+        ),
+    )
+}
+
+fn fri04_c04_grid_dispatch_assert_error(
+    display: Display,
+    style: NodeInput,
+    expected_property: SizingProperty,
+    expected_behavior: SizingBehavior,
+    expected_algorithm: SizingAlgorithm,
+    expected_axis: PhysicalAxis,
+    expected_node: u32,
+) {
+    let (mut tree, node) = if expected_node == 0 {
+        (
+            OracleTree::new()
+                .children(0, [])
+                .style(0, NodeInput { display, ..style }),
+            0,
+        )
+    } else {
+        (
+            OracleTree::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(
+                    0,
+                    NodeInput {
+                        display,
+                        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                        grid_template_columns: vec![TrackComponent::px(100.0)],
+                        grid_template_rows: vec![TrackComponent::px(80.0)],
+                        ..NodeInput::default()
+                    },
+                )
+                .style(1, style),
+            0,
+        )
+    };
+    let error = compute_grid(
+        &mut tree,
+        node,
+        fri04_c04_grid_dispatch_input(Size::new(Some(100.0), Some(80.0))),
+    )
+    .expect_err("later-owned grid sizing must be rejected");
+    assert_eq!(error.site(), LayoutErrorSite::Node(expected_node));
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        unsupported,
+    )) = error.kind()
+    else {
+        panic!("expected exact sizing capability, got {:?}", error.kind());
+    };
+    assert_eq!(
+        (
+            unsupported.property(),
+            unsupported.behavior(),
+            unsupported.algorithm(),
+            unsupported.axis(),
+        ),
+        (
+            expected_property,
+            expected_behavior,
+            expected_algorithm,
+            expected_axis,
+        )
+    );
+}
+
+enum Fri04C04GridSizingValue {
+    Preferred(PreferredSize),
+    Minimum(MinSize),
+    Maximum(MaxSize),
+}
+
+fn fri04_c04_grid_dispatch_style(value: Fri04C04GridSizingValue, axis: PhysicalAxis) -> NodeInput {
+    let mut style = NodeInput::default();
+    match (value, axis) {
+        (Fri04C04GridSizingValue::Preferred(value), PhysicalAxis::Horizontal) => {
+            style.size.width = value;
+        }
+        (Fri04C04GridSizingValue::Preferred(value), PhysicalAxis::Vertical) => {
+            style.size.height = value;
+        }
+        (Fri04C04GridSizingValue::Minimum(value), PhysicalAxis::Horizontal) => {
+            style.min_size.width = value;
+        }
+        (Fri04C04GridSizingValue::Minimum(value), PhysicalAxis::Vertical) => {
+            style.min_size.height = value;
+        }
+        (Fri04C04GridSizingValue::Maximum(value), PhysicalAxis::Horizontal) => {
+            style.max_size.width = value;
+        }
+        (Fri04C04GridSizingValue::Maximum(value), PhysicalAxis::Vertical) => {
+            style.max_size.height = value;
+        }
+    }
+    style
+}
+
+#[test]
+fn fri04_c04_grid_dispatch_grid_and_lanes_cover_all_direct_and_keyword_basis_payloads() {
+    let sizing =
+        || SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite calculation"));
+    let calc = || CalcSizeCalculation::value(LengthPercentageOf::ZERO);
+
+    for (display, algorithm) in [
+        (Display::Grid, SizingAlgorithm::Grid),
+        (Display::InlineGrid, SizingAlgorithm::Grid),
+        (Display::GridLanes, SizingAlgorithm::GridLanes),
+        (Display::InlineGridLanes, SizingAlgorithm::GridLanes),
+    ] {
+        for (value, behavior) in [
+            (PreferredSize::STRETCH, SizingBehavior::Stretch),
+            (PreferredSize::FIT_CONTENT, SizingBehavior::FitContent),
+            (PreferredSize::CONTAIN, SizingBehavior::Contain),
+            (
+                PreferredSize::fit_content_function(sizing()),
+                SizingBehavior::FitContentFunction,
+            ),
+        ] {
+            fri04_c04_grid_dispatch_assert_error(
+                display,
+                fri04_c04_grid_dispatch_style(
+                    Fri04C04GridSizingValue::Preferred(value),
+                    PhysicalAxis::Horizontal,
+                ),
+                SizingProperty::Preferred,
+                behavior,
+                algorithm,
+                PhysicalAxis::Horizontal,
+                0,
+            );
+        }
+        for (value, behavior) in [
+            (MinSize::MIN_CONTENT, SizingBehavior::MinContent),
+            (MinSize::MAX_CONTENT, SizingBehavior::MaxContent),
+            (MinSize::STRETCH, SizingBehavior::Stretch),
+            (MinSize::FIT_CONTENT, SizingBehavior::FitContent),
+            (MinSize::CONTAIN, SizingBehavior::Contain),
+            (
+                MinSize::fit_content_function(sizing()),
+                SizingBehavior::FitContentFunction,
+            ),
+        ] {
+            fri04_c04_grid_dispatch_assert_error(
+                display,
+                fri04_c04_grid_dispatch_style(
+                    Fri04C04GridSizingValue::Minimum(value),
+                    PhysicalAxis::Vertical,
+                ),
+                SizingProperty::Minimum,
+                behavior,
+                algorithm,
+                PhysicalAxis::Vertical,
+                0,
+            );
+        }
+        for (value, behavior) in [
+            (MaxSize::MIN_CONTENT, SizingBehavior::MinContent),
+            (MaxSize::MAX_CONTENT, SizingBehavior::MaxContent),
+            (MaxSize::STRETCH, SizingBehavior::Stretch),
+            (MaxSize::FIT_CONTENT, SizingBehavior::FitContent),
+            (MaxSize::CONTAIN, SizingBehavior::Contain),
+            (
+                MaxSize::fit_content_function(sizing()),
+                SizingBehavior::FitContentFunction,
+            ),
+        ] {
+            fri04_c04_grid_dispatch_assert_error(
+                display,
+                fri04_c04_grid_dispatch_style(
+                    Fri04C04GridSizingValue::Maximum(value),
+                    PhysicalAxis::Horizontal,
+                ),
+                SizingProperty::Maximum,
+                behavior,
+                algorithm,
+                PhysicalAxis::Horizontal,
+                0,
+            );
+        }
+
+        for (basis, behavior) in [
+            (PreferredSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+            (
+                PreferredSizeCalcBasis::MinContent,
+                CalcSizeBehaviorBasis::MinContent,
+            ),
+            (
+                PreferredSizeCalcBasis::MaxContent,
+                CalcSizeBehaviorBasis::MaxContent,
+            ),
+            (
+                PreferredSizeCalcBasis::Stretch,
+                CalcSizeBehaviorBasis::Stretch,
+            ),
+            (
+                PreferredSizeCalcBasis::FitContent,
+                CalcSizeBehaviorBasis::FitContent,
+            ),
+            (
+                PreferredSizeCalcBasis::Contain,
+                CalcSizeBehaviorBasis::Contain,
+            ),
+        ] {
+            fri04_c04_grid_dispatch_assert_error(
+                display,
+                fri04_c04_grid_dispatch_style(
+                    Fri04C04GridSizingValue::Preferred(
+                        PreferredSize::calc_size(basis, calc()).expect("valid calc-size"),
+                    ),
+                    PhysicalAxis::Vertical,
+                ),
+                SizingProperty::Preferred,
+                SizingBehavior::CalcSize(behavior),
+                algorithm,
+                PhysicalAxis::Vertical,
+                0,
+            );
+        }
+        for (basis, behavior) in [
+            (MinSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+            (
+                MinSizeCalcBasis::MinContent,
+                CalcSizeBehaviorBasis::MinContent,
+            ),
+            (
+                MinSizeCalcBasis::MaxContent,
+                CalcSizeBehaviorBasis::MaxContent,
+            ),
+            (MinSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+            (
+                MinSizeCalcBasis::FitContent,
+                CalcSizeBehaviorBasis::FitContent,
+            ),
+            (MinSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+        ] {
+            fri04_c04_grid_dispatch_assert_error(
+                display,
+                fri04_c04_grid_dispatch_style(
+                    Fri04C04GridSizingValue::Minimum(
+                        MinSize::calc_size(basis, calc()).expect("valid calc-size"),
+                    ),
+                    PhysicalAxis::Horizontal,
+                ),
+                SizingProperty::Minimum,
+                SizingBehavior::CalcSize(behavior),
+                algorithm,
+                PhysicalAxis::Horizontal,
+                0,
+            );
+        }
+        for (basis, behavior) in [
+            (MaxSizeCalcBasis::None, CalcSizeBehaviorBasis::None),
+            (
+                MaxSizeCalcBasis::MinContent,
+                CalcSizeBehaviorBasis::MinContent,
+            ),
+            (
+                MaxSizeCalcBasis::MaxContent,
+                CalcSizeBehaviorBasis::MaxContent,
+            ),
+            (MaxSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+            (
+                MaxSizeCalcBasis::FitContent,
+                CalcSizeBehaviorBasis::FitContent,
+            ),
+            (MaxSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+        ] {
+            fri04_c04_grid_dispatch_assert_error(
+                display,
+                fri04_c04_grid_dispatch_style(
+                    Fri04C04GridSizingValue::Maximum(
+                        MaxSize::calc_size(basis, calc()).expect("valid calc-size"),
+                    ),
+                    PhysicalAxis::Vertical,
+                ),
+                SizingProperty::Maximum,
+                SizingBehavior::CalcSize(behavior),
+                algorithm,
+                PhysicalAxis::Vertical,
+                0,
+            );
+        }
+    }
+}
+
+#[test]
+fn fri04_c04_grid_dispatch_supported_calc_size_and_intrinsic_geometry_in_both_axes() {
+    for display in [
+        Display::Grid,
+        Display::InlineGrid,
+        Display::GridLanes,
+        Display::InlineGridLanes,
+    ] {
+        let mut auto_tree = OracleTree::new().children(0, []).style(
+            0,
+            NodeInput {
+                display,
+                size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
+                grid_template_columns: vec![TrackComponent::px(30.0)],
+                grid_template_rows: vec![TrackComponent::px(20.0)],
+                ..NodeInput::default()
+            },
+        );
+        let output = compute_grid(&mut auto_tree, 0, fri04_c04_grid_dispatch_input(Size::NONE))
+            .expect("supported preferred auto grid values resolve");
+        assert_eq!(output.size, Size::new(30.0, 20.0), "{display:?} auto");
+
+        let mut numeric_tree = OracleTree::new().children(0, []).style(
+            0,
+            NodeInput {
+                display,
+                size: Size::new(PreferredSize::px(70.0), PreferredSize::px(50.0)),
+                ..NodeInput::default()
+            },
+        );
+        let output = compute_grid(
+            &mut numeric_tree,
+            0,
+            fri04_c04_grid_dispatch_input(Size::new(Some(200.0), Some(160.0))),
+        )
+        .expect("supported preferred numeric grid values resolve");
+        assert_eq!(output.size, Size::new(70.0, 50.0), "{display:?} numeric");
+
+        for (basis, calculation, expected) in [
+            (
+                PreferredSizeCalcBasis::Any,
+                CalcSizeCalculation::from_coefficients(20.0, 0.5, 0.0)
+                    .expect("finite Any calculation"),
+                Size::new(120.0, 100.0),
+            ),
+            (
+                PreferredSizeCalcBasis::FullPercentage,
+                CalcSizeCalculation::from_coefficients(10.0, 0.0, 0.5)
+                    .expect("finite FullPercentage calculation"),
+                Size::new(110.0, 90.0),
+            ),
+        ] {
+            let mut calc_tree = OracleTree::new().children(0, []).style(
+                0,
+                NodeInput {
+                    display,
+                    size: Size::new(
+                        PreferredSize::calc_size(basis, calculation.clone())
+                            .expect("valid calc-size width"),
+                        PreferredSize::calc_size(basis, calculation)
+                            .expect("valid calc-size height"),
+                    ),
+                    ..NodeInput::default()
+                },
+            );
+            let output = compute_grid(
+                &mut calc_tree,
+                0,
+                fri04_c04_grid_dispatch_input(Size::new(Some(200.0), Some(160.0))),
+            )
+            .expect("supported grid calc-size values resolve");
+            assert_eq!(output.size, expected, "{display:?} {basis:?}");
+        }
+
+        for intrinsic in [PreferredSize::MIN_CONTENT, PreferredSize::MAX_CONTENT] {
+            let mut intrinsic_tree = OracleTree::new().children(0, []).style(
+                0,
+                NodeInput {
+                    display,
+                    size: Size::new(intrinsic.clone(), intrinsic),
+                    grid_template_columns: vec![TrackComponent::px(30.0)],
+                    grid_template_rows: vec![TrackComponent::px(20.0)],
+                    ..NodeInput::default()
+                },
+            );
+            let output = compute_grid(
+                &mut intrinsic_tree,
+                0,
+                fri04_c04_grid_dispatch_input(Size::NONE),
+            )
+            .expect("supported preferred intrinsic grid values resolve");
+            assert_eq!(output.size, Size::new(30.0, 20.0));
+        }
+    }
+}
+
+#[test]
+fn fri04_c04_grid_dispatch_nested_items_and_absolute_children_keep_actual_algorithm_and_site() {
+    for (display, algorithm) in [
+        (Display::Grid, SizingAlgorithm::Grid),
+        (Display::InlineGrid, SizingAlgorithm::Grid),
+        (Display::GridLanes, SizingAlgorithm::GridLanes),
+        (Display::InlineGridLanes, SizingAlgorithm::GridLanes),
+    ] {
+        fri04_c04_grid_dispatch_assert_error(
+            display,
+            fri04_c04_grid_dispatch_style(
+                Fri04C04GridSizingValue::Minimum(MinSize::STRETCH),
+                PhysicalAxis::Horizontal,
+            ),
+            SizingProperty::Minimum,
+            SizingBehavior::Stretch,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            1,
+        );
+        fri04_c04_grid_dispatch_assert_error(
+            display,
+            NodeInput {
+                position: Position::Absolute,
+                size: Size::new(PreferredSize::AUTO, PreferredSize::MAX_CONTENT),
+                ..NodeInput::default()
+            },
+            SizingProperty::Preferred,
+            SizingBehavior::MaxContent,
+            SizingAlgorithm::Positioned,
+            PhysicalAxis::Vertical,
+            1,
+        );
+    }
+}
+
+#[test]
 fn grid_lanes_order_modified_sequence_drives_running_offsets_and_intrinsic_contributions_in_both_scalar_lanes()
  {
     assert_grid_lanes_order_modified_sequence::<f32>();
@@ -3290,7 +3771,7 @@ fn row_subgrid_intrinsic_width_uses_inherited_rows_for_column_auto_flow() {
             2,
             NodeInput {
                 display: Display::Grid,
-                min_size: Size::new(MinSize::MIN_CONTENT, MinSize::AUTO),
+                size: Size::new(PreferredSize::MIN_CONTENT, PreferredSize::AUTO),
                 grid_auto_flow: GridAutoFlow::Column,
                 grid_template_rows: vec![empty_subgrid_track()],
                 grid_row: GridPlacement::try_span(2).expect("valid grid span"),

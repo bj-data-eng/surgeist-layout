@@ -1,4 +1,5 @@
 use super::*;
+use crate::compute::{resolve_preferred_optional, sizing_resolution_error};
 use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::scroll::scrollbar_size_from_overflow;
 use crate::{
@@ -1772,12 +1773,15 @@ where
                     logical_style_size.inline.is_auto(),
                     AlignItems::Stretch,
                 );
-                logical_known.inline = logical_style_size
-                    .inline
-                    .resolve_simple_with_status(Some(grid_axis_size))
-                    .and_then(resolution_optional)
-                    .map_err(|status| crate::compute::value_resolution_error(child, status))?
-                    .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_inline));
+                logical_known.inline = resolve_preferred_optional(
+                    &logical_style_size.inline,
+                    sizing_algorithm_for_grid_display(container_style.display),
+                    flow_axes.inline_axis(),
+                    Some(grid_axis_size),
+                    true,
+                )
+                .map_err(|error| sizing_resolution_error(child, error))?
+                .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_inline));
                 logical_parent.inline = Some(grid_axis_size);
                 logical_available.inline = AvailableOf::Definite(available_inline);
             }
@@ -1791,15 +1795,18 @@ where
                     logical_style_size.block.is_auto(),
                     AlignItems::Stretch,
                 );
-                logical_known.block = logical_style_size
-                    .block
-                    .resolve_simple_with_status(Some(grid_axis_size))
-                    .and_then(resolution_optional)
-                    .map_err(|status| crate::compute::value_resolution_error(child, status))?
-                    .or_else(|| {
-                        (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
-                            .then_some(available_block)
-                    });
+                logical_known.block = resolve_preferred_optional(
+                    &logical_style_size.block,
+                    sizing_algorithm_for_grid_display(container_style.display),
+                    flow_axes.block_axis(),
+                    Some(grid_axis_size),
+                    true,
+                )
+                .map_err(|error| sizing_resolution_error(child, error))?
+                .or_else(|| {
+                    (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
+                        .then_some(available_block)
+                });
                 logical_parent.block = Some(grid_axis_size);
                 logical_available.block = AvailableOf::Definite(available_block);
             }

@@ -908,6 +908,7 @@ impl<S: LayoutScalar> PreferredSizeOf<S> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn resolve_simple_with_status(
         &self,
         basis: Option<S>,
@@ -1059,6 +1060,7 @@ impl<S: LayoutScalar> MinSizeOf<S> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn resolve_simple_with_status(
         &self,
         basis: Option<S>,
@@ -1201,6 +1203,7 @@ impl<S: LayoutScalar> MaxSizeOf<S> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn resolve_simple_with_status(
         &self,
         basis: Option<S>,
@@ -1390,6 +1393,7 @@ fn reject_any_size_reference<S: LayoutScalar>(
     }
 }
 
+#[cfg(test)]
 fn resolve_sizing_calculation<S: LayoutScalar>(
     calculation: &SizingCalculationOf<S>,
     basis: Option<S>,
