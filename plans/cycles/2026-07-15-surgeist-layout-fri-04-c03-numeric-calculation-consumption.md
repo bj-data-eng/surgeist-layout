@@ -1,5 +1,5 @@
 # FRI-04-C03 Numeric Calculation Consumption
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-04-C03`
 Owning repository: `surgeist-layout`
 Cycle base: `5c31ef95f22bc965d5af56be98f96e86300f0e83`
