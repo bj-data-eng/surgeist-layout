@@ -50,6 +50,698 @@ fn fri04_c03_flex_percentage_nested(
 }
 
 #[test]
+fn fri04_c04_flex_dispatch_auto_uses_preferred_main_size_but_content_bypasses_it() {
+    fn first_known_main_size(
+        preferred_main_size: PreferredSize,
+        flex_basis: FlexBasis,
+    ) -> Option<f32> {
+        let mut tree = crate::test_support::layout_tree::OracleTree::new()
+            .children(1, [2])
+            .children(2, [])
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Flex,
+                    size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .style(
+                2,
+                NodeInput {
+                    size: Size::new(preferred_main_size, PreferredSize::px(20.0)),
+                    min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                    flex_basis,
+                    ..NodeInput::default()
+                },
+            )
+            .measure(2, ComputeOutput::from_outer_size(Size::new(25.0, 20.0)));
+
+        compute_flex(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(300.0)),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::splat(Available::definite(300.0)),
+            ),
+        )
+        .expect("supported flex basis resolves");
+
+        tree.inputs(2)
+            .first()
+            .expect("flex item is measured")
+            .known()
+            .width
+    }
+
+    assert_eq!(
+        first_known_main_size(PreferredSize::px(80.0), FlexBasis::AUTO),
+        Some(80.0)
+    );
+    assert_eq!(
+        first_known_main_size(PreferredSize::AUTO, FlexBasis::AUTO),
+        None
+    );
+    assert_eq!(
+        first_known_main_size(PreferredSize::px(80.0), FlexBasis::CONTENT),
+        None
+    );
+}
+
+fn fri04_c04_flex_dispatch_first_item_input(
+    direction: FlexDirection,
+    container_main: Option<f32>,
+    child: NodeInput,
+) -> ComputeInput {
+    let container_size = match direction {
+        FlexDirection::Row | FlexDirection::RowReverse => Size::new(
+            container_main.map_or(PreferredSize::AUTO, PreferredSize::px),
+            PreferredSize::px(100.0),
+        ),
+        FlexDirection::Column | FlexDirection::ColumnReverse => Size::new(
+            PreferredSize::px(100.0),
+            container_main.map_or(PreferredSize::AUTO, PreferredSize::px),
+        ),
+    };
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Flex,
+                size: container_size,
+                flex_direction: direction,
+                ..NodeInput::default()
+            },
+        )
+        .style(2, child)
+        .measure(2, ComputeOutput::from_outer_size(Size::new(25.0, 20.0)));
+
+    compute_flex(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(300.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::MAX_CONTENT),
+        ),
+    )
+    .expect("supported flex dispatch resolves");
+
+    *tree
+        .inputs(2)
+        .first()
+        .expect("flex item receives a sizing input")
+}
+
+#[test]
+fn fri04_c04_flex_dispatch_numeric_and_calc_size_bases_use_each_physical_main_axis() {
+    let ordinary = || {
+        FlexBasis::calculation(SizingCalculation::value(
+            LengthPercentageOf::from_percent_fraction(0.5).expect("finite percentage"),
+        ))
+    };
+    let any = || {
+        FlexBasis::calc_size(
+            FlexBasisCalcBasis::Any,
+            CalcSizeCalculation::from_coefficients(10.0, 0.5, 0.0).expect("finite Any calculation"),
+        )
+        .expect("Any calculation does not reference size")
+    };
+    let full = || {
+        FlexBasis::calc_size(
+            FlexBasisCalcBasis::FullPercentage,
+            CalcSizeCalculation::from_coefficients(10.0, 0.1, 0.5)
+                .expect("finite FullPercentage calculation"),
+        )
+        .expect("valid FullPercentage calculation")
+    };
+
+    for (direction, axis) in [
+        (FlexDirection::Row, PhysicalAxis::Horizontal),
+        (FlexDirection::Column, PhysicalAxis::Vertical),
+    ] {
+        for (basis, expected) in [(ordinary(), 100.0), (any(), 110.0), (full(), 130.0)] {
+            let input = fri04_c04_flex_dispatch_first_item_input(
+                direction,
+                Some(200.0),
+                NodeInput {
+                    min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                    flex_basis: basis,
+                    ..NodeInput::default()
+                },
+            );
+            assert_eq!(
+                match axis {
+                    PhysicalAxis::Horizontal => input.known().width,
+                    PhysicalAxis::Vertical => input.known().height,
+                },
+                Some(expected)
+            );
+        }
+
+        let any_missing = fri04_c04_flex_dispatch_first_item_input(
+            direction,
+            None,
+            NodeInput {
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_basis: any(),
+                ..NodeInput::default()
+            },
+        );
+        let full_missing = fri04_c04_flex_dispatch_first_item_input(
+            direction,
+            None,
+            NodeInput {
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_basis: full(),
+                ..NodeInput::default()
+            },
+        );
+        let ordinary_missing = fri04_c04_flex_dispatch_first_item_input(
+            direction,
+            None,
+            NodeInput {
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_basis: ordinary(),
+                ..NodeInput::default()
+            },
+        );
+        let main = |input: ComputeInput| match axis {
+            PhysicalAxis::Horizontal => input.known().width,
+            PhysicalAxis::Vertical => input.known().height,
+        };
+        assert_eq!(main(any_missing), Some(10.0));
+        assert_eq!(main(full_missing), None);
+        assert_eq!(main(ordinary_missing), None);
+    }
+}
+
+fn fri04_c04_flex_dispatch_assert_error(
+    container: NodeInput,
+    child: NodeInput,
+    property: SizingProperty,
+    behavior: SizingBehavior,
+    algorithm: SizingAlgorithm,
+    axis: PhysicalAxis,
+) {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(1, container)
+        .style(2, child)
+        .measure(2, ComputeOutput::from_outer_size(Size::splat(10.0)));
+    let error = compute_flex(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(200.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::definite(200.0)),
+        ),
+    )
+    .expect_err("later-owned flex sizing must be rejected");
+    assert_eq!(error.site(), LayoutErrorSite::Node(2));
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        unsupported,
+    )) = error.kind()
+    else {
+        panic!("expected exact sizing capability, got {:?}", error.kind());
+    };
+    assert_eq!(
+        (
+            unsupported.property(),
+            unsupported.behavior(),
+            unsupported.algorithm(),
+            unsupported.axis(),
+        ),
+        (property, behavior, algorithm, axis)
+    );
+}
+
+#[test]
+fn fri04_c04_flex_dispatch_direct_and_keyword_bases_return_exact_payloads() {
+    let sizing =
+        || SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite calculation"));
+    let calc = || CalcSizeCalculation::value(LengthPercentageOf::ZERO);
+    let container = || NodeInput {
+        display: Display::Flex,
+        size: Size::new(PreferredSize::px(200.0), PreferredSize::px(100.0)),
+        ..NodeInput::default()
+    };
+
+    for (value, behavior) in [
+        (PreferredSize::MIN_CONTENT, SizingBehavior::MinContent),
+        (PreferredSize::MAX_CONTENT, SizingBehavior::MaxContent),
+        (PreferredSize::STRETCH, SizingBehavior::Stretch),
+        (PreferredSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (PreferredSize::CONTAIN, SizingBehavior::Contain),
+        (
+            PreferredSize::fit_content_function(sizing()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            container(),
+            NodeInput {
+                size: Size::new(value, PreferredSize::AUTO),
+                ..NodeInput::default()
+            },
+            SizingProperty::Preferred,
+            behavior,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (value, behavior) in [
+        (MinSize::MIN_CONTENT, SizingBehavior::MinContent),
+        (MinSize::MAX_CONTENT, SizingBehavior::MaxContent),
+        (MinSize::STRETCH, SizingBehavior::Stretch),
+        (MinSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (MinSize::CONTAIN, SizingBehavior::Contain),
+        (
+            MinSize::fit_content_function(sizing()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            container(),
+            NodeInput {
+                min_size: Size::new(MinSize::AUTO, value),
+                ..NodeInput::default()
+            },
+            SizingProperty::Minimum,
+            behavior,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+        );
+    }
+    for (value, behavior) in [
+        (MaxSize::MIN_CONTENT, SizingBehavior::MinContent),
+        (MaxSize::MAX_CONTENT, SizingBehavior::MaxContent),
+        (MaxSize::STRETCH, SizingBehavior::Stretch),
+        (MaxSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (MaxSize::CONTAIN, SizingBehavior::Contain),
+        (
+            MaxSize::fit_content_function(sizing()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            container(),
+            NodeInput {
+                max_size: Size::new(value, MaxSize::NONE),
+                ..NodeInput::default()
+            },
+            SizingProperty::Maximum,
+            behavior,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (value, behavior) in [
+        (FlexBasis::MIN_CONTENT, SizingBehavior::MinContent),
+        (FlexBasis::MAX_CONTENT, SizingBehavior::MaxContent),
+        (FlexBasis::STRETCH, SizingBehavior::Stretch),
+        (FlexBasis::FIT_CONTENT, SizingBehavior::FitContent),
+        (FlexBasis::CONTAIN, SizingBehavior::Contain),
+        (
+            FlexBasis::fit_content_function(sizing()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            NodeInput {
+                flex_direction: FlexDirection::Column,
+                ..container()
+            },
+            NodeInput {
+                flex_basis: value,
+                ..NodeInput::default()
+            },
+            SizingProperty::FlexBasis,
+            behavior,
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+        );
+    }
+
+    for (basis, expected) in [
+        (PreferredSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (
+            PreferredSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            PreferredSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (
+            PreferredSizeCalcBasis::Stretch,
+            CalcSizeBehaviorBasis::Stretch,
+        ),
+        (
+            PreferredSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (
+            PreferredSizeCalcBasis::Contain,
+            CalcSizeBehaviorBasis::Contain,
+        ),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            container(),
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::calc_size(basis, calc()).expect("valid calc-size"),
+                    PreferredSize::AUTO,
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Preferred,
+            SizingBehavior::CalcSize(expected),
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (basis, expected) in [
+        (MinSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (
+            MinSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            MinSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (MinSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            MinSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (MinSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            container(),
+            NodeInput {
+                min_size: Size::new(
+                    MinSize::AUTO,
+                    MinSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Minimum,
+            SizingBehavior::CalcSize(expected),
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+        );
+    }
+    for (basis, expected) in [
+        (MaxSizeCalcBasis::None, CalcSizeBehaviorBasis::None),
+        (
+            MaxSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            MaxSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (MaxSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            MaxSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (MaxSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            container(),
+            NodeInput {
+                max_size: Size::new(
+                    MaxSize::calc_size(basis, calc()).expect("valid calc-size"),
+                    MaxSize::NONE,
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Maximum,
+            SizingBehavior::CalcSize(expected),
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (basis, expected) in [
+        (FlexBasisCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (FlexBasisCalcBasis::Content, CalcSizeBehaviorBasis::Content),
+        (
+            FlexBasisCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            FlexBasisCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (FlexBasisCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            FlexBasisCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (FlexBasisCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri04_c04_flex_dispatch_assert_error(
+            NodeInput {
+                flex_direction: FlexDirection::Column,
+                ..container()
+            },
+            NodeInput {
+                flex_basis: FlexBasis::calc_size(basis, calc()).expect("valid calc-size"),
+                ..NodeInput::default()
+            },
+            SizingProperty::FlexBasis,
+            SizingBehavior::CalcSize(expected),
+            SizingAlgorithm::Flex,
+            PhysicalAxis::Vertical,
+        );
+    }
+}
+
+#[test]
+fn fri04_c04_flex_dispatch_container_item_root_and_absolute_report_consuming_algorithm() {
+    let container_style = || NodeInput {
+        display: Display::Flex,
+        size: Size::new(PreferredSize::px(200.0), PreferredSize::px(100.0)),
+        ..NodeInput::default()
+    };
+
+    fri04_c04_flex_dispatch_assert_error(
+        container_style(),
+        NodeInput {
+            size: Size::new(PreferredSize::MIN_CONTENT, PreferredSize::AUTO),
+            ..NodeInput::default()
+        },
+        SizingProperty::Preferred,
+        SizingBehavior::MinContent,
+        SizingAlgorithm::Flex,
+        PhysicalAxis::Horizontal,
+    );
+    fri04_c04_flex_dispatch_assert_error(
+        container_style(),
+        NodeInput {
+            position: Position::Absolute,
+            size: Size::new(PreferredSize::AUTO, PreferredSize::MAX_CONTENT),
+            ..NodeInput::default()
+        },
+        SizingProperty::Preferred,
+        SizingBehavior::MaxContent,
+        SizingAlgorithm::Positioned,
+        PhysicalAxis::Vertical,
+    );
+
+    let mut container_tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Flex,
+                size: Size::new(PreferredSize::STRETCH, PreferredSize::px(100.0)),
+                ..NodeInput::default()
+            },
+        );
+    let container_error = compute_flex(
+        &mut container_tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(200.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::definite(200.0)),
+        ),
+    )
+    .expect_err("flex container stretch is later-owned");
+    assert_eq!(container_error.site(), LayoutErrorSite::Node(1));
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        container_unsupported,
+    )) = container_error.kind()
+    else {
+        panic!("expected flex container sizing capability");
+    };
+    assert_eq!(container_unsupported.algorithm(), SizingAlgorithm::Flex);
+
+    struct FlexRootTree {
+        style: NodeInput,
+    }
+
+    impl Traverse for FlexRootTree {
+        type Node = u32;
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Empty<u32>;
+
+        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+            std::iter::empty()
+        }
+
+        fn child_count(&self, _node: Self::Node) -> usize {
+            0
+        }
+
+        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+            panic!("flex root has no children")
+        }
+    }
+
+    impl LayoutTree for FlexRootTree {
+        type MeasureError = core::convert::Infallible;
+
+        fn node_input(&self, _node: Self::Node) -> &NodeInput {
+            &self.style
+        }
+
+        fn layout_input(&self, _node: Self::Node) -> LayoutInput {
+            LayoutInput::box_input(self.style.clone())
+        }
+    }
+
+    let root = FlexRootTree {
+        style: NodeInput {
+            display: Display::Flex,
+            min_size: Size::new(MinSize::AUTO, MinSize::STRETCH),
+            ..NodeInput::default()
+        },
+    };
+    let root_error = compute_layout(
+        &root,
+        0,
+        LayoutRootRequest::viewport(Size::splat(Available::definite(100.0)))
+            .expect("valid root request"),
+    )
+    .expect_err("flex root minimum stretch is later-owned");
+    assert_eq!(root_error.site(), LayoutErrorSite::Node(0));
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        root_unsupported,
+    )) = root_error.kind()
+    else {
+        panic!("expected flex root sizing capability");
+    };
+    assert_eq!(root_unsupported.algorithm(), SizingAlgorithm::Flex);
+    assert_eq!(root_unsupported.property(), SizingProperty::Minimum);
+    assert_eq!(root_unsupported.axis(), PhysicalAxis::Vertical);
+}
+
+#[test]
+fn fri04_c04_flex_dispatch_invalid_numeric_preserves_item_node_site() {
+    let invalid = || {
+        SizingCalculation::value(
+            LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX)
+                .expect("finite sizing coefficients"),
+        )
+    };
+    let styles = [
+        NodeInput {
+            size: Size::new(PreferredSize::calculation(invalid()), PreferredSize::AUTO),
+            ..NodeInput::default()
+        },
+        NodeInput {
+            min_size: Size::new(MinSize::calculation(invalid()), MinSize::AUTO),
+            ..NodeInput::default()
+        },
+        NodeInput {
+            max_size: Size::new(MaxSize::calculation(invalid()), MaxSize::NONE),
+            ..NodeInput::default()
+        },
+        NodeInput {
+            flex_basis: FlexBasis::calculation(invalid()),
+            ..NodeInput::default()
+        },
+    ];
+
+    for style in styles {
+        let mut tree = crate::test_support::layout_tree::OracleTree::new()
+            .children(1, [2])
+            .children(2, [])
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Flex,
+                    size: Size::new(PreferredSize::px(200.0), PreferredSize::px(200.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .style(2, style);
+        let error = compute_flex(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(200.0)),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::splat(Available::definite(200.0)),
+            ),
+        )
+        .expect_err("overflowing flex sizing calculation must fail");
+        assert_eq!(error.site(), LayoutErrorSite::Node(2));
+        assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+        assert!(matches!(
+            error.kind(),
+            LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric { value })
+                if *value == f32::INFINITY
+        ));
+    }
+}
+
+#[test]
 fn fri04_c03_flex_row_layout_consumes_nested_container_item_and_absolute_properties() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(1, [2, 3, 4, 5, 6])

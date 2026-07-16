@@ -13,11 +13,11 @@ use crate::scroll::{
     scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
 };
 use crate::sizing::{
-    DispatchedSizingRequest, SizingDispatch, dispatch_maximum_size, dispatch_minimum_size,
-    dispatch_preferred_size,
+    DispatchedSizingRequest, SizingDispatch, dispatch_flex_basis, dispatch_maximum_size,
+    dispatch_minimum_size, dispatch_preferred_size,
 };
 use crate::{CompletedLayoutBatchOf, LayoutTree};
-use crate::{MaxSizeOf, MinSizeOf, PercentageBasisOf, PreferredSizeOf};
+use crate::{FlexBasisOf, MaxSizeOf, MinSizeOf, PercentageBasisOf, PreferredSizeOf};
 
 pub type LayoutResultOf<Node, T, S, M = core::convert::Infallible> =
     Result<T, LayoutErrorOf<Node, S, M>>;
@@ -41,6 +41,13 @@ pub(crate) enum ResolvedPreferredSize<S: LayoutScalar> {
     Definite(S),
     MinContent,
     MaxContent,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ResolvedFlexBasis<S: LayoutScalar> {
+    Auto,
+    Content,
+    Definite(S),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -595,6 +602,27 @@ pub(crate) fn resolve_maximum_optional<S: LayoutScalar>(
         }
         SizingDispatch::Supported(request) => {
             resolve_dispatched_numeric(request, basis, missing_basis_is_indefinite)
+        }
+    }
+}
+
+pub(crate) fn resolve_flex_basis<S: LayoutScalar>(
+    value: &FlexBasisOf<S>,
+    axis: PhysicalAxis,
+    basis: Option<S>,
+) -> Result<ResolvedFlexBasis<S>, SizingResolutionError<S>> {
+    let percentage_basis = percentage_basis(basis);
+    match dispatch_flex_basis(value, SizingAlgorithm::Flex, axis, percentage_basis) {
+        SizingDispatch::Unsupported(unsupported) => {
+            Err(SizingResolutionError::Unsupported(unsupported))
+        }
+        SizingDispatch::Supported(DispatchedSizingRequest::Auto) => Ok(ResolvedFlexBasis::Auto),
+        SizingDispatch::Supported(DispatchedSizingRequest::Content) => {
+            Ok(ResolvedFlexBasis::Content)
+        }
+        SizingDispatch::Supported(request) => {
+            resolve_dispatched_numeric(request, percentage_basis, true)
+                .map(|value| value.map_or(ResolvedFlexBasis::Content, ResolvedFlexBasis::Definite))
         }
     }
 }

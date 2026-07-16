@@ -342,13 +342,6 @@ pub(crate) enum FlexBasisView<'a, S: LayoutScalar> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 pub(crate) enum DispatchedSizingRequest<'a, S: LayoutScalar> {
     Zero,
     Calculation(&'a SizingCalculationOf<S>),
@@ -569,13 +562,6 @@ pub(crate) fn dispatch_maximum_size<'a, S: LayoutScalar>(
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 pub(crate) fn dispatch_flex_basis<'a, S: LayoutScalar>(
     value: &'a FlexBasisOf<S>,
     algorithm: SizingAlgorithm,
@@ -776,13 +762,6 @@ const fn maximum_calc_size_basis(basis: MaxSizeCalcBasis) -> DispatchedCalcSizeB
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 const fn flex_calc_size_basis(basis: FlexBasisCalcBasis) -> DispatchedCalcSizeBasis {
     match basis {
         FlexBasisCalcBasis::Any => DispatchedCalcSizeBasis::Any,
@@ -1371,6 +1350,7 @@ impl<S: LayoutScalar> FlexBasisOf<S> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn resolve_simple_with_status(
         &self,
         basis: Option<S>,
