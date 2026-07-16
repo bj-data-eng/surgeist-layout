@@ -1370,7 +1370,8 @@ mod root_layout_oracle {
     use crate::test_support::layout_tree::OracleTree;
     use crate::test_support::oracle::inline;
     use crate::{
-        Available, Dimension, Display, NodeInput, Size, TrackComponent, compute_root, round_layout,
+        Available, Display, NodeInput, PreferredSize, Size, TrackComponent, compute_root,
+        round_layout,
     };
 
     fn assert_atomic_inline_layout_matches_oracle(display: Display) {
@@ -1383,7 +1384,7 @@ mod root_layout_oracle {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         );
@@ -1454,7 +1455,10 @@ mod root_layout_oracle {
             },
             _ => NodeInput {
                 display,
-                size: Size::new(Dimension::px(size.width), Dimension::px(size.height)),
+                size: Size::new(
+                    PreferredSize::px(size.width),
+                    PreferredSize::px(size.height),
+                ),
                 ..NodeInput::DEFAULT
             },
         }

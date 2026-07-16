@@ -168,11 +168,11 @@ pub(crate) use traits::compute_cached;
 pub(crate) use traits::{CacheAccess, Compute, Round};
 pub use traits::{LayoutTree, Traverse};
 pub use value::{
-    AspectRatio, AspectRatioOf, Available, AvailableOf, Dimension, DimensionOf,
-    FiniteScalarErrorOf, Length, LengthAuto, LengthAutoOf, LengthOf, LengthPercentageErrorOf,
-    LengthPercentageOf, LengthResolution, LengthResolutionOf, LengthResolutionStatus,
-    NonNegativeFiniteOf, NonNegativeFiniteScalarErrorOf, NumericResolutionOf, PercentageBasisOf,
-    ResolvedLengthAuto, ResolvedLengthAutoOf, UnresolvedLengthReason,
+    AspectRatio, AspectRatioOf, Available, AvailableOf, FiniteScalarErrorOf, Length, LengthAuto,
+    LengthAutoOf, LengthOf, LengthPercentageErrorOf, LengthPercentageOf, LengthResolution,
+    LengthResolutionOf, LengthResolutionStatus, NonNegativeFiniteOf,
+    NonNegativeFiniteScalarErrorOf, NumericResolutionOf, PercentageBasisOf, ResolvedLengthAuto,
+    ResolvedLengthAutoOf, UnresolvedLengthReason,
 };
 pub use value::{
     GridLine, GridSpan, GridTemplateAreaRow, GridTemplateAreas, MaxTrackSizing, MaxTrackSizingOf,

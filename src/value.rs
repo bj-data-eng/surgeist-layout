@@ -683,154 +683,6 @@ impl<S: LayoutScalar> From<LengthOf<S>> for LengthAutoOf<S> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum DimensionOf<S: LayoutScalar = DefaultScalar> {
-    Value(LengthPercentageOf<S>),
-    Fr(S),
-    Auto,
-    MinContent,
-    MaxContent,
-}
-
-pub type Dimension = DimensionOf<DefaultScalar>;
-
-impl<S: LayoutScalar> DimensionOf<S> {
-    pub const ZERO: Self = Self::Value(LengthPercentageOf::ZERO);
-    pub const AUTO: Self = Self::Auto;
-    pub const MIN_CONTENT: Self = Self::MinContent;
-    pub const MAX_CONTENT: Self = Self::MaxContent;
-
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) fn px(value: S) -> Self {
-        Self::Value(LengthPercentageOf::px(value).expect("trusted crate dimension px literal"))
-    }
-
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) fn percent(value: S) -> Self {
-        Self::Value(
-            LengthPercentageOf::from_percent_fraction(value)
-                .expect("trusted crate dimension percent literal"),
-        )
-    }
-
-    #[must_use]
-    pub const fn value(value: LengthPercentageOf<S>) -> Self {
-        Self::Value(value)
-    }
-
-    #[must_use]
-    pub const fn fr(value: S) -> Self {
-        Self::Fr(value)
-    }
-
-    #[must_use]
-    pub const fn auto() -> Self {
-        Self::Auto
-    }
-
-    #[must_use]
-    pub fn depends_on_basis(self) -> bool {
-        match self {
-            Self::Value(value) => value.depends_on_basis(),
-            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => false,
-        }
-    }
-
-    #[must_use]
-    pub fn resolve_against(self, basis: PercentageBasisOf<S>) -> LengthResolutionOf<S> {
-        self.resolve_with_status_against(basis)
-    }
-
-    #[must_use]
-    pub fn resolve(self, basis: S) -> LengthResolutionOf<S> {
-        match PercentageBasisOf::definite(basis) {
-            Ok(basis) => self.resolve_against(basis),
-            Err(error) => LengthResolutionOf::invalid_numeric(
-                invalid_basis_value(error),
-                self.depends_on_basis(),
-            ),
-        }
-    }
-
-    #[must_use]
-    pub fn resolve_optional_against(self, basis: PercentageBasisOf<S>) -> Option<S> {
-        match self {
-            Self::Value(value) => resolution_optional(value.resolve_against(basis)),
-            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => None,
-        }
-    }
-
-    #[must_use]
-    pub fn resolve_optional(self, basis: Option<S>) -> Option<S> {
-        match optional_basis(basis) {
-            Ok(basis) => self.resolve_optional_against(basis),
-            Err(_) => None,
-        }
-    }
-
-    #[must_use]
-    pub fn resolve_with_status_against(self, basis: PercentageBasisOf<S>) -> LengthResolutionOf<S> {
-        match self {
-            Self::Value(value) => length_resolution_against(value, basis),
-            Self::Fr(_) | Self::Auto | Self::MinContent | Self::MaxContent => {
-                LengthResolutionOf::non_numeric()
-            }
-        }
-    }
-
-    #[must_use]
-    pub fn resolve_with_status(self, basis: Option<S>) -> LengthResolutionOf<S> {
-        match optional_basis(basis) {
-            Ok(basis) => self.resolve_with_status_against(basis),
-            Err(error) => LengthResolutionOf::invalid_numeric(
-                invalid_basis_value(error),
-                self.depends_on_basis(),
-            ),
-        }
-    }
-
-    #[must_use]
-    pub const fn is_auto(self) -> bool {
-        matches!(self, Self::Auto)
-    }
-
-    #[must_use]
-    pub const fn is_min_content(self) -> bool {
-        matches!(self, Self::MinContent)
-    }
-
-    #[must_use]
-    pub const fn is_max_content(self) -> bool {
-        matches!(self, Self::MaxContent)
-    }
-}
-
-impl<S: LayoutScalar> Default for DimensionOf<S> {
-    fn default() -> Self {
-        Self::ZERO
-    }
-}
-
-impl<S: LayoutScalar> From<LengthOf<S>> for DimensionOf<S> {
-    fn from(value: LengthOf<S>) -> Self {
-        match value {
-            LengthOf::Normal => Self::ZERO,
-            LengthOf::Value(value) => Self::Value(value),
-        }
-    }
-}
-
-impl<S: LayoutScalar> From<LengthAutoOf<S>> for DimensionOf<S> {
-    fn from(value: LengthAutoOf<S>) -> Self {
-        match value {
-            LengthAutoOf::Value(value) => Self::Value(value),
-            LengthAutoOf::Auto => Self::Auto,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TrackFlexFactorOf<S: LayoutScalar = DefaultScalar> {
     value: S,
 }
@@ -1055,11 +907,6 @@ impl<S: LayoutScalar> From<LengthPercentageOf<S>> for MaxTrackSizingOf<S> {
 /// ```compile_fail
 /// use surgeist_layout::TrackSizing;
 /// let _ = TrackSizing::fr(1.0);
-/// ```
-///
-/// ```compile_fail
-/// use surgeist_layout::{Dimension, TrackSizing};
-/// let _: TrackSizing = Dimension::AUTO.into();
 /// ```
 ///
 /// ```compile_fail
@@ -1462,9 +1309,8 @@ fn track_sizing_components_from_tracks<S: LayoutScalar>(
 #[cfg(test)]
 mod value_tests {
     use super::{
-        DimensionOf, LengthAutoOf, LengthOf, LengthPercentageOf, LengthResolutionStatus,
-        MaxTrackSizingOf, MinTrackSizingOf, NumericResolutionOf, PercentageBasisOf,
-        TrackFlexFactorOf, TrackSizingOf,
+        LengthAutoOf, LengthOf, LengthPercentageOf, LengthResolutionStatus, MaxTrackSizingOf,
+        MinTrackSizingOf, NumericResolutionOf, PercentageBasisOf, TrackFlexFactorOf, TrackSizingOf,
     };
     use crate::SizingCalculationOf;
 
@@ -1743,7 +1589,6 @@ mod value_tests {
     fn value_raw_optional_resolution_rejects_invalid_bases_before_success() {
         let px_only = LengthOf::<f32>::px(12.0);
         let auto = LengthAutoOf::<f32>::AUTO;
-        let dimension = DimensionOf::<f32>::px(12.0);
 
         assert_eq!(px_only.resolve_optional(Some(f32::NAN)), None);
         assert!(matches!(
@@ -1755,10 +1600,6 @@ mod value_tests {
             LengthResolutionStatus::InvalidNumeric {
                 value: f32::INFINITY,
             }
-        );
-        assert_eq!(
-            dimension.resolve(-1.0).status(),
-            LengthResolutionStatus::InvalidNumeric { value: -1.0 }
         );
     }
 

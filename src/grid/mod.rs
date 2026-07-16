@@ -1,10 +1,10 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
-    ComputeInputOf, ComputeOutputOf, DefaultScalar, DimensionOf, Direction, Display, Edges,
-    GridAutoFlow, GridPlacement, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf,
-    LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
-    LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf,
-    NodeOutputOf, Overflow, Point, Position, RequestedAxis, RunMode, Scalar, Size, SizingMode,
+    ComputeInputOf, ComputeOutputOf, DefaultScalar, Direction, Display, Edges, GridAutoFlow,
+    GridPlacement, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInternalInvariant,
+    LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
+    LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf, NodeOutputOf,
+    Overflow, Point, Position, PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size, SizingMode,
     TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
 use crate::compute::{EdgesResultExt, SizeResultExt};
@@ -148,7 +148,7 @@ fn intrinsic_container_available<S: LayoutScalar>(
     sizing_flow_axes: crate::geometry::FlowAxes,
     available: Size<AvailableOf<S>>,
 ) -> LogicalSizeOf<AvailableOf<S>> {
-    let style_size = sizing_flow_axes.logical_size(style.size);
+    let style_size = sizing_flow_axes.logical_size(style.size.clone());
     let available = sizing_flow_axes.logical_size(available);
     let max_size = sizing_flow_axes.logical_size(constants.node_max_size);
     let content_box_inset_size =
@@ -169,7 +169,7 @@ fn intrinsic_container_available<S: LayoutScalar>(
 }
 
 fn intrinsic_available_for_dimension<S: LayoutScalar>(
-    dimension: DimensionOf<S>,
+    dimension: PreferredSizeOf<S>,
 ) -> Option<AvailableOf<S>> {
     if dimension.is_min_content() {
         Some(AvailableOf::MIN_CONTENT)
@@ -354,7 +354,7 @@ where
             .block
             .max(cyclic_percent_content_size.block),
     );
-    let logical_style_size = sizing_flow_axes.logical_size(style.size);
+    let logical_style_size = sizing_flow_axes.logical_size(style.size.clone());
     let logical_node_inner_size = sizing_flow_axes.logical_size(constants.node_inner_size);
     let logical_available_inner_size =
         sizing_flow_axes.logical_size(constants.available_inner_size);
@@ -453,7 +453,7 @@ fn layout_percent_track_floor<S: LayoutScalar>(
 
 struct IntrinsicSizingAxisInput<'a, S: LayoutScalar = Scalar> {
     run_mode: RunMode,
-    style_size: DimensionOf<S>,
+    style_size: PreferredSizeOf<S>,
     content_size: S,
     track_content_size: S,
     definite_size: Option<S>,
@@ -2051,8 +2051,11 @@ impl<S: LayoutScalar> Constants<S> {
         let style_size = if input.sizing_mode() == SizingMode::InherentSize {
             style
                 .size
+                .clone()
                 .zip_map(input.parent(), |dimension, basis| {
-                    resolve_dimension(dimension, basis)
+                    dimension
+                        .resolve_simple_with_status(basis)
+                        .and_then(resolution_optional)
                 })
                 .transpose_with_node(tree, node)?
                 .apply_aspect_ratio(style.aspect_ratio)
@@ -2062,16 +2065,22 @@ impl<S: LayoutScalar> Constants<S> {
         };
         let min_size = style
             .min_size
+            .clone()
             .zip_map(input.parent(), |dimension, basis| {
-                resolve_dimension(dimension, basis)
+                dimension
+                    .resolve_simple_with_status(basis)
+                    .and_then(resolution_optional)
             })
             .transpose_with_node(tree, node)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let max_size = style
             .max_size
+            .clone()
             .zip_map(input.parent(), |dimension, basis| {
-                resolve_dimension(dimension, basis)
+                dimension
+                    .resolve_simple_with_status(basis)
+                    .and_then(resolution_optional)
             })
             .transpose_with_node(tree, node)?
             .apply_aspect_ratio(style.aspect_ratio)
@@ -2125,13 +2134,6 @@ fn resolve_auto_optional<S: LayoutScalar>(
     basis: Option<S>,
 ) -> Result<Option<S>, LengthResolutionStatus<S>> {
     resolution_optional(length.resolve_with_status(basis))
-}
-
-fn resolve_dimension<S: LayoutScalar>(
-    dimension: DimensionOf<S>,
-    basis: Option<S>,
-) -> Result<Option<S>, LengthResolutionStatus<S>> {
-    resolution_optional(dimension.resolve_with_status(basis))
 }
 
 fn resolution_or_zero<S: LayoutScalar>(

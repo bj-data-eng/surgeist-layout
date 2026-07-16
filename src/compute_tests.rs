@@ -1,6 +1,7 @@
 use crate::*;
 use crate::{
-    Available, ComputeInput, Dimension, Edges, Length, LengthPercentageOf, NodeInput, RequestedAxis,
+    Available, ComputeInput, Edges, Length, LengthPercentageOf, NodeInput, PreferredSize,
+    RequestedAxis,
 };
 
 fn invalid_numeric_affine_value() -> LengthPercentageOf {
@@ -271,7 +272,7 @@ fn compute_input_leaf_constructors_retain_non_horizontal_flow_for_f64() {
 fn leaf_affine_width_resolves_against_parent_basis() {
     let width = LengthPercentageOf::from_coefficients(10.0, 0.5).expect("finite coefficients");
     let style = NodeInput {
-        size: Size::new(Dimension::value(width), Dimension::AUTO),
+        size: Size::new(PreferredSize::value(width), PreferredSize::AUTO),
         ..NodeInput::default()
     };
     let input = ComputeInput::for_child(
@@ -296,7 +297,7 @@ fn leaf_affine_width_resolves_against_parent_basis() {
 fn public_leaf_affine_px_width_needs_no_resolver() {
     let width = LengthPercentageOf::px(10.0).expect("finite px");
     let style = NodeInput {
-        size: Size::new(Dimension::value(width), Dimension::AUTO),
+        size: Size::new(PreferredSize::value(width), PreferredSize::AUTO),
         ..NodeInput::default()
     };
     let input = ComputeInput::for_child(
@@ -321,8 +322,8 @@ fn public_leaf_affine_px_width_needs_no_resolver() {
 fn public_leaf_invalid_numeric_affine_width_returns_typed_error() {
     let style = NodeInput {
         size: Size::new(
-            Dimension::value(invalid_numeric_affine_value()),
-            Dimension::AUTO,
+            PreferredSize::value(invalid_numeric_affine_value()),
+            PreferredSize::AUTO,
         ),
         ..NodeInput::default()
     };
@@ -368,10 +369,10 @@ fn public_leaf_invalid_numeric_affine_padding_returns_typed_error() {
 fn public_f64_leaf_invalid_numeric_affine_width_returns_typed_error() {
     let style = NodeInputOf::<f64> {
         size: Size::new(
-            DimensionOf::value(
+            PreferredSizeOf::value(
                 LengthPercentageOf::from_coefficients(f64::MAX, 1.0).expect("finite coefficients"),
             ),
-            DimensionOf::AUTO,
+            PreferredSizeOf::AUTO,
         ),
         ..NodeInputOf::default()
     };
@@ -483,8 +484,8 @@ fn public_f64_leaf_intrinsic_percent_padding_is_valid_without_basis() {
 fn assert_public_leaf_basis_independent_width_is_valid<S: LayoutScalar>() {
     let style = NodeInputOf::<S> {
         size: Size::new(
-            DimensionOf::value(LengthPercentageOf::px(S::from_f64(10.0)).expect("finite px")),
-            DimensionOf::AUTO,
+            PreferredSizeOf::value(LengthPercentageOf::px(S::from_f64(10.0)).expect("finite px")),
+            PreferredSizeOf::AUTO,
         ),
         ..NodeInputOf::default()
     };

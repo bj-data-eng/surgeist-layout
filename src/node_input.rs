@@ -1,7 +1,7 @@
 use super::{
-    AspectRatioOf, DefaultScalar, DimensionOf, Edges, GridLine, GridSpan, GridTemplateAreas,
-    LayoutScalar, LengthAutoOf, LengthOf, NonNegativeFiniteScalarErrorOf, Point, Size,
-    TrackComponentOf,
+    AspectRatioOf, DefaultScalar, Edges, FlexBasisOf, GridLine, GridSpan, GridTemplateAreas,
+    LayoutScalar, LengthAutoOf, LengthOf, MaxSizeOf, MinSizeOf, NonNegativeFiniteScalarErrorOf,
+    Point, PreferredSizeOf, Size, TrackComponentOf,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -968,9 +968,9 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub float: Float,
     pub clear: Clear,
     pub inset: Edges<LengthAutoOf<S>>,
-    pub size: Size<DimensionOf<S>>,
-    pub min_size: Size<DimensionOf<S>>,
-    pub max_size: Size<DimensionOf<S>>,
+    pub size: Size<PreferredSizeOf<S>>,
+    pub min_size: Size<MinSizeOf<S>>,
+    pub max_size: Size<MaxSizeOf<S>>,
     pub aspect_ratio: Option<AspectRatioOf<S>>,
     pub margin: Edges<LengthAutoOf<S>>,
     pub padding: Edges<LengthOf<S>>,
@@ -984,7 +984,7 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub gap: Size<LengthOf<S>>,
     pub flex_direction: FlexDirection,
     pub flex_wrap: FlexWrap,
-    pub flex_basis: DimensionOf<S>,
+    pub flex_basis: FlexBasisOf<S>,
     pub flex_grow: FlexGrowOf<S>,
     pub flex_shrink: FlexShrinkOf<S>,
     pub grid_template_columns: Vec<TrackComponentOf<S>>,
@@ -999,6 +999,31 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub raw_grid_column: RawGridPlacement,
     pub raw_grid_row: RawGridPlacement,
 }
+
+/// Property sizing fields use distinct public domains.
+///
+/// ```compile_fail
+/// use surgeist_layout::{MaxSize, NodeInput, PreferredSize, Size};
+/// let _ = NodeInput {
+///     size: Size::splat(MaxSize::NONE),
+///     ..NodeInput::DEFAULT
+/// };
+/// let _: PreferredSize = MaxSize::NONE;
+/// ```
+///
+/// The removed broad sizing family has no compatibility reexport.
+///
+/// ```compile_fail
+/// use surgeist_layout::Dimension;
+/// let _ = Dimension::AUTO;
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::DimensionOf;
+/// type Legacy = DimensionOf<f64>;
+/// let _: Legacy = Legacy::AUTO;
+/// ```
+const _: () = ();
 
 pub type NodeInput = NodeInputOf<DefaultScalar>;
 
@@ -1022,9 +1047,9 @@ impl NodeInputOf<DefaultScalar> {
         float: Float::None,
         clear: Clear::None,
         inset: Edges::all(LengthAutoOf::AUTO),
-        size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
-        min_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
-        max_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+        size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
+        min_size: Size::new(MinSizeOf::AUTO, MinSizeOf::AUTO),
+        max_size: Size::new(MaxSizeOf::NONE, MaxSizeOf::NONE),
         aspect_ratio: None,
         margin: Edges::all(LengthAutoOf::ZERO),
         padding: Edges::all(LengthOf::ZERO),
@@ -1038,7 +1063,7 @@ impl NodeInputOf<DefaultScalar> {
         gap: Size::new(LengthOf::NORMAL, LengthOf::NORMAL),
         flex_direction: FlexDirection::Row,
         flex_wrap: FlexWrap::NoWrap,
-        flex_basis: DimensionOf::AUTO,
+        flex_basis: FlexBasisOf::AUTO,
         flex_grow: FlexGrowOf::ZERO,
         flex_shrink: FlexShrinkOf::ONE,
         grid_template_columns: Vec::new(),
@@ -1076,9 +1101,9 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             float: Float::None,
             clear: Clear::None,
             inset: Edges::all(LengthAutoOf::AUTO),
-            size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
-            min_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
-            max_size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+            size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
+            min_size: Size::new(MinSizeOf::AUTO, MinSizeOf::AUTO),
+            max_size: Size::new(MaxSizeOf::NONE, MaxSizeOf::NONE),
             aspect_ratio: None,
             margin: Edges::all(LengthAutoOf::ZERO),
             padding: Edges::all(LengthOf::ZERO),
@@ -1092,7 +1117,7 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             gap: Size::new(LengthOf::NORMAL, LengthOf::NORMAL),
             flex_direction: FlexDirection::Row,
             flex_wrap: FlexWrap::NoWrap,
-            flex_basis: DimensionOf::AUTO,
+            flex_basis: FlexBasisOf::AUTO,
             flex_grow: FlexGrowOf::ZERO,
             flex_shrink: FlexShrinkOf::ONE,
             grid_template_columns: Vec::new(),
@@ -1107,6 +1132,77 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             raw_grid_column: RawGridPlacement::AUTO,
             raw_grid_row: RawGridPlacement::AUTO,
         }
+    }
+}
+
+#[cfg(test)]
+mod property_field_migration_tests {
+    use super::*;
+    use crate::{
+        CalcSizeCalculation, FlexBasisOf, LengthPercentageOf, LengthResolutionStatus, MaxSizeOf,
+        MinSizeOf, PreferredSizeCalcBasis, PreferredSizeOf, SizingCalculation,
+    };
+
+    fn assert_field_types<S: LayoutScalar>(input: &NodeInputOf<S>) {
+        let _: &Size<PreferredSizeOf<S>> = &input.size;
+        let _: &Size<MinSizeOf<S>> = &input.min_size;
+        let _: &Size<MaxSizeOf<S>> = &input.max_size;
+        let _: &FlexBasisOf<S> = &input.flex_basis;
+    }
+
+    fn assert_generic_defaults<S: LayoutScalar>() {
+        let input = NodeInputOf::<S>::default();
+        assert_field_types(&input);
+        assert_eq!(
+            input.size,
+            Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO)
+        );
+        assert_eq!(input.min_size, Size::new(MinSizeOf::AUTO, MinSizeOf::AUTO));
+        assert_eq!(input.max_size, Size::new(MaxSizeOf::NONE, MaxSizeOf::NONE));
+        assert_eq!(input.flex_basis, FlexBasisOf::AUTO);
+    }
+
+    #[test]
+    fn property_field_migration_default_scalar_uses_exact_domains_and_initial_values() {
+        let input = &NodeInput::DEFAULT;
+        assert_field_types(input);
+        assert_eq!(
+            input.size,
+            Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO)
+        );
+        assert_eq!(input.min_size, Size::new(MinSizeOf::AUTO, MinSizeOf::AUTO));
+        assert_eq!(input.max_size, Size::new(MaxSizeOf::NONE, MaxSizeOf::NONE));
+        assert_eq!(input.flex_basis, FlexBasisOf::AUTO);
+    }
+
+    #[test]
+    fn property_field_migration_generic_scalar_uses_exact_domains_and_initial_values() {
+        assert_generic_defaults::<f32>();
+        assert_generic_defaults::<f64>();
+    }
+
+    #[test]
+    fn property_field_migration_later_states_keep_explicit_unsupported_boundary() {
+        let nested =
+            SizingCalculation::min(vec![SizingCalculation::value(LengthPercentageOf::ZERO)])
+                .expect("nonempty sizing calculation");
+        let preferred = PreferredSizeOf::calculation(nested);
+        assert_eq!(
+            preferred.resolve_simple_with_status(None),
+            Err(LengthResolutionStatus::NonNumeric),
+        );
+
+        let calc_size =
+            PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Auto, CalcSizeCalculation::size())
+                .expect("valid preferred calc-size");
+        assert_eq!(
+            calc_size.resolve_simple_with_status(None),
+            Err(LengthResolutionStatus::NonNumeric),
+        );
+        assert_eq!(
+            FlexBasisOf::<f32>::CONTENT.resolve_simple_with_status(None),
+            Err(LengthResolutionStatus::NonNumeric),
+        );
     }
 }
 

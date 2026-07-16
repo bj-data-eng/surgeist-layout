@@ -5,9 +5,9 @@ use super::oracle::grid::{
 };
 use crate::test_support::layout_tree::OracleTree;
 use crate::{
-    AlignContent, AlignItems, Available, Compute, ComputeInput, ComputeOutput, Dimension,
-    Direction, Display, Edges, GridAutoFlow, GridPlacement, Length, LengthAuto, NodeInput,
-    NodeOutput, Overflow, Point, Position, RequestedAxis, RunMode, Size, SizingMode, SubgridTrack,
+    AlignContent, AlignItems, Available, Compute, ComputeInput, ComputeOutput, Direction, Display,
+    Edges, GridAutoFlow, GridPlacement, Length, LengthAuto, NodeInput, NodeOutput, Overflow, Point,
+    Position, PreferredSize, RequestedAxis, RunMode, Size, SizingMode, SubgridTrack,
     TrackComponent, WritingMode, compute_grid, round_layout,
 };
 
@@ -36,7 +36,7 @@ impl ComparisonTolerance {
 pub struct GridLayoutComparison {
     root_display: Display,
     container: Size<f32>,
-    root_size: Option<Size<Dimension>>,
+    root_size: Option<Size<PreferredSize>>,
     columns: Vec<TrackComponent>,
     rows: Vec<TrackComponent>,
     gap: Size<f32>,
@@ -56,7 +56,7 @@ pub struct GridLayoutNode {
     measurement: Option<Size<f32>>,
     placement: ChildPlacement,
     display: Display,
-    size: Size<Dimension>,
+    size: Size<PreferredSize>,
     justify_self: Option<AlignItems>,
     align_self: Option<AlignItems>,
     margin: Edges<LengthAuto>,
@@ -127,7 +127,7 @@ impl GridLayoutComparison {
         self
     }
 
-    pub fn root_size(mut self, size: Size<Dimension>) -> Self {
+    pub fn root_size(mut self, size: Size<PreferredSize>) -> Self {
         self.root_size = Some(size);
         self
     }
@@ -392,10 +392,10 @@ impl GridLayoutComparison {
             1,
             NodeInput {
                 display: self.root_display,
-                size: self.root_size.unwrap_or_else(|| {
+                size: self.root_size.clone().unwrap_or_else(|| {
                     Size::new(
-                        Dimension::px(self.container.width),
-                        Dimension::px(self.container.height),
+                        PreferredSize::px(self.container.width),
+                        PreferredSize::px(self.container.height),
                     )
                 }),
                 grid_template_columns: self.columns.clone(),
@@ -488,7 +488,7 @@ impl GridLayoutNode {
         self
     }
 
-    pub fn size(mut self, size: Size<Dimension>) -> Self {
+    pub fn size(mut self, size: Size<PreferredSize>) -> Self {
         self.size = size;
         self
     }
@@ -611,7 +611,7 @@ impl GridLayoutNode {
             writing_mode: self.writing_mode,
             overflow: self.overflow,
             position: self.position,
-            size: self.size,
+            size: self.size.clone(),
             justify_self: self.justify_self,
             align_self: self.align_self,
             margin: self.margin,

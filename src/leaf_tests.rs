@@ -492,7 +492,7 @@ fn leaf_uses_validated_aspect_ratio() {
         Size::new(Available::definite(120.0), Available::MAX_CONTENT),
     );
     let style = NodeInput {
-        size: Size::new(Dimension::px(60.0), Dimension::AUTO),
+        size: Size::new(PreferredSize::px(60.0), PreferredSize::AUTO),
         aspect_ratio: AspectRatio::new(2.0),
         ..NodeInput::default()
     };

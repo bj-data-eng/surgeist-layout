@@ -674,8 +674,8 @@ where
     let inline_axis = containing_flow_axes.inline_axis();
     if style.display.is_inline_level()
         || style.item_is_replaced
-        || !root_physical_axis_value(style.size, inline_axis).is_auto()
-        || !root_physical_axis_value(style.min_size, inline_axis).is_auto()
+        || !root_physical_axis_value(style.size.clone(), inline_axis).is_auto()
+        || !root_physical_axis_value(style.min_size.clone(), inline_axis).is_auto()
     {
         return Ok(Size::NONE);
     }
@@ -703,8 +703,11 @@ where
     };
     let max_size = style
         .max_size
+        .clone()
         .zip_map(percentage_parent, |dimension, basis| {
-            resolve_dimension_fallible(dimension, basis)
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional_fallible)
         })
         .transpose_with_node(tree, node)?
         .add_optional(box_sizing_adjustment);
@@ -715,7 +718,7 @@ where
     ))
 }
 
-fn root_physical_axis_value<T: Copy>(size: Size<T>, axis: PhysicalAxis) -> T {
+fn root_physical_axis_value<T>(size: Size<T>, axis: PhysicalAxis) -> T {
     match axis {
         PhysicalAxis::Horizontal => size.width,
         PhysicalAxis::Vertical => size.height,
@@ -953,13 +956,12 @@ struct LeafResolvedValues<S: LayoutScalar> {
     aspect_ratio: Option<AspectRatioOf<S>>,
 }
 
-fn resolve_leaf_values<S, E>(
+fn resolve_leaf_values<S>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
-    resolve_auto: impl Fn(super::LengthAutoOf<S>, Option<S>) -> Result<S, E>,
-    resolve_length: impl Fn(super::LengthOf<S>, Option<S>) -> Result<S, E>,
-    resolve_dimension: impl Fn(super::DimensionOf<S>, Option<S>) -> Result<Option<S>, E>,
-) -> Result<LeafResolvedValues<S>, E>
+    resolve_auto: impl Fn(super::LengthAutoOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
+    resolve_length: impl Fn(super::LengthOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
+) -> Result<LeafResolvedValues<S>, LengthResolutionStatus<S>>
 where
     S: LayoutScalar,
 {
@@ -989,23 +991,35 @@ where
     let (node_size, node_min_size, node_max_size, aspect_ratio) = match input.sizing_mode() {
         SizingMode::ContentSize => (input.known(), Size::NONE, Size::NONE, None),
         SizingMode::InherentSize => {
-            let style_size =
-                transpose_leaf_size(style.size.zip_map(input.parent(), |dimension, basis| {
-                    resolve_dimension(dimension, basis)
-                }))?
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment);
-            let style_min_size =
-                transpose_leaf_size(style.min_size.zip_map(input.parent(), |dimension, basis| {
-                    resolve_dimension(dimension, basis)
-                }))?
-                .apply_aspect_ratio(style.aspect_ratio)
-                .add_optional(box_sizing_adjustment);
-            let style_max_size =
-                transpose_leaf_size(style.max_size.zip_map(input.parent(), |dimension, basis| {
-                    resolve_dimension(dimension, basis)
-                }))?
-                .add_optional(box_sizing_adjustment);
+            let style_size = transpose_leaf_size(style.size.clone().zip_map(
+                input.parent(),
+                |dimension, basis| {
+                    dimension
+                        .resolve_simple_with_status(basis)
+                        .and_then(|resolution| resolve_leaf_optional(input, resolution))
+                },
+            ))?
+            .apply_aspect_ratio(style.aspect_ratio)
+            .add_optional(box_sizing_adjustment);
+            let style_min_size = transpose_leaf_size(style.min_size.clone().zip_map(
+                input.parent(),
+                |dimension, basis| {
+                    dimension
+                        .resolve_simple_with_status(basis)
+                        .and_then(|resolution| resolve_leaf_optional(input, resolution))
+                },
+            ))?
+            .apply_aspect_ratio(style.aspect_ratio)
+            .add_optional(box_sizing_adjustment);
+            let style_max_size = transpose_leaf_size(style.max_size.clone().zip_map(
+                input.parent(),
+                |dimension, basis| {
+                    dimension
+                        .resolve_simple_with_status(basis)
+                        .and_then(|resolution| resolve_leaf_optional(input, resolution))
+                },
+            ))?
+            .add_optional(box_sizing_adjustment);
 
             (
                 input.known().or(style_size),
@@ -1039,7 +1053,6 @@ where
         style,
         |length, basis| resolve_leaf_auto(input, length, basis),
         |length, basis| resolve_leaf_length(input, length, basis),
-        |dimension, basis| resolve_leaf_dimension(input, dimension, basis),
     )
 }
 
@@ -1372,17 +1385,6 @@ where
     resolution_or_zero_fallible(resolution)
 }
 
-fn resolve_leaf_dimension<S>(
-    input: ComputeInputOf<S>,
-    dimension: super::DimensionOf<S>,
-    basis: Option<S>,
-) -> Result<Option<S>, LengthResolutionStatus<S>>
-where
-    S: LayoutScalar,
-{
-    resolve_leaf_optional(input, dimension.resolve_with_status(basis))
-}
-
 fn resolve_leaf_optional<S>(
     input: ComputeInputOf<S>,
     resolution: LengthResolutionOf<S>,
@@ -1397,16 +1399,6 @@ where
     }
 
     resolution_optional_fallible(resolution)
-}
-
-fn resolve_dimension_fallible<S>(
-    dimension: super::DimensionOf<S>,
-    basis: Option<S>,
-) -> Result<Option<S>, LengthResolutionStatus<S>>
-where
-    S: LayoutScalar,
-{
-    resolution_optional_fallible(dimension.resolve_with_status(basis))
 }
 
 fn resolution_or_zero_fallible<S: LayoutScalar>(

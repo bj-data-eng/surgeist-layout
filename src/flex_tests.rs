@@ -29,7 +29,7 @@ where
                     display: Display::Flex,
                     writing_mode: WritingMode::VerticalLr,
                     direction: Direction::Ltr,
-                    size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+                    size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
                     ..NodeInputOf::default()
                 },
             )
@@ -39,8 +39,8 @@ where
                 NodeInputOf {
                     position: Position::Absolute,
                     size: Size::new(
-                        DimensionOf::px(S::from_f64(30.0)),
-                        DimensionOf::px(S::from_f64(12.0)),
+                        PreferredSizeOf::px(S::from_f64(30.0)),
+                        PreferredSizeOf::px(S::from_f64(12.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -964,7 +964,7 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             padding: Edges::all(Length::px(5.0)),
             border: Edges::all(Length::px(1.0)),
             gap: Size::new(Length::px(10.0), Length::ZERO),
@@ -974,14 +974,14 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(30.0), Dimension::px(30.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(30.0)),
             ..NodeInput::default()
         },
     );
@@ -1042,7 +1042,7 @@ fn f64_flex_layout_preserves_fractional_growth() {
             0,
             NodeInputOf::<f64> {
                 display: Display::Flex,
-                size: Size::new(DimensionOf::px(container_width), DimensionOf::AUTO),
+                size: Size::new(PreferredSizeOf::px(container_width), PreferredSizeOf::AUTO),
                 ..NodeInputOf::<f64>::default()
             },
         )
@@ -1051,7 +1051,7 @@ fn f64_flex_layout_preserves_fractional_growth() {
             NodeInputOf::<f64> {
                 display: Display::Block,
                 flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
-                size: Size::new(DimensionOf::px(20.125), DimensionOf::px(10.0)),
+                size: Size::new(PreferredSizeOf::px(20.125), PreferredSizeOf::px(10.0)),
                 ..NodeInputOf::<f64>::default()
             },
         )
@@ -1060,7 +1060,7 @@ fn f64_flex_layout_preserves_fractional_growth() {
             NodeInputOf::<f64> {
                 display: Display::Block,
                 flex_grow: FlexGrowOf::try_new(3.0).unwrap(),
-                size: Size::new(DimensionOf::px(20.125), DimensionOf::px(10.0)),
+                size: Size::new(PreferredSizeOf::px(20.125), PreferredSizeOf::px(10.0)),
                 ..NodeInputOf::<f64>::default()
             },
         );
@@ -1123,7 +1123,7 @@ fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panickin
             1,
             NodeInput {
                 display: Display::Flex,
-                size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
                 ..NodeInput::default()
             },
         )
@@ -1135,7 +1135,7 @@ fn flex_margin_resolution_handles_invalid_affine_numeric_result_without_panickin
                     left: LengthAuto::value(invalid_margin),
                     ..Edges::all(LengthAuto::ZERO)
                 },
-                size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
                 ..NodeInput::default()
             },
         )
@@ -1227,7 +1227,7 @@ fn flex_content_size_includes_visible_child_overflow_content() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -1338,7 +1338,7 @@ fn flex_final_content_size_uses_rerun_output() {
         0,
         NodeInput {
             display: Display::Flex,
-            size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -1437,7 +1437,7 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1449,7 +1449,7 @@ fn flex_relative_child_inset_offsets_final_layout_location() {
                 top: LengthAuto::px(3.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -1536,7 +1536,7 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1548,7 +1548,7 @@ fn flex_relative_child_trailing_inset_offsets_negative() {
                 bottom: LengthAuto::px(2.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -1631,7 +1631,7 @@ fn flex_compute_size_short_circuits_when_container_size_is_definite() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1722,14 +1722,14 @@ fn flex_compute_size_measures_children_without_perform_layout() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -1817,7 +1817,7 @@ fn flex_row_auto_main_item_uses_content_sizing_for_base_size() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(50.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -1921,7 +1921,7 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
@@ -2032,7 +2032,7 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
         1,
         NodeInput {
             flex_direction: FlexDirection::Column,
-            size: Size::new(Dimension::px(20.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
@@ -2041,9 +2041,9 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Visible, Overflow::Hidden),
-            flex_basis: Dimension::px(0.0),
+            flex_basis: FlexBasis::px(0.0),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             aspect_ratio: AspectRatio::new(1.0),
             ..NodeInput::default()
         },
@@ -2146,7 +2146,7 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
         1,
         NodeInput {
             flex_direction: FlexDirection::Column,
-            size: Size::new(Dimension::px(20.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
@@ -2155,9 +2155,9 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Clip),
-            flex_basis: Dimension::px(0.0),
+            flex_basis: FlexBasis::px(0.0),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             aspect_ratio: AspectRatio::new(1.0),
             ..NodeInput::default()
         },
@@ -2250,8 +2250,8 @@ fn flex_compute_size_uses_definite_min_max_without_measuring_children() {
     tree.styles.insert(
         1,
         NodeInput {
-            min_size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
-            max_size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            min_size: Size::new(MinSize::px(100.0), MinSize::px(40.0)),
+            max_size: Size::new(MaxSize::px(100.0), MaxSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2350,14 +2350,14 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -2365,7 +2365,7 @@ fn flex_display_none_child_gets_zero_layout_and_hidden_input() {
         3,
         NodeInput {
             display: Display::None,
-            size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -2462,7 +2462,7 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
@@ -2471,7 +2471,7 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(0.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(0.0), PreferredSize::px(10.0)),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
@@ -2562,7 +2562,7 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
         1,
         NodeInput {
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
@@ -2571,7 +2571,7 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -2658,14 +2658,14 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(7.0).unwrap(),
             ..NodeInput::default()
@@ -2764,14 +2764,14 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(25.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(25.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -2784,7 +2784,7 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
                 top: LengthAuto::px(9.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(12.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(12.0)),
             overflow: Point::new(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
@@ -2884,7 +2884,7 @@ fn flex_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(400.0), Dimension::px(300.0)),
+            size: Size::new(PreferredSize::px(400.0), PreferredSize::px(300.0)),
             ..NodeInput::default()
         },
     );
@@ -2989,7 +2989,7 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
         1,
         NodeInput {
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(400.0), Dimension::px(300.0)),
+            size: Size::new(PreferredSize::px(400.0), PreferredSize::px(300.0)),
             ..NodeInput::default()
         },
     );
@@ -3003,7 +3003,7 @@ fn flex_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
                 top: LengthAuto::percent(0.05),
                 bottom: LengthAuto::AUTO,
             },
-            size: Size::new(Dimension::percent(0.4), Dimension::AUTO),
+            size: Size::new(PreferredSize::percent(0.4), PreferredSize::AUTO),
             aspect_ratio: AspectRatio::new(3.0),
             ..NodeInput::default()
         },
@@ -3125,7 +3125,7 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
             flex_direction: FlexDirection::Column,
             ..NodeInput::default()
         },
@@ -3139,15 +3139,15 @@ fn flex_absolute_child_max_height_shrinks_flex_grandchild() {
                 bottom: LengthAuto::px(20.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            max_size: Size::new(Dimension::AUTO, Dimension::px(100.0)),
+            max_size: Size::new(MaxSize::NONE, MaxSize::px(100.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
-            flex_basis: Dimension::px(150.0),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
+            flex_basis: FlexBasis::px(150.0),
             flex_shrink: FlexShrinkOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
@@ -3244,7 +3244,7 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
                 1,
                 NodeInput {
                     direction: layout_direction,
-                    size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                     flex_direction,
                     flex_wrap: FlexWrap::WrapReverse,
                     ..NodeInput::default()
@@ -3256,7 +3256,7 @@ fn flex_absolute_child_cross_alignment_honors_wrap_reverse() {
                     direction: layout_direction,
                     position: Position::Absolute,
                     align_self: Some(align_self),
-                    size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+                    size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
                     ..NodeInput::default()
                 },
             );
@@ -3373,7 +3373,7 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
             direction: Direction::Rtl,
             flex_direction: FlexDirection::Column,
             justify_content: Some(AlignContent::FlexEnd),
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             ..NodeInput::default()
         },
     );
@@ -3382,7 +3382,7 @@ fn flex_absolute_child_cross_start_margin_uses_physical_edge_in_rtl_column() {
         NodeInput {
             direction: Direction::Rtl,
             position: Position::Absolute,
-            size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
             margin: Edges {
                 left: LengthAuto::px(10.0),
                 bottom: LengthAuto::px(10.0),
@@ -3485,7 +3485,7 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             ..NodeInput::default()
         },
     );
@@ -3498,8 +3498,8 @@ fn flex_absolute_child_uses_min_size_when_min_exceeds_max_size() {
                 bottom: LengthAuto::px(10.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            min_size: Size::new(Dimension::px(50.0), Dimension::px(60.0)),
-            max_size: Size::new(Dimension::px(40.0), Dimension::px(30.0)),
+            min_size: Size::new(MinSize::px(50.0), MinSize::px(60.0)),
+            max_size: Size::new(MaxSize::px(40.0), MaxSize::px(30.0)),
             ..NodeInput::default()
         },
     );
@@ -3640,7 +3640,7 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
 
     let mut authored_size = tree_with_child(NodeInput {
         position: Position::Absolute,
-        size: Size::new(Dimension::px(12.0), Dimension::px(12.0)),
+        size: Size::new(PreferredSize::px(12.0), PreferredSize::px(12.0)),
         padding,
         border,
         ..NodeInput::default()
@@ -3654,7 +3654,7 @@ fn flex_absolute_child_size_cannot_shrink_below_padding_and_border() {
 
     let mut max_size = tree_with_child(NodeInput {
         position: Position::Absolute,
-        max_size: Size::new(Dimension::px(12.0), Dimension::px(12.0)),
+        max_size: Size::new(MaxSize::px(12.0), MaxSize::px(12.0)),
         padding,
         border,
         ..NodeInput::default()
@@ -3720,7 +3720,7 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -3728,7 +3728,7 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(8.0).unwrap(),
             ..NodeInput::default()
@@ -3816,7 +3816,7 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
@@ -3829,7 +3829,7 @@ fn flex_absolute_child_can_resolve_from_trailing_insets() {
                 bottom: LengthAuto::px(6.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -3916,7 +3916,7 @@ fn flex_absolute_child_expands_auto_margins() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -3929,7 +3929,7 @@ fn flex_absolute_child_expands_auto_margins() {
                 top: LengthAuto::px(0.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             margin: Edges {
                 left: LengthAuto::AUTO,
                 right: LengthAuto::AUTO,
@@ -4023,7 +4023,7 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             justify_content: Some(AlignContent::Center),
             align_items: Some(AlignItems::Center),
             ..NodeInput::default()
@@ -4033,7 +4033,7 @@ fn flex_absolute_child_without_insets_uses_flex_alignment() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -4124,14 +4124,14 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
@@ -4139,7 +4139,7 @@ fn flex_row_distributes_positive_free_space_with_flex_grow() {
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
@@ -4240,14 +4240,14 @@ fn flex_row_with_grow_sum_below_one_uses_that_fraction_of_free_space() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             flex_grow: FlexGrowOf::try_new(0.5).unwrap(),
             ..NodeInput::default()
         },
@@ -4341,23 +4341,23 @@ fn flex_row_distributes_negative_free_space_with_flex_shrink() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(80.0), Dimension::px(20.0)),
-            min_size: Size::new(Dimension::ZERO, Dimension::ZERO),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(20.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(70.0), Dimension::px(20.0)),
-            min_size: Size::new(Dimension::ZERO, Dimension::ZERO),
+            size: Size::new(PreferredSize::px(70.0), PreferredSize::px(20.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
             ..NodeInput::default()
         },
     );
@@ -4455,7 +4455,7 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(730.0), Dimension::px(300.0)),
+            size: Size::new(PreferredSize::px(730.0), PreferredSize::px(300.0)),
             ..NodeInput::default()
         },
     );
@@ -4463,8 +4463,8 @@ fn flex_row_relayouts_content_box_percentage_item_at_shrunk_target() {
         2,
         NodeInput {
             box_sizing: BoxSizing::ContentBox,
-            size: Size::new(Dimension::percent(1.0), Dimension::px(100.0)),
-            min_size: Size::new(Dimension::ZERO, Dimension::ZERO),
+            size: Size::new(PreferredSize::percent(1.0), PreferredSize::px(100.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
             padding: Edges::all(Length::px(10.0)),
             ..NodeInput::default()
         },
@@ -4579,14 +4579,14 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::AUTO, Dimension::px(20.0)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(20.0)),
             overflow: Point::new(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
@@ -4594,8 +4594,8 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
-            min_size: Size::new(Dimension::ZERO, Dimension::ZERO),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
             flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
             ..NodeInput::default()
         },
@@ -4692,15 +4692,15 @@ fn flex_row_with_shrink_sum_below_one_uses_that_fraction_of_negative_free_space(
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(80.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(10.0)),
-            min_size: Size::new(Dimension::ZERO, Dimension::ZERO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(10.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
             flex_shrink: FlexShrinkOf::try_new(0.5).unwrap(),
             ..NodeInput::default()
         },
@@ -4791,7 +4791,7 @@ fn flex_row_wraps_items_into_multiple_lines() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             flex_wrap: FlexWrap::Wrap,
             gap: Size::new(Length::ZERO, Length::px(4.0)),
             ..NodeInput::default()
@@ -4801,7 +4801,7 @@ fn flex_row_wraps_items_into_multiple_lines() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(60.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(60.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -4895,7 +4895,7 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             flex_wrap: FlexWrap::Wrap,
             gap: Size::new(Length::ZERO, Length::px(4.0)),
             ..NodeInput::default()
@@ -4905,7 +4905,7 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(60.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(60.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -4957,8 +4957,8 @@ where
     ] {
         let item_style = |order| NodeInputOf::<S> {
             size: Size::new(
-                DimensionOf::px(S::from_f64(30.0)),
-                DimensionOf::px(S::from_f64(10.0)),
+                PreferredSizeOf::px(S::from_f64(30.0)),
+                PreferredSizeOf::px(S::from_f64(10.0)),
             ),
             item_order: ItemOrder::new(order),
             flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink"),
@@ -4980,8 +4980,8 @@ where
                     flex_wrap: FlexWrap::Wrap,
                     align_content: Some(AlignContent::FlexStart),
                     size: Size::new(
-                        DimensionOf::px(S::from_f64(60.0)),
-                        DimensionOf::px(S::from_f64(20.0)),
+                        PreferredSizeOf::px(S::from_f64(60.0)),
+                        PreferredSizeOf::px(S::from_f64(20.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -5111,7 +5111,7 @@ fn flex_row_justifies_items_on_the_main_axis() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             justify_content: Some(AlignContent::Center),
             ..NodeInput::default()
         },
@@ -5120,7 +5120,7 @@ fn flex_row_justifies_items_on_the_main_axis() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(25.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(25.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -5210,7 +5210,7 @@ fn flex_row_aligns_items_on_the_cross_axis() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             align_items: Some(AlignItems::Center),
             ..NodeInput::default()
         },
@@ -5218,7 +5218,7 @@ fn flex_row_aligns_items_on_the_cross_axis() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -5312,14 +5312,14 @@ fn flex_row_reports_first_child_baseline() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -5361,7 +5361,10 @@ where
                 display: Display::Flex,
                 flex_direction: FlexDirection::Row,
                 align_items: Some(AlignItems::Baseline),
-                size: Size::new(DimensionOf::px(S::from_f64(200.0)), DimensionOf::AUTO),
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(200.0)),
+                    PreferredSizeOf::AUTO,
+                ),
                 ..NodeInputOf::default()
             },
         )
@@ -5370,8 +5373,8 @@ where
             NodeInputOf::<S> {
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(
-                    DimensionOf::px(S::from_f64(70.0)),
-                    DimensionOf::px(S::from_f64(110.0)),
+                    PreferredSizeOf::px(S::from_f64(70.0)),
+                    PreferredSizeOf::px(S::from_f64(110.0)),
                 ),
                 margin: Edges::new(
                     LengthAutoOf::px(S::from_f64(3.0)),
@@ -5448,8 +5451,8 @@ where
                 flex_direction: FlexDirection::Row,
                 align_items: Some(AlignItems::Baseline),
                 size: Size::new(
-                    DimensionOf::px(S::from_f64(200.0)),
-                    DimensionOf::px(S::from_f64(160.0)),
+                    PreferredSizeOf::px(S::from_f64(200.0)),
+                    PreferredSizeOf::px(S::from_f64(160.0)),
                 ),
                 padding: Edges {
                     top: LengthOf::px(S::from_f64(5.0)),
@@ -5464,8 +5467,8 @@ where
             NodeInputOf::<S> {
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(
-                    DimensionOf::px(S::from_f64(70.0)),
-                    DimensionOf::px(S::from_f64(110.0)),
+                    PreferredSizeOf::px(S::from_f64(70.0)),
+                    PreferredSizeOf::px(S::from_f64(110.0)),
                 ),
                 margin: Edges::new(
                     LengthAutoOf::px(S::from_f64(17.0)),
@@ -5609,8 +5612,8 @@ fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
                     writing_mode: WritingMode::VerticalRl,
                     flex_direction: FlexDirection::Row,
                     size: Size::new(
-                        DimensionOf::AUTO,
-                        DimensionOf::px(S::from_f64(container_main)),
+                        PreferredSizeOf::AUTO,
+                        PreferredSizeOf::px(S::from_f64(container_main)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -5620,8 +5623,11 @@ fn assert_logical_flex_sizing_orthogonal_refreshes_mapped_main<S: LayoutScalar>(
                 NodeInputOf::<S> {
                     display: Display::Block,
                     writing_mode: WritingMode::VerticalRl,
-                    size: Size::new(DimensionOf::AUTO, DimensionOf::px(S::from_f64(child_main))),
-                    min_size: Size::new(DimensionOf::ZERO, DimensionOf::ZERO),
+                    size: Size::new(
+                        PreferredSizeOf::AUTO,
+                        PreferredSizeOf::px(S::from_f64(child_main)),
+                    ),
+                    min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
                     flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow"),
                     flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
                     ..NodeInputOf::default()
@@ -5803,8 +5809,8 @@ fn assert_logical_flex_final_size_selector_uses_vertical_row_main_axis<S: Layout
                     display: Display::Flex,
                     writing_mode,
                     size: Size::new(
-                        DimensionOf::px(S::from_f64(200.0)),
-                        DimensionOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::px(S::from_f64(200.0)),
+                        PreferredSizeOf::px(S::from_f64(100.0)),
                     ),
                     flex_direction: FlexDirection::Row,
                     ..NodeInputOf::default()
@@ -5815,10 +5821,10 @@ fn assert_logical_flex_final_size_selector_uses_vertical_row_main_axis<S: Layout
                 NodeInputOf::<S> {
                     display: Display::Block,
                     size: Size::new(
-                        DimensionOf::percent(S::from_f64(0.25)),
-                        DimensionOf::px(S::from_f64(20.0)),
+                        PreferredSizeOf::percent(S::from_f64(0.25)),
+                        PreferredSizeOf::px(S::from_f64(20.0)),
                     ),
-                    min_size: Size::new(DimensionOf::px(S::from_f64(75.0)), DimensionOf::ZERO),
+                    min_size: Size::new(MinSizeOf::px(S::from_f64(75.0)), MinSizeOf::ZERO),
                     ..NodeInputOf::default()
                 },
             ),
@@ -5963,7 +5969,7 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             align_items: Some(AlignItems::Baseline),
             ..NodeInput::default()
         },
@@ -5971,14 +5977,14 @@ fn flex_row_aligns_baseline_items_by_child_baselines() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -6075,7 +6081,7 @@ fn flex_row_stretches_auto_cross_size_items() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             align_items: Some(AlignItems::Stretch),
             ..NodeInput::default()
         },
@@ -6083,7 +6089,7 @@ fn flex_row_stretches_auto_cross_size_items() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -6179,7 +6185,7 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(200.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(50.0)),
             align_items: Some(AlignItems::Stretch),
             ..NodeInput::default()
         },
@@ -6187,7 +6193,7 @@ fn flex_row_stretch_transfers_cross_size_through_aspect_ratio() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             aspect_ratio: AspectRatio::new(2.0),
             flex_grow: FlexGrowOf::try_new(0.0).unwrap(),
             flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
@@ -6281,7 +6287,7 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             align_items: Some(AlignItems::Stretch),
             ..NodeInput::default()
         },
@@ -6289,8 +6295,8 @@ fn flex_row_stretched_aspect_ratio_item_does_not_shrink_below_transferred_size()
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
-            min_size: Size::new(Dimension::AUTO, Dimension::px(40.0)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
+            min_size: Size::new(MinSize::AUTO, MinSize::px(40.0)),
             aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
@@ -6395,8 +6401,8 @@ fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutSc
                 display: Display::Flex,
                 align_items: Some(AlignItems::Stretch),
                 size: Size::new(
-                    DimensionOf::px(S::from_f64(60.0)),
-                    DimensionOf::px(S::from_f64(20.0)),
+                    PreferredSizeOf::px(S::from_f64(60.0)),
+                    PreferredSizeOf::px(S::from_f64(20.0)),
                 ),
                 ..NodeInputOf::default()
             },
@@ -6406,7 +6412,7 @@ fn assert_flex_replaced_automatic_minimum_selects_smaller_suggestion<S: LayoutSc
             NodeInputOf {
                 item_is_replaced,
                 aspect_ratio: AspectRatioOf::new(S::from_f64(2.0)),
-                flex_basis: DimensionOf::px(S::from_f64(90.0)),
+                flex_basis: FlexBasisOf::px(S::from_f64(90.0)),
                 flex_grow: FlexGrowOf::try_new(S::ZERO).expect("zero is a valid flex grow"),
                 flex_shrink: FlexShrinkOf::try_new(S::ONE).expect("one is a valid flex shrink"),
                 ..NodeInputOf::default()
@@ -6500,7 +6506,7 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(300.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(300.0), PreferredSize::px(100.0)),
             align_items: Some(AlignItems::Stretch),
             ..NodeInput::default()
         },
@@ -6508,7 +6514,7 @@ fn flex_row_aspect_ratio_auto_min_respects_authored_width_cap() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(50.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::px(100.0)),
             aspect_ratio: AspectRatio::new(2.0),
             flex_grow: FlexGrowOf::try_new(0.0).unwrap(),
             flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
@@ -6599,7 +6605,7 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
             flex_wrap: FlexWrap::Wrap,
             align_content: Some(AlignContent::Center),
             gap: Size::new(Length::ZERO, Length::px(4.0)),
@@ -6610,7 +6616,7 @@ fn flex_row_aligns_wrapped_lines_with_align_content() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -6702,7 +6708,7 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             flex_direction: FlexDirection::Column,
             flex_wrap: FlexWrap::Wrap,
             align_content: Some(AlignContent::End),
@@ -6713,7 +6719,7 @@ fn flex_column_wrap_with_one_line_honors_align_content_end() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(50.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -6805,7 +6811,7 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
             flex_wrap: FlexWrap::Wrap,
             align_content: Some(AlignContent::Stretch),
             gap: Size::new(Length::ZERO, Length::px(4.0)),
@@ -6816,7 +6822,7 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -6916,7 +6922,7 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
             flex_wrap: FlexWrap::Wrap,
             align_content: Some(AlignContent::Stretch),
             align_items: Some(AlignItems::Stretch),
@@ -6928,7 +6934,7 @@ fn flex_row_stretched_wrapped_line_stretches_auto_cross_size_item() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -7023,7 +7029,7 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
             flex_wrap: FlexWrap::WrapReverse,
             align_content: Some(AlignContent::FlexStart),
             gap: Size::new(Length::ZERO, Length::px(4.0)),
@@ -7034,7 +7040,7 @@ fn flex_row_wrap_reverse_places_lines_from_the_reversed_cross_axis() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -7123,7 +7129,7 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
             flex_wrap: FlexWrap::WrapReverse,
             align_items: Some(AlignItems::FlexStart),
             ..NodeInput::default()
@@ -7132,7 +7138,7 @@ fn flex_row_wrap_reverse_flips_flex_start_item_alignment() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -7220,7 +7226,7 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(60.0)),
             flex_wrap: FlexWrap::WrapReverse,
             align_content: Some(AlignContent::FlexEnd),
             gap: Size::new(Length::ZERO, Length::px(4.0)),
@@ -7231,7 +7237,7 @@ fn flex_row_wrap_reverse_respects_reversed_align_content() {
         tree.styles.insert(
             child,
             NodeInput {
-                size: Size::new(Dimension::px(80.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(10.0)),
                 flex_shrink: FlexShrinkOf::try_new(0.0).unwrap(),
                 ..NodeInput::default()
             },
@@ -7321,15 +7327,15 @@ fn flex_row_growth_respects_max_main_size() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
-            max_size: Size::new(Dimension::px(60.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
+            max_size: Size::new(MaxSize::px(60.0), MaxSize::NONE),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
@@ -7337,7 +7343,7 @@ fn flex_row_growth_respects_max_main_size() {
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
@@ -7426,7 +7432,7 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             justify_content: Some(AlignContent::Center),
             ..NodeInput::default()
         },
@@ -7434,7 +7440,7 @@ fn flex_row_distributes_positive_space_to_main_axis_auto_margins() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             margin: Edges::new(
                 LengthAuto::ZERO,
                 LengthAuto::ZERO,
@@ -7527,7 +7533,7 @@ fn flex_row_distributes_cross_axis_auto_margins() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             align_items: Some(AlignItems::FlexStart),
             ..NodeInput::default()
         },
@@ -7535,7 +7541,7 @@ fn flex_row_distributes_cross_axis_auto_margins() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             margin: Edges::new(
                 LengthAuto::AUTO,
                 LengthAuto::ZERO,
@@ -7630,7 +7636,7 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             flex_direction: FlexDirection::RowReverse,
             ..NodeInput::default()
         },
@@ -7638,14 +7644,14 @@ fn flex_row_reverse_places_items_from_the_reversed_main_axis() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -7734,21 +7740,21 @@ fn flex_row_rtl_places_items_from_the_right_edge() {
         1,
         NodeInput {
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(100.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -7837,7 +7843,7 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
         1,
         NodeInput {
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(100.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -7848,7 +7854,7 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
                 left: LengthAuto::px(5.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -7859,7 +7865,7 @@ fn flex_row_rtl_relative_insets_follow_rtl_main_axis() {
                 right: LengthAuto::px(7.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -7949,7 +7955,7 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
             direction: Direction::Rtl,
             flex_direction: FlexDirection::Column,
             align_items: Some(AlignItems::FlexStart),
-            size: Size::new(Dimension::px(100.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
             padding: Edges {
                 left: Length::px(4.0),
                 right: Length::px(6.0),
@@ -7962,7 +7968,7 @@ fn flex_column_rtl_aligns_cross_start_to_the_right_edge() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -8051,14 +8057,14 @@ fn flex_column_rtl_cross_axis_auto_margin_uses_rtl_edges() {
         NodeInput {
             direction: Direction::Rtl,
             flex_direction: FlexDirection::Column,
-            size: Size::new(Dimension::px(100.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             margin: Edges {
                 left: LengthAuto::px(3.0),
                 right: LengthAuto::AUTO,
@@ -8153,7 +8159,7 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(40.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(100.0)),
             flex_direction: FlexDirection::ColumnReverse,
             ..NodeInput::default()
         },
@@ -8161,14 +8167,14 @@ fn flex_column_reverse_places_items_from_the_reversed_main_axis() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+            size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
             ..NodeInput::default()
         },
     );
@@ -8263,15 +8269,15 @@ fn flex_row_uses_flex_basis_as_the_main_base_size() {
     tree.styles.insert(
         1,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::AUTO, Dimension::px(10.0)),
-            flex_basis: Dimension::px(30.0),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(10.0)),
+            flex_basis: FlexBasis::px(30.0),
             ..NodeInput::default()
         },
     );
@@ -8372,8 +8378,8 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(12.0), Dimension::px(12.0)),
-            flex_basis: Dimension::px(0.0),
+            size: Size::new(PreferredSize::px(12.0), PreferredSize::px(12.0)),
+            flex_basis: FlexBasis::px(0.0),
             padding: Edges {
                 left: Length::px(8.0),
                 top: Length::px(2.0),
@@ -8392,8 +8398,8 @@ fn flex_row_flex_basis_zero_preserves_padding_border_without_authored_content_wi
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(12.0), Dimension::px(12.0)),
-            flex_basis: Dimension::px(0.0),
+            size: Size::new(PreferredSize::px(12.0), PreferredSize::px(12.0)),
+            flex_basis: FlexBasis::px(0.0),
             ..NodeInput::default()
         },
     );
@@ -8496,7 +8502,7 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
     tree.styles.insert(
         2,
         NodeInput {
-            flex_basis: Dimension::px(0.0),
+            flex_basis: FlexBasis::px(0.0),
             padding: Edges {
                 left: Length::px(10.0),
                 right: Length::px(10.0),
@@ -8532,13 +8538,13 @@ fn flex_row_flex_basis_padding_floor_preserves_leaf_content_intrinsic_size() {
     assert_eq!(tree.layouts[&2].content_size.width, 120.0);
 }
 
-use crate::{Dimension, LengthPercentageOf, NodeInput};
+use crate::{LengthPercentageOf, NodeInput, PreferredSize};
 
 #[test]
 fn flex_percent_dependent_affine_size_requests_definite_cross_rerun() {
     let height = LengthPercentageOf::from_coefficients(10.0, 0.50).expect("finite coefficients");
     let mut child = NodeInput::default();
-    child.size.height = Dimension::value(height);
+    child.size.height = PreferredSize::value(height);
 
     assert!(child.size.height.depends_on_basis());
 }

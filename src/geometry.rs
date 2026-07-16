@@ -855,6 +855,13 @@ impl<T: Copy> Size<T> {
     }
 }
 
+#[cfg(test)]
+impl<T: Clone> Size<T> {
+    pub(crate) fn splat_clone(value: T) -> Self {
+        Self::new(value.clone(), value)
+    }
+}
+
 impl<U, T: Add<U>> Add<Size<U>> for Size<T> {
     type Output = Size<T::Output>;
 

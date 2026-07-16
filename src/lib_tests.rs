@@ -1,10 +1,9 @@
 use crate::{
-    Available, Baselines, CollapsibleMarginOf, ComputeOutput, Dimension, Direction, Display, Edges,
-    FlowAxes, LayoutScalar, Length, LengthAuto, LengthPercentageOf, LengthResolutionStatus,
-    MaxTrackSizing, MinTrackSizing, PhysicalAxis, PhysicalBlockMarginCollapse,
-    PhysicalBlockMarginCollapseOf, PhysicalSide, Point, Scalar, Size, SizingCalculation,
-    TrackComponent, TrackComponentList, TrackFlexFactor, TrackRepeatCount, TrackSizing,
-    WritingMode,
+    Available, Baselines, CollapsibleMarginOf, ComputeOutput, Direction, Display, Edges, FlowAxes,
+    LayoutScalar, Length, LengthAuto, LengthPercentageOf, LengthResolutionStatus, MaxTrackSizing,
+    MinTrackSizing, PhysicalAxis, PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf,
+    PhysicalSide, Point, PreferredSize, Scalar, Size, SizingCalculation, TrackComponent,
+    TrackComponentList, TrackFlexFactor, TrackRepeatCount, TrackSizing, WritingMode,
 };
 
 fn assert_physical_block_margin_collapse_maps_all_flow_axes<S: LayoutScalar>() {
@@ -78,16 +77,6 @@ fn physical_block_margin_collapse_maps_all_flow_axes_in_f64() {
 }
 
 #[test]
-fn dimension_conversions_keep_semantic_variants() {
-    assert_eq!(Dimension::from(Length::px(8.0)), Dimension::px(8.0));
-    assert_eq!(
-        Dimension::from(LengthAuto::percent(0.75)),
-        Dimension::percent(0.75)
-    );
-    assert_eq!(Dimension::from(LengthAuto::AUTO), Dimension::AUTO);
-}
-
-#[test]
 fn edge_axis_sums_match_layout_axis_expectations() {
     let edges = Edges::new(1.0, 2.0, 3.0, 4.0);
     assert_eq!(edges.sum_axes(), Size::new(6.0, 4.0));
@@ -110,9 +99,9 @@ fn layout_lengths_report_basis_dependency() {
     assert!(!LengthAuto::px(12.0).depends_on_basis());
     assert!(LengthAuto::percent(0.25).depends_on_basis());
 
-    assert!(!Dimension::AUTO.depends_on_basis());
-    assert!(!Dimension::px(12.0).depends_on_basis());
-    assert!(Dimension::percent(0.25).depends_on_basis());
+    assert!(!PreferredSize::AUTO.depends_on_basis());
+    assert!(!PreferredSize::px(12.0).depends_on_basis());
+    assert!(PreferredSize::percent(0.25).depends_on_basis());
 }
 
 #[test]
@@ -145,8 +134,11 @@ fn layout_lengths_resolve_optional_basis_consistently() {
         Some(20.0)
     );
     assert_eq!(
-        Dimension::percent(0.25).resolve_optional(Some(80.0)),
-        Some(20.0)
+        PreferredSize::percent(0.25)
+            .resolve_simple_with_status(Some(80.0))
+            .expect("affine preferred size is supported")
+            .value,
+        Some(20.0),
     );
 }
 
@@ -204,22 +196,23 @@ fn non_numeric_values_report_non_numeric_status() {
         LengthResolutionStatus::NonNumeric
     );
     assert_eq!(
-        Dimension::fr(1.0).resolve_with_status(Some(40.0)).status(),
-        LengthResolutionStatus::NonNumeric
-    );
-    assert_eq!(
-        Dimension::AUTO.resolve_with_status(Some(40.0)).status(),
-        LengthResolutionStatus::NonNumeric
-    );
-    assert_eq!(
-        Dimension::MIN_CONTENT
-            .resolve_with_status(Some(40.0))
+        PreferredSize::AUTO
+            .resolve_simple_with_status(Some(40.0))
+            .expect("auto remains an existing non-numeric keyword")
             .status(),
         LengthResolutionStatus::NonNumeric
     );
     assert_eq!(
-        Dimension::MAX_CONTENT
-            .resolve_with_status(Some(40.0))
+        PreferredSize::MIN_CONTENT
+            .resolve_simple_with_status(Some(40.0))
+            .expect("min-content remains an existing non-numeric keyword")
+            .status(),
+        LengthResolutionStatus::NonNumeric
+    );
+    assert_eq!(
+        PreferredSize::MAX_CONTENT
+            .resolve_simple_with_status(Some(40.0))
+            .expect("max-content remains an existing non-numeric keyword")
             .status(),
         LengthResolutionStatus::NonNumeric
     );

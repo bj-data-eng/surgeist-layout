@@ -1067,25 +1067,25 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
             .map_err(|source| Error::new(source.to_string()))?;
     }
     if let Some(value) = attrs.get("flex-basis") {
-        input.flex_basis = parse_dimension_with_calc(value)?;
+        input.flex_basis = parse_flex_basis(value)?;
     }
     if let Some(value) = attrs.get("width") {
-        input.size.width = parse_dimension_with_calc(value)?;
+        input.size.width = parse_preferred_size(value)?;
     }
     if let Some(value) = attrs.get("height") {
-        input.size.height = parse_dimension_with_calc(value)?;
+        input.size.height = parse_preferred_size(value)?;
     }
     if let Some(value) = attrs.get("min-width") {
-        input.min_size.width = parse_dimension_with_calc(value)?;
+        input.min_size.width = parse_min_size(value)?;
     }
     if let Some(value) = attrs.get("min-height") {
-        input.min_size.height = parse_dimension_with_calc(value)?;
+        input.min_size.height = parse_min_size(value)?;
     }
     if let Some(value) = attrs.get("max-width") {
-        input.max_size.width = parse_dimension_with_calc(value)?;
+        input.max_size.width = parse_max_size(value)?;
     }
     if let Some(value) = attrs.get("max-height") {
-        input.max_size.height = parse_dimension_with_calc(value)?;
+        input.max_size.height = parse_max_size(value)?;
     }
     if let Some(value) = attrs.get("aspect-ratio") {
         let value = parse_number(value)?;
@@ -1657,17 +1657,39 @@ fn parse_length_auto_with_calc(raw: &str) -> Result<layout::LengthAuto, Error> {
     Ok(parse_length_with_calc(raw)?.into())
 }
 
-fn parse_dimension_with_calc(raw: &str) -> Result<layout::Dimension, Error> {
+fn parse_preferred_size(raw: &str) -> Result<layout::PreferredSize, Error> {
     match raw {
-        "auto" => Ok(layout::Dimension::AUTO),
-        "min-content" => Ok(layout::Dimension::MIN_CONTENT),
-        "max-content" => Ok(layout::Dimension::MAX_CONTENT),
-        _ => {
-            if raw.trim_start().starts_with("calc(") {
-                return Ok(layout::Dimension::value(parse_calc_expression(raw)?));
-            }
-            parse_dimension(raw)
-        }
+        "auto" => Ok(layout::PreferredSize::AUTO),
+        "min-content" => Ok(layout::PreferredSize::MIN_CONTENT),
+        "max-content" => Ok(layout::PreferredSize::MAX_CONTENT),
+        _ => Ok(layout::PreferredSize::value(parse_sizing_value(raw)?)),
+    }
+}
+
+fn parse_min_size(raw: &str) -> Result<layout::MinSize, Error> {
+    match raw {
+        "auto" => Ok(layout::MinSize::AUTO),
+        "min-content" => Ok(layout::MinSize::MIN_CONTENT),
+        "max-content" => Ok(layout::MinSize::MAX_CONTENT),
+        _ => Ok(layout::MinSize::value(parse_sizing_value(raw)?)),
+    }
+}
+
+fn parse_max_size(raw: &str) -> Result<layout::MaxSize, Error> {
+    match raw {
+        "none" => Ok(layout::MaxSize::NONE),
+        "min-content" => Ok(layout::MaxSize::MIN_CONTENT),
+        "max-content" => Ok(layout::MaxSize::MAX_CONTENT),
+        _ => Ok(layout::MaxSize::value(parse_sizing_value(raw)?)),
+    }
+}
+
+fn parse_flex_basis(raw: &str) -> Result<layout::FlexBasis, Error> {
+    match raw {
+        "auto" => Ok(layout::FlexBasis::AUTO),
+        "min-content" => Ok(layout::FlexBasis::MIN_CONTENT),
+        "max-content" => Ok(layout::FlexBasis::MAX_CONTENT),
+        _ => Ok(layout::FlexBasis::value(parse_sizing_value(raw)?)),
     }
 }
 
@@ -1686,18 +1708,20 @@ fn parse_length(raw: &str) -> Result<layout::Length, Error> {
     Err(Error::new(format!("unsupported length `{raw}`")))
 }
 
-fn parse_dimension(raw: &str) -> Result<layout::Dimension, Error> {
-    match raw {
-        "auto" => Ok(layout::Dimension::AUTO),
-        "min-content" => Ok(layout::Dimension::MIN_CONTENT),
-        "max-content" => Ok(layout::Dimension::MAX_CONTENT),
-        _ => {
-            if let Some(fr) = raw.strip_suffix("fr") {
-                return Ok(layout::Dimension::fr(parse_number(fr)?));
-            }
-            Ok(parse_length(raw)?.into())
-        }
+fn parse_sizing_value(raw: &str) -> Result<layout::LengthPercentageOf, Error> {
+    if raw.trim_start().starts_with("calc(") {
+        return parse_calc_expression(raw);
     }
+    if let Some(px) = raw.strip_suffix("px") {
+        return length_percentage_px(parse_number(px)?, raw);
+    }
+    if let Some(percent) = raw.strip_suffix('%') {
+        return length_percentage_percent(parse_number(percent)? / 100.0, raw);
+    }
+    if let Ok(value) = parse_number(raw) {
+        return length_percentage_px(value, raw);
+    }
+    Err(Error::new(format!("unsupported sizing value `{raw}`")))
 }
 
 fn length_percentage_px(value: Scalar, raw: &str) -> Result<layout::LengthPercentageOf, Error> {
@@ -1724,8 +1748,8 @@ fn length_percent(value: Scalar, raw: &str) -> Result<layout::Length, Error> {
 }
 
 #[cfg(test)]
-fn dimension_px(value: Scalar) -> layout::Dimension {
-    layout::Dimension::value(
+fn preferred_size_px(value: Scalar) -> layout::PreferredSize {
+    layout::PreferredSize::value(
         layout::LengthPercentageOf::px(value).expect("finite test dimension px"),
     )
 }
@@ -2440,14 +2464,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_dimension_accepts_browser_fixture_unitless_lengths() {
+    fn property_field_migration_preferred_parser_accepts_browser_fixture_unitless_lengths() {
         assert_eq!(
-            parse_dimension("40").expect("unitless fixture length should parse"),
-            dimension_px(40.0)
+            parse_preferred_size("40").expect("unitless fixture length should parse"),
+            preferred_size_px(40.0)
         );
         assert_eq!(
-            parse_dimension("0").expect("unitless zero fixture length should parse"),
-            dimension_px(0.0)
+            parse_preferred_size("0").expect("unitless zero fixture length should parse"),
+            preferred_size_px(0.0)
         );
     }
 
@@ -2491,15 +2515,39 @@ mod tests {
     }
 
     #[test]
-    fn parse_dimension_accepts_fixture_calc_percent_minus_px() {
-        let dimension = parse_dimension_with_calc("calc(50% - 8px)")
-            .expect("fixture calc dimension should parse");
-        let layout::Dimension::Value(value) = dimension else {
-            panic!("expected affine calc dimension, got {dimension:?}");
-        };
-        assert_eq!(value.absolute_px(), -8.0);
-        assert_eq!(value.percent_fraction(), 0.5);
-        assert_eq!(dimension.resolve_optional(Some(240.0)), Some(112.0));
+    fn property_field_migration_preferred_parser_accepts_fixture_calc_percent_minus_px() {
+        let preferred = parse_preferred_size("calc(50% - 8px)")
+            .expect("fixture calc preferred size should parse");
+        let expected = layout::PreferredSize::value(
+            layout::LengthPercentageOf::from_coefficients(-8.0, 0.5)
+                .expect("finite expected fixture calculation"),
+        );
+        assert_eq!(preferred, expected);
+    }
+
+    #[test]
+    fn property_field_migration_parser_routes_simple_values_by_destination_property() {
+        let value = layout::LengthPercentageOf::px(12.0).expect("finite fixture value");
+        assert_eq!(
+            parse_preferred_size("12px").expect("preferred size should parse"),
+            layout::PreferredSize::value(value),
+        );
+        assert_eq!(
+            parse_min_size("12px").expect("minimum size should parse"),
+            layout::MinSize::value(value),
+        );
+        assert_eq!(
+            parse_max_size("none").expect("maximum initial value should parse"),
+            layout::MaxSize::NONE,
+        );
+        assert_eq!(
+            parse_flex_basis("12px").expect("flex basis should parse"),
+            layout::FlexBasis::value(value),
+        );
+        assert!(parse_max_size("auto").is_err());
+        assert!(parse_preferred_size("none").is_err());
+        assert!(parse_min_size("1fr").is_err());
+        assert!(parse_flex_basis("1fr").is_err());
     }
 
     #[test]

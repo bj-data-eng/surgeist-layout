@@ -1969,34 +1969,40 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         Size::ZERO
     };
     let area_parent = area_size.map(Some);
-    let inherent_size =
-        transpose_size_result(child_style.size.zip_map(area_parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
-        }))?
-        .apply_aspect_ratio(child_style.aspect_ratio)
-        .add_optional(box_sizing_adjustment);
-    let min_size = transpose_size_result(
-        child_style
-            .min_size
-            .zip_map(area_parent, |dimension, basis| {
-                resolve_dimension(dimension, basis)
-            }),
-    )?
+    let inherent_size = transpose_size_result(child_style.size.clone().zip_map(
+        area_parent,
+        |dimension, basis| {
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
+        },
+    ))?
+    .apply_aspect_ratio(child_style.aspect_ratio)
+    .add_optional(box_sizing_adjustment);
+    let min_size = transpose_size_result(child_style.min_size.clone().zip_map(
+        area_parent,
+        |dimension, basis| {
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
+        },
+    ))?
     .add_optional(box_sizing_adjustment)
     .or((padding + border).sum_axes().map(Some))
     .max_optional((padding + border).sum_axes().map(Some))
     .apply_aspect_ratio(child_style.aspect_ratio);
-    let max_size = transpose_size_result(
-        child_style
-            .max_size
-            .zip_map(area_parent, |dimension, basis| {
-                resolve_dimension(dimension, basis)
-            }),
-    )?
+    let max_size = transpose_size_result(child_style.max_size.clone().zip_map(
+        area_parent,
+        |dimension, basis| {
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
+        },
+    ))?
     .apply_aspect_ratio(child_style.aspect_ratio)
     .add_optional(box_sizing_adjustment);
     let logical_inherent_size = grid_flow_axes.logical_size(inherent_size);
-    let logical_style_size = grid_flow_axes.logical_size(child_style.size);
+    let logical_style_size = grid_flow_axes.logical_size(child_style.size.clone());
     let justify_self = resolve_grid_item_normal_alignment(
         child_style.justify_self,
         container_style.justify_items,
@@ -2017,7 +2023,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
             || !logical_style_size.block.is_auto()
             || (child_style.aspect_ratio.is_some()
                 && grid_flow_axes
-                    .logical_size(child_style.min_size)
+                    .logical_size(child_style.min_size.clone())
                     .block
                     .is_auto())
         {
@@ -2046,7 +2052,7 @@ pub(super) fn grid_item_sizing_with_grid_flow_status<S: LayoutScalar>(
         && logical_known.block.is_some()
         && block_stretches
         && !grid_flow_axes
-            .logical_size(child_style.min_size)
+            .logical_size(child_style.min_size.clone())
             .block
             .is_auto()
     {
@@ -2409,8 +2415,11 @@ where
     };
     let style_size = child_style
         .size
+        .clone()
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
         })
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(child_style.aspect_ratio)
@@ -2418,8 +2427,11 @@ where
     let padding_border_size = (padding + border).sum_axes();
     let min_size = child_style
         .min_size
+        .clone()
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
         })
         .transpose_with_node(tree, child)?
         .add_optional(box_sizing_adjustment)
@@ -2428,8 +2440,11 @@ where
         .apply_aspect_ratio(child_style.aspect_ratio);
     let max_size = child_style
         .max_size
+        .clone()
         .zip_map(area_parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
         })
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(child_style.aspect_ratio)

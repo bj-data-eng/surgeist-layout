@@ -356,6 +356,19 @@ impl<S: LayoutScalar> PreferredSizeOf<S> {
         Self::calculation(SizingCalculationOf::value(value))
     }
 
+    #[cfg(test)]
+    pub(crate) fn px(value: S) -> Self {
+        Self::value(LengthPercentageOf::px(value).expect("trusted preferred-size test literal"))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
+        Self::value(
+            LengthPercentageOf::from_percent_fraction(value)
+                .expect("trusted preferred-size percentage test literal"),
+        )
+    }
+
     #[must_use]
     pub fn calculation(calculation: SizingCalculationOf<S>) -> Self {
         if calculation.is_zero_value() {
@@ -445,6 +458,41 @@ impl<S: LayoutScalar> PreferredSizeOf<S> {
             }
         }
     }
+
+    pub(crate) fn resolve_simple_with_status(
+        &self,
+        basis: Option<S>,
+    ) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
+        match self.view() {
+            PreferredSizeView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
+            PreferredSizeView::Calculation(calculation) => {
+                resolve_affine_calculation(calculation, basis)
+            }
+            PreferredSizeView::Auto
+            | PreferredSizeView::MinContent
+            | PreferredSizeView::MaxContent => Ok(LengthResolutionOf::non_numeric()),
+            PreferredSizeView::Stretch
+            | PreferredSizeView::FitContent
+            | PreferredSizeView::Contain
+            | PreferredSizeView::FitContentFunction(_)
+            | PreferredSizeView::CalcSize(_, _) => Err(crate::LengthResolutionStatus::NonNumeric),
+        }
+    }
+
+    pub(crate) fn depends_on_basis(&self) -> bool {
+        match self.view() {
+            PreferredSizeView::Calculation(calculation) => calculation.depends_on_basis(),
+            PreferredSizeView::Zero
+            | PreferredSizeView::Auto
+            | PreferredSizeView::MinContent
+            | PreferredSizeView::MaxContent
+            | PreferredSizeView::Stretch
+            | PreferredSizeView::FitContent
+            | PreferredSizeView::Contain
+            | PreferredSizeView::FitContentFunction(_)
+            | PreferredSizeView::CalcSize(_, _) => false,
+        }
+    }
 }
 
 impl<S: LayoutScalar> Default for PreferredSizeOf<S> {
@@ -469,6 +517,11 @@ impl<S: LayoutScalar> MinSizeOf<S> {
     #[must_use]
     pub fn value(value: LengthPercentageOf<S>) -> Self {
         Self::calculation(SizingCalculationOf::value(value))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn px(value: S) -> Self {
+        Self::value(LengthPercentageOf::px(value).expect("trusted minimum-size test literal"))
     }
 
     #[must_use]
@@ -556,6 +609,24 @@ impl<S: LayoutScalar> MinSizeOf<S> {
             MinSizeValue::CalcSize(basis, value) => MinSizeView::CalcSize(*basis, value),
         }
     }
+
+    pub(crate) fn resolve_simple_with_status(
+        &self,
+        basis: Option<S>,
+    ) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
+        match self.view() {
+            MinSizeView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
+            MinSizeView::Calculation(calculation) => resolve_affine_calculation(calculation, basis),
+            MinSizeView::Auto | MinSizeView::MinContent | MinSizeView::MaxContent => {
+                Ok(LengthResolutionOf::non_numeric())
+            }
+            MinSizeView::Stretch
+            | MinSizeView::FitContent
+            | MinSizeView::Contain
+            | MinSizeView::FitContentFunction(_)
+            | MinSizeView::CalcSize(_, _) => Err(crate::LengthResolutionStatus::NonNumeric),
+        }
+    }
 }
 
 impl<S: LayoutScalar> Default for MinSizeOf<S> {
@@ -580,6 +651,19 @@ impl<S: LayoutScalar> MaxSizeOf<S> {
     #[must_use]
     pub fn value(value: LengthPercentageOf<S>) -> Self {
         Self::calculation(SizingCalculationOf::value(value))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn px(value: S) -> Self {
+        Self::value(LengthPercentageOf::px(value).expect("trusted maximum-size test literal"))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
+        Self::value(
+            LengthPercentageOf::from_percent_fraction(value)
+                .expect("trusted maximum-size percentage test literal"),
+        )
     }
 
     #[must_use]
@@ -667,6 +751,24 @@ impl<S: LayoutScalar> MaxSizeOf<S> {
             MaxSizeValue::CalcSize(basis, value) => MaxSizeView::CalcSize(*basis, value),
         }
     }
+
+    pub(crate) fn resolve_simple_with_status(
+        &self,
+        basis: Option<S>,
+    ) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
+        match self.view() {
+            MaxSizeView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
+            MaxSizeView::Calculation(calculation) => resolve_affine_calculation(calculation, basis),
+            MaxSizeView::None | MaxSizeView::MinContent | MaxSizeView::MaxContent => {
+                Ok(LengthResolutionOf::non_numeric())
+            }
+            MaxSizeView::Stretch
+            | MaxSizeView::FitContent
+            | MaxSizeView::Contain
+            | MaxSizeView::FitContentFunction(_)
+            | MaxSizeView::CalcSize(_, _) => Err(crate::LengthResolutionStatus::NonNumeric),
+        }
+    }
 }
 
 impl<S: LayoutScalar> Default for MaxSizeOf<S> {
@@ -692,6 +794,19 @@ impl<S: LayoutScalar> FlexBasisOf<S> {
     #[must_use]
     pub fn value(value: LengthPercentageOf<S>) -> Self {
         Self::calculation(SizingCalculationOf::value(value))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn px(value: S) -> Self {
+        Self::value(LengthPercentageOf::px(value).expect("trusted flex-basis test literal"))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn percent(value: S) -> Self {
+        Self::value(
+            LengthPercentageOf::from_percent_fraction(value)
+                .expect("trusted flex-basis percentage test literal"),
+        )
     }
 
     #[must_use]
@@ -785,6 +900,27 @@ impl<S: LayoutScalar> FlexBasisOf<S> {
             FlexBasisValue::CalcSize(basis, value) => FlexBasisView::CalcSize(*basis, value),
         }
     }
+
+    pub(crate) fn resolve_simple_with_status(
+        &self,
+        basis: Option<S>,
+    ) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
+        match self.view() {
+            FlexBasisView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
+            FlexBasisView::Calculation(calculation) => {
+                resolve_affine_calculation(calculation, basis)
+            }
+            FlexBasisView::Auto | FlexBasisView::MinContent | FlexBasisView::MaxContent => {
+                Ok(LengthResolutionOf::non_numeric())
+            }
+            FlexBasisView::Content
+            | FlexBasisView::Stretch
+            | FlexBasisView::FitContent
+            | FlexBasisView::Contain
+            | FlexBasisView::FitContentFunction(_)
+            | FlexBasisView::CalcSize(_, _) => Err(crate::LengthResolutionStatus::NonNumeric),
+        }
+    }
 }
 
 impl<S: LayoutScalar> Default for FlexBasisOf<S> {
@@ -802,6 +938,39 @@ fn reject_any_size_reference<S: LayoutScalar>(
     } else {
         Ok(())
     }
+}
+
+fn resolve_affine_calculation<S: LayoutScalar>(
+    calculation: &SizingCalculationOf<S>,
+    basis: Option<S>,
+) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
+    let Some(value) = calculation.affine_value() else {
+        return Err(crate::LengthResolutionStatus::NonNumeric);
+    };
+    let basis = match basis {
+        None => PercentageBasisOf::MISSING,
+        Some(value) => match PercentageBasisOf::definite(value) {
+            Ok(basis) => basis,
+            Err(
+                crate::NonNegativeFiniteScalarErrorOf::NonFinite { value }
+                | crate::NonNegativeFiniteScalarErrorOf::Negative { value },
+            ) => {
+                return Ok(LengthResolutionOf::invalid_numeric(
+                    value,
+                    calculation.depends_on_basis(),
+                ));
+            }
+        },
+    };
+    Ok(match value.resolve_against(basis) {
+        NumericResolutionOf::Resolved(value) => {
+            LengthResolutionOf::definite(value, calculation.depends_on_basis())
+        }
+        NumericResolutionOf::MissingBasis { .. } => LengthResolutionOf::unresolved(true),
+        NumericResolutionOf::InvalidNumeric { resolved, .. } => {
+            LengthResolutionOf::invalid_numeric(resolved, calculation.depends_on_basis())
+        }
+    })
 }
 
 impl<S: LayoutScalar> SizingCalculationOf<S> {

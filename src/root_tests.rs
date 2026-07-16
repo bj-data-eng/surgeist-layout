@@ -253,8 +253,8 @@ fn flex_item_root_uses_explicit_parent_axes_for_percentage_and_cache_in_both_sca
         let child_style = NodeInputOf {
             display: Display::Block,
             size: Size::new(
-                DimensionOf::px(scalar::<S>(10.0)),
-                DimensionOf::px(scalar::<S>(20.0)),
+                PreferredSizeOf::px(scalar::<S>(10.0)),
+                PreferredSizeOf::px(scalar::<S>(20.0)),
             ),
             ..NodeInputOf::<S>::default()
         };
@@ -549,7 +549,7 @@ fn source_index_identity_survives_root_hidden_rounding_and_batch() {
             10,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(100.25), DimensionOf::px(50.25)),
+                size: Size::new(PreferredSizeOf::px(100.25), PreferredSizeOf::px(50.25)),
                 ..NodeInput::default()
             },
         )
@@ -557,7 +557,7 @@ fn source_index_identity_survives_root_hidden_rounding_and_batch() {
             20,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(25.25), DimensionOf::px(10.25)),
+                size: Size::new(PreferredSizeOf::px(25.25), PreferredSizeOf::px(10.25)),
                 ..NodeInput::default()
             },
         )
@@ -608,8 +608,8 @@ fn logical_flex_leaf<S: LayoutScalar>(width: f64, height: f64) -> NodeInputOf<S>
     NodeInputOf {
         display: Display::Block,
         size: Size::new(
-            DimensionOf::px(scalar::<S>(width)),
-            DimensionOf::px(scalar::<S>(height)),
+            PreferredSizeOf::px(scalar::<S>(width)),
+            PreferredSizeOf::px(scalar::<S>(height)),
         ),
         flex_shrink: FlexShrinkOf::try_new(S::ZERO).expect("zero is a valid flex shrink factor"),
         ..NodeInputOf::default()
@@ -759,7 +759,7 @@ fn assert_logical_flex_placement_vertical_lr_row_projects_inline_main<S: LayoutS
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -805,7 +805,7 @@ fn assert_logical_flex_boundaries_reverse_and_wrap_reverse_project_once<S: Layou
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::RowReverse,
                 ..NodeInputOf::default()
             },
@@ -837,7 +837,7 @@ fn assert_logical_flex_boundaries_reverse_and_wrap_reverse_project_once<S: Layou
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::WrapReverse,
                 align_content: Some(AlignContent::FlexStart),
@@ -888,7 +888,7 @@ fn assert_logical_flex_placement_wrap_reverse_keeps_logical_and_flex_alignment_d
             0,
             NodeInputOf {
                 display: Display::Flex,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::WrapReverse,
                 ..NodeInputOf::default()
@@ -972,7 +972,7 @@ fn assert_logical_flex_placement_maps_auto_margins_and_relative_trailing_inset<S
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -1083,7 +1083,7 @@ fn assert_logical_flex_boundaries_positioned_insets_keep_normal_flow_precedence<
                 0,
                 NodeInputOf {
                     display: Display::Flex,
-                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                     writing_mode: case.writing_mode,
                     direction: case.direction,
                     flex_direction: case.flex_direction,
@@ -1170,7 +1170,7 @@ fn assert_logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physi
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 overflow: Point::new(Overflow::Visible, Overflow::Scroll),
                 ..NodeInputOf::default()
@@ -1223,7 +1223,7 @@ fn assert_logical_flex_boundaries_absolute_static_alignment_and_all_flows<S: Lay
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -1282,7 +1282,7 @@ fn assert_logical_flex_boundaries_absolute_static_alignment_and_all_flows<S: Lay
                             display: Display::Flex,
                             writing_mode,
                             direction,
-                            size: Size::splat(DimensionOf::px(scalar(100.0))),
+                            size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                             flex_direction,
                             justify_content: Some(AlignContent::FlexStart),
                             align_items: Some(AlignItems::Start),
@@ -1425,7 +1425,7 @@ fn assert_logical_flex_placement_reversed_alignment_distinguishes_logical_and_fl
                     0,
                     NodeInputOf {
                         display: Display::Flex,
-                        size: Size::splat(DimensionOf::px(scalar(100.0))),
+                        size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                         flex_direction,
                         justify_content: Some(alignment),
                         ..NodeInputOf::default()
@@ -1466,7 +1466,7 @@ fn assert_logical_flex_placement_wrap_reverse_align_content_distinguishes_logica
                 0,
                 NodeInputOf {
                     display: Display::Flex,
-                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                     flex_wrap: FlexWrap::WrapReverse,
                     align_content: Some(alignment),
                     ..NodeInputOf::default()
@@ -1522,7 +1522,7 @@ fn assert_logical_flex_boundaries_absolute_reversed_main_alignment_distinguishes
                     0,
                     NodeInputOf {
                         display: Display::Flex,
-                        size: Size::splat(DimensionOf::px(scalar(100.0))),
+                        size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                         flex_direction,
                         justify_content: Some(alignment),
                         ..NodeInputOf::default()
@@ -1565,7 +1565,7 @@ fn assert_logical_flex_boundaries_absolute_wrap_reverse_distinguishes_logical_an
             0,
             NodeInputOf {
                 display: Display::Flex,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::WrapReverse,
                 ..NodeInputOf::default()
@@ -1677,7 +1677,7 @@ fn assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis<S: Layo
             0,
             NodeInputOf {
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -1687,7 +1687,10 @@ fn assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis<S: Layo
             NodeInputOf {
                 display: Display::Block,
                 writing_mode: WritingMode::HorizontalTb,
-                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(10.0)),
+                    PreferredSizeOf::px(scalar(20.0)),
+                ),
                 ..NodeInputOf::default()
             },
         )
@@ -1696,7 +1699,10 @@ fn assert_logical_flex_sizing_vertical_lr_row_uses_container_inline_axis<S: Layo
             NodeInputOf {
                 display: Display::Block,
                 writing_mode: WritingMode::SidewaysLr,
-                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(10.0)),
+                    PreferredSizeOf::px(scalar(20.0)),
+                ),
                 ..NodeInputOf::default()
             },
         );
@@ -1751,13 +1757,11 @@ fn assert_logical_ordinary_grid_container_sizing<S: LayoutScalar>() {
                     direction,
                     size: flow_axes
                         .physical_size(logical_style_size)
-                        .map(DimensionOf::px),
-                    min_size: flow_axes
-                        .physical_size(logical_min_size)
-                        .map(DimensionOf::px),
+                        .map(PreferredSizeOf::px),
+                    min_size: flow_axes.physical_size(logical_min_size).map(MinSizeOf::px),
                     max_size: flow_axes
                         .physical_size(logical_outer_size)
-                        .map(DimensionOf::px),
+                        .map(MaxSizeOf::px),
                     gap: flow_axes.physical_size(logical_gap),
                     grid_template_columns: vec![TrackComponentOf::px(scalar(30.0))],
                     grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
@@ -1805,8 +1809,10 @@ fn logical_ordinary_grid_container_sizing_f64() {
 
 fn assert_logical_ordinary_grid_intrinsic_reruns_public_leaves<S: LayoutScalar>() {
     let scalar = scalar::<S>;
-    let physical_leaf_size =
-        Size::new(DimensionOf::px(scalar(17.0)), DimensionOf::px(scalar(31.0)));
+    let physical_leaf_size = Size::new(
+        PreferredSizeOf::px(scalar(17.0)),
+        PreferredSizeOf::px(scalar(31.0)),
+    );
     let expected_size = Size::new(scalar(17.0), scalar(31.0));
     let relationships = [
         (
@@ -1862,7 +1868,7 @@ fn assert_logical_ordinary_grid_intrinsic_reruns_public_leaves<S: LayoutScalar>(
                     display: Display::Block,
                     writing_mode: child_writing_mode,
                     direction: child_direction,
-                    size: physical_leaf_size,
+                    size: physical_leaf_size.clone(),
                     ..NodeInputOf::default()
                 },
             );
@@ -1965,7 +1971,7 @@ fn assert_logical_ordinary_grid_absolute_static<S: LayoutScalar>() {
                     display: Display::Grid,
                     writing_mode,
                     direction,
-                    size: physical_container_size.map(DimensionOf::px),
+                    size: physical_container_size.map(PreferredSizeOf::px),
                     grid_template_columns: vec![
                         TrackComponentOf::px(scalar(30.25)),
                         TrackComponentOf::px(scalar(40.25)),
@@ -1983,7 +1989,7 @@ fn assert_logical_ordinary_grid_absolute_static<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: physical_child_size.map(DimensionOf::px),
+                    size: physical_child_size.map(PreferredSizeOf::px),
                     position: Position::Absolute,
                     grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
                     grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
@@ -2003,7 +2009,7 @@ fn assert_logical_ordinary_grid_absolute_static<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: physical_child_size.map(DimensionOf::px),
+                    size: physical_child_size.map(PreferredSizeOf::px),
                     position: Position::Absolute,
                     grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
                     grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
@@ -2019,7 +2025,7 @@ fn assert_logical_ordinary_grid_absolute_static<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: physical_child_size.map(DimensionOf::px),
+                    size: physical_child_size.map(PreferredSizeOf::px),
                     position: Position::Absolute,
                     grid_row: GridPlacement::try_line(2).expect("valid grid row"),
                     margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
@@ -2160,7 +2166,7 @@ fn assert_logical_grid_lanes_absolute_static<S: LayoutScalar>() {
                     display: Display::GridLanes,
                     writing_mode,
                     direction,
-                    size: physical_container_size.map(DimensionOf::px),
+                    size: physical_container_size.map(PreferredSizeOf::px),
                     grid_template_columns: vec![
                         TrackComponentOf::px(scalar(30.25)),
                         TrackComponentOf::px(scalar(40.25)),
@@ -2182,7 +2188,7 @@ fn assert_logical_grid_lanes_absolute_static<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: physical_child_size.map(DimensionOf::px),
+                    size: physical_child_size.map(PreferredSizeOf::px),
                     position: Position::Absolute,
                     grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
                     grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
@@ -2202,7 +2208,7 @@ fn assert_logical_grid_lanes_absolute_static<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: physical_child_size.map(DimensionOf::px),
+                    size: physical_child_size.map(PreferredSizeOf::px),
                     position: Position::Absolute,
                     grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
                     grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
@@ -2218,7 +2224,7 @@ fn assert_logical_grid_lanes_absolute_static<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: physical_child_size.map(DimensionOf::px),
+                    size: physical_child_size.map(PreferredSizeOf::px),
                     position: Position::Absolute,
                     grid_row: GridPlacement::try_line(2).expect("valid grid row"),
                     margin: flow_axes.physical_edges(crate::geometry::LogicalEdgesOf::new(
@@ -2320,7 +2326,10 @@ fn orthogonal_grid_lanes_selected_rows_use_column_lane_offsets() {
             0,
             NodeInputOf {
                 display: Display::GridLanes,
-                size: Size::new(DimensionOf::px(30.0 + 40.0), DimensionOf::px(50.0 + 60.0)),
+                size: Size::new(
+                    PreferredSizeOf::px(30.0 + 40.0),
+                    PreferredSizeOf::px(50.0 + 60.0),
+                ),
                 grid_auto_flow: GridAutoFlow::Column,
                 grid_template_columns: vec![TrackComponentOf::px(30.0), TrackComponentOf::px(40.0)],
                 grid_template_rows: vec![TrackComponentOf::px(50.0), TrackComponentOf::px(60.0)],
@@ -2332,7 +2341,7 @@ fn orthogonal_grid_lanes_selected_rows_use_column_lane_offsets() {
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(DimensionOf::px(30.0), DimensionOf::px(50.0)),
+                size: Size::new(PreferredSizeOf::px(30.0), PreferredSizeOf::px(50.0)),
                 grid_row: GridPlacement::try_lines(1, 2).expect("valid first grid row"),
                 ..NodeInputOf::default()
             },
@@ -2342,7 +2351,7 @@ fn orthogonal_grid_lanes_selected_rows_use_column_lane_offsets() {
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(DimensionOf::px(40.0), DimensionOf::px(60.0)),
+                size: Size::new(PreferredSizeOf::px(40.0), PreferredSizeOf::px(60.0)),
                 grid_row: GridPlacement::try_lines(2, 3).expect("valid second grid row"),
                 ..NodeInputOf::default()
             },
@@ -2443,7 +2452,7 @@ fn assert_logical_grid_lanes_axes<S: LayoutScalar>() {
                         display: Display::GridLanes,
                         writing_mode,
                         direction,
-                        size: physical_container_size.map(DimensionOf::px),
+                        size: physical_container_size.map(PreferredSizeOf::px),
                         grid_auto_flow,
                         grid_template_columns: vec![
                             TrackComponentOf::px(scalar(30.0)),
@@ -2474,7 +2483,7 @@ fn assert_logical_grid_lanes_axes<S: LayoutScalar>() {
                     direction: child_flow.direction,
                     size: child_flow_axes
                         .physical_size(logical_size)
-                        .map(DimensionOf::px),
+                        .map(PreferredSizeOf::px),
                     margin: child_flow_axes.physical_edges(logical_margin.map(LengthAutoOf::px)),
                     ..NodeInputOf::default()
                 };
@@ -2589,7 +2598,7 @@ fn assert_logical_grid_lanes_axes<S: LayoutScalar>() {
                             .physical_size(
                                 intrinsic_child_flow_axes.logical_size(intrinsic_physical_size),
                             )
-                            .map(DimensionOf::px),
+                            .map(PreferredSizeOf::px),
                         grid_column: if row_flow {
                             GridPlacement::try_line(1).expect("valid intrinsic grid column")
                         } else {
@@ -2647,7 +2656,7 @@ fn assert_logical_inherited_grid_axis_contexts_public<S: LayoutScalar>() {
                     display: Display::Grid,
                     writing_mode: parent_flow.writing_mode(),
                     direction: parent_flow.direction(),
-                    size: parent_size.map(DimensionOf::px),
+                    size: parent_size.map(PreferredSizeOf::px),
                     grid_template_columns: vec![
                         TrackComponentOf::px(scalar(30.0)),
                         TrackComponentOf::px(scalar(40.0)),
@@ -2859,7 +2868,7 @@ fn assert_logical_subgrid_axes<S: LayoutScalar>() {
                             display: Display::Grid,
                             writing_mode: parent_writing_mode,
                             direction: parent_direction,
-                            size: parent_size.map(DimensionOf::px),
+                            size: parent_size.map(PreferredSizeOf::px),
                             grid_template_columns: vec![
                                 TrackComponentOf::px(scalar(30.0)),
                                 TrackComponentOf::px(scalar(40.0)),
@@ -3009,7 +3018,10 @@ fn assert_nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_pr
             0,
             NodeInputOf {
                 display: Display::Grid,
-                size: Size::new(DimensionOf::MAX_CONTENT, DimensionOf::px(scalar(40.0))),
+                size: Size::new(
+                    PreferredSizeOf::MAX_CONTENT,
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
                 grid_template_columns: vec![
                     TrackComponentOf::AUTO,
                     TrackComponentOf::AUTO,
@@ -3046,7 +3058,10 @@ fn assert_nested_orthogonal_partial_subgrid_preserves_resolved_cross_axis_and_pr
             3,
             NodeInputOf {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(10.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(20.0)),
+                    PreferredSizeOf::px(scalar(10.0)),
+                ),
                 ..NodeInputOf::default()
             },
         );
@@ -3109,8 +3124,8 @@ fn assert_subgrid_mbp_preserves_area_basis_and_content_capacity<S: LayoutScalar>
             NodeInputOf {
                 display: Display::Grid,
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(40.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
                 ),
                 grid_template_columns: vec![TrackComponentOf::px(scalar(100.0))],
                 grid_template_rows: vec![TrackComponentOf::px(scalar(40.0))],
@@ -3149,8 +3164,8 @@ fn assert_subgrid_mbp_preserves_area_basis_and_content_capacity<S: LayoutScalar>
             NodeInputOf {
                 display: Display::Block,
                 size: Size::new(
-                    DimensionOf::percent(scalar(1.0)),
-                    DimensionOf::px(scalar(20.0)),
+                    PreferredSizeOf::percent(scalar(1.0)),
+                    PreferredSizeOf::px(scalar(20.0)),
                 ),
                 ..NodeInputOf::default()
             },
@@ -3225,8 +3240,8 @@ fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
                 writing_mode: WritingMode::VerticalRl,
                 direction: Direction::Rtl,
                 size: Size::new(
-                    DimensionOf::px(scalar(110.0)),
-                    DimensionOf::px(scalar(70.0)),
+                    PreferredSizeOf::px(scalar(110.0)),
+                    PreferredSizeOf::px(scalar(70.0)),
                 ),
                 grid_template_columns: vec![
                     TrackComponentOf::px(scalar(30.0)),
@@ -3247,8 +3262,8 @@ fn assert_logical_ordinary_grid_public_contexts<S: LayoutScalar>() {
                 direction: Direction::Rtl,
                 position: Position::Absolute,
                 size: Size::new(
-                    DimensionOf::px(scalar(10.25)),
-                    DimensionOf::px(scalar(20.25)),
+                    PreferredSizeOf::px(scalar(10.25)),
+                    PreferredSizeOf::px(scalar(20.25)),
                 ),
                 grid_column: GridPlacement::try_lines(2, 3).expect("valid grid columns"),
                 grid_row: GridPlacement::try_lines(2, 3).expect("valid grid rows"),
@@ -3418,7 +3433,7 @@ fn assert_logical_ordinary_grid_in_flow_placement_public_output<S: LayoutScalar>
                     direction,
                     size: flow_axes
                         .physical_size(logical_container_size)
-                        .map(DimensionOf::px),
+                        .map(PreferredSizeOf::px),
                     grid_template_columns: vec![
                         TrackComponentOf::px(scalar(30.0)),
                         TrackComponentOf::px(scalar(40.0)),
@@ -3451,7 +3466,7 @@ fn assert_logical_ordinary_grid_in_flow_placement_public_output<S: LayoutScalar>
                     display: Display::Block,
                     writing_mode: child_flow.writing_mode,
                     direction: child_flow.direction,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     margin: flow_axes.physical_edges(logical_margin.map(LengthAutoOf::px)),
                     inset: flow_axes.physical_edges(logical_inset),
                     position: Position::Relative,
@@ -3580,7 +3595,10 @@ fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contribu
             0,
             NodeInputOf {
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(60.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(60.0)),
+                ),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -3605,7 +3623,10 @@ fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contribu
             3,
             NodeInputOf {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(20.0)),
+                    PreferredSizeOf::px(scalar(30.0)),
+                ),
                 ..NodeInputOf::default()
             },
         )
@@ -3613,7 +3634,10 @@ fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contribu
             4,
             NodeInputOf {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(70.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(20.0)),
+                    PreferredSizeOf::px(scalar(70.0)),
+                ),
                 ..NodeInputOf::default()
             },
         );
@@ -3665,8 +3689,8 @@ fn logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contributions_f
 fn flex_item_style<S: LayoutScalar>(flex_basis: S) -> NodeInputOf<S> {
     NodeInputOf {
         display: Display::Block,
-        size: Size::splat(DimensionOf::px(scalar(10.0))),
-        flex_basis: DimensionOf::px(flex_basis),
+        size: Size::splat_clone(PreferredSizeOf::px(scalar(10.0))),
+        flex_basis: FlexBasisOf::px(flex_basis),
         flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow factor"),
         ..NodeInputOf::default()
     }
@@ -3682,7 +3706,10 @@ fn assert_logical_flex_sizing_wrap_thresholds_select_container_axes<S: LayoutSca
     ] {
         let (container_size, bases, expected_sizes) = if direction.is_row() {
             (
-                Size::new(DimensionOf::px(scalar(80.0)), DimensionOf::px(scalar(50.0))),
+                Size::new(
+                    PreferredSizeOf::px(scalar(80.0)),
+                    PreferredSizeOf::px(scalar(50.0)),
+                ),
                 [scalar(30.0), scalar(30.0), scalar(20.0)],
                 [
                     Size::new(scalar(10.0), scalar(50.0)),
@@ -3693,8 +3720,8 @@ fn assert_logical_flex_sizing_wrap_thresholds_select_container_axes<S: LayoutSca
         } else {
             (
                 Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(80.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(80.0)),
                 ),
                 [scalar(60.0), scalar(60.0), scalar(40.0)],
                 [
@@ -3756,8 +3783,8 @@ fn assert_logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes<S:
     let scalar = scalar::<S>;
     let item = NodeInputOf {
         display: Display::Block,
-        size: Size::splat(DimensionOf::px(scalar(10.0))),
-        flex_basis: DimensionOf::px(scalar(45.0)),
+        size: Size::splat_clone(PreferredSizeOf::px(scalar(10.0))),
+        flex_basis: FlexBasisOf::px(scalar(45.0)),
         flex_grow: FlexGrowOf::try_new(S::ONE).expect("one is a valid flex grow factor"),
         margin: Edges::all(LengthAutoOf::percent(scalar(0.1))),
         ..NodeInputOf::default()
@@ -3772,8 +3799,8 @@ fn assert_logical_flex_intrinsic_percentage_margin_and_gap_use_container_axes<S:
             NodeInputOf {
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(200.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(200.0)),
                 ),
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
@@ -3841,8 +3868,8 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             NodeInputOf {
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(120.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(120.0)),
                 ),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
@@ -3853,7 +3880,10 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(40.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -3863,7 +3893,10 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(40.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -3873,7 +3906,10 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::HorizontalTb,
-                size: Size::new(DimensionOf::px(scalar(30.0)), DimensionOf::px(scalar(40.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(30.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -3882,7 +3918,7 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             4,
             NodeInputOf {
                 display: Display::Block,
-                flex_basis: DimensionOf::percent(scalar(0.5)),
+                flex_basis: FlexBasisOf::percent(scalar(0.5)),
                 ..NodeInputOf::default()
             },
         )
@@ -3890,7 +3926,7 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             5,
             NodeInputOf {
                 display: Display::Block,
-                flex_basis: DimensionOf::percent(scalar(0.5)),
+                flex_basis: FlexBasisOf::percent(scalar(0.5)),
                 ..NodeInputOf::default()
             },
         )
@@ -3898,7 +3934,7 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             6,
             NodeInputOf {
                 display: Display::Block,
-                flex_basis: DimensionOf::percent(scalar(0.5)),
+                flex_basis: FlexBasisOf::percent(scalar(0.5)),
                 ..NodeInputOf::default()
             },
         );
@@ -3935,8 +3971,8 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
             0,
             NodeInputOf {
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(80.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(80.0)),
                 ),
                 flex_wrap: FlexWrap::Wrap,
                 gap: Size::new(LengthOf::ZERO, LengthOf::percent(scalar(0.1))),
@@ -4006,7 +4042,7 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -4052,7 +4088,7 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
                     display: Display::Flex,
                     writing_mode,
                     direction,
-                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                     flex_direction: FlexDirection::Row,
                     ..NodeInputOf::default()
                 },
@@ -4138,7 +4174,7 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalRl,
                 direction: Direction::Rtl,
-                size: Size::splat(DimensionOf::px(scalar(100.0))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
                 ..NodeInputOf::default()
             },
@@ -4186,7 +4222,7 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
             NodeInputOf {
                 display: Display::Flex,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::splat(DimensionOf::px(scalar(100.5))),
+                size: Size::splat_clone(PreferredSizeOf::px(scalar(100.5))),
                 flex_direction: FlexDirection::Row,
                 align_items: Some(AlignItems::FlexEnd),
                 justify_content: Some(AlignContent::FlexEnd),
@@ -4235,7 +4271,7 @@ fn assert_viewport_root_logical_inline_auto_fill<S: LayoutScalar>(
 ) {
     let tree = FlowRootLeafTree::new(NodeInputOf::<S> {
         writing_mode,
-        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
+        size: Size::new(PreferredSizeOf::px(scalar(20.0)), PreferredSizeOf::AUTO),
         ..NodeInputOf::default()
     });
     let viewport = Size::new(
@@ -4254,7 +4290,7 @@ fn assert_viewport_root_logical_inline_auto_fill<S: LayoutScalar>(
 fn assert_horizontal_viewport_root_logical_inline_auto_fill<S: LayoutScalar>() {
     let tree = FlowRootLeafTree::new(NodeInputOf::<S> {
         writing_mode: WritingMode::HorizontalTb,
-        size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(30.0))),
+        size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(30.0))),
         ..NodeInputOf::default()
     });
     let request = LayoutRootRequestOf::viewport(Size::new(
@@ -4325,7 +4361,7 @@ fn assert_ordinary_block_root_contexts<S: LayoutScalar>() {
             display: Display::Block,
             writing_mode,
             direction,
-            size: size.map(DimensionOf::px),
+            size: size.map(PreferredSizeOf::px),
             ..NodeInputOf::default()
         };
 
@@ -4388,7 +4424,7 @@ fn assert_ordinary_block_root_contexts_clear_hidden_descendants<S: LayoutScalar>
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: Size::splat(DimensionOf::px(scalar(100.0))),
+                    size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                     ..NodeInputOf::default()
                 },
             )
@@ -4405,7 +4441,7 @@ fn assert_ordinary_block_root_contexts_clear_hidden_descendants<S: LayoutScalar>
                 2,
                 NodeInputOf {
                     display: Display::Block,
-                    size: Size::splat(DimensionOf::px(scalar(20.0))),
+                    size: Size::splat_clone(PreferredSizeOf::px(scalar(20.0))),
                     ..NodeInputOf::default()
                 },
             );
@@ -4519,7 +4555,7 @@ fn assert_ordinary_block_root_contexts_round_fractional_physical_edges<S: Layout
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: root_size.map(DimensionOf::px),
+                    size: root_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             )
@@ -4529,7 +4565,7 @@ fn assert_ordinary_block_root_contexts_round_fractional_physical_edges<S: Layout
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: expected_unrounded_size.map(DimensionOf::px),
+                    size: expected_unrounded_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             );
@@ -4564,7 +4600,10 @@ fn ordinary_block_root_contexts_round_fractional_physical_edges_for_all_flows_f6
 fn assert_root_flow_opposite_edge_uses_only_definite_extent<S: LayoutScalar>() {
     let style = NodeInputOf::<S> {
         writing_mode: WritingMode::VerticalRl,
-        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+        size: Size::new(
+            PreferredSizeOf::px(scalar(20.0)),
+            PreferredSizeOf::px(scalar(30.0)),
+        ),
         ..NodeInputOf::default()
     };
     let definite_tree = FlowRootLeafTree::new(style.clone());
@@ -4592,7 +4631,10 @@ fn assert_root_flow_opposite_edge_uses_only_definite_extent<S: LayoutScalar>() {
 
     let sideways_style = NodeInputOf::<S> {
         writing_mode: WritingMode::SidewaysLr,
-        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+        size: Size::new(
+            PreferredSizeOf::px(scalar(20.0)),
+            PreferredSizeOf::px(scalar(30.0)),
+        ),
         ..NodeInputOf::default()
     };
     let sideways_definite_tree = FlowRootLeafTree::new(sideways_style.clone());
@@ -4636,7 +4678,10 @@ fn root_flow_opposite_edge_uses_only_definite_extent_for_f64() {
 fn assert_root_and_flex_root_percentage_edges_use_logical_inline_basis<S: LayoutScalar>() {
     let style = NodeInputOf::<S> {
         writing_mode: WritingMode::VerticalRl,
-        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(30.0))),
+        size: Size::new(
+            PreferredSizeOf::px(scalar(20.0)),
+            PreferredSizeOf::px(scalar(30.0)),
+        ),
         margin: Edges::all(LengthAutoOf::percent(scalar(0.3))),
         padding: Edges::all(LengthOf::percent(scalar(0.1))),
         border: Edges::all(LengthOf::percent(scalar(0.2))),
@@ -4700,8 +4745,8 @@ fn assert_flex_root_percentage_parent_is_separate_from_host_fill<S: LayoutScalar
     for writing_mode in [WritingMode::VerticalRl, WritingMode::SidewaysLr] {
         let style = NodeInputOf::<S> {
             writing_mode,
-            size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
-            max_size: Size::new(DimensionOf::AUTO, DimensionOf::percent(scalar(0.8))),
+            size: Size::new(PreferredSizeOf::px(scalar(20.0)), PreferredSizeOf::AUTO),
+            max_size: Size::new(MaxSizeOf::NONE, MaxSizeOf::percent(scalar(0.8))),
             padding: Edges::new(
                 LengthOf::percent(scalar(0.04)),
                 LengthOf::ZERO,
@@ -4791,7 +4836,7 @@ fn assert_flex_root_flow_known_inline_uses_host_availability<S: LayoutScalar>() 
     for writing_mode in [WritingMode::VerticalRl, WritingMode::SidewaysLr] {
         let style = NodeInputOf::<S> {
             writing_mode,
-            size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
+            size: Size::new(PreferredSizeOf::px(scalar(20.0)), PreferredSizeOf::AUTO),
             ..NodeInputOf::default()
         };
         let tree = FlowRootLeafTree::new(style.clone());
@@ -4902,7 +4947,7 @@ fn scroll_geometry_error_maps_root_block_overflow_through_the_public_front_door(
         0,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(1.0)),
             padding: overflowing_scroll_edges(),
             border: overflowing_scroll_edges(),
             ..NodeInput::default()
@@ -4928,7 +4973,7 @@ fn scroll_geometry_error_maps_non_root_block_overflow_through_the_public_front_d
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::px(1.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(1.0)),
                 ..NodeInput::default()
             },
         )
@@ -4936,7 +4981,7 @@ fn scroll_geometry_error_maps_non_root_block_overflow_through_the_public_front_d
             1,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+                size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(1.0)),
                 padding: overflowing_scroll_edges(),
                 border: overflowing_scroll_edges(),
                 ..NodeInput::default()
@@ -4965,7 +5010,7 @@ fn scroll_geometry_error_maps_block_inline_float_and_absolute_overflow_to_the_su
     let variants = [
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(1.0)),
             margin: Edges {
                 left: LengthAuto::px(f32::MAX),
                 ..Edges::all(LengthAuto::ZERO)
@@ -4974,7 +5019,7 @@ fn scroll_geometry_error_maps_block_inline_float_and_absolute_overflow_to_the_su
         },
         NodeInput {
             display: Display::InlineBlock,
-            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(1.0)),
             margin: Edges {
                 left: LengthAuto::px(f32::MAX),
                 ..Edges::all(LengthAuto::ZERO)
@@ -4984,7 +5029,7 @@ fn scroll_geometry_error_maps_block_inline_float_and_absolute_overflow_to_the_su
         NodeInput {
             float: Float::Left,
             display: Display::Block,
-            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(1.0)),
             margin: Edges {
                 left: LengthAuto::px(f32::MAX),
                 ..Edges::all(LengthAuto::ZERO)
@@ -4994,7 +5039,7 @@ fn scroll_geometry_error_maps_block_inline_float_and_absolute_overflow_to_the_su
         NodeInput {
             position: Position::Absolute,
             display: Display::Block,
-            size: Size::new(Dimension::px(f32::MAX), Dimension::px(1.0)),
+            size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(1.0)),
             margin: Edges {
                 left: LengthAuto::px(f32::MAX),
                 ..Edges::all(LengthAuto::ZERO)
@@ -5011,7 +5056,7 @@ fn scroll_geometry_error_maps_block_inline_float_and_absolute_overflow_to_the_su
                 0,
                 NodeInput {
                     display: Display::Block,
-                    size: Size::new(Dimension::px(100.0), Dimension::px(1.0)),
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(1.0)),
                     ..NodeInput::default()
                 },
             )
@@ -5037,7 +5082,7 @@ fn scroll_geometry_error_maps_rounding_overflow_through_the_public_front_door() 
     let available = Size::splat(Available::definite(f32::MAX));
     let style = NodeInput {
         writing_mode: WritingMode::VerticalRl,
-        size: Size::new(Dimension::px(1.0), Dimension::px(1.0)),
+        size: Size::new(PreferredSize::px(1.0), PreferredSize::px(1.0)),
         ..NodeInput::default()
     };
     let mut output = ComputeOutput::from_outer_size(Size::new(1.0, 1.0));
@@ -5248,7 +5293,7 @@ fn root_request_preserves_distinct_validated_contexts_and_rounding_policy() {
 #[test]
 fn compute_layout_success_returns_completed_batch_without_tree_mutation() {
     let style = NodeInput {
-        size: Size::new(Dimension::px(10.25), Dimension::px(20.5)),
+        size: Size::new(PreferredSize::px(10.25), PreferredSize::px(20.5)),
         ..NodeInput::default()
     };
     let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(0, style);
@@ -5277,7 +5322,7 @@ fn compute_layout_success_returns_completed_batch_without_tree_mutation() {
 #[test]
 fn compute_layout_stages_cache_store_with_the_cold_root_output() {
     let style = NodeInput {
-        size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+        size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
         ..NodeInput::default()
     };
     let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(0, style);
@@ -5301,7 +5346,7 @@ fn compute_layout_stages_cache_store_with_the_cold_root_output() {
 #[test]
 fn compute_layout_uses_a_matching_root_cache_hit_without_staging_a_store() {
     let style = NodeInput {
-        size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+        size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
         ..NodeInput::default()
     };
     let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(0, style);
@@ -5327,7 +5372,7 @@ fn compute_layout_root_diagnostics_reject_invalid_cached_scroll_geometry_without
     let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
         0,
         NodeInput {
-            size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -5616,7 +5661,7 @@ fn compute_layout_reports_consumed_invalid_numeric_resolution() {
         0,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
             padding: Edges::new(
                 Length::value(invalid_padding),
                 Length::ZERO,
@@ -5656,7 +5701,7 @@ fn compute_layout_rejects_measured_child_invalid_affine_width_without_batch() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::value(overflowing), Dimension::AUTO),
+                size: Size::new(PreferredSize::value(overflowing), PreferredSize::AUTO),
                 ..NodeInput::default()
             },
         )
@@ -5729,7 +5774,7 @@ fn compute_layout_rejects_root_measured_leaf_invalid_affine_width_without_batch(
         .style(
             0,
             NodeInput {
-                size: Size::new(Dimension::value(overflowing), Dimension::AUTO),
+                size: Size::new(PreferredSize::value(overflowing), PreferredSize::AUTO),
                 ..NodeInput::default()
             },
         )
@@ -5796,7 +5841,7 @@ fn compute_layout_uses_flex_root_viewport_context_as_parent_basis() {
         0,
         NodeInput {
             display: Display::Flex,
-            size: Size::new(Dimension::percent(0.5), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::percent(0.5), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -5908,7 +5953,7 @@ fn compute_layout_preserves_nested_subgrid_resolution_failure() {
                 display: Display::Grid,
                 grid_template_columns: vec![TrackComponent::Subgrid(SubgridTrack::new(vec![]))],
                 grid_template_rows: vec![TrackComponent::from(overflowing)],
-                size: Size::new(Dimension::AUTO, Dimension::px(f32::MAX)),
+                size: Size::new(PreferredSize::AUTO, PreferredSize::px(f32::MAX)),
                 ..NodeInput::default()
             },
         );
@@ -6400,7 +6445,7 @@ fn f64_tree_can_run_root_layout_smoke_test() {
         0,
         NodeInputOf::<f64> {
             display: Display::Block,
-            size: Size::new(DimensionOf::px(100.0), DimensionOf::px(50.0)),
+            size: Size::new(PreferredSizeOf::px(100.0), PreferredSizeOf::px(50.0)),
             ..NodeInputOf::<f64>::default()
         },
     );
@@ -6486,7 +6531,7 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
     let mut tree = SingleRootTree::new(NodeInput {
         overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
-        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
     tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
@@ -6517,7 +6562,7 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
 fn root_layout_emits_visible_scroll_geometry_without_range() {
     let mut tree = SingleRootTree::new(NodeInput {
         overflow: Point::new(Overflow::Visible, Overflow::Visible),
-        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
     tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
@@ -6542,7 +6587,7 @@ fn root_layout_emits_visible_scroll_geometry_without_range() {
 fn root_layout_emits_clip_geometry_without_range() {
     let mut tree = SingleRootTree::new(NodeInput {
         overflow: Point::new(Overflow::Clip, Overflow::Clip),
-        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
     tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
@@ -6564,7 +6609,7 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
     let mut tree = SingleRootTree::new(NodeInput {
         overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
-        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         padding: Edges::all(Length::px(2.0)),
         border: Edges::all(Length::px(3.0)),
         ..NodeInput::default()
@@ -6600,7 +6645,7 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
 fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
     let mut tree = SingleRootTree::new(NodeInput {
         overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-        size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
     let child_overflow = ScrollRect::new(Point::new(-12.0, -4.0), Size::new(160.0, 74.0)).unwrap();
@@ -6960,7 +7005,7 @@ fn max_width_root_uses_clamped_available_width_under_definite_viewport() {
     let mut tree = RootTree {
         style: NodeInput {
             display: Display::Grid,
-            max_size: Size::new(Dimension::px(260.0), Dimension::AUTO),
+            max_size: Size::new(MaxSize::px(260.0), MaxSize::NONE),
             ..NodeInput::default()
         },
         ..RootTree::default()
@@ -7043,7 +7088,7 @@ fn block_root_with_max_width_uses_clamped_available_outer_width() {
         style: NodeInput {
             display: Display::Grid,
             box_sizing: BoxSizing::ContentBox,
-            max_size: Size::new(Dimension::px(260.0), Dimension::AUTO),
+            max_size: Size::new(MaxSize::px(260.0), MaxSize::NONE),
             padding: Edges::new(
                 Length::px(1.0),
                 Length::px(5.0),
@@ -7364,7 +7409,7 @@ fn orthogonal_auto_child_subgrid_descendant<S: LayoutScalar>(
 fn orthogonal_auto_child_tree<S: LayoutScalar>(
     writing_mode: WritingMode,
     direction: Direction,
-    root_height: DimensionOf<S>,
+    root_height: PreferredSizeOf<S>,
 ) -> PublicFlowTree<S> {
     let outer_grid = orthogonal_auto_child_grid(writing_mode, direction);
     let subgrid = orthogonal_auto_child_subgrid(writing_mode, direction);
@@ -7382,7 +7427,7 @@ fn orthogonal_auto_child_tree<S: LayoutScalar>(
             0,
             NodeInputOf {
                 display: Display::Block,
-                size: Size::new(DimensionOf::AUTO, root_height),
+                size: Size::new(PreferredSizeOf::AUTO, root_height),
                 ..NodeInputOf::default()
             },
         )
@@ -7416,7 +7461,8 @@ fn assert_orthogonal_auto_child_inline_size_remains_indefinite<S: LayoutScalar>(
                 logical_descendant_size,
                 outer_size,
             );
-            let tree = orthogonal_auto_child_tree::<S>(writing_mode, direction, DimensionOf::AUTO);
+            let tree =
+                orthogonal_auto_child_tree::<S>(writing_mode, direction, PreferredSizeOf::AUTO);
             let batch = compute_layout(
                 &tree,
                 0,
@@ -7481,7 +7527,7 @@ fn assert_orthogonal_child_fixed_parent_height_remains_definite<S: LayoutScalar>
             let tree = orthogonal_auto_child_tree::<S>(
                 writing_mode,
                 direction,
-                DimensionOf::px(scalar(162.0)),
+                PreferredSizeOf::px(scalar(162.0)),
             );
             let batch = compute_layout(
                 &tree,

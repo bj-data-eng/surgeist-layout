@@ -1750,7 +1750,7 @@ where
             .transpose_with_node(tree, child)?;
         let margin = unresolved_margin.map(|margin| margin.unwrap_or(Tree::Scalar::ZERO));
         let logical_margin = flow_axes.logical_edges(margin);
-        let logical_style_size = flow_axes.logical_size(child_style.size);
+        let logical_style_size = flow_axes.logical_size(child_style.size.clone());
         let mut logical_known = LogicalSizeOf::new(None, None);
         let mut logical_parent = LogicalSizeOf::new(None, None);
         let mut logical_available =
@@ -1758,11 +1758,11 @@ where
         match lane_axis.logical_axis() {
             LogicalAxis::Inline => {
                 logical_available.inline =
-                    intrinsic_available_for_dimension(logical_style_size.inline);
+                    intrinsic_available_for_dimension(&logical_style_size.inline);
             }
             LogicalAxis::Block => {
                 logical_available.block =
-                    intrinsic_available_for_dimension(logical_style_size.block);
+                    intrinsic_available_for_dimension(&logical_style_size.block);
             }
         }
         match grid_axis.logical_axis() {
@@ -1776,12 +1776,12 @@ where
                     logical_style_size.inline.is_auto(),
                     AlignItems::Stretch,
                 );
-                logical_known.inline =
-                    resolve_dimension(logical_style_size.inline, Some(grid_axis_size))
-                        .map_err(|status| crate::compute::value_resolution_error(child, status))?
-                        .or_else(|| {
-                            (justify_self == AlignItems::Stretch).then_some(available_inline)
-                        });
+                logical_known.inline = logical_style_size
+                    .inline
+                    .resolve_simple_with_status(Some(grid_axis_size))
+                    .and_then(resolution_optional)
+                    .map_err(|status| crate::compute::value_resolution_error(child, status))?
+                    .or_else(|| (justify_self == AlignItems::Stretch).then_some(available_inline));
                 logical_parent.inline = Some(grid_axis_size);
                 logical_available.inline = AvailableOf::Definite(available_inline);
             }
@@ -1795,14 +1795,15 @@ where
                     logical_style_size.block.is_auto(),
                     AlignItems::Stretch,
                 );
-                logical_known.block =
-                    resolve_dimension(logical_style_size.block, Some(grid_axis_size))
-                        .map_err(|status| crate::compute::value_resolution_error(child, status))?
-                        .or_else(|| {
-                            (align_self == AlignItems::Stretch
-                                && child_style.aspect_ratio.is_none())
+                logical_known.block = logical_style_size
+                    .block
+                    .resolve_simple_with_status(Some(grid_axis_size))
+                    .and_then(resolution_optional)
+                    .map_err(|status| crate::compute::value_resolution_error(child, status))?
+                    .or_else(|| {
+                        (align_self == AlignItems::Stretch && child_style.aspect_ratio.is_none())
                             .then_some(available_block)
-                        });
+                    });
                 logical_parent.block = Some(grid_axis_size);
                 logical_available.block = AvailableOf::Definite(available_block);
             }
@@ -1838,25 +1839,34 @@ fn lane_child_intrinsic_available<S: LayoutScalar>(
     child_style: &NodeInputOf<S>,
     grid_axis_available: AvailableOf<S>,
 ) -> Size<AvailableOf<S>> {
-    let logical_size = flow_axes.logical_size(child_style.size);
+    let logical_size = flow_axes.logical_size(child_style.size.clone());
     let logical_available = match grid_axis.logical_axis() {
         LogicalAxis::Inline => LogicalSizeOf::new(
             grid_axis_available,
-            intrinsic_available_for_dimension(logical_size.block),
+            intrinsic_available_for_dimension(&logical_size.block),
         ),
         LogicalAxis::Block => LogicalSizeOf::new(
-            intrinsic_available_for_dimension(logical_size.inline),
+            intrinsic_available_for_dimension(&logical_size.inline),
             grid_axis_available,
         ),
     };
     flow_axes.physical_size(logical_available)
 }
 
-fn intrinsic_available_for_dimension<S: LayoutScalar>(dimension: DimensionOf<S>) -> AvailableOf<S> {
-    match dimension {
-        DimensionOf::MinContent => AvailableOf::MIN_CONTENT,
-        DimensionOf::MaxContent => AvailableOf::MAX_CONTENT,
-        DimensionOf::Value(_) | DimensionOf::Fr(_) | DimensionOf::Auto => AvailableOf::MAX_CONTENT,
+fn intrinsic_available_for_dimension<S: LayoutScalar>(
+    dimension: &PreferredSizeOf<S>,
+) -> AvailableOf<S> {
+    match dimension.view() {
+        crate::sizing::PreferredSizeView::MinContent => AvailableOf::MIN_CONTENT,
+        crate::sizing::PreferredSizeView::MaxContent => AvailableOf::MAX_CONTENT,
+        crate::sizing::PreferredSizeView::Zero
+        | crate::sizing::PreferredSizeView::Calculation(_)
+        | crate::sizing::PreferredSizeView::Auto
+        | crate::sizing::PreferredSizeView::Stretch
+        | crate::sizing::PreferredSizeView::FitContent
+        | crate::sizing::PreferredSizeView::Contain
+        | crate::sizing::PreferredSizeView::FitContentFunction(_)
+        | crate::sizing::PreferredSizeView::CalcSize(_, _) => AvailableOf::MAX_CONTENT,
     }
 }
 

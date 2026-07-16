@@ -1076,7 +1076,7 @@ fn grid_axis_physical_axis(
     }
 }
 
-fn grid_axis_size<T: Copy>(flow_axes: FlowAxes, size: Size<T>, axis: GridAxisKind) -> T {
+fn grid_axis_size<T>(flow_axes: FlowAxes, size: Size<T>, axis: GridAxisKind) -> T {
     match grid_axis_physical_axis(flow_axes, axis) {
         crate::geometry::PhysicalAxis::Horizontal => size.width,
         crate::geometry::PhysicalAxis::Vertical => size.height,
@@ -1089,7 +1089,7 @@ fn scroll_container_auto_minimum_zero_for_grid_axis<S: LayoutScalar>(
     axis: GridAxisKind,
 ) -> bool {
     grid_axis_overflow(style, flow_axes, axis).is_scrollable()
-        && grid_axis_size(flow_axes, style.size, axis).is_auto()
+        && grid_axis_size(flow_axes, style.size.clone(), axis).is_auto()
 }
 
 fn adjustment_sum<S: LayoutScalar>(adjustments: &[S], start: usize, end: usize) -> S {

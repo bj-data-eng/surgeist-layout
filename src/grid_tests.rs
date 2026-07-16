@@ -32,8 +32,8 @@ where
     let item_style = |order, width, height| NodeInputOf::<S> {
         item_order: ItemOrder::new(order),
         size: Size::new(
-            DimensionOf::px(S::from_f64(width)),
-            DimensionOf::px(S::from_f64(height)),
+            PreferredSizeOf::px(S::from_f64(width)),
+            PreferredSizeOf::px(S::from_f64(height)),
         ),
         grid_column: GridPlacement::try_line(1).expect("one is a valid grid line"),
         ..NodeInputOf::default()
@@ -318,7 +318,7 @@ where
         let column_flow = auto_flow.is_column();
         let item_style = |order| NodeInputOf::<S> {
             item_order: ItemOrder::new(order),
-            size: Size::splat(DimensionOf::px(S::from_f64(10.0))),
+            size: Size::splat_clone(PreferredSizeOf::px(S::from_f64(10.0))),
             ..NodeInputOf::default()
         };
         let definite_major = |order| NodeInputOf::<S> {
@@ -348,7 +348,7 @@ where
                 0,
                 NodeInputOf {
                     display: Display::Grid,
-                    size: Size::splat(DimensionOf::px(S::from_f64(80.0))),
+                    size: Size::splat_clone(PreferredSizeOf::px(S::from_f64(80.0))),
                     grid_template_columns: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
                     grid_template_rows: vec![TrackComponentOf::px(S::from_f64(20.0)); 4],
                     grid_auto_flow: auto_flow,
@@ -493,8 +493,8 @@ where
                 NodeInputOf {
                     display: Display::Grid,
                     size: Size::new(
-                        DimensionOf::px(S::from_f64(100.0)),
-                        DimensionOf::px(S::from_f64(80.0)),
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::px(S::from_f64(80.0)),
                     ),
                     grid_template_columns: vec![TrackComponentOf::px(S::from_f64(100.0))],
                     grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
@@ -577,7 +577,7 @@ where
                         display,
                         writing_mode: WritingMode::SidewaysRl,
                         direction: Direction::Rtl,
-                        size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+                        size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
                         grid_template_columns: vec![TrackComponentOf::px(S::from_f64(160.0))],
                         grid_template_rows: vec![TrackComponentOf::px(S::from_f64(120.0))],
                         ..NodeInputOf::default()
@@ -589,8 +589,8 @@ where
                     NodeInputOf {
                         position: Position::Absolute,
                         size: Size::new(
-                            DimensionOf::px(S::from_f64(30.0)),
-                            DimensionOf::px(S::from_f64(12.0)),
+                            PreferredSizeOf::px(S::from_f64(30.0)),
+                            PreferredSizeOf::px(S::from_f64(12.0)),
                         ),
                         ..NodeInputOf::default()
                     },
@@ -766,12 +766,12 @@ where
             NodeInputOf {
                 display: Display::Grid,
                 min_size: Size::new(
-                    min_width.map(DimensionOf::px).unwrap_or(DimensionOf::AUTO),
-                    DimensionOf::AUTO,
+                    min_width.map(MinSizeOf::px).unwrap_or(MinSizeOf::AUTO),
+                    MinSizeOf::AUTO,
                 ),
                 max_size: Size::new(
-                    max_width.map(DimensionOf::px).unwrap_or(DimensionOf::AUTO),
-                    DimensionOf::AUTO,
+                    max_width.map(MaxSizeOf::px).unwrap_or(MaxSizeOf::NONE),
+                    MaxSizeOf::NONE,
                 ),
                 ..NodeInputOf::default()
             },
@@ -1279,7 +1279,7 @@ fn named_grid_lanes_use_resolved_raw_grid_axis_placement() {
             1,
             NodeInput {
                 display: Display::GridLanes,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::line_names(["lane"]),
@@ -1523,14 +1523,14 @@ fn grid_lanes_lane_measurement_honors_min_content_width() {
         .style(
             2,
             NodeInput {
-                size: Size::new(Dimension::MIN_CONTENT, Dimension::AUTO),
+                size: Size::new(PreferredSize::MIN_CONTENT, PreferredSize::AUTO),
                 ..NodeInput::default()
             },
         )
         .style(
             3,
             NodeInput {
-                size: Size::new(Dimension::MAX_CONTENT, Dimension::AUTO),
+                size: Size::new(PreferredSize::MAX_CONTENT, PreferredSize::AUTO),
                 ..NodeInput::default()
             },
         )
@@ -1718,7 +1718,7 @@ fn named_grid_lanes_place_item_between_named_ordinary_grid_lines() {
             1,
             NodeInput {
                 display: Display::GridLanes,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::line_names(["slot-start"]),
@@ -1789,7 +1789,7 @@ fn named_grid_lanes_span_named_implicit_fallback_line() {
             1,
             NodeInput {
                 display: Display::GridLanes,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["a"]),
                     TrackComponent::px(40.0),
@@ -1875,7 +1875,7 @@ fn named_grid_lanes_subgrid_axis_uses_inherited_line_names() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(160.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(160.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["a"]),
                     TrackComponent::px(40.0),
@@ -1977,8 +1977,8 @@ where
                 NodeInputOf {
                     display,
                     size: Size::new(
-                        DimensionOf::px(S::from_f64(120.0)),
-                        DimensionOf::px(S::from_f64(80.0)),
+                        PreferredSizeOf::px(S::from_f64(120.0)),
+                        PreferredSizeOf::px(S::from_f64(80.0)),
                     ),
                     grid_template_columns: vec![TrackComponentOf::px(S::from_f64(120.0))],
                     grid_template_rows: vec![TrackComponentOf::px(S::from_f64(80.0))],
@@ -2133,7 +2133,7 @@ where
                             display: Display::GridLanes,
                             writing_mode,
                             direction,
-                            size: physical_container_size.map(DimensionOf::px),
+                            size: physical_container_size.map(PreferredSizeOf::px),
                             grid_auto_flow,
                             grid_template_columns: vec![
                                 TrackComponentOf::px(scalar(30.0)),
@@ -2335,7 +2335,7 @@ where
                             display: Display::Grid,
                             writing_mode,
                             direction,
-                            size: physical_container_size.map(DimensionOf::px),
+                            size: physical_container_size.map(PreferredSizeOf::px),
                             grid_template_columns: vec![
                                 TrackComponentOf::px(scalar(30.0)),
                                 TrackComponentOf::px(scalar(40.0)),
@@ -2927,7 +2927,7 @@ fn row_subgrid_intrinsic_width_uses_inherited_rows_for_column_auto_flow() {
             2,
             NodeInput {
                 display: Display::Grid,
-                min_size: Size::new(Dimension::MinContent, Dimension::AUTO),
+                min_size: Size::new(MinSize::MIN_CONTENT, MinSize::AUTO),
                 grid_auto_flow: GridAutoFlow::Column,
                 grid_template_rows: vec![empty_subgrid_track()],
                 grid_row: GridPlacement::try_span(2).expect("valid grid span"),
@@ -2937,14 +2937,14 @@ fn row_subgrid_intrinsic_width_uses_inherited_rows_for_column_auto_flow() {
         .style(
             3,
             NodeInput {
-                size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         )
         .style(
             4,
             NodeInput {
-                size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3005,7 +3005,7 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
         .style(
             3,
             NodeInput {
-                size: Size::new(Dimension::px(100.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(30.0)),
                 grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
@@ -3013,7 +3013,7 @@ fn row_subgrid_constrained_sizing_keeps_fixed_descendants_when_sibling_uses_perc
         .style(
             4,
             NodeInput {
-                size: Size::new(Dimension::px(100.0), Dimension::percent(0.5)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::percent(0.5)),
                 grid_row: GridPlacement::try_line(1).expect("valid grid line"),
                 ..NodeInput::DEFAULT
             },
@@ -3194,7 +3194,7 @@ fn row_subgrid_intrinsic_width_accumulates_standalone_percent_columns() {
             2,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::MinContent, Dimension::AUTO),
+                size: Size::new(PreferredSize::MIN_CONTENT, PreferredSize::AUTO),
                 grid_template_columns: vec![
                     TrackComponent::percent(0.2),
                     TrackComponent::percent(0.3),
@@ -3206,14 +3206,14 @@ fn row_subgrid_intrinsic_width_accumulates_standalone_percent_columns() {
         .style(
             5,
             NodeInput {
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
         .style(
             6,
             NodeInput {
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3256,7 +3256,7 @@ fn vertical_intrinsic_subgrid_final_sizing_keeps_definite_physical_height() {
             NodeInput {
                 display: Display::Grid,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::AUTO, Dimension::px(100.0)),
+                size: Size::new(PreferredSize::AUTO, PreferredSize::px(100.0)),
                 grid_template_columns: vec![
                     TrackComponent::percent(0.2),
                     TrackComponent::percent(0.3),
@@ -3323,7 +3323,7 @@ fn subgrid_line_names_place_child_with_inherited_parent_names() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(160.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(160.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["a"]),
                     TrackComponent::px(40.0),
@@ -3385,7 +3385,7 @@ fn subgrid_line_names_merge_local_names_at_corresponding_lines() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::px(40.0),
@@ -3449,7 +3449,7 @@ fn subgrid_line_names_clip_parent_area_generated_names_to_span() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(160.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(160.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::px(40.0),
@@ -3512,7 +3512,7 @@ fn subgrid_line_names_nested_subgrid_inherits_area_generated_names() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(160.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(160.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::px(40.0),
@@ -3588,7 +3588,7 @@ fn subgrid_line_names_named_placement_beyond_span_clamps_to_edge_track() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![TrackComponent::px(40.0)],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -4031,7 +4031,7 @@ where
                 NodeInputOf {
                     display: Display::Grid,
                     writing_mode,
-                    size: root_size.map(DimensionOf::px),
+                    size: root_size.map(PreferredSizeOf::px),
                     grid_template_columns: vec![
                         TrackComponentOf::px(S::from_f64(60.0)),
                         TrackComponentOf::px(S::from_f64(60.0)),
@@ -4175,7 +4175,7 @@ fn orthogonal_baseline_subgrid_does_not_group_incompatible_physical_axes() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
                 grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
                 grid_template_rows: vec![TrackComponent::px(80.0)],
                 align_items: Some(AlignItems::Baseline),
@@ -4459,8 +4459,8 @@ fn assert_published_baseline_group_order_keeps_compatible_axis<S: LayoutScalar>(
             NodeInputOf {
                 display: Display::Grid,
                 size: Size::new(
-                    DimensionOf::px(S::from_f64(120.0)),
-                    DimensionOf::px(S::from_f64(80.0)),
+                    PreferredSizeOf::px(S::from_f64(120.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
                 ),
                 grid_template_columns: vec![
                     TrackComponentOf::px(S::from_f64(60.0)),
@@ -4702,7 +4702,7 @@ fn grid_auto_places_children_into_declared_column_tracks() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -4806,7 +4806,7 @@ fn grid_column_gap_separates_declared_tracks() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(210.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(210.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
@@ -4922,7 +4922,7 @@ fn grid_auto_placement_continues_into_declared_rows_with_gap() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(205.0), Dimension::px(75.0)),
+            size: Size::new(PreferredSize::px(205.0), PreferredSize::px(75.0)),
             grid_template_columns: vec![TrackComponent::px(100.0), TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::px(30.0), TrackComponent::px(40.0)],
             gap: Size::new(Length::px(5.0), Length::px(5.0)),
@@ -5035,7 +5035,7 @@ fn grid_display_none_child_does_not_consume_auto_placement_cell() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -5146,7 +5146,7 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -5157,7 +5157,7 @@ fn grid_absolute_child_does_not_consume_auto_placement_cell() {
         NodeInput {
             position: Position::Absolute,
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
-            size: Size::new(Dimension::px(30.0), Dimension::px(12.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(12.0)),
             ..NodeInput::default()
         },
     );
@@ -5214,7 +5214,7 @@ fn named_grid_absolute_child_uses_resolved_raw_placement() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::line_names(["b"]),
@@ -5316,7 +5316,7 @@ fn named_grid_in_flow_item_occupies_cell_before_auto_sibling() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["taken"]),
                     TrackComponent::px(40.0),
@@ -5423,7 +5423,7 @@ fn grid_absolute_child_without_explicit_size_uses_measured_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(60.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(60.0)],
             ..NodeInput::default()
@@ -5532,7 +5532,7 @@ fn grid_absolute_child_resolves_size_from_opposing_insets() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(60.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(60.0)],
             ..NodeInput::default()
@@ -5647,7 +5647,7 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
         NodeInput {
             display: Display::Grid,
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             justify_items: Some(AlignItems::Start),
@@ -5658,7 +5658,7 @@ fn grid_absolute_child_without_horizontal_insets_uses_rtl_start_alignment() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::AUTO, Dimension::px(12.0)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(12.0)),
             ..NodeInput::default()
         },
     );
@@ -5755,7 +5755,7 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
         NodeInput {
             display: Display::Grid,
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -5770,7 +5770,7 @@ fn grid_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
                 right: LengthAuto::px(12.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(30.0), Dimension::px(12.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(12.0)),
             ..NodeInput::default()
         },
     );
@@ -5869,7 +5869,7 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -5879,7 +5879,7 @@ fn grid_absolute_child_expands_horizontal_auto_margins() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(30.0), Dimension::px(12.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(12.0)),
             margin: Edges {
                 left: LengthAuto::AUTO,
                 right: LengthAuto::AUTO,
@@ -5981,7 +5981,7 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             grid_template_columns: vec![TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::px(100.0)],
             ..NodeInput::default()
@@ -5991,7 +5991,7 @@ fn grid_absolute_child_expands_vertical_auto_margins() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
             margin: Edges {
                 top: LengthAuto::AUTO,
                 bottom: LengthAuto::AUTO,
@@ -6098,7 +6098,7 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(120.0), TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -6109,7 +6109,7 @@ fn grid_absolute_child_percent_size_resolves_against_grid_area() {
         NodeInput {
             position: Position::Absolute,
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
-            size: Size::new(Dimension::percent(0.5), Dimension::percent(0.5)),
+            size: Size::new(PreferredSize::percent(0.5), PreferredSize::percent(0.5)),
             ..NodeInput::default()
         },
     );
@@ -6206,7 +6206,7 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(120.0), TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -6217,7 +6217,7 @@ fn grid_absolute_child_percent_padding_resolves_against_grid_area() {
         NodeInput {
             position: Position::Absolute,
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
-            size: Size::new(Dimension::px(30.0), Dimension::px(12.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(12.0)),
             padding: Edges::all(Length::percent(0.1)),
             border: Edges::all(Length::percent(0.05)),
             ..NodeInput::default()
@@ -6315,7 +6315,7 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -6325,7 +6325,7 @@ fn grid_absolute_child_applies_aspect_ratio_to_authored_size() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(30.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::AUTO),
             aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
@@ -6424,7 +6424,7 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(80.0)],
             ..NodeInput::default()
@@ -6434,9 +6434,9 @@ fn grid_absolute_child_clamps_authored_size_to_min_and_max() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(80.0), Dimension::px(20.0)),
-            min_size: Size::new(Dimension::AUTO, Dimension::px(30.0)),
-            max_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(20.0)),
+            min_size: Size::new(MinSize::AUTO, MinSize::px(30.0)),
+            max_size: Size::new(MaxSize::px(50.0), MaxSize::NONE),
             ..NodeInput::default()
         },
     );
@@ -6534,7 +6534,7 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(80.0)],
             ..NodeInput::default()
@@ -6545,7 +6545,7 @@ fn grid_absolute_child_content_box_size_includes_padding_and_border() {
         NodeInput {
             position: Position::Absolute,
             box_sizing: BoxSizing::ContentBox,
-            size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
             padding: Edges::all(Length::px(5.0)),
             border: Edges::all(Length::px(1.0)),
             ..NodeInput::default()
@@ -6643,7 +6643,7 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(20.0)],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             ..NodeInput::default()
@@ -6653,7 +6653,7 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(12.0).unwrap(),
             ..NodeInput::default()
@@ -6749,7 +6749,7 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(80.0)],
             ..NodeInput::default()
@@ -6759,7 +6759,7 @@ fn grid_absolute_child_size_cannot_shrink_below_padding_and_border() {
         2,
         NodeInput {
             position: Position::Absolute,
-            size: Size::new(Dimension::px(4.0), Dimension::px(4.0)),
+            size: Size::new(PreferredSize::px(4.0), PreferredSize::px(4.0)),
             padding: Edges::all(Length::px(5.0)),
             border: Edges::all(Length::px(1.0)),
             ..NodeInput::default()
@@ -6859,7 +6859,7 @@ fn grid_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(80.0)],
             ..NodeInput::default()
@@ -6973,7 +6973,7 @@ fn grid_absolute_child_available_space_excludes_non_auto_margins() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
             grid_template_columns: vec![TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(80.0)],
             ..NodeInput::default()
@@ -7092,7 +7092,7 @@ fn grid_auto_placement_creates_implicit_rows_from_auto_rows() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(30.0)],
             grid_auto_rows: vec![TrackComponent::px(40.0)],
@@ -7204,7 +7204,7 @@ fn grid_auto_rows_repeat_for_multiple_implicit_rows() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::px(50.0)],
             grid_auto_rows: vec![TrackComponent::px(10.0), TrackComponent::px(20.0)],
             gap: Size::new(Length::ZERO, Length::px(5.0)),
@@ -7298,8 +7298,8 @@ fn grid_compute_size_applies_aspect_ratio_to_max_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
-            max_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
+            max_size: Size::new(MaxSize::px(50.0), MaxSize::NONE),
             aspect_ratio: AspectRatio::new(2.0),
             ..NodeInput::default()
         },
@@ -7385,7 +7385,7 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
         NodeInput {
             display: Display::Grid,
             box_sizing: BoxSizing::ContentBox,
-            size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
             padding: Edges::all(Length::px(5.0)),
             border: Edges::all(Length::px(1.0)),
             overflow: Point {
@@ -7476,7 +7476,7 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(2.0), Dimension::px(4.0)),
+            size: Size::new(PreferredSize::px(2.0), PreferredSize::px(4.0)),
             overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
             ..NodeInput::default()
@@ -7571,7 +7571,7 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(20.0)],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             ..NodeInput::default()
@@ -7664,7 +7664,7 @@ fn grid_content_size_mode_ignores_authored_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(100.0)),
             grid_template_columns: vec![TrackComponent::px(30.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             ..NodeInput::default()
@@ -7764,7 +7764,7 @@ fn grid_item_margins_reduce_stretched_grid_area() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -7882,7 +7882,7 @@ fn grid_item_with_aspect_ratio_stretches_width_and_keeps_start_aligned_height() 
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             grid_template_columns: vec![TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::px(100.0)],
             ..NodeInput::default()
@@ -7989,7 +7989,7 @@ fn grid_item_expands_inline_auto_margins_after_child_layout() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -8110,7 +8110,7 @@ fn grid_auto_flow_column_places_children_down_rows_then_across_columns() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::AUTO, Dimension::px(50.0)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(50.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(30.0)],
             grid_auto_columns: vec![TrackComponent::px(40.0)],
@@ -8217,7 +8217,7 @@ fn grid_definite_column_line_places_item_in_explicit_track() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -8345,7 +8345,7 @@ fn grid_definite_row_line_places_item_in_explicit_track() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::px(60.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(60.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -8453,7 +8453,7 @@ fn grid_definite_column_span_covers_multiple_tracks_and_gap() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(210.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(210.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
@@ -8559,7 +8559,7 @@ fn grid_definite_row_span_covers_multiple_tracks_and_gap() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::px(70.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(70.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(40.0)],
             gap: Size::new(Length::ZERO, Length::px(10.0)),
@@ -8666,7 +8666,7 @@ fn grid_column_span_auto_places_across_multiple_free_tracks() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(150.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(150.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(40.0),
                 TrackComponent::px(50.0),
@@ -8809,7 +8809,7 @@ fn grid_dense_auto_flow_backfills_earlier_free_cells() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(90.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(90.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(30.0),
                 TrackComponent::px(30.0),
@@ -8977,7 +8977,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(120.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(120.0)),
             grid_auto_flow: GridAutoFlow::RowDense,
             grid_template_columns: vec![
                 TrackComponent::px(40.0),
@@ -8996,7 +8996,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
         4,
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
-            size: Size::new(Dimension::px(35.0), Dimension::px(35.0)),
+            size: Size::new(PreferredSize::px(35.0), PreferredSize::px(35.0)),
             ..NodeInput::default()
         },
     );
@@ -9005,7 +9005,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
             grid_row: GridPlacement::try_line(1).expect("valid grid line"),
-            size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -9013,7 +9013,7 @@ fn grid_dense_row_flow_places_definite_row_items_before_auto_items() {
         9,
         NodeInput {
             grid_row: GridPlacement::try_line(1).expect("valid grid line"),
-            size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -9113,7 +9113,7 @@ fn grid_definite_column_auto_row_stays_in_auto_placement_order() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0), TrackComponent::px(120.0)],
             grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(20.0)],
             ..NodeInput::default()
@@ -9219,7 +9219,7 @@ fn grid_definite_column_line_span_resolves_from_start_line() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(150.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(150.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(30.0),
                 TrackComponent::px(40.0),
@@ -9348,7 +9348,7 @@ fn grid_definite_column_span_line_resolves_to_end_line() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(150.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(150.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(30.0),
                 TrackComponent::px(40.0),
@@ -9419,7 +9419,7 @@ fn grid_mixed_positive_negative_line_span_counts_actual_tracks_for_auto_growth()
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::AUTO),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::px(40.0),
@@ -9519,7 +9519,7 @@ fn grid_row_span_auto_placement_creates_enough_implicit_rows() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::px(50.0)],
             grid_auto_rows: vec![
                 TrackComponent::px(10.0),
@@ -9629,7 +9629,7 @@ fn grid_definite_column_line_creates_required_implicit_columns() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::AUTO, Dimension::px(10.0)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(10.0)),
             grid_template_columns: vec![TrackComponent::px(20.0)],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             grid_auto_columns: vec![TrackComponent::px(30.0), TrackComponent::px(40.0)],
@@ -9736,7 +9736,7 @@ fn grid_definite_column_end_line_resolves_to_previous_track() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(10.0)),
             grid_template_columns: vec![
                 TrackComponent::px(20.0),
                 TrackComponent::px(30.0),
@@ -9846,7 +9846,7 @@ fn grid_definite_row_end_line_resolves_to_previous_track() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(20.0), Dimension::px(90.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(90.0)),
             grid_template_columns: vec![TrackComponent::px(20.0)],
             grid_template_rows: vec![
                 TrackComponent::px(10.0),
@@ -9956,7 +9956,7 @@ fn grid_justify_content_center_offsets_tracks_inside_inner_width() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             justify_content: Some(AlignContent::Center),
@@ -10067,7 +10067,7 @@ fn grid_align_content_center_offsets_tracks_inside_inner_height() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(100.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             align_content: Some(AlignContent::Center),
@@ -10164,7 +10164,7 @@ fn grid_safe_align_content_falls_back_to_start_when_tracks_overflow() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             grid_template_columns: vec![TrackComponent::px(40.0)],
             grid_template_rows: vec![
                 TrackComponent::px(40.0),
@@ -10281,7 +10281,7 @@ fn grid_justify_content_space_between_distributes_free_width_between_tracks() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![TrackComponent::px(50.0), TrackComponent::px(50.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(10.0), Length::ZERO),
@@ -10385,7 +10385,7 @@ fn grid_justify_content_space_around_and_evenly_distribute_free_width() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![TrackComponent::px(50.0), TrackComponent::px(50.0)],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 gap: Size::new(Length::px(10.0), Length::ZERO),
@@ -10498,7 +10498,7 @@ fn grid_fraction_tracks_share_leftover_space_after_fixed_tracks_and_gaps() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(300.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(300.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::px(50.0),
                 track_component_flex(1.0),
@@ -10724,7 +10724,7 @@ fn grid_fraction_tracks_clamp_available_space_to_min_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            min_size: Size::new(Dimension::px(180.0), Dimension::AUTO),
+            min_size: Size::new(MinSize::px(180.0), MinSize::AUTO),
             grid_template_columns: vec![track_component_flex(1.0), track_component_flex(2.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(12.0), Length::ZERO),
@@ -10827,7 +10827,7 @@ fn grid_auto_fraction_tracks_resolve_after_required_tracks_are_known() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![TrackComponent::px(50.0)],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             grid_auto_columns: vec![track_component_flex(1.0)],
@@ -10935,7 +10935,7 @@ fn grid_stretch_distributes_free_space_to_auto_tracks() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(220.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(220.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![TrackComponent::AUTO, TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::px(20.0)],
             gap: Size::new(Length::px(20.0), Length::ZERO),
@@ -11053,7 +11053,7 @@ fn grid_auto_track_uses_single_item_intrinsic_contribution() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             justify_content: Some(AlignContent::Start),
@@ -11320,7 +11320,7 @@ fn grid_auto_width_uses_max_width_as_track_available_space() {
         1,
         NodeInput {
             display: Display::Grid,
-            max_size: Size::new(Dimension::px(260.0), Dimension::Auto),
+            max_size: Size::new(MaxSize::px(260.0), MaxSize::NONE),
             grid_template_columns: vec![TrackComponent::AUTO, TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::AUTO],
             ..NodeInput::default()
@@ -11537,7 +11537,7 @@ fn grid_layout_percent_columns_rerun_row_sizing_with_resolved_width() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::percent(1.0)],
             grid_template_rows: vec![TrackComponent::AUTO],
             justify_content: Some(AlignContent::Start),
@@ -12090,7 +12090,7 @@ where
             NodeInputOf {
                 display: Display::Grid,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(80.0))),
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(80.0))),
                 grid_template_columns: vec![TrackComponentOf::percent(scalar(1.0))],
                 grid_template_rows: vec![TrackComponentOf::AUTO],
                 justify_content: Some(AlignContent::Start),
@@ -12445,7 +12445,7 @@ fn grid_auto_placed_intrinsic_items_size_their_placed_tracks() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::AUTO, TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             justify_content: Some(AlignContent::Start),
@@ -12560,7 +12560,7 @@ fn grid_intrinsic_column_sizing_resolves_horizontal_percent_margins_against_cont
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             justify_content: Some(AlignContent::Start),
@@ -12696,7 +12696,7 @@ fn grid_nested_stretch_resolves_block_padding_percent_against_inline_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             ..NodeInput::default()
@@ -12839,7 +12839,7 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             ..NodeInput::default()
@@ -12849,7 +12849,7 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
         2,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::percent(0.5), Dimension::AUTO),
+            size: Size::new(PreferredSize::percent(0.5), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             ..NodeInput::default()
@@ -12858,7 +12858,7 @@ fn grid_nested_percent_margins_resolve_against_resolved_nested_inline_size() {
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::percent(0.45), Dimension::AUTO),
+            size: Size::new(PreferredSize::percent(0.45), PreferredSize::AUTO),
             margin: Edges::all(LengthAuto::percent(0.05)),
             ..NodeInput::default()
         },
@@ -13446,7 +13446,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(320.0), Dimension::px(640.0)),
+            size: Size::new(PreferredSize::px(320.0), PreferredSize::px(640.0)),
             grid_template_columns: vec![
                 TrackComponent::AUTO,
                 TrackComponent::AUTO,
@@ -13464,7 +13464,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
             grid_row: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
@@ -13473,7 +13473,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
     tree.styles.insert(
         3,
         NodeInput {
-            size: Size::new(Dimension::px(40.0), Dimension::px(30.0)),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
             grid_column: GridPlacement::try_line_span(2, 2).expect("valid grid line span"),
             grid_row: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
@@ -13482,7 +13482,7 @@ fn grid_spanning_item_grows_underfilled_auto_track_first() {
     tree.styles.insert(
         4,
         NodeInput {
-            size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
             grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             grid_row: GridPlacement::try_line(3).expect("valid grid line"),
             ..NodeInput::default()
@@ -13887,7 +13887,7 @@ fn grid_content_size_includes_visible_child_overflow_content() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::px(40.0)],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             justify_content: Some(AlignContent::Start),
@@ -13992,7 +13992,7 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::px(50.0), TrackComponent::px(50.0)],
             grid_template_rows: vec![TrackComponent::px(10.0)],
             justify_content: Some(AlignContent::Start),
@@ -14119,7 +14119,7 @@ fn grid_auto_size_re_resolves_indefinite_percentage_tracks_from_visible_content(
         NodeInput {
             grid_column: GridPlacement::try_line(1).expect("valid grid line"),
             grid_row: GridPlacement::try_line(1).expect("valid grid line"),
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             ..NodeInput::default()
         },
     );
@@ -14449,7 +14449,7 @@ fn grid_defaults_to_implicit_auto_tracks_when_no_auto_tracks_are_authored() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             justify_content: Some(AlignContent::Start),
             align_content: Some(AlignContent::Start),
             ..NodeInput::default()
@@ -14556,7 +14556,7 @@ fn grid_spanning_item_distributes_intrinsic_contribution_across_auto_tracks() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             grid_template_columns: vec![TrackComponent::AUTO, TrackComponent::AUTO],
             grid_template_rows: vec![TrackComponent::AUTO],
             justify_content: Some(AlignContent::Start),
@@ -14692,7 +14692,7 @@ fn grid_intrinsic_keyword_tracks_use_single_item_contribution() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::AUTO, Dimension::AUTO),
+                size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
                 grid_template_columns: vec![track],
                 grid_template_rows: vec![TrackComponent::AUTO],
                 justify_content: Some(AlignContent::Start),
@@ -14802,7 +14802,7 @@ fn grid_align_items_center_offsets_smaller_child_within_grid_area() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             align_items: Some(AlignItems::Center),
@@ -14904,7 +14904,7 @@ fn grid_align_self_overrides_parent_align_items() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             align_items: Some(AlignItems::Center),
@@ -14956,7 +14956,7 @@ fn grid_aligns_items_to_shared_first_baseline() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
                 grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
                 grid_template_rows: vec![TrackComponent::px(40.0)],
                 align_items: Some(AlignItems::Baseline),
@@ -14984,7 +14984,7 @@ fn grid_aligns_items_to_shared_last_baseline() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
                 grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
                 grid_template_rows: vec![TrackComponent::px(40.0)],
                 align_items: Some(AlignItems::LastBaseline),
@@ -15179,7 +15179,7 @@ fn grid_aligns_first_baseline_with_block_margins() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
                 grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
                 grid_template_rows: vec![TrackComponent::px(40.0)],
                 align_items: Some(AlignItems::Baseline),
@@ -15217,7 +15217,7 @@ fn grid_aligns_last_baseline_with_block_margins() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
                 grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
                 grid_template_rows: vec![TrackComponent::px(40.0)],
                 align_items: Some(AlignItems::LastBaseline),
@@ -15255,7 +15255,7 @@ fn grid_aligns_first_baseline_for_item_spanning_rows_with_gap() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(120.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(120.0)),
                 grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
                 grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
                 gap: Size::new(Length::ZERO, Length::px(7.0)),
@@ -15296,7 +15296,7 @@ fn grid_aligns_last_baseline_for_item_spanning_rows_with_gap() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(120.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(120.0)),
                 grid_template_columns: vec![TrackComponent::px(60.0), TrackComponent::px(60.0)],
                 grid_template_rows: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
                 gap: Size::new(Length::ZERO, Length::px(7.0)),
@@ -15643,7 +15643,7 @@ fn grid_justify_items_center_offsets_smaller_child_within_grid_area() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             justify_items: Some(AlignItems::Center),
@@ -15746,7 +15746,7 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             ..NodeInput::default()
@@ -15755,7 +15755,7 @@ fn grid_child_affine_size_and_margin_resolve_against_grid_area() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::value(width), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::value(width), PreferredSize::px(10.0)),
             margin: Edges {
                 left: LengthAuto::value(margin),
                 right: LengthAuto::ZERO,
@@ -15861,7 +15861,7 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             grid_template_columns: vec![TrackComponent::px(100.0)],
             grid_template_rows: vec![TrackComponent::px(100.0)],
             ..NodeInput::default()
@@ -15870,7 +15870,7 @@ fn grid_safe_justify_self_falls_back_to_start_when_item_overflows() {
     tree.styles.insert(
         2,
         NodeInput {
-            size: Size::new(Dimension::px(150.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(150.0), PreferredSize::px(50.0)),
             justify_self: Some(AlignItems::SafeCenter),
             ..NodeInput::default()
         },
@@ -15967,7 +15967,7 @@ fn grid_justify_self_overrides_parent_justify_items() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(80.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(40.0)),
             grid_template_columns: vec![TrackComponent::px(80.0)],
             grid_template_rows: vec![TrackComponent::px(40.0)],
             justify_items: Some(AlignItems::Center),
@@ -16017,7 +16017,7 @@ fn named_grid_column_places_item_between_repeated_named_lines() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["a"]),
                     TrackComponent::px(40.0),
@@ -16062,7 +16062,7 @@ fn named_grid_spanning_item_counts_resolved_lines_for_auto_track_growth() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["a"]),
                     TrackComponent::px(40.0),
@@ -16106,7 +16106,7 @@ fn named_grid_template_area_bare_name_uses_generated_start_and_end_lines() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::px(40.0),
@@ -16151,7 +16151,7 @@ fn named_grid_invalid_template_areas_keep_explicit_line_names() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::line_names(["foo"]),
@@ -16199,7 +16199,7 @@ fn invalid_named_grid_context_is_reported() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
             grid_template_rows: vec![TrackComponent::px(20.0), TrackComponent::px(20.0)],
             grid_template_areas: GridTemplateAreas {
@@ -16252,7 +16252,7 @@ fn invalid_named_grid_context_fallback_is_reported() {
         1,
         NodeInput {
             display: Display::Grid,
-            size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
             grid_template_columns: vec![
                 TrackComponent::line_names(["auto"]),
                 TrackComponent::px(40.0),
@@ -16298,7 +16298,7 @@ fn invalid_grid_item_placement_reports_one_authored_fallback_once() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![TrackComponent::px(40.0)],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -16351,7 +16351,7 @@ fn named_grid_bare_ident_is_distinct_from_explicit_named_line() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["foo-start"]),
                     TrackComponent::px(40.0),
@@ -16407,7 +16407,7 @@ fn named_grid_negative_occurrence_and_missing_occurrence_extend_tracks() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(160.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(160.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["a"]),
                     TrackComponent::px(40.0),
@@ -16469,7 +16469,7 @@ fn named_grid_lone_named_span_auto_defaults_to_one_track_auto_placement() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(80.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(20.0)),
                 grid_template_columns: vec![
                     TrackComponent::line_names(["a"]),
                     TrackComponent::px(40.0),
@@ -16509,7 +16509,7 @@ fn named_grid_start_after_end_and_equal_lines_normalize() {
             1,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::px(120.0), Dimension::px(40.0)),
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(40.0)),
                 grid_template_columns: vec![
                     TrackComponent::px(40.0),
                     TrackComponent::px(40.0),
@@ -16560,7 +16560,7 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
             1,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -16568,7 +16568,7 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
             2,
             NodeInput {
                 display: Display::Grid,
-                size: Size::new(Dimension::MinContent, Dimension::AUTO),
+                size: Size::new(PreferredSize::MIN_CONTENT, PreferredSize::AUTO),
                 grid_template_columns: vec![TrackComponent::AUTO],
                 grid_template_rows: vec![TrackComponent::AUTO],
                 ..NodeInput::DEFAULT
@@ -16589,7 +16589,7 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
             4,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(25.0), Dimension::px(25.0)),
+                size: Size::new(PreferredSize::px(25.0), PreferredSize::px(25.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -16597,7 +16597,7 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
             5,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(100.0), Dimension::px(25.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(25.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -16605,7 +16605,7 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
             6,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(50.0), Dimension::px(25.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(25.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -16613,7 +16613,7 @@ fn subgrid_intrinsic_row_sizing_uses_subgrid_content_not_parent_height() {
             7,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(75.0), Dimension::px(25.0)),
+                size: Size::new(PreferredSize::px(75.0), PreferredSize::px(25.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -17115,13 +17115,17 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
                     style
                         .size
                         .width
-                        .resolve_optional(input.parent().width)
+                        .resolve_simple_with_status(input.parent().width)
+                        .expect("affine preferred width is supported")
+                        .value
                         .or_else(|| input.available().width.into_option())
                         .unwrap_or(0.0),
                     style
                         .size
                         .height
-                        .resolve_optional(input.parent().height)
+                        .resolve_simple_with_status(input.parent().height)
+                        .expect("affine preferred height is supported")
+                        .value
                         .or_else(|| input.available().height.into_option())
                         .unwrap_or(0.0),
                 ));
@@ -17132,13 +17136,13 @@ fn grid_lanes_compute_result_accepts_non_default_scalar() {
 
     let root_style = NodeInputOf::<f64> {
         display: Display::GridLanes,
-        size: Size::new(DimensionOf::px(120.0), DimensionOf::px(90.0)),
+        size: Size::new(PreferredSizeOf::px(120.0), PreferredSizeOf::px(90.0)),
         grid_template_columns: vec![TrackSizingOf::px(60.0).into()],
         grid_auto_rows: vec![TrackSizingOf::px(40.0).into()],
         ..NodeInputOf::default()
     };
     let child_style = NodeInputOf::<f64> {
-        size: Size::new(DimensionOf::px(30.0), DimensionOf::px(20.0)),
+        size: Size::new(PreferredSizeOf::px(30.0), PreferredSizeOf::px(20.0)),
         ..NodeInputOf::default()
     };
     let mut tree = F64GridTree {
@@ -19726,8 +19730,8 @@ where
                 display: Display::Grid,
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(
-                    DimensionOf::px(S::from_f64(80.0)),
-                    DimensionOf::px(S::from_f64(60.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
+                    PreferredSizeOf::px(S::from_f64(60.0)),
                 ),
                 grid_template_columns: vec![TrackComponentOf::px(S::from_f64(60.0))],
                 grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
@@ -19826,8 +19830,8 @@ where
             NodeInputOf {
                 display: Display::Grid,
                 size: Size::new(
-                    DimensionOf::px(S::from_f64(70.0)),
-                    DimensionOf::px(S::from_f64(80.0)),
+                    PreferredSizeOf::px(S::from_f64(70.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
                 ),
                 grid_template_columns: vec![TrackComponentOf::px(S::from_f64(70.0))],
                 grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack {
@@ -20145,7 +20149,7 @@ fn vertical_grid_child_percentage_padding_uses_unequal_physical_area_height_basi
             NodeInput {
                 display: Display::Grid,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
                 grid_template_columns: vec![TrackComponent::from(lp(200.0, 0.0))],
                 grid_template_rows: vec![TrackComponent::from(lp(100.0, 0.0))],
                 ..NodeInput::default()
@@ -20154,7 +20158,7 @@ fn vertical_grid_child_percentage_padding_uses_unequal_physical_area_height_basi
         .style(
             2,
             NodeInput {
-                size: Size::new(Dimension::px(1.0), Dimension::px(1.0)),
+                size: Size::new(PreferredSize::px(1.0), PreferredSize::px(1.0)),
                 padding: Edges::all(Length::percent(0.1)),
                 ..NodeInput::default()
             },
@@ -20617,7 +20621,7 @@ fn absolute_grid_axis_area_uses_left_edge_for_definite_rtl_range() {
 #[test]
 fn grid_item_sizing_transfers_min_block_through_aspect_ratio_to_inline_size() {
     let child_style = NodeInput {
-        min_size: Size::new(Dimension::AUTO, Dimension::px(50.0)),
+        min_size: Size::new(MinSize::AUTO, MinSize::px(50.0)),
         aspect_ratio: AspectRatio::new(2.0),
         ..NodeInput::default()
     };
@@ -20637,7 +20641,7 @@ fn grid_item_sizing_transfers_min_block_through_aspect_ratio_to_inline_size() {
 #[test]
 fn grid_item_sizing_keeps_inline_stretch_when_min_inline_defines_aspect_ratio() {
     let child_style = NodeInput {
-        min_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+        min_size: Size::new(MinSize::px(50.0), MinSize::AUTO),
         aspect_ratio: AspectRatio::new(2.0),
         ..NodeInput::default()
     };
@@ -22218,7 +22222,7 @@ mod root_oracle {
         },
     };
     use crate::{
-        Available, ComputeInput, ComputeOutput, Dimension, Display, Length, NodeInput,
+        Available, ComputeInput, ComputeOutput, Display, Length, NodeInput, PreferredSize,
         RequestedAxis, RunMode, Size, SizingMode, TrackComponent,
     };
 
@@ -24965,7 +24969,7 @@ mod root_oracle {
                 1,
                 NodeInput {
                     display: Display::Grid,
-                    size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                    size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                     grid_template_columns: vec![TrackComponent::px(120.0)],
                     grid_template_rows: vec![TrackComponent::px(20.0)],
                     gap: Size::new(Length::px(8.0), Length::ZERO),
@@ -27125,15 +27129,15 @@ mod root_layout_oracle {
         },
     };
     use crate::{
-        AlignContent, AlignItems, Available, ComputeInput, ComputeOutput, Dimension, Direction,
-        Display, Edges, GridAutoFlow, GridAxisKind as ProductionGridAxisKind, GridFlowTolerance,
+        AlignContent, AlignItems, Available, ComputeInput, ComputeOutput, Direction, Display,
+        Edges, GridAutoFlow, GridAxisKind as ProductionGridAxisKind, GridFlowTolerance,
         GridPlacement, GridTemplateAreaRow, GridTemplateAreas,
         LaneContributionFacts as ProductionLaneContributionFacts,
         LaneIntrinsicItem as ProductionLaneIntrinsicItem,
         LaneIntrinsicSizingInput as ProductionLaneIntrinsicSizingInput,
         LaneItem as ProductionLaneItem, LanePlacementInput as ProductionLanePlacementInput, Length,
-        LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput, Point, Position, RawGridLine,
-        RawGridPlacement, RequestedAxis, RunMode, Size, SizingCalculation, SizingMode,
+        LengthAuto, MaxTrackSizing, MinTrackSizing, NodeInput, Point, Position, PreferredSize,
+        RawGridLine, RawGridPlacement, RequestedAxis, RunMode, Size, SizingCalculation, SizingMode,
         TrackComponent, TrackFlexFactor, TrackSizing as ProductionTrackSizing, WritingMode,
         compute_root, lane_intrinsic_sizing as production_lane_intrinsic_sizing,
         place_lanes as production_place_lanes, round_layout,
@@ -27210,7 +27214,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::Grid,
-                    size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
+                    size: Size::new(PreferredSize::px(200.0), PreferredSize::px(20.0)),
                     grid_template_columns: named_grid_track_components(),
                     grid_template_rows: vec![TrackComponent::px(20.0)],
                     grid_auto_columns,
@@ -27264,7 +27268,7 @@ mod root_layout_oracle {
                     1,
                     NodeInput {
                         display: Display::Grid,
-                        size: Size::new(Dimension::px(200.0), Dimension::px(20.0)),
+                        size: Size::new(PreferredSize::px(200.0), PreferredSize::px(20.0)),
                         grid_template_columns: named_grid_track_components(),
                         grid_template_rows: vec![TrackComponent::px(20.0)],
                         ..NodeInput::DEFAULT
@@ -27552,7 +27556,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::Grid,
-                    size: Size::new(Dimension::px(120.0), Dimension::px(20.0)),
+                    size: Size::new(PreferredSize::px(120.0), PreferredSize::px(20.0)),
                     grid_template_columns: vec![
                         TrackComponent::px(40.0),
                         TrackComponent::px(40.0),
@@ -27655,7 +27659,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::Grid,
-                    size: Size::new(Dimension::px(160.0), Dimension::px(40.0)),
+                    size: Size::new(PreferredSize::px(160.0), PreferredSize::px(40.0)),
                     grid_template_columns: vec![
                         TrackComponent::px(40.0),
                         TrackComponent::px(40.0),
@@ -27772,7 +27776,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::Grid,
-                    size: Size::new(Dimension::px(160.0), Dimension::px(20.0)),
+                    size: Size::new(PreferredSize::px(160.0), PreferredSize::px(20.0)),
                     grid_template_columns: vec![
                         TrackComponent::px(40.0),
                         TrackComponent::px(40.0),
@@ -28226,7 +28230,7 @@ mod root_layout_oracle {
                     .rows(vec![TrackComponent::px(52.0)])
                     .child(
                         GridLayoutNode::item(GridArea::new(2, 1, 1, 1))
-                            .size(Size::new(Dimension::px(76.0), Dimension::px(52.0)))
+                            .size(Size::new(PreferredSize::px(76.0), PreferredSize::px(52.0)))
                             .expect_layout(Point::new(30.0, 0.0), Size::new(76.0, 52.0)),
                     ),
             )
@@ -28425,7 +28429,7 @@ mod root_layout_oracle {
                     .expect_layout(Point::new(50.0, 0.0), Size::new(150.0, 30.0))
                     .child(
                         GridLayoutNode::item(GridArea::new(2, 1, 1, 1))
-                            .size(Size::new(Dimension::px(20.0), Dimension::px(30.0)))
+                            .size(Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)))
                             .margin(Edges::new(
                                 LengthAuto::px(0.0),
                                 LengthAuto::auto(),
@@ -28465,7 +28469,7 @@ mod root_layout_oracle {
                     .expect_layout(Point::new(50.0, 0.0), Size::new(150.0, 30.0))
                     .child(
                         GridLayoutNode::item(GridArea::new(2, 1, 1, 1))
-                            .size(Size::new(Dimension::px(20.0), Dimension::px(10.0)))
+                            .size(Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)))
                             .justify_self(AlignItems::Center)
                             .align_self(AlignItems::End)
                             .expect_layout(Point::new(110.0, 20.0), Size::new(20.0, 10.0))
@@ -28978,7 +28982,7 @@ mod root_layout_oracle {
                     .child(
                         GridLayoutNode::item(GridArea::new(2, 1, 1, 1))
                             .position(Position::Absolute)
-                            .size(Size::new(Dimension::px(10.0), Dimension::px(10.0)))
+                            .size(Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)))
                             .expect_layout(Point::new(90.0, 0.0), Size::new(10.0, 10.0))
                             .expect_final_layout(Point::new(90.0, 0.0), Size::new(10.0, 10.0)),
                     ),
@@ -29008,7 +29012,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::Grid,
-                    size: Size::new(Dimension::px(40.0), Dimension::px(20.0)),
+                    size: Size::new(PreferredSize::px(40.0), PreferredSize::px(20.0)),
                     grid_template_columns: vec![TrackComponent::px(40.0)],
                     grid_template_rows: vec![TrackComponent::px(20.0)],
                     ..NodeInput::DEFAULT
@@ -29547,7 +29551,7 @@ mod root_layout_oracle {
         GridLayoutComparison::new()
             .root_display(crate::Display::GridLanes)
             .container(Size::new(40.0, 0.0))
-            .root_size(Size::new(Dimension::px(40.0), Dimension::Auto))
+            .root_size(Size::new(PreferredSize::px(40.0), PreferredSize::AUTO))
             .columns(vec![TrackComponent::px(40.0)])
             .rows(vec![TrackComponent::px(10.0)])
             .gap(Size::new(0.0, 8.0))
@@ -29579,7 +29583,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::GridLanes,
-                    size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                     grid_template_columns: vec![TrackComponent::px(100.0)],
                     grid_template_rows: vec![TrackComponent::px(10.0)],
                     ..NodeInput::default()
@@ -29691,7 +29695,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::GridLanes,
-                    size: Size::new(Dimension::px(140.0), Dimension::px(140.0)),
+                    size: Size::new(PreferredSize::px(140.0), PreferredSize::px(140.0)),
                     grid_template_columns: vec![
                         TrackComponent::px(40.0),
                         TrackComponent::px(100.0),
@@ -29861,7 +29865,7 @@ mod root_layout_oracle {
                 1,
                 NodeInput {
                     display: Display::GridLanes,
-                    size: Size::new(Dimension::px(120.0), Dimension::px(120.0)),
+                    size: Size::new(PreferredSize::px(120.0), PreferredSize::px(120.0)),
                     grid_template_columns: vec![TrackComponent::px(40.0), TrackComponent::px(40.0)],
                     grid_template_rows: vec![TrackComponent::px(10.0)],
                     justify_content: Some(AlignContent::SpaceBetween),
@@ -29965,7 +29969,7 @@ mod root_layout_oracle {
             .node(
                 GridLayoutNode::item(GridArea::new(1, 1, 1, 1))
                     .position(Position::Absolute)
-                    .size(Size::new(Dimension::px(24.0), Dimension::px(12.0)))
+                    .size(Size::new(PreferredSize::px(24.0), PreferredSize::px(12.0)))
                     .expect_layout(Point::new(0.0, 0.0), Size::new(24.0, 12.0)),
             )
             .assert_layout();
@@ -29976,7 +29980,7 @@ mod root_layout_oracle {
         GridLayoutComparison::new()
             .root_display(crate::Display::GridLanes)
             .container(Size::new(0.0, 10.0))
-            .root_size(Size::new(Dimension::Auto, Dimension::px(10.0)))
+            .root_size(Size::new(PreferredSize::AUTO, PreferredSize::px(10.0)))
             .columns(vec![TrackComponent::AUTO])
             .rows(vec![TrackComponent::px(10.0)])
             .expected_tracks(
@@ -30091,7 +30095,7 @@ mod root_layout_oracle {
             .node(
                 GridLayoutNode::item(GridArea::new(1, 1, 1, 1))
                     .position(Position::Absolute)
-                    .size(Size::new(Dimension::px(8.0), Dimension::px(6.0)))
+                    .size(Size::new(PreferredSize::px(8.0), PreferredSize::px(6.0)))
                     .expect_layout(Point::new(0.0, 0.0), Size::new(8.0, 6.0)),
             )
             .node(

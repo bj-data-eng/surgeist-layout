@@ -29,7 +29,7 @@ where
                     display: Display::Block,
                     writing_mode: WritingMode::VerticalRl,
                     direction: Direction::Rtl,
-                    size: Size::new(DimensionOf::AUTO, DimensionOf::AUTO),
+                    size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO),
                     ..NodeInputOf::default()
                 },
             )
@@ -39,8 +39,8 @@ where
                 NodeInputOf {
                     position: Position::Absolute,
                     size: Size::new(
-                        DimensionOf::px(S::from_f64(30.0)),
-                        DimensionOf::px(S::from_f64(12.0)),
+                        PreferredSizeOf::px(S::from_f64(30.0)),
+                        PreferredSizeOf::px(S::from_f64(12.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -262,7 +262,10 @@ fn parent_context_gates_only_block_boundary_collapse_in_both_scalar_lanes() {
                     0,
                     NodeInputOf {
                         display: Display::Block,
-                        size: Size::new(DimensionOf::px(S::from_f64(40.0)), DimensionOf::AUTO),
+                        size: Size::new(
+                            PreferredSizeOf::px(S::from_f64(40.0)),
+                            PreferredSizeOf::AUTO,
+                        ),
                         ..NodeInputOf::default()
                     },
                 )
@@ -361,7 +364,7 @@ fn replaced_block_child_keeps_measured_auto_inline_size_in_both_scalar_lanes() {
                 0,
                 NodeInputOf {
                     display: Display::Block,
-                    size: Size::new(DimensionOf::px(scalar(200.0)), DimensionOf::AUTO),
+                    size: Size::new(PreferredSizeOf::px(scalar(200.0)), PreferredSizeOf::AUTO),
                     ..NodeInputOf::default()
                 },
             )
@@ -413,7 +416,7 @@ fn block_layout_ignores_item_order_for_geometry() {
                 0,
                 NodeInput {
                     display: Display::Block,
-                    size: Size::splat(Dimension::px(100.0)),
+                    size: Size::splat_clone(PreferredSize::px(100.0)),
                     ..NodeInput::default()
                 },
             )
@@ -422,7 +425,7 @@ fn block_layout_ignores_item_order_for_geometry() {
                 NodeInput {
                     display: Display::Block,
                     item_order: item_orders[0],
-                    size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+                    size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
                     ..NodeInput::default()
                 },
             )
@@ -431,7 +434,7 @@ fn block_layout_ignores_item_order_for_geometry() {
                 NodeInput {
                     display: Display::Block,
                     item_order: item_orders[1],
-                    size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+                    size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
                     ..NodeInput::default()
                 },
             )
@@ -440,7 +443,7 @@ fn block_layout_ignores_item_order_for_geometry() {
                 NodeInput {
                     display: Display::Block,
                     item_order: item_orders[2],
-                    size: Size::new(Dimension::px(30.0), Dimension::px(30.0)),
+                    size: Size::new(PreferredSize::px(30.0), PreferredSize::px(30.0)),
                     ..NodeInput::default()
                 },
             );
@@ -480,7 +483,10 @@ fn assert_ordinary_block_flow<S: LayoutScalar>(
         display: Display::Block,
         writing_mode,
         direction,
-        size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::px(scalar(10.0))),
+        size: Size::new(
+            PreferredSizeOf::px(scalar(20.0)),
+            PreferredSizeOf::px(scalar(10.0)),
+        ),
         ..NodeInputOf::default()
     };
     let tree = PublicBlockTree::default()
@@ -494,8 +500,8 @@ fn assert_ordinary_block_flow<S: LayoutScalar>(
                 writing_mode,
                 direction,
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
                 ),
                 ..NodeInputOf::default()
             },
@@ -683,8 +689,8 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     writing_mode,
                     direction,
                     size: Size::new(
-                        DimensionOf::px(scalar(100.0)),
-                        DimensionOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -696,7 +702,7 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     writing_mode,
                     direction,
                     position: Position::Relative,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     inset: relative_inset,
                     ..NodeInputOf::default()
                 },
@@ -728,8 +734,8 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     writing_mode,
                     direction,
                     size: Size::new(
-                        DimensionOf::px(scalar(100.0)),
-                        DimensionOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -740,7 +746,7 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             )
@@ -750,7 +756,7 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     display: Display::InlineBlock,
                     writing_mode,
                     direction,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             );
@@ -778,8 +784,8 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     writing_mode,
                     direction,
                     size: Size::new(
-                        DimensionOf::px(scalar(100.0)),
-                        DimensionOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -790,7 +796,7 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             )
@@ -801,7 +807,7 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                     writing_mode,
                     direction,
                     position: Position::Absolute,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             );
@@ -864,8 +870,8 @@ where
                     writing_mode,
                     direction,
                     size: Size::new(
-                        DimensionOf::px(S::from_f64(100.0)),
-                        DimensionOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::px(S::from_f64(100.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -876,7 +882,7 @@ where
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             )
@@ -886,7 +892,7 @@ where
                     display: Display::InlineBlock,
                     writing_mode,
                     direction,
-                    size: child_size.map(DimensionOf::px),
+                    size: child_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             );
@@ -974,7 +980,7 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
                     direction,
                     text_align: TextAlign::LegacyCenter,
                     overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                    size: root_size.map(DimensionOf::px),
+                    size: root_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             )
@@ -984,7 +990,7 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
                     display: Display::InlineBlock,
                     writing_mode,
                     direction,
-                    size: Size::splat(DimensionOf::px(scalar(20.0))),
+                    size: Size::splat_clone(PreferredSizeOf::px(scalar(20.0))),
                     ..NodeInputOf::default()
                 },
             );
@@ -1045,7 +1051,7 @@ fn assert_ordinary_block_boundaries_keep_inline_content_coordinates<S: LayoutSca
                     writing_mode,
                     direction,
                     overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                    size: root_size.map(DimensionOf::px),
+                    size: root_size.map(PreferredSizeOf::px),
                     padding,
                     border,
                     ..NodeInputOf::default()
@@ -1057,7 +1063,7 @@ fn assert_ordinary_block_boundaries_keep_inline_content_coordinates<S: LayoutSca
                     display: Display::InlineBlock,
                     writing_mode,
                     direction,
-                    size: expected_content_size.map(DimensionOf::px),
+                    size: expected_content_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
             );
@@ -1132,8 +1138,8 @@ fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: Layout
                     display: Display::Block,
                     writing_mode,
                     size: Size::new(
-                        DimensionOf::px(scalar(100.0)),
-                        DimensionOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -1143,7 +1149,10 @@ fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: Layout
                 NodeInputOf {
                     display: Display::Block,
                     writing_mode,
-                    size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(10.0)),
+                        PreferredSizeOf::px(scalar(20.0)),
+                    ),
                     ..NodeInputOf::default()
                 },
             )
@@ -1153,7 +1162,10 @@ fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: Layout
                     display: Display::Block,
                     writing_mode,
                     float: Float::Left,
-                    size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(10.0)),
+                        PreferredSizeOf::px(scalar(20.0)),
+                    ),
                     ..NodeInputOf::default()
                 },
             )
@@ -1164,7 +1176,10 @@ fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: Layout
                     writing_mode,
                     clear: Clear::Left,
                     overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                    size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(20.0))),
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar(10.0)),
+                        PreferredSizeOf::px(scalar(20.0)),
+                    ),
                     ..NodeInputOf::default()
                 },
             );
@@ -1203,7 +1218,7 @@ fn assert_ordinary_block_logical_sizing<S: LayoutScalar>(writing_mode: WritingMo
             NodeInputOf {
                 display: Display::Block,
                 writing_mode,
-                size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(100.0))),
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(100.0))),
                 ..NodeInputOf::default()
             },
         )
@@ -1212,7 +1227,7 @@ fn assert_ordinary_block_logical_sizing<S: LayoutScalar>(writing_mode: WritingMo
             NodeInputOf {
                 display: Display::Block,
                 writing_mode,
-                size: Size::new(DimensionOf::px(scalar(20.0)), DimensionOf::AUTO),
+                size: Size::new(PreferredSizeOf::px(scalar(20.0)), PreferredSizeOf::AUTO),
                 padding: Edges::new(
                     percentage_thirty,
                     LengthOf::ZERO,
@@ -1259,9 +1274,15 @@ fn assert_ordinary_block_collapse_relationship<S: LayoutScalar>(
 ) {
     let scalar = scalar_value::<S>;
     let child_size = if child_writing_mode == WritingMode::HorizontalTb {
-        Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(S::ZERO))
+        Size::new(
+            PreferredSizeOf::px(scalar(10.0)),
+            PreferredSizeOf::px(S::ZERO),
+        )
     } else {
-        Size::new(DimensionOf::px(S::ZERO), DimensionOf::px(scalar(10.0)))
+        Size::new(
+            PreferredSizeOf::px(S::ZERO),
+            PreferredSizeOf::px(scalar(10.0)),
+        )
     };
     let mut tree = PublicBlockTree::default()
         .with_children(0, [1, 2])
@@ -1272,8 +1293,8 @@ fn assert_ordinary_block_collapse_relationship<S: LayoutScalar>(
             NodeInputOf {
                 display: Display::Block,
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
                 ),
                 ..NodeInputOf::default()
             },
@@ -1298,7 +1319,10 @@ fn assert_ordinary_block_collapse_relationship<S: LayoutScalar>(
             2,
             NodeInputOf {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(10.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(10.0)),
+                    PreferredSizeOf::px(scalar(10.0)),
+                ),
                 ..NodeInputOf::default()
             },
         );
@@ -1354,8 +1378,8 @@ fn assert_ordinary_block_relationship_matrix<S: LayoutScalar>() {
                     display: Display::Block,
                     writing_mode: WritingMode::VerticalLr,
                     size: Size::new(
-                        DimensionOf::px(scalar(100.0)),
-                        DimensionOf::px(scalar(200.0)),
+                        PreferredSizeOf::px(scalar(100.0)),
+                        PreferredSizeOf::px(scalar(200.0)),
                     ),
                     ..NodeInputOf::default()
                 },
@@ -1365,7 +1389,7 @@ fn assert_ordinary_block_relationship_matrix<S: LayoutScalar>() {
                 NodeInputOf {
                     display: Display::Block,
                     writing_mode: WritingMode::HorizontalTb,
-                    size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(10.0))),
+                    size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
                     ..NodeInputOf::default()
                 },
             );
@@ -1397,8 +1421,8 @@ fn assert_ordinary_block_relationship_matrix<S: LayoutScalar>() {
                         display: Display::Block,
                         writing_mode: WritingMode::VerticalLr,
                         size: Size::new(
-                            DimensionOf::px(scalar(100.0)),
-                            DimensionOf::px(scalar(200.0)),
+                            PreferredSizeOf::px(scalar(100.0)),
+                            PreferredSizeOf::px(scalar(200.0)),
                         ),
                         ..NodeInputOf::default()
                     },
@@ -1409,7 +1433,7 @@ fn assert_ordinary_block_relationship_matrix<S: LayoutScalar>() {
                         display: Display::Block,
                         writing_mode: WritingMode::VerticalLr,
                         direction: child_direction,
-                        size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::AUTO),
+                        size: Size::new(PreferredSizeOf::px(scalar(10.0)), PreferredSizeOf::AUTO),
                         ..NodeInputOf::default()
                     },
                 );
@@ -1443,8 +1467,8 @@ fn assert_ordinary_block_opposing_flow_collapse<S: LayoutScalar>(measured_leaf: 
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
                 ),
                 ..NodeInputOf::default()
             },
@@ -1454,7 +1478,10 @@ fn assert_ordinary_block_opposing_flow_collapse<S: LayoutScalar>(measured_leaf: 
             NodeInputOf {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(DimensionOf::px(S::ZERO), DimensionOf::px(scalar(10.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(S::ZERO),
+                    PreferredSizeOf::px(scalar(10.0)),
+                ),
                 margin: Edges::new(
                     LengthAutoOf::ZERO,
                     LengthAutoOf::px(scalar(60.0)),
@@ -1469,7 +1496,10 @@ fn assert_ordinary_block_opposing_flow_collapse<S: LayoutScalar>(measured_leaf: 
             NodeInputOf {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(DimensionOf::px(scalar(10.0)), DimensionOf::px(scalar(10.0))),
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(10.0)),
+                    PreferredSizeOf::px(scalar(10.0)),
+                ),
                 ..NodeInputOf::default()
             },
         );
@@ -1510,8 +1540,8 @@ fn assert_ordinary_block_orthogonal_inline_margin_subtraction<S: LayoutScalar>(
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::new(
-                    DimensionOf::px(scalar(100.0)),
-                    DimensionOf::px(scalar(200.0)),
+                    PreferredSizeOf::px(scalar(100.0)),
+                    PreferredSizeOf::px(scalar(200.0)),
                 ),
                 ..NodeInputOf::default()
             },
@@ -1521,7 +1551,7 @@ fn assert_ordinary_block_orthogonal_inline_margin_subtraction<S: LayoutScalar>(
             NodeInputOf {
                 display: Display::Block,
                 writing_mode: WritingMode::HorizontalTb,
-                size: Size::new(DimensionOf::AUTO, DimensionOf::px(scalar(10.0))),
+                size: Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::px(scalar(10.0))),
                 margin: Edges::new(
                     LengthAutoOf::ZERO,
                     LengthAutoOf::px(scalar(60.0)),
@@ -1683,7 +1713,7 @@ fn block_layout_emits_scroll_geometry_for_scroll_overflow() {
         1,
         NodeInput {
             overflow: Point::new(Overflow::Scroll, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1705,7 +1735,7 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1742,7 +1772,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1751,7 +1781,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -1780,7 +1810,7 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1827,7 +1857,7 @@ fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
             NodeInput {
                 display: Display::Block,
                 overflow,
-                size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
                 ..NodeInput::default()
             },
         );
@@ -1868,7 +1898,7 @@ fn block_scroll_geometry_uses_node_local_padding_border_and_gutter_coordinates()
             direction: Direction::Rtl,
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             padding: Edges::all(Length::px(2.0)),
             border: Edges::all(Length::px(3.0)),
             ..NodeInput::default()
@@ -1896,7 +1926,7 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -1906,7 +1936,7 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
             display: Display::Block,
             position: Position::Absolute,
             overflow: Point::new(Overflow::Visible, Overflow::Visible),
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             inset: Edges {
                 left: LengthAuto::px(90.0),
                 top: LengthAuto::px(35.0),
@@ -1940,7 +1970,7 @@ fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            min_size: Size::new(Dimension::px(140.0), Dimension::px(80.0)),
+            min_size: Size::new(MinSize::px(140.0), MinSize::px(80.0)),
             ..NodeInput::default()
         },
     );
@@ -1994,7 +2024,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Visible, Overflow::Hidden),
-            size: Size::new(Dimension::px(40.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -2035,7 +2065,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2079,7 +2109,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
             ..NodeInput::default()
         },
     );
@@ -2088,7 +2118,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         NodeInput {
             display: Display::Block,
             float: Float::Left,
-            size: Size::new(Dimension::px(80.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(80.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
@@ -2225,7 +2255,7 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2285,7 +2315,7 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2357,7 +2387,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
-            size: Size::new(Dimension::px(120.0), Dimension::px(80.0)),
+            size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
             padding: Edges::all(Length::px(7.0)),
             border: Edges::all(Length::px(5.0)),
             ..NodeInput::default()
@@ -2369,7 +2399,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
             display: Display::Block,
             position: Position::Absolute,
             overflow: Point::new(Overflow::Visible, Overflow::Visible),
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             inset: Edges {
                 left: LengthAuto::px(90.0),
                 top: LengthAuto::px(60.0),
@@ -2419,7 +2449,7 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2428,7 +2458,7 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -2451,7 +2481,7 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2460,7 +2490,7 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -2488,7 +2518,7 @@ fn block_absolute_child_scroll_geometry_uses_final_node_output_size() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2538,7 +2568,7 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2547,7 +2577,7 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-            size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
     );
@@ -2580,7 +2610,7 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -2680,7 +2710,7 @@ fn block_fixed_parent_height_keeps_orthogonal_child_inline_known() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::AUTO, Dimension::px(162.0)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(162.0)),
             ..NodeInput::default()
         },
     );
@@ -2689,7 +2719,7 @@ fn block_fixed_parent_height_keeps_orthogonal_child_inline_known() {
         NodeInput {
             display: Display::Grid,
             writing_mode: WritingMode::VerticalRl,
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -2727,7 +2757,7 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -2735,7 +2765,7 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -2743,7 +2773,7 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -2771,7 +2801,7 @@ fn f64_block_layout_preserves_fractional_child_offsets() {
             0,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(100.0), DimensionOf::AUTO),
+                size: Size::new(PreferredSizeOf::px(100.0), PreferredSizeOf::AUTO),
                 ..NodeInputOf::<f64>::default()
             },
         )
@@ -2779,7 +2809,7 @@ fn f64_block_layout_preserves_fractional_child_offsets() {
             1,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(40.0), DimensionOf::px(5.25)),
+                size: Size::new(PreferredSizeOf::px(40.0), PreferredSizeOf::px(5.25)),
                 margin: Edges {
                     top: LengthAutoOf::px(large),
                     bottom: LengthAutoOf::px(0.25),
@@ -2792,7 +2822,7 @@ fn f64_block_layout_preserves_fractional_child_offsets() {
             2,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(40.0), DimensionOf::px(7.5)),
+                size: Size::new(PreferredSizeOf::px(40.0), PreferredSizeOf::px(7.5)),
                 margin: Edges {
                     top: LengthAutoOf::px(0.375),
                     ..Edges::all(LengthAutoOf::ZERO)
@@ -2840,7 +2870,7 @@ fn f64_block_layout_resolves_affine_values_without_narrowing() {
             0,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(container_width), DimensionOf::AUTO),
+                size: Size::new(PreferredSizeOf::px(container_width), PreferredSizeOf::AUTO),
                 ..NodeInputOf::<f64>::default()
             },
         )
@@ -2848,7 +2878,7 @@ fn f64_block_layout_resolves_affine_values_without_narrowing() {
             1,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::value(width), DimensionOf::px(4.5)),
+                size: Size::new(PreferredSizeOf::value(width), PreferredSizeOf::px(4.5)),
                 margin: Edges {
                     left: LengthAutoOf::value(margin_left),
                     ..Edges::all(LengthAutoOf::ZERO)
@@ -2890,7 +2920,7 @@ fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
             0,
             NodeInputOf::<f64> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(large + 20.0), DimensionOf::AUTO),
+                size: Size::new(PreferredSizeOf::px(large + 20.0), PreferredSizeOf::AUTO),
                 ..NodeInputOf::<f64>::default()
             },
         )
@@ -2898,7 +2928,7 @@ fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
             1,
             NodeInputOf::<f64> {
                 display: Display::InlineBlock,
-                size: Size::new(DimensionOf::px(large), DimensionOf::px(10.5)),
+                size: Size::new(PreferredSizeOf::px(large), PreferredSizeOf::px(10.5)),
                 ..NodeInputOf::<f64>::default()
             },
         )
@@ -2906,7 +2936,7 @@ fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
             2,
             NodeInputOf::<f64> {
                 display: Display::InlineBlock,
-                size: Size::new(DimensionOf::px(9.75), DimensionOf::px(20.25)),
+                size: Size::new(PreferredSizeOf::px(9.75), PreferredSizeOf::px(20.25)),
                 ..NodeInputOf::<f64>::default()
             },
         );
@@ -2950,7 +2980,7 @@ fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -2959,7 +2989,7 @@ fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 border: Edges::all(Length::px(5.0)),
                 ..NodeInput::DEFAULT
             },
@@ -2968,7 +2998,7 @@ fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3075,7 +3105,7 @@ fn block_wraps_atomic_inline_children_between_items() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3083,7 +3113,7 @@ fn block_wraps_atomic_inline_children_between_items() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3091,7 +3121,7 @@ fn block_wraps_atomic_inline_children_between_items() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3131,7 +3161,7 @@ fn block_atomic_inline_run_honors_line_break_child() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3140,7 +3170,7 @@ fn block_atomic_inline_run_honors_line_break_child() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3178,7 +3208,7 @@ fn ordinary_block_child_receives_parent_non_horizontal_containing_flow() {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalRl,
                 direction: Direction::Rtl,
-                size: Size::new(Dimension::px(100.0), Dimension::px(80.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
                 ..NodeInput::default()
             },
         )
@@ -3226,7 +3256,7 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3243,7 +3273,7 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3317,7 +3347,7 @@ fn block_inline_boundaries_are_reported_as_zero_size_inline_controls() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3329,7 +3359,7 @@ fn block_inline_boundaries_are_reported_as_zero_size_inline_controls() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3341,7 +3371,7 @@ fn block_inline_boundaries_are_reported_as_zero_size_inline_controls() {
             4,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3383,7 +3413,7 @@ fn block_inline_boundaries_before_overwide_first_inline_block_do_not_create_lead
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(20.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3395,7 +3425,7 @@ fn block_inline_boundaries_before_overwide_first_inline_block_do_not_create_lead
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(40.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(40.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3430,7 +3460,7 @@ fn vertical_block_inline_boundaries_use_parent_flow() {
             NodeInput {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3444,7 +3474,7 @@ fn vertical_block_inline_boundaries_use_parent_flow() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3488,7 +3518,7 @@ fn vertical_lr_block_inline_boundaries_use_parent_flow() {
             NodeInput {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3502,7 +3532,7 @@ fn vertical_lr_block_inline_boundaries_use_parent_flow() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3548,7 +3578,7 @@ fn hidden_line_break_does_not_split_atomic_inline_run() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3557,7 +3587,7 @@ fn hidden_line_break_does_not_split_atomic_inline_run() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3595,7 +3625,7 @@ fn block_atomic_inline_run_never_computes_line_break_as_box() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3604,7 +3634,7 @@ fn block_atomic_inline_run_never_computes_line_break_as_box() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(12.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3629,7 +3659,7 @@ fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
             NodeInput {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3638,7 +3668,7 @@ fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3653,7 +3683,7 @@ fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(12.0), Dimension::px(16.0)),
+                size: Size::new(PreferredSize::px(12.0), PreferredSize::px(16.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3684,7 +3714,7 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
             NodeInput {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3693,7 +3723,7 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3708,7 +3738,7 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalLr,
-                size: Size::new(Dimension::px(12.0), Dimension::px(16.0)),
+                size: Size::new(PreferredSize::px(12.0), PreferredSize::px(16.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3841,7 +3871,7 @@ fn hidden_vertical_line_break_does_not_create_inline_control() {
             NodeInput {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(80.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3850,7 +3880,7 @@ fn hidden_vertical_line_break_does_not_create_inline_control() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(10.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3865,7 +3895,7 @@ fn hidden_vertical_line_break_does_not_create_inline_control() {
             NodeInput {
                 display: Display::InlineBlock,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(Dimension::px(12.0), Dimension::px(16.0)),
+                size: Size::new(PreferredSize::px(12.0), PreferredSize::px(16.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -3896,7 +3926,7 @@ fn inline_break_clear_tree(
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3905,7 +3935,7 @@ fn inline_break_clear_tree(
             NodeInput {
                 display: Display::Block,
                 float: float_side,
-                size: Size::new(Dimension::px(80.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3913,7 +3943,7 @@ fn inline_break_clear_tree(
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3927,7 +3957,7 @@ fn inline_break_clear_tree(
             4,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -3991,7 +4021,7 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4000,7 +4030,7 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(60.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(60.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4009,7 +4039,7 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(60.0), Dimension::px(70.0)),
+                size: Size::new(PreferredSize::px(60.0), PreferredSize::px(70.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4017,7 +4047,7 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4031,7 +4061,7 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
             5,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4065,7 +4095,7 @@ fn line_break_clear_at_run_end_moves_following_block_below_float() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4074,7 +4104,7 @@ fn line_break_clear_at_run_end_moves_following_block_below_float() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(80.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4082,7 +4112,7 @@ fn line_break_clear_at_run_end_moves_following_block_below_float() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4096,7 +4126,7 @@ fn line_break_clear_at_run_end_moves_following_block_below_float() {
             4,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(25.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(25.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4128,7 +4158,7 @@ fn line_break_clear_left_ignores_right_float_and_preserves_alignment() {
         NodeInput {
             display: Display::Block,
             text_align: TextAlign::LegacyRight,
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             ..NodeInput::DEFAULT
         },
     );
@@ -4163,7 +4193,7 @@ fn line_break_clear_right_ignores_left_float_and_preserves_alignment() {
         NodeInput {
             display: Display::Block,
             text_align: TextAlign::LegacyCenter,
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             ..NodeInput::DEFAULT
         },
     );
@@ -4201,7 +4231,7 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
             NodeInput {
                 display: Display::Block,
                 text_align: TextAlign::LegacyRight,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4210,7 +4240,7 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(80.0), Dimension::px(5.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(5.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4218,7 +4248,7 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4232,7 +4262,7 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
             4,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(15.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4299,7 +4329,7 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(40.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(40.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4307,7 +4337,7 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(60.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(60.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4315,7 +4345,7 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4348,7 +4378,7 @@ fn atomic_inline_auto_margins_resolve_to_zero() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4356,7 +4386,7 @@ fn atomic_inline_auto_margins_resolve_to_zero() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 margin: Edges {
                     left: LengthAuto::AUTO,
                     right: LengthAuto::AUTO,
@@ -4398,7 +4428,7 @@ fn inline_block_intrinsic_width_shrink_wraps_children() {
             2,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(70.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(70.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4425,7 +4455,7 @@ fn inline_block_uses_bottom_synthesized_baseline_when_child_has_no_baseline() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4433,7 +4463,7 @@ fn inline_block_uses_bottom_synthesized_baseline_when_child_has_no_baseline() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4475,7 +4505,7 @@ fn inline_block_uses_inner_last_baseline_for_atomic_alignment() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(10.0), Dimension::px(25.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(25.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4512,7 +4542,7 @@ fn inline_block_keeps_child_margins_inside_atomic_wrapper() {
             2,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 margin: Edges {
                     top: LengthAuto::px(5.0),
                     ..Edges::all(LengthAuto::ZERO)
@@ -4561,7 +4591,7 @@ fn inline_grid_can_host_subgrid_descendant() {
             2,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(80.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4598,7 +4628,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4606,7 +4636,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
             1,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(10.0)),
                 margin: Edges {
                     bottom: LengthAuto::px(7.0),
                     ..Edges::all(LengthAuto::ZERO)
@@ -4618,7 +4648,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(10.0), Dimension::px(5.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(5.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4626,7 +4656,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(10.0), Dimension::px(15.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(15.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4634,7 +4664,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
             4,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(10.0)),
                 margin: Edges {
                     top: LengthAuto::px(3.0),
                     ..Edges::all(LengthAuto::ZERO)
@@ -4675,7 +4705,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4683,7 +4713,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(10.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4701,7 +4731,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
                 display: Display::InlineBlock,
                 position: Position::Absolute,
                 float: Float::Left,
-                size: Size::new(Dimension::px(5.0), Dimension::px(5.0)),
+                size: Size::new(PreferredSize::px(5.0), PreferredSize::px(5.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4709,7 +4739,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
             4,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4735,7 +4765,7 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
             NodeInput {
                 display: Display::Block,
                 direction: Direction::Rtl,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4743,7 +4773,7 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4751,7 +4781,7 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4778,7 +4808,7 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
             NodeInput {
                 display: Display::Block,
                 direction: Direction::Rtl,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4786,7 +4816,7 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4795,7 +4825,7 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4828,7 +4858,7 @@ fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
                 display: Display::Block,
                 direction: Direction::Rtl,
                 text_align: TextAlign::LegacyRight,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4836,7 +4866,7 @@ fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4844,7 +4874,7 @@ fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4871,7 +4901,7 @@ fn block_atomic_inline_run_alignment_uses_resolved_inner_width() {
             NodeInput {
                 display: Display::Block,
                 text_align: TextAlign::LegacyCenter,
-                min_size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                min_size: Size::new(MinSize::px(100.0), MinSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4879,7 +4909,7 @@ fn block_atomic_inline_run_alignment_uses_resolved_inner_width() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(50.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -4899,7 +4929,7 @@ fn block_legacy_center_aligns_atomic_inline_run() {
             NodeInput {
                 display: Display::Block,
                 text_align: TextAlign::LegacyCenter,
-                size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4907,7 +4937,7 @@ fn block_legacy_center_aligns_atomic_inline_run() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -4915,7 +4945,7 @@ fn block_legacy_center_aligns_atomic_inline_run() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -5001,7 +5031,7 @@ fn block_inline_run_content_size_accounts_for_negative_relative_inset_after_cont
             1,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(10.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5061,7 +5091,7 @@ fn block_reports_inline_run_first_and_last_baselines() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5069,7 +5099,7 @@ fn block_reports_inline_run_first_and_last_baselines() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -5118,7 +5148,7 @@ fn block_reports_inline_run_baseline_including_padding() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -5156,7 +5186,7 @@ fn block_definite_compute_size_keeps_inline_run_baselines() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5164,7 +5194,7 @@ fn block_definite_compute_size_keeps_inline_run_baselines() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                size: Size::new(Dimension::px(30.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -5211,7 +5241,7 @@ fn block_definite_compute_size_keeps_block_child_baselines() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5269,7 +5299,10 @@ fn assert_block_translates_orthogonal_child_baselines_on_the_child_block_axis<S:
             0,
             NodeInputOf::<S> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(S::from_f64(120.0)), DimensionOf::AUTO),
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(120.0)),
+                    PreferredSizeOf::AUTO,
+                ),
                 padding: Edges {
                     top: LengthOf::px(S::from_f64(5.0)),
                     left: LengthOf::px(S::from_f64(3.0)),
@@ -5358,7 +5391,10 @@ where
             0,
             NodeInputOf::<S> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(S::from_f64(140.0)), DimensionOf::AUTO),
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(140.0)),
+                    PreferredSizeOf::AUTO,
+                ),
                 ..NodeInputOf::default()
             },
         )
@@ -5470,7 +5506,10 @@ where
             NodeInputOf::<S> {
                 display: Display::Block,
                 writing_mode: WritingMode::VerticalRl,
-                size: Size::new(DimensionOf::px(S::from_f64(120.0)), DimensionOf::AUTO),
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(120.0)),
+                    PreferredSizeOf::AUTO,
+                ),
                 ..NodeInputOf::default()
             },
         )
@@ -5558,7 +5597,7 @@ fn block_definite_compute_size_keeps_non_empty_flex_child_baselines() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5662,7 +5701,7 @@ fn block_layout_stacks_in_flow_children_vertically() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             padding: Edges {
                 top: Length::px(3.0),
                 right: Length::px(5.0),
@@ -5751,7 +5790,7 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -5759,7 +5798,7 @@ fn block_in_flow_affine_margin_resolves_against_containing_block_width() {
         2,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::value(width), Dimension::AUTO),
+            size: Size::new(PreferredSize::value(width), PreferredSize::AUTO),
             margin: Edges {
                 left: LengthAuto::value(margin_left),
                 right: LengthAuto::ZERO,
@@ -5895,7 +5934,7 @@ fn block_auto_width_includes_in_flow_child_horizontal_margins() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -6005,7 +6044,7 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::AUTO, Dimension::px(80.0)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(80.0)),
             border: Edges::all(Length::px(2.0)),
             ..NodeInput::default()
         },
@@ -6016,7 +6055,7 @@ fn block_float_contributes_to_intrinsic_width_and_places_from_right_edge() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
                 ..NodeInput::default()
             },
         );
@@ -6061,7 +6100,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6070,7 +6109,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6079,7 +6118,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6088,7 +6127,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats() {
             NodeInput {
                 display: Display::Block,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                size: Size::new(Dimension::px(0.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(0.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6120,7 +6159,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6129,7 +6168,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6138,7 +6177,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(100.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6147,7 +6186,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::percent(1.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::percent(1.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6156,7 +6195,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
             NodeInput {
                 display: Display::Block,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                size: Size::new(Dimension::px(0.0), Dimension::px(200.0)),
+                size: Size::new(PreferredSize::px(0.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6187,7 +6226,7 @@ fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clea
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6196,7 +6235,7 @@ fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clea
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6205,7 +6244,7 @@ fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clea
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6214,7 +6253,7 @@ fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clea
             NodeInput {
                 display: Display::Block,
                 overflow: Point::new(Overflow::Clip, Overflow::Clip),
-                size: Size::new(Dimension::px(0.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::px(0.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6239,7 +6278,7 @@ fn block_bfc_hidden_child_keeps_legacy_right_alignment_without_float_exclusion()
             NodeInput {
                 display: Display::Block,
                 text_align: TextAlign::LegacyRight,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6248,7 +6287,7 @@ fn block_bfc_hidden_child_keeps_legacy_right_alignment_without_float_exclusion()
             NodeInput {
                 display: Display::Block,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6276,7 +6315,7 @@ fn block_bfc_hidden_child_keeps_legacy_center_alignment_without_float_exclusion(
             NodeInput {
                 display: Display::Block,
                 text_align: TextAlign::LegacyCenter,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6285,7 +6324,7 @@ fn block_bfc_hidden_child_keeps_legacy_center_alignment_without_float_exclusion(
             NodeInput {
                 display: Display::Block,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6312,7 +6351,7 @@ fn block_bfc_float_content_size_height_excludes_container_top_inset() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 border: Edges {
                     top: Length::px(5.0),
                     ..Edges::all(Length::ZERO)
@@ -6329,7 +6368,7 @@ fn block_bfc_float_content_size_height_excludes_container_top_inset() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(50.0), Dimension::px(30.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6358,7 +6397,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
             NodeInput {
                 display: Display::Block,
                 text_align: TextAlign::LegacyRight,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6367,7 +6406,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(50.0), Dimension::px(50.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(50.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6376,7 +6415,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(100.0), Dimension::px(150.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(150.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6386,7 +6425,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
                 display: Display::Block,
                 clear: crate::Clear::Left,
                 overflow: Point::new(Overflow::Visible, Overflow::Visible),
-                size: Size::new(Dimension::px(50.0), Dimension::px(20.0)),
+                size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6394,7 +6433,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
             4,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6425,7 +6464,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6434,7 +6473,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6443,7 +6482,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6452,7 +6491,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::percent(1.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::percent(1.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6462,7 +6501,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
                 display: Display::Block,
                 clear: crate::Clear::Left,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                size: Size::new(Dimension::px(0.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(0.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6489,7 +6528,7 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
             0,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6498,7 +6537,7 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Left,
-                size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6507,7 +6546,7 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6516,7 +6555,7 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
             NodeInput {
                 display: Display::Block,
                 float: Float::Right,
-                size: Size::new(Dimension::percent(1.0), Dimension::px(100.0)),
+                size: Size::new(PreferredSize::percent(1.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
         )
@@ -6526,7 +6565,7 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
                 display: Display::Block,
                 clear: crate::Clear::Right,
                 overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
-                size: Size::new(Dimension::px(0.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(0.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
         );
@@ -6605,7 +6644,7 @@ fn block_layout_collapses_adjacent_in_flow_vertical_margins() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -6726,7 +6765,7 @@ fn block_layout_collapses_first_child_top_margin_through_parent() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -6842,7 +6881,7 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
         NodeInput {
             display: Display::Block,
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -6970,7 +7009,7 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
             direction: Direction::Rtl,
             overflow: Point::new(Overflow::Visible, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(17.0).unwrap(),
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -7066,7 +7105,7 @@ fn block_layout_collapses_last_child_bottom_margin_through_parent() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -7180,7 +7219,7 @@ fn block_layout_keeps_grid_child_margins_inside_parent_flow() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(50.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -7282,7 +7321,7 @@ fn block_layout_collapses_margins_through_empty_in_flow_child() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             border: Edges {
                 top: Length::px(1.0),
                 right: Length::ZERO,
@@ -7409,7 +7448,7 @@ fn block_empty_auto_height_can_collapse_through() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -7497,7 +7536,7 @@ fn block_with_padding_reports_own_margins_when_child_collapse_is_blocked() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             margin: Edges {
                 top: LengthAuto::px(8.0),
                 bottom: LengthAuto::px(6.0),
@@ -7567,7 +7606,10 @@ fn assert_collapsible_percentage_margins_use_containing_inline_extent<S: LayoutS
             1,
             NodeInputOf::<S> {
                 display: Display::Block,
-                size: Size::new(DimensionOf::px(S::from_f64(100.0)), DimensionOf::AUTO),
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::AUTO,
+                ),
                 margin: Edges {
                     top: LengthAutoOf::value(top_margin),
                     bottom: LengthAutoOf::value(bottom_margin),
@@ -7647,7 +7689,7 @@ fn block_in_flow_invalid_numeric_horizontal_margin_uses_zero_fallback() {
             1,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(f32::MAX), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::AUTO),
                 ..NodeInput::default()
             },
         )
@@ -7655,7 +7697,7 @@ fn block_in_flow_invalid_numeric_horizontal_margin_uses_zero_fallback() {
             2,
             NodeInput {
                 display: Display::Block,
-                size: Size::new(Dimension::px(10.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::AUTO),
                 margin: Edges {
                     left: LengthAuto::value(invalid_margin),
                     ..Edges::all(LengthAuto::ZERO)
@@ -7751,7 +7793,7 @@ fn block_layout_positions_in_flow_children_from_right_edge_in_rtl() {
         NodeInput {
             display: Display::Block,
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             padding: Edges {
                 top: Length::ZERO,
                 right: Length::px(5.0),
@@ -7866,7 +7908,7 @@ fn block_layout_expands_horizontal_auto_margins_for_in_flow_children() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -7976,7 +8018,7 @@ fn block_content_size_includes_visible_child_overflow_content() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -8078,7 +8120,7 @@ fn block_relative_child_inset_offsets_final_layout_location() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -8196,7 +8238,7 @@ fn block_layout_stretches_auto_width_in_flow_children() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             padding: Edges {
                 top: Length::ZERO,
                 left: Length::px(5.0),
@@ -8312,7 +8354,7 @@ fn block_compute_size_uses_in_flow_children_for_auto_height() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             padding: Edges {
                 top: Length::px(3.0),
                 left: Length::px(5.0),
@@ -8419,8 +8461,8 @@ fn block_compute_size_uses_definite_min_max_without_measuring_children() {
         1,
         NodeInput {
             display: Display::Block,
-            min_size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
-            max_size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            min_size: Size::new(MinSize::px(100.0), MinSize::px(40.0)),
+            max_size: Size::new(MaxSize::px(100.0), MaxSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -8508,8 +8550,8 @@ fn block_definite_compute_size_keeps_grid_children_on_fast_path_until_grid_basel
             1,
             NodeInput {
                 display: Display::Block,
-                min_size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
-                max_size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+                min_size: Size::new(MinSize::px(100.0), MinSize::px(40.0)),
+                max_size: Size::new(MaxSize::px(100.0), MaxSize::px(40.0)),
                 ..NodeInput::default()
             },
         );
@@ -8607,8 +8649,8 @@ fn block_auto_height_clamps_to_max_size() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
-            max_size: Size::new(Dimension::AUTO, Dimension::px(12.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
+            max_size: Size::new(MaxSize::NONE, MaxSize::px(12.0)),
             ..NodeInput::default()
         },
     );
@@ -8707,7 +8749,7 @@ fn block_auto_size_applies_aspect_ratio_to_max_size() {
         NodeInput {
             display: Display::Block,
             aspect_ratio: AspectRatio::new(2.0),
-            max_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+            max_size: Size::new(MaxSize::px(50.0), MaxSize::NONE),
             ..NodeInput::default()
         },
     );
@@ -8808,7 +8850,7 @@ fn block_legacy_text_align_offsets_table_child_in_free_inline_space() {
                 display: Display::Block,
                 direction,
                 text_align,
-                size: Size::new(Dimension::px(200.0), Dimension::AUTO),
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::AUTO),
                 ..NodeInput::default()
             },
         );
@@ -8929,7 +8971,7 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             border: Edges::all(Length::px(1.0)),
             ..NodeInput::default()
         },
@@ -8952,7 +8994,7 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
                 top: LengthAuto::px(9.0),
                 ..Edges::all(LengthAuto::AUTO)
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -9071,7 +9113,7 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             border: Edges::all(Length::px(1.0)),
             ..NodeInput::default()
         },
@@ -9088,7 +9130,7 @@ fn block_absolute_child_without_insets_uses_static_position_after_flow() {
         NodeInput {
             display: Display::Block,
             position: Position::Absolute,
-            size: Size::new(Dimension::px(20.0), Dimension::px(5.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(5.0)),
             ..NodeInput::default()
         },
     );
@@ -9187,7 +9229,7 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
             ..NodeInput::default()
         },
     );
@@ -9197,7 +9239,7 @@ fn block_absolute_child_auto_size_applies_aspect_ratio_to_max_size() {
             display: Display::Block,
             position: Position::Absolute,
             aspect_ratio: AspectRatio::new(2.0),
-            max_size: Size::new(Dimension::px(50.0), Dimension::AUTO),
+            max_size: Size::new(MaxSize::px(50.0), MaxSize::NONE),
             ..NodeInput::default()
         },
     );
@@ -9292,7 +9334,7 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(50.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(50.0)),
             border: Edges::all(Length::px(1.0)),
             ..NodeInput::default()
         },
@@ -9308,7 +9350,7 @@ fn block_absolute_child_auto_size_resolves_from_opposing_insets() {
                 top: LengthAuto::px(13.0),
                 bottom: LengthAuto::px(11.0),
             },
-            size: Size::new(Dimension::AUTO, Dimension::AUTO),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -9408,7 +9450,7 @@ fn block_absolute_child_applies_aspect_ratio_to_inset_derived_width() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(100.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             ..NodeInput::default()
         },
     );
@@ -9518,7 +9560,7 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -9533,7 +9575,7 @@ fn block_absolute_child_expands_horizontal_auto_margins() {
                 top: LengthAuto::px(0.0),
                 bottom: LengthAuto::AUTO,
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             margin: Edges {
                 left: LengthAuto::AUTO,
                 right: LengthAuto::AUTO,
@@ -9637,7 +9679,7 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
         1,
         NodeInput {
             display: Display::Block,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
     );
@@ -9652,7 +9694,7 @@ fn block_absolute_child_large_width_keeps_horizontal_auto_margins_zero() {
                 top: LengthAuto::px(0.0),
                 bottom: LengthAuto::AUTO,
             },
-            size: Size::new(Dimension::px(70.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(70.0), PreferredSize::px(10.0)),
             margin: Edges {
                 left: LengthAuto::AUTO,
                 right: LengthAuto::AUTO,
@@ -9757,7 +9799,7 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
         NodeInput {
             display: Display::Block,
             direction: Direction::Rtl,
-            size: Size::new(Dimension::px(100.0), Dimension::px(40.0)),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             border: Edges::all(Length::px(1.0)),
             ..NodeInput::default()
         },
@@ -9773,7 +9815,7 @@ fn block_absolute_child_with_opposing_horizontal_insets_honors_rtl_end_edge() {
                 top: LengthAuto::px(0.0),
                 bottom: LengthAuto::AUTO,
             },
-            size: Size::new(Dimension::px(20.0), Dimension::px(10.0)),
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
     );
@@ -9938,7 +9980,7 @@ fn block_inline_affine_leaf_uses_public_leaf_path() {
     tree.styles.insert(
         0,
         NodeInput {
-            size: Size::new(Dimension::px(100.0), Dimension::AUTO),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );
@@ -9946,7 +9988,7 @@ fn block_inline_affine_leaf_uses_public_leaf_path() {
         1,
         NodeInput {
             display: Display::InlineBlock,
-            size: Size::new(Dimension::value(width), Dimension::AUTO),
+            size: Size::new(PreferredSize::value(width), PreferredSize::AUTO),
             ..NodeInput::default()
         },
     );

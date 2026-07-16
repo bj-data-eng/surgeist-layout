@@ -1510,9 +1510,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        Compute, ComputeInput, ComputeOutput, DefaultScalar, Dimension, LayoutErrorKind,
-        LayoutErrorSite, LayoutInput, LayoutInvalidInput, LayoutOperation, LayoutResultOf,
-        LengthPercentageOf, NodeInput, NodeOutput, Size, SubgridTrack, TrackComponent, Traverse,
+        Compute, ComputeInput, ComputeOutput, DefaultScalar, LayoutErrorKind, LayoutErrorSite,
+        LayoutInput, LayoutInvalidInput, LayoutOperation, LayoutResultOf, LengthPercentageOf,
+        NodeInput, NodeOutput, PreferredSize, Size, SubgridTrack, TrackComponent, Traverse,
     };
 
     struct TraversalTree {
@@ -1620,7 +1620,7 @@ mod tests {
             display: Display::Grid,
             grid_template_columns: vec![TrackComponent::Subgrid(SubgridTrack::new(vec![]))],
             grid_template_rows: vec![TrackComponent::from(overflowing)],
-            size: Size::new(Dimension::AUTO, Dimension::px(f32::MAX)),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(f32::MAX)),
             ..NodeInput::default()
         };
         let tree = TraversalTree {

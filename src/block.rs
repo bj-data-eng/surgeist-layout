@@ -8,7 +8,7 @@ use super::inline::{
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute,
-    ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, DimensionOf, Direction, Edges, Float,
+    ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, Direction, Edges, Float,
     InlineBoundaryInputOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf,
     LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar,
     LayoutUnsupportedCapability, LengthAutoOf, LengthOf, LengthResolutionOf,
@@ -2068,16 +2068,22 @@ where
     };
     let min_size = style
         .min_size
+        .clone()
         .zip_map(parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
         })
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let mut max_size = style
         .max_size
+        .clone()
         .zip_map(parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
         })
         .transpose_with_node(tree, child)?
         .add_optional(box_sizing_adjustment);
@@ -2090,8 +2096,11 @@ where
     }
     let known = style
         .size
+        .clone()
         .zip_map(parent, |dimension, basis| {
-            resolve_dimension(dimension, basis)
+            dimension
+                .resolve_simple_with_status(basis)
+                .and_then(resolution_optional)
         })
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
@@ -2102,8 +2111,8 @@ where
     let min_size = child_flow_axes.logical_size(min_size);
     let max_size = child_flow_axes.logical_size(max_size);
     let inline_size = match child_flow_axes.inline_axis() {
-        crate::PhysicalAxis::Horizontal => style.size.width,
-        crate::PhysicalAxis::Vertical => style.size.height,
+        crate::PhysicalAxis::Horizontal => style.size.width.clone(),
+        crate::PhysicalAxis::Vertical => style.size.height.clone(),
     };
     if !style.item_is_table
         && !style.item_is_replaced
@@ -2136,8 +2145,8 @@ fn in_flow_child_available_inline<S: LayoutScalar>(
     fallback: AvailableOf<S>,
 ) -> AvailableOf<S> {
     let inline_size = match child_flow_axes.inline_axis() {
-        crate::PhysicalAxis::Horizontal => style.size.width,
-        crate::PhysicalAxis::Vertical => style.size.height,
+        crate::PhysicalAxis::Horizontal => style.size.width.clone(),
+        crate::PhysicalAxis::Vertical => style.size.height.clone(),
     };
     if inline_size.is_min_content() {
         AvailableOf::<S>::MIN_CONTENT
@@ -2694,8 +2703,11 @@ where
         };
         let min_size = style
             .min_size
+            .clone()
             .zip_map(area_size.map(Some), |dimension, basis| {
-                resolve_dimension(dimension, basis)
+                dimension
+                    .resolve_simple_with_status(basis)
+                    .and_then(resolution_optional)
             })
             .transpose_with_node(tree, child)?
             .apply_aspect_ratio(style.aspect_ratio)
@@ -2704,16 +2716,22 @@ where
             .max_optional(padding_border.sum_axes().map(Some));
         let max_size = style
             .max_size
+            .clone()
             .zip_map(area_size.map(Some), |dimension, basis| {
-                resolve_dimension(dimension, basis)
+                dimension
+                    .resolve_simple_with_status(basis)
+                    .and_then(resolution_optional)
             })
             .transpose_with_node(tree, child)?
             .apply_aspect_ratio(style.aspect_ratio)
             .add_optional(box_sizing_adjustment);
         let style_size = style
             .size
+            .clone()
             .zip_map(area_size.map(Some), |dimension, basis| {
-                resolve_dimension(dimension, basis)
+                dimension
+                    .resolve_simple_with_status(basis)
+                    .and_then(resolution_optional)
             })
             .transpose_with_node(tree, child)?
             .apply_aspect_ratio(style.aspect_ratio)
@@ -3215,24 +3233,33 @@ impl<S: LayoutScalar> Constants<S> {
             SizingMode::InherentSize => {
                 let style_size = style
                     .size
+                    .clone()
                     .zip_map(input.parent(), |dimension, basis| {
-                        resolve_dimension(dimension, basis)
+                        dimension
+                            .resolve_simple_with_status(basis)
+                            .and_then(resolution_optional)
                     })
                     .transpose_with_node(tree, node)?
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
                 let min_size = style
                     .min_size
+                    .clone()
                     .zip_map(input.parent(), |dimension, basis| {
-                        resolve_dimension(dimension, basis)
+                        dimension
+                            .resolve_simple_with_status(basis)
+                            .and_then(resolution_optional)
                     })
                     .transpose_with_node(tree, node)?
                     .apply_aspect_ratio(style.aspect_ratio)
                     .add_optional(box_sizing_adjustment);
                 let max_size = style
                     .max_size
+                    .clone()
                     .zip_map(input.parent(), |dimension, basis| {
-                        resolve_dimension(dimension, basis)
+                        dimension
+                            .resolve_simple_with_status(basis)
+                            .and_then(resolution_optional)
                     })
                     .transpose_with_node(tree, node)?
                     .apply_aspect_ratio(style.aspect_ratio)
@@ -3323,13 +3350,6 @@ fn resolve_auto_optional<S: LayoutScalar>(
     basis: Option<S>,
 ) -> Result<Option<S>, LengthResolutionStatus<S>> {
     resolution_optional(length.resolve_with_status(basis))
-}
-
-fn resolve_dimension<S: LayoutScalar>(
-    dimension: DimensionOf<S>,
-    basis: Option<S>,
-) -> Result<Option<S>, LengthResolutionStatus<S>> {
-    resolution_optional(dimension.resolve_with_status(basis))
 }
 
 fn resolve_length_or_zero<S: LayoutScalar>(

@@ -115,8 +115,10 @@ fn value_types_support_f64_scalar_lane() {
     assert_eq!(length.value, Some(100.0));
     assert_eq!(length.status(), crate::LengthResolutionStatus::Resolved);
 
-    let dimension = crate::DimensionOf::<f64>::px(42.5);
-    let dimension = dimension.resolve(1000.0);
+    let dimension = crate::PreferredSizeOf::<f64>::px(42.5);
+    let dimension = dimension
+        .resolve_simple_with_status(Some(1000.0))
+        .expect("affine preferred size is supported");
     assert_eq!(dimension.value, Some(42.5));
     assert_eq!(dimension.status(), crate::LengthResolutionStatus::Resolved);
 
@@ -131,16 +133,24 @@ fn value_types_support_f64_scalar_lane() {
 fn node_input_and_output_support_f64_scalar_lane() {
     let input = crate::NodeInputOf::<f64> {
         size: crate::Size::new(
-            crate::DimensionOf::px(123.5),
-            crate::DimensionOf::percent(0.25),
+            crate::PreferredSizeOf::px(123.5),
+            crate::PreferredSizeOf::percent(0.25),
         ),
         margin: crate::Edges::all(crate::LengthAutoOf::px(2.5)),
         flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
         ..crate::NodeInputOf::<f64>::default()
     };
 
-    let width = input.size.width.resolve(1000.0);
-    let height = input.size.height.resolve(400.0);
+    let width = input
+        .size
+        .width
+        .resolve_simple_with_status(Some(1000.0))
+        .expect("affine preferred width is supported");
+    let height = input
+        .size
+        .height
+        .resolve_simple_with_status(Some(400.0))
+        .expect("affine preferred height is supported");
     assert_eq!(width.value, Some(123.5));
     assert_eq!(width.status(), LengthResolutionStatus::Resolved);
     assert_eq!(height.value, Some(100.0));
@@ -329,10 +339,16 @@ fn auto_lengths_resolve_to_optional_values() {
 }
 
 #[test]
-fn dimensions_preserve_layout_sizing_semantics() {
-    let px = Dimension::px(42.0).resolve(100.0);
-    let percent = Dimension::percent(0.25).resolve(100.0);
-    let auto = Dimension::AUTO.resolve(100.0);
+fn property_fields_preserve_layout_sizing_semantics() {
+    let px = PreferredSize::px(42.0)
+        .resolve_simple_with_status(Some(100.0))
+        .expect("affine preferred size is supported");
+    let percent = PreferredSize::percent(0.25)
+        .resolve_simple_with_status(Some(100.0))
+        .expect("affine preferred size is supported");
+    let auto = PreferredSize::AUTO
+        .resolve_simple_with_status(Some(100.0))
+        .expect("auto remains an existing non-numeric keyword");
 
     assert_eq!(px.value, Some(42.0));
     assert_eq!(px.status(), LengthResolutionStatus::Resolved);
@@ -340,8 +356,8 @@ fn dimensions_preserve_layout_sizing_semantics() {
     assert_eq!(percent.status(), LengthResolutionStatus::Resolved);
     assert_eq!(auto.value, None);
     assert_eq!(auto.status(), LengthResolutionStatus::NonNumeric);
-    assert!(Dimension::MIN_CONTENT.is_min_content());
-    assert!(Dimension::MAX_CONTENT.is_max_content());
+    assert!(PreferredSize::MIN_CONTENT.is_min_content());
+    assert!(PreferredSize::MAX_CONTENT.is_max_content());
 }
 
 #[test]
@@ -380,14 +396,17 @@ fn node_input_defaults_match_the_layout_contract() {
     assert_eq!(node_input.scrollbar_width.get(), 0.0);
     assert_eq!(node_input.position, Position::Relative);
     assert_eq!(node_input.inset, Edges::all(LengthAuto::AUTO));
-    assert_eq!(node_input.size, Size::new(Dimension::AUTO, Dimension::AUTO));
+    assert_eq!(
+        node_input.size,
+        Size::new(PreferredSize::AUTO, PreferredSize::AUTO)
+    );
     assert_eq!(
         node_input.min_size,
-        Size::new(Dimension::AUTO, Dimension::AUTO)
+        Size::new(crate::MinSize::AUTO, crate::MinSize::AUTO)
     );
     assert_eq!(
         node_input.max_size,
-        Size::new(Dimension::AUTO, Dimension::AUTO)
+        Size::new(crate::MaxSize::NONE, crate::MaxSize::NONE)
     );
     assert_eq!(node_input.margin, Edges::all(LengthAuto::ZERO));
     assert_eq!(node_input.padding, Edges::all(Length::ZERO));
@@ -395,7 +414,7 @@ fn node_input_defaults_match_the_layout_contract() {
     assert_eq!(node_input.gap, Size::new(Length::NORMAL, Length::NORMAL));
     assert_eq!(node_input.flex_direction, FlexDirection::Row);
     assert_eq!(node_input.flex_wrap, FlexWrap::NoWrap);
-    assert_eq!(node_input.flex_basis, Dimension::AUTO);
+    assert_eq!(node_input.flex_basis, crate::FlexBasis::AUTO);
     assert_eq!(node_input.flex_grow.get(), 0.0);
     assert_eq!(node_input.flex_shrink.get(), 1.0);
     assert_eq!(
