@@ -98,7 +98,7 @@ cargo test --locked -p surgeist-layout fri04_c03_block_positioned_
 just verify
 just verify-generator
 ```
-**Current ordered range:** none.
+**Current ordered range:** `ec549a65dc182c6054b728b447ba1a6720124696..2ee3308ad7d4b888bd8911db2bb4cf8bb736319d`.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
 **Intended commit:** `test(layout): cover block and positioned sizing calculations`.
 
@@ -121,7 +121,7 @@ cargo test --locked -p surgeist-layout fri04_c03_flex_
 just verify
 just verify-generator
 ```
-**Current ordered range:** none.
+**Current ordered range:** `2ee3308ad7d4b888bd8911db2bb4cf8bb736319d..c36fed92cbcc8e180818681cb8b1fb23084e7ae3`.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
 **Intended commit:** `test(layout): cover flex sizing calculations`.
 ### `C03-T4` Grid/Lanes Evidence And Track Numeric Correction
@@ -147,7 +147,7 @@ cargo test --locked -p surgeist-layout fri04_c03_grid_track_
 just verify
 just verify-generator
 ```
-**Current ordered range:** none.
+**Current ordered ranges:** `c36fed92cbcc8e180818681cb8b1fb23084e7ae3..24fbdd097f815e19ae71029fa664de3160236e62`; `24fbdd097f815e19ae71029fa664de3160236e62..0bdd16a45438318120fc3663b2312ce2e693587a`.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
 **Intended commit:** `fix(layout): consume grid and track sizing calculations`.
 
