@@ -125,10 +125,9 @@ just verify-generator
 **Current ordered range:** none.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
 **Intended commit:** `fix(layout): consume flex sizing calculations`.
-
 ### `C03-T4` Grid, Lanes, And Track Numeric Consumption
-**Files:** `src/grid/mod.rs`, `src/grid/child.rs`, `src/grid/lanes.rs`,
-`src/grid/tracks.rs`, and `src/grid_tests.rs`.
+**Files:** `src/value.rs`, `src/grid/mod.rs`, `src/grid/child.rs`,
+`src/grid/lanes.rs`, `src/grid/tracks.rs`, and `src/grid_tests.rs`.
 **Outcome:** Resolve complete preferred/minimum/maximum calculations throughout
 ordinary grid and grid-lanes sizing, and complete numeric min/max track breadth
 and track `fit-content()` limit resolution in existing track algorithms.
@@ -139,9 +138,9 @@ applied. Record the expected failures.
 **Acceptance:** Real grid and grid-lanes layouts cover nested property
 calculations, both axes, negative final clamping, missing and definite bases,
 and invalid numeric errors. Track tests cover nested fixed min/max breadths,
-fit-content calculation limits, non-negative used values, cyclic missing-basis
-handling, and invalid numeric propagation. No valid numeric track calculation
-uses `NonNumeric`; intrinsic and flex track states remain distinct.
+fit-content limits, dependency/definite classification, non-negative used
+values, cyclic missing-basis handling, and invalid numeric propagation. No valid
+numeric track calculation uses `NonNumeric`; intrinsic and flex tracks remain distinct.
 **Commands:**
 ```sh
 cargo test --locked -p surgeist-layout fri04_c03_grid_track_
