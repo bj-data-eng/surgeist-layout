@@ -3,21 +3,11 @@ Status: in_progress
 Cycle ID: `FRI-04-C02`
 Owning repository: `surgeist-layout`
 Cycle base: `0a4f1f9e73b91dd9fe7fa6703fa6c0c48ee2ca54`
-Reviewed specification:
-`plans/specs/2026-07-15-surgeist-layout-fri-04-property-specific-sizing-values.md`
-at SHA-256
-`e0116f0e3dd28eafabe1ed31117a61ea208e97dee986887f5600d7cbd5a06db4`,
-commit `5d33f3a4ab694f12985d713f7dbc74b251d55fb6`, sections `FRI-04.4 D-01`,
-the property-basis construction in `D-03`, `D-04`, `D-05`, `FRI-04.5`, the
-construction and initial-value portions of `FRI-04.6`, the corresponding model,
-default, track, parser, and public-surface evidence in `FRI-04.8`, the value,
-node, front-door, and parser rows of `FRI-04.9`, and acceptance items 2 through
-4 plus the construction portions of 6 and 7.
+Reviewed specification: `plans/specs/2026-07-15-surgeist-layout-fri-04-property-specific-sizing-values.md`
+at SHA-256 `e0116f0e3dd28eafabe1ed31117a61ea208e97dee986887f5600d7cbd5a06db4`, commit `5d33f3a4ab694f12985d713f7dbc74b251d55fb6`, sections `FRI-04.4 D-01`, the property-basis construction in `D-03`, `D-04`, `D-05`, `FRI-04.5`, the construction and initial-value portions of `FRI-04.6`, the corresponding model, default, track, parser, and public-surface evidence in `FRI-04.8`, the value, node, front-door, and parser rows of `FRI-04.9`, and acceptance items 2 through 4 plus the construction portions of 6 and 7.
 
-Reviewed sequence:
-`plans/sequences/2026-07-15-surgeist-layout-fri-04-property-specific-sizing-values.md`
-at SHA-256
-`9a35a5cfef82fb5b6c5abc6fd9beee7c0a080f631fd392d2ffe7694e019c4f8b`,
+Reviewed sequence: `plans/sequences/2026-07-15-surgeist-layout-fri-04-property-specific-sizing-values.md`
+at SHA-256 `9a35a5cfef82fb5b6c5abc6fd9beee7c0a080f631fd392d2ffe7694e019c4f8b`,
 commit `5543ef5e9273ee73c187803c79191b8b71949fc0`, entry `FRI-04-C02`.
 
 ## Outcome
@@ -54,13 +44,7 @@ No HTML, helper, serializer, fixture-source, or generated-artifact input changes
 are authorized. No generation command is applicable. Scoped generation is not
 verification evidence and is unnecessary for this cycle.
 
-The ignored full browser corpus is not C02 acceptance evidence. A single
-aggregate diagnostic after the BLOCK-005 prerequisite exposed 298 distinct
-later-owned failures, beginning with
-`absolute_correct_cross_child_size_with_percentage__border_box_ltr` returning
-`MissingContext(RequiredBasis)` at node 3. C03 owns that missing-basis behavior,
-and the findings-resolution index assigns the final aggregate release gate to
-FRI-13. Do not rerun or use `just parity-all` as a C02 task or cycle gate.
+The ignored full browser corpus is not C02 acceptance evidence. A single aggregate diagnostic after the BLOCK-005 prerequisite exposed 298 distinct later-owned failures, beginning with `absolute_correct_cross_child_size_with_percentage__border_box_ltr` returning `MissingContext(RequiredBasis)` at node 3. C03 owns that missing-basis behavior, and the findings-resolution index assigns the final aggregate release gate to FRI-13. Do not rerun or use `just parity-all` as a C02 task or cycle gate.
 
 ## Impacts
 Public API: intentional breaking pre-release replacement of `Dimension` and its
@@ -95,8 +79,7 @@ cargo test --locked -p surgeist-layout property_sizing_
 just verify
 just verify-generator
 ```
-**Current ordered range:**
-`24350ee0d28f25ef2f1a3d3a3e478be2a079a17c`.
+**Current ordered range:** `24350ee0d28f25ef2f1a3d3a3e478be2a079a17c`.
 **Dependency:** Published C01 calculation substrate at the cycle base.
 **Intended commit:** `api(layout): add property-specific sizing domains`.
 
@@ -125,8 +108,7 @@ cargo test --locked -p surgeist-layout track_sizing_
 just verify
 just verify-generator
 ```
-**Current ordered range:**
-`6969a6bc586a38965b7255aff71cac1ff22bec31`.
+**Current ordered range:** `6969a6bc586a38965b7255aff71cac1ff22bec31`.
 **Dependency:** `C02-T1` supplies the public calculation surface.
 **Intended commit:** `api(layout): migrate track sizing domains`.
 
