@@ -686,6 +686,369 @@ fn invalid_numeric_lp() -> LengthPercentageOf {
     LengthPercentageOf::from_coefficients(f32::MAX, f32::MAX).expect("test coefficients are finite")
 }
 
+fn fri04_c03_grid_track_value(value: Scalar) -> SizingCalculation {
+    SizingCalculation::value(LengthPercentageOf::px(value).expect("test sizing value is finite"))
+}
+
+fn fri04_c03_grid_track_nested(
+    minimum: Scalar,
+    preferred: Scalar,
+    maximum: Scalar,
+) -> SizingCalculation {
+    let preferred = SizingCalculation::max(vec![
+        fri04_c03_grid_track_value(preferred),
+        SizingCalculation::min(vec![
+            fri04_c03_grid_track_value(preferred - 5.0),
+            fri04_c03_grid_track_value(preferred + 5.0),
+        ])
+        .expect("nested minimum is nonempty"),
+    ])
+    .expect("nested maximum is nonempty");
+    SizingCalculation::clamp(
+        Some(fri04_c03_grid_track_value(minimum)),
+        preferred,
+        Some(fri04_c03_grid_track_value(maximum)),
+    )
+}
+
+fn fri04_c03_grid_track_percentage_nested(
+    minimum: Scalar,
+    percentage: Scalar,
+    maximum: Scalar,
+) -> SizingCalculation {
+    SizingCalculation::clamp(
+        Some(fri04_c03_grid_track_value(minimum)),
+        SizingCalculation::max(vec![
+            fri04_c03_grid_track_value(minimum - 5.0),
+            SizingCalculation::value(
+                LengthPercentageOf::from_percent_fraction(percentage)
+                    .expect("test percentage is finite"),
+            ),
+        ])
+        .expect("nested maximum is nonempty"),
+        Some(fri04_c03_grid_track_value(maximum)),
+    )
+}
+
+#[test]
+fn fri04_c03_grid_track_grid_and_lanes_consume_nested_properties_on_both_axes_and_clamp_results() {
+    for display in [Display::Grid, Display::GridLanes] {
+        let mut tree = OracleTree::new().children(1, []).style(
+            1,
+            NodeInput {
+                display,
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_grid_track_nested(20.0, 80.0, 120.0)),
+                    PreferredSize::calculation(fri04_c03_grid_track_nested(20.0, 70.0, 120.0)),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(fri04_c03_grid_track_nested(40.0, 90.0, 110.0)),
+                    MinSize::calculation(fri04_c03_grid_track_nested(30.0, 60.0, 90.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_grid_track_nested(30.0, 85.0, 100.0)),
+                    MaxSize::calculation(fri04_c03_grid_track_nested(30.0, 65.0, 100.0)),
+                ),
+                ..NodeInput::default()
+            },
+        );
+
+        let output = compute_grid(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(200.0)),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::splat(Available::definite(200.0)),
+            ),
+        )
+        .expect("grid property calculations resolve");
+
+        assert_eq!(output.size, Size::new(85.0, 65.0), "{display:?}");
+
+        let mut negative_tree = OracleTree::new().children(1, []).style(
+            1,
+            NodeInput {
+                display,
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_grid_track_nested(-40.0, -20.0, -10.0)),
+                    PreferredSize::calculation(fri04_c03_grid_track_nested(-30.0, -15.0, -5.0)),
+                ),
+                ..NodeInput::default()
+            },
+        );
+        let negative = compute_grid(
+            &mut negative_tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(200.0)),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::splat(Available::definite(200.0)),
+            ),
+        )
+        .expect("negative complete calculations clamp after evaluation");
+        assert_eq!(negative.size, Size::ZERO, "{display:?}");
+    }
+}
+
+#[test]
+fn fri04_c03_grid_track_grid_and_lanes_preserve_missing_and_definite_property_bases() {
+    for display in [Display::Grid, Display::GridLanes] {
+        let style = NodeInput {
+            display,
+            size: Size::new(
+                PreferredSize::calculation(fri04_c03_grid_track_percentage_nested(10.0, 0.5, 80.0)),
+                PreferredSize::calculation(fri04_c03_grid_track_percentage_nested(
+                    10.0, 0.25, 80.0,
+                )),
+            ),
+            min_size: Size::new(
+                MinSize::calculation(fri04_c03_grid_track_percentage_nested(10.0, 0.6, 80.0)),
+                MinSize::calculation(fri04_c03_grid_track_percentage_nested(10.0, 0.3, 80.0)),
+            ),
+            max_size: Size::new(
+                MaxSize::calculation(fri04_c03_grid_track_percentage_nested(10.0, 0.625, 80.0)),
+                MaxSize::calculation(fri04_c03_grid_track_percentage_nested(10.0, 0.325, 80.0)),
+            ),
+            ..NodeInput::default()
+        };
+        let mut definite_tree = OracleTree::new().children(1, []).style(1, style.clone());
+        let definite = compute_grid(
+            &mut definite_tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(120.0), Some(200.0)),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::new(Available::definite(120.0), Available::definite(200.0)),
+            ),
+        )
+        .expect("definite property bases resolve");
+        assert_eq!(definite.size.width, 72.0, "{display:?} width");
+        assert!(
+            (definite.size.height - 60.0).abs() <= 0.000_01,
+            "{display:?} height: {}",
+            definite.size.height
+        );
+
+        let mut missing_tree = OracleTree::new().children(1, []).style(1, style);
+        let missing = compute_grid(
+            &mut missing_tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::ComputeSize,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::NONE,
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::splat(Available::MAX_CONTENT),
+            ),
+        )
+        .expect("missing property bases retain intrinsic sizing");
+        assert_eq!(missing.size, Size::ZERO, "{display:?}");
+    }
+}
+
+#[test]
+fn fri04_c03_grid_track_grid_and_lanes_propagate_invalid_property_numeric() {
+    let invalid = SizingCalculation::max(vec![
+        fri04_c03_grid_track_value(10.0),
+        SizingCalculation::value(invalid_numeric_lp()),
+    ])
+    .expect("nested maximum is nonempty");
+    for display in [Display::Grid, Display::GridLanes] {
+        for property in ["preferred", "minimum", "maximum"] {
+            for axis in [PhysicalAxis::Horizontal, PhysicalAxis::Vertical] {
+                let mut style = NodeInput {
+                    display,
+                    size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
+                    ..NodeInput::default()
+                };
+                match (property, axis) {
+                    ("preferred", PhysicalAxis::Horizontal) => {
+                        style.size.width = PreferredSize::calculation(invalid.clone())
+                    }
+                    ("preferred", PhysicalAxis::Vertical) => {
+                        style.size.height = PreferredSize::calculation(invalid.clone())
+                    }
+                    ("minimum", PhysicalAxis::Horizontal) => {
+                        style.min_size.width = MinSize::calculation(invalid.clone())
+                    }
+                    ("minimum", PhysicalAxis::Vertical) => {
+                        style.min_size.height = MinSize::calculation(invalid.clone())
+                    }
+                    ("maximum", PhysicalAxis::Horizontal) => {
+                        style.max_size.width = MaxSize::calculation(invalid.clone())
+                    }
+                    ("maximum", PhysicalAxis::Vertical) => {
+                        style.max_size.height = MaxSize::calculation(invalid.clone())
+                    }
+                    _ => unreachable!("property and physical axis matrix is exhaustive"),
+                }
+                let mut tree = OracleTree::new().children(1, []).style(1, style);
+                let error = compute_grid(
+                    &mut tree,
+                    1,
+                    ComputeInput::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        Size::NONE,
+                        Size::splat(Some(f32::MAX)),
+                        ContainingLayoutContext::new(
+                            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                            ParentFormattingContext::NoParent,
+                        ),
+                        Size::splat(Available::definite(f32::MAX)),
+                    ),
+                )
+                .expect_err("invalid nested grid property numeric must fail");
+                assert!(
+                    matches!(
+                        error.kind(),
+                        LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric { value })
+                            if value.is_infinite()
+                    ),
+                    "{display:?} {property} {axis:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fri04_c03_grid_track_nested_track_breadths_and_fit_content_use_complete_programs() {
+    let fixed = TrackSizing::calculation(fri04_c03_grid_track_nested(20.0, 60.0, 80.0));
+    assert_eq!(track_base_size(&fixed, None, 11.0), 60.0);
+    assert_eq!(track_growth_limit(&fixed, None, 11.0), Some(60.0));
+
+    let negative = TrackSizing::calculation(fri04_c03_grid_track_nested(-30.0, -10.0, -5.0));
+    assert_eq!(track_base_size(&negative, None, 11.0), 0.0);
+
+    let fit = TrackSizing::fit_content(fri04_c03_grid_track_nested(20.0, 60.0, 80.0));
+    assert_eq!(
+        resolve_fit_content_tracks(&[fit], None, &[20.0], &[100.0]),
+        [60.0]
+    );
+
+    let dependent =
+        TrackSizing::calculation(fri04_c03_grid_track_percentage_nested(20.0, 0.5, 80.0));
+    assert_eq!(track_base_size(&dependent, None, 11.0), 0.0);
+    assert_eq!(track_base_size(&dependent, Some(100.0), 11.0), 50.0);
+
+    let dependent_fit =
+        TrackSizing::fit_content(fri04_c03_grid_track_percentage_nested(20.0, 0.6, 80.0));
+    assert_eq!(
+        resolve_fit_content_tracks(
+            core::slice::from_ref(&dependent_fit),
+            None,
+            &[20.0],
+            &[100.0],
+        ),
+        [100.0]
+    );
+    let definite_fit = resolve_fit_content_tracks(&[dependent_fit], Some(100.0), &[20.0], &[100.0]);
+    assert!(
+        (definite_fit[0] - 60.0).abs() <= 0.000_01,
+        "definite nested fit-content limit: {}",
+        definite_fit[0]
+    );
+}
+
+#[test]
+fn fri04_c03_grid_track_nested_classification_controls_intrinsic_definite_space_and_floor() {
+    let independent = TrackSizing::calculation(fri04_c03_grid_track_nested(20.0, 40.0, 60.0));
+    assert!(!track_has_percent_sizing(&independent));
+    assert!(track_has_definite_min_floor(&independent));
+    assert_eq!(track_min_floor_space(&independent), 40.0);
+    assert_eq!(
+        intrinsic_span_definite_track_space(core::slice::from_ref(&independent)),
+        40.0
+    );
+    assert_eq!(
+        intrinsic_span_minimum_floor_space(core::slice::from_ref(&independent)),
+        40.0
+    );
+
+    let dependent = TrackSizing::calculation(
+        SizingCalculation::max(vec![
+            fri04_c03_grid_track_value(40.0),
+            SizingCalculation::value(
+                LengthPercentageOf::from_percent_fraction(0.1).expect("finite percentage"),
+            ),
+        ])
+        .expect("nested maximum is nonempty"),
+    );
+    assert!(track_has_percent_sizing(&dependent));
+    assert!(!track_has_definite_min_floor(&dependent));
+    assert_eq!(track_min_floor_space(&dependent), 0.0);
+}
+
+#[test]
+fn fri04_c03_grid_track_lanes_resolve_nested_track_bases_and_propagate_invalid_numeric() {
+    let report = lane_intrinsic_sizing(LaneIntrinsicSizingInput {
+        axis: GridAxisKind::Column,
+        available: None,
+        gap: 0.0,
+        tracks: vec![TrackSizing::new(
+            MinTrackSizing::Calculation(fri04_c03_grid_track_nested(20.0, 40.0, 60.0)),
+            MaxTrackSizing::Auto,
+        )],
+        content_sized_tracks: vec![0],
+        items: Vec::new(),
+    })
+    .expect("nested lane track sizing resolves")
+    .expect("nested lane placement is valid");
+    assert_eq!(report.final_track_sizes, [40.0]);
+
+    let invalid = SizingCalculation::max(vec![
+        fri04_c03_grid_track_value(10.0),
+        SizingCalculation::value(invalid_numeric_lp()),
+    ])
+    .expect("nested maximum is nonempty");
+    let error = lane_intrinsic_sizing(LaneIntrinsicSizingInput {
+        axis: GridAxisKind::Row,
+        available: Some(f32::MAX),
+        gap: 0.0,
+        tracks: vec![TrackSizing::new(
+            MinTrackSizing::Calculation(invalid),
+            MaxTrackSizing::Auto,
+        )],
+        content_sized_tracks: vec![0],
+        items: Vec::new(),
+    })
+    .expect_err("invalid nested lane track numeric must fail");
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric { value })
+            if value.is_infinite()
+    ));
+}
+
 fn fake_leaf_error(
     node: u32,
     error: LayoutError<(), core::convert::Infallible>,
@@ -22206,7 +22569,6 @@ fn grid_affine_percent_track_needs_layout_resolution() {
     );
 
     assert!(track.depends_on_basis());
-    assert_eq!(track.percent_fraction(), 0.10);
 }
 
 mod root_oracle {

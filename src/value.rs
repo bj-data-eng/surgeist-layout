@@ -773,21 +773,9 @@ impl<S: LayoutScalar> MinTrackSizingOf<S> {
     }
 
     #[must_use]
-    pub(crate) fn percent_fraction(&self) -> S {
-        match self {
-            Self::Calculation(calculation) => calculation
-                .affine_value()
-                .map_or(S::ZERO, |value| value.percent_fraction()),
-            Self::Auto | Self::MinContent | Self::MaxContent => S::ZERO,
-        }
-    }
-
-    #[must_use]
     pub(crate) fn definite(&self, basis: Option<S>) -> Option<S> {
         match self {
-            Self::Calculation(calculation) => calculation
-                .affine_value()
-                .and_then(|value| LengthOf::value(value).resolve_optional(basis)),
+            Self::Calculation(calculation) => track_calculation_definite(calculation, basis),
             Self::Auto | Self::MinContent | Self::MaxContent => None,
         }
     }
@@ -872,21 +860,9 @@ impl<S: LayoutScalar> MaxTrackSizingOf<S> {
     }
 
     #[must_use]
-    pub(crate) fn percent_fraction(&self) -> S {
-        match self {
-            Self::Calculation(calculation) | Self::FitContent(calculation) => calculation
-                .affine_value()
-                .map_or(S::ZERO, |value| value.percent_fraction()),
-            Self::Flex(_) | Self::Auto | Self::MinContent | Self::MaxContent => S::ZERO,
-        }
-    }
-
-    #[must_use]
     pub(crate) fn definite(&self, basis: Option<S>) -> Option<S> {
         match self {
-            Self::Calculation(calculation) => calculation
-                .affine_value()
-                .and_then(|value| LengthOf::value(value).resolve_optional(basis)),
+            Self::Calculation(calculation) => track_calculation_definite(calculation, basis),
             Self::Flex(_)
             | Self::Auto
             | Self::MinContent
@@ -983,9 +959,51 @@ impl<S: LayoutScalar> TrackSizingOf<S> {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn percent_fraction(&self) -> S {
-        self.min.percent_fraction().max(self.max.percent_fraction())
+        fn affine_fraction<S: LayoutScalar>(calculation: &crate::SizingCalculationOf<S>) -> S {
+            calculation
+                .affine_value()
+                .map_or(S::ZERO, |value| value.percent_fraction())
+        }
+
+        let min = match &self.min {
+            MinTrackSizingOf::Calculation(calculation) => affine_fraction(calculation),
+            MinTrackSizingOf::Auto
+            | MinTrackSizingOf::MinContent
+            | MinTrackSizingOf::MaxContent => S::ZERO,
+        };
+        let max = match &self.max {
+            MaxTrackSizingOf::Calculation(calculation)
+            | MaxTrackSizingOf::FitContent(calculation) => affine_fraction(calculation),
+            MaxTrackSizingOf::Flex(_)
+            | MaxTrackSizingOf::Auto
+            | MaxTrackSizingOf::MinContent
+            | MaxTrackSizingOf::MaxContent => S::ZERO,
+        };
+        min.max(max)
     }
+}
+
+fn track_calculation_definite<S: LayoutScalar>(
+    calculation: &crate::SizingCalculationOf<S>,
+    basis: Option<S>,
+) -> Option<S> {
+    let basis = match basis {
+        Some(value) => PercentageBasisOf::definite(value).ok()?,
+        None => PercentageBasisOf::MISSING,
+    };
+    let resolution = calculation.resolve_against(basis);
+    if let Some(affine) = calculation.affine_value() {
+        let affine_resolution = length_resolution_against(affine, basis);
+        debug_assert_eq!(resolution.status(), affine_resolution.status());
+        debug_assert_eq!(
+            resolution.value.map(|value| value.max(S::ZERO)),
+            affine_resolution.value.map(|value| value.max(S::ZERO))
+        );
+    }
+    (resolution.status() == LengthResolutionStatus::Resolved)
+        .then_some(resolution.value?.max(S::ZERO))
 }
 
 impl<S: LayoutScalar> Default for TrackSizingOf<S> {

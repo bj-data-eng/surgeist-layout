@@ -1,19 +1,39 @@
 use super::*;
 use crate::geometry::{FlowAxes, LogicalSizeOf};
 use crate::{
-    LengthOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf,
-    SizingCalculationOf,
+    LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf,
+    PercentageBasisOf, SizingCalculationOf,
 };
 
-fn resolve_track_calculation<S: LayoutScalar>(
+pub(super) fn resolve_track_calculation<S: LayoutScalar>(
     calculation: &SizingCalculationOf<S>,
     basis: Option<S>,
 ) -> LengthResolutionOf<S> {
-    calculation
-        .affine_value()
-        .map_or_else(LengthResolutionOf::non_numeric, |value| {
-            LengthOf::value(value).resolve_with_status(basis)
-        })
+    let basis = match basis {
+        Some(value) => match PercentageBasisOf::definite(value) {
+            Ok(basis) => basis,
+            Err(_) => {
+                return LengthResolutionOf::invalid_numeric(value, calculation.depends_on_basis());
+            }
+        },
+        None => PercentageBasisOf::MISSING,
+    };
+    let resolution = calculation.resolve_against(basis);
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => LengthResolutionOf::definite(
+            resolution
+                .value
+                .expect("resolved sizing calculation must carry a value")
+                .max(S::ZERO),
+            calculation.depends_on_basis(),
+        ),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::InvalidNumeric { .. } => {
+            resolution
+        }
+        LengthResolutionStatus::NonNumeric => {
+            unreachable!("a sizing calculation always has numeric program semantics")
+        }
+    }
 }
 
 fn resolve_track_calculation_optional<S: LayoutScalar>(
@@ -265,9 +285,7 @@ where
                     .max(logical_output_size.inline + logical_margin.inline_sum());
             } else if logical_available.inline == AvailableOf::MIN_CONTENT
                 && column_span_tracks.is_some_and(|tracks| {
-                    tracks
-                        .iter()
-                        .any(|track| track_percent_fraction(track) > Tree::Scalar::ZERO)
+                    tracks.iter().any(track_has_percent_sizing)
                         && tracks
                             .iter()
                             .all(|track| track_flex_factor(track).is_none())
@@ -939,9 +957,7 @@ where
             input.sizes[start] = input.sizes[start].max(contribution);
         } else if input.axis == GridAxisKind::Column
             && axis_available(input.available, input.axis) == AvailableOf::MIN_CONTENT
-            && span_tracks
-                .iter()
-                .any(|track| track_percent_fraction(track) > Tree::Scalar::ZERO)
+            && span_tracks.iter().any(track_has_percent_sizing)
             && span_tracks
                 .iter()
                 .all(|track| track_flex_factor(track).is_none())
@@ -1644,7 +1660,7 @@ pub(super) fn distribute_intrinsic_span<S: LayoutScalar>(
         .collect::<Vec<_>>();
     if !flex_indexes.is_empty() {
         let contribution =
-            contribution - percent_basis.unwrap_or(S::ZERO) * track_percent_sum(tracks);
+            contribution - track_basis_dependent_space(tracks, percent_basis.unwrap_or(S::ZERO));
         let current = sizes
             .iter()
             .copied()
@@ -1676,7 +1692,7 @@ pub(super) fn distribute_intrinsic_span<S: LayoutScalar>(
     }
 
     let contribution = if kind == IntrinsicSpanContribution::MaxContent {
-        contribution - percent_basis.unwrap_or(S::ZERO) * track_percent_sum(tracks)
+        contribution - track_basis_dependent_space(tracks, percent_basis.unwrap_or(S::ZERO))
     } else {
         intrinsic_span_non_percent_contribution(tracks, contribution)
     };
@@ -1751,7 +1767,7 @@ pub(super) fn distribute_min_content_span_with_percent<S: LayoutScalar>(
     min_content_contribution: S,
 ) {
     let fixed_space = intrinsic_span_minimum_floor_space(tracks);
-    let percent_space = percent_basis.unwrap_or(S::ZERO) * track_percent_sum(tracks);
+    let percent_space = track_basis_dependent_space(tracks, percent_basis.unwrap_or(S::ZERO));
     let extra = (min_content_contribution - fixed_space - percent_space).max(S::ZERO);
     let indexes = tracks
         .iter()
@@ -1817,16 +1833,20 @@ pub(super) fn intrinsic_span_non_percent_contribution<S: LayoutScalar>(
     tracks: &[TrackSizingOf<S>],
     contribution: S,
 ) -> S {
-    contribution
-        * (S::ONE - track_percent_sum(tracks))
-            .max(S::ZERO)
-            .min(S::ONE)
+    (contribution - track_basis_dependent_space(tracks, contribution)).max(S::ZERO)
 }
 
-pub(super) fn track_percent_sum<S: LayoutScalar>(tracks: &[TrackSizingOf<S>]) -> S {
+pub(super) fn track_basis_dependent_space<S: LayoutScalar>(
+    tracks: &[TrackSizingOf<S>],
+    basis: S,
+) -> S {
     tracks
         .iter()
-        .map(|track| track_percent_fraction(track))
+        .filter(|track| track_has_percent_sizing(track))
+        .map(|track| {
+            track_base_size(track, Some(basis), S::ZERO)
+                - track_base_size(track, Some(S::ZERO), S::ZERO)
+        })
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
@@ -1843,8 +1863,7 @@ pub(super) fn intrinsic_span_distribution_count<S: LayoutScalar>(
         let count = tracks
             .iter()
             .filter(|track| {
-                track_accepts_intrinsic_contribution(track)
-                    || track_percent_fraction(track) > S::ZERO
+                track_accepts_intrinsic_contribution(track) || track_has_percent_sizing(track)
             })
             .count();
         return count.max(distribution_count).max(1);
@@ -1863,9 +1882,7 @@ pub(super) fn intrinsic_span_definite_space<S: LayoutScalar>(
 
     tracks
         .iter()
-        .filter(|track| {
-            track_percent_fraction(track) == S::ZERO && track_flex_factor(track).is_none()
-        })
+        .filter(|track| !track_has_percent_sizing(track) && track_flex_factor(track).is_none())
         .map(track_min_floor_space)
         .fold(S::ZERO, |sum, value| sum + value)
 }
@@ -1878,7 +1895,7 @@ pub(super) fn intrinsic_span_definite_track_space<S: LayoutScalar>(
         .filter(|track| {
             !track_accepts_intrinsic_contribution(track)
                 && track_flex_factor(track).is_none()
-                && track_percent_fraction(track) == S::ZERO
+                && !track_has_percent_sizing(track)
         })
         .map(|track| track_base_size(track, None, S::ZERO))
         .fold(S::ZERO, |sum, value| sum + value)
@@ -1889,18 +1906,13 @@ pub(super) fn intrinsic_span_minimum_floor_space<S: LayoutScalar>(
 ) -> S {
     tracks
         .iter()
-        .filter(|track| {
-            track_percent_fraction(track) == S::ZERO && track_flex_factor(track).is_none()
-        })
+        .filter(|track| !track_has_percent_sizing(track) && track_flex_factor(track).is_none())
         .map(|track| track_min_floor_space(track))
         .fold(S::ZERO, |sum, value| sum + value)
 }
 
 pub(super) fn track_min_floor_space<S: LayoutScalar>(track: &TrackSizingOf<S>) -> S {
-    track
-        .min
-        .percent_fraction()
-        .eq(&S::ZERO)
+    (!track.min.depends_on_basis())
         .then(|| match &track.min {
             MinTrackSizingOf::Calculation(calculation) => {
                 resolve_track_calculation_optional(calculation, None)
@@ -1915,10 +1927,6 @@ pub(super) fn track_min_floor_space<S: LayoutScalar>(track: &TrackSizingOf<S>) -
                 .then(|| track_base_size(track, None, S::ZERO))
         })
         .unwrap_or(S::ZERO)
-}
-
-pub(super) fn track_percent_fraction<S: LayoutScalar>(track: &TrackSizingOf<S>) -> S {
-    track.percent_fraction()
 }
 
 pub(super) fn span_contribution<S: LayoutScalar>(contribution: S, span: usize, gap: S) -> S {
@@ -1972,7 +1980,7 @@ pub(super) fn track_accepts_percent_min_content_span<S: LayoutScalar>(
     overflow: Overflow,
     percent_basis: Option<S>,
 ) -> bool {
-    if percent_basis.is_none() && track_percent_fraction(track) > S::ZERO {
+    if percent_basis.is_none() && track_has_percent_sizing(track) {
         return true;
     }
     if track_has_definite_min_floor(track) {
@@ -3002,7 +3010,48 @@ pub(super) fn rtl_offsets<S: LayoutScalar>(
 mod tests {
     use super::*;
     use crate::test_support::layout_tree::OracleTree;
-    use crate::{Length, NodeInput, TrackComponent, TrackSizing};
+    use crate::{
+        Length, LengthPercentageOf, NodeInput, SizingCalculationOf, TrackComponent, TrackSizing,
+    };
+
+    fn fri04_c03_grid_track_nested<S: LayoutScalar>(target: f64) -> SizingCalculationOf<S> {
+        let value = |value| {
+            SizingCalculationOf::value(
+                LengthPercentageOf::px(S::from_f64(value)).expect("finite test track value"),
+            )
+        };
+        SizingCalculationOf::clamp(
+            Some(value(target - 10.0)),
+            SizingCalculationOf::max(vec![
+                value(target),
+                SizingCalculationOf::min(vec![value(target - 5.0), value(target + 5.0)])
+                    .expect("nested minimum is nonempty"),
+            ])
+            .expect("nested maximum is nonempty"),
+            Some(value(target + 10.0)),
+        )
+    }
+
+    #[test]
+    fn fri04_c03_grid_track_exact_static_span_accepts_basis_independent_nested_programs() {
+        let tracks = [
+            TrackSizingOf::calculation(fri04_c03_grid_track_nested::<f64>(30.0)),
+            TrackSizingOf::calculation(fri04_c03_grid_track_nested::<f64>(40.0)),
+        ];
+        assert_eq!(exact_static_track_span(&tracks, 0, 2, 7.0), Some(77.0));
+
+        let dependent = SizingCalculationOf::max(vec![
+            fri04_c03_grid_track_nested::<f64>(30.0),
+            SizingCalculationOf::value(
+                LengthPercentageOf::from_percent_fraction(0.1).expect("finite test percentage"),
+            ),
+        ])
+        .expect("nested maximum is nonempty");
+        assert_eq!(
+            exact_static_track_span(&[TrackSizingOf::calculation(dependent)], 0, 1, 0.0),
+            None
+        );
+    }
 
     #[test]
     fn intrinsic_subgrid_constraints_distinguish_final_authority_from_unknown_spans() {

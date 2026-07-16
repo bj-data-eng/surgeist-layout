@@ -712,11 +712,7 @@ where
 {
     match track.min {
         MinTrackSizingOf::Calculation(calculation) => {
-            let resolution = calculation
-                .affine_value()
-                .map_or_else(LengthResolutionOf::non_numeric, |value| {
-                    crate::LengthOf::value(value).resolve_with_status(available)
-                });
+            let resolution = super::tracks::resolve_track_calculation(&calculation, available);
             resolution_or_zero(resolution, site)
         }
         MinTrackSizingOf::Auto | MinTrackSizingOf::MinContent | MinTrackSizingOf::MaxContent => {

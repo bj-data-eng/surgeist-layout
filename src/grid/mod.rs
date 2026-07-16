@@ -447,7 +447,7 @@ fn layout_percent_track_floor<S: LayoutScalar>(
         return S::ZERO;
     }
     available_size
-        .map(|available| available * track_percent_sum(tracks))
+        .map(|available| track_basis_dependent_space(tracks, available))
         .unwrap_or(S::ZERO)
 }
 
@@ -1925,10 +1925,11 @@ fn resolved_logical_layout_columns<S: LayoutScalar>(
     let logical_content_box_inset_size =
         sizing_flow_axes.logical_size(constants.content_box_inset.sum_axes());
     let content_inline = (output_inline - logical_content_box_inset_size.inline).max(S::ZERO);
-    let percent_sum = track_percent_sum(input.tracks);
+    let has_basis_dependent_track = input.tracks.iter().any(track_has_percent_sizing);
     let percent_floor_basis = logical_available_inner_size.inline.filter(|available| {
-        percent_sum > S::ZERO
-            && (content_inline - *available * percent_sum).abs() <= S::from_f64(0.001)
+        has_basis_dependent_track
+            && (content_inline - track_basis_dependent_space(input.tracks, *available)).abs()
+                <= S::from_f64(0.001)
     });
     let resolution_inline = percent_floor_basis.unwrap_or(content_inline);
     resolve_inline_tracks(InlineTrackInput {

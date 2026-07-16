@@ -5969,34 +5969,35 @@ fn compute_layout_rejects_overflowing_affine_grid_auto_fit_track() {
 }
 
 #[test]
-fn track_sizing_non_affine_calculation_returns_later_fri_behavior() {
-    let non_affine = SizingCalculation::min(vec![
+fn track_sizing_nested_calculation_produces_track_geometry() {
+    let nested = SizingCalculation::min(vec![
         SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite track")),
         SizingCalculation::value(LengthPercentageOf::px(20.0).expect("finite track")),
     ])
     .expect("nonempty minimum");
-    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
-        0,
-        NodeInput {
-            display: Display::Grid,
-            grid_template_columns: vec![TrackSizing::calculation(non_affine).into()],
-            ..NodeInput::default()
-        },
-    );
+    let tree: RootSessionTree = RootSessionTree::default()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                grid_template_columns: vec![TrackSizing::calculation(nested).into()],
+                ..NodeInput::default()
+            },
+        )
+        .style(1, NodeInput::default());
     let request = LayoutRootRequest::viewport(Size::new(
         Available::definite(100.0),
         Available::definite(20.0),
     ))
     .unwrap();
 
-    let error = compute_layout(&tree, 0, request).unwrap_err();
+    let batch = compute_layout(&tree, 0, request).expect("nested track calculation resolves");
+    let child = public_flow_output(batch.unrounded_entries(), 1);
 
-    assert_eq!(error.site(), LayoutErrorSite::Node(0));
-    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
-    assert_eq!(
-        error.kind(),
-        &LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
-    );
+    assert_eq!(child.location, Point::ZERO);
+    assert_eq!(child.size.width, 10.0);
 }
 
 #[test]
