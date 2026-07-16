@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-04 block sizing math functions</title>
+</head>
+<body>
+<div id="test-root" style="display: block; width: 240px;">
+  <div style="height: 20px; width: calc(50% - 10px); min-width: max(25%, min(72px, 30%)); max-width: clamp(35%, max(50%, 100px), 70%);"></div>
+</div>
+</body>
+</html>

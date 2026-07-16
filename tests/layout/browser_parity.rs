@@ -293,6 +293,114 @@ fn runs_fri_03_box_participation_against_surgeist_layout() {
 }
 
 #[test]
+fn fri04_c05_fixture_matrix_rejects_missing_duplicate_misplaced_and_extra_paths() {
+    let expected = fri04_c05_expected_paths();
+
+    assert!(fri04_c05_fixture_paths(expected.iter().skip(1).cloned()).is_err());
+
+    let mut duplicate = expected.clone();
+    duplicate.push(expected[0].clone());
+    assert!(fri04_c05_fixture_paths(duplicate).is_err());
+
+    let mut misplaced = expected.clone();
+    let file = misplaced[0]
+        .file_name()
+        .expect("FRI-04 path should have a filename")
+        .to_owned();
+    misplaced[0] = PathBuf::from("xml/other").join(file);
+    assert!(fri04_c05_fixture_paths(misplaced).is_err());
+
+    let mut extra = expected;
+    extra.push(PathBuf::from(
+        "xml/block/fri04_sizing_math_functions__extra.xml",
+    ));
+    assert!(fri04_c05_fixture_paths(extra).is_err());
+
+    let paths = fri04_c05_fixture_paths(browser_parity_fixture_paths())
+        .unwrap_or_else(|error| panic!("FRI-04 C05 fixture matrix is incomplete: {error}"));
+    assert_eq!(paths.len(), 12);
+}
+
+#[test]
+fn fri04_c05_fixture_outputs_parse_and_match_surgeist_layout() {
+    let paths = fri04_c05_fixture_paths(browser_parity_fixture_paths())
+        .unwrap_or_else(|error| panic!("FRI-04 C05 fixture matrix is incomplete: {error}"));
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+
+    for relative in paths {
+        let fixture = corpus_root.join(&relative);
+        let golden = support::Golden::parse_file(&fixture)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", fixture.display()));
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} failed layout comparison: {error}", fixture.display())
+        });
+    }
+}
+
+#[test]
+fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+    let html_root = corpus_root.join("html");
+    let html = support::fixture_files_in(&html_root, "html")
+        .expect("HTML parity fixtures should be readable");
+    let sources = [
+        "block/fri04_sizing_math_functions.html",
+        "flex/fri04_flex_basis_content.html",
+        "grid/fri04_track_math_functions.html",
+    ];
+
+    assert_eq!(html.len(), 1409);
+    for source in sources {
+        assert!(
+            html.contains(&html_root.join(source)),
+            "missing FRI-04 source {source}"
+        );
+    }
+
+    let xml = support::fixture_files_in(&corpus_root.join("xml"), "xml")
+        .expect("XML parity fixtures should be readable");
+    assert_eq!(xml.len(), 5280);
+
+    let manifest_path = corpus_root.join("corpus.toml");
+    let manifest = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|error| panic!("{} should read: {error}", manifest_path.display()));
+    assert!(manifest.contains("generated = 5280"));
+    for source in sources {
+        let case = format!(
+            "id = \"{}\"\nsource_root = \"surgeist\"\nsource = \"{source}\"\ngenerator = \"constrained-html\"\nstatus = \"active\"",
+            source.trim_end_matches(".html")
+        );
+        assert_eq!(
+            manifest.matches(&case).count(),
+            1,
+            "manifest should contain exactly one active case for {source}"
+        );
+    }
+
+    let report_root = corpus_root.join("xml/generation-reports");
+    let reports = support::fixture_files_in(&report_root, "json")
+        .expect("generation reports should be readable");
+    assert_eq!(
+        reports
+            .iter()
+            .filter_map(|path| path.file_name().and_then(|name| name.to_str()))
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from(["all.json"])
+    );
+    let report_path = report_root.join("all.json");
+    let report: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&report_path)
+            .unwrap_or_else(|error| panic!("{} should read: {error}", report_path.display())),
+    )
+    .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
+    assert_eq!(report["summary"]["generated"], 5280);
+    assert_eq!(report["summary"]["unsupported"], 356);
+    for bucket in ["expected_fail", "quarantined", "failed_to_generate"] {
+        assert_eq!(report["summary"][bucket], 0, "nonzero {bucket} summary");
+    }
+}
+
+#[test]
 fn runs_subgrid_relative_rtl_abspos_fixture_against_surgeist_layout() {
     let golden = support::Golden::parse(include_str!(
         "browser_parity/xml/subgrid/subgrid_abspos_relative_rtl_column_3_to_5__border_box_ltr.xml"
@@ -1084,6 +1192,73 @@ fn calc_fixture_family_paths(
     }
 
     Ok(discovered)
+}
+
+fn fri04_c05_expected_paths() -> Vec<PathBuf> {
+    const SOURCES: [&str; 3] = [
+        "block/fri04_sizing_math_functions",
+        "flex/fri04_flex_basis_content",
+        "grid/fri04_track_math_functions",
+    ];
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    SOURCES
+        .into_iter()
+        .flat_map(|source| {
+            VARIANTS
+                .into_iter()
+                .map(move |variant| PathBuf::from("xml").join(format!("{source}__{variant}.xml")))
+        })
+        .collect()
+}
+
+fn fri04_c05_fixture_paths(
+    candidate_paths: impl IntoIterator<Item = PathBuf>,
+) -> Result<BTreeSet<PathBuf>, String> {
+    let expected = fri04_c05_expected_paths()
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let fixtures = candidate_paths
+        .into_iter()
+        .filter(|candidate| fri04_c05_fixture_source(candidate).is_some())
+        .collect::<Vec<_>>();
+    let discovered = fixtures.iter().cloned().collect::<BTreeSet<_>>();
+
+    if fixtures.len() != discovered.len() {
+        return Err(format!(
+            "FRI-04 C05 fixture discovery must not contain duplicate relative paths: {discovered:#?}"
+        ));
+    }
+    if discovered != expected {
+        return Err(format!(
+            "FRI-04 C05 fixture matrix must contain exactly the required relative variants: {discovered:#?}"
+        ));
+    }
+
+    Ok(discovered)
+}
+
+fn fri04_c05_fixture_source(path: &Path) -> Option<&str> {
+    if path.extension().and_then(|extension| extension.to_str()) != Some("xml") {
+        return None;
+    }
+    let source = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())?
+        .split_once("__")?
+        .0;
+    [
+        "fri04_sizing_math_functions",
+        "fri04_flex_basis_content",
+        "fri04_track_math_functions",
+    ]
+    .contains(&source)
+    .then_some(source)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -2414,10 +2589,10 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .filter(|fixture| is_under_suite(fixture, "grid-lanes"))
         .count();
 
-    assert_eq!(taffy_plus_local_count, 1161);
+    assert_eq!(taffy_plus_local_count, 1164);
     assert_eq!(subgrid_count, 219);
     assert_eq!(grid_lanes_count, 26);
-    assert_eq!(fixtures.len(), 1406);
+    assert_eq!(fixtures.len(), 1409);
 
     for source in [
         "flex/fri03_order_modified_flex.html",
@@ -2467,7 +2642,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5268);
+    assert_eq!(report_json["summary"]["generated"], 5280);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -2478,7 +2653,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5268,
+        5280,
         "generated bucket length must match its summary"
     );
     assert_eq!(

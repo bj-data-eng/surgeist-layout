@@ -4391,14 +4391,15 @@ fn attr_text(attrs: &[(&str, String)]) -> String {
 fn dimension(value: &Value) -> Option<String> {
     let unit = value.get("unit").and_then(Value::as_str)?;
     match unit {
-        "auto" | "max-content" | "min-content" => Some(unit.to_string()),
+        "auto" | "none" | "content" | "max-content" | "min-content" | "stretch" | "fit-content"
+        | "contain" => Some(unit.to_string()),
         "px" => Some(format!("{}px", number_attr(&value["value"]))),
         "percent" => Some(format!(
             "{}%",
             number_attr_value(number(&value["value"]) * 100.0)
         )),
         "fraction" => Some(format!("{}fr", number_attr(&value["value"]))),
-        "calc" => value
+        "calc" | "sizing" => value
             .get("value")
             .and_then(Value::as_str)
             .map(str::to_string),
@@ -5214,13 +5215,257 @@ mod tests {
     }
 
     #[test]
-    fn generation_report_manifest_requires_full_only_fri_03_inventory() {
+    fn generation_report_manifest_requires_full_only_fri_04_inventory() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let reports = generation_report_manifest(&manifest).expect("report manifest");
         assert_eq!(reports.all_files().len(), 1);
         assert_eq!(reports.full.file, "all.json");
-        assert_eq!(reports.full.generated, 5268);
+        assert_eq!(reports.full.generated, 5280);
         assert!(reports.scoped.is_empty());
+    }
+
+    #[test]
+    fn fri04_c05_unsupported_report_projection_matches_published_digest() {
+        #[derive(Serialize)]
+        struct UnsupportedProjection<'a> {
+            name: &'a str,
+            reason: &'a str,
+            source: &'a str,
+            variant: &'a str,
+        }
+
+        let report: Value = serde_json::from_str(include_str!(
+            "../../layout/browser_parity/xml/generation-reports/all.json"
+        ))
+        .expect("published full generation report should parse");
+        let entries = report["unsupported"]
+            .as_array()
+            .expect("published unsupported report bucket should be an array");
+        assert_eq!(entries.len(), 356);
+
+        let mut projection = entries
+            .iter()
+            .map(|entry| UnsupportedProjection {
+                name: entry["name"]
+                    .as_str()
+                    .expect("unsupported report entry should include a name"),
+                reason: entry["reason"]
+                    .as_str()
+                    .expect("unsupported report entry should include a reason"),
+                source: entry["source"]
+                    .as_str()
+                    .expect("unsupported report entry should include a source"),
+                variant: entry["variant"]
+                    .as_str()
+                    .expect("unsupported report entry should include a variant"),
+            })
+            .collect::<Vec<_>>();
+        projection.sort_by(|left, right| {
+            (&left.name, &left.source, &left.variant, &left.reason).cmp(&(
+                &right.name,
+                &right.source,
+                &right.variant,
+                &right.reason,
+            ))
+        });
+
+        let mut canonical =
+            serde_json::to_string_pretty(&projection).expect("projection should serialize");
+        canonical.push('\n');
+        assert_eq!(
+            sha256_bytes(canonical.as_bytes()),
+            "c44aaae7f939ebc07341cb984ca3f040512ec4dd5462d75454b178a713492030"
+        );
+    }
+
+    #[test]
+    fn fri04_c05_helper_serializer_helper_preserves_finite_sizing_tokens_exactly() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const document = { styleSheets: [] };
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const parseOwnedSizing = typeof parseSizingDimension === "function"
+  ? parseSizingDimension
+  : parseDimension;
+
+function assertEqual(name, actual, expected) {
+  const actualJson = JSON.stringify(actual);
+  const expectedJson = JSON.stringify(expected);
+  if (actualJson !== expectedJson) {
+    throw new Error(`${name} expected ${expectedJson} but got ${actualJson}`);
+  }
+}
+
+for (const [raw, expected, allowFrUnits] of [
+  ["12px", { unit: "px", value: 12 }, false],
+  ["25%", { unit: "percent", value: 0.25 }, false],
+  ["calc(5px + 10%)", { unit: "calc", value: "calc(5px + 10%)" }, false],
+  ["min(10px, max(20%, calc(5px + 10%)))", { unit: "sizing", value: "min(10px, max(20%, calc(5px + 10%)))" }, false],
+  ["max(10px, min(20%, 30px))", { unit: "sizing", value: "max(10px, min(20%, 30px))" }, false],
+  ["clamp(none, max(10px, 25%), 90px)", { unit: "sizing", value: "clamp(none, max(10px, 25%), 90px)" }, false],
+  ["fit-content(max(10px, 25%))", { unit: "sizing", value: "fit-content(max(10px, 25%))" }, false],
+  ["calc-size(auto, clamp(none, max(10px + 25%, size * 0.5), 100px))", { unit: "sizing", value: "calc-size(auto, clamp(none, max(10px + 25%, size * 0.5), 100px))" }, false],
+  ["auto", { unit: "auto" }, false],
+  ["none", { unit: "none" }, false],
+  ["content", { unit: "content" }, false],
+  ["min-content", { unit: "min-content" }, false],
+  ["max-content", { unit: "max-content" }, false],
+  ["stretch", { unit: "stretch" }, false],
+  ["fit-content", { unit: "fit-content" }, false],
+  ["contain", { unit: "contain" }, false],
+  ["2fr", { unit: "fraction", value: 2 }, true],
+]) {
+  assertEqual(raw, parseOwnedSizing(raw, { allowFrUnits }), expected);
+}
+
+assertEqual(
+  "calculated grid tracks",
+  parseGridTrackDefinitions("minmax(calc(25% + 10px), calc(35% + 16px)) fit-content(calc(25% + 15px))"),
+  [
+    {
+      kind: "function",
+      name: "minmax",
+      arguments: [
+        { kind: "scalar", unit: "calc", value: "calc(25% + 10px)" },
+        { kind: "scalar", unit: "calc", value: "calc(35% + 16px)" },
+      ],
+    },
+    {
+      kind: "function",
+      name: "fit-content",
+      arguments: [
+        { kind: "scalar", unit: "calc", value: "calc(25% + 15px)" },
+      ],
+    },
+  ]
+);
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri04-c05-owned-sizing", script);
+    }
+
+    #[test]
+    fn fri04_c05_helper_serializer_helper_rejects_unsupported_syntax_and_box_fr() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const document = { styleSheets: [] };
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const parseOwnedSizing = typeof parseSizingDimension === "function"
+  ? parseSizingDimension
+  : parseDimension;
+
+for (const raw of [
+  "calc(100% / 2)",
+  "min()",
+  "max(10px,)",
+  "clamp(10px, 20px)",
+  "fit-content(10px, 20px)",
+  "calc-size(any, size)",
+  "var(--size)",
+  "min(10px, max(20px, 30px)",
+  "min(10px) trailing",
+  "1fr",
+]) {
+  const actual = parseOwnedSizing(raw, { allowFrUnits: false });
+  if (actual !== undefined) {
+    throw new Error(`unsupported box sizing token ${raw} produced ${JSON.stringify(actual)}`);
+  }
+}
+
+for (const raw of ["-1fr", "NaNfr", "Infinityfr"]) {
+  const actual = parseOwnedSizing(raw, { allowFrUnits: true });
+  if (actual !== undefined) {
+    throw new Error(`invalid track flex ${raw} produced ${JSON.stringify(actual)}`);
+  }
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri04-c05-rejected-sizing", script);
+    }
+
+    #[test]
+    fn fri04_c05_helper_serializer_emits_exact_box_flex_and_track_attributes() {
+        let node = json!({
+            "style": {
+                "flexBasis": {"unit": "content"},
+                "size": {
+                    "width": {"unit": "sizing", "value": "min(calc(70% - 8px), 160px)"},
+                    "height": {"unit": "calc", "value": "calc(50% + 4px)"}
+                },
+                "minSize": {
+                    "width": {"unit": "sizing", "value": "max(calc(20% + 12px), 72px)"},
+                    "height": {"unit": "px", "value": 18}
+                },
+                "maxSize": {
+                    "width": {"unit": "sizing", "value": "clamp(90px, calc(50% + 4px), 166px)"},
+                    "height": {"unit": "sizing", "value": "fit-content(max(24px, 30%))"}
+                },
+                "gridTemplateColumns": [
+                    {
+                        "kind": "function",
+                        "name": "minmax",
+                        "arguments": [
+                            {"kind": "scalar", "unit": "sizing", "value": "calc(25% + 10px)"},
+                            {"kind": "scalar", "unit": "sizing", "value": "calc(35% + 16px)"}
+                        ]
+                    },
+                    {
+                        "kind": "function",
+                        "name": "fit-content",
+                        "arguments": [
+                            {"kind": "scalar", "unit": "sizing", "value": "calc(25% + 15px)"}
+                        ]
+                    }
+                ],
+                "gridTemplateRows": [
+                    {"kind": "scalar", "unit": "sizing", "value": "max(20px, 10%)"}
+                ]
+            }
+        });
+        let attrs = input_attrs(&node).into_iter().collect::<BTreeMap<_, _>>();
+
+        assert_eq!(attrs.get("flex-basis").map(String::as_str), Some("content"));
+        assert_eq!(
+            attrs.get("width").map(String::as_str),
+            Some("min(calc(70% - 8px), 160px)")
+        );
+        assert_eq!(
+            attrs.get("height").map(String::as_str),
+            Some("calc(50% + 4px)")
+        );
+        assert_eq!(
+            attrs.get("min-width").map(String::as_str),
+            Some("max(calc(20% + 12px), 72px)")
+        );
+        assert_eq!(attrs.get("min-height").map(String::as_str), Some("18px"));
+        assert_eq!(
+            attrs.get("max-width").map(String::as_str),
+            Some("clamp(90px, calc(50% + 4px), 166px)")
+        );
+        assert_eq!(
+            attrs.get("max-height").map(String::as_str),
+            Some("fit-content(max(24px, 30%))")
+        );
+        assert_eq!(
+            attrs.get("grid-template-columns").map(String::as_str),
+            Some("minmax(calc(25% + 10px),calc(35% + 16px)) fit-content(calc(25% + 15px))")
+        );
+        assert_eq!(
+            attrs.get("grid-template-rows").map(String::as_str),
+            Some("max(20px, 10%)")
+        );
     }
 
     #[test]

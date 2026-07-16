@@ -1,0 +1,14 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/fri04_sizing_math_functions.html" source-sha256="1ed272e0490b62572ef1034f8159bd304d299c4bd4795650a4ace3612ae3063a" helper-sha256="d46efad1f2821cb999dbe9a9a45dc82a8e27ea31290482947e40d5088eb9ba40" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri04_sizing_math_functions__border_box_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block" direction="rtl" width="240px">
+      <div source-tag="div" display="flex" direction="rtl" width="calc(50% - 10px)" height="20px" min-width="max(25%, min(72px, 30%))" max-width="clamp(35%, max(50%, 100px), 70%)"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="240" height="20">
+      <node x="130" y="0" width="110" height="20"/>
+    </node>
+  </expectations>
+</test>

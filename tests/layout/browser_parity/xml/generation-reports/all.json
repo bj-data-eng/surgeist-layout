@@ -5,14 +5,14 @@
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
     "launch_profile_sha256": "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
-    "helper_sha256": "89a3a9e45c6ded2b03fd9d8eea81a4db58c1164248468a9272da0bc6d16685a6",
+    "helper_sha256": "d46efad1f2821cb999dbe9a9a45dc82a8e27ea31290482947e40d5088eb9ba40",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
-    "corpus_manifest_sha256": "a83cfef12dffbe070063fcf466a60a5c72a9300dcffc600c8ee96ec779a2a5d4",
+    "corpus_manifest_sha256": "d7e205908915b5330159d995429339d50179286d357a96153f385abcf3bfa072",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },
   "filter": null,
   "summary": {
-    "generated": 5268,
+    "generated": 5280,
     "unsupported": 356,
     "expected_fail": 0,
     "quarantined": 0,
@@ -5465,6 +5465,30 @@
       "name": "block_text_align_center_rtl__content_box_rtl",
       "source": "html/block/block_text_align_center_rtl.html",
       "output": "xml/block/block_text_align_center_rtl__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri04_sizing_math_functions__border_box_ltr",
+      "source": "html/block/fri04_sizing_math_functions.html",
+      "output": "xml/block/fri04_sizing_math_functions__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri04_sizing_math_functions__content_box_ltr",
+      "source": "html/block/fri04_sizing_math_functions.html",
+      "output": "xml/block/fri04_sizing_math_functions__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri04_sizing_math_functions__border_box_rtl",
+      "source": "html/block/fri04_sizing_math_functions.html",
+      "output": "xml/block/fri04_sizing_math_functions__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri04_sizing_math_functions__content_box_rtl",
+      "source": "html/block/fri04_sizing_math_functions.html",
+      "output": "xml/block/fri04_sizing_math_functions__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
@@ -13340,6 +13364,30 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "fri04_flex_basis_content__border_box_ltr",
+      "source": "html/flex/fri04_flex_basis_content.html",
+      "output": "xml/flex/fri04_flex_basis_content__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri04_flex_basis_content__content_box_ltr",
+      "source": "html/flex/fri04_flex_basis_content.html",
+      "output": "xml/flex/fri04_flex_basis_content__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri04_flex_basis_content__border_box_rtl",
+      "source": "html/flex/fri04_flex_basis_content.html",
+      "output": "xml/flex/fri04_flex_basis_content__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri04_flex_basis_content__content_box_rtl",
+      "source": "html/flex/fri04_flex_basis_content.html",
+      "output": "xml/flex/fri04_flex_basis_content__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "gap_column_gap_child_margins__border_box_ltr",
       "source": "html/flex/gap_column_gap_child_margins.html",
       "output": "xml/flex/gap_column_gap_child_margins__border_box_ltr.xml",
@@ -20825,6 +20873,30 @@
       "name": "fri03_order_modified_grid__content_box_rtl",
       "source": "html/grid/fri03_order_modified_grid.html",
       "output": "xml/grid/fri03_order_modified_grid__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri04_track_math_functions__border_box_ltr",
+      "source": "html/grid/fri04_track_math_functions.html",
+      "output": "xml/grid/fri04_track_math_functions__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri04_track_math_functions__content_box_ltr",
+      "source": "html/grid/fri04_track_math_functions.html",
+      "output": "xml/grid/fri04_track_math_functions__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri04_track_math_functions__border_box_rtl",
+      "source": "html/grid/fri04_track_math_functions.html",
+      "output": "xml/grid/fri04_track_math_functions__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri04_track_math_functions__content_box_rtl",
+      "source": "html/grid/fri04_track_math_functions.html",
+      "output": "xml/grid/fri04_track_math_functions__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {

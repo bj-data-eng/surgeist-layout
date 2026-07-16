@@ -84,7 +84,12 @@ class TrackSizingParser {
       }
 
       if (char === '(') {
-        if (token === 'calc') return { kind: 'scalar', ...this._parseCalcItem(token) };
+        if (['calc', 'min', 'max', 'clamp'].includes(token)) {
+          return { kind: 'scalar', ...this._parseSizingItem(token) };
+        }
+        if (!['fit-content', 'minmax', 'repeat'].includes(token)) {
+          throw new Error(`Unsupported grid track sizing function ${token}`);
+        }
         this.index++;
         const args = this._parseItemList(',', ')');
         this.index++;
@@ -99,9 +104,9 @@ class TrackSizingParser {
 
   }
 
-  _parseCalcItem(name) {
+  _parseSizingItem(name) {
     const body = this._parseBalancedParenthesized();
-    const dimension = parseDimension(`${name}(${body})`, { allowFrUnits: this.options.allowFrUnits });
+    const dimension = parseSizingDimension(`${name}(${body})`, { allowFrUnits: this.options.allowFrUnits });
     if (!dimension) throw new Error(`Invalid scalar grid track sizing function ${name}(${body})`);
     return dimension;
   }
@@ -143,7 +148,7 @@ class TrackSizingParser {
   }
 
   _parseScalarItem(item) {
-    const res = parseRepetition(item) || parseDimension(item, { allowFrUnits: this.options.allowFrUnits });
+    const res = parseRepetition(item) || parseSizingDimension(item, { allowFrUnits: this.options.allowFrUnits });
     if (!res) throw new Error(`Invalid scalar grid track sizing function ${item}`);
     return res;
   }
@@ -200,6 +205,256 @@ function parseDimension(input, options = { allowFrUnits: false }) {
   return undefined;
 }
 
+const MAX_OWNED_SIZING_FUNCTION_DEPTH = 64;
+const OWNED_SIZING_KEYWORDS = new Set([
+  'auto',
+  'none',
+  'content',
+  'min-content',
+  'max-content',
+  'stretch',
+  'fit-content',
+  'contain',
+]);
+const OWNED_CALC_SIZE_BASES = new Set([
+  'any',
+  '100%',
+  'auto',
+  'none',
+  'content',
+  'min-content',
+  'max-content',
+  'stretch',
+  'fit-content',
+  'contain',
+]);
+const OWNED_CSS_NUMBER = /^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/;
+const OWNED_COMPLETE_CSS_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+
+function parseSizingDimension(input, options = { allowFrUnits: false }) {
+  if (!input) return undefined;
+  if (typeof input === 'object') return parseTypedOmSizingDimension(input, options);
+
+  const value = input.trim();
+  if (!ownedSizingTokenIsValid(value, options.allowFrUnits)) return undefined;
+
+  if (value.endsWith('px')) return { unit: 'px', value: Number(value.slice(0, -2)) };
+  if (value.endsWith('%') && !value.includes('(')) {
+    return { unit: 'percent', value: Number(value.slice(0, -1)) / 100 };
+  }
+  if (options.allowFrUnits && value.endsWith('fr')) {
+    return { unit: 'fraction', value: Number(value.slice(0, -2)) };
+  }
+  if (OWNED_SIZING_KEYWORDS.has(value)) return { unit: value };
+  if (value.startsWith('calc(')) return { unit: 'calc', value };
+  return { unit: 'sizing', value };
+}
+
+function parseTypedOmSizingDimension(value, options) {
+  if (!value) return undefined;
+  if (value.unit === 'percent' && Number.isFinite(value.value)) {
+    return { unit: 'percent', value: value.value / 100 };
+  }
+  if (value.unit === 'px' && Number.isFinite(value.value)) {
+    return { unit: 'px', value: value.value };
+  }
+  if (value.unit === 'fr' && options.allowFrUnits && Number.isFinite(value.value) && value.value >= 0) {
+    return { unit: 'fraction', value: value.value };
+  }
+  if ((value.unit === 'calc' || value.unit === 'sizing') && typeof value.value === 'string') {
+    return parseSizingDimension(value.value, options);
+  }
+  return parseSizingDimension(value.toString ? value.toString() : '', options);
+}
+
+function ownedSizingTokenIsValid(value, allowFrUnits) {
+  if (!value) return false;
+  if (ownedLengthPercentageIsValid(value)) return true;
+  if (OWNED_SIZING_KEYWORDS.has(value)) return true;
+  if (allowFrUnits && ownedTrackFlexIsValid(value)) return true;
+
+  const sizingFunction = parseOwnedSizingFunction(value);
+  if (!sizingFunction) return false;
+  if (sizingFunction.name === 'fit-content') {
+    const arguments = splitOwnedSizingArguments(sizingFunction.body);
+    return arguments?.length === 1 && ownedSizingCalculationIsValid(arguments[0]);
+  }
+  if (sizingFunction.name === 'calc-size') {
+    const arguments = splitOwnedSizingArguments(sizingFunction.body);
+    if (arguments?.length !== 2 || !OWNED_CALC_SIZE_BASES.has(arguments[0])) return false;
+    const calculation = ownedCalcSizeCalculation(arguments[1]);
+    return calculation.valid && !(arguments[0] === 'any' && calculation.usesSize);
+  }
+  return ownedSizingCalculationIsValid(value);
+}
+
+function ownedLengthPercentageIsValid(value) {
+  if (value.endsWith('px')) return ownedFiniteCssNumber(value.slice(0, -2));
+  if (value.endsWith('%')) return ownedFiniteCssNumber(value.slice(0, -1));
+  return false;
+}
+
+function ownedTrackFlexIsValid(value) {
+  if (!value.endsWith('fr') || !ownedFiniteCssNumber(value.slice(0, -2))) return false;
+  return Number(value.slice(0, -2)) >= 0;
+}
+
+function ownedFiniteCssNumber(value) {
+  return OWNED_COMPLETE_CSS_NUMBER.test(value) && Number.isFinite(Number(value));
+}
+
+function parseOwnedSizingFunction(value) {
+  const openIndex = value.indexOf('(');
+  if (openIndex <= 0 || !/^[a-z-]+$/.test(value.slice(0, openIndex))) return undefined;
+
+  let depth = 0;
+  for (let index = openIndex; index < value.length; index++) {
+    const char = value[index];
+    if (char === '[' || char === ']') return undefined;
+    if (char === '(') {
+      depth++;
+      if (depth > MAX_OWNED_SIZING_FUNCTION_DEPTH) return undefined;
+      continue;
+    }
+    if (char !== ')') continue;
+    depth--;
+    if (depth < 0) return undefined;
+    if (depth === 0) {
+      if (index + 1 !== value.length) return undefined;
+      return {
+        name: value.slice(0, openIndex),
+        body: value.slice(openIndex + 1, index),
+      };
+    }
+  }
+  return undefined;
+}
+
+function splitOwnedSizingArguments(body) {
+  const arguments = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < body.length; index++) {
+    const char = body[index];
+    if (char === '(') depth++;
+    if (char === ')') {
+      depth--;
+      if (depth < 0) return undefined;
+    }
+    if (char === ',' && depth === 0) {
+      arguments.push(body.slice(start, index).trim());
+      start = index + 1;
+    }
+  }
+  if (depth !== 0) return undefined;
+  arguments.push(body.slice(start).trim());
+  return arguments.some(argument => !argument) ? undefined : arguments;
+}
+
+function ownedSizingCalculationIsValid(value) {
+  if (ownedLengthPercentageIsValid(value)) return true;
+  const sizingFunction = parseOwnedSizingFunction(value);
+  if (!sizingFunction) return false;
+
+  if (sizingFunction.name === 'calc') {
+    return ownedAffineCalculation(sizingFunction.body, false).valid;
+  }
+  const arguments = splitOwnedSizingArguments(sizingFunction.body);
+  if (!arguments) return false;
+  if (sizingFunction.name === 'min' || sizingFunction.name === 'max') {
+    return arguments.every(ownedSizingCalculationIsValid);
+  }
+  if (sizingFunction.name === 'clamp') {
+    return arguments.length === 3
+      && arguments[1] !== 'none'
+      && (arguments[0] === 'none' || ownedSizingCalculationIsValid(arguments[0]))
+      && ownedSizingCalculationIsValid(arguments[1])
+      && (arguments[2] === 'none' || ownedSizingCalculationIsValid(arguments[2]));
+  }
+  return false;
+}
+
+function ownedCalcSizeCalculation(value) {
+  const affine = ownedAffineCalculation(value, true);
+  if (affine.valid) return affine;
+
+  const sizingFunction = parseOwnedSizingFunction(value);
+  if (!sizingFunction) return { valid: false, usesSize: false };
+  if (sizingFunction.name === 'calc') {
+    return ownedAffineCalculation(sizingFunction.body, true);
+  }
+  const arguments = splitOwnedSizingArguments(sizingFunction.body);
+  if (!arguments) return { valid: false, usesSize: false };
+  if (sizingFunction.name === 'min' || sizingFunction.name === 'max') {
+    const calculations = arguments.map(ownedCalcSizeCalculation);
+    return {
+      valid: calculations.every(calculation => calculation.valid),
+      usesSize: calculations.some(calculation => calculation.usesSize),
+    };
+  }
+  if (sizingFunction.name === 'clamp' && arguments.length === 3 && arguments[1] !== 'none') {
+    const calculations = arguments.map((argument, index) => {
+      if (argument === 'none' && index !== 1) return { valid: true, usesSize: false };
+      return ownedCalcSizeCalculation(argument);
+    });
+    return {
+      valid: calculations.every(calculation => calculation.valid),
+      usesSize: calculations.some(calculation => calculation.usesSize),
+    };
+  }
+  return { valid: false, usesSize: false };
+}
+
+function ownedAffineCalculation(value, allowSize) {
+  let index = 0;
+  let terms = 0;
+  let usesSize = false;
+  while (index < value.length) {
+    index = skipOwnedSizingWhitespace(value, index);
+    if (terms > 0) {
+      if (value[index] !== '+' && value[index] !== '-') return { valid: false, usesSize: false };
+      index++;
+      index = skipOwnedSizingWhitespace(value, index);
+    } else if (value[index] === '+' || value[index] === '-') {
+      index++;
+      index = skipOwnedSizingWhitespace(value, index);
+    }
+
+    if (allowSize && value.slice(index, index + 4) === 'size'
+      && !/[a-zA-Z0-9-]/.test(value[index + 4] || '')) {
+      usesSize = true;
+      index += 4;
+      index = skipOwnedSizingWhitespace(value, index);
+      if (value[index] === '*') {
+        index++;
+        index = skipOwnedSizingWhitespace(value, index);
+        const coefficient = value.slice(index).match(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/);
+        if (!coefficient || !Number.isFinite(Number(coefficient[0]))) {
+          return { valid: false, usesSize: false };
+        }
+        index += coefficient[0].length;
+      }
+    } else {
+      const number = value.slice(index).match(OWNED_CSS_NUMBER);
+      if (!number || !Number.isFinite(Number(number[0]))) {
+        return { valid: false, usesSize: false };
+      }
+      index += number[0].length;
+      if (value.slice(index, index + 2) === 'px') index += 2;
+      else if (value[index] === '%') index++;
+      else return { valid: false, usesSize: false };
+    }
+    terms++;
+    index = skipOwnedSizingWhitespace(value, index);
+  }
+  return { valid: terms > 0, usesSize };
+}
+
+function skipOwnedSizingWhitespace(value, index) {
+  while (index < value.length && /\s/.test(value[index])) index++;
+  return index;
+}
+
 function parseTypedOmDimension(value) {
   if (!value) return undefined;
   if (value.unit === "percent") return { unit: "percent", value: value.value / 100 };
@@ -225,7 +480,7 @@ function containsCalcFunction(input) {
 }
 
 function parseResolvedDimension(input, computedInput) {
-  return parseDimension(input) || (input ? parseDimension(computedInput) : undefined);
+  return parseSizingDimension(input) || (input ? parseSizingDimension(computedInput) : undefined);
 }
 
 function parseNumber(input) {
@@ -312,7 +567,7 @@ function parseSize(size) {
 function parseSizeDimension(input) {
   if (!input) return undefined;
   if (typeof input === 'object') return input;
-  return parseDimension(input);
+  return parseSizingDimension(input);
 }
 
 function px(value) {
@@ -491,7 +746,7 @@ function describeElement(e, expectedElement = null) {
 
       flexGrow: parseNumber(styleValue("flexGrow")),
       flexShrink: parseNumber(styleValue("flexShrink")),
-      flexBasis: parseDimension(lengthStyleValue("flexBasis")),
+      flexBasis: parseSizingDimension(lengthStyleValue("flexBasis")),
 
       gridTemplateRows: parseGridTrackDefinitions(lengthStyleValue("gridTemplateRows")),
       gridTemplateColumns: parseGridTrackDefinitions(lengthStyleValue("gridTemplateColumns")),

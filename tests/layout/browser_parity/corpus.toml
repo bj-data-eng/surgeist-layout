@@ -54,7 +54,7 @@ scoped = []
 
 [generation_reports.full]
 file = "all.json"
-generated = 5268
+generated = 5280
 unsupported = 356
 expected_fail = 0
 quarantined = 0
@@ -104,6 +104,27 @@ status = "active"
 id = "grid-lanes/fri03_order_modified_lanes"
 source_root = "surgeist"
 source = "grid-lanes/fri03_order_modified_lanes.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri04_sizing_math_functions"
+source_root = "surgeist"
+source = "block/fri04_sizing_math_functions.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/fri04_flex_basis_content"
+source_root = "surgeist"
+source = "flex/fri04_flex_basis_content.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri04_track_math_functions"
+source_root = "surgeist"
+source = "grid/fri04_track_math_functions.html"
 generator = "constrained-html"
 status = "active"
 
