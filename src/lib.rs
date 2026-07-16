@@ -142,13 +142,13 @@ pub use grid::{
 #[cfg(test)]
 pub(crate) use grid::{compute_grid, compute_grid_with_report};
 pub use node_input::{
-    AlignContent, AlignItems, BoxSizing, Clear, Direction, Display, FlexDirection, FlexGrow,
-    FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float, GridAutoFlow, GridFlowTolerance,
-    GridFlowToleranceOf, GridPlacement, InlineBoundaryInput, InlineBoundaryInputOf,
-    InlineBoundaryKind, InlineMetrics, InlineMetricsError, InlineMetricsOf, ItemOrder, LayoutInput,
-    LayoutInputOf, LineBreakDisplay, LineBreakInput, LineBreakInputOf, NodeInput, NodeInputOf,
-    Overflow, Position, RawGridLine, RawGridPlacement, ScrollbarWidth, ScrollbarWidthOf, TextAlign,
-    VerticalAlign, WritingMode,
+    AlignContent, AlignItems, BoxSizing, Clear, ComputedOverflow, ComputedOverflowError, Direction,
+    Display, FlexDirection, FlexGrow, FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float,
+    GridAutoFlow, GridFlowTolerance, GridFlowToleranceOf, GridPlacement, InlineBoundaryInput,
+    InlineBoundaryInputOf, InlineBoundaryKind, InlineMetrics, InlineMetricsError, InlineMetricsOf,
+    ItemOrder, LayoutInput, LayoutInputOf, LineBreakDisplay, LineBreakInput, LineBreakInputOf,
+    NodeInput, NodeInputOf, Overflow, Position, RawGridLine, RawGridPlacement, ScrollbarWidth,
+    ScrollbarWidthOf, TextAlign, VerticalAlign, WritingMode,
 };
 pub use output::{
     Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, CompletedLayoutBatch,

@@ -7,6 +7,25 @@ use crate::{
 };
 
 #[test]
+fn fri05_c01_computed_overflow_public_reexports_compose() {
+    use crate::{ComputedOverflow, ComputedOverflowError, Overflow};
+
+    let pair: ComputedOverflow = ComputedOverflow::try_new(Overflow::Auto, Overflow::Hidden)
+        .expect("canonical public pair constructs");
+    assert_eq!((pair.x(), pair.y()), (Overflow::Auto, Overflow::Hidden));
+
+    let error: ComputedOverflowError = ComputedOverflow::try_new(Overflow::Clip, Overflow::Scroll)
+        .expect_err("cross-group public pair is rejected");
+    assert_eq!(
+        error,
+        ComputedOverflowError::NonCanonicalPair {
+            x: Overflow::Clip,
+            y: Overflow::Scroll,
+        }
+    );
+}
+
+#[test]
 fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract() {
     fn assert_closed<T: Clone + Copy + core::fmt::Debug + Eq + core::hash::Hash + PartialEq>() {}
 

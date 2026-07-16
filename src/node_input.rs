@@ -99,6 +99,7 @@ pub enum Overflow {
     Clip,
     Hidden,
     Scroll,
+    Auto,
 }
 
 impl Overflow {
@@ -109,12 +110,71 @@ impl Overflow {
 
     #[must_use]
     pub const fn is_scrollable(self) -> bool {
-        matches!(self, Self::Scroll)
+        matches!(self, Self::Hidden | Self::Scroll | Self::Auto)
     }
 
     #[must_use]
     pub const fn blocks_margin_collapse(self) -> bool {
         matches!(self, Self::Hidden | Self::Scroll)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ComputedOverflow {
+    x: Overflow,
+    y: Overflow,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ComputedOverflowError {
+    NonCanonicalPair { x: Overflow, y: Overflow },
+}
+
+impl core::fmt::Display for ComputedOverflowError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonCanonicalPair { .. } => f.write_str(
+                "computed overflow axes must both be visible/clip or both be hidden/scroll/auto",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ComputedOverflowError {}
+
+impl ComputedOverflow {
+    pub const VISIBLE: Self = Self {
+        x: Overflow::Visible,
+        y: Overflow::Visible,
+    };
+
+    pub fn try_new(x: Overflow, y: Overflow) -> Result<Self, ComputedOverflowError> {
+        if x.is_scrollable() == y.is_scrollable() {
+            Ok(Self { x, y })
+        } else {
+            Err(ComputedOverflowError::NonCanonicalPair { x, y })
+        }
+    }
+
+    #[must_use]
+    pub const fn x(self) -> Overflow {
+        self.x
+    }
+
+    #[must_use]
+    pub const fn y(self) -> Overflow {
+        self.y
+    }
+
+    #[must_use]
+    pub const fn establishes_independent_formatting_context(self) -> bool {
+        self.x.is_scrollable() && self.y.is_scrollable()
+    }
+}
+
+impl Default for ComputedOverflow {
+    fn default() -> Self {
+        Self::VISIBLE
     }
 }
 
@@ -1261,6 +1321,113 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
 mod tests {
     use super::*;
     use crate::SourceIndex;
+
+    #[test]
+    fn fri05_c01_computed_overflow_accepts_exact_canonical_pair_table() {
+        let values = [
+            Overflow::Visible,
+            Overflow::Clip,
+            Overflow::Hidden,
+            Overflow::Scroll,
+            Overflow::Auto,
+        ];
+        let accepted = [
+            [true, true, false, false, false],
+            [true, true, false, false, false],
+            [false, false, true, true, true],
+            [false, false, true, true, true],
+            [false, false, true, true, true],
+        ];
+        let mut accepted_count = 0;
+        let mut rejected_count = 0;
+
+        for (x_index, x) in values.into_iter().enumerate() {
+            for (y_index, y) in values.into_iter().enumerate() {
+                let result = ComputedOverflow::try_new(x, y);
+                if accepted[x_index][y_index] {
+                    let pair = result.expect("canonical pair must be accepted");
+                    assert_eq!((pair.x(), pair.y()), (x, y));
+                    accepted_count += 1;
+                } else {
+                    assert_eq!(
+                        result,
+                        Err(ComputedOverflowError::NonCanonicalPair { x, y })
+                    );
+                    rejected_count += 1;
+                }
+            }
+        }
+
+        assert_eq!(accepted_count, 13);
+        assert_eq!(rejected_count, 12);
+    }
+
+    #[test]
+    fn fri05_c01_computed_overflow_visible_default_traits_and_diagnostics_are_exact() {
+        fn assert_value_traits<T: Clone + Copy + core::fmt::Debug + Eq + PartialEq>() {}
+        fn assert_error_traits<
+            T: Clone + Copy + core::fmt::Debug + Eq + PartialEq + std::error::Error,
+        >() {
+        }
+
+        const VISIBLE_X: Overflow = ComputedOverflow::VISIBLE.x();
+        const VISIBLE_Y: Overflow = ComputedOverflow::VISIBLE.y();
+
+        assert_value_traits::<ComputedOverflow>();
+        assert_error_traits::<ComputedOverflowError>();
+        assert_eq!(ComputedOverflow::default(), ComputedOverflow::VISIBLE);
+        assert_eq!(
+            (VISIBLE_X, VISIBLE_Y),
+            (Overflow::Visible, Overflow::Visible)
+        );
+
+        let pair = ComputedOverflow::try_new(Overflow::Clip, Overflow::Visible)
+            .expect("visible/clip pair is canonical");
+        assert_eq!(
+            format!("{pair:?}"),
+            "ComputedOverflow { x: Clip, y: Visible }"
+        );
+
+        let error = ComputedOverflowError::NonCanonicalPair {
+            x: Overflow::Visible,
+            y: Overflow::Auto,
+        };
+        assert_eq!(
+            error.to_string(),
+            "computed overflow axes must both be visible/clip or both be hidden/scroll/auto"
+        );
+        assert_eq!(
+            format!("{error:?}"),
+            "NonCanonicalPair { x: Visible, y: Auto }"
+        );
+    }
+
+    #[test]
+    fn fri05_c01_computed_overflow_scrollability_and_block_pair_predicate_are_exact() {
+        for (overflow, expected) in [
+            (Overflow::Visible, false),
+            (Overflow::Clip, false),
+            (Overflow::Hidden, true),
+            (Overflow::Scroll, true),
+            (Overflow::Auto, true),
+        ] {
+            assert_eq!(overflow.is_scrollable(), expected);
+        }
+
+        for x in [Overflow::Visible, Overflow::Clip] {
+            for y in [Overflow::Visible, Overflow::Clip] {
+                let pair = ComputedOverflow::try_new(x, y).expect("pair is canonical");
+                assert!(!pair.establishes_independent_formatting_context());
+            }
+        }
+
+        for x in [Overflow::Hidden, Overflow::Scroll, Overflow::Auto] {
+            for y in [Overflow::Hidden, Overflow::Scroll, Overflow::Auto] {
+                let pair = ComputedOverflow::try_new(x, y).expect("pair is canonical");
+                assert!(pair.establishes_independent_formatting_context());
+            }
+        }
+    }
 
     #[test]
     fn item_order_permutation_is_signed_total_and_stable() {

@@ -607,7 +607,9 @@ impl ScrollContainerAxis {
             exposure: match overflow {
                 Overflow::Visible => ScrollOverflowExposure::Visible,
                 Overflow::Clip => ScrollOverflowExposure::ClipOnly,
-                Overflow::Hidden | Overflow::Scroll => ScrollOverflowExposure::ScrollableClip,
+                Overflow::Hidden | Overflow::Scroll | Overflow::Auto => {
+                    ScrollOverflowExposure::ScrollableClip
+                }
             },
         })
     }

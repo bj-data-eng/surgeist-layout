@@ -14209,7 +14209,7 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
     tree.styles.insert(
         4,
         NodeInput {
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: Point::new(Overflow::Clip, Overflow::Clip),
             grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
         },
