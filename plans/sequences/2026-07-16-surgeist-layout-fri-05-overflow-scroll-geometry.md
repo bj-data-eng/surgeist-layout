@@ -23,8 +23,9 @@ exports, root API artifacts, and the root gitlink remain the separate handoff in
 No cycle adds a dependency, feature, MSRV change, unsafe code, generator architecture, general CSS parser, retained snap registry, or later formatting behavior.
 
 Scoped generation is optional iteration-only diagnosis and is never entry or exit evidence.
-Before `C06`, `C01` may make only the behavior-preserving fixture-parser construction migration required by the `NodeInputOf` type change; accepted tokens, parse results, and artifacts remain unchanged.
-`C06` exclusively changes fixture semantics, helper/serializer/parser tokens, HTML, manifest, or other generation inputs.
+Before `C06`, `C01` may change only the fixture parser needed by the `NodeInputOf` migration: preserve the five accepted tokens and `Auto`, then apply exact CSS coupling to legacy authored pairs before atomic construction.
+Focused parser/corpus evidence covers omitted axes and every existing cross-group fixture; helper, serializer, HTML, manifest, XML, reports, and provenance remain unchanged.
+`C06` removes that transition when it switches to computed-style lowering and exclusively owns every other fixture semantic, token, input, or artifact change.
 Once those inputs settle, `C06` performs one full ExistingPinned regeneration. `C07` is read-only for generated artifacts; a confirmed input bug returns to `C06`, invalidates the prior run, and permits one replacement full regeneration after corrected inputs settle.
 The aggregate `parity-all` release gate remains FRI-13-owned.
 
@@ -36,16 +37,16 @@ The aggregate `parity-all` release gate remains FRI-13-owned.
 
 **Prerequisites:** Published FRI-04 candidate, clean FRI-05 specification review, and its recorded source base.
 
-**Entry state:** Overflow is a mutable two-axis point without `Auto`; scroll properties remain deferred or unrepresentable; phase-unsafe predicates remain.
+**Entry state:** Overflow is a mutable two-axis point without `Auto`; the parser carries legacy authored pairs; scroll properties remain deferred or unrepresentable; phase-unsafe predicates remain.
 
 **Bounded outcome:** Add the validated thirteen-pair computed-overflow model,
 all closed layout-ready D-02 input values and defaults, scalar-lane construction,
-phase-correct computed/used predicates, and the coherent `NodeInputOf` migration.
+phase-correct computed/used predicates, the coherent `NodeInputOf` migration, and the bounded legacy fixture-pair transition.
 Keep canonical derived geometry and formatting integration for later cycles.
 
 **Observable exit evidence:** Every valid and invalid pair, default, scalar
 validation, replaced used conversion, generic phase predicate, block pair
-predicate, and public input construction is proven without a deferred FRI-05
+predicate, public input construction, and existing legacy fixture pair is proven without a deferred FRI-05
 capability or compatibility alias.
 
 **Handoff:** All algorithms receive canonical source facts; geometry can be derived without raw specified overflow or placeholder scroll values.
@@ -147,12 +148,9 @@ of `FRI-05.8` and `FRI-05.9`; `FRI-05.11`.
 **Prerequisites:** `FRI-05-C05` complete and all production and generation-input
 decisions stable.
 
-**Entry state:** Product behavior is implemented, while the exact fixture
-tokens, eleven sources, manifest records, comparator activation, and final
-derived browser corpus are absent.
+**Entry state:** Product behavior is implemented; the bounded legacy parser transition remains, while the exact computed-style fixture lowering, eleven sources, manifest records, comparator activation, and final derived browser corpus are absent.
 
-**Bounded outcome:** Add only the bounded computed-style fixture lowering,
-serializer/parser support, eleven active HTML sources and manifest records,
+**Bounded outcome:** Remove the legacy pair transition; add only the bounded computed-style fixture lowering, serializer/parser support, eleven active HTML sources and manifest records,
 range-span comparator diagnostics, and frozen bucket/hash contract. After every
 input settles, perform the one full regeneration and retain its canonical XML,
 report, and provenance.
