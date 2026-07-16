@@ -100,8 +100,11 @@ This specification does not:
 
 - parse authored CSS, run cascade, resolve logical CSS longhands, perform root
   element/body overflow propagation, or apply the specified-to-computed
-  overflow coupling rules; root and style owners perform those operations and
-  construct one canonical computed pair;
+  overflow coupling rules. `surgeist-css` owns the authored `auto` token;
+  `surgeist-style` is the sole computed-value owner and applies axis coupling
+  after cascade; root adapters only transfer the authored and computed phases
+  across crate boundaries. Section FRI-05.12 records that required follow-up
+  without adding it to this leaf implementation;
 - own retained node identity, a current scroll offset, scroll events, user or
   programmatic scrolling commands, scrollbar painting, scroll animation,
   overscroll physics, snap candidate selection, re-snapping, focus/target
@@ -1270,33 +1273,97 @@ sources and named pre-existing regression families. The ignored aggregate
 
 ## FRI-05.12 Root Integration Handoff
 
-The leaf candidate handoff records this breaking root work without performing
-it:
+At inspected root revision
+`19590f6d9fa01c0df197c5ef07fb626c5cf18ced`, pinned
+`surgeist-css@040bc1b4f7cca5e4978f732b3b778c00d7cdef40` and
+`surgeist-style@fcc42de2c32a318e073233dd51508dd4cc28041a` each expose
+only four overflow keywords. CSS rejects `auto`, style has no computed-pair
+type or coupling finalization, and `src/adapters/style_layout.rs` lowers raw x
+and y independently. The leaf candidate handoff resolves that missing upstream
+design as this phase chain, without performing the work here:
 
-1. replace raw x/y overflow assignment with atomic `ComputedOverflow`
-   construction after root/style has applied CSS computed-value coupling;
-2. lower computed `auto` distinctly from `scroll`;
-3. lower used classic scrollbar thickness to `ScrollbarWidthOf` and computed
-   gutter policy to `ScrollbarGutter`;
-4. lower clip margin, physical scroll padding, finite absolute scroll margin,
-   snap type, snap alignment, and snap stop to the new fields;
-5. migrate removed scroll constructors,
+| Phase | Owner | Required representation and transition |
+| --- | --- | --- |
+| Authored CSS | `surgeist-css` | `CssOverflow` adds `Auto`; strict longhand and one/two-value shorthand parsing preserve it as authored syntax and retain typed rejection for unknown tokens. |
+| Specified style | `surgeist-style` | `Overflow` adds `Auto`; `OverflowAxes` remains the unconstrained two-axis specified value used by Rust-authored declarations and the root CSS adapter. |
+| Computed style | `surgeist-style` | New private-field `ComputedOverflowAxes` owns exactly the same thirteen valid pairs as layout. `Resolver::resolve` couples the final longhands simultaneously after rule, local, animated, and global-keyword resolution, stores the coupled x/y values before cache insertion, and exposes the pair through `Resolved::computed_overflow()`. No root adapter computes or repairs this pair. |
+| Layout lowering | Root `surgeist` | `src/adapters/style_layout.rs` reads `Resolved::computed_overflow()` once, maps all five keywords losslessly, and calls `layout::ComputedOverflow::try_new(x, y)` once. It never assigns independent raw axes. |
+
+The style-owned computed carrier has this minimum public contract:
+
+```rust
+pub struct ComputedOverflowAxes { /* private x/y */ }
+
+impl ComputedOverflowAxes {
+    pub const fn from_specified(specified: OverflowAxes) -> Self;
+    pub const fn x(self) -> Overflow;
+    pub const fn y(self) -> Overflow;
+}
+
+impl Resolved {
+    pub fn computed_overflow(&self) -> ComputedOverflowAxes;
+}
+```
+
+There is no raw computed-pair constructor or mutable axis. The CSS and style
+enum additions are breaking for exhaustive downstream matches; their candidates
+update every match explicitly and provide no `Auto => Scroll` compatibility
+shim. Neither leaf adds a dependency on the other or on layout; root owns both
+phase adapters.
+
+For original specified pair `(x, y)`, style computes both axes from that original
+pair, not from a partially converted intermediate:
+
+- specified `Visible` computes to `Auto` when the other specified axis is not
+  `Visible` or `Clip`, and otherwise remains `Visible`;
+- specified `Clip` computes to `Hidden` when the other specified axis is not
+  `Visible` or `Clip`, and otherwise remains `Clip`; and
+- specified `Hidden`, `Scroll`, and `Auto` remain unchanged.
+
+This total 25-pair conversion yields only the thirteen layout-valid pairs.
+`Auto` is never aliased to `Scroll`. CSS syntax failures retain the existing
+typed property/location diagnostic. Style coupling is total and has no fallback
+or error state. If the style-to-layout adapter nevertheless observes a rejected
+leaf pair, it returns the existing
+`AdapterErrorKind::StyleLayoutValue { property: "overflow", .. }`; it never
+defaults either axis or retries with a repaired pair.
+
+The cross-repository handoff requires:
+
+1. a published `surgeist-css` candidate that adds authored `Auto` and parser
+   evidence for longhands plus one/two-value shorthand;
+2. a published `surgeist-style` candidate that adds `Auto`, the computed-pair
+   model, post-cascade simultaneous coupling, and exhaustive 25-pair/default/
+   cached-resolution evidence;
+3. root `src/adapters/css_style.rs` evidence that transfers all five authored
+   keywords losslessly and leaves coupling to style;
+4. root `src/adapters/style_layout.rs` evidence that all 25 specified pairs
+   reach the exact expected leaf `ComputedOverflow`, including mixed
+   `Visible`/`Clip` conversion and distinct `Auto`, plus the named typed drift
+   diagnostic;
+5. lowering used classic scrollbar thickness to `ScrollbarWidthOf`, computed
+   gutter policy to `ScrollbarGutter`, and clip margin, physical scroll padding,
+   finite absolute scroll margin, snap type, snap alignment, and snap stop to
+   the new fields;
+6. migration of removed scroll constructors,
    `ScrollOverflowExposure`/`ScrollContainerAxis`/`ScrollContainerFacts`,
    `ScrollGeometryOf::container()`, and the removed
    `NodeOutputOf::scrollbar_size` field to read-only canonical
    geometry/accessors, without recreating the leaf's removed phase-unsafe
    construction path;
-6. consume per-axis clips, optimal viewing region, the zero-anchored signed
-   physical range including content-distribution origin adjustment, and nested
-   target geometry through `ScrollGeometryOf::target()` without recomputing leaf
-   box invariants;
-7. preserve root ownership of transformed coordinate mapping, nearest-container
-   association, current offsets, host events, scroll UI, CSSOM adaptation,
-   target/focus scrolling, snap selection, and re-snapping;
-8. refresh root-owned API artifacts only after the final leaf candidate is
-   integrated; and
-9. retain the exact leaf candidate SHA and breaking API inventory in the root
-   promotion evidence.
+7. consumption of per-axis clips, optimal viewing region, the zero-anchored
+   signed physical range including content-distribution origin adjustment, and
+   nested target geometry through `ScrollGeometryOf::target()` without
+   recomputing leaf box invariants;
+8. preservation of root ownership for transformed coordinate mapping,
+   nearest-container association, current offsets, host events, scroll UI,
+   CSSOM adaptation, target/focus scrolling, snap selection, and re-snapping;
+9. promotion of the exact published CSS, style, and layout candidate gitlinks
+   before the root adapter commit; and
+10. refresh and check of root-owned `api/crates/surgeist-css.txt`,
+    `api/crates/surgeist-style.txt`, `api/crates/surgeist-layout.txt`, and
+    `api/public-api.txt` from those promoted sources, with all three exact leaf
+    SHAs and the breaking API inventory retained in the root promotion evidence.
 
 The leaf adds no adapter or facade compatibility layer. Root may use its own
 temporary migration sequence, but the final integrated surface contains one
@@ -1324,6 +1391,13 @@ Future cycle plans remain just-in-time and may split a boundary only when source
 evidence shows that one reviewable coding range would otherwise be oversized.
 They may not merge generator architecture, later formatting behavior, or root
 integration into FRI-05.
+
+The leaf sequence ends at boundary 6. Section FRI-05.12 defines the subsequent
+cross-repository dependency boundary rather than a seventh leaf cycle:
+`surgeist-css` authored-overflow and `surgeist-style` computed-overflow
+candidates remain separate owner work and may proceed independently, while the
+root adapter/gitlink/API-artifact integration waits for those two published
+candidates and the published FRI-05 layout candidate.
 
 ## FRI-05.14 Finding Traceability
 
@@ -1384,5 +1458,7 @@ FRI-05 is complete only when:
 13. no dependency, feature, MSRV, generator architecture, root, sibling,
     aggregate FRI-13 gate, or unrelated formatting behavior changes; and
 14. Section FRI-05.12 records the complete breaking leaf-to-root integration
-    contract, including the canonical geometry, target, and removed-surface
-    migrations required of the eventual root promotion.
+    contract, including upstream computed-overflow phase ownership, the
+    canonical geometry and target carriers, removed-surface migrations, and
+    the three-candidate pointer/API-artifact dependency required of the eventual
+    root promotion.
