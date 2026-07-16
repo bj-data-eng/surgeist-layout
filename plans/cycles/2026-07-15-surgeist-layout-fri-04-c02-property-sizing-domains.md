@@ -1,5 +1,5 @@
 # FRI-04-C02 Property Sizing Domains
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-04-C02`
 Owning repository: `surgeist-layout`
 Cycle base: `0a4f1f9e73b91dd9fe7fa6703fa6c0c48ee2ca54`
