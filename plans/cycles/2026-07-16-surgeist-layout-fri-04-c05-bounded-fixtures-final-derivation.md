@@ -1,5 +1,5 @@
 # FRI-04-C05 Bounded Fixtures And Final Derivation
-Status: draft
+Status: reviewed
 Cycle ID: `FRI-04-C05`
 Owning repository: `surgeist-layout`
 Cycle base: `49752536ca6c79823dc92c7f23cdf8228af99bd3`
