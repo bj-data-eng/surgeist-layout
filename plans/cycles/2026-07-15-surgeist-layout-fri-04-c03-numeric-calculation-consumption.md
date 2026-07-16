@@ -74,7 +74,7 @@ cargo test --locked -p surgeist-layout fri04_c03_leaf_root_
 just verify
 just verify-generator
 ```
-**Current ordered range:** `c65f4d201696664cdfd220434af1f8d9e93adce7`.
+**Current ordered range:** `ba8358e659dd8b546ffd93dd60f40d7dccec6909..c65f4d201696664cdfd220434af1f8d9e93adce7`.
 **Dependency:** Published C02 property domains at the cycle base.
 **Intended commit:** `fix(layout): consume numeric sizing calculations at leaf and root`.
 
@@ -124,15 +124,15 @@ just verify-generator
 **Current ordered range:** none.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
 **Intended commit:** `test(layout): cover flex sizing calculations`.
-### `C03-T4` Grid, Lanes, And Track Numeric Evidence
+### `C03-T4` Grid/Lanes Evidence And Track Numeric Correction
 **Files:** `src/value.rs`, `src/grid/mod.rs`, `src/grid/child.rs`,
 `src/grid/lanes.rs`, `src/grid/tracks.rs`, and `src/grid_tests.rs`.
 **Outcome:** Persist evidence that grid/grid-lanes consume complete property
-calculations and existing track algorithms resolve complete numeric min/max
-breadths and `fit-content()` limits.
-**RED:** Not applicable where prior tasks already supply correct behavior. Add
-tests named with the `fri04_c03_grid_track_` prefix first and record their
-characterization result; any substantive failure is the RED for a focused fix.
+calculations, and correct track algorithms to resolve complete numeric min/max
+breadths and `fit-content()` limits instead of affine-only fallback.
+**RED:** Add tests named with the `fri04_c03_grid_track_` prefix first. Grid and
+grid-lanes paths may characterize T1 behavior; nested track and fit-content
+programs must fail through the affine-only helper before its focused correction.
 **Acceptance:** Real grid and grid-lanes layouts cover nested property
 calculations, both axes, negative final clamping, missing and definite bases,
 and invalid numeric errors. Track tests cover nested fixed min/max breadths,
@@ -147,7 +147,7 @@ just verify-generator
 ```
 **Current ordered range:** none.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
-**Intended commit:** `test(layout): cover grid and track sizing calculations`.
+**Intended commit:** `fix(layout): consume grid and track sizing calculations`.
 
 ## Cycle Acceptance
 1. All four task ranges have independent clean task reviews and preserve their
