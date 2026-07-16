@@ -1,7 +1,8 @@
 use super::{
-    AspectRatioOf, DefaultScalar, Edges, FlexBasisOf, GridLine, GridSpan, GridTemplateAreas,
-    LayoutScalar, LengthAutoOf, LengthOf, MaxSizeOf, MinSizeOf, NonNegativeFiniteScalarErrorOf,
-    Point, PreferredSizeOf, Size, TrackComponentOf,
+    AspectRatioOf, DefaultScalar, Edges, FiniteScalarErrorOf, FlexBasisOf, GridLine, GridSpan,
+    GridTemplateAreas, LayoutScalar, LengthAutoOf, LengthOf, LengthPercentageOf, MaxSizeOf,
+    MinSizeOf, NonNegativeFiniteScalarErrorOf, NumericResolutionOf, PercentageBasisOf,
+    PhysicalSide, Point, PreferredSizeOf, Size, TrackComponentOf,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -176,6 +177,383 @@ impl Default for ComputedOverflow {
     fn default() -> Self {
         Self::VISIBLE
     }
+}
+
+/// Reference box used by the overflow clip edge.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum OverflowClipBox {
+    ContentBox,
+    #[default]
+    PaddingBox,
+    BorderBox,
+}
+
+/// A validated overflow clip reference box and absolute margin.
+///
+/// The margin is finite and non-negative. Signed zero is normalized to the
+/// scalar lane's canonical zero.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OverflowClipMarginOf<S: LayoutScalar = DefaultScalar> {
+    clip_box: OverflowClipBox,
+    margin: S,
+}
+
+/// Default-scalar overflow clip margin.
+pub type OverflowClipMargin = OverflowClipMarginOf<DefaultScalar>;
+
+impl<S: LayoutScalar> OverflowClipMarginOf<S> {
+    /// Constructs an overflow clip margin atomically.
+    pub fn try_new(
+        clip_box: OverflowClipBox,
+        margin: S,
+    ) -> Result<Self, NonNegativeFiniteScalarErrorOf<S>> {
+        Ok(Self {
+            clip_box,
+            margin: validate_numeric_property(margin)?,
+        })
+    }
+
+    /// Returns the overflow clip reference box.
+    #[must_use]
+    pub const fn clip_box(self) -> OverflowClipBox {
+        self.clip_box
+    }
+
+    /// Returns the finite non-negative absolute margin.
+    #[must_use]
+    pub const fn margin(self) -> S {
+        self.margin
+    }
+}
+
+impl<S: LayoutScalar> Default for OverflowClipMarginOf<S> {
+    fn default() -> Self {
+        Self {
+            clip_box: OverflowClipBox::PaddingBox,
+            margin: S::ZERO,
+        }
+    }
+}
+
+/// Classic scrollbar gutter reservation policy supplied to layout.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ScrollbarGutter {
+    #[default]
+    Auto,
+    Stable,
+    StableBothEdges,
+}
+
+/// One physical scroll-padding edge in normalized layout input.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ScrollPaddingValueOf<S: LayoutScalar = DefaultScalar> {
+    Value(LengthPercentageOf<S>),
+    Auto,
+}
+
+/// Default-scalar scroll-padding edge value.
+pub type ScrollPaddingValue = ScrollPaddingValueOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollPaddingValueOf<S> {
+    /// The CSS initial `auto` value.
+    pub const AUTO: Self = Self::Auto;
+
+    /// Wraps an intrinsically validated length-percentage value.
+    #[must_use]
+    pub const fn value(value: LengthPercentageOf<S>) -> Self {
+        Self::Value(value)
+    }
+
+    /// Constructs the CSS initial `auto` value.
+    #[must_use]
+    pub const fn auto() -> Self {
+        Self::Auto
+    }
+
+    /// Returns whether this edge retains the `auto` value.
+    #[must_use]
+    pub const fn is_auto(self) -> bool {
+        matches!(self, Self::Auto)
+    }
+
+    /// Resolves this edge against its corresponding physical dimension.
+    ///
+    /// Callers pass scrollport width for left/right and scrollport height for
+    /// top/bottom. Product `auto` resolves to zero. A negative numeric result
+    /// is clamped to canonical zero, while missing-basis and invalid-numeric
+    /// outcomes retain the underlying length-percentage diagnostic.
+    #[must_use]
+    pub fn resolve_against(self, basis: PercentageBasisOf<S>) -> NumericResolutionOf<S> {
+        let resolution = match self {
+            Self::Value(value) => value.resolve_against(basis),
+            Self::Auto => NumericResolutionOf::Resolved(S::ZERO),
+        };
+
+        match resolution {
+            NumericResolutionOf::Resolved(value) if value < S::ZERO => {
+                NumericResolutionOf::Resolved(S::ZERO)
+            }
+            NumericResolutionOf::Resolved(value) if value == S::ZERO => {
+                NumericResolutionOf::Resolved(S::ZERO)
+            }
+            resolution => resolution,
+        }
+    }
+}
+
+impl<S: LayoutScalar> Default for ScrollPaddingValueOf<S> {
+    fn default() -> Self {
+        Self::AUTO
+    }
+}
+
+/// Four normalized physical scroll-padding edges.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollPaddingOf<S: LayoutScalar = DefaultScalar> {
+    top: ScrollPaddingValueOf<S>,
+    right: ScrollPaddingValueOf<S>,
+    bottom: ScrollPaddingValueOf<S>,
+    left: ScrollPaddingValueOf<S>,
+}
+
+/// Default-scalar physical scroll padding.
+pub type ScrollPadding = ScrollPaddingOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollPaddingOf<S> {
+    /// Constructs four physical edges in top/right/bottom/left order.
+    #[must_use]
+    pub const fn new(
+        top: ScrollPaddingValueOf<S>,
+        right: ScrollPaddingValueOf<S>,
+        bottom: ScrollPaddingValueOf<S>,
+        left: ScrollPaddingValueOf<S>,
+    ) -> Self {
+        Self {
+            top,
+            right,
+            bottom,
+            left,
+        }
+    }
+
+    #[must_use]
+    pub const fn top(self) -> ScrollPaddingValueOf<S> {
+        self.top
+    }
+
+    #[must_use]
+    pub const fn right(self) -> ScrollPaddingValueOf<S> {
+        self.right
+    }
+
+    #[must_use]
+    pub const fn bottom(self) -> ScrollPaddingValueOf<S> {
+        self.bottom
+    }
+
+    #[must_use]
+    pub const fn left(self) -> ScrollPaddingValueOf<S> {
+        self.left
+    }
+}
+
+impl<S: LayoutScalar> Default for ScrollPaddingOf<S> {
+    fn default() -> Self {
+        Self::new(
+            ScrollPaddingValueOf::AUTO,
+            ScrollPaddingValueOf::AUTO,
+            ScrollPaddingValueOf::AUTO,
+            ScrollPaddingValueOf::AUTO,
+        )
+    }
+}
+
+/// Atomic scroll-margin construction failure for one physical edge.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollMarginErrorOf<S: LayoutScalar = DefaultScalar> {
+    edge: PhysicalSide,
+    source: FiniteScalarErrorOf<S>,
+}
+
+/// Default-scalar scroll-margin construction error.
+pub type ScrollMarginError = ScrollMarginErrorOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollMarginErrorOf<S> {
+    /// Returns the exact rejected physical edge.
+    #[must_use]
+    pub const fn edge(&self) -> PhysicalSide {
+        self.edge
+    }
+
+    /// Returns the preserved scalar validation error.
+    #[must_use]
+    pub const fn error(&self) -> FiniteScalarErrorOf<S> {
+        self.source
+    }
+}
+
+impl<S: LayoutScalar> core::fmt::Display for ScrollMarginErrorOf<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let edge = match self.edge {
+            PhysicalSide::Top => "top",
+            PhysicalSide::Right => "right",
+            PhysicalSide::Bottom => "bottom",
+            PhysicalSide::Left => "left",
+        };
+        write!(f, "scroll margin {edge} edge must be finite")
+    }
+}
+
+impl<S: LayoutScalar> std::error::Error for ScrollMarginErrorOf<S> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.source)
+    }
+}
+
+/// Four finite signed absolute physical scroll-margin outsets.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollMarginOf<S: LayoutScalar = DefaultScalar> {
+    top: S,
+    right: S,
+    bottom: S,
+    left: S,
+}
+
+/// Default-scalar physical scroll margin.
+pub type ScrollMargin = ScrollMarginOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollMarginOf<S> {
+    /// Constructs all four physical edges atomically.
+    pub fn try_new(top: S, right: S, bottom: S, left: S) -> Result<Self, ScrollMarginErrorOf<S>> {
+        Ok(Self {
+            top: validate_scroll_margin_edge(PhysicalSide::Top, top)?,
+            right: validate_scroll_margin_edge(PhysicalSide::Right, right)?,
+            bottom: validate_scroll_margin_edge(PhysicalSide::Bottom, bottom)?,
+            left: validate_scroll_margin_edge(PhysicalSide::Left, left)?,
+        })
+    }
+
+    #[must_use]
+    pub const fn top(self) -> S {
+        self.top
+    }
+
+    #[must_use]
+    pub const fn right(self) -> S {
+        self.right
+    }
+
+    #[must_use]
+    pub const fn bottom(self) -> S {
+        self.bottom
+    }
+
+    #[must_use]
+    pub const fn left(self) -> S {
+        self.left
+    }
+}
+
+impl<S: LayoutScalar> Default for ScrollMarginOf<S> {
+    fn default() -> Self {
+        Self {
+            top: S::ZERO,
+            right: S::ZERO,
+            bottom: S::ZERO,
+            left: S::ZERO,
+        }
+    }
+}
+
+fn validate_scroll_margin_edge<S: LayoutScalar>(
+    edge: PhysicalSide,
+    value: S,
+) -> Result<S, ScrollMarginErrorOf<S>> {
+    if !value.is_finite() {
+        return Err(ScrollMarginErrorOf {
+            edge,
+            source: FiniteScalarErrorOf::NonFinite { value },
+        });
+    }
+
+    Ok(if value == S::ZERO { S::ZERO } else { value })
+}
+
+/// Axis selected by an enabled scroll snap type.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScrollSnapAxis {
+    X,
+    Y,
+    Block,
+    Inline,
+    Both,
+}
+
+/// Strictness selected by an enabled scroll snap type.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ScrollSnapStrictness {
+    Proximity,
+    Mandatory,
+}
+
+/// Normalized scroll snap behavior for a scroll container.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ScrollSnapType {
+    #[default]
+    None,
+    Enabled {
+        axis: ScrollSnapAxis,
+        strictness: ScrollSnapStrictness,
+    },
+}
+
+/// One semantic block- or inline-axis snap alignment.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ScrollSnapAlignValue {
+    #[default]
+    None,
+    Start,
+    End,
+    Center,
+}
+
+/// Explicit semantic block and inline snap alignments for one target.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ScrollSnapAlign {
+    block: ScrollSnapAlignValue,
+    inline: ScrollSnapAlignValue,
+}
+
+impl ScrollSnapAlign {
+    /// Constructs semantic block and inline values without physical mapping.
+    #[must_use]
+    pub const fn new(block: ScrollSnapAlignValue, inline: ScrollSnapAlignValue) -> Self {
+        Self { block, inline }
+    }
+
+    #[must_use]
+    pub const fn block(self) -> ScrollSnapAlignValue {
+        self.block
+    }
+
+    #[must_use]
+    pub const fn inline(self) -> ScrollSnapAlignValue {
+        self.inline
+    }
+}
+
+impl Default for ScrollSnapAlign {
+    fn default() -> Self {
+        Self::new(ScrollSnapAlignValue::None, ScrollSnapAlignValue::None)
+    }
+}
+
+/// Whether a scroll snap target may be skipped during an active snap operation.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ScrollSnapStop {
+    #[default]
+    Normal,
+    Always,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -1321,6 +1699,301 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
 mod tests {
     use super::*;
     use crate::SourceIndex;
+
+    fn assert_canonical_zero<S: LayoutScalar>(value: S) {
+        assert_eq!(value, S::ZERO);
+        assert_eq!(value.to_f64().to_bits(), 0.0f64.to_bits());
+    }
+
+    fn assert_scroll_input_scalar_traits<S: LayoutScalar>() {
+        fn assert_value<T: Clone + Copy + core::fmt::Debug + PartialEq>() {}
+        fn assert_error<T: Clone + Copy + core::fmt::Debug + PartialEq + std::error::Error>() {}
+
+        assert_value::<OverflowClipMarginOf<S>>();
+        assert_value::<ScrollPaddingValueOf<S>>();
+        assert_value::<ScrollPaddingOf<S>>();
+        assert_value::<ScrollMarginOf<S>>();
+        assert_error::<ScrollMarginErrorOf<S>>();
+    }
+
+    fn assert_clip_margin_contract<S: LayoutScalar>() {
+        let default = OverflowClipMarginOf::<S>::default();
+        assert_eq!(default.clip_box(), OverflowClipBox::PaddingBox);
+        assert_canonical_zero(default.margin());
+
+        for clip_box in [
+            OverflowClipBox::ContentBox,
+            OverflowClipBox::PaddingBox,
+            OverflowClipBox::BorderBox,
+        ] {
+            let clip_margin = OverflowClipMarginOf::try_new(clip_box, S::from_f64(4.5))
+                .expect("finite non-negative clip margin");
+            assert_eq!(clip_margin.clip_box(), clip_box);
+            assert_eq!(clip_margin.margin(), S::from_f64(4.5));
+        }
+
+        let signed_zero = OverflowClipMarginOf::try_new(OverflowClipBox::BorderBox, -S::ZERO)
+            .expect("signed zero clip margin is valid");
+        assert_canonical_zero(signed_zero.margin());
+
+        assert_eq!(
+            OverflowClipMarginOf::try_new(OverflowClipBox::ContentBox, S::from_f64(-1.0)),
+            Err(NonNegativeFiniteScalarErrorOf::Negative {
+                value: S::from_f64(-1.0),
+            })
+        );
+        for value in [S::NAN, S::INFINITY, -S::INFINITY] {
+            assert!(matches!(
+                OverflowClipMarginOf::try_new(OverflowClipBox::PaddingBox, value),
+                Err(NonNegativeFiniteScalarErrorOf::NonFinite { value: rejected })
+                    if !rejected.is_finite()
+            ));
+        }
+    }
+
+    #[test]
+    fn fri05_c01_scroll_input_clip_margin_is_validated_in_both_scalar_lanes() {
+        assert_clip_margin_contract::<f32>();
+        assert_clip_margin_contract::<f64>();
+    }
+
+    fn assert_padding_contract<S: LayoutScalar>(largest_finite: S) {
+        let auto = ScrollPaddingValueOf::<S>::AUTO;
+        assert_eq!(ScrollPaddingValueOf::<S>::default(), auto);
+        assert_eq!(ScrollPaddingValueOf::<S>::auto(), auto);
+        assert!(auto.is_auto());
+        assert_eq!(
+            auto.resolve_against(PercentageBasisOf::MISSING),
+            NumericResolutionOf::Resolved(S::ZERO)
+        );
+
+        let quarter = LengthPercentageOf::from_percent_fraction(S::from_f64(0.25))
+            .expect("finite percentage");
+        let value = ScrollPaddingValueOf::value(quarter);
+        assert!(!value.is_auto());
+        assert_eq!(
+            value.resolve_against(
+                PercentageBasisOf::definite(S::from_f64(200.0)).expect("finite width")
+            ),
+            NumericResolutionOf::Resolved(S::from_f64(50.0))
+        );
+        assert_eq!(
+            value.resolve_against(
+                PercentageBasisOf::definite(S::from_f64(80.0)).expect("finite height")
+            ),
+            NumericResolutionOf::Resolved(S::from_f64(20.0))
+        );
+        assert_eq!(
+            value.resolve_against(PercentageBasisOf::MISSING),
+            NumericResolutionOf::MissingBasis { value: quarter }
+        );
+
+        let negative = LengthPercentageOf::from_coefficients(S::from_f64(-30.0), S::from_f64(0.1))
+            .expect("finite negative calculation");
+        let NumericResolutionOf::Resolved(clamped) = ScrollPaddingValueOf::value(negative)
+            .resolve_against(
+                PercentageBasisOf::definite(S::from_f64(100.0)).expect("finite basis"),
+            )
+        else {
+            panic!("negative used scroll padding must resolve");
+        };
+        assert_canonical_zero(clamped);
+
+        let overflowing = LengthPercentageOf::from_percent_fraction(largest_finite)
+            .expect("largest finite coefficient");
+        let basis = PercentageBasisOf::definite(S::from_f64(2.0)).expect("finite basis");
+        let NumericResolutionOf::InvalidNumeric {
+            value: invalid_value,
+            basis: invalid_basis,
+            resolved,
+        } = ScrollPaddingValueOf::value(overflowing).resolve_against(basis)
+        else {
+            panic!("non-finite evaluation must remain invalid");
+        };
+        assert_eq!(invalid_value, overflowing);
+        assert_eq!(invalid_basis, basis);
+        assert!(!resolved.is_finite());
+
+        let padding = ScrollPaddingOf::new(
+            auto,
+            value,
+            ScrollPaddingValueOf::value(negative),
+            ScrollPaddingValueOf::value(LengthPercentageOf::ZERO),
+        );
+        assert_eq!(padding.top(), auto);
+        assert_eq!(padding.right(), value);
+        assert_eq!(padding.bottom(), ScrollPaddingValueOf::value(negative));
+        assert_eq!(
+            padding.left(),
+            ScrollPaddingValueOf::value(LengthPercentageOf::ZERO)
+        );
+
+        let default = ScrollPaddingOf::<S>::default();
+        assert_eq!(default.top(), auto);
+        assert_eq!(default.right(), auto);
+        assert_eq!(default.bottom(), auto);
+        assert_eq!(default.left(), auto);
+    }
+
+    #[test]
+    fn fri05_c01_scroll_input_padding_resolves_physical_bases_in_both_scalar_lanes() {
+        assert_padding_contract::<f32>(f32::MAX);
+        assert_padding_contract::<f64>(f64::MAX);
+    }
+
+    fn assert_same_non_finite<S: LayoutScalar>(actual: S, expected: S) {
+        if expected.to_f64().is_nan() {
+            assert!(actual.to_f64().is_nan());
+        } else {
+            assert_eq!(actual.to_f64(), expected.to_f64());
+        }
+    }
+
+    fn assert_scroll_margin_contract<S: LayoutScalar>() {
+        let margin = ScrollMarginOf::try_new(
+            S::from_f64(-4.0),
+            S::from_f64(2.0),
+            -S::ZERO,
+            S::from_f64(6.0),
+        )
+        .expect("finite signed scroll margins");
+        assert_eq!(margin.top(), S::from_f64(-4.0));
+        assert_eq!(margin.right(), S::from_f64(2.0));
+        assert_canonical_zero(margin.bottom());
+        assert_eq!(margin.left(), S::from_f64(6.0));
+
+        let default = ScrollMarginOf::<S>::default();
+        assert_canonical_zero(default.top());
+        assert_canonical_zero(default.right());
+        assert_canonical_zero(default.bottom());
+        assert_canonical_zero(default.left());
+
+        for (edge, values, rejected, edge_name) in [
+            (
+                PhysicalSide::Top,
+                [S::NAN, S::ZERO, S::ZERO, S::ZERO],
+                S::NAN,
+                "top",
+            ),
+            (
+                PhysicalSide::Right,
+                [S::ZERO, S::INFINITY, S::ZERO, S::ZERO],
+                S::INFINITY,
+                "right",
+            ),
+            (
+                PhysicalSide::Bottom,
+                [S::ZERO, S::ZERO, -S::INFINITY, S::ZERO],
+                -S::INFINITY,
+                "bottom",
+            ),
+            (
+                PhysicalSide::Left,
+                [S::ZERO, S::ZERO, S::ZERO, S::NAN],
+                S::NAN,
+                "left",
+            ),
+        ] {
+            let error = ScrollMarginOf::try_new(values[0], values[1], values[2], values[3])
+                .expect_err("non-finite aggregate edge must fail atomically");
+            assert_eq!(error.edge(), edge);
+            let FiniteScalarErrorOf::NonFinite { value } = error.error();
+            assert_same_non_finite(value, rejected);
+            assert_eq!(
+                error.to_string(),
+                format!("scroll margin {edge_name} edge must be finite")
+            );
+
+            let source = std::error::Error::source(&error)
+                .expect("scroll margin diagnostic preserves its scalar source")
+                .downcast_ref::<FiniteScalarErrorOf<S>>()
+                .expect("source has the exact finite-scalar type");
+            let FiniteScalarErrorOf::NonFinite { value } = *source;
+            assert_same_non_finite(value, rejected);
+        }
+    }
+
+    #[test]
+    fn fri05_c01_scroll_input_signed_margin_is_atomic_in_both_scalar_lanes() {
+        assert_scroll_margin_contract::<f32>();
+        assert_scroll_margin_contract::<f64>();
+    }
+
+    #[test]
+    fn fri05_c01_scroll_input_closed_enums_cover_states_defaults_and_traits() {
+        fn assert_closed<T: Clone + Copy + core::fmt::Debug + Eq + PartialEq>() {}
+
+        assert_closed::<OverflowClipBox>();
+        assert_closed::<ScrollbarGutter>();
+        assert_closed::<ScrollSnapAxis>();
+        assert_closed::<ScrollSnapStrictness>();
+        assert_closed::<ScrollSnapType>();
+        assert_closed::<ScrollSnapAlignValue>();
+        assert_closed::<ScrollSnapAlign>();
+        assert_closed::<ScrollSnapStop>();
+        assert_scroll_input_scalar_traits::<f32>();
+        assert_scroll_input_scalar_traits::<f64>();
+
+        assert_eq!(OverflowClipBox::default(), OverflowClipBox::PaddingBox);
+        assert_eq!(ScrollbarGutter::default(), ScrollbarGutter::Auto);
+        assert_eq!(ScrollSnapAlignValue::default(), ScrollSnapAlignValue::None);
+        assert_eq!(ScrollSnapType::default(), ScrollSnapType::None);
+        assert_eq!(ScrollSnapStop::default(), ScrollSnapStop::Normal);
+
+        let clip_boxes = [
+            OverflowClipBox::ContentBox,
+            OverflowClipBox::PaddingBox,
+            OverflowClipBox::BorderBox,
+        ];
+        let gutters = [
+            ScrollbarGutter::Auto,
+            ScrollbarGutter::Stable,
+            ScrollbarGutter::StableBothEdges,
+        ];
+        let axes = [
+            ScrollSnapAxis::X,
+            ScrollSnapAxis::Y,
+            ScrollSnapAxis::Block,
+            ScrollSnapAxis::Inline,
+            ScrollSnapAxis::Both,
+        ];
+        let strictnesses = [
+            ScrollSnapStrictness::Proximity,
+            ScrollSnapStrictness::Mandatory,
+        ];
+        let alignments = [
+            ScrollSnapAlignValue::None,
+            ScrollSnapAlignValue::Start,
+            ScrollSnapAlignValue::End,
+            ScrollSnapAlignValue::Center,
+        ];
+        let stops = [ScrollSnapStop::Normal, ScrollSnapStop::Always];
+
+        assert_eq!(clip_boxes.len(), 3);
+        assert_eq!(gutters.len(), 3);
+        assert_eq!(alignments.len(), 4);
+        assert_eq!(stops.len(), 2);
+        for axis in axes {
+            for strictness in strictnesses {
+                assert_eq!(
+                    ScrollSnapType::Enabled { axis, strictness },
+                    ScrollSnapType::Enabled { axis, strictness }
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fri05_c01_scroll_input_snap_alignment_keeps_block_and_inline_roles() {
+        let alignment =
+            ScrollSnapAlign::new(ScrollSnapAlignValue::Start, ScrollSnapAlignValue::End);
+        assert_eq!(alignment.block(), ScrollSnapAlignValue::Start);
+        assert_eq!(alignment.inline(), ScrollSnapAlignValue::End);
+
+        let default = ScrollSnapAlign::default();
+        assert_eq!(default.block(), ScrollSnapAlignValue::None);
+        assert_eq!(default.inline(), ScrollSnapAlignValue::None);
+    }
 
     #[test]
     fn fri05_c01_computed_overflow_accepts_exact_canonical_pair_table() {

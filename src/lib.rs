@@ -147,8 +147,12 @@ pub use node_input::{
     GridAutoFlow, GridFlowTolerance, GridFlowToleranceOf, GridPlacement, InlineBoundaryInput,
     InlineBoundaryInputOf, InlineBoundaryKind, InlineMetrics, InlineMetricsError, InlineMetricsOf,
     ItemOrder, LayoutInput, LayoutInputOf, LineBreakDisplay, LineBreakInput, LineBreakInputOf,
-    NodeInput, NodeInputOf, Overflow, Position, RawGridLine, RawGridPlacement, ScrollbarWidth,
-    ScrollbarWidthOf, TextAlign, VerticalAlign, WritingMode,
+    NodeInput, NodeInputOf, Overflow, OverflowClipBox, OverflowClipMargin, OverflowClipMarginOf,
+    Position, RawGridLine, RawGridPlacement, ScrollMargin, ScrollMarginError, ScrollMarginErrorOf,
+    ScrollMarginOf, ScrollPadding, ScrollPaddingOf, ScrollPaddingValue, ScrollPaddingValueOf,
+    ScrollSnapAlign, ScrollSnapAlignValue, ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness,
+    ScrollSnapType, ScrollbarGutter, ScrollbarWidth, ScrollbarWidthOf, TextAlign, VerticalAlign,
+    WritingMode,
 };
 pub use output::{
     Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, CompletedLayoutBatch,

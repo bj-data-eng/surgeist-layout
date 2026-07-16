@@ -26,6 +26,54 @@ fn fri05_c01_computed_overflow_public_reexports_compose() {
 }
 
 #[test]
+fn fri05_c01_scroll_input_public_aliases_and_reexports_compose() {
+    use crate::{
+        LengthPercentageOf, OverflowClipBox, OverflowClipMargin, ScrollMargin, ScrollMarginError,
+        ScrollPadding, ScrollPaddingValue, ScrollSnapAlign, ScrollSnapAlignValue, ScrollSnapAxis,
+        ScrollSnapStop, ScrollSnapStrictness, ScrollSnapType, ScrollbarGutter,
+    };
+
+    let clip_margin: OverflowClipMargin =
+        OverflowClipMargin::try_new(OverflowClipBox::ContentBox, 3.0)
+            .expect("default scalar clip margin");
+    assert_eq!(clip_margin.margin(), 3.0);
+
+    let value: ScrollPaddingValue = ScrollPaddingValue::value(
+        LengthPercentageOf::from_percent_fraction(0.25).expect("finite percentage"),
+    );
+    let padding: ScrollPadding = ScrollPadding::new(
+        ScrollPaddingValue::AUTO,
+        value,
+        ScrollPaddingValue::AUTO,
+        value,
+    );
+    assert_eq!(padding.right(), value);
+
+    let margin: ScrollMargin =
+        ScrollMargin::try_new(-1.0, 2.0, 3.0, 4.0).expect("finite signed margins");
+    assert_eq!(margin.top(), -1.0);
+    let _: ScrollMarginError = ScrollMargin::try_new(f32::NAN, 0.0, 0.0, 0.0)
+        .expect_err("public default-scalar error alias");
+
+    let _ = ScrollbarGutter::StableBothEdges;
+    let _ = ScrollSnapType::Enabled {
+        axis: ScrollSnapAxis::Inline,
+        strictness: ScrollSnapStrictness::Mandatory,
+    };
+    let alignment = ScrollSnapAlign::new(ScrollSnapAlignValue::Center, ScrollSnapAlignValue::Start);
+    assert_eq!(alignment.block(), ScrollSnapAlignValue::Center);
+    let _ = ScrollSnapStop::Always;
+
+    let generic_clip = crate::OverflowClipMarginOf::<f64>::try_new(OverflowClipBox::BorderBox, 5.0)
+        .expect("generic clip margin");
+    let generic_padding = crate::ScrollPaddingOf::<f64>::default();
+    let generic_margin = crate::ScrollMarginOf::<f64>::default();
+    assert_eq!(generic_clip.margin(), 5.0);
+    assert!(generic_padding.top().is_auto());
+    assert_eq!(generic_margin.left(), 0.0);
+}
+
+#[test]
 fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract() {
     fn assert_closed<T: Clone + Copy + core::fmt::Debug + Eq + core::hash::Hash + PartialEq>() {}
 
