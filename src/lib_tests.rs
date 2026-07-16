@@ -6,6 +6,23 @@ use crate::{
     TrackComponentList, TrackFlexFactor, TrackRepeatCount, TrackSizing, WritingMode,
 };
 
+#[test]
+fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract() {
+    fn assert_closed<T: Clone + Copy + core::fmt::Debug + Eq + core::hash::Hash + PartialEq>() {}
+
+    assert_closed::<crate::SizingProperty>();
+    assert_closed::<crate::SizingAlgorithm>();
+    assert_closed::<crate::CalcSizeBehaviorBasis>();
+    assert_closed::<crate::SizingBehavior>();
+    assert_closed::<crate::UnsupportedSizingBehavior>();
+    assert_closed::<crate::LayoutUnsupportedCapability>();
+
+    let _ = crate::SizingProperty::Preferred;
+    let _ = crate::SizingAlgorithm::Positioned;
+    let _ = crate::CalcSizeBehaviorBasis::Content;
+    let _ = crate::SizingBehavior::CalcSize(crate::CalcSizeBehaviorBasis::None);
+}
+
 fn assert_physical_block_margin_collapse_maps_all_flow_axes<S: LayoutScalar>() {
     let none = PhysicalBlockMarginCollapseOf::<S>::NONE;
     let block_start = CollapsibleMarginOf::from_margin(S::from_f64(5.0));

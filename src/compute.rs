@@ -116,10 +116,139 @@ pub enum LayoutMissingContext {
     RequiredBasis,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+impl core::hash::Hash for PhysicalAxis {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        (*self as u8).hash(state);
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum SizingProperty {
+    Preferred,
+    Minimum,
+    Maximum,
+    FlexBasis,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum SizingAlgorithm {
+    Leaf,
+    Block,
+    Flex,
+    Grid,
+    GridLanes,
+    Positioned,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum CalcSizeBehaviorBasis {
+    Auto,
+    None,
+    Content,
+    MinContent,
+    MaxContent,
+    Stretch,
+    FitContent,
+    Contain,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum SizingBehavior {
+    MinContent,
+    MaxContent,
+    FitContentFunction,
+    Stretch,
+    FitContent,
+    Contain,
+    CalcSize(CalcSizeBehaviorBasis),
+}
+
+/// A typed description of sizing behavior owned by a later algorithm initiative.
+///
+/// The payload is output-only; callers inspect descriptors returned through
+/// [`LayoutUnsupportedCapability`] rather than constructing them.
+///
+/// ```compile_fail
+/// use surgeist_layout::{
+///     PhysicalAxis, SizingAlgorithm, SizingBehavior, SizingProperty,
+///     UnsupportedSizingBehavior,
+/// };
+/// let _ = UnsupportedSizingBehavior {
+///     property: SizingProperty::Preferred,
+///     behavior: SizingBehavior::Stretch,
+///     algorithm: SizingAlgorithm::Leaf,
+///     axis: PhysicalAxis::Horizontal,
+/// };
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{
+///     PhysicalAxis, SizingAlgorithm, SizingBehavior, SizingProperty,
+///     UnsupportedSizingBehavior,
+/// };
+/// let _ = UnsupportedSizingBehavior::new(
+///     SizingProperty::Preferred,
+///     SizingBehavior::Stretch,
+///     SizingAlgorithm::Leaf,
+///     PhysicalAxis::Horizontal,
+/// );
+/// ```
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct UnsupportedSizingBehavior {
+    property: SizingProperty,
+    behavior: SizingBehavior,
+    algorithm: SizingAlgorithm,
+    axis: PhysicalAxis,
+}
+
+impl UnsupportedSizingBehavior {
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "C04-T1 supplies the capability constructor used by the dispatcher before C04-T2 consumption"
+        )
+    )]
+    pub(crate) const fn new(
+        property: SizingProperty,
+        behavior: SizingBehavior,
+        algorithm: SizingAlgorithm,
+        axis: PhysicalAxis,
+    ) -> Self {
+        Self {
+            property,
+            behavior,
+            algorithm,
+            axis,
+        }
+    }
+
+    #[must_use]
+    pub const fn property(self) -> SizingProperty {
+        self.property
+    }
+
+    #[must_use]
+    pub const fn behavior(self) -> SizingBehavior {
+        self.behavior
+    }
+
+    #[must_use]
+    pub const fn algorithm(self) -> SizingAlgorithm {
+        self.algorithm
+    }
+
+    #[must_use]
+    pub const fn axis(self) -> PhysicalAxis {
+        self.axis
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum LayoutUnsupportedCapability {
     LaterFriBehavior,
+    SizingBehavior(UnsupportedSizingBehavior),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
