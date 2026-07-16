@@ -531,6 +531,374 @@ fn fri04_c03_block_positioned_invalid_numeric_propagates_from_both_consumers() {
     }
 }
 
+enum Fri04C04SizingValue {
+    Preferred(PreferredSize),
+    Minimum(MinSize),
+    Maximum(MaxSize),
+}
+
+fn fri04_c04_leaf_block_positioned_style(
+    value: Fri04C04SizingValue,
+    position: Position,
+    axis: PhysicalAxis,
+) -> NodeInput {
+    let mut style = NodeInput {
+        display: Display::Block,
+        position,
+        ..NodeInput::default()
+    };
+    match (value, axis) {
+        (Fri04C04SizingValue::Preferred(value), PhysicalAxis::Horizontal) => {
+            style.size.width = value;
+        }
+        (Fri04C04SizingValue::Preferred(value), PhysicalAxis::Vertical) => {
+            style.size.height = value;
+        }
+        (Fri04C04SizingValue::Minimum(value), PhysicalAxis::Horizontal) => {
+            style.min_size.width = value;
+        }
+        (Fri04C04SizingValue::Minimum(value), PhysicalAxis::Vertical) => {
+            style.min_size.height = value;
+        }
+        (Fri04C04SizingValue::Maximum(value), PhysicalAxis::Horizontal) => {
+            style.max_size.width = value;
+        }
+        (Fri04C04SizingValue::Maximum(value), PhysicalAxis::Vertical) => {
+            style.max_size.height = value;
+        }
+    }
+    style
+}
+
+fn fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+    value: Fri04C04SizingValue,
+    property: SizingProperty,
+    behavior: SizingBehavior,
+    axis: PhysicalAxis,
+    position: Position,
+) {
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::px(200.0)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            fri04_c04_leaf_block_positioned_style(value, position, axis),
+        );
+    let error = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::splat(Available::definite(200.0)))
+            .expect("valid viewport"),
+    )
+    .expect_err("later-owned block sizing must be rejected");
+    assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        unsupported,
+    )) = error.kind()
+    else {
+        panic!("expected sizing capability, got {:?}", error.kind());
+    };
+    assert_eq!(
+        (
+            unsupported.property(),
+            unsupported.behavior(),
+            unsupported.algorithm(),
+            unsupported.axis(),
+        ),
+        (
+            property,
+            behavior,
+            if position == Position::Absolute {
+                SizingAlgorithm::Positioned
+            } else {
+                SizingAlgorithm::Block
+            },
+            axis,
+        )
+    );
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_block_and_absolute_cover_all_unsupported_states() {
+    let sizing = || {
+        SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite sizing calculation"))
+    };
+    let calc = || CalcSizeCalculation::value(LengthPercentageOf::ZERO);
+
+    for position in [Position::Relative, Position::Absolute] {
+        for (value, behavior) in [
+            (PreferredSize::STRETCH, SizingBehavior::Stretch),
+            (PreferredSize::FIT_CONTENT, SizingBehavior::FitContent),
+            (PreferredSize::CONTAIN, SizingBehavior::Contain),
+            (
+                PreferredSize::fit_content_function(sizing()),
+                SizingBehavior::FitContentFunction,
+            ),
+        ] {
+            fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+                Fri04C04SizingValue::Preferred(value),
+                SizingProperty::Preferred,
+                behavior,
+                PhysicalAxis::Horizontal,
+                position,
+            );
+        }
+        if position == Position::Absolute {
+            for (value, behavior) in [
+                (PreferredSize::MIN_CONTENT, SizingBehavior::MinContent),
+                (PreferredSize::MAX_CONTENT, SizingBehavior::MaxContent),
+            ] {
+                fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+                    Fri04C04SizingValue::Preferred(value),
+                    SizingProperty::Preferred,
+                    behavior,
+                    PhysicalAxis::Vertical,
+                    position,
+                );
+            }
+        }
+        for (value, behavior) in [
+            (MinSize::MIN_CONTENT, SizingBehavior::MinContent),
+            (MinSize::MAX_CONTENT, SizingBehavior::MaxContent),
+            (MinSize::STRETCH, SizingBehavior::Stretch),
+            (MinSize::FIT_CONTENT, SizingBehavior::FitContent),
+            (MinSize::CONTAIN, SizingBehavior::Contain),
+            (
+                MinSize::fit_content_function(sizing()),
+                SizingBehavior::FitContentFunction,
+            ),
+        ] {
+            fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+                Fri04C04SizingValue::Minimum(value),
+                SizingProperty::Minimum,
+                behavior,
+                PhysicalAxis::Vertical,
+                position,
+            );
+        }
+        for (value, behavior) in [
+            (MaxSize::MIN_CONTENT, SizingBehavior::MinContent),
+            (MaxSize::MAX_CONTENT, SizingBehavior::MaxContent),
+            (MaxSize::STRETCH, SizingBehavior::Stretch),
+            (MaxSize::FIT_CONTENT, SizingBehavior::FitContent),
+            (MaxSize::CONTAIN, SizingBehavior::Contain),
+            (
+                MaxSize::fit_content_function(sizing()),
+                SizingBehavior::FitContentFunction,
+            ),
+        ] {
+            fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+                Fri04C04SizingValue::Maximum(value),
+                SizingProperty::Maximum,
+                behavior,
+                PhysicalAxis::Horizontal,
+                position,
+            );
+        }
+
+        for (basis, expected) in [
+            (PreferredSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+            (
+                PreferredSizeCalcBasis::MinContent,
+                CalcSizeBehaviorBasis::MinContent,
+            ),
+            (
+                PreferredSizeCalcBasis::MaxContent,
+                CalcSizeBehaviorBasis::MaxContent,
+            ),
+            (
+                PreferredSizeCalcBasis::Stretch,
+                CalcSizeBehaviorBasis::Stretch,
+            ),
+            (
+                PreferredSizeCalcBasis::FitContent,
+                CalcSizeBehaviorBasis::FitContent,
+            ),
+            (
+                PreferredSizeCalcBasis::Contain,
+                CalcSizeBehaviorBasis::Contain,
+            ),
+        ] {
+            fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+                Fri04C04SizingValue::Preferred(
+                    PreferredSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                SizingProperty::Preferred,
+                SizingBehavior::CalcSize(expected),
+                PhysicalAxis::Vertical,
+                position,
+            );
+        }
+        for (basis, expected) in [
+            (MinSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+            (
+                MinSizeCalcBasis::MinContent,
+                CalcSizeBehaviorBasis::MinContent,
+            ),
+            (
+                MinSizeCalcBasis::MaxContent,
+                CalcSizeBehaviorBasis::MaxContent,
+            ),
+            (MinSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+            (
+                MinSizeCalcBasis::FitContent,
+                CalcSizeBehaviorBasis::FitContent,
+            ),
+            (MinSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+        ] {
+            fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+                Fri04C04SizingValue::Minimum(
+                    MinSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                SizingProperty::Minimum,
+                SizingBehavior::CalcSize(expected),
+                PhysicalAxis::Horizontal,
+                position,
+            );
+        }
+        for (basis, expected) in [
+            (MaxSizeCalcBasis::None, CalcSizeBehaviorBasis::None),
+            (
+                MaxSizeCalcBasis::MinContent,
+                CalcSizeBehaviorBasis::MinContent,
+            ),
+            (
+                MaxSizeCalcBasis::MaxContent,
+                CalcSizeBehaviorBasis::MaxContent,
+            ),
+            (MaxSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+            (
+                MaxSizeCalcBasis::FitContent,
+                CalcSizeBehaviorBasis::FitContent,
+            ),
+            (MaxSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+        ] {
+            fri04_c04_leaf_block_positioned_assert_block_path_unsupported(
+                Fri04C04SizingValue::Maximum(
+                    MaxSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                SizingProperty::Maximum,
+                SizingBehavior::CalcSize(expected),
+                PhysicalAxis::Vertical,
+                position,
+            );
+        }
+    }
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_block_and_absolute_calc_size_geometry() {
+    let preferred = || {
+        Size::new(
+            PreferredSize::calc_size(
+                PreferredSizeCalcBasis::Any,
+                CalcSizeCalculation::from_coefficients(20.0, 0.5, 0.0)
+                    .expect("finite Any calculation"),
+            )
+            .expect("valid Any calc-size"),
+            PreferredSize::calc_size(
+                PreferredSizeCalcBasis::FullPercentage,
+                CalcSizeCalculation::from_coefficients(10.0, 0.0, 0.5)
+                    .expect("finite FullPercentage calculation"),
+            )
+            .expect("valid FullPercentage calc-size"),
+        )
+    };
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::px(160.0)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: preferred(),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Absolute,
+                size: preferred(),
+                ..NodeInput::default()
+            },
+        );
+
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::new(
+            Available::definite(200.0),
+            Available::definite(160.0),
+        ))
+        .expect("valid viewport"),
+    )
+    .expect("supported block and positioned calc-size values resolve");
+
+    assert_eq!(public_final_output(&batch, 1).size, Size::new(120.0, 90.0));
+    assert_eq!(public_final_output(&batch, 2).size, Size::new(120.0, 90.0));
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_absolute_grid_and_block_inner_displays_are_positioned() {
+    for display in [Display::Block, Display::Grid] {
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInput {
+                    display,
+                    position: Position::Absolute,
+                    size: Size::new(PreferredSize::STRETCH, PreferredSize::AUTO),
+                    ..NodeInput::default()
+                },
+            );
+        let error = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequest::viewport(Size::splat(Available::definite(100.0)))
+                .expect("valid viewport"),
+        )
+        .expect_err("absolute sizing must reject stretch before inner display dispatch");
+        let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+            unsupported,
+        )) = error.kind()
+        else {
+            panic!("expected positioned sizing capability");
+        };
+        assert_eq!(unsupported.algorithm(), SizingAlgorithm::Positioned);
+        assert_eq!(unsupported.axis(), PhysicalAxis::Horizontal);
+        assert_eq!(error.site(), LayoutErrorSite::Node(1));
+    }
+}
+
 #[test]
 fn parent_context_gates_only_block_boundary_collapse_in_both_scalar_lanes() {
     fn assert_lane<S: LayoutScalar>()

@@ -361,37 +361,16 @@ pub(crate) enum DispatchedSizingRequest<'a, S: LayoutScalar> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 pub(crate) enum SizingDispatch<'a, S: LayoutScalar> {
     Supported(DispatchedSizingRequest<'a, S>),
     Unsupported(UnsupportedSizingBehavior),
 }
 
 impl<'a, S: LayoutScalar> SizingDispatch<'a, S> {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-        )
-    )]
     const fn supported(request: DispatchedSizingRequest<'a, S>) -> Self {
         Self::Supported(request)
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-        )
-    )]
     const fn unsupported(
         property: SizingProperty,
         behavior: SizingBehavior,
@@ -404,13 +383,6 @@ impl<'a, S: LayoutScalar> SizingDispatch<'a, S> {
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 pub(crate) fn dispatch_preferred_size<'a, S: LayoutScalar>(
     value: &'a PreferredSizeOf<S>,
     algorithm: SizingAlgorithm,
@@ -477,13 +449,6 @@ pub(crate) fn dispatch_preferred_size<'a, S: LayoutScalar>(
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 pub(crate) fn dispatch_minimum_size<'a, S: LayoutScalar>(
     value: &'a MinSizeOf<S>,
     algorithm: SizingAlgorithm,
@@ -544,13 +509,6 @@ pub(crate) fn dispatch_minimum_size<'a, S: LayoutScalar>(
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 pub(crate) fn dispatch_maximum_size<'a, S: LayoutScalar>(
     value: &'a MaxSizeOf<S>,
     algorithm: SizingAlgorithm,
@@ -680,26 +638,12 @@ pub(crate) fn dispatch_flex_basis<'a, S: LayoutScalar>(
 }
 
 #[derive(Clone, Copy)]
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 enum DispatchedCalcSizeBasis {
     Any,
     FullPercentage,
     Keyword(CalcSizeBehaviorBasis),
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 fn dispatch_calc_size<'a, S: LayoutScalar>(
     property: SizingProperty,
     basis: DispatchedCalcSizeBasis,
@@ -731,13 +675,6 @@ fn dispatch_calc_size<'a, S: LayoutScalar>(
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 fn clamp_calc_size_resolution<S: LayoutScalar>(
     resolution: LengthResolutionOf<S>,
 ) -> LengthResolutionOf<S> {
@@ -758,13 +695,6 @@ fn clamp_calc_size_resolution<S: LayoutScalar>(
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 const fn preferred_intrinsic_is_supported(algorithm: SizingAlgorithm) -> bool {
     matches!(
         algorithm,
@@ -775,13 +705,6 @@ const fn preferred_intrinsic_is_supported(algorithm: SizingAlgorithm) -> bool {
     )
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 const fn preferred_calc_size_basis(basis: PreferredSizeCalcBasis) -> DispatchedCalcSizeBasis {
     match basis {
         PreferredSizeCalcBasis::Any => DispatchedCalcSizeBasis::Any,
@@ -807,13 +730,6 @@ const fn preferred_calc_size_basis(basis: PreferredSizeCalcBasis) -> DispatchedC
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 const fn minimum_calc_size_basis(basis: MinSizeCalcBasis) -> DispatchedCalcSizeBasis {
     match basis {
         MinSizeCalcBasis::Any => DispatchedCalcSizeBasis::Any,
@@ -837,13 +753,6 @@ const fn minimum_calc_size_basis(basis: MinSizeCalcBasis) -> DispatchedCalcSizeB
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "C04-T1 supplies the dispatcher consumed by C04-T2 through C04-T4"
-    )
-)]
 const fn maximum_calc_size_basis(basis: MaxSizeCalcBasis) -> DispatchedCalcSizeBasis {
     match basis {
         MaxSizeCalcBasis::Any => DispatchedCalcSizeBasis::Any,

@@ -688,3 +688,376 @@ fn fri04_c03_leaf_root_leaf_preserves_missing_basis_by_run_mode() {
         &LayoutErrorKind::MissingContext(LayoutMissingContext::RequiredBasis)
     );
 }
+
+#[test]
+fn fri04_c04_leaf_block_positioned_leaf_calc_size_any_and_intrinsic_availability() {
+    let context = ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ParentFormattingContext::NoParent,
+    );
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(200.0), Some(100.0)),
+        context,
+        Size::new(Available::definite(150.0), Available::definite(90.0)),
+    );
+    let style = NodeInput {
+        size: Size::new(
+            PreferredSize::MIN_CONTENT,
+            PreferredSize::calc_size(
+                PreferredSizeCalcBasis::Any,
+                CalcSizeCalculation::from_coefficients(40.0, 0.5, 0.0)
+                    .expect("finite calc-size coefficients"),
+            )
+            .expect("Any calc-size without size is valid"),
+        ),
+        ..NodeInput::default()
+    };
+
+    let output = compute_leaf(input, &style, |measurement| {
+        assert_eq!(
+            measurement.available_content_size().width,
+            MeasurementAvailable::MIN_CONTENT
+        );
+        Ok::<_, ()>(Size::new(32.0, 12.0))
+    })
+    .expect("supported leaf contextual sizing resolves");
+
+    assert_eq!(output.size, Size::new(32.0, 90.0));
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_leaf_reports_exact_unsupported_payload() {
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::splat(Some(100.0)),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(Available::definite(100.0)),
+    );
+    let style = NodeInput {
+        min_size: Size::new(MinSize::AUTO, MinSize::STRETCH),
+        ..NodeInput::default()
+    };
+
+    let error = compute_leaf(input, &style, |_measurement| Ok::<_, ()>(Size::ZERO))
+        .expect_err("later-owned minimum stretch must be rejected");
+
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        unsupported,
+    )) = error.kind()
+    else {
+        panic!("expected exact sizing capability, got {:?}", error.kind());
+    };
+    assert_eq!(unsupported.property(), SizingProperty::Minimum);
+    assert_eq!(unsupported.behavior(), SizingBehavior::Stretch);
+    assert_eq!(unsupported.algorithm(), SizingAlgorithm::Leaf);
+    assert_eq!(unsupported.axis(), PhysicalAxis::Vertical);
+}
+
+fn fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+    style: NodeInput,
+    property: SizingProperty,
+    behavior: SizingBehavior,
+    axis: PhysicalAxis,
+) {
+    let error = compute_leaf(
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(100.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::definite(100.0)),
+        ),
+        &style,
+        |_measurement| -> Result<Size, ()> { panic!("unsupported sizing must precede measure") },
+    )
+    .expect_err("later-owned leaf sizing must be rejected");
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+        unsupported,
+    )) = error.kind()
+    else {
+        panic!("expected sizing capability, got {:?}", error.kind());
+    };
+    assert_eq!(
+        (
+            unsupported.property(),
+            unsupported.behavior(),
+            unsupported.algorithm(),
+            unsupported.axis(),
+        ),
+        (property, behavior, SizingAlgorithm::Leaf, axis)
+    );
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_leaf_front_door_covers_all_unsupported_states() {
+    let calculation = || {
+        SizingCalculation::value(
+            LengthPercentageOf::px(10.0).expect("finite fit-content calculation"),
+        )
+    };
+    for (value, behavior) in [
+        (PreferredSize::STRETCH, SizingBehavior::Stretch),
+        (PreferredSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (PreferredSize::CONTAIN, SizingBehavior::Contain),
+        (
+            PreferredSize::fit_content_function(calculation()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                size: Size::new(value, PreferredSize::AUTO),
+                ..NodeInput::default()
+            },
+            SizingProperty::Preferred,
+            behavior,
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (value, behavior) in [
+        (MinSize::MIN_CONTENT, SizingBehavior::MinContent),
+        (MinSize::MAX_CONTENT, SizingBehavior::MaxContent),
+        (MinSize::STRETCH, SizingBehavior::Stretch),
+        (MinSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (MinSize::CONTAIN, SizingBehavior::Contain),
+        (
+            MinSize::fit_content_function(calculation()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                min_size: Size::new(MinSize::AUTO, value),
+                ..NodeInput::default()
+            },
+            SizingProperty::Minimum,
+            behavior,
+            PhysicalAxis::Vertical,
+        );
+    }
+    for (value, behavior) in [
+        (MaxSize::MIN_CONTENT, SizingBehavior::MinContent),
+        (MaxSize::MAX_CONTENT, SizingBehavior::MaxContent),
+        (MaxSize::STRETCH, SizingBehavior::Stretch),
+        (MaxSize::FIT_CONTENT, SizingBehavior::FitContent),
+        (MaxSize::CONTAIN, SizingBehavior::Contain),
+        (
+            MaxSize::fit_content_function(calculation()),
+            SizingBehavior::FitContentFunction,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                max_size: Size::new(value, MaxSize::NONE),
+                ..NodeInput::default()
+            },
+            SizingProperty::Maximum,
+            behavior,
+            PhysicalAxis::Horizontal,
+        );
+    }
+
+    let calc = || CalcSizeCalculation::value(LengthPercentageOf::ZERO);
+    for (basis, expected) in [
+        (PreferredSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (
+            PreferredSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            PreferredSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (
+            PreferredSizeCalcBasis::Stretch,
+            CalcSizeBehaviorBasis::Stretch,
+        ),
+        (
+            PreferredSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (
+            PreferredSizeCalcBasis::Contain,
+            CalcSizeBehaviorBasis::Contain,
+        ),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::AUTO,
+                    PreferredSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Preferred,
+            SizingBehavior::CalcSize(expected),
+            PhysicalAxis::Vertical,
+        );
+    }
+    for (basis, expected) in [
+        (MinSizeCalcBasis::Auto, CalcSizeBehaviorBasis::Auto),
+        (
+            MinSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            MinSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (MinSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            MinSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (MinSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                min_size: Size::new(
+                    MinSize::calc_size(basis, calc()).expect("valid calc-size"),
+                    MinSize::AUTO,
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Minimum,
+            SizingBehavior::CalcSize(expected),
+            PhysicalAxis::Horizontal,
+        );
+    }
+    for (basis, expected) in [
+        (MaxSizeCalcBasis::None, CalcSizeBehaviorBasis::None),
+        (
+            MaxSizeCalcBasis::MinContent,
+            CalcSizeBehaviorBasis::MinContent,
+        ),
+        (
+            MaxSizeCalcBasis::MaxContent,
+            CalcSizeBehaviorBasis::MaxContent,
+        ),
+        (MaxSizeCalcBasis::Stretch, CalcSizeBehaviorBasis::Stretch),
+        (
+            MaxSizeCalcBasis::FitContent,
+            CalcSizeBehaviorBasis::FitContent,
+        ),
+        (MaxSizeCalcBasis::Contain, CalcSizeBehaviorBasis::Contain),
+    ] {
+        fri04_c04_leaf_block_positioned_assert_leaf_unsupported(
+            NodeInput {
+                max_size: Size::new(
+                    MaxSize::NONE,
+                    MaxSize::calc_size(basis, calc()).expect("valid calc-size"),
+                ),
+                ..NodeInput::default()
+            },
+            SizingProperty::Maximum,
+            SizingBehavior::CalcSize(expected),
+            PhysicalAxis::Vertical,
+        );
+    }
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_missing_full_percentage_preserves_property_fallbacks() {
+    let full = || {
+        CalcSizeCalculation::from_coefficients(10.0, 0.5, 0.5)
+            .expect("finite FullPercentage calculation")
+    };
+    let style = NodeInput {
+        size: Size::new(
+            PreferredSize::calc_size(PreferredSizeCalcBasis::FullPercentage, full())
+                .expect("valid preferred calc-size"),
+            PreferredSize::calc_size(
+                PreferredSizeCalcBasis::Any,
+                CalcSizeCalculation::from_coefficients(25.0, 0.5, 0.0)
+                    .expect("finite Any calculation"),
+            )
+            .expect("valid Any calc-size"),
+        ),
+        min_size: Size::new(
+            MinSize::calc_size(MinSizeCalcBasis::FullPercentage, full())
+                .expect("valid minimum calc-size"),
+            MinSize::calc_size(MinSizeCalcBasis::FullPercentage, full())
+                .expect("valid minimum calc-size"),
+        ),
+        max_size: Size::new(
+            MaxSize::calc_size(MaxSizeCalcBasis::FullPercentage, full())
+                .expect("valid maximum calc-size"),
+            MaxSize::calc_size(MaxSizeCalcBasis::FullPercentage, full())
+                .expect("valid maximum calc-size"),
+        ),
+        ..NodeInput::default()
+    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(Available::MAX_CONTENT),
+    );
+
+    let output = compute_leaf(input, &style, |_measurement| {
+        Ok::<_, ()>(Size::new(30.0, 12.0))
+    })
+    .expect("missing FullPercentage keeps preferred/minimum auto and maximum none");
+
+    assert_eq!(output.size, Size::new(30.0, 25.0));
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_calc_size_invalid_numeric_maps_exactly() {
+    let style = NodeInput {
+        size: Size::new(
+            PreferredSize::calc_size(
+                PreferredSizeCalcBasis::Any,
+                CalcSizeCalculation::from_coefficients(f32::MAX, f32::MAX, 0.0)
+                    .expect("finite calc-size coefficients"),
+            )
+            .expect("valid Any calc-size"),
+            PreferredSize::AUTO,
+        ),
+        ..NodeInput::default()
+    };
+    let input = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::splat(Some(100.0)),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(Available::definite(100.0)),
+    );
+    let error = compute_leaf(input, &style, |_measurement| Ok::<_, ()>(Size::ZERO))
+        .expect_err("overflowing calc-size must fail");
+    assert_eq!(error.site(), LayoutErrorSite::Standalone);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric { value })
+            if *value == f32::INFINITY
+    ));
+}

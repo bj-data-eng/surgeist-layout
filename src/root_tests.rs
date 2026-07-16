@@ -5908,6 +5908,106 @@ fn fri04_c03_leaf_root_root_front_door_consumes_leaf_and_inner_display_calculati
 }
 
 #[test]
+fn fri04_c04_leaf_block_positioned_root_reports_actual_leaf_or_block_algorithm() {
+    let style = || NodeInput {
+        display: Display::Block,
+        size: Size::new(PreferredSize::AUTO, PreferredSize::STRETCH),
+        ..NodeInput::default()
+    };
+    let request = || {
+        LayoutRootRequest::viewport(Size::splat(Available::definite(100.0)))
+            .expect("valid viewport")
+    };
+    let cases: [(RootSessionTree<&'static str>, SizingAlgorithm); 2] = [
+        (
+            RootSessionTree::default()
+                .children(0, [])
+                .style(0, style())
+                .measure(0, Ok(Size::new(10.0, 10.0))),
+            SizingAlgorithm::Leaf,
+        ),
+        (
+            RootSessionTree::default().children(0, []).style(0, style()),
+            SizingAlgorithm::Block,
+        ),
+    ];
+
+    for (tree, expected_algorithm) in cases {
+        let error = compute_layout(&tree, 0, request())
+            .expect_err("later-owned root sizing must be rejected");
+        assert_eq!(error.site(), LayoutErrorSite::Node(0));
+        let LayoutErrorKind::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+            unsupported,
+        )) = error.kind()
+        else {
+            panic!("expected exact root sizing capability");
+        };
+        assert_eq!(unsupported.property(), SizingProperty::Preferred);
+        assert_eq!(unsupported.behavior(), SizingBehavior::Stretch);
+        assert_eq!(unsupported.algorithm(), expected_algorithm);
+        assert_eq!(unsupported.axis(), PhysicalAxis::Vertical);
+    }
+}
+
+#[test]
+fn fri04_c04_leaf_block_positioned_root_leaf_and_block_supported_geometry() {
+    let calc_size = || {
+        Size::new(
+            PreferredSize::calc_size(
+                PreferredSizeCalcBasis::Any,
+                CalcSizeCalculation::from_coefficients(20.0, 0.5, 0.0)
+                    .expect("finite Any calculation"),
+            )
+            .expect("valid Any calc-size"),
+            PreferredSize::calc_size(
+                PreferredSizeCalcBasis::FullPercentage,
+                CalcSizeCalculation::from_coefficients(10.0, 0.0, 0.5)
+                    .expect("finite FullPercentage calculation"),
+            )
+            .expect("valid FullPercentage calc-size"),
+        )
+    };
+    let request = || {
+        LayoutRootRequest::viewport(Size::new(
+            Available::definite(200.0),
+            Available::definite(160.0),
+        ))
+        .expect("valid viewport")
+    };
+    let leaf: RootSessionTree<&'static str> = RootSessionTree::default()
+        .children(0, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: calc_size(),
+                ..NodeInput::default()
+            },
+        )
+        .measure(0, Ok(Size::new(1.0, 1.0)));
+    let leaf_batch = compute_layout(&leaf, 0, request()).expect("root leaf calc-size resolves");
+    assert_eq!(
+        leaf_batch.unrounded_entries()[0].output().size,
+        Size::new(120.0, 90.0)
+    );
+
+    for intrinsic in [PreferredSize::MIN_CONTENT, PreferredSize::MAX_CONTENT] {
+        let block: RootSessionTree<&'static str> =
+            RootSessionTree::default().children(0, []).style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    size: Size::new(intrinsic.clone(), intrinsic),
+                    ..NodeInput::default()
+                },
+            );
+        let batch = compute_layout(&block, 0, request())
+            .expect("root block preferred intrinsic sizing resolves");
+        assert_eq!(batch.unrounded_entries()[0].output().size, Size::ZERO);
+    }
+}
+
+#[test]
 fn compute_layout_uses_flex_root_viewport_context_as_parent_basis() {
     let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
         0,

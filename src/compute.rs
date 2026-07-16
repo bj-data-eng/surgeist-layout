@@ -12,11 +12,36 @@ use crate::scroll::{
     round_scroll_geometry, scroll_geometry_from_layout, scroll_rect_union,
     scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
 };
+use crate::sizing::{
+    DispatchedSizingRequest, SizingDispatch, dispatch_maximum_size, dispatch_minimum_size,
+    dispatch_preferred_size,
+};
 use crate::{CompletedLayoutBatchOf, LayoutTree};
+use crate::{MaxSizeOf, MinSizeOf, PercentageBasisOf, PreferredSizeOf};
 
 pub type LayoutResultOf<Node, T, S, M = core::convert::Infallible> =
     Result<T, LayoutErrorOf<Node, S, M>>;
 pub type LayoutResult<Node, T, M> = LayoutResultOf<Node, T, DefaultScalar, M>;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SizingResolutionError<S: LayoutScalar> {
+    Status(LengthResolutionStatus<S>),
+    Unsupported(UnsupportedSizingBehavior),
+}
+
+impl<S: LayoutScalar> From<LengthResolutionStatus<S>> for SizingResolutionError<S> {
+    fn from(status: LengthResolutionStatus<S>) -> Self {
+        Self::Status(status)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ResolvedPreferredSize<S: LayoutScalar> {
+    Auto,
+    Definite(S),
+    MinContent,
+    MaxContent,
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct LayoutErrorOf<Node, S: LayoutScalar = DefaultScalar, M = core::convert::Infallible> {
@@ -202,13 +227,6 @@ pub struct UnsupportedSizingBehavior {
 }
 
 impl UnsupportedSizingBehavior {
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "C04-T1 supplies the capability constructor used by the dispatcher before C04-T2 consumption"
-        )
-    )]
     pub(crate) const fn new(
         property: SizingProperty,
         behavior: SizingBehavior,
@@ -379,7 +397,7 @@ where
     ) -> LayoutResultOf<Tree::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, Tree::MeasureError>
     {
         let resolved = resolve_leaf_values_for_input(input, style)
-            .map_err(|status| value_resolution_error(node, status))?;
+            .map_err(|error| sizing_resolution_error(node, error))?;
 
         let site = LayoutErrorSiteOf::Node(node);
         compute_leaf_with_resolved_values(site, input, style, resolved, |measure_input| match self
@@ -436,6 +454,149 @@ where
     };
 
     LayoutErrorOf::new(site, LayoutOperation::ValueResolution, kind)
+}
+
+pub(crate) fn sizing_resolution_error<Node, S, M>(
+    node: Node,
+    error: SizingResolutionError<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    sizing_resolution_error_at_site(LayoutErrorSiteOf::Node(node), error)
+}
+
+fn sizing_resolution_error_at_site<Node, S, M>(
+    site: LayoutErrorSiteOf<Node>,
+    error: SizingResolutionError<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    match error {
+        SizingResolutionError::Status(status) => value_resolution_error_at_site(site, status),
+        SizingResolutionError::Unsupported(unsupported) => LayoutErrorOf::new(
+            site,
+            LayoutOperation::ValueResolution,
+            LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::SizingBehavior(
+                unsupported,
+            )),
+        ),
+    }
+}
+
+fn percentage_basis<S: LayoutScalar>(basis: Option<S>) -> PercentageBasisOf<S> {
+    basis.map_or(PercentageBasisOf::MISSING, |value| {
+        PercentageBasisOf::definite(value)
+            .expect("validated compute inputs carry non-negative finite parent sizes")
+    })
+}
+
+fn resolve_dispatched_numeric<S: LayoutScalar>(
+    request: DispatchedSizingRequest<'_, S>,
+    basis: PercentageBasisOf<S>,
+    missing_basis_is_indefinite: bool,
+) -> Result<Option<S>, SizingResolutionError<S>> {
+    let resolution = match request {
+        DispatchedSizingRequest::Zero => return Ok(Some(S::ZERO)),
+        DispatchedSizingRequest::Calculation(calculation) => calculation.resolve_against(basis),
+        DispatchedSizingRequest::ResolvedCalcSize(resolution) => resolution,
+        DispatchedSizingRequest::Auto | DispatchedSizingRequest::None => return Ok(None),
+        DispatchedSizingRequest::Content
+        | DispatchedSizingRequest::MinContent
+        | DispatchedSizingRequest::MaxContent => {
+            unreachable!("the property consumer must handle contextual supported states")
+        }
+    };
+
+    match resolution.status() {
+        LengthResolutionStatus::Resolved => Ok(resolution.value),
+        LengthResolutionStatus::MissingBasis if missing_basis_is_indefinite => Ok(None),
+        LengthResolutionStatus::MissingBasis | LengthResolutionStatus::InvalidNumeric { .. } => {
+            Err(SizingResolutionError::Status(resolution.status()))
+        }
+        LengthResolutionStatus::NonNumeric => {
+            unreachable!("typed sizing dispatch never returns a nonnumeric numeric request")
+        }
+    }
+}
+
+pub(crate) fn resolve_preferred_sizing<S: LayoutScalar>(
+    value: &PreferredSizeOf<S>,
+    algorithm: SizingAlgorithm,
+    axis: PhysicalAxis,
+    basis: Option<S>,
+    missing_basis_is_indefinite: bool,
+) -> Result<ResolvedPreferredSize<S>, SizingResolutionError<S>> {
+    let basis = percentage_basis(basis);
+    match dispatch_preferred_size(value, algorithm, axis, basis) {
+        SizingDispatch::Unsupported(unsupported) => {
+            Err(SizingResolutionError::Unsupported(unsupported))
+        }
+        SizingDispatch::Supported(DispatchedSizingRequest::Auto) => Ok(ResolvedPreferredSize::Auto),
+        SizingDispatch::Supported(DispatchedSizingRequest::MinContent) => {
+            Ok(ResolvedPreferredSize::MinContent)
+        }
+        SizingDispatch::Supported(DispatchedSizingRequest::MaxContent) => {
+            Ok(ResolvedPreferredSize::MaxContent)
+        }
+        SizingDispatch::Supported(request) => {
+            resolve_dispatched_numeric(request, basis, missing_basis_is_indefinite).map(|value| {
+                value.map_or(ResolvedPreferredSize::Auto, ResolvedPreferredSize::Definite)
+            })
+        }
+    }
+}
+
+pub(crate) fn resolve_preferred_optional<S: LayoutScalar>(
+    value: &PreferredSizeOf<S>,
+    algorithm: SizingAlgorithm,
+    axis: PhysicalAxis,
+    basis: Option<S>,
+    missing_basis_is_indefinite: bool,
+) -> Result<Option<S>, SizingResolutionError<S>> {
+    match resolve_preferred_sizing(value, algorithm, axis, basis, missing_basis_is_indefinite)? {
+        ResolvedPreferredSize::Auto
+        | ResolvedPreferredSize::MinContent
+        | ResolvedPreferredSize::MaxContent => Ok(None),
+        ResolvedPreferredSize::Definite(value) => Ok(Some(value)),
+    }
+}
+
+pub(crate) fn resolve_minimum_optional<S: LayoutScalar>(
+    value: &MinSizeOf<S>,
+    algorithm: SizingAlgorithm,
+    axis: PhysicalAxis,
+    basis: Option<S>,
+    missing_basis_is_indefinite: bool,
+) -> Result<Option<S>, SizingResolutionError<S>> {
+    let basis = percentage_basis(basis);
+    match dispatch_minimum_size(value, algorithm, axis, basis) {
+        SizingDispatch::Unsupported(unsupported) => {
+            Err(SizingResolutionError::Unsupported(unsupported))
+        }
+        SizingDispatch::Supported(request) => {
+            resolve_dispatched_numeric(request, basis, missing_basis_is_indefinite)
+        }
+    }
+}
+
+pub(crate) fn resolve_maximum_optional<S: LayoutScalar>(
+    value: &MaxSizeOf<S>,
+    algorithm: SizingAlgorithm,
+    axis: PhysicalAxis,
+    basis: Option<S>,
+    missing_basis_is_indefinite: bool,
+) -> Result<Option<S>, SizingResolutionError<S>> {
+    let basis = percentage_basis(basis);
+    match dispatch_maximum_size(value, algorithm, axis, basis) {
+        SizingDispatch::Unsupported(unsupported) => {
+            Err(SizingResolutionError::Unsupported(unsupported))
+        }
+        SizingDispatch::Supported(request) => {
+            resolve_dispatched_numeric(request, basis, missing_basis_is_indefinite)
+        }
+    }
 }
 
 fn root_scroll_error<Node, S, M>(
@@ -830,16 +991,38 @@ where
     } else {
         Size::ZERO
     };
-    let max_size = style
-        .max_size
-        .clone()
-        .zip_map(percentage_parent, |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional_fallible)
-        })
-        .transpose_with_node(tree, node)?
-        .add_optional(box_sizing_adjustment);
+    let max_size = Size::new(
+        resolve_maximum_optional(
+            &style.max_size.width,
+            SizingAlgorithm::Block,
+            PhysicalAxis::Horizontal,
+            percentage_parent.width,
+            false,
+        ),
+        resolve_maximum_optional(
+            &style.max_size.height,
+            SizingAlgorithm::Block,
+            PhysicalAxis::Vertical,
+            percentage_parent.height,
+            false,
+        ),
+    );
+    if matches!(max_size.width, Err(SizingResolutionError::Unsupported(_)))
+        || matches!(max_size.height, Err(SizingResolutionError::Unsupported(_)))
+    {
+        // The root optimization cannot know whether a root with block display is
+        // measured as a leaf. Defer contextual rejection to the actual consumer.
+        return Ok(Size::NONE);
+    }
+    let max_size = Size::new(
+        max_size
+            .width
+            .map_err(|error| sizing_resolution_error(node, error))?,
+        max_size
+            .height
+            .map_err(|error| sizing_resolution_error(node, error))?,
+    )
+    .add_optional(box_sizing_adjustment);
 
     Ok(root_known_on_axis(
         inline_axis,
@@ -1082,6 +1265,7 @@ struct LeafResolvedValues<S: LayoutScalar> {
     node_size: Size<Option<S>>,
     node_min_size: Size<Option<S>>,
     node_max_size: Size<Option<S>>,
+    preferred_intrinsic_availability: Size<Option<AvailableOf<S>>>,
     aspect_ratio: Option<AspectRatioOf<S>>,
 }
 
@@ -1090,7 +1274,7 @@ fn resolve_leaf_values<S>(
     style: &NodeInputOf<S>,
     resolve_auto: impl Fn(super::LengthAutoOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
     resolve_length: impl Fn(super::LengthOf<S>, Option<S>) -> Result<S, LengthResolutionStatus<S>>,
-) -> Result<LeafResolvedValues<S>, LengthResolutionStatus<S>>
+) -> Result<LeafResolvedValues<S>, SizingResolutionError<S>>
 where
     S: LayoutScalar,
 {
@@ -1117,47 +1301,86 @@ where
         Size::ZERO
     };
 
-    let (node_size, node_min_size, node_max_size, aspect_ratio) = match input.sizing_mode() {
-        SizingMode::ContentSize => (input.known(), Size::NONE, Size::NONE, None),
-        SizingMode::InherentSize => {
-            let style_size = transpose_leaf_size(style.size.clone().zip_map(
-                input.parent(),
-                |dimension, basis| {
-                    dimension
-                        .resolve_simple_with_status(basis)
-                        .and_then(|resolution| resolve_leaf_optional(input, resolution))
-                },
-            ))?
-            .apply_aspect_ratio(style.aspect_ratio)
-            .add_optional(box_sizing_adjustment);
-            let style_min_size = transpose_leaf_size(style.min_size.clone().zip_map(
-                input.parent(),
-                |dimension, basis| {
-                    dimension
-                        .resolve_simple_with_status(basis)
-                        .and_then(|resolution| resolve_leaf_optional(input, resolution))
-                },
-            ))?
-            .apply_aspect_ratio(style.aspect_ratio)
-            .add_optional(box_sizing_adjustment);
-            let style_max_size = transpose_leaf_size(style.max_size.clone().zip_map(
-                input.parent(),
-                |dimension, basis| {
-                    dimension
-                        .resolve_simple_with_status(basis)
-                        .and_then(|resolution| resolve_leaf_optional(input, resolution))
-                },
-            ))?
-            .add_optional(box_sizing_adjustment);
+    let (node_size, node_min_size, node_max_size, preferred_intrinsic_availability, aspect_ratio) =
+        match input.sizing_mode() {
+            SizingMode::ContentSize => (input.known(), Size::NONE, Size::NONE, Size::NONE, None),
+            SizingMode::InherentSize => {
+                let missing_basis_is_indefinite = input.run_mode() == RunMode::ComputeSize;
+                let preferred = Size::new(
+                    resolve_preferred_sizing(
+                        &style.size.width,
+                        SizingAlgorithm::Leaf,
+                        PhysicalAxis::Horizontal,
+                        input.parent().width,
+                        missing_basis_is_indefinite,
+                    )?,
+                    resolve_preferred_sizing(
+                        &style.size.height,
+                        SizingAlgorithm::Leaf,
+                        PhysicalAxis::Vertical,
+                        input.parent().height,
+                        missing_basis_is_indefinite,
+                    )?,
+                );
+                let style_size = preferred
+                    .map(|resolved| match resolved {
+                        ResolvedPreferredSize::Definite(value) => Some(value),
+                        ResolvedPreferredSize::Auto
+                        | ResolvedPreferredSize::MinContent
+                        | ResolvedPreferredSize::MaxContent => None,
+                    })
+                    .apply_aspect_ratio(style.aspect_ratio)
+                    .add_optional(box_sizing_adjustment);
+                let preferred_intrinsic_availability = preferred.map(|resolved| match resolved {
+                    ResolvedPreferredSize::MinContent => Some(AvailableOf::MIN_CONTENT),
+                    ResolvedPreferredSize::MaxContent => Some(AvailableOf::MAX_CONTENT),
+                    ResolvedPreferredSize::Auto | ResolvedPreferredSize::Definite(_) => None,
+                });
+                let style_min_size = Size::new(
+                    resolve_minimum_optional(
+                        &style.min_size.width,
+                        SizingAlgorithm::Leaf,
+                        PhysicalAxis::Horizontal,
+                        input.parent().width,
+                        missing_basis_is_indefinite,
+                    )?,
+                    resolve_minimum_optional(
+                        &style.min_size.height,
+                        SizingAlgorithm::Leaf,
+                        PhysicalAxis::Vertical,
+                        input.parent().height,
+                        missing_basis_is_indefinite,
+                    )?,
+                )
+                .apply_aspect_ratio(style.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
+                let style_max_size = Size::new(
+                    resolve_maximum_optional(
+                        &style.max_size.width,
+                        SizingAlgorithm::Leaf,
+                        PhysicalAxis::Horizontal,
+                        input.parent().width,
+                        missing_basis_is_indefinite,
+                    )?,
+                    resolve_maximum_optional(
+                        &style.max_size.height,
+                        SizingAlgorithm::Leaf,
+                        PhysicalAxis::Vertical,
+                        input.parent().height,
+                        missing_basis_is_indefinite,
+                    )?,
+                )
+                .add_optional(box_sizing_adjustment);
 
-            (
-                input.known().or(style_size),
-                style_min_size,
-                style_max_size,
-                style.aspect_ratio,
-            )
-        }
-    };
+                (
+                    input.known().or(style_size),
+                    style_min_size,
+                    style_max_size,
+                    preferred_intrinsic_availability,
+                    style.aspect_ratio,
+                )
+            }
+        };
 
     Ok(LeafResolvedValues {
         margin,
@@ -1166,6 +1389,7 @@ where
         node_size,
         node_min_size,
         node_max_size,
+        preferred_intrinsic_availability,
         aspect_ratio,
     })
 }
@@ -1173,7 +1397,7 @@ where
 fn resolve_leaf_values_for_input<S>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
-) -> Result<LeafResolvedValues<S>, LengthResolutionStatus<S>>
+) -> Result<LeafResolvedValues<S>, SizingResolutionError<S>>
 where
     S: LayoutScalar,
 {
@@ -1192,10 +1416,6 @@ fn transpose_leaf_edges<S, E>(edges: Edges<Result<S, E>>) -> Result<Edges<S>, E>
         edges.bottom?,
         edges.left?,
     ))
-}
-
-fn transpose_leaf_size<S, E>(size: Size<Result<Option<S>, E>>) -> Result<Size<Option<S>>, E> {
-    Ok(Size::new(size.width?, size.height?))
 }
 
 fn edge_at_physical_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
@@ -1217,7 +1437,7 @@ where
 {
     let site = LayoutErrorSiteOf::Standalone;
     let resolved = resolve_leaf_values_for_input(input, style)
-        .map_err(|status| value_resolution_error_at_site(site, status))?;
+        .map_err(|error| sizing_resolution_error_at_site(site, error))?;
 
     compute_leaf_with_resolved_values(site, input, style, resolved, |measure_input| {
         measure(measure_input).map_err(|error| {
@@ -1248,6 +1468,7 @@ where
         node_size,
         node_min_size,
         node_max_size,
+        preferred_intrinsic_availability,
         aspect_ratio,
     } = resolved;
     let padding_border = padding + border;
@@ -1323,7 +1544,10 @@ where
                 value.clamp_optional(node_min_size.height, node_max_size.height)
                     - content_box_inset.vertical_sum()
             }),
-    );
+    )
+    .zip_map(preferred_intrinsic_availability, |available, intrinsic| {
+        intrinsic.unwrap_or(available)
+    });
 
     let known_content_size = match input.run_mode() {
         RunMode::ComputeSize => input.known(),
@@ -1604,6 +1828,26 @@ impl<S: LayoutScalar> SizeResultExt<S> for Size<Result<Option<S>, LengthResoluti
                 .map_err(|status| value_resolution_error(node, status))?,
             self.height
                 .map_err(|status| value_resolution_error(node, status))?,
+        ))
+    }
+}
+
+impl<S: LayoutScalar> SizeResultExt<S> for Size<Result<Option<S>, SizingResolutionError<S>>> {
+    type Output = Size<Option<S>>;
+
+    fn transpose_with_node<Tree, M>(
+        self,
+        _tree: &Tree,
+        node: <Tree as Traverse>::Node,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self::Output, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Ok(Size::new(
+            self.width
+                .map_err(|error| sizing_resolution_error(node, error))?,
+            self.height
+                .map_err(|error| sizing_resolution_error(node, error))?,
         ))
     }
 }

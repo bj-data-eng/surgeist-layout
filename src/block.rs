@@ -14,9 +14,12 @@ use super::{
     LayoutUnsupportedCapability, LengthAutoOf, LengthOf, LengthResolutionOf,
     LengthResolutionStatus, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
     ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
-    RunMode, Size, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    RunMode, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
-use crate::compute::{EdgesResultExt, SizeResultExt};
+use crate::compute::{
+    EdgesResultExt, SizeResultExt, SizingResolutionError, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional,
+};
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
     ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
@@ -2066,25 +2069,11 @@ where
     } else {
         Size::ZERO
     };
-    let min_size = style
-        .min_size
-        .clone()
-        .zip_map(parent, |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        })
+    let min_size = resolve_minimum_size(&style.min_size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
-    let mut max_size = style
-        .max_size
-        .clone()
-        .zip_map(parent, |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        })
+    let mut max_size = resolve_maximum_size(&style.max_size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
         .add_optional(box_sizing_adjustment);
     let aspect_height_limit = style
@@ -2094,14 +2083,7 @@ where
     if let Some(width) = aspect_height_limit {
         max_size.width = Some(width);
     }
-    let known = style
-        .size
-        .clone()
-        .zip_map(parent, |dimension, basis| {
-            dimension
-                .resolve_simple_with_status(basis)
-                .and_then(resolution_optional)
-        })
+    let known = resolve_preferred_size(&style.size, parent, SizingAlgorithm::Block, true)
         .transpose_with_node(tree, child)?
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment)
@@ -2701,41 +2683,35 @@ where
         } else {
             Size::ZERO
         };
-        let min_size = style
-            .min_size
-            .clone()
-            .zip_map(area_size.map(Some), |dimension, basis| {
-                dimension
-                    .resolve_simple_with_status(basis)
-                    .and_then(resolution_optional)
-            })
-            .transpose_with_node(tree, child)?
-            .apply_aspect_ratio(style.aspect_ratio)
-            .add_optional(box_sizing_adjustment)
-            .or(padding_border.sum_axes().map(Some))
-            .max_optional(padding_border.sum_axes().map(Some));
-        let max_size = style
-            .max_size
-            .clone()
-            .zip_map(area_size.map(Some), |dimension, basis| {
-                dimension
-                    .resolve_simple_with_status(basis)
-                    .and_then(resolution_optional)
-            })
-            .transpose_with_node(tree, child)?
-            .apply_aspect_ratio(style.aspect_ratio)
-            .add_optional(box_sizing_adjustment);
-        let style_size = style
-            .size
-            .clone()
-            .zip_map(area_size.map(Some), |dimension, basis| {
-                dimension
-                    .resolve_simple_with_status(basis)
-                    .and_then(resolution_optional)
-            })
-            .transpose_with_node(tree, child)?
-            .apply_aspect_ratio(style.aspect_ratio)
-            .add_optional(box_sizing_adjustment);
+        let min_size = resolve_minimum_size(
+            &style.min_size,
+            area_size.map(Some),
+            SizingAlgorithm::Positioned,
+            true,
+        )
+        .transpose_with_node(tree, child)?
+        .apply_aspect_ratio(style.aspect_ratio)
+        .add_optional(box_sizing_adjustment)
+        .or(padding_border.sum_axes().map(Some))
+        .max_optional(padding_border.sum_axes().map(Some));
+        let max_size = resolve_maximum_size(
+            &style.max_size,
+            area_size.map(Some),
+            SizingAlgorithm::Positioned,
+            true,
+        )
+        .transpose_with_node(tree, child)?
+        .apply_aspect_ratio(style.aspect_ratio)
+        .add_optional(box_sizing_adjustment);
+        let style_size = resolve_preferred_size(
+            &style.size,
+            area_size.map(Some),
+            SizingAlgorithm::Positioned,
+            true,
+        )
+        .transpose_with_node(tree, child)?
+        .apply_aspect_ratio(style.aspect_ratio)
+        .add_optional(box_sizing_adjustment);
         let aspect_max_size = if style.aspect_ratio.is_some()
             && style_size.width.is_none()
             && style_size.height.is_none()
@@ -3231,39 +3207,33 @@ impl<S: LayoutScalar> Constants<S> {
         let (style_size, min_size, max_size) = match input.sizing_mode() {
             SizingMode::ContentSize => (Size::NONE, Size::NONE, Size::NONE),
             SizingMode::InherentSize => {
-                let style_size = style
-                    .size
-                    .clone()
-                    .zip_map(input.parent(), |dimension, basis| {
-                        dimension
-                            .resolve_simple_with_status(basis)
-                            .and_then(resolution_optional)
-                    })
-                    .transpose_with_node(tree, node)?
-                    .apply_aspect_ratio(style.aspect_ratio)
-                    .add_optional(box_sizing_adjustment);
-                let min_size = style
-                    .min_size
-                    .clone()
-                    .zip_map(input.parent(), |dimension, basis| {
-                        dimension
-                            .resolve_simple_with_status(basis)
-                            .and_then(resolution_optional)
-                    })
-                    .transpose_with_node(tree, node)?
-                    .apply_aspect_ratio(style.aspect_ratio)
-                    .add_optional(box_sizing_adjustment);
-                let max_size = style
-                    .max_size
-                    .clone()
-                    .zip_map(input.parent(), |dimension, basis| {
-                        dimension
-                            .resolve_simple_with_status(basis)
-                            .and_then(resolution_optional)
-                    })
-                    .transpose_with_node(tree, node)?
-                    .apply_aspect_ratio(style.aspect_ratio)
-                    .add_optional(box_sizing_adjustment);
+                let style_size = resolve_preferred_size(
+                    &style.size,
+                    input.parent(),
+                    SizingAlgorithm::Block,
+                    true,
+                )
+                .transpose_with_node(tree, node)?
+                .apply_aspect_ratio(style.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
+                let min_size = resolve_minimum_size(
+                    &style.min_size,
+                    input.parent(),
+                    SizingAlgorithm::Block,
+                    true,
+                )
+                .transpose_with_node(tree, node)?
+                .apply_aspect_ratio(style.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
+                let max_size = resolve_maximum_size(
+                    &style.max_size,
+                    input.parent(),
+                    SizingAlgorithm::Block,
+                    true,
+                )
+                .transpose_with_node(tree, node)?
+                .apply_aspect_ratio(style.aspect_ratio)
+                .add_optional(box_sizing_adjustment);
                 (style_size, min_size, max_size)
             }
         };
@@ -3343,6 +3313,78 @@ impl<S: LayoutScalar> Constants<S> {
 
 fn child_scrollbar_size<S: LayoutScalar>(style: &NodeInputOf<S>) -> Size<S> {
     scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get())
+}
+
+fn resolve_preferred_size<S: LayoutScalar>(
+    size: &Size<super::PreferredSizeOf<S>>,
+    basis: Size<Option<S>>,
+    algorithm: SizingAlgorithm,
+    missing_basis_is_indefinite: bool,
+) -> Size<Result<Option<S>, SizingResolutionError<S>>> {
+    Size::new(
+        resolve_preferred_optional(
+            &size.width,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            basis.width,
+            missing_basis_is_indefinite,
+        ),
+        resolve_preferred_optional(
+            &size.height,
+            algorithm,
+            PhysicalAxis::Vertical,
+            basis.height,
+            missing_basis_is_indefinite,
+        ),
+    )
+}
+
+fn resolve_minimum_size<S: LayoutScalar>(
+    size: &Size<super::MinSizeOf<S>>,
+    basis: Size<Option<S>>,
+    algorithm: SizingAlgorithm,
+    missing_basis_is_indefinite: bool,
+) -> Size<Result<Option<S>, SizingResolutionError<S>>> {
+    Size::new(
+        resolve_minimum_optional(
+            &size.width,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            basis.width,
+            missing_basis_is_indefinite,
+        ),
+        resolve_minimum_optional(
+            &size.height,
+            algorithm,
+            PhysicalAxis::Vertical,
+            basis.height,
+            missing_basis_is_indefinite,
+        ),
+    )
+}
+
+fn resolve_maximum_size<S: LayoutScalar>(
+    size: &Size<super::MaxSizeOf<S>>,
+    basis: Size<Option<S>>,
+    algorithm: SizingAlgorithm,
+    missing_basis_is_indefinite: bool,
+) -> Size<Result<Option<S>, SizingResolutionError<S>>> {
+    Size::new(
+        resolve_maximum_optional(
+            &size.width,
+            algorithm,
+            PhysicalAxis::Horizontal,
+            basis.width,
+            missing_basis_is_indefinite,
+        ),
+        resolve_maximum_optional(
+            &size.height,
+            algorithm,
+            PhysicalAxis::Vertical,
+            basis.height,
+            missing_basis_is_indefinite,
+        ),
+    )
 }
 
 fn resolve_auto_optional<S: LayoutScalar>(
