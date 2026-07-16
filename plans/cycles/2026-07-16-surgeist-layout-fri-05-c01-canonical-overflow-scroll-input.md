@@ -54,33 +54,33 @@ C06 after its inputs settle. `just parity-all` remains FRI-13-owned.
 ## Impacts
 Public API: intentional breaking replacement of the raw overflow point and
 phase-unsafe predicates, plus additive `Auto`, `ComputedOverflow`, and D-02
-input types, aliases, accessors, and `NodeInputOf` fields. Root migration remains
-the later FRI-05 handoff.
+input types, aliases, accessors, and `NodeInputOf` fields. The input-deferred
+`ScrollUnsupportedFeature` variants and `ScrollOverflowCouplingPolicy` are
+removed; C02 retains ownership of geometry-error replacement. Root migration
+remains the later FRI-05 handoff.
 Dependencies, features, generated artifacts, docs, examples, MSRV, root, and
 siblings: unchanged. Safety: all owned Rust remains unsafe-free.
 ## Tasks
-### `C01-T1` Canonical Computed And Used Overflow Phases
+### `C01-T1` Canonical Computed Overflow Model
 **Files:** `src/node_input.rs`, `src/scroll.rs`, `src/lib.rs`, and focused model
 and public-contract tests.
 **Outcome:** Add `Overflow::Auto`, `ComputedOverflow`, its exact construction
 error, constant/default, private fields, accessors, computed scrollability and
-pair-level independent-formatting-context predicate, plus one crate-private
-used pair that converts replaced `Hidden` to `Clip` without mutating computed
-input. Adapt only exhaustive existing overflow matches required to compile;
-leave `NodeInputOf` migration to T3.
+pair-level independent-formatting-context predicate. Adapt only the exhaustive
+existing overflow match required to compile; leave the private used phase and
+`NodeInputOf` migration to T3.
 **RED:** Add tests with the `fri05_c01_computed_overflow_` prefix first. They
 fail because `Auto`, `ComputedOverflow`, and the typed error do not exist.
 Record the expected compile/test failure before implementation.
 **Acceptance:** An exhaustive 25-pair table proves exactly 13 accepted and 12
 rejected pairs, `VISIBLE`, default, accessors, equality/debug/copy behavior,
-and atomic errors. All five values prove computed scrollability, complete-pair
-block behavior, ordinary used identity, replaced-hidden conversion, clipping,
-range, and gutter classification without a public used type or normalizer.
+and atomic errors. All five values prove computed scrollability and complete-pair
+block behavior without a used type, normalizer, dead-code exception, or T3 work.
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c01_computed_overflow_
-just verify
-just verify-generator
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
 ```
 **Dependency:** Clean sequence and cycle base.
 **Intended commit:** `api(layout): add canonical computed overflow`.
@@ -104,8 +104,8 @@ is introduced.
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c01_scroll_input_
-just verify
-just verify-generator
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
 ```
 **Dependency:** `C01-T1` supplies the overflow phase conventions.
 **Intended commit:** `api(layout): add scroll property input domains`.
@@ -115,28 +115,34 @@ compute callers and their tests/support, plus
 `tests/layout/browser_parity/support.rs`.
 **Outcome:** Change `NodeInputOf::overflow` to `ComputedOverflow`; add all D-02
 fields and exact defaults; migrate every owned construction and accessor; remove
-public phase-unsafe per-axis predicates; and add only the bounded legacy fixture
-pair coupling before one atomic computed-overflow construction.
+public phase-unsafe per-axis predicates; add and consume the crate-private used
+pair with replaced-`Hidden` conversion; remove the eight input-deferred
+`ScrollUnsupportedFeature` variants, `is_phase_one_deferred`,
+`ScrollOverflowCouplingPolicy`, its reexport, and related tests; and add only the
+bounded legacy fixture coupling before one atomic computed-overflow construction.
 **RED:** Add `fri05_c01_node_input_` field/default/public-surface tests and
 `fri05_c01_legacy_overflow_` parser tables first. They fail because the node
-field remains mutable, D-02 fields are absent, and cross-group fixture values
-cannot construct canonical input. Record both expected failures.
+field remains mutable, D-02 fields and the private used phase are absent, the
+deferred public surface remains, and cross-group fixture values cannot construct
+canonical input. Record both expected failures.
 **Acceptance:** Default and generic inputs prove every exact field type and
 initial value. No owned source retains `Point<Overflow>`, mutable axis writes,
-or the removed public per-axis methods. Existing direct tests use already
-computed canonical pairs without a production normalizer. The parser table
-covers all 25 authored pairs, every omitted-axis orientation, exact `Auto`, and
-invalid tokens; all checked-in XML parses, including the 96 explicit legacy
-pairs, and recursively lowers every input node without changing helper,
-serializer, HTML, manifest, XML, report, or
-provenance bytes. Existing geometry tests remain green without claiming C02-C05
-integration.
+the removed public per-axis methods, input-deferred variants/policy/reexport, or
+their public construction paths; compile-fail and static tests prove those
+surfaces absent. All five used values prove ordinary identity,
+replaced-hidden conversion, clipping, range, and gutter classification through
+migrated consumers. Existing direct tests use already computed canonical pairs
+without a production normalizer. The parser table covers all 25 authored pairs,
+every omitted-axis orientation, exact `Auto`, and invalid tokens; all checked-in
+XML, including the 96 explicit legacy pairs, recursively lowers every input node
+without changing helper, serializer, HTML, manifest, XML, report, or provenance
+bytes. Existing geometry tests remain green without claiming C02-C05 integration.
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c01_
-just verify
-just verify-generator
-just corpus-check
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just corpus-check
 ```
 **Dependency:** `C01-T2` completes every field domain before the atomic public
 input migration.
@@ -144,15 +150,15 @@ input migration.
 ## Cycle Acceptance
 1. All three task ranges satisfy RED/GREEN evidence and independent clean task reviews.
 2. Computed and used overflow phases, all 25 pair outcomes, D-02 domains, defaults, and scalar failures match the reviewed matrices.
-3. `NodeInputOf` and every owned caller carry only canonical input; no public or fixture path can construct a mixed pair.
+3. `NodeInputOf` and every owned caller carry only canonical input; no public or fixture path can construct a mixed pair, and no deferred input capability or coupling policy remains.
 4. The finite legacy parser transition covers current explicit and omitted-axis cases and remains confined to test support for C06 removal.
 5. Normal, generator, and corpus checks pass with no generation run or generated/input artifact delta.
 6. C02-C07 geometry, integration, final fixture lowering, generation, docs, and handoff work remain outside the range.
 ## Final Verification
 ```sh
-just verify
-just verify-generator
-just corpus-check
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just corpus-check
 git diff --check
 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
 ```
