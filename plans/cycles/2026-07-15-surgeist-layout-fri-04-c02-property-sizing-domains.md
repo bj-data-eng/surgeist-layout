@@ -139,7 +139,7 @@ cargo test --locked -p surgeist-layout property_field_migration_
 just verify
 just verify-generator
 ```
-**Current ordered range:** Not started.
+**Current ordered range:** `f05dbe96c15aeb1bdcf7020652435d5562bad044`.
 **Dependency:** `C02-T2` completes the independent track migration first.
 **Intended commit:** `api(layout): migrate property sizing fields`.
 
