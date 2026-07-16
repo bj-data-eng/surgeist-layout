@@ -18,10 +18,11 @@ invalid numeric errors preserved without routing a valid calculation through
 
 ## Boundary
 The cycle starts from the published and remotely verified C02 property-field
-migration. The iterative calculation evaluator is complete, but property and
-track helpers still accept only one affine leaf and return `NonNumeric` for a
-nested valid calculation. Current algorithms already own distinct
-missing-percentage behavior that must remain at the consuming call site.
+migration. Task-clean C03-T1 replaces affine-only property resolution with the
+full program. Because that shared helper reaches downstream consumers, T2-T4
+own persistent front-door characterization and change production only if a
+test exposes a call-site defect. Each algorithm's distinct missing-percentage
+behavior remains at its consuming call site; passing behavior is not forced red.
 
 This cycle owns shared numeric property resolution and the existing numeric
 consumers in leaf/root, block/positioned, flex, grid/grid-lanes, and track
@@ -73,19 +74,19 @@ cargo test --locked -p surgeist-layout fri04_c03_leaf_root_
 just verify
 just verify-generator
 ```
-**Current ordered range:** none.
+**Current ordered range:** `c65f4d201696664cdfd220434af1f8d9e93adce7`.
 **Dependency:** Published C02 property domains at the cycle base.
 **Intended commit:** `fix(layout): consume numeric sizing calculations at leaf and root`.
 
-### `C03-T2` Block And Positioned Numeric Consumption
+### `C03-T2` Block And Positioned Numeric Evidence
 **Files:** `src/block.rs`, `src/block_tests.rs`, and focused front-door tests
 needed to exercise absolute-position sizing.
-**Outcome:** Resolve complete preferred/minimum/maximum calculations at every
-ordinary block and positioned call site while retaining each path's existing
+**Outcome:** Persist evidence that every block and positioned call site consumes
+complete preferred/minimum/maximum calculations while retaining its existing
 percentage-as-auto/indefinite or required-basis rule.
-**RED:** Add tests named with the `fri04_c03_block_positioned_` prefix before
-implementation. They fail on nested calculations or expose the wrong missing,
-negative, or invalid-numeric result. Record the expected failures.
+**RED:** Not applicable when T1 already supplies correct behavior. Add tests
+named with the `fri04_c03_block_positioned_` prefix first and record their
+characterization result; any substantive failure is the RED for a focused fix.
 **Acceptance:** Real block and positioned layouts cover nested min/max/clamp in
 both axes, min/max constraint interaction, non-negative used values, missing
 basis in intrinsic and definite-required paths, and invalid numeric errors.
@@ -99,18 +100,16 @@ just verify-generator
 ```
 **Current ordered range:** none.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
-**Intended commit:** `fix(layout): consume block and positioned sizing calculations`.
+**Intended commit:** `test(layout): cover block and positioned sizing calculations`.
 
-### `C03-T3` Flex Numeric Consumption
+### `C03-T3` Flex Numeric Evidence
 **Files:** `src/flex.rs` and `src/flex_tests.rs`.
-**Outcome:** Resolve complete preferred/minimum/maximum and flex-basis numeric
-calculations at every current flex call site, including main/cross and
-known/unknown sizing paths, while retaining the existing unresolved-percentage
-content rule only at its Flexbox-owned site.
-**RED:** Add tests named with the `fri04_c03_flex_` prefix before implementation.
-They fail because nested property or flex-basis calculations are reported as
-`NonNumeric` or silently take an intrinsic fallback. Record the expected
-failures.
+**Outcome:** Persist evidence that every current flex call site consumes complete
+preferred/minimum/maximum and flex-basis calculations across main/cross and
+known/unknown paths while retaining the Flexbox-owned missing-basis rule.
+**RED:** Not applicable when T1 already supplies correct behavior. Add tests
+named with the `fri04_c03_flex_` prefix first and record their characterization
+result; any substantive failure is the RED for a focused fix.
 **Acceptance:** Real flex layouts cover nested min/max/clamp for all four
 property roles, both physical axes, negative final clamping, definite and
 missing main-size bases, and invalid numeric errors. A basis-dependent flex
@@ -124,17 +123,16 @@ just verify-generator
 ```
 **Current ordered range:** none.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
-**Intended commit:** `fix(layout): consume flex sizing calculations`.
-### `C03-T4` Grid, Lanes, And Track Numeric Consumption
+**Intended commit:** `test(layout): cover flex sizing calculations`.
+### `C03-T4` Grid, Lanes, And Track Numeric Evidence
 **Files:** `src/value.rs`, `src/grid/mod.rs`, `src/grid/child.rs`,
 `src/grid/lanes.rs`, `src/grid/tracks.rs`, and `src/grid_tests.rs`.
-**Outcome:** Resolve complete preferred/minimum/maximum calculations throughout
-ordinary grid and grid-lanes sizing, and complete numeric min/max track breadth
-and track `fit-content()` limit resolution in existing track algorithms.
-**RED:** Add tests named with the `fri04_c03_grid_track_` prefix before
-implementation. They fail because nested grid or track calculations take a
-`NonNumeric`/intrinsic fallback or because the complete track limit is not
-applied. Record the expected failures.
+**Outcome:** Persist evidence that grid/grid-lanes consume complete property
+calculations and existing track algorithms resolve complete numeric min/max
+breadths and `fit-content()` limits.
+**RED:** Not applicable where prior tasks already supply correct behavior. Add
+tests named with the `fri04_c03_grid_track_` prefix first and record their
+characterization result; any substantive failure is the RED for a focused fix.
 **Acceptance:** Real grid and grid-lanes layouts cover nested property
 calculations, both axes, negative final clamping, missing and definite bases,
 and invalid numeric errors. Track tests cover nested fixed min/max breadths,
@@ -149,7 +147,7 @@ just verify-generator
 ```
 **Current ordered range:** none.
 **Dependency:** `C03-T1` supplies shared complete-program property resolution.
-**Intended commit:** `fix(layout): consume grid and track sizing calculations`.
+**Intended commit:** `test(layout): cover grid and track sizing calculations`.
 
 ## Cycle Acceptance
 1. All four task ranges have independent clean task reviews and preserve their
