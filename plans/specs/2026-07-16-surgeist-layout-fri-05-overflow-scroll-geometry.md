@@ -27,7 +27,8 @@ The outcome is one layout-owned overflow contract in which:
    and scroll snap input are finite layout-ready values with exact defaults;
 4. one canonical geometry factory derives border, padding, content, scrollport,
    overflow-clip, optimal-viewing-region, gutter, and directional range facts
-   from common primitives;
+   from common primitives, including format-specific flex origins and current
+   content-distribution alignment overflow;
 5. no public constructor can combine an unrelated scrollport, range, clip, or
    gutter rectangle into an apparently valid `ScrollGeometryOf`;
 6. one shared accumulator applies the same own-box, child-area, nested-overflow,
@@ -71,8 +72,9 @@ This specification owns:
 - scalar-generic scroll rectangles, physical clip intervals, box rectangles,
   gutter rectangles, optimal viewing regions, target geometry, and canonical
   `ScrollGeometryOf` construction;
-- directional range computation that preserves the signed physical range types
-  completed by `FRI-02`;
+- directional range computation, format-specific flex scroll origins, and
+  current content-distribution start-side reachability that preserve the signed
+  physical range types completed by `FRI-02`;
 - shared scrollable-overflow accumulation for current block, flex, ordinary
   grid, subgrid, and grid-lanes formatting paths, including their current
   absolute-child paths;
@@ -156,6 +158,14 @@ when the item's computed overflow in the applicable axis is non-scrollable:
 - <https://www.w3.org/TR/css-grid-2/#min-size-auto>
 - <https://www.w3.org/TR/css-flexbox-1/#min-size-auto>
 
+CSS Box Alignment Level 3 defines the special interaction between overflowing
+content distribution and scroll containers. A non-normal content-distribution
+value reduces the unreachable start-side region only enough to make the final
+in-flow alignment subject reachable in its start-aligned position; unrelated
+out-of-flow overflow does not enlarge that adjustment:
+
+- <https://www.w3.org/TR/css-align-3/#overflow-scroll-position>
+
 CSS Scroll Snap Level 1 defines physical and logical snap axes, proximity and
 mandatory strictness, the scrollport-derived optimal viewing region and
 snapport, absolute scroll-margin outsets, block/inline snap alignment, and snap
@@ -189,10 +199,12 @@ This table describes clean published commit
 | --- | --- | --- |
 | `E-OVERFLOW-PAIR` | `NodeInputOf::overflow` is a mutable `Point<Overflow>` and `Overflow` omits `Auto`. The fixture parser maps `auto` to `Scroll`. | Add `Auto`, require a canonical computed pair, and preserve `auto` through fixture lowering. |
 | `E-SCROLLABLE-PREDICATE` | `Overflow::is_scrollable()` is true only for `Scroll`; grid automatic-minimum predicates call it. | Treat computed `Hidden`, `Scroll`, and `Auto` as scrollable without applying replaced used-value conversion to the auto-minimum test. |
+| `E-OVERFLOW-PREDICATES` | Public `Overflow::clips_contents()` and `blocks_margin_collapse()` are per-axis methods used directly by block callers, but no phase distinguishes computed BFC behavior from replaced-box used clipping. | Give each current caller one explicit computed-pair or used-axis predicate and make `Auto` participate in clipping and block formatting-context behavior. |
 | `E-DEFERRED-FEATURES` | `ScrollUnsupportedFeature` lists overflow auto, clip margin, stable/both-edge gutters, scroll padding, scroll margin, snap, and mixed-axis coupling as deferred. | Replace placeholders with real input/output contracts and remove the obsolete deferred enum. |
 | `E-ARBITRARY-GEOMETRY` | `ScrollbarGutterRectsOf::new` accepts arbitrary rectangles and `ScrollGeometryOf::new` accepts independently supplied scrollport, clip, overflow, range, and gutters. | Make derived geometry output-only and construct it through one canonical crate-owned factory. |
 | `E-RECT-END` | `ScrollRectOf::new` validates origin and size components but not finite `origin + size` endpoints. | Validate every endpoint and return a typed construction error. |
-| `E-RANGE-DIRECTION` | `physical_scroll_range_from_overflow_rects` measures only physical right/bottom overflow before projecting through `FlowAxes`. | Measure the logical end side selected by each physical progression, then project `[0, extent]` through `FlowAxes`. |
+| `E-RANGE-DIRECTION` | `physical_scroll_range_from_overflow_rects` measures only physical right/bottom overflow before projecting through `FlowAxes`. | Measure the applicable formatting-context scroll-origin end side, admit the bounded content-distribution start side, then preserve FRI-02 flow-relative projection. |
+| `E-ALIGNMENT-ORIGIN` | Existing flex/grid content distribution can position an overflowing in-flow subject across the initial scrollport, while current range construction has only a zero-to-end extent. | Retain zero as the initial anchor and derive both range bounds from the final alignment subject, complete overflow, and format-specific scroll-origin progression. |
 | `E-ONE-RECT-CLIP` | `ScrollGeometryOf` stores one optional clip rectangle although `visible/clip` mixed pairs require clipping only one axis. | Store independent optional physical x/y clip intervals. |
 | `E-BLOCK-MARGIN` | Block overflow accumulation adds signed margin sums to size and can construct a negative-size rectangle. | Union the border area with only positive margin outsets; negative margins may position a box but never invalidate its area. |
 | `E-SMALL-BOX` | Some block content-box subtraction is not saturated before scroll geometry construction. | Saturate effective edge reservations and every derived box dimension at zero. |
@@ -259,6 +271,28 @@ Layout derives a private used-overflow pair for geometry. On a replaced box,
 each computed `Hidden` axis becomes used `Clip`; all other values remain
 unchanged. This conversion does not mutate the public input and does not affect
 the computed-overflow automatic-minimum predicate.
+
+Every other current overflow decision names its phase:
+
+| Decision | Owning value | Exact rule |
+| --- | --- | --- |
+| Grid/flex content-based automatic minimum | One computed `Overflow` axis | `Hidden`, `Scroll`, and `Auto` are scrollable; `Visible` and `Clip` are non-scrollable. |
+| Independent formatting context for a non-replaced block container | Complete `ComputedOverflow` pair | Every canonical pair from the scrollable group establishes one; every canonical `Visible`/`Clip` pair does not. |
+| Block child-margin collapse | Complete `ComputedOverflow` pair | Collapse is blocked exactly when the pair establishes that independent formatting context. |
+| Descendant clipping | One private used-overflow axis | `Clip`, `Hidden`, `Scroll`, and `Auto` clip; `Visible` does not. |
+| Programmatic range | One private used-overflow axis | `Hidden`, `Scroll`, and `Auto` expose range; `Visible` and `Clip` do not. |
+| Classic gutter/UI policy | One private used-overflow axis plus gutter state and measured overflow | `Scroll` is forced, `Auto` is conditional, `Hidden` is stable-gutter-only, and `Visible`/`Clip` never reserve. |
+
+The public per-axis `clips_contents()` and `blocks_margin_collapse()` methods are
+removed. They conflate computed and used phases. `ComputedOverflow` exposes the
+pair-level independent-formatting-context predicate used by block; private
+used-axis methods own clip, range, and gutter decisions.
+
+A replaced computed `Hidden` axis is converted to used `Clip` before clip,
+range, or gutter policy. It therefore uses the overflow clip edge, exposes no
+range, and reserves no stable gutter. Its computed value remains scrollable for
+the grid/flex automatic-minimum condition. Replaced boxes do not enter the block
+child-margin-collapse decision.
 
 Rejected alternative: retaining `Point<Overflow>` permits a post-construction
 mixed pair that contradicts computed CSS.
@@ -359,6 +393,13 @@ own.
 - the optimal viewing region; and
 - the container's `ScrollSnapType`.
 
+The value privately retains one canonical source record containing the final
+border size, resolved edges, effective gutter state, used overflow, clip margin,
+resolved scroll padding, accumulated overflow, `ScrollOriginAxes`, active
+alignment subject, and snap type. Rounding rebuilds from that record. These
+private provenance fields have no independent public setters or duplicate
+constructor path; public accessors expose only the derived contract above.
+
 The output clip is not one optional rectangle. It is a public read-only value
 with one optional finite ordered interval per physical axis:
 
@@ -424,7 +465,9 @@ factory receives only source facts:
 - effective scrollbar state and thickness;
 - overflow clip margin;
 - resolved scroll padding;
-- final accumulated scrollable overflow; and
+- final accumulated scrollable overflow;
+- format-specific scroll-origin progression and any active final in-flow
+  content-distribution subject; and
 - scroll snap type.
 
 It derives every output rectangle, clip interval, range, and gutter. Callers do
@@ -451,7 +494,8 @@ The factory enforces these invariants:
 11. the optimal viewing region is an inset of the scrollport and never has a
     negative size; and
 12. the physical range is exactly the `FlowAxes` projection of the derived
-    non-negative logical extents.
+    ordered flow-relative bounds from non-negative origin-start and origin-end
+    extents.
 
 `ScrollUnsupportedFeature` and `ScrollOverflowCouplingPolicy` are removed. The
 first no longer describes unsupported behavior, and the second is replaced by
@@ -508,13 +552,17 @@ The block-axis scrollbar reservation matrix is:
 | `Visible` or `Clip` | None | None | None |
 | `Hidden` | None | Inline end | Inline end plus inline start |
 | `Scroll` | Inline end | Inline end | Inline end plus inline start |
-| `Auto`, no end-side overflow | None | Inline end | Inline end plus inline start |
-| `Auto`, end-side overflow | Inline end | Inline end | Inline end plus inline start |
+| `Auto`, zero derived range span | None | Inline end | Inline end plus inline start |
+| `Auto`, non-zero derived range span | Inline end | Inline end | Inline end plus inline start |
+
+This matrix receives the private used-overflow value. A replaced computed
+`Hidden` axis has already become used `Clip`, so it follows the no-gutter row.
 
 The inline-axis scrollbar, which occupies block-end, is reserved for `Scroll`
-and for `Auto` with end-side overflow. `Hidden`, `Visible`, and `Clip` do not
-reserve it. `scrollbar-gutter: stable` does not force or mirror a block-edge
-gutter.
+and for `Auto` with a non-zero derived range span. That span includes the
+bounded content-distribution start extent and ordinary origin-end extent.
+`Hidden`, `Visible`, and `Clip` do not reserve it. `scrollbar-gutter: stable`
+does not force or mirror a block-edge gutter.
 
 Zero `ScrollbarWidthOf` produces no layout reservation and no gutter rectangle
 even when a scrollbar is logically present. Overflow clipping and range remain
@@ -526,7 +574,7 @@ private monotone state machine:
 1. start with forced `Scroll` reservations and stable block-axis reservations,
    but no conditional auto reservation;
 2. perform layout into temporary pass output;
-3. derive end-side overflow against that pass's scrollport;
+3. derive the provisional start/end range span against that pass's scrollport;
 4. add each newly required `Auto` reservation;
 5. rerun only when a newly added reservation has non-zero thickness and changes
    available geometry; and
@@ -575,7 +623,10 @@ formats use a different contribution helper.
 `src/scroll.rs` owns one crate-private accumulator used by root, block, flex,
 ordinary grid, subgrid, and grid-lanes. It tracks minimum and maximum physical
 coordinates independently on x and y, plus the final in-flow end edges needed
-for terminal padding. It does not use `Size::ZERO` as an all-axis early return.
+for terminal padding. For each currently implemented content-distribution axis,
+it also accepts the final bounding interval of the in-flow alignment subject,
+separate from full scrollable overflow. It does not use `Size::ZERO` as an
+all-axis early return.
 
 The contribution matrix is:
 
@@ -589,6 +640,7 @@ The contribution matrix is:
 | Current absolute/out-of-flow child laid out against this containing block | Include its final margin area exactly once. Later positioned-layout completeness remains FRI-10-owned. |
 | Child nested scrollable overflow | Include independently on x and y even when the child's border box has zero area; translate by final child location and apply the child's per-axis clip first. |
 | Terminal own padding | Extend the final in-flow/floated logical end edge by the corresponding own padding, unless another included source already reaches farther. |
+| Active content-distribution subject | Record the final in-flow subject bounds for range-origin adjustment; exclude out-of-flow boxes and nested overflow beyond that subject. |
 
 The margin-area operation is equivalent to unioning the border box with a
 well-ordered margin box: only positive outsets can enlarge the union. Signed
@@ -611,39 +663,106 @@ negative origins, child clips, and transitive overflow.
 Rejected alternative: ignoring every zero-area child also ignores the standard
 case where a zero-area box has non-zero descendant scrollable overflow.
 
-### `D-09` Ranges Measure The Reachable Logical End Side
+### `D-09` Ranges Own Format Origins And Alignment Overflow
 
-For each exposed physical axis, the canonical factory consults
-`FlowAxes::physical_axis_progression(axis)`:
+The initial layout scroll offset is physical zero. Every range contains zero.
+Root can later choose another current or snap-initial offset inside that range,
+but layout does not retain it.
 
-- for an increasing physical progression, extent is
-  `max(scrollable_overflow.end - scrollport.end, 0)`;
-- for a decreasing physical progression, extent is
-  `max(scrollport.start - scrollable_overflow.start, 0)`; and
-- for a non-exposed axis, extent is zero.
+One private `ScrollOriginAxes` describes, for each flow-relative inline/block
+axis, whether the formatting context's scroll-origin progression is flow-endward
+or flow-startward:
 
-The two physical extents are mapped to logical inline/block roles. Layout
-constructs one `FlowRelativeScrollRangeOf<S>` with `[0, extent]` on each exposed
-logical axis and projects it through `FlowAxes::physical_scroll_range`.
+| Formatting context | Origin progression |
+| --- | --- |
+| Root, leaf, block, ordinary grid, subgrid, and grid-lanes | Inline-start to inline-end and block-start to block-end from `FlowAxes`. |
+| Flex main axis | Main-start to main-end from the completed `FlexAxes`; row/column reverse can make this flow-startward. |
+| Flex cross axis | Cross-start to cross-end from `FlexAxes`; wrap-reverse can make this flow-startward. |
+
+Scrollbar placement still follows writing-mode `FlowAxes` as specified in D-06.
+Only range reachability uses the formatting context's scroll origin.
+
+For each exposed origin-relative axis, where positive means origin-start toward
+origin-end, the factory derives:
+
+```text
+end_extent = overflow beyond the scrollport's origin-end edge
+start_extent = active alignment subject beyond the scrollport's origin-start edge
+origin_relative_range = [-start_extent, end_extent]
+```
+
+For an increasing physical origin progression, the exact magnitudes are
+`max(overflow.end - scrollport.end, 0)` and, when active,
+`max(scrollport.start - subject.start, 0)`. For a decreasing physical origin
+progression they are `max(scrollport.start - overflow.start, 0)` and, when
+active, `max(subject.end - scrollport.end, 0)`, respectively.
+
+`end_extent` uses the complete accumulated scrollable-overflow rectangle.
+`start_extent` is non-zero only when the formatting algorithm actually applied a
+non-normal content-distribution value on that axis and its final in-flow
+alignment subject overflows origin-start. It is exactly the travel needed to
+place that subject's origin-start edge against the scrollport's origin-start
+edge.
+
+The current content-distribution mapping is finite:
+
+- flex `justify_content: Some` supplies the final main-axis subject;
+- flex `align_content: Some` supplies the final cross-axis line subject only
+  when that property applies to the formed lines;
+- grid `justify_content: Some` supplies the final inline track subject;
+- grid `align_content: Some` supplies the final block track subject; and
+- `None`, an inapplicable property, and a safe fallback that actually placed the
+  subject at origin-start supply zero start extent.
+
+The published block source does not consume `align_content`, so block supplies
+no alignment adjustment in FRI-05. FRI-05 does not add that missing block
+alignment algorithm. Item self-alignment, absolute alignment, and new alignment
+values also do not activate this adjustment; their final boxes remain ordinary
+contribution and FRI-09/FRI-10 keep their behavior ownership.
+
+An out-of-flow box or descendant overflow farther into origin-start than the
+in-flow alignment subject remains unreachable. It can enlarge `end_extent` only
+when it lies toward origin-end. This preserves the CSS distinction between the
+alignment subject and the complete scrollable-overflow area.
+
+The origin-relative interval is converted to a flow-relative interval before
+public output:
+
+- when origin progression is flow-endward, retain `[-start_extent, end_extent]`;
+- when origin progression is flow-startward, negate and swap it to
+  `[-end_extent, start_extent]`; and
+- when the axis does not expose range, use `[0, 0]`.
+
+Layout constructs one validated `FlowRelativeScrollRangeOf<S>` from those
+inline/block bounds and obtains the stored physical range only through
+`FlowAxes::physical_scroll_range`. FRI-02's signed types, ordering,
+canonical-zero behavior, conversion, clamp, and physical projection therefore
+remain authoritative.
 
 Consequences are exact:
 
-- normal rightward/downward axes produce `[0, extent]`;
-- reversed axes produce `[-extent, 0]`;
+- ordinary flow-endward overflow produces `[0, end_extent]` in that logical
+  axis;
+- a reversed flex-origin axis can produce `[-end_extent, 0]` before physical
+  projection;
+- unsafe end or center content distribution can produce a negative start bound
+  while retaining zero as the initial anchor;
+- center distribution can produce non-zero bounds on both sides of zero;
 - hidden, scroll, and auto expose a programmatic range;
 - visible and clip have `[0, 0]` even when overflow exists;
-- start-side physical overflow that lies in the logical unreachable region does
-  not increase the local range; and
-- the browser delta is always `maximum - minimum` on the corresponding physical
+- start-side overflow outside the bounded alignment subject remains
+  unreachable; and
+- the browser delta remains `maximum - minimum` on the corresponding physical
   axis.
 
 The accumulator's complete rectangle can still propagate to a visible ancestor;
-local reachability never destroys source geometry.
+local reachability never destroys source geometry. Rounding repeats the same
+origin/subject derivation from rounded primitives before FRI-02 projection.
 
-Existing implemented content alignment contributes its final box positions and
-terminal padding before this calculation. FRI-09 may later change those final
-positions or alignment-origin policy, but it consumes this range factory rather
-than adding a second range convention.
+FRI-09 may add alignment states or correct how a formatting algorithm positions
+its subject. It must feed the resulting subject into this FRI-05 origin contract;
+it does not own a second range convention or defer the existing alignment-origin
+behavior defined here.
 
 ### `D-10` Box And Content Extents Are Axis-Independent
 
@@ -669,17 +788,19 @@ never substitutes `content_size` for range.
 ### `D-11` Rounding Rebuilds Derived Geometry
 
 Rounding operates on the source border size, resolved edges, effective
-scrollbar state, accumulated overflow, scroll padding, and target border box in
-the existing cumulative-origin coordinate system. It then invokes the same
-canonical factories.
+scrollbar state, accumulated overflow, format-origin progression, active
+alignment subject, scroll padding, and target border box in the existing
+cumulative-origin coordinate system. It then invokes the same canonical
+factories.
 
 It does not independently round a scrollport, gutter, clip, range, and optimal
 viewing region and combine them through a public constructor. Rounded geometry
 therefore obeys the same coherence invariants as unrounded geometry.
 
-Range is recomputed from rounded scrollport and overflow bounds, then projected
-through the retained `FlowAxes`. Target geometry rounds its local border box;
-finite scroll-margin input and semantic snap values are retained.
+Range is recomputed from rounded scrollport, overflow, and alignment-subject
+bounds in the retained format origin, then projected through the retained
+`FlowAxes`. Target geometry rounds its local border box; finite scroll-margin
+input and semantic snap values are retained.
 
 ### `D-12` Browser Scroll Expectations Compare Range Span
 
@@ -760,6 +881,7 @@ The breaking API delta is:
 | `NodeInputOf::overflow: Point<Overflow>` | `NodeInputOf::overflow: ComputedOverflow` |
 | No clip-margin/gutter/padding/margin/snap fields | The exact normalized fields in D-02 |
 | `Overflow` without `Auto` | `Overflow` with `Auto` and corrected predicates |
+| Per-axis public `clips_contents()` and `blocks_margin_collapse()` | Pair-level computed IFC/BFC predicate plus private used-axis clip/range/gutter predicates |
 | Public `ScrollRectOf::new` returning `ScrollUnsupportedFeature` | `ScrollRectOf::try_new` returning `ScrollRectErrorOf<S>` |
 | Public `ScrollbarGutterRectsOf::new` | No public constructor; canonical output accessors only |
 | Public `ScrollGeometryOf::new` | No public constructor; layout factory output only |
@@ -783,15 +905,21 @@ scrollbar field, or unsupported-feature enum remains.
 
 ## FRI-05.6 Behavior Matrices
 
-### Overflow Axis Matrix
+### Computed And Used Overflow Matrix
 
-| Computed value | Computed scrollable | Ordinary used value | Replaced used value | Local clip | Range exposure | Conditional UI |
+| Computed value | Computed scrollable | Computed block-container IFC/BFC | Ordinary used value | Replaced used value | Used clip/range | Used classic gutter/UI |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Visible` | No | `Visible` | `Visible` | None | No | None |
-| `Clip` | No | `Clip` | `Clip` | Overflow clip edge | No | None |
-| `Hidden` | Yes | `Hidden` | `Clip` | Scrollport; clip edge when replaced | Yes ordinarily; no when replaced | No user UI; stable inline gutter may reserve |
-| `Scroll` | Yes | `Scroll` | `Scroll` | Scrollport | Yes | Always present when classic thickness is non-zero |
-| `Auto` | Yes | `Auto` | `Auto` | Scrollport | Yes | Present only with end-side overflow |
+| `Visible` | No | No | `Visible` | `Visible` | No clip; no range | None |
+| `Clip` | No | No | `Clip` | `Clip` | Clip edge; no range | None |
+| `Hidden` | Yes | Yes | `Hidden` | `Clip` | Ordinary: scrollport clip and range. Replaced: clip edge and no range. | Ordinary: no UI; stable inline gutter may reserve. Replaced: none. |
+| `Scroll` | Yes | Yes | `Scroll` | `Scroll` | Scrollport clip and range | Forced classic UI/reservation when thickness is non-zero |
+| `Auto` | Yes | Yes | `Auto` | `Auto` | Scrollport clip and range | Conditional on non-zero derived range span |
+
+The IFC/BFC column applies to a non-replaced block container and is a pair-level
+decision. Canonical construction guarantees both axes are in the same computed
+scrollability group. This table does not add the missing general BFC/float
+algorithm owned by FRI-06; it requires current margin-collapse and existing
+formatting-context branches to classify `Auto` correctly.
 
 ### Geometry Presence Matrix
 
@@ -837,7 +965,8 @@ matrix.
 Root and leaf use the same canonical box/reservation/range factory as formatting
 containers. Leaf measurement receives the effective content box for the current
 auto-gutter pass. A stable pass emits container and target geometry; rounding
-rebuilds both.
+rebuilds both. Their scroll-origin axes are the ordinary `FlowAxes` progression
+and they have no content-distribution start adjustment.
 
 ### Block
 
@@ -846,7 +975,11 @@ retains current margin-collapse and line/float calculations, but contributes
 their final geometry through the shared operations. Content-box subtraction is
 saturated before any child layout or accumulator seed. In-flow children,
 current floats, current inline fragments, and current absolute children retain
-their nested geometry and are included exactly once.
+their nested geometry and are included exactly once. Block's current
+margin-collapse decision uses the complete computed-overflow IFC/BFC predicate,
+so `Auto` follows hidden/scroll and `Visible`/`Clip` do not. Its range origin is
+flow inline/block start and it supplies no content-distribution start adjustment
+until FRI-09 adds block content alignment.
 
 ### Flex
 
@@ -854,8 +987,11 @@ Flex performs its sizing and placement with the effective scrollbar reservation
 for the current pass. After final placement it accumulates every in-flow item and
 current absolute item in source/output identity order, retains child geometry,
 and emits its own canonical geometry. Auto minimum uses the computed overflow
-predicate. FRI-07 remains responsible for missing flex sizing and positioning
-semantics, not for a second overflow path.
+predicate. Flex derives main/cross scroll-origin progression from `FlexAxes`,
+including row/column reverse and wrap-reverse, and supplies the final applicable
+justify/align-content subjects independently from out-of-flow overflow. FRI-07
+remains responsible for missing flex sizing and positioning semantics, not for a
+second overflow path.
 
 ### Grid, Subgrid, And Grid-Lanes
 
@@ -868,7 +1004,9 @@ second range convention.
 
 Grid and lanes automatic-minimum predicates use computed `Hidden`, `Scroll`, and
 `Auto` as scrollable. The ordinary grid and lanes proof covers both physical axes
-and every `FlowAxes` projection applicable to their logical sizing axes.
+and every `FlowAxes` projection applicable to their logical sizing axes. Their
+scroll origins follow flow inline/block start, and their final justified/aligned
+track rectangles are the content-distribution subjects.
 
 ### Cache And Diagnostics
 
@@ -887,9 +1025,11 @@ The initiative requires these named evidence families:
 | Evidence family | Required proof |
 | --- | --- |
 | Computed overflow construction | Exhaustive 25-pair table proves 13 accepted and 12 rejected pairs, defaults, accessors, and replaced used-value derivation. |
+| Overflow predicate phase | Auto/hidden/scroll versus visible/clip prove computed auto minimum, current block margin/IFC behavior, used clipping/range, and ordinary versus replaced-hidden gutter behavior through real front doors. |
 | Property model | Defaults, finite/negative validation, padding resolution, snap closed states, no-default output geometry, and public construction in `f32` and `f64`. |
 | Canonical geometry | Box nesting, finite ends, partial-axis clips, clip-margin reference boxes, gutter placement, proportional small-box saturation, and constructor inaccessibility. |
-| Flow direction | Range and gutter placement across all ten `WritingMode`/`Direction` pairs before and after rounding, including every reversed physical axis. |
+| Flow direction and origin | Range and gutter placement across all ten `WritingMode`/`Direction` pairs before and after rounding, including every reversed physical axis plus flex row/column reverse and wrap-reverse origin mappings. |
+| Alignment-origin range | Existing flex/grid start, end, center, safe fallback, reverse, and distributed content cases prove zero initial anchor, both-sided bounds, start-alignment reach, terminal padding, and exclusion of farther start-side out-of-flow overflow in all flow mappings. |
 | Auto coupling | No-overflow, x-only, y-only, x-induces-y, y-induces-x, forced scroll, hidden stable, stable both-edges, and zero-thickness overlay cases. |
 | Block blockers | The named negative-margin and smaller-than-scrollbar browser families complete without panic and match geometry. |
 | Nested contribution | Visible, partial clip, clip margin, hidden, scroll, and auto child geometry under block, flex, grid, and lanes; current absolute children included once. |
@@ -915,13 +1055,13 @@ executable `unsafe`.
 
 | Module or artifact | Desired responsibility |
 | --- | --- |
-| `src/node_input.rs` | Computed overflow pair, corrected predicate, layout-ready scroll property and snap input types, defaults, and `NodeInputOf` fields. |
-| `src/scroll.rs` | Rect errors, used-overflow derivation, reservation state, box/clip/gutter/target geometry, canonical factory, directional range, shared accumulator, rounding support. |
+| `src/node_input.rs` | Computed overflow pair, phase-correct pair/axis predicates, layout-ready scroll property and snap input types, defaults, and `NodeInputOf` fields. |
+| `src/scroll.rs` | Rect errors, used-overflow derivation, reservation state, box/clip/gutter/target geometry, format-origin/alignment range, canonical factory, shared accumulator, rounding support. |
 | `src/output.rs` | Target geometry storage, removal of independent scrollbar field, canonical helper methods. |
 | `src/compute.rs` | Root/leaf pass integration, contextual geometry errors, final rounding, cache-safe publication. |
 | `src/block.rs` | Shared accumulation calls, saturated constants, auto-gutter pass, retained child geometry. |
-| `src/flex.rs` | Flow-aware reservation, auto-gutter pass, retained child/absolute geometry, shared accumulation. |
-| `src/grid/mod.rs` | Grid container reservation/pass integration and final geometry. |
+| `src/flex.rs` | Flow-aware reservation, auto-gutter pass, retained child/absolute geometry, shared accumulation, `FlexAxes` scroll origin, and final content-distribution subjects. |
+| `src/grid/mod.rs` | Grid container reservation/pass integration, final content-distribution subjects, and final geometry. |
 | `src/grid/child.rs` | Final container-local item contribution, retained child/absolute geometry, zero-axis behavior. |
 | `src/grid/lanes.rs` and `src/grid/subgrid.rs` | Shared origin, contribution, clipping, and geometry behavior for lanes/subgrid paths. |
 | `src/grid/tracks.rs` | Correct computed-overflow auto-minimum predicate only; no unrelated track algorithm expansion. |
@@ -985,6 +1125,13 @@ scrollbar reservations, RTL scrollbars, flex nested overflow, grid overflow,
 subgrid overflow, and grid-lanes scrollers remain applicable evidence. Their
 HTML is changed only if a confirmed source-input bug is demonstrated.
 
+Existing `flex/overflow_scroll_main_axis_justify_content_end.html`, the flex
+safe justify/align-content overflow families, and the grid safe/unsafe
+justify/align-content overflow families are the browser-backed
+alignment-origin evidence. FRI-05 changes neither their authored alignment
+values nor the alignment algorithm merely to obtain a preferred range; it
+compares the range implied by their final browser-backed positions.
+
 ### One Final Full Regeneration
 
 During implementation, a scoped ExistingPinned generation may be used to
@@ -1031,8 +1178,9 @@ it:
    snap type, snap alignment, and snap stop to the new fields;
 5. migrate removed scroll constructors and the removed
    `NodeOutputOf::scrollbar_size` field to read-only geometry/accessors;
-6. consume per-axis clips, optimal viewing region, signed physical range, and
-   target geometry without recomputing leaf box invariants;
+6. consume per-axis clips, optimal viewing region, the zero-anchored signed
+   physical range including content-distribution origin adjustment, and target
+   geometry without recomputing leaf box invariants;
 7. preserve root ownership of transformed coordinate mapping, nearest-container
    association, current offsets, host events, scroll UI, CSSOM adaptation,
    target/focus scrolling, snap selection, and re-snapping;
@@ -1051,8 +1199,8 @@ An implementation sequence can derive these durable dependency boundaries
 without redesign:
 
 1. canonical computed-overflow and scroll-property input/output model;
-2. canonical rect, clip, gutter, range, target, factory, accumulator, and
-   rounding substrate;
+2. canonical rect, clip, gutter, format-origin/alignment range, target, factory,
+   accumulator, and rounding substrate;
 3. root/leaf/block integration, negative-margin closure, small-box saturation,
    and auto-gutter fixed point;
 4. flex retained/nested geometry and axis-independent contribution;
@@ -1075,7 +1223,7 @@ integration into FRI-05.
 | `BLOCK-002` | Proportional effective gutter saturation and tiny-box block/root evidence with zero content geometry. |
 | `GRID-011` | Computed hidden/scroll/auto automatic-minimum tests through ordinary grid and grid-lanes. |
 | `OVERFLOW-001` | Flex/grid in-flow and current absolute children retain geometry; nested parent outputs expose clipped/transitive geometry. |
-| `OVERFLOW-002` | All D-01/D-02 values represented, auto coupling executed, per-axis clipping and current out-of-flow contribution emitted, deferred variants removed. |
+| `OVERFLOW-002` | All D-01/D-02 values represented, every computed/used predicate assigned, auto coupling and current alignment-origin range executed, per-axis clipping and current out-of-flow contribution emitted, deferred variants removed. |
 | `OVERFLOW-003` | Independent x/y accumulator and `0xN`/`Nx0` front-door tests across block, flex, grid, and lanes. |
 | `OVERFLOW-005` | Finite-end rect validation, no public gutter/geometry constructors, canonical coherence property tests, and retained FRI-02 coordinate validation. |
 | `CORE-006` | `content_box_size()` and derived scrollbar accessor agree with canonical geometry in ordinary, both-edge, and saturated cases. |
@@ -1096,10 +1244,13 @@ FRI-05 is complete only when:
 3. every successfully laid-out block, flex, grid, subgrid, and grid-lanes box
    emits coherent geometry through the shared contract;
 4. computed versus used overflow, all thirteen valid pairs, twelve invalid
-   pairs, five axis values, partial clips, stable/both-edge gutters, auto
-   cross-axis coupling, and replaced hidden behavior have focused proof;
+   pairs, five axis values, current IFC/margin predicates, partial clips,
+   stable/both-edge gutters, auto cross-axis coupling, and replaced hidden
+   behavior have focused proof;
 5. all ten flow mappings produce correct physical gutter placement and signed
-   range spans before and after rounding in both scalar lanes;
+   range spans before and after rounding in both scalar lanes, including flex
+   reverse origins and the bounded start-side adjustment for current flex/grid
+   content distribution;
 6. negative margins, tiny boxes, zero-axis nested overflow, clipped descendants,
    current absolute descendants, and non-zero grid origins return correct
    geometry without panic, silent zeroing, or guessed context;
