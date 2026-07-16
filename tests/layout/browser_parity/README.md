@@ -13,10 +13,14 @@ corpus is rooted at `tests/layout/browser_parity`:
 XML files are generated artifacts. Do not edit browser geometry in XML by hand;
 update the source fixture, importer, manifest, or generator instead.
 
-The XML fixture format accepts a deliberately small calc syntax for layout
-parity inputs: `calc(<number>px +/- <number>%)`. This is fixture syntax only;
-app-facing CSS parsing remains owned by integration layers outside this
-layout-ready fixture harness.
+The sizing bridge is a finite fixture adapter, not app-facing CSS parsing. It
+accepts finite px and percentage values plus the existing unitless fixture
+values; affine `calc()`; nested `min()`, `max()`, and `clamp()`; one-argument
+`fit-content()`; canonical `calc-size()`; and only property-valid keywords.
+Expression depth is limited to 64. A finite, non-negative `fr` is accepted only
+for a maximum track breadth, never a minimum track breadth or a box/flex
+property. Integration layers outside this layout-ready harness own authored CSS
+parsing and lowering.
 
 Inline metrics attributes are layout-ready fixture data. They are not CSS
 syntax. Root/style/text integration is expected to generate them from computed

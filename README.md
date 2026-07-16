@@ -48,6 +48,21 @@ coefficient. Resolve it only against an explicit `PercentageBasisOf<S>`;
 reports `MissingBasis` for a required missing basis and `InvalidNumeric` for a
 non-finite evaluation; no value is guessed.
 
+Preferred size, minimum size, maximum size, and flex basis are distinct closed
+property domains. Their role-valid keywords cannot cross property boundaries.
+`SizingCalculationOf<S>` combines finite affine leaves with nested `min`, `max`,
+and `clamp` in a validated program that is evaluated iteratively. Percentages
+remain symbolic until layout receives an explicit basis, and a required missing
+basis remains unresolved.
+
+Canonical layout-ready `calc-size()` input pairs a property-specific basis with a
+validated `CalcSizeCalculationOf<S>` containing finite absolute-pixel,
+percentage, and size coefficients. Track flex is separate: construct a finite,
+non-negative `TrackFlexFactorOf<S>` through `try_new` and place it only in a
+maximum track breadth. A valid sizing behavior owned by a later algorithm is
+reported through `LayoutUnsupportedCapability::SizingBehavior` with the exact
+property, behavior, algorithm, and axis instead of an automatic fallback.
+
 `LayoutRootRequestOf<S>` validates root input for the public
 `compute_layout` front door. A successful call returns a
 `CompletedLayoutBatchOf<Node, S>` containing the staged layout and cache updates;
@@ -75,11 +90,13 @@ cache identity. Flex-item roots require explicit parent flow axes and keep the
 host allocation in the root request separate from the viewport percentage
 context in `FlexItemRootContext`.
 
-Root `surgeist` owns cross-crate adapters, including lowering computed-style
-values and authored CSS order into these layout contracts. Root also owns
-box-generation replacedness, invalidation, consumer migration and renames,
-facade composition, integration, and generated API artifacts. This crate does
-not carry root adapters or API artifact copies.
+Root `surgeist` owns cross-crate adapters, including canonicalizing authored CSS
+sizing values, lowering computed-style values and authored CSS order into these
+layout contracts, and rejecting property-invalid authored states before layout.
+This crate does not parse authored CSS. Root also owns box-generation
+replacedness, invalidation, consumer migration and renames, facade composition,
+integration, and generated API artifacts; this crate carries no root adapters or
+API artifact copies.
 
 ## Geometry, Flow, And Scroll Contracts
 

@@ -23,6 +23,211 @@ fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract
     let _ = crate::SizingBehavior::CalcSize(crate::CalcSizeBehaviorBasis::None);
 }
 
+#[test]
+fn fri04_c06_public_surface_default_and_f64_checked_reexports_compose() {
+    use crate::{
+        CalcSizeBehaviorBasis, CalcSizeCalculation, CalcSizeCalculationErrorOf,
+        CalcSizeCalculationOf, CalcSizeConstructionError, FlexBasis, FlexBasisCalcBasis,
+        FlexBasisOf, LayoutUnsupportedCapability, MaxSize, MaxSizeCalcBasis, MaxSizeOf,
+        MaxTrackSizingOf, MinSize, MinSizeCalcBasis, MinSizeOf, MinTrackSizingOf,
+        PreferredSizeCalcBasis, PreferredSizeOf, SizingAlgorithm, SizingBehavior,
+        SizingCalculationError, SizingCalculationOf, SizingProperty, TrackFlexFactorOf,
+        TrackSizingOf, UnsupportedSizingBehavior,
+    };
+
+    fn affine<S: LayoutScalar>(absolute_px: f64, percent_fraction: f64) -> LengthPercentageOf<S> {
+        LengthPercentageOf::from_coefficients(
+            S::from_f64(absolute_px),
+            S::from_f64(percent_fraction),
+        )
+        .expect("characterization coefficients are finite")
+    }
+
+    let default_min = SizingCalculation::min(vec![
+        SizingCalculation::value(affine::<f32>(8.0, 0.0)),
+        SizingCalculation::value(affine::<f32>(12.0, 0.1)),
+    ])
+    .expect("ordinary minimum is nonempty");
+    let default_max = SizingCalculation::max(vec![
+        SizingCalculation::value(affine::<f32>(48.0, 0.0)),
+        SizingCalculation::value(affine::<f32>(64.0, 0.0)),
+    ])
+    .expect("ordinary maximum is nonempty");
+    let default_ordinary: SizingCalculation = SizingCalculation::clamp(
+        Some(default_min),
+        SizingCalculation::value(affine::<f32>(40.0, 0.0)),
+        Some(default_max),
+    );
+
+    let default_preferred: PreferredSize = PreferredSize::calculation(default_ordinary.clone());
+    let default_minimum: MinSize = MinSize::calculation(default_ordinary.clone());
+    let default_maximum: MaxSize = MaxSize::calculation(default_ordinary.clone());
+    let default_flex: FlexBasis = FlexBasis::calculation(default_ordinary.clone());
+    assert!(default_preferred.is_calculation());
+    assert!(default_minimum.is_calculation());
+    assert!(default_maximum.is_calculation());
+    assert!(default_flex.is_calculation());
+    assert_eq!(PreferredSize::default(), PreferredSize::AUTO);
+    assert_eq!(MinSize::default(), MinSize::AUTO);
+    assert_eq!(MaxSize::default(), MaxSize::NONE);
+    assert_eq!(FlexBasis::default(), FlexBasis::AUTO);
+    assert!(FlexBasis::CONTENT.is_content());
+
+    let default_calc: CalcSizeCalculation = CalcSizeCalculation::from_coefficients(4.0, 0.25, 0.5)
+        .expect("default calc-size coefficients are finite");
+    assert!(
+        PreferredSize::calc_size(PreferredSizeCalcBasis::Auto, default_calc.clone())
+            .expect("preferred calc-size basis is valid")
+            .is_calc_size()
+    );
+    assert!(
+        MinSize::calc_size(MinSizeCalcBasis::MinContent, default_calc.clone())
+            .expect("minimum calc-size basis is valid")
+            .is_calc_size()
+    );
+    assert!(
+        MaxSize::calc_size(MaxSizeCalcBasis::None, default_calc.clone())
+            .expect("maximum calc-size basis is valid")
+            .is_calc_size()
+    );
+    assert!(
+        FlexBasis::calc_size(FlexBasisCalcBasis::Content, default_calc)
+            .expect("flex calc-size basis is valid")
+            .is_calc_size()
+    );
+
+    let default_factor: TrackFlexFactor =
+        TrackFlexFactor::try_new(1.5).expect("default track flex is finite and non-negative");
+    let default_track: TrackSizing = TrackSizing::new(
+        MinTrackSizing::Calculation(default_ordinary),
+        MaxTrackSizing::flex(default_factor),
+    );
+    assert!(default_track.max.is_flexible());
+    assert!(TrackFlexFactor::try_new(-1.0).is_err());
+
+    let f64_min = SizingCalculationOf::<f64>::min(vec![
+        SizingCalculationOf::value(affine::<f64>(8.0, 0.0)),
+        SizingCalculationOf::value(affine::<f64>(12.0, 0.1)),
+    ])
+    .expect("generic ordinary minimum is nonempty");
+    let f64_max = SizingCalculationOf::<f64>::max(vec![
+        SizingCalculationOf::value(affine::<f64>(48.0, 0.0)),
+        SizingCalculationOf::value(affine::<f64>(64.0, 0.0)),
+    ])
+    .expect("generic ordinary maximum is nonempty");
+    let f64_ordinary: SizingCalculationOf<f64> = SizingCalculationOf::clamp(
+        Some(f64_min),
+        SizingCalculationOf::value(affine::<f64>(40.0, 0.0)),
+        Some(f64_max),
+    );
+
+    let f64_preferred: PreferredSizeOf<f64> = PreferredSizeOf::calculation(f64_ordinary.clone());
+    let f64_minimum: MinSizeOf<f64> = MinSizeOf::calculation(f64_ordinary.clone());
+    let f64_maximum: MaxSizeOf<f64> = MaxSizeOf::calculation(f64_ordinary.clone());
+    let f64_flex: FlexBasisOf<f64> = FlexBasisOf::calculation(f64_ordinary.clone());
+    assert!(f64_preferred.is_calculation());
+    assert!(f64_minimum.is_calculation());
+    assert!(f64_maximum.is_calculation());
+    assert!(f64_flex.is_calculation());
+
+    let f64_calc: CalcSizeCalculationOf<f64> =
+        CalcSizeCalculationOf::from_coefficients(4.0, 0.25, 0.5)
+            .expect("generic calc-size coefficients are finite");
+    assert!(
+        PreferredSizeOf::<f64>::calc_size(PreferredSizeCalcBasis::FullPercentage, f64_calc.clone())
+            .expect("generic preferred calc-size basis is valid")
+            .is_calc_size()
+    );
+    assert!(
+        MinSizeOf::<f64>::calc_size(MinSizeCalcBasis::Auto, f64_calc.clone())
+            .expect("generic minimum calc-size basis is valid")
+            .is_calc_size()
+    );
+    assert!(
+        MaxSizeOf::<f64>::calc_size(MaxSizeCalcBasis::MaxContent, f64_calc.clone())
+            .expect("generic maximum calc-size basis is valid")
+            .is_calc_size()
+    );
+    assert!(
+        FlexBasisOf::<f64>::calc_size(FlexBasisCalcBasis::Content, f64_calc)
+            .expect("generic flex calc-size basis is valid")
+            .is_calc_size()
+    );
+
+    let f64_factor: TrackFlexFactorOf<f64> =
+        TrackFlexFactorOf::try_new(2.0).expect("generic track flex is finite and non-negative");
+    let f64_track: TrackSizingOf<f64> = TrackSizingOf::new(
+        MinTrackSizingOf::Calculation(f64_ordinary),
+        MaxTrackSizingOf::flex(f64_factor),
+    );
+    assert!(f64_track.max.is_flexible());
+    assert!(TrackFlexFactorOf::<f64>::try_new(f64::INFINITY).is_err());
+
+    let shape_error: SizingCalculationError =
+        SizingCalculation::min(Vec::new()).expect_err("empty extrema are rejected");
+    assert_eq!(shape_error, SizingCalculationError::EmptyArguments);
+    let default_coefficient_error: CalcSizeCalculationErrorOf<f32> =
+        CalcSizeCalculation::from_coefficients(f32::NAN, 0.0, 0.0)
+            .expect_err("non-finite default coefficients are rejected");
+    assert!(matches!(
+        default_coefficient_error,
+        CalcSizeCalculationErrorOf::InvalidAbsolutePx(_)
+    ));
+    let f64_coefficient_error: CalcSizeCalculationErrorOf<f64> =
+        CalcSizeCalculationOf::from_coefficients(0.0, 0.0, f64::NAN)
+            .expect_err("non-finite generic coefficients are rejected");
+    assert!(matches!(
+        f64_coefficient_error,
+        CalcSizeCalculationErrorOf::InvalidSizeFraction(_)
+    ));
+    let construction_error: CalcSizeConstructionError =
+        PreferredSize::calc_size(PreferredSizeCalcBasis::Any, CalcSizeCalculation::size())
+            .expect_err("Any basis cannot consume a size reference");
+    assert_eq!(
+        construction_error,
+        CalcSizeConstructionError::SizeReferenceWithAnyBasis
+    );
+
+    fn inspect_descriptor(
+        descriptor: UnsupportedSizingBehavior,
+    ) -> (
+        SizingProperty,
+        SizingBehavior,
+        SizingAlgorithm,
+        PhysicalAxis,
+        LayoutUnsupportedCapability,
+    ) {
+        (
+            descriptor.property(),
+            descriptor.behavior(),
+            descriptor.algorithm(),
+            descriptor.axis(),
+            LayoutUnsupportedCapability::SizingBehavior(descriptor),
+        )
+    }
+
+    let _inspect: fn(
+        UnsupportedSizingBehavior,
+    ) -> (
+        SizingProperty,
+        SizingBehavior,
+        SizingAlgorithm,
+        PhysicalAxis,
+        LayoutUnsupportedCapability,
+    ) = inspect_descriptor;
+    let property = SizingProperty::FlexBasis;
+    let algorithm = SizingAlgorithm::GridLanes;
+    let behavior = SizingBehavior::CalcSize(CalcSizeBehaviorBasis::Content);
+    let capability = LayoutUnsupportedCapability::LaterFriBehavior;
+    assert_eq!(property, SizingProperty::FlexBasis);
+    assert_eq!(algorithm, SizingAlgorithm::GridLanes);
+    assert_eq!(
+        behavior,
+        SizingBehavior::CalcSize(CalcSizeBehaviorBasis::Content)
+    );
+    assert_eq!(capability, LayoutUnsupportedCapability::LaterFriBehavior);
+}
+
 fn assert_physical_block_margin_collapse_maps_all_flow_axes<S: LayoutScalar>() {
     let none = PhysicalBlockMarginCollapseOf::<S>::NONE;
     let block_start = CollapsibleMarginOf::from_margin(S::from_f64(5.0));

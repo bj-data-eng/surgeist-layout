@@ -21,12 +21,25 @@
 //! retain their meaning. Layout owns scroll-container geometry, not a current
 //! offset; root integration owns live scroll state and host/CSSOM policy.
 //!
-//! `LengthPercentageOf<S>` is a normalized finite affine value (px plus a
-//! percentage coefficient) resolved explicitly with `PercentageBasisOf<S>`.
-//! `LayoutRootRequestOf<S>` validates root input for `compute_layout`, which
-//! returns either a complete `CompletedLayoutBatchOf<Node, S>` or a typed
-//! `LayoutErrorOf<Node, S, M>` with no partial public result. Recursive compute
-//! modes are internal.
+//! [`PreferredSizeOf`], [`MinSizeOf`], [`MaxSizeOf`], and [`FlexBasisOf`] are
+//! distinct closed property domains with only their role-valid keywords.
+//! [`SizingCalculationOf`] preserves finite affine leaves and nested `min`,
+//! `max`, and `clamp` in a validated program evaluated iteratively. Percentages
+//! remain symbolic until an explicit [`PercentageBasisOf`] is available; a
+//! required missing basis remains unresolved rather than being guessed.
+//!
+//! Canonical layout-ready `calc-size()` input pairs the property's calc-size
+//! basis with a validated [`CalcSizeCalculationOf`] containing finite length,
+//! percentage, and size coefficients. Track flex remains track-only: callers
+//! validate a finite, non-negative [`TrackFlexFactorOf`] and place it only in a
+//! [`MaxTrackSizingOf`] breadth. Later-owned valid behavior returns
+//! [`LayoutUnsupportedCapability::SizingBehavior`] with an exact
+//! [`UnsupportedSizingBehavior`] property, behavior, algorithm, and axis.
+//!
+//! [`LayoutRootRequestOf`] validates root input for [`compute_layout`], which
+//! returns either a complete [`CompletedLayoutBatchOf`] or a typed
+//! [`LayoutErrorOf`] with no partial public result. Recursive compute modes are
+//! internal.
 //!
 //! `compute_leaf` is the direct fallible measurement boundary: providers receive
 //! non-negative content-space constraints and provider failures or invalid output
@@ -58,10 +71,12 @@
 //! including the mock-keychain argument; corpus freshness checks remain
 //! browser-free.
 //!
-//! Root `surgeist` owns authored CSS order lowering, box-generation replacedness,
-//! invalidation, consumer migration and renames, facade composition, cross-crate
-//! integration, retained identity, live scroll state, and generated API artifacts.
-//! This crate does not parse authored CSS or own those integration concerns.
+//! Root `surgeist` owns authored CSS sizing canonicalization and lowering,
+//! authored CSS order lowering, box-generation replacedness, invalidation,
+//! consumer migration and renames, facade composition, cross-crate integration,
+//! retained identity, live scroll state, and generated API artifacts. This crate
+//! consumes layout-ready values; it does not parse authored CSS or own those
+//! integration concerns.
 //! The later inline, overflow, flex, grid, alignment, and positioned initiatives
 //! remain outside this geometry closure and are not claimed here.
 //!

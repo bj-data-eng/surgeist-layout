@@ -221,6 +221,15 @@ enum FlexBasisValue<S: LayoutScalar> {
 /// ```
 ///
 /// ```compile_fail
+/// use surgeist_layout::{PercentageBasisOf, PreferredSize};
+/// let _ = PreferredSize::AUTO.resolve_against(PercentageBasisOf::MISSING);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{Dimension, DimensionOf};
+/// ```
+///
+/// ```compile_fail
 /// use surgeist_layout::PreferredSize;
 /// fn requires_copy<T: Copy>() {}
 /// requires_copy::<PreferredSize>();
@@ -228,18 +237,59 @@ enum FlexBasisValue<S: LayoutScalar> {
 ///
 /// ```
 /// use surgeist_layout::{
-///     CalcSizeCalculation, FlexBasis, MaxSize, MinSize, PreferredSize,
-///     SizingCalculation,
+///     CalcSizeCalculation, FlexBasis, FlexBasisCalcBasis, LengthPercentageOf,
+///     MaxSize, MaxSizeCalcBasis, MaxTrackSizing, MinSize, MinSizeCalcBasis,
+///     MinTrackSizing, PreferredSize, PreferredSizeCalcBasis, SizingCalculation,
+///     TrackFlexFactor, TrackSizing,
 /// };
 ///
-/// let _preferred = PreferredSize::AUTO;
-/// let _minimum = MinSize::ZERO;
-/// let _maximum = MaxSize::NONE;
-/// let _flex_basis = FlexBasis::CONTENT;
-/// let _calculation: SizingCalculation = SizingCalculation::value(
-///     surgeist_layout::LengthPercentageOf::ZERO,
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let px = |value| {
+///     SizingCalculation::value(
+///         LengthPercentageOf::px(value).expect("example lengths are finite"),
+///     )
+/// };
+/// let minimum = SizingCalculation::min(vec![px(8.0), px(12.0)])?;
+/// let maximum = SizingCalculation::max(vec![px(48.0), px(64.0)])?;
+/// let ordinary = SizingCalculation::clamp(
+///     Some(minimum),
+///     px(40.0),
+///     Some(maximum),
 /// );
-/// let _calc_size = CalcSizeCalculation::size();
+/// let preferred = PreferredSize::calculation(ordinary);
+///
+/// let canonical = CalcSizeCalculation::from_coefficients(4.0, 0.25, 0.5)?;
+/// let preferred_calc = PreferredSize::calc_size(
+///     PreferredSizeCalcBasis::Auto,
+///     canonical.clone(),
+/// )?;
+/// let minimum_calc = MinSize::calc_size(
+///     MinSizeCalcBasis::MinContent,
+///     canonical.clone(),
+/// )?;
+/// let maximum_calc = MaxSize::calc_size(
+///     MaxSizeCalcBasis::None,
+///     canonical.clone(),
+/// )?;
+/// let flex_calc = FlexBasis::calc_size(FlexBasisCalcBasis::Content, canonical)?;
+/// let flex_content = FlexBasis::CONTENT;
+///
+/// let factor = TrackFlexFactor::try_new(1.0)?;
+/// let track = TrackSizing::new(
+///     MinTrackSizing::AUTO,
+///     MaxTrackSizing::flex(factor),
+/// );
+/// assert!(track.max.is_flexible());
+/// let _ = (
+///     preferred,
+///     preferred_calc,
+///     minimum_calc,
+///     maximum_calc,
+///     flex_calc,
+///     flex_content,
+/// );
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreferredSizeOf<S: LayoutScalar = DefaultScalar> {
@@ -247,6 +297,16 @@ pub struct PreferredSizeOf<S: LayoutScalar = DefaultScalar> {
 }
 
 /// A closed minimum-size value.
+///
+/// ```compile_fail
+/// use surgeist_layout::MinSize;
+/// let _ = MinSize::fr(1.0);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::MinSize;
+/// let _ = MinSize::CONTENT;
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct MinSizeOf<S: LayoutScalar = DefaultScalar> {
     value: MinSizeValue<S>,
@@ -257,6 +317,16 @@ pub struct MinSizeOf<S: LayoutScalar = DefaultScalar> {
 /// ```compile_fail
 /// use surgeist_layout::MaxSize;
 /// let _ = MaxSize::AUTO;
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::MaxSize;
+/// let _ = MaxSize::fr(1.0);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::MaxSize;
+/// let _ = MaxSize::CONTENT;
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct MaxSizeOf<S: LayoutScalar = DefaultScalar> {
