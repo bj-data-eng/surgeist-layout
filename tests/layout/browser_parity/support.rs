@@ -1658,38 +1658,111 @@ fn parse_length_auto_with_calc(raw: &str) -> Result<layout::LengthAuto, Error> {
 }
 
 fn parse_preferred_size(raw: &str) -> Result<layout::PreferredSize, Error> {
+    let raw = checked_sizing_fixture(raw)?;
     match raw {
         "auto" => Ok(layout::PreferredSize::AUTO),
         "min-content" => Ok(layout::PreferredSize::MIN_CONTENT),
         "max-content" => Ok(layout::PreferredSize::MAX_CONTENT),
-        _ => Ok(layout::PreferredSize::value(parse_sizing_value(raw)?)),
+        "stretch" => Ok(layout::PreferredSize::STRETCH),
+        "fit-content" => Ok(layout::PreferredSize::FIT_CONTENT),
+        "contain" => Ok(layout::PreferredSize::CONTAIN),
+        _ => match parse_sizing_function(raw)? {
+            Some(("fit-content", body)) => Ok(layout::PreferredSize::fit_content_function(
+                parse_fit_content_argument(body, raw)?,
+            )),
+            Some(("calc-size", body)) => {
+                let (basis, calculation) = parse_calc_size_arguments(body, raw)?;
+                let basis = parse_preferred_calc_size_basis(basis, raw)?;
+                layout::PreferredSize::calc_size(basis, calculation).map_err(|error| {
+                    Error::new(format!("invalid preferred-size fixture `{raw}`: {error}"))
+                })
+            }
+            _ => Ok(layout::PreferredSize::calculation(
+                parse_sizing_calculation_inner(raw)?,
+            )),
+        },
     }
 }
 
 fn parse_min_size(raw: &str) -> Result<layout::MinSize, Error> {
+    let raw = checked_sizing_fixture(raw)?;
     match raw {
         "auto" => Ok(layout::MinSize::AUTO),
         "min-content" => Ok(layout::MinSize::MIN_CONTENT),
         "max-content" => Ok(layout::MinSize::MAX_CONTENT),
-        _ => Ok(layout::MinSize::value(parse_sizing_value(raw)?)),
+        "stretch" => Ok(layout::MinSize::STRETCH),
+        "fit-content" => Ok(layout::MinSize::FIT_CONTENT),
+        "contain" => Ok(layout::MinSize::CONTAIN),
+        _ => match parse_sizing_function(raw)? {
+            Some(("fit-content", body)) => Ok(layout::MinSize::fit_content_function(
+                parse_fit_content_argument(body, raw)?,
+            )),
+            Some(("calc-size", body)) => {
+                let (basis, calculation) = parse_calc_size_arguments(body, raw)?;
+                let basis = parse_min_calc_size_basis(basis, raw)?;
+                layout::MinSize::calc_size(basis, calculation).map_err(|error| {
+                    Error::new(format!("invalid minimum-size fixture `{raw}`: {error}"))
+                })
+            }
+            _ => Ok(layout::MinSize::calculation(
+                parse_sizing_calculation_inner(raw)?,
+            )),
+        },
     }
 }
 
 fn parse_max_size(raw: &str) -> Result<layout::MaxSize, Error> {
+    let raw = checked_sizing_fixture(raw)?;
     match raw {
         "none" => Ok(layout::MaxSize::NONE),
         "min-content" => Ok(layout::MaxSize::MIN_CONTENT),
         "max-content" => Ok(layout::MaxSize::MAX_CONTENT),
-        _ => Ok(layout::MaxSize::value(parse_sizing_value(raw)?)),
+        "stretch" => Ok(layout::MaxSize::STRETCH),
+        "fit-content" => Ok(layout::MaxSize::FIT_CONTENT),
+        "contain" => Ok(layout::MaxSize::CONTAIN),
+        _ => match parse_sizing_function(raw)? {
+            Some(("fit-content", body)) => Ok(layout::MaxSize::fit_content_function(
+                parse_fit_content_argument(body, raw)?,
+            )),
+            Some(("calc-size", body)) => {
+                let (basis, calculation) = parse_calc_size_arguments(body, raw)?;
+                let basis = parse_max_calc_size_basis(basis, raw)?;
+                layout::MaxSize::calc_size(basis, calculation).map_err(|error| {
+                    Error::new(format!("invalid maximum-size fixture `{raw}`: {error}"))
+                })
+            }
+            _ => Ok(layout::MaxSize::calculation(
+                parse_sizing_calculation_inner(raw)?,
+            )),
+        },
     }
 }
 
 fn parse_flex_basis(raw: &str) -> Result<layout::FlexBasis, Error> {
+    let raw = checked_sizing_fixture(raw)?;
     match raw {
         "auto" => Ok(layout::FlexBasis::AUTO),
+        "content" => Ok(layout::FlexBasis::CONTENT),
         "min-content" => Ok(layout::FlexBasis::MIN_CONTENT),
         "max-content" => Ok(layout::FlexBasis::MAX_CONTENT),
-        _ => Ok(layout::FlexBasis::value(parse_sizing_value(raw)?)),
+        "stretch" => Ok(layout::FlexBasis::STRETCH),
+        "fit-content" => Ok(layout::FlexBasis::FIT_CONTENT),
+        "contain" => Ok(layout::FlexBasis::CONTAIN),
+        _ => match parse_sizing_function(raw)? {
+            Some(("fit-content", body)) => Ok(layout::FlexBasis::fit_content_function(
+                parse_fit_content_argument(body, raw)?,
+            )),
+            Some(("calc-size", body)) => {
+                let (basis, calculation) = parse_calc_size_arguments(body, raw)?;
+                let basis = parse_flex_calc_size_basis(basis, raw)?;
+                layout::FlexBasis::calc_size(basis, calculation).map_err(|error| {
+                    Error::new(format!("invalid flex-basis fixture `{raw}`: {error}"))
+                })
+            }
+            _ => Ok(layout::FlexBasis::calculation(
+                parse_sizing_calculation_inner(raw)?,
+            )),
+        },
     }
 }
 
@@ -1708,20 +1781,497 @@ fn parse_length(raw: &str) -> Result<layout::Length, Error> {
     Err(Error::new(format!("unsupported length `{raw}`")))
 }
 
-fn parse_sizing_value(raw: &str) -> Result<layout::LengthPercentageOf, Error> {
-    if raw.trim_start().starts_with("calc(") {
-        return parse_calc_expression(raw);
+const MAX_SIZING_FUNCTION_DEPTH: usize = 64;
+
+#[derive(Clone, Copy, Debug)]
+struct FixtureSizingCoefficients {
+    absolute_px: Scalar,
+    percent_fraction: Scalar,
+    size_fraction: Scalar,
+}
+
+fn checked_sizing_fixture(raw: &str) -> Result<&str, Error> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Err(Error::new("empty sizing fixture value"));
     }
-    if let Some(px) = raw.strip_suffix("px") {
-        return length_percentage_px(parse_number(px)?, raw);
+
+    let mut depth = 0usize;
+    for ch in raw.chars() {
+        match ch {
+            '(' => {
+                depth += 1;
+                if depth > MAX_SIZING_FUNCTION_DEPTH {
+                    return Err(Error::new(format!(
+                        "sizing function nesting depth {depth} exceeds {MAX_SIZING_FUNCTION_DEPTH} in `{raw}`"
+                    )));
+                }
+            }
+            ')' => {
+                let Some(next_depth) = depth.checked_sub(1) else {
+                    return Err(Error::new(format!(
+                        "unbalanced sizing fixture delimiters in `{raw}`"
+                    )));
+                };
+                depth = next_depth;
+            }
+            '[' | ']' => {
+                return Err(Error::new(format!(
+                    "unsupported sizing fixture delimiter in `{raw}`"
+                )));
+            }
+            _ => {}
+        }
     }
-    if let Some(percent) = raw.strip_suffix('%') {
-        return length_percentage_percent(parse_number(percent)? / 100.0, raw);
+    if depth != 0 {
+        return Err(Error::new(format!(
+            "unbalanced sizing fixture delimiters in `{raw}`"
+        )));
     }
-    if let Ok(value) = parse_number(raw) {
-        return length_percentage_px(value, raw);
+    Ok(raw)
+}
+
+fn parse_sizing_function(raw: &str) -> Result<Option<(&str, &str)>, Error> {
+    let Some(open_index) = raw.find('(') else {
+        return Ok(None);
+    };
+    let name = &raw[..open_index];
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte == b'-')
+    {
+        return Err(Error::new(format!(
+            "malformed sizing fixture function `{raw}`"
+        )));
     }
-    Err(Error::new(format!("unsupported sizing value `{raw}`")))
+
+    let mut depth = 0usize;
+    let mut close_index = None;
+    for (offset, ch) in raw[open_index..].char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                let Some(next_depth) = depth.checked_sub(1) else {
+                    return Err(Error::new(format!(
+                        "unbalanced sizing fixture delimiters in `{raw}`"
+                    )));
+                };
+                depth = next_depth;
+                if depth == 0 {
+                    close_index = Some(open_index + offset);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let Some(close_index) = close_index else {
+        return Err(Error::new(format!(
+            "unbalanced sizing fixture delimiters in `{raw}`"
+        )));
+    };
+    if close_index + 1 != raw.len() {
+        return Err(Error::new(format!(
+            "trailing input after sizing fixture function in `{raw}`"
+        )));
+    }
+    Ok(Some((name, &raw[open_index + 1..close_index])))
+}
+
+fn split_sizing_arguments<'a>(body: &'a str, raw: &str) -> Result<Vec<&'a str>, Error> {
+    let mut arguments = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0usize;
+    for (index, ch) in body.char_indices() {
+        match ch {
+            '(' => depth += 1,
+            ')' => {
+                let Some(next_depth) = depth.checked_sub(1) else {
+                    return Err(Error::new(format!(
+                        "unbalanced sizing fixture arguments in `{raw}`"
+                    )));
+                };
+                depth = next_depth;
+            }
+            ',' if depth == 0 => {
+                arguments.push(body[start..index].trim());
+                start = index + 1;
+            }
+            _ => {}
+        }
+    }
+    if depth != 0 {
+        return Err(Error::new(format!(
+            "unbalanced sizing fixture arguments in `{raw}`"
+        )));
+    }
+    arguments.push(body[start..].trim());
+    if arguments.iter().any(|argument| argument.is_empty()) {
+        return Err(Error::new(format!(
+            "empty sizing fixture function argument in `{raw}`"
+        )));
+    }
+    Ok(arguments)
+}
+
+fn parse_fit_content_argument(body: &str, raw: &str) -> Result<layout::SizingCalculation, Error> {
+    let arguments = split_sizing_arguments(body, raw)?;
+    let [argument] = arguments.as_slice() else {
+        return Err(Error::new(format!(
+            "fit-content() requires exactly one argument in `{raw}`"
+        )));
+    };
+    parse_sizing_calculation_inner(argument)
+}
+
+fn parse_calc_size_arguments<'a>(
+    body: &'a str,
+    raw: &str,
+) -> Result<(&'a str, layout::CalcSizeCalculation), Error> {
+    let arguments = split_sizing_arguments(body, raw)?;
+    let [basis, calculation] = arguments.as_slice() else {
+        return Err(Error::new(format!(
+            "calc-size() requires exactly two arguments in `{raw}`"
+        )));
+    };
+    Ok((basis, parse_calc_size_calculation_inner(calculation)?))
+}
+
+fn parse_preferred_calc_size_basis(
+    basis: &str,
+    raw: &str,
+) -> Result<layout::PreferredSizeCalcBasis, Error> {
+    match basis {
+        "any" => Ok(layout::PreferredSizeCalcBasis::Any),
+        "100%" => Ok(layout::PreferredSizeCalcBasis::FullPercentage),
+        "auto" => Ok(layout::PreferredSizeCalcBasis::Auto),
+        "min-content" => Ok(layout::PreferredSizeCalcBasis::MinContent),
+        "max-content" => Ok(layout::PreferredSizeCalcBasis::MaxContent),
+        "stretch" => Ok(layout::PreferredSizeCalcBasis::Stretch),
+        "fit-content" => Ok(layout::PreferredSizeCalcBasis::FitContent),
+        "contain" => Ok(layout::PreferredSizeCalcBasis::Contain),
+        _ => Err(Error::new(format!(
+            "invalid preferred-size calc-size basis `{basis}` in `{raw}`"
+        ))),
+    }
+}
+
+fn parse_min_calc_size_basis(basis: &str, raw: &str) -> Result<layout::MinSizeCalcBasis, Error> {
+    match basis {
+        "any" => Ok(layout::MinSizeCalcBasis::Any),
+        "100%" => Ok(layout::MinSizeCalcBasis::FullPercentage),
+        "auto" => Ok(layout::MinSizeCalcBasis::Auto),
+        "min-content" => Ok(layout::MinSizeCalcBasis::MinContent),
+        "max-content" => Ok(layout::MinSizeCalcBasis::MaxContent),
+        "stretch" => Ok(layout::MinSizeCalcBasis::Stretch),
+        "fit-content" => Ok(layout::MinSizeCalcBasis::FitContent),
+        "contain" => Ok(layout::MinSizeCalcBasis::Contain),
+        _ => Err(Error::new(format!(
+            "invalid minimum-size calc-size basis `{basis}` in `{raw}`"
+        ))),
+    }
+}
+
+fn parse_max_calc_size_basis(basis: &str, raw: &str) -> Result<layout::MaxSizeCalcBasis, Error> {
+    match basis {
+        "any" => Ok(layout::MaxSizeCalcBasis::Any),
+        "100%" => Ok(layout::MaxSizeCalcBasis::FullPercentage),
+        "none" => Ok(layout::MaxSizeCalcBasis::None),
+        "min-content" => Ok(layout::MaxSizeCalcBasis::MinContent),
+        "max-content" => Ok(layout::MaxSizeCalcBasis::MaxContent),
+        "stretch" => Ok(layout::MaxSizeCalcBasis::Stretch),
+        "fit-content" => Ok(layout::MaxSizeCalcBasis::FitContent),
+        "contain" => Ok(layout::MaxSizeCalcBasis::Contain),
+        _ => Err(Error::new(format!(
+            "invalid maximum-size calc-size basis `{basis}` in `{raw}`"
+        ))),
+    }
+}
+
+fn parse_flex_calc_size_basis(basis: &str, raw: &str) -> Result<layout::FlexBasisCalcBasis, Error> {
+    match basis {
+        "any" => Ok(layout::FlexBasisCalcBasis::Any),
+        "100%" => Ok(layout::FlexBasisCalcBasis::FullPercentage),
+        "auto" => Ok(layout::FlexBasisCalcBasis::Auto),
+        "content" => Ok(layout::FlexBasisCalcBasis::Content),
+        "min-content" => Ok(layout::FlexBasisCalcBasis::MinContent),
+        "max-content" => Ok(layout::FlexBasisCalcBasis::MaxContent),
+        "stretch" => Ok(layout::FlexBasisCalcBasis::Stretch),
+        "fit-content" => Ok(layout::FlexBasisCalcBasis::FitContent),
+        "contain" => Ok(layout::FlexBasisCalcBasis::Contain),
+        _ => Err(Error::new(format!(
+            "invalid flex-basis calc-size basis `{basis}` in `{raw}`"
+        ))),
+    }
+}
+
+fn parse_sizing_calculation_inner(raw: &str) -> Result<layout::SizingCalculation, Error> {
+    let Some((name, body)) = parse_sizing_function(raw)? else {
+        return Ok(layout::SizingCalculation::value(parse_sizing_leaf_value(
+            raw,
+        )?));
+    };
+
+    match name {
+        "calc" => Ok(layout::SizingCalculation::value(parse_sizing_affine_value(
+            body, false,
+        )?)),
+        "min" | "max" => {
+            let arguments = split_sizing_arguments(body, raw)?;
+            let calculations = arguments
+                .into_iter()
+                .map(parse_sizing_calculation_inner)
+                .collect::<Result<Vec<_>, _>>()?;
+            let calculation = if name == "min" {
+                layout::SizingCalculation::min(calculations)
+            } else {
+                layout::SizingCalculation::max(calculations)
+            };
+            calculation.map_err(|error| {
+                Error::new(format!("invalid sizing fixture function `{raw}`: {error}"))
+            })
+        }
+        "clamp" => {
+            let arguments = split_sizing_arguments(body, raw)?;
+            let [minimum, preferred, maximum] = arguments.as_slice() else {
+                return Err(Error::new(format!(
+                    "clamp() requires exactly three arguments in `{raw}`"
+                )));
+            };
+            if *preferred == "none" {
+                return Err(Error::new(format!(
+                    "clamp() preferred argument cannot be omitted in `{raw}`"
+                )));
+            }
+            let minimum = (*minimum != "none")
+                .then(|| parse_sizing_calculation_inner(minimum))
+                .transpose()?;
+            let preferred = parse_sizing_calculation_inner(preferred)?;
+            let maximum = (*maximum != "none")
+                .then(|| parse_sizing_calculation_inner(maximum))
+                .transpose()?;
+            Ok(layout::SizingCalculation::clamp(
+                minimum, preferred, maximum,
+            ))
+        }
+        _ => Err(Error::new(format!(
+            "unsupported sizing fixture function `{name}` in `{raw}`"
+        ))),
+    }
+}
+
+fn parse_calc_size_calculation_inner(raw: &str) -> Result<layout::CalcSizeCalculation, Error> {
+    let Some((name, body)) = parse_sizing_function(raw)? else {
+        return calc_size_calculation_from_coefficients(
+            parse_fixture_affine_coefficients(raw, true, true)?,
+            raw,
+        );
+    };
+
+    match name {
+        "calc" => calc_size_calculation_from_coefficients(
+            parse_fixture_affine_coefficients(body, true, false)?,
+            raw,
+        ),
+        "min" | "max" => {
+            let arguments = split_sizing_arguments(body, raw)?;
+            let calculations = arguments
+                .into_iter()
+                .map(parse_calc_size_calculation_inner)
+                .collect::<Result<Vec<_>, _>>()?;
+            let calculation = if name == "min" {
+                layout::CalcSizeCalculation::min(calculations)
+            } else {
+                layout::CalcSizeCalculation::max(calculations)
+            };
+            calculation.map_err(|error| {
+                Error::new(format!(
+                    "invalid calc-size fixture function `{raw}`: {error}"
+                ))
+            })
+        }
+        "clamp" => {
+            let arguments = split_sizing_arguments(body, raw)?;
+            let [minimum, preferred, maximum] = arguments.as_slice() else {
+                return Err(Error::new(format!(
+                    "clamp() requires exactly three arguments in `{raw}`"
+                )));
+            };
+            if *preferred == "none" {
+                return Err(Error::new(format!(
+                    "clamp() preferred argument cannot be omitted in `{raw}`"
+                )));
+            }
+            let minimum = (*minimum != "none")
+                .then(|| parse_calc_size_calculation_inner(minimum))
+                .transpose()?;
+            let preferred = parse_calc_size_calculation_inner(preferred)?;
+            let maximum = (*maximum != "none")
+                .then(|| parse_calc_size_calculation_inner(maximum))
+                .transpose()?;
+            Ok(layout::CalcSizeCalculation::clamp(
+                minimum, preferred, maximum,
+            ))
+        }
+        _ => Err(Error::new(format!(
+            "unsupported calc-size fixture function `{name}` in `{raw}`"
+        ))),
+    }
+}
+
+fn parse_sizing_leaf_value(raw: &str) -> Result<layout::LengthPercentageOf, Error> {
+    let tokens = raw.split_whitespace().collect::<Vec<_>>();
+    let [atom] = tokens.as_slice() else {
+        return Err(Error::new(format!(
+            "unsupported sizing fixture leaf `{raw}`"
+        )));
+    };
+    let coefficients = parse_fixture_affine_atom(atom, false, true, raw)?;
+    layout::LengthPercentageOf::from_coefficients(
+        coefficients.absolute_px,
+        coefficients.percent_fraction,
+    )
+    .map_err(|error| Error::new(format!("invalid sizing fixture `{raw}`: {error}")))
+}
+
+fn parse_sizing_affine_value(
+    raw: &str,
+    allow_unitless: bool,
+) -> Result<layout::LengthPercentageOf, Error> {
+    let coefficients = parse_fixture_affine_coefficients(raw, false, allow_unitless)?;
+    layout::LengthPercentageOf::from_coefficients(
+        coefficients.absolute_px,
+        coefficients.percent_fraction,
+    )
+    .map_err(|error| Error::new(format!("invalid sizing fixture `{raw}`: {error}")))
+}
+
+fn calc_size_calculation_from_coefficients(
+    coefficients: FixtureSizingCoefficients,
+    raw: &str,
+) -> Result<layout::CalcSizeCalculation, Error> {
+    layout::CalcSizeCalculation::from_coefficients(
+        coefficients.absolute_px,
+        coefficients.percent_fraction,
+        coefficients.size_fraction,
+    )
+    .map_err(|error| Error::new(format!("invalid calc-size fixture `{raw}`: {error}")))
+}
+
+fn parse_fixture_affine_coefficients(
+    raw: &str,
+    allow_size: bool,
+    allow_unitless: bool,
+) -> Result<FixtureSizingCoefficients, Error> {
+    let tokens = raw.split_whitespace().collect::<Vec<_>>();
+    if tokens.is_empty() {
+        return Err(Error::new(format!("empty affine sizing fixture `{raw}`")));
+    }
+
+    let mut coefficients = FixtureSizingCoefficients {
+        absolute_px: 0.0,
+        percent_fraction: 0.0,
+        size_fraction: 0.0,
+    };
+    let mut start = 0usize;
+    let mut sign = 1.0;
+    loop {
+        let end = tokens[start..]
+            .iter()
+            .position(|token| *token == "+" || *token == "-")
+            .map_or(tokens.len(), |offset| start + offset);
+        if end == start {
+            return Err(Error::new(format!("missing affine sizing term in `{raw}`")));
+        }
+        let term = parse_fixture_affine_term(&tokens[start..end], allow_size, allow_unitless, raw)?;
+        coefficients.absolute_px += term.absolute_px * sign;
+        coefficients.percent_fraction += term.percent_fraction * sign;
+        coefficients.size_fraction += term.size_fraction * sign;
+
+        if end == tokens.len() {
+            break;
+        }
+        sign = if tokens[end] == "+" { 1.0 } else { -1.0 };
+        start = end + 1;
+        if start == tokens.len() {
+            return Err(Error::new(format!("missing affine sizing term in `{raw}`")));
+        }
+    }
+    Ok(coefficients)
+}
+
+fn parse_fixture_affine_term(
+    tokens: &[&str],
+    allow_size: bool,
+    allow_unitless: bool,
+    raw: &str,
+) -> Result<FixtureSizingCoefficients, Error> {
+    match tokens {
+        [atom] => parse_fixture_affine_atom(atom, allow_size, allow_unitless, raw),
+        [left, "*", right] if allow_size => {
+            let size_factor = match (*left, *right) {
+                ("size", factor) => parse_number(factor)?,
+                (factor, "size") => parse_number(factor)?,
+                _ => {
+                    return Err(Error::new(format!(
+                        "unsupported affine sizing product in `{raw}`"
+                    )));
+                }
+            };
+            Ok(FixtureSizingCoefficients {
+                absolute_px: 0.0,
+                percent_fraction: 0.0,
+                size_fraction: size_factor,
+            })
+        }
+        _ => Err(Error::new(format!(
+            "unsupported affine sizing term in `{raw}`"
+        ))),
+    }
+}
+
+fn parse_fixture_affine_atom(
+    atom: &str,
+    allow_size: bool,
+    allow_unitless: bool,
+    raw: &str,
+) -> Result<FixtureSizingCoefficients, Error> {
+    let mut coefficients = FixtureSizingCoefficients {
+        absolute_px: 0.0,
+        percent_fraction: 0.0,
+        size_fraction: 0.0,
+    };
+    if let Some(px) = atom.strip_suffix("px") {
+        coefficients.absolute_px = parse_number(px)?;
+        return Ok(coefficients);
+    }
+    if let Some(percent) = atom.strip_suffix('%') {
+        coefficients.percent_fraction = parse_number(percent)? / 100.0;
+        return Ok(coefficients);
+    }
+    if allow_size {
+        if atom == "size" {
+            coefficients.size_fraction = 1.0;
+            return Ok(coefficients);
+        }
+        if let Some(factor) = atom.strip_suffix("*size") {
+            coefficients.size_fraction = parse_number(factor)?;
+            return Ok(coefficients);
+        }
+        if let Some(factor) = atom.strip_prefix("size*") {
+            coefficients.size_fraction = parse_number(factor)?;
+            return Ok(coefficients);
+        }
+    }
+    if allow_unitless {
+        coefficients.absolute_px = parse_number(atom)?;
+        return Ok(coefficients);
+    }
+    Err(Error::new(format!(
+        "unsupported affine sizing term `{atom}` in `{raw}`"
+    )))
 }
 
 fn length_percentage_px(value: Scalar, raw: &str) -> Result<layout::LengthPercentageOf, Error> {
@@ -1877,63 +2427,71 @@ fn parse_subgrid_line_names(raw: &str) -> Result<Vec<String>, Error> {
 }
 
 fn parse_track_sizing_with_calc(raw: &str) -> Result<layout::TrackSizing, Error> {
-    if let Some(body) = function_body(raw, "minmax") {
-        let (min, max) = split_once_top_level_comma(body)?;
+    let raw = checked_sizing_fixture(raw)?;
+    if let Some(("minmax", body)) = parse_sizing_function(raw)? {
+        let arguments = split_sizing_arguments(body, raw)?;
+        let [min, max] = arguments.as_slice() else {
+            return Err(Error::new(format!(
+                "minmax() requires exactly two arguments in `{raw}`"
+            )));
+        };
         return Ok(layout::TrackSizing::minmax(
-            parse_min_track_sizing_with_calc(min.trim())?,
-            parse_max_track_sizing_with_calc(max.trim())?,
+            parse_min_track_sizing_inner(min)?,
+            parse_max_track_sizing_inner(max)?,
         ));
     }
-    if let Some(body) = function_body(raw, "fit-content") {
-        return Ok(layout::TrackSizing::fit_content(parse_track_calculation(
-            body.trim(),
-        )?));
+    if let Some(("fit-content", body)) = parse_sizing_function(raw)? {
+        return Ok(layout::TrackSizing::fit_content(
+            parse_fit_content_argument(body, raw)?,
+        ));
     }
     match raw {
         "auto" => Ok(layout::TrackSizing::AUTO),
         "min-content" => Ok(layout::TrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::TrackSizing::MAX_CONTENT),
         _ if raw.ends_with("fr") => Ok(layout::TrackSizing::flex(parse_track_flex(raw)?)),
-        _ => Ok(layout::TrackSizing::calculation(parse_track_calculation(
-            raw,
-        )?)),
+        _ => Ok(layout::TrackSizing::calculation(
+            parse_sizing_calculation_inner(raw)?,
+        )),
     }
 }
 
 fn parse_min_track_sizing_with_calc(raw: &str) -> Result<layout::MinTrackSizing, Error> {
+    let raw = checked_sizing_fixture(raw)?;
+    parse_min_track_sizing_inner(raw)
+}
+
+fn parse_min_track_sizing_inner(raw: &str) -> Result<layout::MinTrackSizing, Error> {
     match raw {
         "auto" => Ok(layout::MinTrackSizing::AUTO),
         "min-content" => Ok(layout::MinTrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::MinTrackSizing::MAX_CONTENT),
         _ => Ok(layout::MinTrackSizing::Calculation(
-            parse_track_calculation(raw)?,
+            parse_sizing_calculation_inner(raw)?,
         )),
     }
 }
 
 fn parse_max_track_sizing_with_calc(raw: &str) -> Result<layout::MaxTrackSizing, Error> {
+    let raw = checked_sizing_fixture(raw)?;
+    parse_max_track_sizing_inner(raw)
+}
+
+fn parse_max_track_sizing_inner(raw: &str) -> Result<layout::MaxTrackSizing, Error> {
+    if let Some(("fit-content", body)) = parse_sizing_function(raw)? {
+        return Ok(layout::MaxTrackSizing::fit_content(
+            parse_fit_content_argument(body, raw)?,
+        ));
+    }
     match raw {
         "auto" => Ok(layout::MaxTrackSizing::AUTO),
         "min-content" => Ok(layout::MaxTrackSizing::MIN_CONTENT),
         "max-content" => Ok(layout::MaxTrackSizing::MAX_CONTENT),
-        _ if raw.ends_with("fr") => Ok(layout::MaxTrackSizing::Flex(parse_track_flex(raw)?)),
+        _ if raw.ends_with("fr") => Ok(layout::MaxTrackSizing::flex(parse_track_flex(raw)?)),
         _ => Ok(layout::MaxTrackSizing::Calculation(
-            parse_track_calculation(raw)?,
+            parse_sizing_calculation_inner(raw)?,
         )),
     }
-}
-
-fn parse_track_calculation(raw: &str) -> Result<layout::SizingCalculation, Error> {
-    let value = if raw.trim_start().starts_with("calc(") {
-        parse_calc_expression(raw)?
-    } else if let Some(px) = raw.strip_suffix("px") {
-        length_percentage_px(parse_number(px)?, raw)?
-    } else if let Some(percent) = raw.strip_suffix('%') {
-        length_percentage_percent(parse_number(percent)? / 100.0, raw)?
-    } else {
-        length_percentage_px(parse_number(raw)?, raw)?
-    };
-    Ok(layout::SizingCalculation::value(value))
 }
 
 fn parse_track_flex(raw: &str) -> Result<layout::TrackFlexFactor, Error> {
@@ -2548,6 +3106,357 @@ mod tests {
         assert!(parse_preferred_size("none").is_err());
         assert!(parse_min_size("1fr").is_err());
         assert!(parse_flex_basis("1fr").is_err());
+    }
+
+    #[test]
+    fn fri04_c05_parser_accepts_property_keywords_nested_calculations_and_fit_content() {
+        for (raw, expected) in [
+            ("auto", layout::PreferredSize::AUTO),
+            ("min-content", layout::PreferredSize::MIN_CONTENT),
+            ("max-content", layout::PreferredSize::MAX_CONTENT),
+            ("stretch", layout::PreferredSize::STRETCH),
+            ("fit-content", layout::PreferredSize::FIT_CONTENT),
+            ("contain", layout::PreferredSize::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_preferred_size(raw).expect("preferred keyword should parse"),
+                expected,
+                "preferred keyword {raw}"
+            );
+        }
+        for (raw, expected) in [
+            ("auto", layout::MinSize::AUTO),
+            ("min-content", layout::MinSize::MIN_CONTENT),
+            ("max-content", layout::MinSize::MAX_CONTENT),
+            ("stretch", layout::MinSize::STRETCH),
+            ("fit-content", layout::MinSize::FIT_CONTENT),
+            ("contain", layout::MinSize::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_min_size(raw).expect("minimum keyword should parse"),
+                expected,
+                "minimum keyword {raw}"
+            );
+        }
+        for (raw, expected) in [
+            ("none", layout::MaxSize::NONE),
+            ("min-content", layout::MaxSize::MIN_CONTENT),
+            ("max-content", layout::MaxSize::MAX_CONTENT),
+            ("stretch", layout::MaxSize::STRETCH),
+            ("fit-content", layout::MaxSize::FIT_CONTENT),
+            ("contain", layout::MaxSize::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_max_size(raw).expect("maximum keyword should parse"),
+                expected,
+                "maximum keyword {raw}"
+            );
+        }
+        for (raw, expected) in [
+            ("auto", layout::FlexBasis::AUTO),
+            ("content", layout::FlexBasis::CONTENT),
+            ("min-content", layout::FlexBasis::MIN_CONTENT),
+            ("max-content", layout::FlexBasis::MAX_CONTENT),
+            ("stretch", layout::FlexBasis::STRETCH),
+            ("fit-content", layout::FlexBasis::FIT_CONTENT),
+            ("contain", layout::FlexBasis::CONTAIN),
+        ] {
+            assert_eq!(
+                parse_flex_basis(raw).expect("flex keyword should parse"),
+                expected,
+                "flex keyword {raw}"
+            );
+        }
+
+        let px = |value| {
+            layout::SizingCalculation::value(
+                layout::LengthPercentageOf::px(value).expect("finite expected px"),
+            )
+        };
+        let percent = |value| {
+            layout::SizingCalculation::value(
+                layout::LengthPercentageOf::from_percent_fraction(value)
+                    .expect("finite expected percentage"),
+            )
+        };
+        let affine = layout::SizingCalculation::value(
+            layout::LengthPercentageOf::from_coefficients(5.0, 0.1)
+                .expect("finite expected affine value"),
+        );
+        let nested_min = layout::SizingCalculation::min(vec![percent(0.25), affine])
+            .expect("nonempty expected minimum");
+        let nested_max = layout::SizingCalculation::max(vec![px(10.0), nested_min])
+            .expect("nonempty expected maximum");
+        let expected = layout::PreferredSize::calculation(layout::SizingCalculation::clamp(
+            None,
+            nested_max,
+            Some(px(90.0)),
+        ));
+        assert_eq!(
+            parse_preferred_size("clamp(none, max(10px, min(25%, calc(5px + 10%))), 90px)")
+                .expect("nested preferred calculation should parse"),
+            expected
+        );
+        assert_eq!(
+            parse_min_size("clamp(none, 20px, none)")
+                .expect("omitted clamp endpoints should parse"),
+            layout::MinSize::calculation(layout::SizingCalculation::clamp(None, px(20.0), None))
+        );
+        assert!(
+            parse_flex_basis("fit-content(max(10px, 25%))")
+                .expect("flex fit-content function should parse")
+                .is_fit_content_function()
+        );
+        assert!(matches!(
+            parse_max_track_sizing_with_calc("fit-content(min(40px, 50%))")
+                .expect("maximum track fit-content should parse"),
+            layout::MaxTrackSizing::FitContent(_)
+        ));
+    }
+
+    #[test]
+    fn fri04_c05_parser_accepts_canonical_calc_size_bases_and_affine_programs() {
+        let size = layout::CalcSizeCalculation::size();
+        for (raw, basis) in [
+            ("100%", layout::PreferredSizeCalcBasis::FullPercentage),
+            ("auto", layout::PreferredSizeCalcBasis::Auto),
+            ("min-content", layout::PreferredSizeCalcBasis::MinContent),
+            ("max-content", layout::PreferredSizeCalcBasis::MaxContent),
+            ("stretch", layout::PreferredSizeCalcBasis::Stretch),
+            ("fit-content", layout::PreferredSizeCalcBasis::FitContent),
+            ("contain", layout::PreferredSizeCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_preferred_size(&format!("calc-size({raw}, size)"))
+                    .expect("preferred calc-size basis should parse"),
+                layout::PreferredSize::calc_size(basis, size.clone())
+                    .expect("expected preferred calc-size should construct")
+            );
+        }
+        for (raw, basis) in [
+            ("100%", layout::MinSizeCalcBasis::FullPercentage),
+            ("auto", layout::MinSizeCalcBasis::Auto),
+            ("min-content", layout::MinSizeCalcBasis::MinContent),
+            ("max-content", layout::MinSizeCalcBasis::MaxContent),
+            ("stretch", layout::MinSizeCalcBasis::Stretch),
+            ("fit-content", layout::MinSizeCalcBasis::FitContent),
+            ("contain", layout::MinSizeCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_min_size(&format!("calc-size({raw}, size)"))
+                    .expect("minimum calc-size basis should parse"),
+                layout::MinSize::calc_size(basis, size.clone())
+                    .expect("expected minimum calc-size should construct")
+            );
+        }
+        for (raw, basis) in [
+            ("100%", layout::MaxSizeCalcBasis::FullPercentage),
+            ("none", layout::MaxSizeCalcBasis::None),
+            ("min-content", layout::MaxSizeCalcBasis::MinContent),
+            ("max-content", layout::MaxSizeCalcBasis::MaxContent),
+            ("stretch", layout::MaxSizeCalcBasis::Stretch),
+            ("fit-content", layout::MaxSizeCalcBasis::FitContent),
+            ("contain", layout::MaxSizeCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_max_size(&format!("calc-size({raw}, size)"))
+                    .expect("maximum calc-size basis should parse"),
+                layout::MaxSize::calc_size(basis, size.clone())
+                    .expect("expected maximum calc-size should construct")
+            );
+        }
+        for (raw, basis) in [
+            ("100%", layout::FlexBasisCalcBasis::FullPercentage),
+            ("auto", layout::FlexBasisCalcBasis::Auto),
+            ("content", layout::FlexBasisCalcBasis::Content),
+            ("min-content", layout::FlexBasisCalcBasis::MinContent),
+            ("max-content", layout::FlexBasisCalcBasis::MaxContent),
+            ("stretch", layout::FlexBasisCalcBasis::Stretch),
+            ("fit-content", layout::FlexBasisCalcBasis::FitContent),
+            ("contain", layout::FlexBasisCalcBasis::Contain),
+        ] {
+            assert_eq!(
+                parse_flex_basis(&format!("calc-size({raw}, size)"))
+                    .expect("flex calc-size basis should parse"),
+                layout::FlexBasis::calc_size(basis, size.clone())
+                    .expect("expected flex calc-size should construct")
+            );
+        }
+
+        let independent = layout::CalcSizeCalculation::from_coefficients(10.0, 0.25, 0.0)
+            .expect("finite independent calc-size coefficients");
+        assert_eq!(
+            parse_preferred_size("calc-size(any, 10px + 25%)")
+                .expect("independent Any calc-size should parse"),
+            layout::PreferredSize::calc_size(
+                layout::PreferredSizeCalcBasis::Any,
+                independent.clone()
+            )
+            .expect("independent Any calc-size should construct")
+        );
+        assert_eq!(
+            parse_min_size("calc-size(any, 10px + 25%)")
+                .expect("minimum Any calc-size should parse"),
+            layout::MinSize::calc_size(layout::MinSizeCalcBasis::Any, independent.clone())
+                .expect("minimum Any calc-size should construct")
+        );
+        assert_eq!(
+            parse_max_size("calc-size(any, 10px + 25%)")
+                .expect("maximum Any calc-size should parse"),
+            layout::MaxSize::calc_size(layout::MaxSizeCalcBasis::Any, independent.clone())
+                .expect("maximum Any calc-size should construct")
+        );
+        assert_eq!(
+            parse_flex_basis("calc-size(any, 10px + 25%)")
+                .expect("flex Any calc-size should parse"),
+            layout::FlexBasis::calc_size(layout::FlexBasisCalcBasis::Any, independent)
+                .expect("flex Any calc-size should construct")
+        );
+
+        let nested_min = layout::CalcSizeCalculation::min(vec![
+            layout::CalcSizeCalculation::from_coefficients(0.0, 0.0, 0.5)
+                .expect("finite size coefficient"),
+            layout::CalcSizeCalculation::from_coefficients(0.0, 0.8, 0.0)
+                .expect("finite percentage coefficient"),
+        ])
+        .expect("nonempty calc-size minimum");
+        let nested_max = layout::CalcSizeCalculation::max(vec![
+            layout::CalcSizeCalculation::from_coefficients(10.0, 0.25, 0.0)
+                .expect("finite affine coefficient"),
+            nested_min,
+        ])
+        .expect("nonempty calc-size maximum");
+        let nested = layout::CalcSizeCalculation::clamp(
+            None,
+            nested_max,
+            Some(
+                layout::CalcSizeCalculation::from_coefficients(100.0, 0.0, 0.0)
+                    .expect("finite maximum coefficient"),
+            ),
+        );
+        assert_eq!(
+            parse_preferred_size(
+                "calc-size(auto, clamp(none, max(10px + 25%, min(size * 0.5, 80%)), 100px))"
+            )
+            .expect("nested calc-size program should parse"),
+            layout::PreferredSize::calc_size(layout::PreferredSizeCalcBasis::Auto, nested)
+                .expect("nested calc-size program should construct")
+        );
+    }
+
+    #[test]
+    fn fri04_c05_parser_accepts_track_only_flex_and_rejects_flex_in_minimum_track() {
+        let factor = layout::TrackFlexFactor::try_new(2.0).expect("finite track flex");
+        assert_eq!(
+            parse_max_track_sizing_with_calc("2fr").expect("maximum track flex should parse"),
+            layout::MaxTrackSizing::flex(factor)
+        );
+        assert_eq!(
+            parse_track_sizing_with_calc("2fr").expect("complete track flex should parse"),
+            layout::TrackSizing::flex(factor)
+        );
+        assert!(parse_min_track_sizing_with_calc("2fr").is_err());
+        assert!(parse_track_sizing_with_calc("minmax(2fr, 20px)").is_err());
+        assert!(parse_preferred_size("2fr").is_err());
+        assert!(parse_min_size("2fr").is_err());
+        assert!(parse_max_size("2fr").is_err());
+        assert!(parse_flex_basis("2fr").is_err());
+
+        assert!(parse_min_track_sizing_with_calc("min(10px, max(20%, 30px))").is_ok());
+        assert!(parse_max_track_sizing_with_calc("max(10px, min(20%, 30px))").is_ok());
+        assert!(
+            parse_track_sizing_with_calc("minmax(min(10px, 20%), fit-content(max(30px, 40%)))")
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn fri04_c05_parser_rejects_malformed_arity_nonfinite_and_cross_property_values() {
+        for raw in [
+            "min()",
+            "max()",
+            "min(10px,)",
+            "clamp(10px, 20px)",
+            "clamp(10px, 20px, 30px, 40px)",
+            "fit-content()",
+            "fit-content(10px, 20px)",
+            "calc-size(any)",
+            "calc-size(any, 10px, 20px)",
+            "min(10px, max(20px, 30px)",
+            "min(10px)), 20px)",
+            "min(10px) trailing",
+            "10px + 20%",
+            "min(10px + 20%, 30px)",
+            "NaNpx",
+            "inf%",
+            "calc(1e38px + 3e38px)",
+            "size",
+            "calc(size + 1px)",
+            "min(size, 1px)",
+            "calc-size(any, size)",
+            "calc-size(any, max(1px, size))",
+        ] {
+            assert!(
+                parse_preferred_size(raw).is_err(),
+                "invalid preferred fixture unexpectedly parsed: {raw}"
+            );
+        }
+
+        for raw in ["none", "content", "1fr"] {
+            assert!(parse_preferred_size(raw).is_err(), "preferred {raw}");
+            assert!(parse_min_size(raw).is_err(), "minimum {raw}");
+        }
+        for raw in ["auto", "content", "1fr"] {
+            assert!(parse_max_size(raw).is_err(), "maximum {raw}");
+        }
+        for raw in ["none", "1fr"] {
+            assert!(parse_flex_basis(raw).is_err(), "flex basis {raw}");
+        }
+        assert!(parse_min_track_sizing_with_calc("content").is_err());
+        assert!(parse_min_track_sizing_with_calc("fit-content(10px)").is_err());
+        assert!(parse_max_track_sizing_with_calc("content").is_err());
+        assert!(parse_max_track_sizing_with_calc("none").is_err());
+        assert!(parse_max_track_sizing_with_calc("-1fr").is_err());
+        assert!(parse_max_track_sizing_with_calc("NaNfr").is_err());
+        assert!(parse_max_track_sizing_with_calc("inffr").is_err());
+    }
+
+    #[test]
+    fn fri04_c05_parser_accepts_depth_64_and_rejects_depth_65_before_descent() {
+        let nested_min = |depth: usize| {
+            let mut raw = "min(".repeat(depth);
+            raw.push_str("10px");
+            raw.push_str(&")".repeat(depth));
+            raw
+        };
+
+        assert!(
+            parse_preferred_size(&nested_min(64)).is_ok(),
+            "fixture nesting at the documented limit should parse"
+        );
+        let error = parse_preferred_size(&nested_min(65))
+            .expect_err("fixture nesting beyond the documented limit should fail");
+        assert!(
+            error.to_string().contains("exceeds 64"),
+            "unexpected excessive-depth error: {error}"
+        );
+    }
+
+    #[test]
+    fn fri04_c05_parser_preserves_existing_unitless_fixture_lengths() {
+        assert_eq!(
+            parse_preferred_size("40").expect("unitless preferred length should parse"),
+            preferred_size_px(40.0)
+        );
+        assert_eq!(
+            parse_min_size("0").expect("unitless minimum length should parse"),
+            layout::MinSize::ZERO
+        );
+        assert_eq!(
+            parse_max_track_sizing_with_calc("12")
+                .expect("unitless maximum track length should parse"),
+            max_track_px(12.0)
+        );
     }
 
     #[test]
