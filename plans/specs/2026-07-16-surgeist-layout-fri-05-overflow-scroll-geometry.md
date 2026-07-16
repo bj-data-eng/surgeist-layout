@@ -1330,6 +1330,13 @@ gutter, scroll padding/margin, and snap metadata; `scrollbar-width` is currently
 an unconstrained number. The leaf candidate handoff resolves those missing
 upstream phases without performing the work here.
 
+The pinned style model exposes only `HorizontalTb`, `VerticalLr`, and
+`VerticalRl`; root maps those three and currently defaults any malformed
+writing-mode value to horizontal. Pinned CSS lists authored `writing-mode` as
+known unsupported. Those facts bound the upstream logical-edge proof below to
+six style mappings and two default-horizontal CSS mappings; they do not narrow
+the leaf's existing five-mode, ten-mapping contract.
+
 Computed overflow follows this phase chain:
 
 | Phase | Owner | Required representation and transition |
@@ -1359,6 +1366,7 @@ specified-to-computed conversion, or mutable axis. Only resolver-private code
 constructs the carrier, and `Resolved::computed_overflow()` is the sole public
 route to one. A compile consumer and API audit prove that `OverflowAxes` cannot
 be converted directly.
+
 The CSS and style enum additions are breaking for exhaustive downstream
 matches; their candidates update every match explicitly and provide no
 `Auto => Scroll` compatibility shim. Neither leaf adds a dependency on the
@@ -1400,15 +1408,68 @@ the existing cascade machinery.
 | `scroll_snap_align` | `scroll-snap-align: [ none | start | end | center ]{1,2}`; initial `none`. One token duplicates to both block and inline computed values. | Private-field `ScrollSnapAlign` always stores explicit block and inline values. `Resolved::scroll_snap_align()` preserves those semantic roles; it does not map them to the target's physical axes. | Map both values losslessly into layout target metadata. Root interprets them with the snap-container/oversized-target rules below after association and transform. |
 | `scroll_snap_stop` | `scroll-snap-stop: normal | always`; initial `normal`. | Closed computed-as-specified enum returned by `Resolved::scroll_snap_stop()`. | Exhaustive one-to-one mapping; live pass-over behavior remains root runtime policy. |
 
+At the pinned style revision, `Metadata::new` defaults to no impact,
+non-animatable, and discrete, while `Invalidation::between` derives its flags
+only from changed canonical properties and their metadata. The upstream style
+candidate therefore gives computed overflow and every D-02 property the
+explicit lifecycle below. All are non-inherited. Their style `Change` scope is
+the changed node; the root-owned scroll-tree refresh in the final column is an
+additional runtime consequence, not CSS inheritance.
+
+| Canonical style value | Required impact metadata | Animation/interpolation contract | Root update after changed resolved style |
+| --- | --- | --- | --- |
+| `OverflowX`/`OverflowY` and coupled `ComputedOverflowAxes` | Layout and paint | Animatable with discrete interpolation. Both final axes are recoupled simultaneously for every sampled value. | Re-lower and lay out the node; if scroll-container or capture status changes, rebuild descendant snap association from this containing-block-chain point, clamp live offsets to the new range, and re-snap affected containers. |
+| `OverflowClipMargin` | Layout and paint | Animatable by computed absolute length while the visual-box keyword matches; otherwise discrete. | Rebuild clip geometry and paint state. Clip margin does not change range, snapport, or target area, so this change alone does not trigger re-snapping. |
+| `ScrollbarGutter` | Layout and paint | Animatable with discrete interpolation. | Re-run reservation/layout with the same explicit scrollbar environment, update scrollport/range, clamp offsets, and re-snap affected containers. |
+| `ScrollbarWidth` | Layout and paint | Animatable with discrete interpolation among `Auto`, `Thin`, and `None`; host metrics are applied after sampling. | Same geometry, offset-clamp, and re-snap path as gutter; a policy change without a style change also invalidates every lowered node that consumed that environment. |
+| `ScrollPadding` | Layout | Per physical edge, interpolate compatible computed length-percentage/calc values; `Auto` versus a numeric value is discrete. | Rebuild optimal viewing region/snapport and re-snap the container when its current snap position is no longer valid. |
+| `ScrollMargin` | Layout | Interpolate all four computed signed absolute lengths. | Rebuild transformed target area, focus/target scrolling data, and snap positions; re-snap an associated container when the active target or valid position moved. |
+| `ScrollSnapType` | Layout | Animatable with discrete interpolation. | Rebuild capture association for containing-block descendants until their nearer capture barriers, recalculate candidate positions, and re-snap or unsnap the changed container as required. |
+| `ScrollSnapAlign` | Layout | Animatable with discrete interpolation of the two computed keywords. | Recalculate this target's positions and re-snap its associated container when its active position changed. |
+| `ScrollSnapStop` | Layout | Animatable with discrete interpolation. | Refresh this target's live pass-over policy; preserve the current offset unless ordinary re-snap rules independently require movement. |
+
+The style metadata marks every row animatable and records the interpolation
+kind above; a generic fallback to `Interpolation::Discrete` is insufficient for
+clip margin, scroll padding, or scroll margin. Conditional tuple interpolation
+is implemented in the owning typed value rather than by flattening it to a
+generic number or `Edges`. Animated declarations pass through the same final
+normalization and computed-overflow coupling as rule, local, and global-keyword
+values before cache insertion.
+
+Each normalized computed D-02 value is stored under its canonical `Property`
+entry in `Resolved`; the typed accessor reads that same value. Consequently
+`Resolved` equality and `Invalidation::between` observe a changed normalized
+physical edge even when it originated from a logical declaration. Every row
+must make `Invalidation::between(before, after).layout` true; the four
+layout-and-paint rows also make `paint` true. `Change::from_properties` includes
+the node and does not include descendants merely through inheritance. Resolver
+cache keys include rule/local/animated inputs, and cached and uncached resolution
+must return identical normalized carriers.
+
 For scroll padding and scroll margin, each shorthand expands at its declaration's
 cascade position. Physical and logical longhands are not collapsed before
 `writing-mode` and `direction` are computed. The resolver then applies the
-winning physical/logical declarations in cascade order through the same ten
-flow mappings used by layout and caches only the normalized physical aggregate.
+winning physical/logical declarations in cascade order through the six mappings
+currently representable by style: `HorizontalTb`, `VerticalLr`, and
+`VerticalRl`, each with `Ltr` and `Rtl`. It caches only the normalized physical
+aggregate.
+
 The CSS-to-style adapter transfers authored semantic values and source locations
 but never chooses physical edges. Snap type and snap alignment are deliberately
 excluded from that physical-edge normalization because their logical axes are
 defined by the eventual snap container, with the oversized target exception.
+
+This cross-repository boundary does not add `SidewaysLr` or `SidewaysRl` to
+`surgeist-style` and does not make `writing-mode` authored CSS parseable. CSS
+integration proves the default `HorizontalTb` mappings in both directions;
+Rust-authored style integration proves all six currently representable mappings.
+The four Sideways `WritingMode`/`Direction` pairs remain valid and fully tested
+for direct `surgeist-layout` callers under FRI-02/FRI-05, but CSS/style/root
+Sideways expansion is a separate upstream initiative and is not required for
+this candidate handoff. Root maps the three current style variants exhaustively;
+a malformed value or future unmatched variant returns a typed
+`StyleLayoutValue { property: "writing-mode", .. }` instead of defaulting to
+`HorizontalTb`.
 
 The normalized style accessors above are the only style-to-layout inputs for
 these fields. Their computed carriers have private fields and read-only
@@ -1444,13 +1505,21 @@ are the initial values recorded in the table and installed by style metadata.
 Cross-repository evidence for the matrix is mandatory: CSS parser tables cover
 every grammar, omission/default normalization, shorthand expansion, and invalid
 token class; style tests cover initial values, CSS-wide keywords, cache hits,
-physical/logical precedence in all ten flow mappings, omitted snap strictness,
-and one-value snap alignment; root tests carry each authored property through
-CSS, style, and the public layout-lowering entry point. Root tests also cover
-overlay, classic auto, classic thin, none, invalid metrics, calc/no-store
-diagnostics, every layout constructor failure mapping, and an API/static proof
-that no raw number, generic-value read, adapter-side logical mapping, or silent
-default path remains.
+physical/logical precedence in all six style-representable flow mappings,
+omitted snap strictness, and one-value snap alignment. Metadata and interpolation
+tests cover every lifecycle row, including compatible midpoints and each
+required discrete boundary. `Invalidation::between` and
+`Change::from_properties` tests prove the exact layout/paint flags and node
+scope, and a before/after resolver-cache test proves that changed style reaches
+a changed typed accessor and changed lowered `NodeInput` field. Root tests carry
+each authored property through CSS, style, and the public layout-lowering entry
+point, using CSS-origin evidence for both default-horizontal directions and
+Rust-authored style evidence for all six mappings. Root tests also cover
+overlay, classic auto, classic thin, none, invalid metrics, environment-policy
+invalidation, calc/no-store diagnostics, every layout constructor failure
+mapping, capture-subtree refresh, offset clamping and each required re-snap or
+no-re-snap transition, plus an API/static proof that no raw number,
+generic-value read, adapter-side logical mapping, or silent default path remains.
 
 The cross-repository handoff requires:
 
@@ -1459,8 +1528,9 @@ The cross-repository handoff requires:
    omission, default-component, and typed-invalid evidence;
 2. a published `surgeist-style` candidate that adds `Auto`, the resolver-only
    computed-overflow carrier, every typed D-02 model and normalized accessor,
-   post-cascade simultaneous coupling, physical/logical edge resolution, and
-   exhaustive default/cached-resolution evidence;
+   post-cascade simultaneous coupling, six-map physical/logical edge resolution,
+   exact impact/interpolation metadata and invalidation behavior, and exhaustive
+   default/cached-resolution evidence;
 3. root `src/adapters/css_style.rs` evidence that transfers all authored
    overflow and D-02 values losslessly, preserves declaration locations and
    logical roles, and leaves coupling and physical-edge resolution to style;
@@ -1470,7 +1540,8 @@ The cross-repository handoff requires:
    diagnostic;
 5. root `src/adapters/style_layout.rs` evidence for every D-02 row through the
    normalized style accessors, including explicit overlay/classic scrollbar
-   environment injection, calc-store behavior, all ten logical edge mappings,
+   environment injection, calc-store behavior, all six supported logical edge
+   mappings, typed rejection instead of writing-mode fallback,
    omitted snap strictness as `Proximity`, and the exact typed failures named
    above;
 6. migration of removed scroll constructors,
@@ -1485,14 +1556,16 @@ The cross-repository handoff requires:
    recomputing leaf box invariants;
 8. separate root integration evidence for nearest-scroll-container focus,
    fragment, and `scrollIntoView` behavior versus nearest-capturer snap
-   association, including non-scroll and snap-type-`None` capture barriers;
+   association, including non-scroll and snap-type-`None` capture barriers and
+   the lifecycle table's capture-subtree invalidation;
 9. snap-axis evidence for orthogonal container/target writing modes, ordinary
    container-relative block/inline alignment, and the per-axis target-writing-
    mode exception after transform plus scroll margin makes a snap area larger
    than its snapport;
 10. preservation of root ownership for transformed coordinate mapping, current
    offsets, host events, scroll UI, CSSOM adaptation, target/focus scrolling,
-   oversized-area valid-position ranges, snap selection, and re-snapping;
+   oversized-area valid-position ranges, snap selection, and the lifecycle
+   table's offset-clamp/re-snap decisions;
 11. promotion of the exact published CSS, style, and layout candidate gitlinks
    before the root adapter commit; and
 12. refresh and check of root-owned `api/crates/surgeist-css.txt`,
@@ -1596,7 +1669,8 @@ FRI-05 is complete only when:
 14. Section FRI-05.12 records the complete breaking leaf-to-root integration
     contract, including resolver-only computed-overflow construction, every
     D-02 CSS/style/root phase and diagnostic, explicit scrollbar environment,
-    physical/logical edge normalization, snap capture barriers and axis rules,
+    six-map upstream and ten-map leaf flow boundaries, style lifecycle and
+    invalidation, snap capture barriers and axis rules,
     the canonical geometry and target carriers, removed-surface migrations, and
     the three-candidate pointer/API-artifact dependency required of the eventual
     root promotion.
