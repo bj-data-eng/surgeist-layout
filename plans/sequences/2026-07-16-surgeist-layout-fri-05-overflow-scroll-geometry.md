@@ -74,23 +74,20 @@ rounding reconstruction in both scalar lanes without a second derived source.
 
 ### `FRI-05-C03` Root Leaf And Block Geometry Integration
 
-**Specification sources:** `FRI-05.4 D-05` through `D-12`; `FRI-05.6`; `FRI-05.7` root/leaf/block and cache contracts; applicable `FRI-05.8` evidence.
+**Specification sources:** `FRI-05.4 D-03` through `D-12`; root/leaf/block portions of `FRI-05.5` through `FRI-05.8`.
 
 **Prerequisites:** `FRI-05-C02` complete.
 
 **Entry state:** Canonical geometry is available but root, leaf, and block paths still use local accumulation, mutable scrollbar facts, or incomplete output.
 
-**Bounded outcome:** Integrate the canonical factory and shared accumulator in
-root, leaf, and block; implement stable/auto/both-edge reservation and the
-monotone auto-gutter fixed point; saturate small boxes; close negative margins,
-partial axes, current lines/floats/absolute children, output helpers, rounding,
-and final-cache publication; remove the replaced arbitrary and phase-unsafe
-geometry paths.
+**Bounded outcome:** Integrate the canonical factory and shared accumulator in root, leaf, and block;
+implement stable/auto/both-edge reservation and the monotone auto-gutter fixed point; close small boxes, negative margins, partial axes, current lines/floats/absolute children, output helpers, rounding, and final-cache publication;
+remove replaced root/block geometry paths while retaining the shared output field until its remaining producers migrate.
 
 **Observable exit evidence:** Root/leaf/block front doors prove coherent
 geometry, computed block formatting behavior, nested propagation/trapping,
-negative-margin and tiny-box closure, auto cross-axis induction, alignment-safe
-range, helper agreement, cache equivalence, and no panic or unsupported result. Removed constructors, legacy facts, mutable scrollbar output, and compatibility bridges are absent.
+negative-margin and tiny-box closure, auto induction, range, helper agreement, cache equivalence, and no panic or unsupported result.
+Root/block legacy facts and constructors are absent; shared output removal remains assigned to C05.
 
 **Handoff:** Shared block-side behavior is stable for flex and grid consumers.
 
@@ -118,8 +115,7 @@ cached/uncached output pass through the real flex front door.
 
 ### `FRI-05-C05` Grid Family Scroll Geometry
 
-**Specification sources:** `FRI-05.4 D-01`, `D-06` through `D-11`;
-`FRI-05.7` grid contract; grid portions of `FRI-05.8` and `FRI-05.9`.
+**Specification sources:** `FRI-05.4 D-01`, `D-03`, `D-04`, `D-06` through `D-11`; `FRI-05.5`; grid portions of `FRI-05.7` through `FRI-05.9`.
 
 **Prerequisites:** `FRI-05-C04` complete.
 
@@ -130,15 +126,17 @@ lose container-relative contribution origins.
 **Bounded outcome:** Integrate reservation, retained child/current absolute
 geometry, shared accumulation, canonical output, computed auto minimum,
 flow-aware used-overflow intrinsic trapping, final track subjects, zero-axis
-contribution, and container-relative origins across the grid family.
+contribution, and container-relative origins. After the last producers migrate,
+remove the shared mutable scrollbar output and all remaining compatibility projections.
 
 **Observable exit evidence:** All five overflow values, replaced hidden,
 ordinary/intrinsic-subgrid/lanes callers, every leaf flow mapping, nested
 propagation/trapping, zero-area descendants, non-zero item origins, auto
 coupling, signed ranges, rounding, and cache equivalence pass through production
-grid front doors.
+grid front doors. `NodeOutputOf` exposes only canonical derived content/gutter
+accessors, and no legacy output field or construction bridge remains.
 
-**Handoff:** All owned formatting contexts emit the shared geometry contract.
+**Handoff:** All owned formatting contexts emit only the shared geometry contract.
 
 ### `FRI-05-C06` Bounded Fixtures Comparator And Final Regeneration
 
