@@ -4,6 +4,10 @@ use std::collections::{HashMap, HashSet};
 use crate::test_support::layout_tree::OracleTreeOf;
 use crate::*;
 
+fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
+    ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
 #[test]
 fn root_and_hidden_contexts_are_explicit_in_both_scalar_lanes() {
     fn assert_lane<S: LayoutScalar>() {
@@ -1172,7 +1176,7 @@ fn assert_logical_flex_boundaries_keep_visible_content_scroll_and_rounding_physi
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::splat_clone(PreferredSizeOf::px(scalar(100.0))),
                 flex_direction: FlexDirection::Row,
-                overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
                 ..NodeInputOf::default()
             },
         )
@@ -6702,7 +6706,7 @@ impl Compute for SingleRootTree {
 #[test]
 fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
     let mut tree = SingleRootTree::new(NodeInput {
-        overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+        overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
         size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
@@ -6734,7 +6738,7 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
 #[test]
 fn root_layout_emits_visible_scroll_geometry_without_range() {
     let mut tree = SingleRootTree::new(NodeInput {
-        overflow: Point::new(Overflow::Visible, Overflow::Visible),
+        overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
         size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
@@ -6759,7 +6763,7 @@ fn root_layout_emits_visible_scroll_geometry_without_range() {
 #[test]
 fn root_layout_emits_clip_geometry_without_range() {
     let mut tree = SingleRootTree::new(NodeInput {
-        overflow: Point::new(Overflow::Clip, Overflow::Clip),
+        overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
         size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
@@ -6780,7 +6784,7 @@ fn root_layout_emits_clip_geometry_without_range() {
 #[test]
 fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
     let mut tree = SingleRootTree::new(NodeInput {
-        overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
         size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         padding: Edges::all(Length::px(2.0)),
@@ -6817,14 +6821,15 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
 #[test]
 fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
     let mut tree = SingleRootTree::new(NodeInput {
-        overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
         size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
     let child_overflow = ScrollRect::new(Point::new(-12.0, -4.0), Size::new(160.0, 74.0)).unwrap();
     let child_geometry = crate::scroll::scroll_geometry_from_layout(
         FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        Point::new(Overflow::Hidden, Overflow::Hidden),
+        computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        false,
         Size::new(100.0, 40.0),
         Edges::ZERO,
         Edges::ZERO,
@@ -6881,7 +6886,8 @@ fn round_layout_rounds_scroll_geometry_with_node_output() {
             scroll_geometry: Some(
                 crate::scroll::scroll_geometry_from_layout(
                     FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                    Point::new(Overflow::Hidden, Overflow::Hidden),
+                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    false,
                     Size::new(100.5, 40.5),
                     Edges::ZERO,
                     Edges::all(0.25),
@@ -6919,7 +6925,8 @@ fn round_layout_diagnostics_rejects_invalid_rounded_scroll_geometry() {
     let scrollable_overflow = ScrollRect::new(Point::new(f32::MAX, 0.0), Size::ZERO).unwrap();
     let scroll_geometry = crate::scroll::scroll_geometry_from_layout(
         FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        Point::new(Overflow::Hidden, Overflow::Hidden),
+        computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        false,
         Size::new(1.0, 1.0),
         Edges::ZERO,
         Edges::ZERO,
@@ -7004,7 +7011,7 @@ fn root_layout_stores_child_output_as_root_layout() {
     let mut tree = RootTree {
         style: NodeInput {
             direction: Direction::Rtl,
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(13.0).unwrap(),
             ..NodeInput::default()
         },

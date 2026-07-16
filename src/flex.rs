@@ -1,9 +1,9 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
-    ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, Direction, Edges, FlexDirection,
-    FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
-    LengthResolutionStatus, NodeInputOf, NodeOutputOf, Overflow, ParentFormattingContext, Point,
-    Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
+    ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
+    FlexDirection, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
+    LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, Overflow,
+    ParentFormattingContext, Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{
     EdgesResultExt, ResolvedFlexBasis, SizeResultExt, SizingAlgorithm, resolve_flex_basis,
@@ -14,7 +14,8 @@ use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, 
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
-    ScrollbarReservationOf, content_box_inset_with_scrollbar, scrollbar_size_from_overflow,
+    ScrollbarReservationOf, UsedOverflow, content_box_inset_with_scrollbar,
+    scrollbar_size_from_overflow,
 };
 use crate::sizing::{MaxSizeOf, MinSizeOf, PreferredSizeOf};
 
@@ -241,6 +242,7 @@ impl<S: LayoutScalar> Constants<S> {
             .transpose_with_node(tree, node)?;
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
+            style.item_is_replaced,
             style.scrollbar_width.get(),
             style.direction,
         );
@@ -856,7 +858,8 @@ struct CollectedFlexItem<Node, S: LayoutScalar> {
     inset: Edges<Option<S>>,
     padding: Edges<S>,
     border: Edges<S>,
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
     scrollbar_width_value: S,
     align_self: AlignItems,
     initial_baseline: FlexItemBaseline<S>,
@@ -885,7 +888,8 @@ struct ResolvedFlexItem<Node, S: LayoutScalar> {
     inset: Edges<Option<S>>,
     padding: Edges<S>,
     border: Edges<S>,
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
     scrollbar_width_value: S,
     align_self: AlignItems,
     baseline: FlexItemBaseline<S>,
@@ -899,7 +903,7 @@ struct ResolvedFlexItem<Node, S: LayoutScalar> {
 struct FinalFlexItem<Node, S: LayoutScalar> {
     _node: core::marker::PhantomData<Node>,
     output: ComputeOutputOf<S>,
-    overflow: Point<Overflow>,
+    overflow: UsedOverflow,
     align_self: AlignItems,
     baseline: FlexItemBaseline<S>,
     location: Point<S>,
@@ -937,6 +941,7 @@ impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexIte
             padding: item.padding,
             border: item.border,
             overflow: item.overflow,
+            item_is_replaced: item.item_is_replaced,
             scrollbar_width_value: item.scrollbar_width_value,
             align_self: item.align_self,
             baseline: item.initial_baseline,
@@ -1306,6 +1311,7 @@ where
         padding,
         border,
         overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
         scrollbar_width_value: style.scrollbar_width.get(),
         align_self,
         initial_baseline: baseline,
@@ -1423,9 +1429,8 @@ where
     ))
 }
 
-fn flex_automatic_minimum_is_zero(overflow: Point<Overflow>) -> bool {
-    matches!(overflow.x, Overflow::Hidden | Overflow::Scroll)
-        || matches!(overflow.y, Overflow::Hidden | Overflow::Scroll)
+fn flex_automatic_minimum_is_zero(overflow: ComputedOverflow) -> bool {
+    overflow.x().is_scrollable() || overflow.y().is_scrollable()
 }
 
 fn flex_base_known_size<S: LayoutScalar>(
@@ -2087,10 +2092,11 @@ fn item_physical_baseline<S: LayoutScalar>(
 }
 
 fn item_scrollbar_size<S: LayoutScalar>(
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
     scrollbar_width_value: S,
 ) -> Size<S> {
-    scrollbar_size_from_overflow(overflow, scrollbar_width_value)
+    scrollbar_size_from_overflow(overflow, item_is_replaced, scrollbar_width_value)
 }
 
 fn resolve_cross_axis_auto_margins<Node, S: LayoutScalar>(
@@ -3077,15 +3083,15 @@ fn content_size_contribution<S: LayoutScalar>(
     location: Point<S>,
     size: Size<S>,
     content_size: Size<S>,
-    overflow: Point<Overflow>,
+    overflow: UsedOverflow,
 ) -> Size<S> {
     let contribution_size = Size::new(
-        if overflow.x == Overflow::Visible {
+        if overflow.x().value() == Overflow::Visible {
             size.width.max(content_size.width)
         } else {
             size.width
         },
-        if overflow.y == Overflow::Visible {
+        if overflow.y().value() == Overflow::Visible {
             size.height.max(content_size.height)
         } else {
             size.height
@@ -3177,7 +3183,11 @@ where
                 size: output.size,
                 content_size: output.content_size,
                 scroll_geometry: None,
-                scrollbar_size: item_scrollbar_size(item.overflow, item.scrollbar_width_value),
+                scrollbar_size: item_scrollbar_size(
+                    item.overflow,
+                    item.item_is_replaced,
+                    item.scrollbar_width_value,
+                ),
                 border: item.border,
                 padding: item.padding,
                 margin: item.margin,
@@ -3186,7 +3196,7 @@ where
         final_items.push(FinalFlexItem {
             _node: core::marker::PhantomData,
             output,
-            overflow: item.overflow,
+            overflow: UsedOverflow::from_computed(item.overflow, item.item_is_replaced),
             align_self: item.align_self,
             baseline,
             location,
@@ -3437,7 +3447,11 @@ where
                 size: final_size,
                 content_size: output.content_size,
                 scroll_geometry: None,
-                scrollbar_size: item_scrollbar_size(style.overflow, style.scrollbar_width.get()),
+                scrollbar_size: item_scrollbar_size(
+                    style.overflow,
+                    style.item_is_replaced,
+                    style.scrollbar_width.get(),
+                ),
                 border,
                 padding,
                 margin,
@@ -3450,7 +3464,7 @@ where
             ),
             final_size,
             output.content_size,
-            style.overflow,
+            UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
         );
         content_size = Size::new(
             content_size.width.max(contribution.width),
@@ -3942,7 +3956,7 @@ mod final_baseline_selection_tests {
         FinalFlexItem {
             _node: core::marker::PhantomData,
             output,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: UsedOverflow::from_computed(ComputedOverflow::VISIBLE, false),
             align_self,
             baseline: FlexItemBaseline::from_output(output, default_flow_axes::<S>()),
             location: Point::new(S::ZERO, S::from_f64(location_y)),

@@ -2,7 +2,7 @@ use super::{
     AspectRatioOf, DefaultScalar, Edges, FiniteScalarErrorOf, FlexBasisOf, GridLine, GridSpan,
     GridTemplateAreas, LayoutScalar, LengthAutoOf, LengthOf, LengthPercentageOf, MaxSizeOf,
     MinSizeOf, NonNegativeFiniteScalarErrorOf, NumericResolutionOf, PercentageBasisOf,
-    PhysicalSide, Point, PreferredSizeOf, Size, TrackComponentOf,
+    PhysicalSide, PreferredSizeOf, Size, TrackComponentOf,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -105,18 +105,8 @@ pub enum Overflow {
 
 impl Overflow {
     #[must_use]
-    pub const fn clips_contents(self) -> bool {
-        matches!(self, Self::Clip | Self::Hidden | Self::Scroll)
-    }
-
-    #[must_use]
     pub const fn is_scrollable(self) -> bool {
         matches!(self, Self::Hidden | Self::Scroll | Self::Auto)
-    }
-
-    #[must_use]
-    pub const fn blocks_margin_collapse(self) -> bool {
-        matches!(self, Self::Hidden | Self::Scroll)
     }
 }
 
@@ -1400,8 +1390,15 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub text_align: TextAlign,
     pub vertical_align: VerticalAlign,
     pub writing_mode: WritingMode,
-    pub overflow: Point<Overflow>,
+    pub overflow: ComputedOverflow,
+    pub overflow_clip_margin: OverflowClipMarginOf<S>,
+    pub scrollbar_gutter: ScrollbarGutter,
     pub scrollbar_width: self::ScrollbarWidthOf<S>,
+    pub scroll_padding: ScrollPaddingOf<S>,
+    pub scroll_margin: ScrollMarginOf<S>,
+    pub scroll_snap_type: ScrollSnapType,
+    pub scroll_snap_align: ScrollSnapAlign,
+    pub scroll_snap_stop: ScrollSnapStop,
     pub position: Position,
     pub float: Float,
     pub clear: Clear,
@@ -1476,11 +1473,31 @@ impl NodeInputOf<DefaultScalar> {
         text_align: TextAlign::Auto,
         vertical_align: VerticalAlign::Baseline,
         writing_mode: WritingMode::HorizontalTb,
-        overflow: Point {
-            x: Overflow::Visible,
-            y: Overflow::Visible,
+        overflow: ComputedOverflow::VISIBLE,
+        overflow_clip_margin: OverflowClipMarginOf {
+            clip_box: OverflowClipBox::PaddingBox,
+            margin: 0.0,
         },
+        scrollbar_gutter: ScrollbarGutter::Auto,
         scrollbar_width: self::ScrollbarWidthOf::ZERO,
+        scroll_padding: ScrollPaddingOf {
+            top: ScrollPaddingValueOf::AUTO,
+            right: ScrollPaddingValueOf::AUTO,
+            bottom: ScrollPaddingValueOf::AUTO,
+            left: ScrollPaddingValueOf::AUTO,
+        },
+        scroll_margin: ScrollMarginOf {
+            top: 0.0,
+            right: 0.0,
+            bottom: 0.0,
+            left: 0.0,
+        },
+        scroll_snap_type: ScrollSnapType::None,
+        scroll_snap_align: ScrollSnapAlign {
+            block: ScrollSnapAlignValue::None,
+            inline: ScrollSnapAlignValue::None,
+        },
+        scroll_snap_stop: ScrollSnapStop::Normal,
         position: Position::Relative,
         float: Float::None,
         clear: Clear::None,
@@ -1530,11 +1547,15 @@ impl<S: LayoutScalar> Default for NodeInputOf<S> {
             text_align: TextAlign::Auto,
             vertical_align: VerticalAlign::Baseline,
             writing_mode: WritingMode::HorizontalTb,
-            overflow: Point {
-                x: Overflow::Visible,
-                y: Overflow::Visible,
-            },
+            overflow: ComputedOverflow::VISIBLE,
+            overflow_clip_margin: OverflowClipMarginOf::default(),
+            scrollbar_gutter: ScrollbarGutter::Auto,
             scrollbar_width: self::ScrollbarWidthOf::ZERO,
+            scroll_padding: ScrollPaddingOf::default(),
+            scroll_margin: ScrollMarginOf::default(),
+            scroll_snap_type: ScrollSnapType::None,
+            scroll_snap_align: ScrollSnapAlign::default(),
+            scroll_snap_stop: ScrollSnapStop::Normal,
             position: Position::Relative,
             float: Float::None,
             clear: Clear::None,
@@ -1699,6 +1720,38 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
 mod tests {
     use super::*;
     use crate::SourceIndex;
+
+    fn assert_fri05_c01_node_input_fields_and_defaults<S: LayoutScalar>(input: &NodeInputOf<S>) {
+        let _: &ComputedOverflow = &input.overflow;
+        let _: &OverflowClipMarginOf<S> = &input.overflow_clip_margin;
+        let _: &ScrollbarGutter = &input.scrollbar_gutter;
+        let _: &ScrollbarWidthOf<S> = &input.scrollbar_width;
+        let _: &ScrollPaddingOf<S> = &input.scroll_padding;
+        let _: &ScrollMarginOf<S> = &input.scroll_margin;
+        let _: &ScrollSnapType = &input.scroll_snap_type;
+        let _: &ScrollSnapAlign = &input.scroll_snap_align;
+        let _: &ScrollSnapStop = &input.scroll_snap_stop;
+
+        assert_eq!(input.overflow, ComputedOverflow::VISIBLE);
+        assert_eq!(
+            input.overflow_clip_margin,
+            OverflowClipMarginOf::<S>::default()
+        );
+        assert_eq!(input.scrollbar_gutter, ScrollbarGutter::Auto);
+        assert_eq!(input.scrollbar_width, ScrollbarWidthOf::<S>::ZERO);
+        assert_eq!(input.scroll_padding, ScrollPaddingOf::<S>::default());
+        assert_eq!(input.scroll_margin, ScrollMarginOf::<S>::default());
+        assert_eq!(input.scroll_snap_type, ScrollSnapType::None);
+        assert_eq!(input.scroll_snap_align, ScrollSnapAlign::default());
+        assert_eq!(input.scroll_snap_stop, ScrollSnapStop::Normal);
+    }
+
+    #[test]
+    fn fri05_c01_node_input_default_and_generic_fields_have_exact_domains_and_initial_values() {
+        assert_fri05_c01_node_input_fields_and_defaults(&NodeInput::DEFAULT);
+        assert_fri05_c01_node_input_fields_and_defaults(&NodeInputOf::<f32>::default());
+        assert_fri05_c01_node_input_fields_and_defaults(&NodeInputOf::<f64>::default());
+    }
 
     fn assert_canonical_zero<S: LayoutScalar>(value: S) {
         assert_eq!(value, S::ZERO);

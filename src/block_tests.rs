@@ -4,6 +4,10 @@ use std::collections::HashSet;
 use crate::block::resolve_logical_in_flow_margin;
 use crate::*;
 
+fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
+    ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
 #[test]
 fn block_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
     assert_block_child_context_is_complete::<f32>();
@@ -1645,7 +1649,7 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
                     writing_mode,
                     direction,
                     text_align: TextAlign::LegacyCenter,
-                    overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                     size: root_size.map(PreferredSizeOf::px),
                     ..NodeInputOf::default()
                 },
@@ -1716,7 +1720,7 @@ fn assert_ordinary_block_boundaries_keep_inline_content_coordinates<S: LayoutSca
                     display: Display::Block,
                     writing_mode,
                     direction,
-                    overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                     size: root_size.map(PreferredSizeOf::px),
                     padding,
                     border,
@@ -1841,7 +1845,7 @@ fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: Layout
                     display: Display::Block,
                     writing_mode,
                     clear: Clear::Left,
-                    overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                     size: Size::new(
                         PreferredSizeOf::px(scalar(10.0)),
                         PreferredSizeOf::px(scalar(20.0)),
@@ -2355,13 +2359,14 @@ fn perform_scroll_block(tree: &mut ScrollBlockTree) -> ComputeOutput {
 }
 
 fn child_scroll_geometry(
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
     size: Size,
     scrollable_overflow: ScrollRect,
 ) -> ScrollGeometry {
     crate::scroll::scroll_geometry_from_layout(
         FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
         overflow,
+        false,
         size,
         Edges::ZERO,
         Edges::ZERO,
@@ -2378,7 +2383,7 @@ fn block_layout_emits_scroll_geometry_for_scroll_overflow() {
     tree.styles.insert(
         1,
         NodeInput {
-            overflow: Point::new(Overflow::Scroll, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -2400,7 +2405,7 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -2409,7 +2414,7 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
@@ -2437,7 +2442,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -2446,7 +2451,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
@@ -2475,7 +2480,7 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -2484,7 +2489,7 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             inset: Edges {
                 left: LengthAuto::px(-20.0),
                 top: LengthAuto::px(-5.0),
@@ -2515,7 +2520,7 @@ fn block_scroll_geometry_preserves_negative_child_overflow_origin() {
 
 #[test]
 fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
-    fn run(overflow: Point<Overflow>) -> ScrollGeometry {
+    fn run(overflow: ComputedOverflow) -> ScrollGeometry {
         let mut tree = ScrollBlockTree::default();
         tree.children.insert(1, vec![]);
         tree.styles.insert(
@@ -2531,11 +2536,11 @@ fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
         perform_scroll_block(&mut tree).scroll_geometry.unwrap()
     }
 
-    let visible = run(Point::new(Overflow::Visible, Overflow::Visible));
+    let visible = run(computed_overflow(Overflow::Visible, Overflow::Visible));
     assert_eq!(visible.overflow_clip(), None);
     assert_positive_physical_range(visible.physical_range(), Size::ZERO);
 
-    let hidden = run(Point::new(Overflow::Hidden, Overflow::Hidden));
+    let hidden = run(computed_overflow(Overflow::Hidden, Overflow::Hidden));
     assert_eq!(hidden.overflow_clip(), Some(hidden.scrollport()));
     assert_eq!(
         hidden
@@ -2544,11 +2549,11 @@ fn block_scroll_geometry_distinguishes_visible_hidden_clip_and_scroll() {
         PhysicalScrollOffset::try_new(0.0, 0.0).unwrap()
     );
 
-    let clip = run(Point::new(Overflow::Clip, Overflow::Clip));
+    let clip = run(computed_overflow(Overflow::Clip, Overflow::Clip));
     assert_eq!(clip.overflow_clip(), Some(clip.scrollport()));
     assert_positive_physical_range(clip.physical_range(), Size::ZERO);
 
-    let scroll = run(Point::new(Overflow::Scroll, Overflow::Scroll));
+    let scroll = run(computed_overflow(Overflow::Scroll, Overflow::Scroll));
     assert_eq!(scroll.overflow_clip(), Some(scroll.scrollport()));
     assert_positive_physical_range(scroll.physical_range(), Size::ZERO);
 }
@@ -2562,7 +2567,7 @@ fn block_scroll_geometry_uses_node_local_padding_border_and_gutter_coordinates()
         NodeInput {
             display: Display::Block,
             direction: Direction::Rtl,
-            overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             padding: Edges::all(Length::px(2.0)),
@@ -2591,7 +2596,7 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -2601,7 +2606,7 @@ fn block_scroll_geometry_includes_absolute_child_overflow_rect() {
         NodeInput {
             display: Display::Block,
             position: Position::Absolute,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             inset: Edges {
                 left: LengthAuto::px(90.0),
@@ -2635,7 +2640,7 @@ fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             min_size: Size::new(MinSize::px(140.0), MinSize::px(80.0)),
             ..NodeInput::default()
         },
@@ -2689,7 +2694,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Visible, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Hidden),
             size: Size::new(PreferredSize::px(40.0), PreferredSize::px(10.0)),
             ..NodeInput::default()
         },
@@ -2698,13 +2703,13 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
         2,
         NodeInput {
             display: Display::InlineBlock,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
     let mut inline_output = ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(20.0, 10.0));
     inline_output.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Visible, Overflow::Visible),
+        computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(20.0, 10.0),
         ScrollRect::new(Point::new(-12.0, -3.0), Size::new(70.0, 26.0)).unwrap(),
     ));
@@ -2718,7 +2723,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
         Point::new(-12.0, -3.0)
     );
     assert_eq!(geometry.scrollable_overflow().size(), Size::new(70.0, 26.0));
-    assert_positive_physical_range(geometry.physical_range(), Size::new(0.0, 13.0));
+    assert_positive_physical_range(geometry.physical_range(), Size::new(18.0, 13.0));
 }
 
 #[test]
@@ -2730,7 +2735,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -2739,14 +2744,14 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
         2,
         NodeInput {
             display: Display::InlineBlock,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             ..NodeInput::default()
         },
     );
     let mut inline_output =
         ComputeOutput::from_sizes(Size::new(30.0, 10.0), Size::new(150.0, 80.0));
     inline_output.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Hidden, Overflow::Hidden),
+        computed_overflow(Overflow::Hidden, Overflow::Hidden),
         Size::new(30.0, 10.0),
         ScrollRect::new(Point::new(-20.0, -7.0), Size::new(180.0, 92.0)).unwrap(),
     ));
@@ -2774,7 +2779,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
             ..NodeInput::default()
         },
@@ -2792,7 +2797,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         3,
         NodeInput {
             display: Display::InlineBlock,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
@@ -2800,19 +2805,19 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         5,
         NodeInput {
             display: Display::InlineBlock,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
     let mut first_inline = ComputeOutput::from_sizes(Size::new(10.0, 10.0), Size::new(10.0, 10.0));
     first_inline.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Visible, Overflow::Visible),
+        computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(10.0, 10.0),
         ScrollRect::new(Point::new(-20.0, 0.0), Size::new(30.0, 10.0)).unwrap(),
     ));
     let mut second_inline = ComputeOutput::from_sizes(Size::new(10.0, 10.0), Size::new(10.0, 10.0));
     second_inline.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Visible, Overflow::Visible),
+        computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(10.0, 10.0),
         ScrollRect::new(Point::new(-7.0, 0.0), Size::new(25.0, 12.0)).unwrap(),
     ));
@@ -2920,7 +2925,7 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -2930,13 +2935,13 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
         NodeInput {
             display: Display::Block,
             float: Float::Left,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
     let mut float_output = ComputeOutput::from_sizes(Size::new(30.0, 10.0), Size::new(30.0, 10.0));
     float_output.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Visible, Overflow::Visible),
+        computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(30.0, 10.0),
         ScrollRect::new(Point::ZERO, Size::new(140.0, 55.0)).unwrap(),
     ));
@@ -2964,7 +2969,8 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
     float_output.scroll_geometry = Some(
         crate::scroll::scroll_geometry_from_layout(
             FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            Point::new(Overflow::Hidden, Overflow::Hidden),
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            false,
             Size::new(30.0, 10.0),
             resolved_padding,
             resolved_border,
@@ -2990,7 +2996,7 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
         NodeInput {
             display: Display::Block,
             float: Float::Left,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             padding,
             border,
             ..NodeInput::default()
@@ -3008,7 +3014,10 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
 
     let base_overflow = crate::scroll::scrollable_overflow_from_layout_content_size(
         Direction::Ltr,
-        Point::new(Overflow::Hidden, Overflow::Hidden),
+        crate::scroll::UsedOverflow::from_computed(
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            false,
+        ),
         child_layout.size,
         child_layout.padding,
         child_layout.border,
@@ -3020,7 +3029,8 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
         .expect("expected float child overflow union is valid");
     let expected_geometry = crate::scroll::scroll_geometry_from_layout(
         FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        Point::new(Overflow::Hidden, Overflow::Hidden),
+        computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        false,
         child_layout.size,
         child_layout.padding,
         child_layout.border,
@@ -3051,7 +3061,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
             padding: Edges::all(Length::px(7.0)),
@@ -3064,7 +3074,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
         NodeInput {
             display: Display::Block,
             position: Position::Absolute,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
             inset: Edges {
                 left: LengthAuto::px(90.0),
@@ -3083,7 +3093,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
     let mut absolute_output =
         ComputeOutput::from_sizes(Size::new(20.0, 10.0), Size::new(50.0, 20.0));
     absolute_output.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Visible, Overflow::Visible),
+        computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(20.0, 10.0),
         ScrollRect::new(Point::new(-2.0, -1.0), Size::new(60.0, 25.0)).unwrap(),
     ));
@@ -3123,7 +3133,7 @@ fn block_child_node_output_recomputes_child_scroll_geometry() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
@@ -3146,7 +3156,7 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
             ..NodeInput::default()
         },
@@ -3155,7 +3165,7 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
@@ -3193,7 +3203,7 @@ fn block_absolute_child_scroll_geometry_uses_final_node_output_size() {
         NodeInput {
             display: Display::Block,
             position: Position::Absolute,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             inset: Edges {
                 left: LengthAuto::px(0.0),
                 right: LengthAuto::px(0.0),
@@ -3222,7 +3232,7 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
     let child_overflow = ScrollRect::new(Point::new(-15.0, -4.0), Size::new(95.0, 49.0)).unwrap();
     let mut child_output = ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(80.0, 45.0));
     child_output.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Hidden, Overflow::Hidden),
+        computed_overflow(Overflow::Hidden, Overflow::Hidden),
         Size::new(50.0, 20.0),
         child_overflow,
     ));
@@ -3242,7 +3252,7 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
             ..NodeInput::default()
         },
@@ -3264,7 +3274,7 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
     let child_overflow = ScrollRect::new(Point::new(-9.0, -3.0), Size::new(74.0, 34.0)).unwrap();
     let mut child_output = ComputeOutput::from_sizes(Size::new(40.0, 12.0), Size::new(65.0, 31.0));
     child_output.scroll_geometry = Some(child_scroll_geometry(
-        Point::new(Overflow::Hidden, Overflow::Hidden),
+        computed_overflow(Overflow::Hidden, Overflow::Hidden),
         Size::new(40.0, 12.0),
         child_overflow,
     ));
@@ -3284,7 +3294,7 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
         2,
         NodeInput {
             display: Display::InlineBlock,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             ..NodeInput::default()
         },
     );
@@ -5644,7 +5654,7 @@ fn block_inline_run_content_size_includes_visible_overflow_and_relative_inset() 
             1,
             NodeInput {
                 display: Display::InlineBlock,
-                overflow: Point::new(Overflow::Visible, Overflow::Visible),
+                overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
                 inset: Edges {
                     left: LengthAuto::px(15.0),
                     top: LengthAuto::px(5.0),
@@ -5705,7 +5715,7 @@ fn block_inline_run_content_size_accounts_for_negative_relative_inset_after_cont
             2,
             NodeInput {
                 display: Display::InlineBlock,
-                overflow: Point::new(Overflow::Visible, Overflow::Visible),
+                overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
                 inset: Edges {
                     top: LengthAuto::px(-5.0),
                     ..Edges::all(LengthAuto::AUTO)
@@ -6792,7 +6802,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats() {
             3,
             NodeInput {
                 display: Display::Block,
-                overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(PreferredSize::px(0.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
@@ -6860,7 +6870,7 @@ fn block_bfc_zero_width_child_fits_between_opposing_floats_above_full_width_floa
             4,
             NodeInput {
                 display: Display::Block,
-                overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(PreferredSize::px(0.0), PreferredSize::px(200.0)),
                 ..NodeInput::DEFAULT
             },
@@ -6918,7 +6928,7 @@ fn block_bfc_overflow_clip_zero_width_child_ignores_float_exclusion_without_clea
             3,
             NodeInput {
                 display: Display::Block,
-                overflow: Point::new(Overflow::Clip, Overflow::Clip),
+                overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
                 size: Size::new(PreferredSize::px(0.0), PreferredSize::px(100.0)),
                 ..NodeInput::DEFAULT
             },
@@ -6952,7 +6962,7 @@ fn block_bfc_hidden_child_keeps_legacy_right_alignment_without_float_exclusion()
             1,
             NodeInput {
                 display: Display::Block,
-                overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -6989,7 +6999,7 @@ fn block_bfc_hidden_child_keeps_legacy_center_alignment_without_float_exclusion(
             1,
             NodeInput {
                 display: Display::Block,
-                overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -7090,7 +7100,7 @@ fn block_bfc_clear_only_visible_child_keeps_normal_x_while_clearing_y() {
             NodeInput {
                 display: Display::Block,
                 clear: crate::Clear::Left,
-                overflow: Point::new(Overflow::Visible, Overflow::Visible),
+                overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
                 size: Size::new(PreferredSize::px(50.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -7166,7 +7176,7 @@ fn block_bfc_zero_width_child_with_clear_left_sits_below_left_float_row() {
             NodeInput {
                 display: Display::Block,
                 clear: crate::Clear::Left,
-                overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(PreferredSize::px(0.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
@@ -7230,7 +7240,7 @@ fn block_bfc_zero_width_child_with_clear_right_sits_below_all_right_floats() {
             NodeInput {
                 display: Display::Block,
                 clear: crate::Clear::Right,
-                overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
                 size: Size::new(PreferredSize::px(0.0), PreferredSize::AUTO),
                 ..NodeInput::DEFAULT
             },
@@ -7546,7 +7556,7 @@ fn block_scroll_container_keeps_first_child_top_margin_inside() {
         1,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
         },
@@ -7673,7 +7683,7 @@ fn block_rtl_scrollbar_gutter_uses_left_inset() {
         NodeInput {
             display: Display::Block,
             direction: Direction::Rtl,
-            overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(17.0).unwrap(),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
             ..NodeInput::default()
@@ -8692,7 +8702,7 @@ fn block_content_size_includes_visible_child_overflow_content() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
@@ -9654,7 +9664,7 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
         NodeInput {
             display: Display::Block,
             position: Position::Absolute,
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             inset: Edges {
                 left: LengthAuto::px(7.0),
                 top: LengthAuto::px(9.0),

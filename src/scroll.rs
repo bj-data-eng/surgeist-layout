@@ -1,36 +1,90 @@
 use super::{
-    DefaultScalar, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis, Overflow, PhysicalAxis,
-    Point, Size,
+    ComputedOverflow, DefaultScalar, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis,
+    Overflow, PhysicalAxis, Point, Size,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScrollUnsupportedFeature {
     InvalidScrollRect,
     InvalidScrollGeometry,
-    OverflowAuto,
-    OverflowClipMargin,
-    ScrollbarGutterStable,
-    ScrollbarGutterBothEdges,
-    ScrollPadding,
-    ScrollMargin,
-    ScrollSnap,
-    LayoutOwnedMixedAxisOverflowCoupling,
 }
 
-impl ScrollUnsupportedFeature {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UsedOverflowGutter {
+    None,
+    StableOnly,
+    Conditional,
+    Forced,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct UsedOverflowAxis {
+    value: Overflow,
+}
+
+impl UsedOverflowAxis {
+    const fn from_computed(value: Overflow, item_is_replaced: bool) -> Self {
+        Self {
+            value: if item_is_replaced && matches!(value, Overflow::Hidden) {
+                Overflow::Clip
+            } else {
+                value
+            },
+        }
+    }
+
     #[must_use]
-    pub const fn is_phase_one_deferred(self) -> bool {
+    pub(crate) const fn value(self) -> Overflow {
+        self.value
+    }
+
+    #[must_use]
+    pub(crate) const fn clips_contents(self) -> bool {
+        !matches!(self.value, Overflow::Visible)
+    }
+
+    #[must_use]
+    pub(crate) const fn exposes_scroll_range(self) -> bool {
         matches!(
-            self,
-            Self::OverflowAuto
-                | Self::OverflowClipMargin
-                | Self::ScrollbarGutterStable
-                | Self::ScrollbarGutterBothEdges
-                | Self::ScrollPadding
-                | Self::ScrollMargin
-                | Self::ScrollSnap
-                | Self::LayoutOwnedMixedAxisOverflowCoupling
+            self.value,
+            Overflow::Hidden | Overflow::Scroll | Overflow::Auto
         )
+    }
+
+    #[must_use]
+    pub(crate) const fn gutter_classification(self) -> UsedOverflowGutter {
+        match self.value {
+            Overflow::Visible | Overflow::Clip => UsedOverflowGutter::None,
+            Overflow::Hidden => UsedOverflowGutter::StableOnly,
+            Overflow::Auto => UsedOverflowGutter::Conditional,
+            Overflow::Scroll => UsedOverflowGutter::Forced,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct UsedOverflow {
+    x: UsedOverflowAxis,
+    y: UsedOverflowAxis,
+}
+
+impl UsedOverflow {
+    #[must_use]
+    pub(crate) const fn from_computed(computed: ComputedOverflow, item_is_replaced: bool) -> Self {
+        Self {
+            x: UsedOverflowAxis::from_computed(computed.x(), item_is_replaced),
+            y: UsedOverflowAxis::from_computed(computed.y(), item_is_replaced),
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn x(self) -> UsedOverflowAxis {
+        self.x
+    }
+
+    #[must_use]
+    pub(crate) const fn y(self) -> UsedOverflowAxis {
+        self.y
     }
 }
 
@@ -602,16 +656,22 @@ impl ScrollContainerAxis {
         )
     }
 
-    pub const fn from_overflow(overflow: Overflow) -> Result<Self, ScrollUnsupportedFeature> {
-        Ok(Self {
-            exposure: match overflow {
-                Overflow::Visible => ScrollOverflowExposure::Visible,
-                Overflow::Clip => ScrollOverflowExposure::ClipOnly,
-                Overflow::Hidden | Overflow::Scroll | Overflow::Auto => {
-                    ScrollOverflowExposure::ScrollableClip
-                }
+    const fn from_used_overflow(overflow: UsedOverflowAxis) -> Self {
+        Self {
+            exposure: if overflow.exposes_scroll_range() {
+                ScrollOverflowExposure::ScrollableClip
+            } else if overflow.clips_contents() {
+                ScrollOverflowExposure::ClipOnly
+            } else {
+                ScrollOverflowExposure::Visible
             },
-        })
+        }
+    }
+
+    pub const fn from_overflow(overflow: Overflow) -> Result<Self, ScrollUnsupportedFeature> {
+        Ok(Self::from_used_overflow(UsedOverflowAxis {
+            value: overflow,
+        }))
     }
 }
 
@@ -656,26 +716,6 @@ impl ScrollContainerFacts {
         overflow_clip: Option<ScrollRectOf<S>>,
     ) -> bool {
         !self.requires_overflow_clip() || overflow_clip.is_some()
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ScrollOverflowCouplingPolicy {
-    RootPreResolved,
-    LayoutOwnedVisibleToAutoCoupling,
-}
-
-impl ScrollOverflowCouplingPolicy {
-    pub const PHASE_ONE: Self = Self::RootPreResolved;
-
-    #[must_use]
-    pub const fn unsupported_feature(self) -> Option<ScrollUnsupportedFeature> {
-        match self {
-            Self::RootPreResolved => None,
-            Self::LayoutOwnedVisibleToAutoCoupling => {
-                Some(ScrollUnsupportedFeature::LayoutOwnedMixedAxisOverflowCoupling)
-            }
-        }
     }
 }
 
@@ -724,11 +764,24 @@ pub type ScrollbarReservation = ScrollbarReservationOf<DefaultScalar>;
 impl<S: LayoutScalar> ScrollbarReservationOf<S> {
     #[must_use]
     pub fn from_overflow(
-        overflow: Point<Overflow>,
+        overflow: ComputedOverflow,
+        item_is_replaced: bool,
         scrollbar_width_value: S,
         direction: Direction,
     ) -> Self {
-        let size = scrollbar_size_from_overflow(overflow, scrollbar_width_value);
+        Self::from_used_overflow(
+            UsedOverflow::from_computed(overflow, item_is_replaced),
+            scrollbar_width_value,
+            direction,
+        )
+    }
+
+    fn from_used_overflow(
+        overflow: UsedOverflow,
+        scrollbar_width_value: S,
+        direction: Direction,
+    ) -> Self {
+        let size = scrollbar_size_from_used_overflow(overflow, scrollbar_width_value);
         Self {
             size,
             inset: scrollbar_inset_from_size(size, direction),
@@ -749,16 +802,33 @@ impl<S: LayoutScalar> ScrollbarReservationOf<S> {
 #[must_use]
 #[allow(dead_code)]
 pub fn scrollbar_size_from_overflow<S: LayoutScalar>(
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
+    scrollbar_width_value: S,
+) -> Size<S> {
+    scrollbar_size_from_used_overflow(
+        UsedOverflow::from_computed(overflow, item_is_replaced),
+        scrollbar_width_value,
+    )
+}
+
+fn scrollbar_size_from_used_overflow<S: LayoutScalar>(
+    overflow: UsedOverflow,
     scrollbar_width_value: S,
 ) -> Size<S> {
     Size::new(
-        if overflow.y == Overflow::Scroll {
+        if matches!(
+            overflow.y().gutter_classification(),
+            UsedOverflowGutter::Forced
+        ) {
             scrollbar_width_value
         } else {
             S::ZERO
         },
-        if overflow.x == Overflow::Scroll {
+        if matches!(
+            overflow.x().gutter_classification(),
+            UsedOverflowGutter::Forced
+        ) {
             scrollbar_width_value
         } else {
             S::ZERO
@@ -1030,11 +1100,13 @@ impl<S: LayoutScalar> ScrollGeometryOf<S> {
 }
 
 pub fn scroll_container_facts_from_overflow(
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
 ) -> Result<ScrollContainerFacts, ScrollUnsupportedFeature> {
+    let overflow = UsedOverflow::from_computed(overflow, item_is_replaced);
     Ok(ScrollContainerFacts::new(
-        ScrollContainerAxis::from_overflow(overflow.x)?,
-        ScrollContainerAxis::from_overflow(overflow.y)?,
+        ScrollContainerAxis::from_used_overflow(overflow.x()),
+        ScrollContainerAxis::from_used_overflow(overflow.y()),
     ))
 }
 
@@ -1076,9 +1148,9 @@ pub fn scrollable_overflow_from_content_size<S: LayoutScalar>(
 }
 
 #[allow(dead_code)]
-pub fn scrollable_overflow_from_layout_content_size<S: LayoutScalar>(
+pub(crate) fn scrollable_overflow_from_layout_content_size<S: LayoutScalar>(
     direction: Direction,
-    overflow: Point<Overflow>,
+    overflow: UsedOverflow,
     border_box_size: Size<S>,
     padding: Edges<S>,
     border: Edges<S>,
@@ -1086,7 +1158,7 @@ pub fn scrollable_overflow_from_layout_content_size<S: LayoutScalar>(
     content_size: Size<S>,
 ) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
     let reservation =
-        ScrollbarReservationOf::from_overflow(overflow, scrollbar_width_value, direction);
+        ScrollbarReservationOf::from_used_overflow(overflow, scrollbar_width_value, direction);
     let rects = scroll_box_rects_from_border_box(
         ScrollRectOf::new(Point::ZERO, border_box_size)?,
         padding,
@@ -1142,16 +1214,18 @@ fn physical_scroll_range_from_overflow_rects<S: LayoutScalar>(
 #[allow(dead_code)]
 pub fn scroll_geometry_from_layout<S: LayoutScalar>(
     flow_axes: FlowAxes,
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
     border_box_size: Size<S>,
     padding: Edges<S>,
     border: Edges<S>,
     scrollbar_width_value: S,
     scrollable_overflow: ScrollRectOf<S>,
 ) -> Result<ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
-    let container = scroll_container_facts_from_overflow(overflow)?;
+    let container = scroll_container_facts_from_overflow(overflow, item_is_replaced)?;
     let reservation = ScrollbarReservationOf::from_overflow(
         overflow,
+        item_is_replaced,
         scrollbar_width_value,
         flow_axes.direction(),
     );

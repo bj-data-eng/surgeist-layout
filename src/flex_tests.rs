@@ -4,6 +4,10 @@ use crate::flex::FlexAxes;
 use crate::geometry::PhysicalProgression;
 use crate::*;
 
+fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
+    ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
 fn fri04_c03_flex_value(value: f32) -> SizingCalculation {
     SizingCalculation::value(LengthPercentageOf::px(value).expect("test sizing value is finite"))
 }
@@ -2347,7 +2351,7 @@ fn flex_content_size_includes_visible_child_overflow_content() {
     tree.styles.insert(
         2,
         NodeInput {
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
@@ -3042,7 +3046,7 @@ fn flex_row_hidden_overflow_item_has_zero_automatic_minimum() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             ..NodeInput::default()
         },
@@ -3153,7 +3157,7 @@ fn flex_column_hidden_overflow_aspect_item_has_zero_automatic_minimum() {
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Visible, Overflow::Hidden),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Hidden),
             flex_basis: FlexBasis::px(0.0),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
@@ -3267,7 +3271,7 @@ fn flex_column_cross_axis_hidden_overflow_aspect_item_has_zero_automatic_minimum
         2,
         NodeInput {
             display: Display::Block,
-            overflow: Point::new(Overflow::Hidden, Overflow::Clip),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             flex_basis: FlexBasis::px(0.0),
             flex_grow: FlexGrowOf::try_new(1.0).unwrap(),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
@@ -3576,7 +3580,7 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
         1,
         NodeInput {
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
-            overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
         },
@@ -3676,7 +3680,7 @@ fn flex_scrollbar_gutter_uses_left_inset_for_rtl_containers() {
         NodeInput {
             direction: Direction::Rtl,
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
-            overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
         },
@@ -3779,7 +3783,7 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
         2,
         NodeInput {
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(7.0).unwrap(),
             ..NodeInput::default()
         },
@@ -3898,7 +3902,7 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
                 ..Edges::all(LengthAuto::AUTO)
             },
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(12.0)),
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
@@ -4842,7 +4846,7 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
         NodeInput {
             position: Position::Absolute,
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(8.0).unwrap(),
             ..NodeInput::default()
         },
@@ -5700,7 +5704,7 @@ fn flex_row_visible_item_does_not_shrink_below_automatic_min_content_width() {
         2,
         NodeInput {
             size: Size::new(PreferredSize::AUTO, PreferredSize::px(20.0)),
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );

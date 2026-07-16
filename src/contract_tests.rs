@@ -389,10 +389,7 @@ fn node_input_defaults_match_the_layout_contract() {
     assert_eq!(node_input.box_sizing, BoxSizing::BorderBox);
     assert_eq!(node_input.direction, Direction::Ltr);
     assert_eq!(node_input.text_align, TextAlign::Auto);
-    assert_eq!(
-        node_input.overflow,
-        crate::Point::new(Overflow::Visible, Overflow::Visible)
-    );
+    assert_eq!(node_input.overflow, ComputedOverflow::VISIBLE);
     assert_eq!(node_input.scrollbar_width.get(), 0.0);
     assert_eq!(node_input.position, Position::Relative);
     assert_eq!(node_input.inset, Edges::all(LengthAuto::AUTO));

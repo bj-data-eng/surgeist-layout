@@ -173,8 +173,8 @@ pub use scroll::{
     PhysicalScrollAxisRange, PhysicalScrollAxisRangeOf, PhysicalScrollOffset,
     PhysicalScrollOffsetOf, PhysicalScrollRange, PhysicalScrollRangeOf, ScrollContainerAxis,
     ScrollContainerFacts, ScrollCoordinateError, ScrollCoordinateErrorOf, ScrollGeometry,
-    ScrollGeometryOf, ScrollOverflowCouplingPolicy, ScrollOverflowExposure, ScrollRect,
-    ScrollRectOf, ScrollUnsupportedFeature, ScrollbarGutterRects, ScrollbarGutterRectsOf,
+    ScrollGeometryOf, ScrollOverflowExposure, ScrollRect, ScrollRectOf, ScrollUnsupportedFeature,
+    ScrollbarGutterRects, ScrollbarGutterRectsOf,
 };
 pub use sizing::{
     CalcSizeCalculation, CalcSizeCalculationErrorOf, CalcSizeCalculationOf,

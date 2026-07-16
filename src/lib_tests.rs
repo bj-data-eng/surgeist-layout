@@ -7,6 +7,32 @@ use crate::{
 };
 
 #[test]
+fn fri05_c01_node_input_removed_phase_unsafe_surfaces_are_absent_from_public_sources() {
+    let node_input = include_str!("node_input.rs");
+    let scroll = include_str!("scroll.rs");
+    let public_front_door = include_str!("lib.rs");
+
+    assert!(!node_input.contains(concat!("pub const fn clips_", "contents")));
+    assert!(!node_input.contains(concat!("pub const fn blocks_margin_", "collapse")));
+    assert!(!scroll.contains(concat!("is_phase_one_", "deferred")));
+    assert!(!scroll.contains(concat!("ScrollOverflow", "CouplingPolicy")));
+    assert!(!public_front_door.contains(concat!("ScrollOverflow", "CouplingPolicy")));
+
+    for removed_variant in [
+        concat!("Overflow", "Auto"),
+        concat!("OverflowClip", "Margin"),
+        concat!("ScrollbarGutter", "Stable"),
+        concat!("ScrollbarGutter", "BothEdges"),
+        concat!("Scroll", "Padding"),
+        concat!("Scroll", "Margin"),
+        concat!("Scroll", "Snap"),
+        concat!("LayoutOwnedMixedAxisOverflow", "Coupling"),
+    ] {
+        assert!(!scroll.contains(removed_variant));
+    }
+}
+
+#[test]
 fn fri05_c01_computed_overflow_public_reexports_compose() {
     use crate::{ComputedOverflow, ComputedOverflowError, Overflow};
 

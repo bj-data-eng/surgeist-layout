@@ -8,9 +8,9 @@ use super::{
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
-    ScrollUnsupportedFeature, ScrollbarReservationOf, content_box_inset_with_scrollbar,
-    round_scroll_geometry, scroll_geometry_from_layout, scroll_rect_union,
-    scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
+    ScrollUnsupportedFeature, ScrollbarReservationOf, UsedOverflow,
+    content_box_inset_with_scrollbar, round_scroll_geometry, scroll_geometry_from_layout,
+    scroll_rect_union, scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
 };
 use crate::sizing::{
     DispatchedSizingRequest, SizingDispatch, dispatch_flex_basis, dispatch_maximum_size,
@@ -634,11 +634,9 @@ fn root_scroll_error<Node, S, M>(
 where
     S: LayoutScalar,
 {
-    let kind = if error.is_phase_one_deferred() {
-        LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
-    } else {
-        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry)
-    };
+    let _ = error;
+    let kind =
+        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry);
 
     LayoutErrorOf::new(
         LayoutErrorSiteOf::Node(node),
@@ -850,10 +848,14 @@ where
         ComputeInputOf::root_layout(known, parent, containing_layout_context, available),
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
-    let scrollbar_size = scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get());
+    let scrollbar_size = scrollbar_size_from_overflow(
+        style.overflow,
+        style.item_is_replaced,
+        style.scrollbar_width.get(),
+    );
     let scrollable_overflow = scrollable_overflow_from_layout_content_size(
         style.direction,
-        style.overflow,
+        UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
         output.size,
         root_edges.padding,
         root_edges.border,
@@ -871,6 +873,7 @@ where
         scroll_geometry_from_layout(
             containing_flow_axes,
             style.overflow,
+            style.item_is_replaced,
             output.size,
             root_edges.padding,
             root_edges.border,
@@ -1503,6 +1506,7 @@ where
     let padding_border_size = padding_border.sum_axes();
     let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
         style.overflow,
+        style.item_is_replaced,
         style.scrollbar_width.get(),
         Direction::Ltr,
     );
@@ -1524,8 +1528,7 @@ where
     let prevents_margin_collapse = input.parent_formatting_context()
         != super::ParentFormattingContext::BlockFlow
         || style.display != super::Display::Block
-        || style.overflow.x.blocks_margin_collapse()
-        || style.overflow.y.blocks_margin_collapse()
+        || !style.item_is_replaced && style.overflow.establishes_independent_formatting_context()
         || style.position == Position::Absolute
         || edge_at_physical_side(padding, block_start) > S::ZERO
         || edge_at_physical_side(padding, block_end) > S::ZERO

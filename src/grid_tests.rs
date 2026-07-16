@@ -10,6 +10,14 @@ use crate::test_support::{
 };
 use crate::*;
 
+fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
+    ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
+fn used_overflow(x: Overflow, y: Overflow) -> crate::scroll::UsedOverflow {
+    crate::scroll::UsedOverflow::from_computed(computed_overflow(x, y), false)
+}
+
 fn track_flex<S: LayoutScalar>(value: S) -> TrackSizingOf<S> {
     TrackSizingOf::flex(TrackFlexFactorOf::try_new(value).expect("valid test track flex factor"))
 }
@@ -506,7 +514,7 @@ fn fri04_c04_grid_dispatch_scrollable_auto_minimum_lane_reports_exact_grid_lanes
         NodeInput {
             display: Display::Flex,
             min_size: Size::new(MinSize::AUTO, MinSize::STRETCH),
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             ..NodeInput::default()
         },
         SizingProperty::Minimum,
@@ -1928,7 +1936,7 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
     tree.styles.insert(
         2,
         NodeInput {
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
             ..NodeInput::default()
         },
@@ -7516,7 +7524,7 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
         NodeInput {
             position: Position::Absolute,
             size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(12.0).unwrap(),
             ..NodeInput::default()
         },
@@ -8250,10 +8258,7 @@ fn grid_content_box_compute_size_does_not_add_scrollbar_to_authored_size() {
             size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
             padding: Edges::all(Length::px(5.0)),
             border: Edges::all(Length::px(1.0)),
-            overflow: Point {
-                x: Overflow::Visible,
-                y: Overflow::Scroll,
-            },
+            overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
             ..NodeInput::default()
         },
@@ -8339,7 +8344,7 @@ fn grid_scrollbar_gutter_does_not_force_outer_size_past_authored_size() {
         NodeInput {
             display: Display::Grid,
             size: Size::new(PreferredSize::px(2.0), PreferredSize::px(4.0)),
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
             ..NodeInput::default()
         },
@@ -8442,7 +8447,7 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
     tree.styles.insert(
         2,
         NodeInput {
-            overflow: Point::new(Overflow::Scroll, Overflow::Scroll),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
             scrollbar_width: crate::ScrollbarWidthOf::try_new(11.0).unwrap(),
             ..NodeInput::default()
         },
@@ -14209,7 +14214,7 @@ fn grid_clipped_spanning_item_distributes_across_min_content_and_auto_tracks() {
     tree.styles.insert(
         4,
         NodeInput {
-            overflow: Point::new(Overflow::Clip, Overflow::Clip),
+            overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
             grid_column: GridPlacement::try_line_span(1, 2).expect("valid grid line span"),
             ..NodeInput::default()
         },
@@ -14760,7 +14765,7 @@ fn grid_content_size_includes_visible_child_overflow_content() {
     tree.styles.insert(
         2,
         NodeInput {
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
@@ -14866,7 +14871,7 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
         2,
         NodeInput {
             grid_column: GridPlacement::try_line(2).expect("valid grid line"),
-            overflow: Point::new(Overflow::Visible, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
     );
@@ -18302,7 +18307,7 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
         scrollbar_size: Size::ZERO,
         border: Edges::ZERO,
         padding: Edges::ZERO,
-        overflow: Point::new(Overflow::Visible, Overflow::Visible),
+        overflow: used_overflow(Overflow::Visible, Overflow::Visible),
     };
 
     let groups = baseline_groups(
@@ -19782,7 +19787,7 @@ fn baseline_test_item(
         scrollbar_size: Size::ZERO,
         border: Edges::ZERO,
         padding: Edges::ZERO,
-        overflow: Point::new(Overflow::Visible, Overflow::Visible),
+        overflow: used_overflow(Overflow::Visible, Overflow::Visible),
     }
 }
 
@@ -20455,7 +20460,7 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
         scrollbar_size: Size::ZERO,
         border: Edges::ZERO,
         padding: Edges::ZERO,
-        overflow: Point::new(Overflow::Visible, Overflow::Visible),
+        overflow: used_overflow(Overflow::Visible, Overflow::Visible),
     }
 }
 
@@ -21618,7 +21623,7 @@ fn subgrid_eligibility_allows_clipped_overflow() {
         has_parent_grid: true,
         child_style: &NodeInput {
             display: Display::Grid,
-            overflow: Point::new(Overflow::Hidden, Overflow::Visible),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Auto),
             grid_template_columns: subgrid_track(),
             ..NodeInput::default()
         },

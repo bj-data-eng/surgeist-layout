@@ -5,10 +5,10 @@ use super::oracle::grid::{
 };
 use crate::test_support::layout_tree::OracleTree;
 use crate::{
-    AlignContent, AlignItems, Available, Compute, ComputeInput, ComputeOutput, Direction, Display,
-    Edges, GridAutoFlow, GridPlacement, Length, LengthAuto, NodeInput, NodeOutput, Overflow, Point,
-    Position, PreferredSize, RequestedAxis, RunMode, Size, SizingMode, SubgridTrack,
-    TrackComponent, WritingMode, compute_grid, round_layout,
+    AlignContent, AlignItems, Available, Compute, ComputeInput, ComputeOutput, ComputedOverflow,
+    Direction, Display, Edges, GridAutoFlow, GridPlacement, Length, LengthAuto, NodeInput,
+    NodeOutput, Point, Position, PreferredSize, RequestedAxis, RunMode, Size, SizingMode,
+    SubgridTrack, TrackComponent, WritingMode, compute_grid, round_layout,
 };
 
 type Scalar = f32;
@@ -64,7 +64,7 @@ pub struct GridLayoutNode {
     border: Edges<Length>,
     direction: Direction,
     writing_mode: WritingMode,
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
     position: Position,
     columns: Vec<TrackComponent>,
     rows: Vec<TrackComponent>,
@@ -533,7 +533,7 @@ impl GridLayoutNode {
         self
     }
 
-    pub fn overflow(mut self, overflow: Point<Overflow>) -> Self {
+    pub fn overflow(mut self, overflow: ComputedOverflow) -> Self {
         self.overflow = overflow;
         self
     }

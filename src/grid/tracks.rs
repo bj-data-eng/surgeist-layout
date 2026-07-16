@@ -1,5 +1,6 @@
 use super::*;
 use crate::geometry::{FlowAxes, LogicalSizeOf};
+use crate::scroll::{UsedOverflow, UsedOverflowAxis};
 use crate::{
     LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf,
     PercentageBasisOf, SizingCalculationOf,
@@ -965,7 +966,7 @@ where
             distribute_min_content_span_with_percent(
                 &mut input.sizes[start..end],
                 span_tracks,
-                child_style.overflow.x,
+                axis_overflow(&child_style, input.axis),
                 input.percent_basis,
                 contribution,
             );
@@ -1064,10 +1065,11 @@ fn axis_available<S: LayoutScalar>(
     }
 }
 
-fn axis_overflow<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> Overflow {
+fn axis_overflow<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> UsedOverflowAxis {
+    let overflow = UsedOverflow::from_computed(style.overflow, style.item_is_replaced);
     match axis {
-        GridAxisKind::Column => style.overflow.x,
-        GridAxisKind::Row => style.overflow.y,
+        GridAxisKind::Column => overflow.x(),
+        GridAxisKind::Row => overflow.y(),
     }
 }
 
@@ -1075,10 +1077,22 @@ fn grid_axis_overflow<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     flow_axes: FlowAxes,
     axis: GridAxisKind,
+) -> UsedOverflowAxis {
+    let overflow = UsedOverflow::from_computed(style.overflow, style.item_is_replaced);
+    match grid_axis_physical_axis(flow_axes, axis) {
+        crate::geometry::PhysicalAxis::Horizontal => overflow.x(),
+        crate::geometry::PhysicalAxis::Vertical => overflow.y(),
+    }
+}
+
+fn grid_axis_computed_overflow<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    flow_axes: FlowAxes,
+    axis: GridAxisKind,
 ) -> Overflow {
     match grid_axis_physical_axis(flow_axes, axis) {
-        crate::geometry::PhysicalAxis::Horizontal => style.overflow.x,
-        crate::geometry::PhysicalAxis::Vertical => style.overflow.y,
+        crate::geometry::PhysicalAxis::Horizontal => style.overflow.x(),
+        crate::geometry::PhysicalAxis::Vertical => style.overflow.y(),
     }
 }
 
@@ -1104,7 +1118,7 @@ fn scroll_container_auto_minimum_zero_for_grid_axis<S: LayoutScalar>(
     flow_axes: FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
-    grid_axis_overflow(style, flow_axes, axis).is_scrollable()
+    grid_axis_computed_overflow(style, flow_axes, axis).is_scrollable()
         && grid_axis_size(flow_axes, style.size.clone(), axis).is_auto()
 }
 
@@ -1598,9 +1612,9 @@ fn axis_content_contribution<S: LayoutScalar>(
     location: S,
     size: S,
     content_size: S,
-    overflow: Overflow,
+    overflow: UsedOverflowAxis,
 ) -> S {
-    let contribution_size = if overflow == Overflow::Visible {
+    let contribution_size = if overflow.value() == Overflow::Visible {
         size.max(content_size)
     } else {
         size
@@ -1620,13 +1634,13 @@ pub(super) fn track_has_percent_sizing<S: LayoutScalar>(track: &TrackSizingOf<S>
 pub(super) fn scroll_container_auto_minimum_zero_inline<S: LayoutScalar>(
     style: &NodeInputOf<S>,
 ) -> bool {
-    style.overflow.x.is_scrollable() && style.size.width.is_auto()
+    style.overflow.x().is_scrollable() && style.size.width.is_auto()
 }
 
 pub(super) fn scroll_container_auto_minimum_zero_block<S: LayoutScalar>(
     style: &NodeInputOf<S>,
 ) -> bool {
-    style.overflow.y.is_scrollable() && style.size.height.is_auto()
+    style.overflow.y().is_scrollable() && style.size.height.is_auto()
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1636,7 +1650,10 @@ pub(super) enum IntrinsicSpanContribution {
 }
 
 impl IntrinsicSpanContribution {
-    const fn for_axis<S: LayoutScalar>(available: AvailableOf<S>, overflow: Overflow) -> Self {
+    const fn for_axis<S: LayoutScalar>(
+        available: AvailableOf<S>,
+        overflow: UsedOverflowAxis,
+    ) -> Self {
         match available {
             AvailableOf::MaxContent | AvailableOf::Definite(_) => Self::MaxContent,
             AvailableOf::MinContent => Self::MinContent {
@@ -1762,7 +1779,7 @@ pub(super) fn distribute_intrinsic_extra<S: LayoutScalar>(
 pub(super) fn distribute_min_content_span_with_percent<S: LayoutScalar>(
     sizes: &mut [S],
     tracks: &[TrackSizingOf<S>],
-    overflow: Overflow,
+    overflow: UsedOverflowAxis,
     percent_basis: Option<S>,
     min_content_contribution: S,
 ) {
@@ -1977,7 +1994,7 @@ pub(super) fn track_accepts_auto_span_priority<S: LayoutScalar>(track: &TrackSiz
 
 pub(super) fn track_accepts_percent_min_content_span<S: LayoutScalar>(
     track: &TrackSizingOf<S>,
-    overflow: Overflow,
+    overflow: UsedOverflowAxis,
     percent_basis: Option<S>,
 ) -> bool {
     if percent_basis.is_none() && track_has_percent_sizing(track) {

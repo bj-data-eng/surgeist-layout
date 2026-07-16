@@ -1007,7 +1007,10 @@ fn to_layout_input_in_flow(
 }
 
 fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
-    let mut input = layout::NodeInput::default();
+    let mut input = layout::NodeInput {
+        overflow: parse_computed_overflow(attrs)?,
+        ..layout::NodeInput::default()
+    };
     let source_tag = attrs.get("source-tag");
     input.display = match attrs.get("display") {
         Some("inline") if source_tag == Some("br") => layout::Display::Block,
@@ -1034,12 +1037,6 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
     }
     if let Some(value) = attrs.get("clear") {
         input.clear = parse_clear(value)?;
-    }
-    if let Some(value) = attrs.get("overflow-x") {
-        input.overflow.x = parse_overflow(value)?;
-    }
-    if let Some(value) = attrs.get("overflow-y") {
-        input.overflow.y = parse_overflow(value)?;
     }
     if let Some(value) = attrs.get("scrollbar-width") {
         input.scrollbar_width = layout::ScrollbarWidth::try_new(parse_number(value)?)
@@ -1492,9 +1489,39 @@ fn parse_overflow(raw: &str) -> Result<layout::Overflow, Error> {
         "visible" => Ok(layout::Overflow::Visible),
         "clip" => Ok(layout::Overflow::Clip),
         "hidden" => Ok(layout::Overflow::Hidden),
-        "scroll" | "auto" => Ok(layout::Overflow::Scroll),
+        "scroll" => Ok(layout::Overflow::Scroll),
+        "auto" => Ok(layout::Overflow::Auto),
         _ => Err(Error::new(format!("unsupported overflow `{raw}`"))),
     }
+}
+
+fn parse_computed_overflow(attrs: &StyleAttrs) -> Result<layout::ComputedOverflow, Error> {
+    let authored_x = attrs
+        .get("overflow-x")
+        .map(parse_overflow)
+        .transpose()?
+        .unwrap_or(layout::Overflow::Visible);
+    let authored_y = attrs
+        .get("overflow-y")
+        .map(parse_overflow)
+        .transpose()?
+        .unwrap_or(layout::Overflow::Visible);
+    let coupled_axis = |value, opposite: layout::Overflow| {
+        if opposite.is_scrollable() {
+            match value {
+                layout::Overflow::Visible => layout::Overflow::Auto,
+                layout::Overflow::Clip => layout::Overflow::Hidden,
+                value => value,
+            }
+        } else {
+            value
+        }
+    };
+    let x = coupled_axis(authored_x, authored_y);
+    let y = coupled_axis(authored_y, authored_x);
+
+    layout::ComputedOverflow::try_new(x, y)
+        .map_err(|error| Error::new(format!("invalid computed overflow pair: {error}")))
 }
 
 fn parse_text_align(raw: &str) -> Result<layout::TextAlign, Error> {
@@ -2613,6 +2640,185 @@ mod tests {
 
     fn test_node_input(attrs: StyleAttrs) -> Result<layout::NodeInput, Error> {
         to_node_input(&attrs)
+    }
+
+    fn overflow_attrs(x: Option<&str>, y: Option<&str>) -> StyleAttrs {
+        let mut attrs = BTreeMap::new();
+        if let Some(x) = x {
+            attrs.insert("overflow-x".to_string(), x.to_string());
+        }
+        if let Some(y) = y {
+            attrs.insert("overflow-y".to_string(), y.to_string());
+        }
+        StyleAttrs { attrs }
+    }
+
+    fn observed_overflow_axes(input: &layout::NodeInput) -> (layout::Overflow, layout::Overflow) {
+        (input.overflow.x(), input.overflow.y())
+    }
+
+    #[test]
+    fn fri05_c01_legacy_overflow_all_25_authored_pairs_lower_to_exact_canonical_pairs() {
+        use layout::Overflow::{Auto, Clip, Hidden, Scroll, Visible};
+
+        let authored = [
+            ("visible", Visible),
+            ("clip", Clip),
+            ("hidden", Hidden),
+            ("scroll", Scroll),
+            ("auto", Auto),
+        ];
+        let expected = [
+            [
+                (Visible, Visible),
+                (Visible, Clip),
+                (Auto, Hidden),
+                (Auto, Scroll),
+                (Auto, Auto),
+            ],
+            [
+                (Clip, Visible),
+                (Clip, Clip),
+                (Hidden, Hidden),
+                (Hidden, Scroll),
+                (Hidden, Auto),
+            ],
+            [
+                (Hidden, Auto),
+                (Hidden, Hidden),
+                (Hidden, Hidden),
+                (Hidden, Scroll),
+                (Hidden, Auto),
+            ],
+            [
+                (Scroll, Auto),
+                (Scroll, Hidden),
+                (Scroll, Hidden),
+                (Scroll, Scroll),
+                (Scroll, Auto),
+            ],
+            [
+                (Auto, Auto),
+                (Auto, Hidden),
+                (Auto, Hidden),
+                (Auto, Scroll),
+                (Auto, Auto),
+            ],
+        ];
+
+        let mut checked = 0;
+        for (x_index, (x_token, _)) in authored.into_iter().enumerate() {
+            for (y_index, (y_token, _)) in authored.into_iter().enumerate() {
+                let input = test_node_input(overflow_attrs(Some(x_token), Some(y_token)))
+                    .expect("finite authored overflow pair lowers");
+                assert_eq!(
+                    observed_overflow_axes(&input),
+                    expected[x_index][y_index],
+                    "authored pair ({x_token}, {y_token})",
+                );
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 25);
+    }
+
+    #[test]
+    fn fri05_c01_legacy_overflow_omitted_axes_use_visible_before_both_coupling_orientations() {
+        use layout::Overflow::{Auto, Clip, Hidden, Scroll, Visible};
+
+        for (token, only_x, only_y) in [
+            ("visible", (Visible, Visible), (Visible, Visible)),
+            ("clip", (Clip, Visible), (Visible, Clip)),
+            ("hidden", (Hidden, Auto), (Auto, Hidden)),
+            ("scroll", (Scroll, Auto), (Auto, Scroll)),
+            ("auto", (Auto, Auto), (Auto, Auto)),
+        ] {
+            let x = test_node_input(overflow_attrs(Some(token), None))
+                .expect("omitted y axis lowers from visible");
+            let y = test_node_input(overflow_attrs(None, Some(token)))
+                .expect("omitted x axis lowers from visible");
+            assert_eq!(observed_overflow_axes(&x), only_x, "only x={token}");
+            assert_eq!(observed_overflow_axes(&y), only_y, "only y={token}");
+        }
+
+        let omitted = test_node_input(overflow_attrs(None, None)).expect("initial pair lowers");
+        assert_eq!(observed_overflow_axes(&omitted), (Visible, Visible));
+    }
+
+    #[test]
+    fn fri05_c01_legacy_overflow_auto_is_preserved_and_invalid_tokens_are_rejected() {
+        assert_eq!(parse_overflow("auto"), Ok(layout::Overflow::Auto));
+        for invalid in ["", "AUTO", "overlay", "visible hidden", "invalid"] {
+            assert!(parse_overflow(invalid).is_err(), "accepted {invalid:?}");
+            assert!(
+                test_node_input(overflow_attrs(Some(invalid), Some("visible"))).is_err(),
+                "accepted invalid x token {invalid:?}",
+            );
+            assert!(
+                test_node_input(overflow_attrs(Some("visible"), Some(invalid))).is_err(),
+                "accepted invalid y token {invalid:?}",
+            );
+        }
+    }
+
+    fn authored_overflow_group(raw: &str) -> bool {
+        match raw {
+            "visible" | "clip" => false,
+            "hidden" | "scroll" | "auto" => true,
+            value => panic!("checked-in XML contains invalid overflow token {value:?}"),
+        }
+    }
+
+    fn count_source_nodes_and_explicit_legacy_pairs(node: &Node) -> (usize, usize) {
+        let legacy_pair = match (node.style.get("overflow-x"), node.style.get("overflow-y")) {
+            (Some(x), Some(y)) => {
+                usize::from(authored_overflow_group(x) != authored_overflow_group(y))
+            }
+            _ => 0,
+        };
+        node.children
+            .iter()
+            .fold((1, legacy_pair), |totals, child| {
+                let child_totals = count_source_nodes_and_explicit_legacy_pairs(child);
+                (totals.0 + child_totals.0, totals.1 + child_totals.1)
+            })
+    }
+
+    #[test]
+    fn fri05_c01_legacy_overflow_recursively_lowers_all_checked_in_xml_and_96_explicit_pairs() {
+        let files = fixture_files("xml").expect("checked-in XML directory is readable");
+        assert!(!files.is_empty(), "checked-in XML corpus is present");
+
+        let mut source_nodes = 0;
+        let mut lowered_nodes = 0;
+        let mut explicit_legacy_pairs = 0;
+        for file in files {
+            let golden = Golden::parse_file(&file)
+                .unwrap_or_else(|error| panic!("{}: {error}", file.display()));
+            let (file_source_nodes, file_legacy_pairs) =
+                count_source_nodes_and_explicit_legacy_pairs(&golden.root);
+            let tree = TestTree::from_golden(&golden.root)
+                .unwrap_or_else(|error| panic!("{}: {error}", file.display()));
+
+            source_nodes += file_source_nodes;
+            explicit_legacy_pairs += file_legacy_pairs;
+            lowered_nodes += tree.nodes.iter().filter(|node| !node.synthetic).count();
+            for node in &tree.nodes {
+                let Some(input) = node.layout_input.as_box() else {
+                    continue;
+                };
+                let (x, y) = observed_overflow_axes(input);
+                assert_eq!(
+                    x.is_scrollable(),
+                    y.is_scrollable(),
+                    "{} retained non-canonical overflow ({x:?}, {y:?})",
+                    file.display(),
+                );
+            }
+        }
+
+        assert_eq!(lowered_nodes, source_nodes);
+        assert_eq!(explicit_legacy_pairs, 96);
     }
 
     fn line_break_tree(input: layout::LineBreakInput) -> TestTree {

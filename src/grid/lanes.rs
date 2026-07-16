@@ -4,7 +4,7 @@ use crate::compute::{
     resolve_minimum_optional, resolve_preferred_sizing, sizing_resolution_error,
 };
 use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
-use crate::scroll::scrollbar_size_from_overflow;
+use crate::scroll::{UsedOverflow, scrollbar_size_from_overflow};
 use crate::{
     GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
     MinTrackSizingOf, PercentageBasisOf,
@@ -1228,8 +1228,10 @@ fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
         LogicalAxis::Block => flow_axes.block_axis(),
     };
     match physical_axis {
-        PhysicalAxis::Horizontal => style.overflow.x.is_scrollable() && style.size.width.is_auto(),
-        PhysicalAxis::Vertical => style.overflow.y.is_scrollable() && style.size.height.is_auto(),
+        PhysicalAxis::Horizontal => {
+            style.overflow.x().is_scrollable() && style.size.width.is_auto()
+        }
+        PhysicalAxis::Vertical => style.overflow.y().is_scrollable() && style.size.height.is_auto(),
     }
 }
 
@@ -1599,11 +1601,15 @@ where
             margin,
             scrollbar_size: scrollbar_size_from_overflow(
                 child_style.overflow,
+                child_style.item_is_replaced,
                 child_style.scrollbar_width.get(),
             ),
             border,
             padding,
-            overflow: child_style.overflow,
+            overflow: UsedOverflow::from_computed(
+                child_style.overflow,
+                child_style.item_is_replaced,
+            ),
         });
     }
 

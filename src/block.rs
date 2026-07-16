@@ -8,13 +8,13 @@ use super::inline::{
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute,
-    ComputeInputOf, ComputeOutputOf, ContainingLayoutContext, Direction, Edges, Float,
-    InlineBoundaryInputOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf,
-    LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar,
-    LayoutUnsupportedCapability, LengthAutoOf, LengthOf, LengthResolutionOf,
-    LengthResolutionStatus, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
-    ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
-    RunMode, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
+    Float, InlineBoundaryInputOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf,
+    LayoutInputOf, LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar,
+    LengthAutoOf, LengthOf, LengthResolutionOf, LengthResolutionStatus, LineBreakInputOf,
+    NodeInputOf, NodeOutputOf, Overflow, ParentFormattingContext, PhysicalBlockMarginCollapseOf,
+    Point, Position, RequestedAxis, RunMode, Size, SizingAlgorithm, SizingMode, TextAlign,
+    Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{
     EdgesResultExt, SizeResultExt, SizingResolutionError, resolve_maximum_optional,
@@ -22,8 +22,8 @@ use crate::compute::{
 };
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
-    ScrollbarReservationOf, content_box_inset_with_scrollbar, scroll_geometry_from_layout,
-    scrollbar_size_from_overflow,
+    ScrollbarReservationOf, UsedOverflow, content_box_inset_with_scrollbar,
+    scroll_geometry_from_layout, scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -969,6 +969,7 @@ where
                     pending_float.content_size,
                     pending_float.margin,
                     pending_float.style.overflow,
+                    pending_float.style.item_is_replaced,
                 )
                 .map_err(|error| block_child_scroll_error(node, child, error))?;
             scrollable_overflow
@@ -1048,8 +1049,10 @@ where
             logical_fallback_location.x + inset_offset.x,
             logical_fallback_location.y + inset_offset.y,
         );
-        let establishes_bfc = child_style.overflow.x.blocks_margin_collapse()
-            || child_style.overflow.y.blocks_margin_collapse();
+        let establishes_bfc = !child_style.item_is_replaced
+            && child_style
+                .overflow
+                .establishes_independent_formatting_context();
         let location = if establishes_bfc {
             let placement = float_exclusions.place_bfc_block(
                 float_bfc_cursor_y,
@@ -1113,6 +1116,7 @@ where
             output.size,
             output.content_size,
             child_style.overflow,
+            child_style.item_is_replaced,
         );
         let logical_contribution = constants.flow_axes.logical_size(contribution);
         content_size.inline = content_size
@@ -1130,6 +1134,7 @@ where
                 output.content_size,
                 child_margin,
                 child_style.overflow,
+                child_style.item_is_replaced,
             )
             .map_err(|error| block_child_scroll_error(node, child, error))?;
         let child_overflow = child_scrollable_overflow_for_parent(
@@ -1642,7 +1647,8 @@ where
         ),
         report.size,
         report.content_size,
-        Point::new(Overflow::Visible, Overflow::Visible),
+        ComputedOverflow::VISIBLE,
+        false,
     );
 
     let report_items_by_source_index = report
@@ -1714,6 +1720,7 @@ where
                     item.size,
                     output.content_size,
                     child_style.overflow,
+                    child_style.item_is_replaced,
                 );
                 content_size = max_content_size(content_size, contribution);
 
@@ -2275,15 +2282,17 @@ fn content_size_contribution<S: LayoutScalar>(
     location: Point<S>,
     size: Size<S>,
     content_size: Size<S>,
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
 ) -> Size<S> {
+    let overflow = UsedOverflow::from_computed(overflow, item_is_replaced);
     let contribution_size = Size::new(
-        if overflow.x == Overflow::Visible {
+        if overflow.x().value() == Overflow::Visible {
             size.width.max(content_size.width)
         } else {
             size.width
         },
-        if overflow.y == Overflow::Visible {
+        if overflow.y().value() == Overflow::Visible {
             size.height.max(content_size.height)
         } else {
             size.height
@@ -2315,6 +2324,7 @@ where
     scroll_geometry_from_layout(
         constants.flow_axes,
         style.overflow,
+        style.item_is_replaced,
         output_size,
         constants.padding,
         constants.border,
@@ -2386,11 +2396,8 @@ fn block_scroll_error<Node, S, M>(
 where
     S: LayoutScalar,
 {
-    let kind = if error.is_phase_one_deferred() {
-        LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
-    } else {
-        LayoutErrorKindOf::InternalInvariant(invariant)
-    };
+    let _ = error;
+    let kind = LayoutErrorKindOf::InternalInvariant(invariant);
     LayoutErrorOf::new(site, operation, kind)
 }
 
@@ -2413,6 +2420,7 @@ fn child_node_scroll_geometry<S: LayoutScalar>(
     scroll_geometry_from_layout(
         crate::FlowAxes::new(style.writing_mode, style.direction),
         style.overflow,
+        style.item_is_replaced,
         size,
         padding,
         border,
@@ -2431,7 +2439,7 @@ fn child_scrollable_overflow<S: LayoutScalar>(
 ) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
     let base = crate::scroll::scrollable_overflow_from_layout_content_size(
         style.direction,
-        style.overflow,
+        UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
         size,
         padding,
         border,
@@ -2461,14 +2469,21 @@ fn child_scrollable_overflow_for_parent<S: LayoutScalar>(
         border,
         child_compute_geometry,
     )?;
-    project_child_scrollable_overflow_for_parent(style.overflow, size, child_overflow)
+    project_child_scrollable_overflow_for_parent(
+        style.overflow,
+        style.item_is_replaced,
+        size,
+        child_overflow,
+    )
 }
 
 fn project_child_scrollable_overflow_for_parent<S: LayoutScalar>(
-    overflow: Point<Overflow>,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
     size: Size<S>,
     child_overflow: super::ScrollRectOf<S>,
 ) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
+    let overflow = UsedOverflow::from_computed(overflow, item_is_replaced);
     let child_origin = child_overflow.origin();
     let child_size = child_overflow.size();
     let child_end = Point::new(
@@ -2476,24 +2491,24 @@ fn project_child_scrollable_overflow_for_parent<S: LayoutScalar>(
         child_origin.y + child_size.height,
     );
     let projected_origin = Point::new(
-        if overflow.x == Overflow::Visible {
+        if overflow.x().value() == Overflow::Visible {
             child_origin.x
         } else {
             S::ZERO
         },
-        if overflow.y == Overflow::Visible {
+        if overflow.y().value() == Overflow::Visible {
             child_origin.y
         } else {
             S::ZERO
         },
     );
     let projected_end = Point::new(
-        if overflow.x == Overflow::Visible {
+        if overflow.x().value() == Overflow::Visible {
             child_end.x
         } else {
             size.width
         },
-        if overflow.y == Overflow::Visible {
+        if overflow.y().value() == Overflow::Visible {
             child_end.y
         } else {
             size.height
@@ -2527,6 +2542,7 @@ fn final_content_box_scroll_rect<S: LayoutScalar>(
 ) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
     let reservation = ScrollbarReservationOf::from_overflow(
         style.overflow,
+        style.item_is_replaced,
         style.scrollbar_width.get(),
         style.direction,
     );
@@ -2575,7 +2591,8 @@ impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
         size: Size<S>,
         content_size: Size<S>,
         margin: Edges<S>,
-        overflow: Point<Overflow>,
+        overflow: ComputedOverflow,
+        item_is_replaced: bool,
     ) -> Result<(), super::ScrollUnsupportedFeature> {
         let margin_rect = super::ScrollRectOf::new(
             Point::new(location.x - margin.left, location.y - margin.top),
@@ -2583,13 +2600,14 @@ impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
         )?;
         self.include_rect(margin_rect)?;
 
+        let overflow = UsedOverflow::from_computed(overflow, item_is_replaced);
         let visible_size = Size::new(
-            if overflow.x == Overflow::Visible {
+            if overflow.x().value() == Overflow::Visible {
                 size.width.max(content_size.width)
             } else {
                 size.width
             },
-            if overflow.y == Overflow::Visible {
+            if overflow.y().value() == Overflow::Visible {
                 size.height.max(content_size.height)
             } else {
                 size.height
@@ -2830,6 +2848,7 @@ where
                 final_size,
                 output.content_size,
                 style.overflow,
+                style.item_is_replaced,
             ),
         );
         let margin_box_origin = Point::new(location.x - margin.left, location.y - margin.top);
@@ -2843,6 +2862,7 @@ where
                 output.content_size,
                 margin,
                 style.overflow,
+                style.item_is_replaced,
             )
             .map_err(|error| block_child_scroll_error(container_node, child, error))?;
         let child_overflow = child_scrollable_overflow_for_parent(
@@ -3191,6 +3211,7 @@ impl<S: LayoutScalar> Constants<S> {
             .transpose_with_node(tree, node)?;
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
+            style.item_is_replaced,
             style.scrollbar_width.get(),
             style.direction,
         );
@@ -3245,7 +3266,7 @@ impl<S: LayoutScalar> Constants<S> {
         let boundary_margins_can_collapse =
             input.parent_formatting_context() == ParentFormattingContext::BlockFlow;
         let blocks_margin_collapse =
-            style.overflow.x.blocks_margin_collapse() || style.overflow.y.blocks_margin_collapse();
+            !style.item_is_replaced && style.overflow.establishes_independent_formatting_context();
         let is_margin_collapsing_block = style.display == super::Display::Block;
         let can_collapse_through = is_margin_collapsing_block
             && boundary_margins_can_collapse
@@ -3312,7 +3333,11 @@ impl<S: LayoutScalar> Constants<S> {
 }
 
 fn child_scrollbar_size<S: LayoutScalar>(style: &NodeInputOf<S>) -> Size<S> {
-    scrollbar_size_from_overflow(style.overflow, style.scrollbar_width.get())
+    scrollbar_size_from_overflow(
+        style.overflow,
+        style.item_is_replaced,
+        style.scrollbar_width.get(),
+    )
 }
 
 fn resolve_preferred_size<S: LayoutScalar>(

@@ -1,5 +1,9 @@
 use crate::*;
 
+fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
+    ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
 fn assert_measured_leaf_block_margin_collapse_uses_own_logical_block_extent<S: LayoutScalar>() {
     let containing_flow = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
 
@@ -250,7 +254,7 @@ fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
         Size::new(Available::definite(100.0), Available::definite(50.0)),
     );
     let node_input = NodeInput {
-        overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+        overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
         padding: Edges::all(Length::px(2.0)),
         border: Edges::all(Length::px(1.0)),
@@ -290,7 +294,7 @@ fn leaf_measurement_available_size_floors_below_insets_at_zero() {
         Size::new(Available::definite(8.0), Available::definite(6.0)),
     );
     let node_input = NodeInput {
-        overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+        overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(10.0).unwrap(),
         padding: Edges::all(Length::px(4.0)),
         border: Edges::all(Length::px(3.0)),
@@ -452,7 +456,7 @@ fn leaf_layout_preserves_physical_end_scrollbar_gutter_for_rtl() {
     );
     let node_input = NodeInput {
         direction: Direction::Rtl,
-        overflow: Point::new(Overflow::Visible, Overflow::Scroll),
+        overflow: computed_overflow(Overflow::Auto, Overflow::Scroll),
         scrollbar_width: crate::ScrollbarWidthOf::try_new(15.0).unwrap(),
         padding: Edges::all(Length::px(2.0)),
         border: Edges::all(Length::px(1.0)),

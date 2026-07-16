@@ -9,7 +9,7 @@ use crate::geometry::{
     PhysicalProgression,
 };
 use crate::output::PhysicalBaseline;
-use crate::scroll::scrollbar_size_from_overflow;
+use crate::scroll::{UsedOverflow, scrollbar_size_from_overflow};
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
     pub(super) visible_content_size: Size<S>,
@@ -465,8 +465,11 @@ where
         } else {
             tree.compute_child(child, child_input)?
         };
-        let scrollbar_size =
-            scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
+        let scrollbar_size = scrollbar_size_from_overflow(
+            child_style.overflow,
+            child_style.item_is_replaced,
+            child_style.scrollbar_width.get(),
+        );
         let logical_output_size = constants.flow_axes.logical_size(output.size);
         let logical_unresolved_margin = constants.flow_axes.logical_edges(item.unresolved_margin);
         let inline_axis = logical_grid_item_axis(
@@ -544,7 +547,10 @@ where
             scrollbar_size,
             border,
             padding,
-            overflow: child_style.overflow,
+            overflow: UsedOverflow::from_computed(
+                child_style.overflow,
+                child_style.item_is_replaced,
+            ),
         });
     }
 
@@ -1039,7 +1045,7 @@ pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) scrollbar_size: Size<S>,
     pub(super) border: Edges<S>,
     pub(super) padding: Edges<S>,
-    pub(super) overflow: Point<Overflow>,
+    pub(super) overflow: UsedOverflow,
 }
 
 impl<Node, S: LayoutScalar> PendingGridItem<Node, S> {
@@ -2555,8 +2561,11 @@ where
     let final_size = known
         .unwrap_or(output.size)
         .clamp_optional(min_size, max_size);
-    let scrollbar_size =
-        scrollbar_size_from_overflow(child_style.overflow, child_style.scrollbar_width.get());
+    let scrollbar_size = scrollbar_size_from_overflow(
+        child_style.overflow,
+        child_style.item_is_replaced,
+        child_style.scrollbar_width.get(),
+    );
     let justify = child_style
         .justify_self
         .unwrap_or(container_style.justify_items.unwrap_or(AlignItems::Start));
@@ -2630,7 +2639,7 @@ where
         ),
         final_size,
         output.content_size,
-        child_style.overflow,
+        UsedOverflow::from_computed(child_style.overflow, child_style.item_is_replaced),
     ))
 }
 
@@ -2776,15 +2785,15 @@ pub(super) fn content_size_contribution<S: LayoutScalar>(
     location: Point<S>,
     size: Size<S>,
     content_size: Size<S>,
-    overflow: Point<Overflow>,
+    overflow: UsedOverflow,
 ) -> Size<S> {
     let contribution_size = Size::new(
-        if overflow.x == Overflow::Visible {
+        if overflow.x().value() == Overflow::Visible {
             size.width.max(content_size.width)
         } else {
             size.width
         },
-        if overflow.y == Overflow::Visible {
+        if overflow.y().value() == Overflow::Visible {
             size.height.max(content_size.height)
         } else {
             size.height

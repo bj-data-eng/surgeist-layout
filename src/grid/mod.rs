@@ -2076,6 +2076,7 @@ impl<S: LayoutScalar> Constants<S> {
             .transpose_with_node(tree, node)?;
         let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
             style.overflow,
+            style.item_is_replaced,
             style.scrollbar_width.get(),
             style.direction,
         );
