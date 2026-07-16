@@ -1,5 +1,5 @@
 # FRI-04-C04 Contextual And Calc-Size Dispatch
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-04-C04`
 Owning repository: `surgeist-layout`
 Cycle base: `ab342ae57398edd1c5bedb1504b9c93d96829df4`
