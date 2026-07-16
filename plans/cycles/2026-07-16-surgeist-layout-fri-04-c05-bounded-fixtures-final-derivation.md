@@ -99,11 +99,12 @@ CARGO_NET_OFFLINE=true just corpus-check
 fields to `fr`; serialize them through the existing attributes; add the three
 active sources and exact 12-path matrix; assert the canonical unsupported
 projection in the generator feature; then perform the one final full derivation.
-**RED:** Add tests named with `fri04_c05_helper_serializer_`,
-`fri04_c05_unsupported_`, and `fri04_c05_fixture_` first. They fail because the
-helper drops the new strings, the serializer lacks their representation, the
-canonical digest assertion and sources are absent, and the final inventory is
-still 1,406 HTML and 5,268 XML.
+**RED:** Add tests named with `fri04_c05_helper_serializer_` and
+`fri04_c05_fixture_` first. They fail because the helper drops the new strings,
+the serializer lacks their representation, the sources and exact matrix are
+absent, and the final inventory is still 1,406 HTML and 5,268 XML.
+**Characterization:** Add `fri04_c05_unsupported_` against the published base;
+it starts green at the canonical digest and must remain green after derivation.
 **Acceptance:** Helper tests preserve all finite grammar members exactly and
 reject unsupported syntax and box `fr`; serializer tests emit exact existing
 width/height/min/max/flex-basis/track attributes. A generator-feature test
