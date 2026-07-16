@@ -233,6 +233,304 @@ fn scalar_percentage<S: LayoutScalar>(
         .expect("test coefficients are finite")
 }
 
+fn fri04_c03_block_positioned_value<S: LayoutScalar>(value: f64) -> SizingCalculationOf<S> {
+    SizingCalculationOf::value(
+        LengthPercentageOf::px(scalar_value(value)).expect("test sizing value is finite"),
+    )
+}
+
+fn fri04_c03_block_positioned_nested<S: LayoutScalar>(
+    minimum: f64,
+    preferred: f64,
+    maximum: f64,
+) -> SizingCalculationOf<S> {
+    let preferred = SizingCalculationOf::max(vec![
+        fri04_c03_block_positioned_value(preferred),
+        SizingCalculationOf::min(vec![
+            fri04_c03_block_positioned_value(preferred - 5.0),
+            fri04_c03_block_positioned_value(preferred + 5.0),
+        ])
+        .expect("nested minimum is nonempty"),
+    ])
+    .expect("nested maximum is nonempty");
+    SizingCalculationOf::clamp(
+        Some(fri04_c03_block_positioned_value(minimum)),
+        preferred,
+        Some(fri04_c03_block_positioned_value(maximum)),
+    )
+}
+
+#[test]
+fn fri04_c03_block_positioned_ordinary_block_consumes_nested_constraints_and_non_negative_results()
+{
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::px(160.0)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_block_positioned_nested(
+                        20.0, 80.0, 120.0,
+                    )),
+                    PreferredSize::calculation(fri04_c03_block_positioned_nested(
+                        20.0, 70.0, 120.0,
+                    )),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(fri04_c03_block_positioned_nested(40.0, 90.0, 110.0)),
+                    MinSize::calculation(fri04_c03_block_positioned_nested(30.0, 60.0, 90.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_block_positioned_nested(30.0, 85.0, 100.0)),
+                    MaxSize::calculation(fri04_c03_block_positioned_nested(30.0, 65.0, 100.0)),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_block_positioned_nested(
+                        -40.0, -20.0, -10.0,
+                    )),
+                    PreferredSize::calculation(fri04_c03_block_positioned_nested(
+                        -30.0, -15.0, -5.0,
+                    )),
+                ),
+                ..NodeInput::default()
+            },
+        );
+
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::splat(Available::definite(300.0)))
+            .expect("valid viewport"),
+    )
+    .expect("ordinary block calculations resolve");
+
+    assert_eq!(public_final_output(&batch, 1).size, Size::new(90.0, 65.0));
+    assert_eq!(public_final_output(&batch, 2).size, Size::ZERO);
+}
+
+#[test]
+fn fri04_c03_block_positioned_absolute_consumes_nested_properties_and_inset_derived_sizing() {
+    let absolute =
+        |size: Size<PreferredSize>, min_size: Size<MinSize>, max_size: Size<MaxSize>, inset| {
+            NodeInput {
+                display: Display::Block,
+                position: Position::Absolute,
+                size,
+                min_size,
+                max_size,
+                inset,
+                ..NodeInput::default()
+            }
+        };
+    let nested_size = Size::new(
+        PreferredSize::calculation(fri04_c03_block_positioned_nested(20.0, 80.0, 120.0)),
+        PreferredSize::calculation(fri04_c03_block_positioned_nested(20.0, 70.0, 120.0)),
+    );
+    let nested_min = Size::new(
+        MinSize::calculation(fri04_c03_block_positioned_nested(30.0, 60.0, 90.0)),
+        MinSize::calculation(fri04_c03_block_positioned_nested(30.0, 50.0, 80.0)),
+    );
+    let nested_max = Size::new(
+        MaxSize::calculation(fri04_c03_block_positioned_nested(40.0, 75.0, 100.0)),
+        MaxSize::calculation(fri04_c03_block_positioned_nested(40.0, 65.0, 90.0)),
+    );
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1, 2, 3])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_children(3, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(200.0), PreferredSize::px(160.0)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            absolute(
+                nested_size,
+                nested_min.clone(),
+                nested_max.clone(),
+                Edges::all(LengthAuto::AUTO),
+            ),
+        )
+        .with_style(
+            2,
+            absolute(
+                Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
+                nested_min,
+                nested_max,
+                Edges {
+                    top: LengthAuto::px(10.0),
+                    right: LengthAuto::px(20.0),
+                    bottom: LengthAuto::px(10.0),
+                    left: LengthAuto::px(20.0),
+                },
+            ),
+        )
+        .with_style(
+            3,
+            absolute(
+                Size::new(
+                    PreferredSize::calculation(fri04_c03_block_positioned_nested(
+                        -40.0, -20.0, -10.0,
+                    )),
+                    PreferredSize::calculation(fri04_c03_block_positioned_nested(
+                        -30.0, -15.0, -5.0,
+                    )),
+                ),
+                Size::new(MinSize::AUTO, MinSize::AUTO),
+                Size::new(MaxSize::NONE, MaxSize::NONE),
+                Edges::all(LengthAuto::AUTO),
+            ),
+        );
+
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::splat(Available::definite(300.0)))
+            .expect("valid viewport"),
+    )
+    .expect("positioned calculations resolve");
+
+    assert_eq!(public_final_output(&batch, 1).size, Size::new(75.0, 65.0));
+    assert_eq!(public_final_output(&batch, 2).size, Size::new(75.0, 65.0));
+    assert_eq!(
+        public_final_output(&batch, 2).location,
+        Point::new(20.0, 10.0)
+    );
+    assert_eq!(public_final_output(&batch, 3).size, Size::ZERO);
+}
+
+#[test]
+fn fri04_c03_block_positioned_compute_size_preserves_missing_basis_as_indefinite() {
+    let percentage = SizingCalculation::max(vec![
+        fri04_c03_block_positioned_value(10.0),
+        SizingCalculation::value(
+            LengthPercentageOf::from_percent_fraction(0.5).expect("finite percentage"),
+        ),
+    ])
+    .expect("nested maximum is nonempty");
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(0, NodeInput::default())
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSize::calculation(percentage.clone()),
+                    PreferredSize::calculation(percentage.clone()),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(percentage.clone()),
+                    MinSize::calculation(percentage.clone()),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(percentage.clone()),
+                    MaxSize::calculation(percentage),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .measure(1, ComputeOutput::from_outer_size(Size::new(30.0, 20.0)));
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::MAX_CONTENT),
+        ),
+    )
+    .expect("intrinsic block sizing retains the missing-basis fallback");
+
+    assert_eq!(output.size, Size::new(30.0, 20.0));
+    assert!(
+        tree.inputs(1).iter().any(|input| {
+            input.run_mode() == RunMode::ComputeSize && input.parent() == Size::NONE
+        })
+    );
+}
+
+#[test]
+fn fri04_c03_block_positioned_invalid_numeric_propagates_from_both_consumers() {
+    let invalid = || {
+        SizingCalculation::min(vec![
+            SizingCalculation::value(
+                LengthPercentageOf::from_coefficients(f32::MAX, 1.0)
+                    .expect("finite overflowing coefficients"),
+            ),
+            fri04_c03_block_positioned_value(10.0),
+        ])
+        .expect("nested minimum is nonempty")
+    };
+
+    for position in [Position::Relative, Position::Absolute] {
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(0, NodeInput::default())
+            .with_style(
+                1,
+                NodeInput {
+                    display: Display::Block,
+                    position,
+                    size: Size::new(
+                        PreferredSize::calculation(invalid()),
+                        PreferredSize::px(10.0),
+                    ),
+                    ..NodeInput::default()
+                },
+            );
+        let request = LayoutRootRequest::viewport(Size::new(
+            Available::definite(f32::MAX),
+            Available::definite(80.0),
+        ))
+        .expect("largest finite viewport is valid");
+
+        let error = compute_layout(&tree, 0, request)
+            .expect_err("invalid numeric sizing must return no completed batch");
+        assert_eq!(error.site(), LayoutErrorSite::Node(1));
+        assert_eq!(error.operation(), LayoutOperation::ValueResolution);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+                value: f32::INFINITY,
+            })
+        );
+    }
+}
+
 #[test]
 fn parent_context_gates_only_block_boundary_collapse_in_both_scalar_lanes() {
     fn assert_lane<S: LayoutScalar>()
