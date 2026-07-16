@@ -200,6 +200,7 @@ This table describes clean published commit
 | `E-OVERFLOW-PAIR` | `NodeInputOf::overflow` is a mutable `Point<Overflow>` and `Overflow` omits `Auto`. The fixture parser maps `auto` to `Scroll`. | Add `Auto`, require a canonical computed pair, and preserve `auto` through fixture lowering. |
 | `E-SCROLLABLE-PREDICATE` | `Overflow::is_scrollable()` is true only for `Scroll`; grid automatic-minimum predicates call it. | Treat computed `Hidden`, `Scroll`, and `Auto` as scrollable without applying replaced used-value conversion to the auto-minimum test. |
 | `E-OVERFLOW-PREDICATES` | Public `Overflow::clips_contents()` and `blocks_margin_collapse()` are per-axis methods used directly by block callers, but no phase distinguishes computed BFC behavior from replaced-box used clipping. | Give each current caller one explicit computed-pair or used-axis predicate and make `Auto` participate in clipping and block formatting-context behavior. |
+| `E-PHASE-UNSAFE-FACTS` | Exported `ScrollOverflowExposure`, `ScrollContainerAxis`, and `ScrollContainerFacts`, their public constructors, and the crate-visible `scroll_container_facts_from_overflow` path construct geometry facts without a canonical computed pair or replaced-box used-value conversion. | Remove those types and construction paths; derive a private used-overflow pair only from `ComputedOverflow` plus replaced status and expose the resulting axes read-only on canonical geometry. |
 | `E-DEFERRED-FEATURES` | `ScrollUnsupportedFeature` lists overflow auto, clip margin, stable/both-edge gutters, scroll padding, scroll margin, snap, and mixed-axis coupling as deferred. | Replace placeholders with real input/output contracts and remove the obsolete deferred enum. |
 | `E-ARBITRARY-GEOMETRY` | `ScrollbarGutterRectsOf::new` accepts arbitrary rectangles and `ScrollGeometryOf::new` accepts independently supplied scrollport, clip, overflow, range, and gutters. | Make derived geometry output-only and construct it through one canonical crate-owned factory. |
 | `E-RECT-END` | `ScrollRectOf::new` validates origin and size components but not finite `origin + size` endpoints. | Validate every endpoint and return a typed construction error. |
@@ -277,6 +278,7 @@ Every other current overflow decision names its phase:
 | Decision | Owning value | Exact rule |
 | --- | --- | --- |
 | Grid/flex content-based automatic minimum | One computed `Overflow` axis | `Hidden`, `Scroll`, and `Auto` are scrollable; `Visible` and `Clip` are non-scrollable. |
+| Grid intrinsic/min-content and percent-track contribution | One used-overflow axis selected through the grid container's `FlowAxes` | Only `Visible` admits nested `content_size`; `Clip`, `Hidden`, `Scroll`, and `Auto` trap it and use the item box/min-track priority. |
 | Independent formatting context for a non-replaced block container | Complete `ComputedOverflow` pair | Every canonical pair from the scrollable group establishes one; every canonical `Visible`/`Clip` pair does not. |
 | Block child-margin collapse | Complete `ComputedOverflow` pair | Collapse is blocked exactly when the pair establishes that independent formatting context. |
 | Descendant clipping | One private used-overflow axis | `Clip`, `Hidden`, `Scroll`, and `Auto` clip; `Visible` does not. |
@@ -293,6 +295,22 @@ range, or gutter policy. It therefore uses the overflow clip edge, exposes no
 range, and reserves no stable gutter. Its computed value remains scrollable for
 the grid/flex automatic-minimum condition. Replaced boxes do not enter the block
 child-margin-collapse decision.
+
+Grid's intrinsic callers use this complete used-axis matrix:
+
+| Computed axis | Ordinary used axis | Replaced used axis | Traps descendant `content_size` | Min-content span priority and percent-track branch |
+| --- | --- | --- | --- | --- |
+| `Visible` | `Visible` | `Visible` | No; use `max(item_size, content_size)` | Non-clipping intrinsic-track path |
+| `Clip` | `Clip` | `Clip` | Yes; use `item_size` | Clipping min/max-content priority path |
+| `Hidden` | `Hidden` | `Clip` | Yes; use `item_size` | Clipping min/max-content priority path |
+| `Scroll` | `Scroll` | `Scroll` | Yes; use `item_size` | Clipping min/max-content priority path |
+| `Auto` | `Auto` | `Auto` | Yes; use `item_size` | Clipping min/max-content priority path |
+
+One crate-private helper derives the used axis from `ComputedOverflow`,
+`item_is_replaced`, the grid container's `FlowAxes`, and `GridAxisKind`.
+Columns select the container inline physical axis and rows select its block
+physical axis. Ordinary-grid, intrinsic-subgrid, and grid-lanes callers use
+that helper; no context-free column-to-x/row-to-y overflow match remains.
 
 Rejected alternative: retaining `Point<Overflow>` permits a post-construction
 mixed pair that contradicts computed CSS.
@@ -383,7 +401,7 @@ own.
 `ScrollGeometryOf<S>` is immutable container/output geometry. It exposes:
 
 - the retained `FlowAxes`;
-- used x/y overflow facts;
+- used x/y overflow through `used_overflow_x()` and `used_overflow_y()`;
 - canonical border, padding, content, and scrollport rectangles;
 - independent optional physical x and y clip intervals;
 - the complete local scrollable-overflow rectangle;
@@ -395,10 +413,12 @@ own.
 
 The value privately retains one canonical source record containing the final
 border size, resolved edges, effective gutter state, used overflow, clip margin,
-resolved scroll padding, accumulated overflow, `ScrollOriginAxes`, active
-alignment subject, and snap type. Rounding rebuilds from that record. These
-private provenance fields have no independent public setters or duplicate
-constructor path; public accessors expose only the derived contract above.
+resolved scroll padding, finite target scroll margin, accumulated overflow,
+propagatable descendant intervals, `ScrollOriginAxes`, active alignment subject,
+container snap type, and target snap alignment/stop. Rounding rebuilds from that
+record. These private provenance fields have no independent public setters or
+duplicate constructor path; public accessors expose only the derived contract
+above.
 
 The output clip is not one optional rectangle. It is a public read-only value
 with one optional finite ordered interval per physical axis:
@@ -427,11 +447,32 @@ bounds by scroll margin, associates it with the nearest scroll container on the
 containing-block chain, and chooses live snap positions. Layout does not retain
 that association.
 
+`ScrollGeometryOf<S>` owns exactly one target value and exposes it through:
+
+```rust
+pub const fn target(self) -> ScrollTargetGeometryOf<S>
+```
+
+There is no parallel optional target field. The concrete carriers are the
+existing `ComputeOutputOf::scroll_geometry` and `NodeOutputOf::scroll_geometry`
+options: `Some(geometry)` always includes `geometry.target()`, while `None`
+means neither container nor target geometry exists. Every performed-box path
+that converts a `ComputeOutputOf` into a `NodeOutputOf` copies the complete
+option. A path that must rebuild geometry after final border-box resolution
+does so through the same canonical factory and rebuilds the nested target in
+the same operation; it may not preserve container geometry while dropping or
+defaulting the target.
+
 `NodeOutputOf<S>` retains `scroll_geometry: Option<ScrollGeometryOf<S>>` because
 non-box control outputs and unlaid/default outputs have no box geometry. Every
 successfully performed box layout, including a visible-overflow box, returns
 `Some`. `display:none`, line-break controls, inline-boundary controls, and
 measurement-only results that do not produce a box return `None`.
+
+Compute and node caches retain the complete output value, including the nested
+target, with no target-specific side cache. Rounding rebuilds the target inside
+the rounded `ScrollGeometryOf`; it cannot create a target for a `None` output or
+turn a present target into absence.
 
 `NodeOutputOf::scrollbar_size()` replaces the independently mutable public
 `scrollbar_size` field and derives aggregate physical reservation from
@@ -439,8 +480,9 @@ measurement-only results that do not produce a box return `None`.
 content-box size when geometry exists. Its no-geometry fallback subtracts
 padding and border and saturates each axis at zero.
 
-Rejected alternative: placing target children inside each container geometry
-would duplicate tree identity and create a retained snap registry in the leaf.
+Rejected alternative: placing a registry or list of descendant targets inside
+each container geometry would duplicate tree identity and create retained snap
+state in the leaf.
 
 ### `D-04` Derived Geometry Has One Canonical Factory
 
@@ -459,12 +501,14 @@ The public constructors for `ScrollbarGutterRectsOf` and
 `ScrollGeometryOf` are removed. Their fields remain private. One crate-owned
 factory receives only source facts:
 
-- flow axes and computed/used overflow;
+- flow axes, `ComputedOverflow`, and replaced-box status, from which the factory
+  derives its private used-overflow pair;
 - final border-box size;
 - resolved padding and border edges;
 - effective scrollbar state and thickness;
 - overflow clip margin;
 - resolved scroll padding;
+- finite target scroll margin, snap alignment, and snap stop;
 - final accumulated scrollable overflow;
 - format-specific scroll-origin progression and any active final in-flow
   content-distribution subject; and
@@ -607,16 +651,29 @@ border reference box and expanded by the finite non-negative clip-margin
 length. The expansion is applied only on the clipped physical axis. For used
 `Visible`, the interval is absent.
 
-When a parent accumulates a child's nested overflow, it translates the child
-overflow to parent-local coordinates and intersects each clipped axis with the
-translated child clip interval. An un-clipped axis remains unchanged. The
-child's own border or margin area is included separately and is not removed by
-the child's content clip.
+Clip intervals describe the child's own rendering/scrollport geometry for root;
+they are not parent-propagation bounds. Parent propagation has a separate
+eligibility decision. On each physical axis, only used `Visible` permits the
+child's propagatable descendant interval to enlarge the parent. Used `Clip`,
+`Hidden`, `Scroll`, and `Auto` trap descendant scrollable overflow on that axis,
+so the parent receives no nested interval there rather than an intersected one.
 
-This per-axis operation applies equally to `visible/clip`, `clip/visible`, and
-the fully scrollable computed-pair group. A child that traps its descendant
-overflow therefore cannot leak it through flex or grid merely because those
-formats use a different contribution helper.
+The canonical child geometry retains crate-private propagatable descendant
+intervals separately from its full scrollable-overflow rectangle. They contain
+direct line/descendant contributions and transitive used-visible overflow, but
+exclude the child's own padding, border, and margin areas. A parent translates
+only those intervals to parent-local coordinates. This distinction lets a
+zero-area box propagate real visible descendant overflow without treating its
+own zero-area padding interval as descendant evidence.
+
+The child's own positive-area border or applicable margin area is included
+separately regardless of whether it traps descendants. A margin area is eligible
+only when the child's border box itself has positive area; margins cannot revive
+a zero-area own-box contribution. This per-axis operation applies to
+`visible/clip`, `clip/visible`, and the fully scrollable computed-pair group. A
+trapped child cannot enlarge the parent through nested overflow or activate the
+parent's auto gutter merely because a formatting helper preserved its local clip
+rectangle.
 
 ### `D-08` One Shared Accumulator Owns Contribution Semantics
 
@@ -635,10 +692,10 @@ The contribution matrix is:
 | Container's own padding box | Always seeds the accumulator, including a zero-size box. |
 | Direct line box available from the current block/inline bridge | Include its area in container-local coordinates. FRI-06 still owns missing line construction. |
 | Child border box | Include only when width and height are both positive, matching the zero-area exclusion. |
-| Flex/grid item margin area | Union the border box with positive physical margin outsets. Negative margins never shrink the border contribution or create an inverted rectangle. Include the resulting area when it has positive area. |
-| Other in-flow block margin | Keep the existing browser-backed block inclusion policy, but implement it through border area plus positive outsets so a valid negative margin cannot fail. |
-| Current absolute/out-of-flow child laid out against this containing block | Include its final margin area exactly once. Later positioned-layout completeness remains FRI-10-owned. |
-| Child nested scrollable overflow | Include independently on x and y even when the child's border box has zero area; translate by final child location and apply the child's per-axis clip first. |
+| Flex/grid item margin area | Only when the border box itself has positive area, union it with positive physical margin outsets. Negative margins never shrink the border contribution or create an inverted rectangle. |
+| Other in-flow block margin | Only when the border box itself has positive area, keep the existing browser-backed block inclusion policy, implemented through border area plus positive outsets so a valid negative margin cannot fail. |
+| Current absolute/out-of-flow child laid out against this containing block | When its border box has positive area, include its final margin area exactly once. Later positioned-layout completeness remains FRI-10-owned. |
+| Child propagatable descendant overflow | On each used-`Visible` axis, include the child's separate descendant interval even when its border box has zero area; translate by final child location. On every trapped axis, include no nested interval. |
 | Terminal own padding | Extend the final in-flow/floated logical end edge by the corresponding own padding, unless another included source already reaches farther. |
 | Active content-distribution subject | Record the final in-flow subject bounds for range-origin adjustment; exclude out-of-flow boxes and nested overflow beyond that subject. |
 
@@ -648,9 +705,9 @@ margins continue to affect the child's final location through the formatting
 algorithm; they simply cannot turn the synthetic contribution rectangle
 negative.
 
-Nested geometry carries transitive descendants. Each formatting algorithm adds
-each direct child and each out-of-flow box it owns exactly once; it does not
-walk a descendant a second time.
+Propagatable geometry carries transitive descendants only through used-visible
+axes. Each formatting algorithm adds each direct child and each out-of-flow box
+it owns exactly once; it does not walk a descendant a second time.
 
 The accumulator retains physical start-side coordinates, including negative
 origins, because a parent with a reversed progression can observe them as its
@@ -885,9 +942,10 @@ The breaking API delta is:
 | Public `ScrollRectOf::new` returning `ScrollUnsupportedFeature` | `ScrollRectOf::try_new` returning `ScrollRectErrorOf<S>` |
 | Public `ScrollbarGutterRectsOf::new` | No public constructor; canonical output accessors only |
 | Public `ScrollGeometryOf::new` | No public constructor; layout factory output only |
+| Exported `ScrollOverflowExposure`, `ScrollContainerAxis`, `ScrollContainerFacts`, their public constructors, crate-visible `scroll_container_facts_from_overflow`, and `ScrollGeometryOf::container()` | Removed; private used-overflow derivation plus read-only `ScrollGeometryOf::used_overflow_x()` and `used_overflow_y()` |
 | One `Option<ScrollRectOf>` overflow clip | `OverflowClipOf<S>` with independent x/y intervals |
 | Public mutable `NodeOutputOf::scrollbar_size` field | Derived `NodeOutputOf::scrollbar_size()` method |
-| No target output | `ScrollTargetGeometryOf<S>` on laid-out boxes |
+| No target output | Required `ScrollTargetGeometryOf<S>` nested in every present `ScrollGeometryOf<S>` and exposed by `target()` |
 | `ScrollUnsupportedFeature` and `ScrollOverflowCouplingPolicy` | Removed; real capabilities and typed input/rect errors |
 
 All new scalar-bearing public values are generic over `LayoutScalar`, have
@@ -895,12 +953,16 @@ default-scalar aliases, validate finite-state rules at construction, and have
 `f32`/`f64` contract tests. No type exposes a mutable field whose edit can break
 its invariant.
 
-`ScrollGeometryOf`, gutter output, clip output, and target output expose read-only
+`ScrollGeometryOf`, gutter output, clip output, and nested target values expose read-only
 accessors. They do not implement `Default`: an all-zero placeholder is not a
 performed layout. `ComputedOverflow`, input property values, and snap values do
 implement their real CSS initial defaults.
 
-No compatibility alias for the removed constructors, raw overflow point,
+The legacy scroll exposure/axis/facts types and conversion function have no
+compatibility alias or public replacement constructor. This is an intentional
+breaking pre-release leaf change: a caller can inspect the canonical used axes
+on output geometry but cannot manufacture phase-ambiguous facts. No
+compatibility alias for the other removed constructors, raw overflow point,
 scrollbar field, or unsupported-feature enum remains.
 
 ## FRI-05.6 Behavior Matrices
@@ -925,22 +987,22 @@ formatting-context branches to classify `Auto` correctly.
 
 | Output state | Container geometry | Target geometry |
 | --- | --- | --- |
-| Successfully laid-out root/leaf/block/flex/grid/subgrid/grid-lanes box | `Some`, including visible overflow | Present |
-| Existing atomic inline box that receives a `NodeOutputOf` | `Some` using its inner formatting result | Present |
+| Successfully laid-out root/leaf/block/flex/grid/subgrid/grid-lanes box | `Some`, including visible overflow | Present through `ScrollGeometryOf::target()` |
+| Existing atomic inline box that receives a `NodeOutputOf` | `Some` using its inner formatting result | Present through `ScrollGeometryOf::target()` |
 | `display:none` or omitted box | `None` | Absent |
 | Line-break or inline-boundary control | `None` | Absent |
 | Measurement-only result with no box output | `None` | Absent |
 
 ### Child Propagation Matrix
 
-| Child used overflow on axis | Child nested overflow visible to parent on that axis |
+| Child used overflow on axis | Child nested overflow contribution to parent on that axis |
 | --- | --- |
-| `Visible` | Entire translated interval |
-| `Clip` | Interval intersected with translated overflow clip edge |
-| `Hidden`, `Scroll`, or `Auto` | Interval intersected with translated scrollport |
+| `Visible` | Translated crate-private propagatable descendant interval, when present |
+| `Clip`, `Hidden`, `Scroll`, or `Auto` | None; the child traps nested overflow |
 
 The child's own positive-area border/margin contribution is independent of this
-matrix.
+matrix. A zero-area child's own box remains excluded; only a used-visible
+propagatable descendant interval can exercise the zero-area exception.
 
 ### Invalid And Failure Matrix
 
@@ -964,9 +1026,9 @@ matrix.
 
 Root and leaf use the same canonical box/reservation/range factory as formatting
 containers. Leaf measurement receives the effective content box for the current
-auto-gutter pass. A stable pass emits container and target geometry; rounding
-rebuilds both. Their scroll-origin axes are the ordinary `FlowAxes` progression
-and they have no content-distribution start adjustment.
+auto-gutter pass. A stable pass emits geometry with its required nested target;
+rounding rebuilds both together. Their scroll-origin axes are the ordinary
+`FlowAxes` progression and they have no content-distribution start adjustment.
 
 ### Block
 
@@ -997,8 +1059,9 @@ second overflow path.
 
 Ordinary grid and grid-lanes use the effective reservation in available content
 space and track the final container-relative item location. Their final
-accumulation includes in-flow and current absolute children, clips nested
-geometry through the shared helper, and emits canonical container geometry.
+accumulation includes in-flow and current absolute children, propagates or
+traps nested geometry per used physical axis through the shared helper, and
+emits canonical container geometry.
 Subgrid paths use the same parent-local translation and do not synthesize a
 second range convention.
 
@@ -1007,6 +1070,15 @@ Grid and lanes automatic-minimum predicates use computed `Hidden`, `Scroll`, and
 and every `FlowAxes` projection applicable to their logical sizing axes. Their
 scroll origins follow flow inline/block start, and their final justified/aligned
 track rectangles are the content-distribution subjects.
+
+Every grid intrinsic, min-content, and percentage-track caller derives one
+private used-overflow axis through the container's `FlowAxes` and
+`GridAxisKind`. Only used `Visible` admits the item's propagatable descendant
+`content_size`; `Clip`, `Hidden`, `Scroll`, and `Auto` trap it and retain the
+item-box/min-track priority. Replaced computed `Hidden` becomes used `Clip`
+before this decision. Ordinary grid, intrinsic subgrid, and grid-lanes share
+that helper; no caller performs a context-free `Column => x` or `Row => y`
+match.
 
 ### Cache And Diagnostics
 
@@ -1032,15 +1104,16 @@ The initiative requires these named evidence families:
 | Alignment-origin range | Existing flex/grid start, end, center, safe fallback, reverse, and distributed content cases prove zero initial anchor, both-sided bounds, start-alignment reach, terminal padding, and exclusion of farther start-side out-of-flow overflow in all flow mappings. |
 | Auto coupling | No-overflow, x-only, y-only, x-induces-y, y-induces-x, forced scroll, hidden stable, stable both-edges, and zero-thickness overlay cases. |
 | Block blockers | The named negative-margin and smaller-than-scrollbar browser families complete without panic and match geometry. |
-| Nested contribution | Visible, partial clip, clip margin, hidden, scroll, and auto child geometry under block, flex, grid, and lanes; current absolute children included once. |
-| Zero-area contribution | `0xN` and `Nx0` child boxes with nested overflow prove the non-zero axis survives in block, flex, grid, and grid-lanes. |
+| Nested contribution | Under block, flex, grid, and lanes, used `Visible` propagates only its physical-axis descendant interval; `Clip`, `Hidden`, `Scroll`, and `Auto` trap nested overflow even when their local clip or full scrollable-overflow rectangle is non-empty. Partial-axis cases prove the two decisions are independent, and current absolute children are included once. |
+| Zero-area contribution | `0xN` and `Nx0` child boxes prove that a real used-visible propagatable descendant interval survives on the non-zero axis in block, flex, grid, and grid-lanes, while the same nested geometry under every trapped value contributes zero to the parent. |
 | Grid automatic minimum | Hidden, scroll, auto, visible, and clip cases through ordinary grid and lanes front doors. |
+| Grid intrinsic used overflow | All five values through ordinary grid, intrinsic subgrid, and lanes callers prove the physical axis selected through all `FlowAxes` mappings, the visible-only `content_size` branch, trapped alternatives, and replaced-hidden conversion. |
 | Grid origin | An item at non-zero container origin contributes through its final end; old area-relative expectation no longer passes. |
 | Output helpers | `content_box_size()` and `scrollbar_size()` agree exactly with canonical geometry for no gutter, one edge, both edges, and saturated boxes. |
-| Cache and rounding | Cached/uncached equality and normal/rounded geometry include every new output field. |
+| Cache and rounding | Cached/uncached equality and normal/rounded geometry include the private used axes and required nested target with its margin/alignment/stop metadata; absent geometry remains absent. |
 | Comparator activation | Correct non-zero and zero scroll deltas pass; wrong x, wrong y, and missing geometry each produce the named mismatch. |
 | Fixture lowering | The exact eleven HTML sources serialize and parse every FRI-05-owned token without accepting broader CSS. |
-| Public surface | `lib.rs` reexports the new types; compile-fail/static searches prove removed raw fields, constructors, policies, and deferred variants are absent. |
+| Public surface | `lib.rs` reexports the new types; compile-fail/static searches prove removed raw fields, constructors, legacy scroll exposure/axis/facts types and conversion function, policies, and deferred variants are absent; present geometry always exposes `target()` and used-axis accessors. |
 
 Behavior changes use reconstructed RED evidence at the exact task base. Focused
 tests exercise the real `compute_layout` or formatting front door rather than a
@@ -1056,15 +1129,15 @@ executable `unsafe`.
 | Module or artifact | Desired responsibility |
 | --- | --- |
 | `src/node_input.rs` | Computed overflow pair, phase-correct pair/axis predicates, layout-ready scroll property and snap input types, defaults, and `NodeInputOf` fields. |
-| `src/scroll.rs` | Rect errors, used-overflow derivation, reservation state, box/clip/gutter/target geometry, format-origin/alignment range, canonical factory, shared accumulator, rounding support. |
-| `src/output.rs` | Target geometry storage, removal of independent scrollbar field, canonical helper methods. |
-| `src/compute.rs` | Root/leaf pass integration, contextual geometry errors, final rounding, cache-safe publication. |
+| `src/scroll.rs` | Rect errors, private used-overflow derivation and legacy-facts removal, reservation state, box/clip/gutter/target geometry, format-origin/alignment range, canonical factory, shared accumulator, rounding support. |
+| `src/output.rs` | Existing optional geometry carriers, complete compute-to-node propagation, removal of independent scrollbar field, canonical helper methods. |
+| `src/compute.rs` | Root/leaf pass integration, nested target construction, contextual geometry errors, final rounding, cache-safe publication. |
 | `src/block.rs` | Shared accumulation calls, saturated constants, auto-gutter pass, retained child geometry. |
 | `src/flex.rs` | Flow-aware reservation, auto-gutter pass, retained child/absolute geometry, shared accumulation, `FlexAxes` scroll origin, and final content-distribution subjects. |
 | `src/grid/mod.rs` | Grid container reservation/pass integration, final content-distribution subjects, and final geometry. |
 | `src/grid/child.rs` | Final container-local item contribution, retained child/absolute geometry, zero-axis behavior. |
 | `src/grid/lanes.rs` and `src/grid/subgrid.rs` | Shared origin, contribution, clipping, and geometry behavior for lanes/subgrid paths. |
-| `src/grid/tracks.rs` | Correct computed-overflow auto-minimum predicate only; no unrelated track algorithm expansion. |
+| `src/grid/tracks.rs` | Correct computed-overflow auto-minimum predicate plus flow-aware private used-overflow trapping for intrinsic/min-content/percentage-track callers; no unrelated track algorithm expansion. |
 | `src/lib.rs` | Intentional FRI-05 public reexports and removed legacy exports. |
 | Focused Rust tests | Model, property, scalar, flow, block, flex, grid, lanes, root, cache, rounding, comparator, and public contract evidence. |
 | `tests/layout/browser_parity/support.rs` | Atomic computed-overflow parsing, exact new property parsers, output range-span comparison, mismatch diagnostics. |
@@ -1176,15 +1249,20 @@ it:
    gutter policy to `ScrollbarGutter`;
 4. lower clip margin, physical scroll padding, finite absolute scroll margin,
    snap type, snap alignment, and snap stop to the new fields;
-5. migrate removed scroll constructors and the removed
-   `NodeOutputOf::scrollbar_size` field to read-only geometry/accessors;
+5. migrate removed scroll constructors,
+   `ScrollOverflowExposure`/`ScrollContainerAxis`/`ScrollContainerFacts`,
+   `ScrollGeometryOf::container()`, and the removed
+   `NodeOutputOf::scrollbar_size` field to read-only canonical
+   geometry/accessors, without recreating the leaf's removed phase-unsafe
+   construction path;
 6. consume per-axis clips, optimal viewing region, the zero-anchored signed
-   physical range including content-distribution origin adjustment, and target
-   geometry without recomputing leaf box invariants;
+   physical range including content-distribution origin adjustment, and nested
+   target geometry through `ScrollGeometryOf::target()` without recomputing leaf
+   box invariants;
 7. preserve root ownership of transformed coordinate mapping, nearest-container
    association, current offsets, host events, scroll UI, CSSOM adaptation,
    target/focus scrolling, snap selection, and re-snapping;
-8. refresh root-owned API artifacts only after the published leaf candidate is
+8. refresh root-owned API artifacts only after the final leaf candidate is
    integrated; and
 9. retain the exact leaf candidate SHA and breaking API inventory in the root
    promotion evidence.
@@ -1209,7 +1287,7 @@ without redesign:
 6. bounded fixture lowering, one full regeneration, comparator activation,
    public/docs evidence, finding trace, and candidate closure.
 
-Each boundary can be completed and reviewed as a coherent published cycle.
+Each boundary can be completed and reviewed as a coherent implementation cycle.
 Future cycle plans remain just-in-time and may split a boundary only when source
 evidence shows that one reviewable coding range would otherwise be oversized.
 They may not merge generator architecture, later formatting behavior, or root
@@ -1222,9 +1300,9 @@ integration into FRI-05.
 | `BLOCK-001` | Shared positive-outset margin accumulation plus named negative-margin front-door/browser evidence with no geometry error. |
 | `BLOCK-002` | Proportional effective gutter saturation and tiny-box block/root evidence with zero content geometry. |
 | `GRID-011` | Computed hidden/scroll/auto automatic-minimum tests through ordinary grid and grid-lanes. |
-| `OVERFLOW-001` | Flex/grid in-flow and current absolute children retain geometry; nested parent outputs expose clipped/transitive geometry. |
-| `OVERFLOW-002` | All D-01/D-02 values represented, every computed/used predicate assigned, auto coupling and current alignment-origin range executed, per-axis clipping and current out-of-flow contribution emitted, deferred variants removed. |
-| `OVERFLOW-003` | Independent x/y accumulator and `0xN`/`Nx0` front-door tests across block, flex, grid, and lanes. |
+| `OVERFLOW-001` | Flex/grid in-flow and current absolute children retain geometry; nested parent outputs propagate transitive descendant intervals only through used-visible axes and trap them for clip/hidden/scroll/auto. |
+| `OVERFLOW-002` | All D-01/D-02 values represented, every computed/used predicate assigned, auto coupling and current alignment-origin range executed, per-axis clipping and current out-of-flow contribution emitted, target geometry carried concretely, and deferred plus phase-unsafe legacy variants removed. |
+| `OVERFLOW-003` | Independent x/y accumulator and `0xN`/`Nx0` front-door tests across block, flex, grid, and lanes prove used-visible nested propagation and trapped-value exclusion. |
 | `OVERFLOW-005` | Finite-end rect validation, no public gutter/geometry constructors, canonical coherence property tests, and retained FRI-02 coordinate validation. |
 | `CORE-006` | `content_box_size()` and derived scrollbar accessor agree with canonical geometry in ordinary, both-edge, and saturated cases. |
 | `GRID-009` | Container-relative ordinary-grid and lanes extent is `origin + contribution`, with the old area-relative expectation replaced by browser-backed evidence. |
@@ -1244,18 +1322,20 @@ FRI-05 is complete only when:
 3. every successfully laid-out block, flex, grid, subgrid, and grid-lanes box
    emits coherent geometry through the shared contract;
 4. computed versus used overflow, all thirteen valid pairs, twelve invalid
-   pairs, five axis values, current IFC/margin predicates, partial clips,
-   stable/both-edge gutters, auto cross-axis coupling, and replaced hidden
-   behavior have focused proof;
+   pairs, five axis values, current IFC/margin predicates, grid automatic
+   minimum and flow-aware intrinsic mapping, partial clips, stable/both-edge
+   gutters, auto cross-axis coupling, and replaced hidden behavior have focused
+   proof;
 5. all ten flow mappings produce correct physical gutter placement and signed
    range spans before and after rounding in both scalar lanes, including flex
    reverse origins and the bounded start-side adjustment for current flex/grid
    content distribution;
-6. negative margins, tiny boxes, zero-axis nested overflow, clipped descendants,
-   current absolute descendants, and non-zero grid origins return correct
-   geometry without panic, silent zeroing, or guessed context;
-7. cached and uncached final outputs agree for every new geometry and target
-   field, and speculative auto passes cannot be observed;
+6. negative margins, tiny boxes, zero-axis used-visible propagation, trapped
+   nested descendants, current absolute descendants, and non-zero grid origins
+   return correct geometry without panic, silent zeroing, or guessed context;
+7. cached and uncached final outputs agree for every new geometry value,
+   including its required nested target, and speculative auto passes cannot be
+   observed;
 8. `NodeOutputOf` helpers derive the actual canonical content box and gutter
    reservation;
 9. parsed browser scroll expectations are compared and the named focused parity
@@ -1270,6 +1350,6 @@ FRI-05 is complete only when:
     normalized fixture boundary without claiming root runtime behavior;
 13. no dependency, feature, MSRV, generator architecture, root, sibling,
     aggregate FRI-13 gate, or unrelated formatting behavior changes; and
-14. the reviewed candidate is published to authoritative remote `main`, read
-    back, locally synchronized, clean, and accompanied by the complete leaf
-    candidate handoff.
+14. Section FRI-05.12 records the complete breaking leaf-to-root integration
+    contract, including the canonical geometry, target, and removed-surface
+    migrations required of the eventual root promotion.
