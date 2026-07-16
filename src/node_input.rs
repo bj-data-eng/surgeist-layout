@@ -1182,15 +1182,16 @@ mod property_field_migration_tests {
     }
 
     #[test]
-    fn property_field_migration_later_states_keep_explicit_unsupported_boundary() {
+    fn property_field_migration_numeric_calculations_resolve_while_later_states_stay_unsupported() {
         let nested =
             SizingCalculation::min(vec![SizingCalculation::value(LengthPercentageOf::ZERO)])
                 .expect("nonempty sizing calculation");
         let preferred = PreferredSizeOf::calculation(nested);
-        assert_eq!(
-            preferred.resolve_simple_with_status(None),
-            Err(LengthResolutionStatus::NonNumeric),
-        );
+        let resolution = preferred
+            .resolve_simple_with_status(None)
+            .expect("valid numeric calculation resolves");
+        assert_eq!(resolution.status(), LengthResolutionStatus::Resolved);
+        assert_eq!(resolution.value, Some(0.0));
 
         let calc_size =
             PreferredSizeOf::calc_size(PreferredSizeCalcBasis::Auto, CalcSizeCalculation::size())

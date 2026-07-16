@@ -466,7 +466,7 @@ impl<S: LayoutScalar> PreferredSizeOf<S> {
         match self.view() {
             PreferredSizeView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
             PreferredSizeView::Calculation(calculation) => {
-                resolve_affine_calculation(calculation, basis)
+                resolve_sizing_calculation(calculation, basis)
             }
             PreferredSizeView::Auto
             | PreferredSizeView::MinContent
@@ -616,7 +616,7 @@ impl<S: LayoutScalar> MinSizeOf<S> {
     ) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
         match self.view() {
             MinSizeView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
-            MinSizeView::Calculation(calculation) => resolve_affine_calculation(calculation, basis),
+            MinSizeView::Calculation(calculation) => resolve_sizing_calculation(calculation, basis),
             MinSizeView::Auto | MinSizeView::MinContent | MinSizeView::MaxContent => {
                 Ok(LengthResolutionOf::non_numeric())
             }
@@ -758,7 +758,7 @@ impl<S: LayoutScalar> MaxSizeOf<S> {
     ) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
         match self.view() {
             MaxSizeView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
-            MaxSizeView::Calculation(calculation) => resolve_affine_calculation(calculation, basis),
+            MaxSizeView::Calculation(calculation) => resolve_sizing_calculation(calculation, basis),
             MaxSizeView::None | MaxSizeView::MinContent | MaxSizeView::MaxContent => {
                 Ok(LengthResolutionOf::non_numeric())
             }
@@ -908,7 +908,7 @@ impl<S: LayoutScalar> FlexBasisOf<S> {
         match self.view() {
             FlexBasisView::Zero => Ok(LengthResolutionOf::definite(S::ZERO, false)),
             FlexBasisView::Calculation(calculation) => {
-                resolve_affine_calculation(calculation, basis)
+                resolve_sizing_calculation(calculation, basis)
             }
             FlexBasisView::Auto | FlexBasisView::MinContent | FlexBasisView::MaxContent => {
                 Ok(LengthResolutionOf::non_numeric())
@@ -940,13 +940,10 @@ fn reject_any_size_reference<S: LayoutScalar>(
     }
 }
 
-fn resolve_affine_calculation<S: LayoutScalar>(
+fn resolve_sizing_calculation<S: LayoutScalar>(
     calculation: &SizingCalculationOf<S>,
     basis: Option<S>,
 ) -> Result<LengthResolutionOf<S>, crate::LengthResolutionStatus<S>> {
-    let Some(value) = calculation.affine_value() else {
-        return Err(crate::LengthResolutionStatus::NonNumeric);
-    };
     let basis = match basis {
         None => PercentageBasisOf::MISSING,
         Some(value) => match PercentageBasisOf::definite(value) {
@@ -962,13 +959,19 @@ fn resolve_affine_calculation<S: LayoutScalar>(
             }
         },
     };
-    Ok(match value.resolve_against(basis) {
-        NumericResolutionOf::Resolved(value) => {
-            LengthResolutionOf::definite(value, calculation.depends_on_basis())
-        }
-        NumericResolutionOf::MissingBasis { .. } => LengthResolutionOf::unresolved(true),
-        NumericResolutionOf::InvalidNumeric { resolved, .. } => {
-            LengthResolutionOf::invalid_numeric(resolved, calculation.depends_on_basis())
+    let resolution = calculation.resolve_against(basis);
+    Ok(match resolution.status() {
+        crate::LengthResolutionStatus::Resolved => LengthResolutionOf::definite(
+            resolution
+                .value
+                .expect("resolved sizing calculation must carry a value")
+                .max(S::ZERO),
+            calculation.depends_on_basis(),
+        ),
+        crate::LengthResolutionStatus::MissingBasis
+        | crate::LengthResolutionStatus::InvalidNumeric { .. } => resolution,
+        crate::LengthResolutionStatus::NonNumeric => {
+            unreachable!("validated sizing calculations are numeric programs")
         }
     })
 }
@@ -2181,5 +2184,76 @@ mod tests {
 
         assert_eq!(resolved_f32(&calculation), 3.0);
         drop(calculation);
+    }
+
+    fn assert_fri04_c03_property_resolution_lane<S: LayoutScalar>(largest: S) {
+        let px = |value: f64| {
+            SizingCalculationOf::value(
+                LengthPercentageOf::px(S::from_f64(value)).expect("finite sizing value"),
+            )
+        };
+        let percentage = SizingCalculationOf::value(
+            LengthPercentageOf::from_percent_fraction(S::from_f64(0.5)).expect("finite percentage"),
+        );
+        let nested = SizingCalculationOf::clamp(
+            Some(SizingCalculationOf::min(vec![px(-20.0), px(-10.0)]).expect("nonempty minimum")),
+            SizingCalculationOf::max(vec![px(12.0), px(18.0)]).expect("nonempty maximum"),
+            Some(px(15.0)),
+        );
+        let nested_resolution = PreferredSizeOf::calculation(nested)
+            .resolve_simple_with_status(Some(S::from_f64(100.0)))
+            .expect("valid nested calculation remains numeric");
+        assert_eq!(nested_resolution.status(), LengthResolutionStatus::Resolved);
+        assert_eq!(nested_resolution.value, Some(S::from_f64(15.0)));
+
+        let missing = MaxSizeOf::calculation(
+            SizingCalculationOf::max(vec![px(10.0), percentage]).expect("nonempty maximum"),
+        )
+        .resolve_simple_with_status(None)
+        .expect("basis-dependent calculation remains a numeric request");
+        assert_eq!(missing.status(), LengthResolutionStatus::MissingBasis);
+
+        let overflowing = SizingCalculationOf::value(
+            LengthPercentageOf::from_coefficients(largest, S::ONE)
+                .expect("finite overflow coefficients"),
+        );
+        let overflow = MinSizeOf::calculation(overflowing)
+            .resolve_simple_with_status(Some(largest))
+            .expect("overflow remains a numeric request");
+        assert_eq!(
+            overflow.status(),
+            LengthResolutionStatus::InvalidNumeric { value: S::INFINITY }
+        );
+    }
+
+    #[test]
+    fn fri04_c03_leaf_root_nested_property_programs_preserve_status_in_both_scalar_lanes() {
+        assert_fri04_c03_property_resolution_lane::<f32>(f32::MAX);
+        assert_fri04_c03_property_resolution_lane::<f64>(f64::MAX);
+    }
+
+    #[test]
+    fn fri04_c03_leaf_root_negative_property_results_clamp_in_both_scalar_lanes() {
+        fn assert_lane<S: LayoutScalar>() {
+            let negative = MaxSizeOf::calculation(
+                SizingCalculationOf::min(vec![
+                    SizingCalculationOf::value(
+                        LengthPercentageOf::px(S::from_f64(-8.0)).expect("finite sizing value"),
+                    ),
+                    SizingCalculationOf::value(
+                        LengthPercentageOf::px(S::from_f64(-3.0)).expect("finite sizing value"),
+                    ),
+                ])
+                .expect("nonempty minimum"),
+            )
+            .resolve_simple_with_status(None)
+            .expect("valid nested calculation remains numeric");
+
+            assert_eq!(negative.status(), LengthResolutionStatus::Resolved);
+            assert_eq!(negative.value, Some(S::ZERO));
+        }
+
+        assert_lane::<f32>();
+        assert_lane::<f64>();
     }
 }

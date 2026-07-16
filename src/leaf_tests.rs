@@ -573,3 +573,118 @@ fn f64_leaf_measurement_rejects_infinite_provider_height() {
         }
     );
 }
+
+#[test]
+fn fri04_c03_leaf_root_leaf_consumes_nested_sizes_in_compute_and_layout_modes() {
+    fn calculation(value: f32) -> SizingCalculation {
+        SizingCalculation::value(LengthPercentageOf::px(value).expect("finite sizing value"))
+    }
+
+    let style = NodeInput {
+        size: Size::new(
+            PreferredSize::calculation(
+                SizingCalculation::max(vec![calculation(60.0), calculation(45.0)])
+                    .expect("nonempty maximum"),
+            ),
+            PreferredSize::calculation(SizingCalculation::clamp(
+                Some(calculation(20.0)),
+                calculation(40.0),
+                Some(calculation(70.0)),
+            )),
+        ),
+        min_size: Size::new(
+            MinSize::calculation(
+                SizingCalculation::min(vec![calculation(-8.0), calculation(-3.0)])
+                    .expect("nonempty minimum"),
+            ),
+            MinSize::calculation(
+                SizingCalculation::max(vec![calculation(10.0), calculation(15.0)])
+                    .expect("nonempty maximum"),
+            ),
+        ),
+        max_size: Size::new(
+            MaxSize::calculation(SizingCalculation::clamp(
+                None,
+                calculation(55.0),
+                Some(calculation(90.0)),
+            )),
+            MaxSize::calculation(
+                SizingCalculation::max(vec![calculation(45.0), calculation(35.0)])
+                    .expect("nonempty maximum"),
+            ),
+        ),
+        ..NodeInput::default()
+    };
+
+    for run_mode in [RunMode::ComputeSize, RunMode::PerformLayout] {
+        let input = ComputeInput::for_child(
+            run_mode,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(100.0), Some(80.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::definite(100.0), Available::definite(80.0)),
+        );
+
+        let output = compute_leaf(input, &style, |_input| Ok::<_, ()>(Size::new(1.0, 1.0)))
+            .expect("leaf sizing calculations resolve");
+        assert_eq!(output.size, Size::new(55.0, 40.0));
+    }
+}
+
+#[test]
+fn fri04_c03_leaf_root_leaf_preserves_missing_basis_by_run_mode() {
+    let percentage = SizingCalculation::max(vec![
+        SizingCalculation::value(LengthPercentageOf::px(10.0).expect("finite sizing value")),
+        SizingCalculation::value(
+            LengthPercentageOf::from_percent_fraction(0.5).expect("finite percentage"),
+        ),
+    ])
+    .expect("nonempty maximum");
+    let style = NodeInput {
+        size: Size::new(
+            PreferredSize::calculation(percentage),
+            PreferredSize::px(20.0),
+        ),
+        ..NodeInput::default()
+    };
+    let context = ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ParentFormattingContext::NoParent,
+    );
+
+    let compute_size = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        context,
+        Size::splat(Available::MAX_CONTENT),
+    );
+    let output = compute_leaf(compute_size, &style, |_input| {
+        Ok::<_, ()>(Size::new(30.0, 5.0))
+    })
+    .expect("intrinsic computation retains its missing-basis fallback");
+    assert_eq!(output.size, Size::new(30.0, 20.0));
+
+    let layout = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::NONE,
+        context,
+        Size::splat(Available::MAX_CONTENT),
+    );
+    let error = compute_leaf(layout, &style, |_input| Ok::<_, ()>(Size::new(30.0, 5.0)))
+        .expect_err("layout requires the missing percentage basis");
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::MissingContext(LayoutMissingContext::RequiredBasis)
+    );
+}

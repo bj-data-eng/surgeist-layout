@@ -5836,6 +5836,78 @@ fn compute_layout_rejects_root_measured_leaf_invalid_affine_padding_without_batc
 }
 
 #[test]
+fn fri04_c03_leaf_root_root_front_door_consumes_leaf_and_inner_display_calculations() {
+    fn calculation(value: f32) -> SizingCalculation {
+        SizingCalculation::value(LengthPercentageOf::px(value).expect("finite sizing value"))
+    }
+
+    fn style(display: Display) -> NodeInput {
+        NodeInput {
+            display,
+            size: Size::new(
+                PreferredSize::calculation(
+                    SizingCalculation::max(vec![calculation(60.0), calculation(45.0)])
+                        .expect("nonempty maximum"),
+                ),
+                PreferredSize::calculation(SizingCalculation::clamp(
+                    Some(calculation(20.0)),
+                    calculation(40.0),
+                    Some(calculation(70.0)),
+                )),
+            ),
+            min_size: Size::new(
+                MinSize::calculation(
+                    SizingCalculation::min(vec![calculation(-8.0), calculation(-3.0)])
+                        .expect("nonempty minimum"),
+                ),
+                MinSize::calculation(
+                    SizingCalculation::max(vec![calculation(10.0), calculation(15.0)])
+                        .expect("nonempty maximum"),
+                ),
+            ),
+            max_size: Size::new(
+                MaxSize::calculation(SizingCalculation::clamp(
+                    None,
+                    calculation(55.0),
+                    Some(calculation(90.0)),
+                )),
+                MaxSize::calculation(
+                    SizingCalculation::max(vec![calculation(45.0), calculation(35.0)])
+                        .expect("nonempty maximum"),
+                ),
+            ),
+            ..NodeInput::default()
+        }
+    }
+
+    let request = || {
+        LayoutRootRequest::viewport(Size::new(
+            Available::definite(100.0),
+            Available::definite(80.0),
+        ))
+        .expect("valid root request")
+    };
+    let leaf: RootSessionTree = RootSessionTree::default()
+        .children(0, [])
+        .style(0, style(Display::Block))
+        .measure(0, Ok(Size::new(1.0, 1.0)));
+    let leaf_batch = compute_layout(&leaf, 0, request()).expect("root leaf layout succeeds");
+    assert_eq!(
+        leaf_batch.unrounded_entries()[0].output().size,
+        Size::new(55.0, 40.0)
+    );
+
+    let inner: RootSessionTree = RootSessionTree::default()
+        .children(0, [])
+        .style(0, style(Display::Block));
+    let inner_batch = compute_layout(&inner, 0, request()).expect("root block layout succeeds");
+    assert_eq!(
+        inner_batch.unrounded_entries()[0].output().size,
+        Size::new(55.0, 40.0)
+    );
+}
+
+#[test]
 fn compute_layout_uses_flex_root_viewport_context_as_parent_basis() {
     let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
         0,
