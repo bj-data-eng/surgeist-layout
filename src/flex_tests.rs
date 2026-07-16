@@ -4,6 +4,427 @@ use crate::flex::FlexAxes;
 use crate::geometry::PhysicalProgression;
 use crate::*;
 
+fn fri04_c03_flex_value(value: f32) -> SizingCalculation {
+    SizingCalculation::value(LengthPercentageOf::px(value).expect("test sizing value is finite"))
+}
+
+fn fri04_c03_flex_nested(minimum: f32, preferred: f32, maximum: f32) -> SizingCalculation {
+    let preferred = SizingCalculation::max(vec![
+        fri04_c03_flex_value(preferred),
+        SizingCalculation::min(vec![
+            fri04_c03_flex_value(preferred - 5.0),
+            fri04_c03_flex_value(preferred + 5.0),
+        ])
+        .expect("nested minimum is nonempty"),
+    ])
+    .expect("nested maximum is nonempty");
+    SizingCalculation::clamp(
+        Some(fri04_c03_flex_value(minimum)),
+        preferred,
+        Some(fri04_c03_flex_value(maximum)),
+    )
+}
+
+fn fri04_c03_flex_percentage_nested(
+    minimum: f32,
+    percentage: f32,
+    maximum: f32,
+) -> SizingCalculation {
+    let preferred = SizingCalculation::max(vec![
+        SizingCalculation::value(
+            LengthPercentageOf::from_percent_fraction(percentage)
+                .expect("test percentage is finite"),
+        ),
+        SizingCalculation::min(vec![
+            fri04_c03_flex_value(minimum + 5.0),
+            fri04_c03_flex_value(maximum - 5.0),
+        ])
+        .expect("nested minimum is nonempty"),
+    ])
+    .expect("nested maximum is nonempty");
+    SizingCalculation::clamp(
+        Some(fri04_c03_flex_value(minimum)),
+        preferred,
+        Some(fri04_c03_flex_value(maximum)),
+    )
+}
+
+#[test]
+fn fri04_c03_flex_row_layout_consumes_nested_container_item_and_absolute_properties() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [2, 3, 4, 5, 6])
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .children(5, [])
+        .children(6, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_nested(180.0, 200.0, 220.0)),
+                    PreferredSize::calculation(fri04_c03_flex_nested(100.0, 120.0, 140.0)),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(fri04_c03_flex_nested(150.0, 170.0, 190.0)),
+                    MinSize::calculation(fri04_c03_flex_nested(80.0, 90.0, 110.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_flex_nested(200.0, 230.0, 250.0)),
+                    MaxSize::calculation(fri04_c03_flex_nested(120.0, 150.0, 170.0)),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_nested(60.0, 80.0, 100.0)),
+                    PreferredSize::calculation(fri04_c03_flex_nested(40.0, 60.0, 80.0)),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(fri04_c03_flex_nested(20.0, 40.0, 60.0)),
+                    MinSize::calculation(fri04_c03_flex_nested(30.0, 50.0, 70.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_flex_nested(80.0, 100.0, 120.0)),
+                    MaxSize::calculation(fri04_c03_flex_nested(45.0, 55.0, 65.0)),
+                ),
+                flex_basis: FlexBasis::calculation(fri04_c03_flex_percentage_nested(
+                    60.0, 0.35, 80.0,
+                )),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_nested(-40.0, -20.0, -10.0)),
+                    PreferredSize::calculation(fri04_c03_flex_nested(-30.0, -15.0, -5.0)),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(fri04_c03_flex_nested(-30.0, -20.0, -10.0)),
+                    MinSize::calculation(fri04_c03_flex_nested(-20.0, -10.0, -5.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_flex_nested(-30.0, -20.0, -10.0)),
+                    MaxSize::calculation(fri04_c03_flex_nested(-20.0, -10.0, -5.0)),
+                ),
+                flex_basis: FlexBasis::calculation(fri04_c03_flex_nested(-30.0, -10.0, -5.0)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            4,
+            NodeInput {
+                position: Position::Absolute,
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_nested(70.0, 90.0, 110.0)),
+                    PreferredSize::calculation(fri04_c03_flex_nested(35.0, 45.0, 55.0)),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(fri04_c03_flex_nested(50.0, 60.0, 70.0)),
+                    MinSize::calculation(fri04_c03_flex_nested(20.0, 30.0, 40.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_flex_nested(90.0, 100.0, 120.0)),
+                    MaxSize::calculation(fri04_c03_flex_nested(40.0, 45.0, 50.0)),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            5,
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_nested(20.0, 30.0, 40.0)),
+                    PreferredSize::calculation(fri04_c03_flex_nested(10.0, 20.0, 30.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_flex_nested(30.0, 40.0, 50.0)),
+                    MaxSize::calculation(fri04_c03_flex_nested(20.0, 30.0, 40.0)),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            6,
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_nested(10.0, 20.0, 30.0)),
+                    PreferredSize::calculation(fri04_c03_flex_percentage_nested(20.0, 0.2, 30.0)),
+                ),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_basis: FlexBasis::calculation(fri04_c03_flex_nested(10.0, 20.0, 30.0)),
+                ..NodeInput::default()
+            },
+        );
+
+    let output = compute_flex(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(300.0), Some(240.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::definite(300.0), Available::definite(240.0)),
+        ),
+    )
+    .expect("row flex calculations resolve");
+
+    assert_eq!(output.size, Size::new(200.0, 120.0));
+    assert_eq!(
+        tree.output(2).expect("normal child is laid out").size,
+        Size::new(70.0, 55.0)
+    );
+    assert_eq!(
+        tree.output(3).expect("negative child is laid out").size,
+        Size::ZERO
+    );
+    assert_eq!(
+        tree.output(4).expect("absolute child is laid out").size,
+        Size::new(90.0, 45.0)
+    );
+    assert_eq!(
+        tree.output(5)
+            .expect("automatic-minimum child is laid out")
+            .size,
+        Size::new(30.0, 20.0)
+    );
+    assert_eq!(
+        tree.output(6)
+            .expect("basis-dependent final-known child is laid out")
+            .size,
+        Size::new(20.0, 25.0)
+    );
+}
+
+#[test]
+fn fri04_c03_flex_column_layout_maps_nested_main_and_cross_calculations_to_physical_axes() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [2, 3])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(180.0)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_nested(35.0, 45.0, 55.0)),
+                    PreferredSize::calculation(fri04_c03_flex_nested(70.0, 90.0, 110.0)),
+                ),
+                min_size: Size::new(
+                    MinSize::calculation(fri04_c03_flex_nested(30.0, 40.0, 50.0)),
+                    MinSize::calculation(fri04_c03_flex_nested(40.0, 50.0, 60.0)),
+                ),
+                max_size: Size::new(
+                    MaxSize::calculation(fri04_c03_flex_nested(38.0, 42.0, 48.0)),
+                    MaxSize::calculation(fri04_c03_flex_nested(90.0, 100.0, 120.0)),
+                ),
+                flex_basis: FlexBasis::calculation(fri04_c03_flex_percentage_nested(
+                    60.0,
+                    75.0 / 180.0,
+                    90.0,
+                )),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                size: Size::new(
+                    PreferredSize::calculation(fri04_c03_flex_percentage_nested(20.0, 0.2, 40.0)),
+                    PreferredSize::calculation(fri04_c03_flex_nested(20.0, 30.0, 40.0)),
+                ),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_basis: FlexBasis::calculation(fri04_c03_flex_nested(20.0, 30.0, 40.0)),
+                ..NodeInput::default()
+            },
+        );
+
+    compute_flex(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::new(Some(140.0), Some(180.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::definite(140.0), Available::definite(180.0)),
+        ),
+    )
+    .expect("column flex calculations resolve");
+
+    assert_eq!(
+        tree.output(2).expect("column child is laid out").size,
+        Size::new(42.0, 75.0)
+    );
+    assert_eq!(
+        tree.inputs(2)
+            .last()
+            .expect("final child request is recorded")
+            .known(),
+        Size::new(Some(42.0), Some(75.0))
+    );
+    assert_eq!(
+        tree.output(3)
+            .expect("column final-known child is laid out")
+            .size,
+        Size::new(28.0, 30.0)
+    );
+}
+
+#[test]
+fn fri04_c03_flex_compute_size_missing_numeric_basis_uses_content_not_authored_main_size() {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            1,
+            NodeInput {
+                display: Display::Flex,
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                size: Size::new(PreferredSize::px(90.0), PreferredSize::px(10.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_basis: FlexBasis::calculation(fri04_c03_flex_percentage_nested(
+                    10.0, 0.5, 80.0,
+                )),
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            2,
+            ComputeOutput::from_sizes(Size::new(35.0, 10.0), Size::new(35.0, 10.0)),
+        );
+
+    let output = compute_flex(
+        &mut tree,
+        1,
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(Available::MAX_CONTENT),
+        ),
+    )
+    .expect("missing flex-basis percentage context uses content sizing");
+
+    assert_eq!(output.size, Size::new(35.0, 10.0));
+    assert!(tree.inputs(2).iter().any(|input| {
+        input.run_mode() == RunMode::ComputeSize
+            && input.sizing_mode() == SizingMode::ContentSize
+            && input.parent().width.is_none()
+    }));
+}
+
+#[test]
+fn fri04_c03_flex_invalid_numeric_propagates_for_every_numeric_property_role() {
+    let invalid = || {
+        SizingCalculation::min(vec![
+            SizingCalculation::value(
+                LengthPercentageOf::from_coefficients(f32::MAX, 1.0)
+                    .expect("finite overflowing coefficients"),
+            ),
+            fri04_c03_flex_value(10.0),
+        ])
+        .expect("nested minimum is nonempty")
+    };
+
+    for role in ["preferred", "minimum", "maximum", "flex-basis"] {
+        let mut child = NodeInput {
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            ..NodeInput::default()
+        };
+        match role {
+            "preferred" => child.size.width = PreferredSize::calculation(invalid()),
+            "minimum" => child.min_size.width = MinSize::calculation(invalid()),
+            "maximum" => child.max_size.width = MaxSize::calculation(invalid()),
+            "flex-basis" => child.flex_basis = FlexBasis::calculation(invalid()),
+            _ => unreachable!(),
+        }
+
+        let mut tree = crate::test_support::layout_tree::OracleTree::new()
+            .children(1, [2])
+            .children(2, [])
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Flex,
+                    size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(40.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .style(2, child)
+            .measure(2, ComputeOutput::from_outer_size(Size::new(20.0, 10.0)));
+
+        let error = compute_flex(
+            &mut tree,
+            1,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::new(Some(f32::MAX), Some(40.0)),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                Size::new(Available::definite(f32::MAX), Available::definite(40.0)),
+            ),
+        )
+        .expect_err("invalid numeric flex property must fail");
+
+        assert_eq!(error.site(), LayoutErrorSite::Node(2), "role: {role}");
+        assert_eq!(
+            error.operation(),
+            LayoutOperation::ValueResolution,
+            "role: {role}"
+        );
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidNumeric {
+                value: f32::INFINITY,
+            }),
+            "role: {role}"
+        );
+    }
+}
+
 #[test]
 fn flex_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
     assert_flex_child_context_is_complete::<f32>();

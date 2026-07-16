@@ -767,6 +767,7 @@ struct CollectedFlexItem<Node, S: LayoutScalar> {
     initial_output: ComputeOutputOf<S>,
     flex_basis: S,
     flex_basis_is_definite: bool,
+    flex_basis_uses_content: bool,
     hypothetical_main_size: S,
     max_content_main_size: S,
     hypothetical_size: Size<S>,
@@ -975,10 +976,13 @@ where
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
     let size = authored_size;
-    let resolved_flex_basis = style
+    let flex_basis_resolution = style
         .flex_basis
         .resolve_simple_with_status(constants.axes.main_size(constants.node_inner_size))
-        .and_then(resolution_optional)
+        .map_err(|status| crate::compute::value_resolution_error(node, status))?;
+    let flex_basis_missing_basis =
+        flex_basis_resolution.status() == LengthResolutionStatus::MissingBasis;
+    let resolved_flex_basis = resolution_optional(flex_basis_resolution)
         .map_err(|status| crate::compute::value_resolution_error(node, status))?
         .map(|flex_basis| {
             let padding_border = constants.axes.main_size(padding_border.sum_axes());
@@ -1113,37 +1117,40 @@ where
         box_sizing_adjustment,
         child_known_for_base,
     )?;
-    let flex_basis =
-        if let Some(flex_basis) = resolved_flex_basis.or_else(|| constants.axes.main_size(size)) {
-            flex_basis
-        } else if let Some(ratio) = style.aspect_ratio {
-            if let Some(cross) = constants.axes.cross_size(child_known_for_base) {
-                constants.axes.main_size_from_cross_aspect(cross, ratio)
-            } else {
-                constants.axes.main_size(output.size)
-            }
+    let flex_basis = if let Some(flex_basis) = resolved_flex_basis.or_else(|| {
+        (!flex_basis_missing_basis)
+            .then(|| constants.axes.main_size(size))
+            .flatten()
+    }) {
+        flex_basis
+    } else if let Some(ratio) = style.aspect_ratio {
+        if let Some(cross) = constants.axes.cross_size(child_known_for_base) {
+            constants.axes.main_size_from_cross_aspect(cross, ratio)
         } else {
-            constants.axes.main_size(
-                tree.compute_child(
-                    node,
-                    ComputeInputOf::for_child(
-                        RunMode::ComputeSize,
-                        SizingMode::ContentSize,
-                        constants.axes.main_requested_axis(),
-                        child_known_for_base,
-                        constants.axes.with_main_size(available_inner_size, None),
-                        ContainingLayoutContext::new(
-                            constants.flow_axes,
-                            ParentFormattingContext::Flex,
-                        ),
-                        constants
-                            .axes
-                            .with_main_size(child_available, AvailableOf::MAX_CONTENT),
+            constants.axes.main_size(output.size)
+        }
+    } else {
+        constants.axes.main_size(
+            tree.compute_child(
+                node,
+                ComputeInputOf::for_child(
+                    RunMode::ComputeSize,
+                    SizingMode::ContentSize,
+                    constants.axes.main_requested_axis(),
+                    child_known_for_base,
+                    constants.axes.with_main_size(available_inner_size, None),
+                    ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        ParentFormattingContext::Flex,
                     ),
-                )?
-                .size,
-            )
-        };
+                    constants
+                        .axes
+                        .with_main_size(child_available, AvailableOf::MAX_CONTENT),
+                ),
+            )?
+            .size,
+        )
+    };
     let hypothetical_main_size = clamp_main_size_axes(
         flex_basis,
         automatic_min_main_size,
@@ -1160,6 +1167,8 @@ where
         flex_basis
     } else if style.flex_basis.is_auto() && authored_main_size.is_some() {
         authored_main_size.unwrap_or(Tree::Scalar::ZERO)
+    } else if flex_basis_missing_basis {
+        constants.axes.main_size(output.content_size)
     } else {
         constants
             .axes
@@ -1208,6 +1217,7 @@ where
         initial_output: output,
         flex_basis,
         flex_basis_is_definite: resolved_flex_basis.is_some(),
+        flex_basis_uses_content: flex_basis_missing_basis,
         hypothetical_main_size,
         max_content_main_size,
         hypothetical_size: target_size,
@@ -2791,7 +2801,9 @@ where
     Tree: Compute<M>,
 {
     let style_min = constants.axes.main_size(item.min_size);
-    let style_preferred = constants.axes.main_size(item.size);
+    let style_preferred = (!item.flex_basis_uses_content)
+        .then(|| constants.axes.main_size(item.size))
+        .flatten();
     let style_max = constants.axes.main_size(item.max_size);
     let padding_border = constants
         .axes
