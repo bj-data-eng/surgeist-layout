@@ -1,5 +1,5 @@
 # FRI-04-C06 Public Evidence And Candidate Closure
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-04-C06`
 Owning repository: `surgeist-layout`
 Cycle base: `d3d7a65cc215c609fd32f5a102e9a30161a3a8a6`
