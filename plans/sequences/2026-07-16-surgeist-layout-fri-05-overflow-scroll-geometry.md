@@ -23,7 +23,8 @@ exports, root API artifacts, and the root gitlink remain the separate handoff in
 No cycle adds a dependency, feature, MSRV change, unsafe code, generator architecture, general CSS parser, retained snap registry, or later formatting behavior.
 
 Scoped generation is optional iteration-only diagnosis and is never entry or exit evidence.
-Only `FRI-05-C06` changes helper, serializer, parser, HTML, manifest, or other generation inputs.
+Before `C06`, `C01` may make only the behavior-preserving fixture-parser construction migration required by the `NodeInputOf` type change; accepted tokens, parse results, and artifacts remain unchanged.
+`C06` exclusively changes fixture semantics, helper/serializer/parser tokens, HTML, manifest, or other generation inputs.
 Once those inputs settle, `C06` performs one full ExistingPinned regeneration. `C07` is read-only for generated artifacts; a confirmed input bug returns to `C06`, invalidates the prior run, and permits one replacement full regeneration after corrected inputs settle.
 The aggregate `parity-all` release gate remains FRI-13-owned.
 
