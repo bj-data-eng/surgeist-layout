@@ -2,7 +2,7 @@
 Status: in_progress
 Cycle ID: `FRI-04-C02`
 Owning repository: `surgeist-layout`
-Cycle base: `7913330502db9f28e8a7d2a823dfd2218d9593f7`
+Cycle base: `0a4f1f9e73b91dd9fe7fa6703fa6c0c48ee2ca54`
 Reviewed specification:
 `plans/specs/2026-07-15-surgeist-layout-fri-04-property-specific-sizing-values.md`
 at SHA-256
@@ -30,7 +30,8 @@ adapter path, and remove the complete legacy `Dimension` surface.
 ## Boundary
 
 The cycle starts from the published and remotely verified C01 calculation
-substrate. `DimensionOf` still owns all four `NodeInputOf` fields, broad
+substrate plus the orthogonal BLOCK-005 fixture-adapter prerequisite published
+at the cycle base. `DimensionOf` still owns all four `NodeInputOf` fields, broad
 resolution paths, track conversions, and fixture parsing. Current track flex is
 an unchecked scalar and maximum-size defaults are `Auto`.
 
@@ -52,6 +53,14 @@ later cycle.
 No HTML, helper, serializer, fixture-source, or generated-artifact input changes
 are authorized. No generation command is applicable. Scoped generation is not
 verification evidence and is unnecessary for this cycle.
+
+The ignored full browser corpus is not C02 acceptance evidence. A single
+aggregate diagnostic after the BLOCK-005 prerequisite exposed 298 distinct
+later-owned failures, beginning with
+`absolute_correct_cross_child_size_with_percentage__border_box_ltr` returning
+`MissingContext(RequiredBasis)` at node 3. C03 owns that missing-basis behavior,
+and the findings-resolution index assigns the final aggregate release gate to
+FRI-13. Do not rerun or use `just parity-all` as a C02 task or cycle gate.
 
 ## Impacts
 Public API: intentional breaking pre-release replacement of `Dimension` and its
@@ -86,6 +95,8 @@ cargo test --locked -p surgeist-layout property_sizing_
 just verify
 just verify-generator
 ```
+**Current ordered range:**
+`24350ee0d28f25ef2f1a3d3a3e478be2a079a17c`.
 **Dependency:** Published C01 calculation substrate at the cycle base.
 **Intended commit:** `api(layout): add property-specific sizing domains`.
 
@@ -113,8 +124,9 @@ for box/flex migration in T3.
 cargo test --locked -p surgeist-layout track_sizing_
 just verify
 just verify-generator
-just parity-all
 ```
+**Current ordered range:**
+`6969a6bc586a38965b7255aff71cac1ff22bec31`.
 **Dependency:** `C02-T1` supplies the public calculation surface.
 **Intended commit:** `api(layout): migrate track sizing domains`.
 
@@ -144,8 +156,8 @@ calc-size behavior is not misreported as C03/C04 completion.
 cargo test --locked -p surgeist-layout property_field_migration_
 just verify
 just verify-generator
-just parity-all
 ```
+**Current ordered range:** Not started.
 **Dependency:** `C02-T2` completes the independent track migration first.
 **Intended commit:** `api(layout): migrate property sizing fields`.
 
@@ -162,8 +174,9 @@ just parity-all
 5. `Dimension`, `DimensionOf`, broad resolution/conversions, raw track flex, and
    invalid cross-property constructors are absent from the public and internal
    source surface.
-6. Existing checked-in corpus and Taffy behavior pass with no generated
-   artifact, fixture source, report, or provenance delta.
+6. C02-owned focused behavior and the checked-in corpus and Taffy integrity
+   checks pass with no generated artifact, fixture source, report, or
+   provenance delta.
 7. C03/C04 resolution and capability behavior, C05 generator inputs and final
    regeneration, and C06 docs/evidence remain outside the range.
 
@@ -172,7 +185,6 @@ just parity-all
 ```sh
 just verify
 just verify-generator
-just parity-all
 just corpus-check
 just taffy-check
 git diff --check
@@ -181,7 +193,9 @@ rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:
 
 The final `rg` command must report no executable unsafe match. The artifact
 inventory and complete cycle diff must show no HTML, XML, report, provenance,
-helper, serializer, generator, dependency, feature, or MSRV change.
+helper, serializer, generator, dependency, feature, or MSRV change. Aggregate
+browser parity remains diagnostic during this construction-only cycle and is
+not part of this final command set.
 
 ## Handoff And Blockers
 
