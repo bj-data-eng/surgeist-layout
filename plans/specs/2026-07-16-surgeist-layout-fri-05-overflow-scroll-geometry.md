@@ -1112,7 +1112,8 @@ The initiative requires these named evidence families:
 | Output helpers | `content_box_size()` and `scrollbar_size()` agree exactly with canonical geometry for no gutter, one edge, both edges, and saturated boxes. |
 | Cache and rounding | Cached/uncached equality and normal/rounded geometry include the private used axes and required nested target with its margin/alignment/stop metadata; absent geometry remains absent. |
 | Comparator activation | Correct non-zero and zero scroll deltas pass; wrong x, wrong y, and missing geometry each produce the named mismatch. |
-| Fixture lowering | The exact eleven HTML sources serialize and parse every FRI-05-owned token without accepting broader CSS. |
+| Fixture lowering | The exact eleven HTML sources serialize and parse every FRI-05-owned token without accepting broader CSS; matching active manifest records produce four variants each. |
+| Corpus freeze | The pre-run manifest has full buckets 5,324/356/0/0/0, no scoped report, and a recorded hash; after the one full run, `check-corpus` proves the same hash and exact report buckets without a manifest edit. |
 | Public surface | `lib.rs` reexports the new types; compile-fail/static searches prove removed raw fields, constructors, legacy scroll exposure/axis/facts types and conversion function, policies, and deferred variants are absent; present geometry always exposes `target()` and used-axis accessors. |
 
 Behavior changes use reconstructed RED evidence at the exact task base. Focused
@@ -1143,6 +1144,7 @@ executable `unsafe`.
 | `tests/layout/browser_parity/support.rs` | Atomic computed-overflow parsing, exact new property parsers, output range-span comparison, mismatch diagnostics. |
 | `tests/layout/browser_parity/scripts/gentest/test_helper.js` | Read only the named computed-style fields. |
 | `tests/bin/surgeist-layout-generate/generator.rs` | Serialize only the named fixture attributes and preserve existing expectation semantics. |
+| `tests/layout/browser_parity/corpus.toml` | Eleven matching active case records and exact frozen full-report buckets 5,324/356/0/0/0 before the sole final full run. |
 | Named HTML and generated XML | Bounded browser evidence with canonical provenance. |
 | `README.md` and parity README | Public ownership, normalized input, output geometry, and finite fixture adapter contract. |
 
@@ -1193,6 +1195,26 @@ The sources use only the constrained existing fixture vocabulary plus the exact
 FRI-05 attributes in D-13. Direction and box-sizing variants remain generator
 owned. A source is not duplicated merely to obtain a generated variant.
 
+Before full regeneration, `tests/layout/browser_parity/corpus.toml` adds one
+matching active `[[cases]]` record for each source above, with the same
+extensionless path as `id`, `source_root = "surgeist"`, the listed `.html` path
+as `source`, and `generator = "constrained-html"`. Each active source produces
+the existing four direction/box-sizing variants. Starting from the recorded
+5,280 generated and 356 unsupported baseline, the frozen full-report
+expectations are therefore exactly:
+
+| Manifest bucket | Frozen pre-run value |
+| --- | ---: |
+| `generated` | 5,324 |
+| `unsupported` | 356 |
+| `expected_fail` | 0 |
+| `quarantined` | 0 |
+| `failed_to_generate` | 0 |
+
+`generation_reports.scoped` remains empty and the full report remains
+`all.json`. No new source may be assigned a non-active status to force these
+counts.
+
 Existing browser families for negative block margins, tiny scroll boxes,
 scrollbar reservations, RTL scrollbars, flex nested overflow, grid overflow,
 subgrid overflow, and grid-lanes scrollers remain applicable evidence. Their
@@ -1212,19 +1234,28 @@ diagnose a changed source. It is report-free, may touch only matching derived
 XML, and is not mandated verification evidence.
 
 After every FRI-05 helper, serializer, parser, HTML, and manifest input is
-settled, run exactly one unfiltered full ExistingPinned regeneration with the
+settled, require the eleven active records and exact bucket values above to be
+present, record the byte-exact `corpus.toml` SHA-256, and freeze the manifest.
+Then run exactly one unfiltered full ExistingPinned regeneration with the
 already-present pinned browser and an empty generation filter. That run owns all
-derived XML pruning, the canonical `all.json`, and final corpus counts.
+derived XML pruning and writes the canonical `all.json`, including the frozen
+manifest hash. It does not write `corpus.toml`; the manifest owns the expected
+counts rather than receiving them from the report.
 
-After a successful final run, generator inputs are frozen. Verification is
-read-only: corpus checks, focused FRI-05 parity, Rust gates, diff review, and
-provenance review do not regenerate.
+After a successful final run, generator inputs remain frozen. Verification is
+read-only: `check-corpus` must pass with `corpus.toml` byte-identical to the
+recorded pre-run hash and all five report buckets equal to the frozen values.
+Focused FRI-05 parity, Rust gates, diff review, and provenance review neither
+edit the manifest nor regenerate.
 
 If later evidence confirms a genuine input bug in helper, serializer, parser,
 HTML, or manifest data, the prior run is invalidated. Correct all such inputs,
-let them settle, and perform one replacement full run. A test failure, review
-request, uncertainty, or desire to refresh evidence without an input change is
-not permission for another run.
+including any corrected manifest record or expected bucket, let them settle,
+record the replacement manifest hash, and perform one replacement full run. A
+bucket mismatch proves the prior manifest expectation was wrong but does not
+permit a post-run manifest-only edit: it follows this input-bug replacement
+rule. A test failure, review request, uncertainty, or desire to refresh evidence
+without an input change is not permission for another run.
 
 No generated XML or report is hand-edited. The final inventory contains one
 full canonical report, no scoped report, no stale XML, no expected failure or
@@ -1284,8 +1315,9 @@ without redesign:
 4. flex retained/nested geometry and axis-independent contribution;
 5. ordinary grid, subgrid, and grid-lanes geometry, auto minimum, zero-axis, and
    container-origin closure; and
-6. bounded fixture lowering, one full regeneration, comparator activation,
-   public/docs evidence, finding trace, and candidate closure.
+6. bounded fixture lowering, pre-run manifest freeze, one full regeneration,
+   comparator activation, public/docs evidence, finding trace, and candidate
+   closure.
 
 Each boundary can be completed and reviewed as a coherent implementation cycle.
 Future cycle plans remain just-in-time and may split a boundary only when source
@@ -1340,9 +1372,10 @@ FRI-05 is complete only when:
    reservation;
 9. parsed browser scroll expectations are compared and the named focused parity
    families can fail on a wrong range;
-10. the eleven HTML sources, their generated XML, full report, and corpus
-    manifest are produced by one valid final full regeneration after inputs
-    settle, followed only by read-only checks;
+10. the eleven HTML sources and matching active manifest records settle first;
+    `corpus.toml` is frozen at full buckets 5,324/356/0/0/0, then one valid full
+    regeneration produces the derived XML and `all.json`, and subsequent
+    read-only corpus checks pass against the unchanged recorded manifest hash;
 11. normal and generator verification, corpus validation, focused parity,
     formatting, Clippy with `-F unsafe-code -D warnings`, diff checks, and the
     tracked/non-ignored Rust unsafe scan are clean;
