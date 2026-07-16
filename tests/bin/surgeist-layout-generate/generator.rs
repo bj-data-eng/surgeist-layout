@@ -5279,6 +5279,121 @@ mod tests {
     }
 
     #[test]
+    fn fri04_c05_helper_serializer_canonical_percent_object_round_trips_and_serializes() {
+        assert_eq!(
+            dimension(&json!({"unit": "percent", "value": 0.1})),
+            Some("10%".to_string())
+        );
+
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const document = { styleSheets: [] };
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const canonical = parseSizingDimension("10%");
+const roundTripped = parseSizingDimension(canonical);
+if (JSON.stringify(roundTripped) !== JSON.stringify(canonical)) {
+  throw new Error(`canonical percentage changed from ${JSON.stringify(canonical)} to ${JSON.stringify(roundTripped)}`);
+}
+
+class RawTypedOmPercent {
+  constructor(value) {
+    this.unit = "percent";
+    this.value = value;
+  }
+
+  toString() {
+    return `${this.value}%`;
+  }
+}
+
+const rawTypedOm = parseSizingDimension(new RawTypedOmPercent(10));
+if (JSON.stringify(rawTypedOm) !== JSON.stringify(canonical)) {
+  throw new Error(`raw Typed OM percentage produced ${JSON.stringify(rawTypedOm)}`);
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri04-c05-canonical-percent", script);
+    }
+
+    #[test]
+    fn fri04_c05_helper_serializer_accepts_fixture_affine_calc_size_forms() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const document = { styleSheets: [] };
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+for (const raw of [
+  "calc-size(auto, 10px + 20%)",
+  "calc-size(auto, size * 0.5)",
+  "calc-size(auto, 0.5 * size)",
+  "calc-size(auto, size*0.5)",
+  "calc-size(auto, 0.5*size)",
+  "calc-size(auto, -0.5 * size)",
+  "calc-size(auto, calc(10px + 20%))",
+  "calc-size(auto, 0.5)",
+]) {
+  const actual = parseSizingDimension(raw);
+  const expected = { unit: "sizing", value: raw };
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`fixture-supported calc-size ${raw} produced ${JSON.stringify(actual)}`);
+  }
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri04-c05-accepted-affine", script);
+    }
+
+    #[test]
+    fn fri04_c05_helper_serializer_rejects_non_fixture_affine_calc_size_forms() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const document = { styleSheets: [] };
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+for (const raw of [
+  "calc-size(auto, -size)",
+  "calc-size(auto, +size)",
+  "calc-size(auto, 10px+20%)",
+  "calc-size(auto, 10px +20%)",
+  "calc-size(auto, 10px+ 20%)",
+  "calc-size(auto, size *0.5)",
+  "calc-size(auto, size* 0.5)",
+  "calc-size(auto, 0.5 *size)",
+  "calc-size(auto, 0.5* size)",
+  "calc-size(auto, 1e39px)",
+  "calc-size(auto, 1e999px)",
+  "calc-size(auto, 1e38px + 3e38px)",
+  "calc-size(auto, calc(1e38px + 3e38px))",
+  "calc-size(auto, size * 1e999)",
+  "calc-size(auto, 1e999 * size)",
+]) {
+  const actual = parseSizingDimension(raw);
+  if (actual !== undefined) {
+    throw new Error(`fixture-rejected calc-size ${raw} produced ${JSON.stringify(actual)}`);
+  }
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri04-c05-rejected-affine", script);
+    }
+
+    #[test]
     fn fri04_c05_helper_serializer_helper_preserves_finite_sizing_tokens_exactly() {
         let script = [
             r#"

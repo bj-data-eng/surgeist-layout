@@ -5,7 +5,7 @@
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
     "launch_profile_sha256": "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
-    "helper_sha256": "d46efad1f2821cb999dbe9a9a45dc82a8e27ea31290482947e40d5088eb9ba40",
+    "helper_sha256": "45526f5b7678a935283a419eb095e23ab7c033129a0ce4343f74d7692adc4726",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
     "corpus_manifest_sha256": "d7e205908915b5330159d995429339d50179286d357a96153f385abcf3bfa072",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"

@@ -228,12 +228,13 @@ const OWNED_CALC_SIZE_BASES = new Set([
   'fit-content',
   'contain',
 ]);
-const OWNED_CSS_NUMBER = /^(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/;
 const OWNED_COMPLETE_CSS_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 function parseSizingDimension(input, options = { allowFrUnits: false }) {
   if (!input) return undefined;
-  if (typeof input === 'object') return parseTypedOmSizingDimension(input, options);
+  if (typeof input === 'object') {
+    return canonicalSizingPercentage(input) || parseTypedOmSizingDimension(input, options);
+  }
 
   const value = input.trim();
   if (!ownedSizingTokenIsValid(value, options.allowFrUnits)) return undefined;
@@ -248,6 +249,15 @@ function parseSizingDimension(input, options = { allowFrUnits: false }) {
   if (OWNED_SIZING_KEYWORDS.has(value)) return { unit: value };
   if (value.startsWith('calc(')) return { unit: 'calc', value };
   return { unit: 'sizing', value };
+}
+
+function canonicalSizingPercentage(value) {
+  const prototype = Object.getPrototypeOf(value);
+  const isPlainObject = prototype === Object.prototype || prototype === null;
+  if (!isPlainObject || value.unit !== 'percent' || !Number.isFinite(value.value)) {
+    return undefined;
+  }
+  return value;
 }
 
 function parseTypedOmSizingDimension(value, options) {
@@ -300,7 +310,13 @@ function ownedTrackFlexIsValid(value) {
 }
 
 function ownedFiniteCssNumber(value) {
-  return OWNED_COMPLETE_CSS_NUMBER.test(value) && Number.isFinite(Number(value));
+  return ownedFixtureNumber(value) !== undefined;
+}
+
+function ownedFixtureNumber(value) {
+  if (!OWNED_COMPLETE_CSS_NUMBER.test(value)) return undefined;
+  const number = Math.fround(Number(value));
+  return Number.isFinite(number) ? number : undefined;
 }
 
 function parseOwnedSizingFunction(value) {
@@ -357,7 +373,7 @@ function ownedSizingCalculationIsValid(value) {
   if (!sizingFunction) return false;
 
   if (sizingFunction.name === 'calc') {
-    return ownedAffineCalculation(sizingFunction.body, false).valid;
+    return ownedAffineCalculation(sizingFunction.body, false, false).valid;
   }
   const arguments = splitOwnedSizingArguments(sizingFunction.body);
   if (!arguments) return false;
@@ -375,13 +391,13 @@ function ownedSizingCalculationIsValid(value) {
 }
 
 function ownedCalcSizeCalculation(value) {
-  const affine = ownedAffineCalculation(value, true);
+  const affine = ownedAffineCalculation(value, true, true);
   if (affine.valid) return affine;
 
   const sizingFunction = parseOwnedSizingFunction(value);
   if (!sizingFunction) return { valid: false, usesSize: false };
   if (sizingFunction.name === 'calc') {
-    return ownedAffineCalculation(sizingFunction.body, true);
+    return ownedAffineCalculation(sizingFunction.body, true, false);
   }
   const arguments = splitOwnedSizingArguments(sizingFunction.body);
   if (!arguments) return { valid: false, usesSize: false };
@@ -405,54 +421,105 @@ function ownedCalcSizeCalculation(value) {
   return { valid: false, usesSize: false };
 }
 
-function ownedAffineCalculation(value, allowSize) {
-  let index = 0;
-  let terms = 0;
-  let usesSize = false;
-  while (index < value.length) {
-    index = skipOwnedSizingWhitespace(value, index);
-    if (terms > 0) {
-      if (value[index] !== '+' && value[index] !== '-') return { valid: false, usesSize: false };
-      index++;
-      index = skipOwnedSizingWhitespace(value, index);
-    } else if (value[index] === '+' || value[index] === '-') {
-      index++;
-      index = skipOwnedSizingWhitespace(value, index);
-    }
+function ownedAffineCalculation(value, allowSize, allowUnitless) {
+  const trimmed = value.trim();
+  if (!trimmed) return { valid: false, usesSize: false };
 
-    if (allowSize && value.slice(index, index + 4) === 'size'
-      && !/[a-zA-Z0-9-]/.test(value[index + 4] || '')) {
-      usesSize = true;
-      index += 4;
-      index = skipOwnedSizingWhitespace(value, index);
-      if (value[index] === '*') {
-        index++;
-        index = skipOwnedSizingWhitespace(value, index);
-        const coefficient = value.slice(index).match(/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/);
-        if (!coefficient || !Number.isFinite(Number(coefficient[0]))) {
-          return { valid: false, usesSize: false };
-        }
-        index += coefficient[0].length;
-      }
-    } else {
-      const number = value.slice(index).match(OWNED_CSS_NUMBER);
-      if (!number || !Number.isFinite(Number(number[0]))) {
-        return { valid: false, usesSize: false };
-      }
-      index += number[0].length;
-      if (value.slice(index, index + 2) === 'px') index += 2;
-      else if (value[index] === '%') index++;
-      else return { valid: false, usesSize: false };
+  const tokens = trimmed.split(/\s+/);
+  let absolutePx = 0;
+  let percentFraction = 0;
+  let sizeFraction = 0;
+  let usesSize = false;
+  let start = 0;
+  let sign = 1;
+
+  while (start < tokens.length) {
+    const operatorOffset = tokens.slice(start).findIndex(token => token === '+' || token === '-');
+    const end = operatorOffset === -1 ? tokens.length : start + operatorOffset;
+    if (end === start) return { valid: false, usesSize: false };
+
+    const term = ownedAffineTerm(tokens.slice(start, end), allowSize, allowUnitless);
+    if (!term.valid) return { valid: false, usesSize: false };
+
+    absolutePx = Math.fround(absolutePx + Math.fround(term.absolutePx * sign));
+    percentFraction = Math.fround(percentFraction + Math.fround(term.percentFraction * sign));
+    sizeFraction = Math.fround(sizeFraction + Math.fround(term.sizeFraction * sign));
+    if (![absolutePx, percentFraction, sizeFraction].every(Number.isFinite)) {
+      return { valid: false, usesSize: false };
     }
-    terms++;
-    index = skipOwnedSizingWhitespace(value, index);
+    usesSize ||= term.usesSize;
+
+    if (end === tokens.length) break;
+    sign = tokens[end] === '+' ? 1 : -1;
+    start = end + 1;
+    if (start === tokens.length) return { valid: false, usesSize: false };
   }
-  return { valid: terms > 0, usesSize };
+
+  return { valid: true, usesSize };
 }
 
-function skipOwnedSizingWhitespace(value, index) {
-  while (index < value.length && /\s/.test(value[index])) index++;
-  return index;
+function ownedAffineTerm(tokens, allowSize, allowUnitless) {
+  if (tokens.length === 1) {
+    return ownedAffineAtom(tokens[0], allowSize, allowUnitless);
+  }
+  if (tokens.length !== 3 || tokens[1] !== '*' || !allowSize) {
+    return { valid: false, usesSize: false };
+  }
+
+  const factor = tokens[0] === 'size'
+    ? ownedFixtureNumber(tokens[2])
+    : tokens[2] === 'size'
+      ? ownedFixtureNumber(tokens[0])
+      : undefined;
+  if (factor === undefined) return { valid: false, usesSize: false };
+  return {
+    valid: true,
+    usesSize: true,
+    absolutePx: 0,
+    percentFraction: 0,
+    sizeFraction: factor,
+  };
+}
+
+function ownedAffineAtom(atom, allowSize, allowUnitless) {
+  if (atom.endsWith('px')) {
+    const absolutePx = ownedFixtureNumber(atom.slice(0, -2));
+    if (absolutePx !== undefined) {
+      return { valid: true, usesSize: false, absolutePx, percentFraction: 0, sizeFraction: 0 };
+    }
+  }
+  if (atom.endsWith('%')) {
+    const percent = ownedFixtureNumber(atom.slice(0, -1));
+    if (percent !== undefined) {
+      const percentFraction = Math.fround(percent / 100);
+      if (Number.isFinite(percentFraction)) {
+        return { valid: true, usesSize: false, absolutePx: 0, percentFraction, sizeFraction: 0 };
+      }
+    }
+  }
+  if (allowSize) {
+    if (atom === 'size') {
+      return { valid: true, usesSize: true, absolutePx: 0, percentFraction: 0, sizeFraction: 1 };
+    }
+    const factorText = atom.endsWith('*size')
+      ? atom.slice(0, -5)
+      : atom.startsWith('size*')
+        ? atom.slice(5)
+        : undefined;
+    if (factorText !== undefined) {
+      const sizeFraction = ownedFixtureNumber(factorText);
+      if (sizeFraction !== undefined) {
+        return { valid: true, usesSize: true, absolutePx: 0, percentFraction: 0, sizeFraction };
+      }
+    }
+  }
+  if (allowUnitless) {
+    const absolutePx = ownedFixtureNumber(atom);
+    if (absolutePx !== undefined) {
+      return { valid: true, usesSize: false, absolutePx, percentFraction: 0, sizeFraction: 0 };
+    }
+  }
+  return { valid: false, usesSize: false };
 }
 
 function parseTypedOmDimension(value) {
