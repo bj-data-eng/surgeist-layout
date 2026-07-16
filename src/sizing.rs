@@ -1029,6 +1029,7 @@ impl<S: LayoutScalar> SizingCalculationOf<S> {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn affine_value(&self) -> Option<LengthPercentageOf<S>> {
         match self.instructions.as_slice() {
             [Instruction::Value(value)] => Some(*value),

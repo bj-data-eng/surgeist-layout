@@ -994,14 +994,6 @@ fn track_calculation_definite<S: LayoutScalar>(
         None => PercentageBasisOf::MISSING,
     };
     let resolution = calculation.resolve_against(basis);
-    if let Some(affine) = calculation.affine_value() {
-        let affine_resolution = length_resolution_against(affine, basis);
-        debug_assert_eq!(resolution.status(), affine_resolution.status());
-        debug_assert_eq!(
-            resolution.value.map(|value| value.max(S::ZERO)),
-            affine_resolution.value.map(|value| value.max(S::ZERO))
-        );
-    }
     (resolution.status() == LengthResolutionStatus::Resolved)
         .then_some(resolution.value?.max(S::ZERO))
 }
