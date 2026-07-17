@@ -695,6 +695,7 @@ pub(crate) struct CanonicalScrollBoxOf<S: LayoutScalar> {
     effective_border: Edges<S>,
     effective_padding: Edges<S>,
     effective_gutter: Edges<S>,
+    scrollport: ScrollRectOf<S>,
     content_box: ScrollRectOf<S>,
 }
 
@@ -712,6 +713,11 @@ impl<S: LayoutScalar> CanonicalScrollBoxOf<S> {
     #[must_use]
     pub(crate) const fn effective_gutter(self) -> Edges<S> {
         self.effective_gutter
+    }
+
+    #[must_use]
+    pub(crate) const fn scrollport(self) -> ScrollRectOf<S> {
+        self.scrollport
     }
 
     #[must_use]
@@ -1264,6 +1270,24 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
         )
     }
 
+    pub(crate) fn include_in_flow_geometry(
+        &mut self,
+        child_location: Point<S>,
+        margin: Edges<S>,
+        child_geometry: ScrollGeometryOf<S>,
+    ) -> Result<(), ScrollContributionErrorOf<S>> {
+        self.include_in_flow_child(
+            child_location,
+            child_geometry.border_box(),
+            margin,
+            child_geometry
+                .source
+                .contributions
+                .propagatable_descendant_intervals(),
+            child_geometry.used_overflow,
+        )
+    }
+
     pub(crate) fn include_current_out_of_flow(
         &mut self,
         child_location: Point<S>,
@@ -1278,6 +1302,24 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
             margin,
             child_descendants,
             child_used_overflow,
+        )
+    }
+
+    pub(crate) fn include_current_out_of_flow_geometry(
+        &mut self,
+        child_location: Point<S>,
+        margin: Edges<S>,
+        child_geometry: ScrollGeometryOf<S>,
+    ) -> Result<(), ScrollContributionErrorOf<S>> {
+        self.include_current_out_of_flow(
+            child_location,
+            child_geometry.border_box(),
+            margin,
+            child_geometry
+                .source
+                .contributions
+                .propagatable_descendant_intervals(),
+            child_geometry.used_overflow,
         )
     }
 
@@ -1331,6 +1373,16 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
     ) {
         self.complete_overflow.include(axis, interval);
         self.propagatable_descendants.include(axis, interval);
+    }
+
+    pub(crate) fn replace_container_seed(&mut self, container_seed: ScrollRectOf<S>) {
+        let mut complete_overflow = PhysicalContributionBoundsOf::from_rect(container_seed);
+        for axis in [PhysicalAxis::Horizontal, PhysicalAxis::Vertical] {
+            if let Some(interval) = self.propagatable_descendants.at(axis) {
+                complete_overflow.include(axis, interval);
+            }
+        }
+        self.complete_overflow = complete_overflow;
     }
 
     pub(crate) fn record_final_in_flow_end(
@@ -1427,6 +1479,21 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
         self,
     ) -> OptionalPhysicalContributionIntervalsOf<S> {
         self.active_alignment_subjects
+    }
+
+    pub(crate) fn content_size_from_anchor(
+        self,
+        anchor: Point<S>,
+    ) -> Result<Size<S>, ScrollContributionErrorOf<S>> {
+        let x = self.complete_overflow.x();
+        let y = self.complete_overflow.y();
+        let minimum = Point::new(anchor.x.min(x.minimum()), anchor.y.min(y.minimum()));
+        let maximum = Point::new(anchor.x.max(x.maximum()), anchor.y.max(y.maximum()));
+        Ok(ScrollRectOf::try_new(
+            minimum,
+            Size::new(maximum.x - minimum.x, maximum.y - minimum.y),
+        )?
+        .size())
     }
 }
 
@@ -2353,6 +2420,7 @@ pub(crate) fn canonical_scroll_box_from_source<S: LayoutScalar>(
         effective_border: boxes.effective_border,
         effective_padding: boxes.effective_padding,
         effective_gutter: boxes.effective_reservation,
+        scrollport: boxes.scrollport,
         content_box: boxes.content_box,
     })
 }
@@ -3186,6 +3254,8 @@ pub(crate) fn scroll_geometry_from_layout<S: LayoutScalar>(
         .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
     let target_border_box = ScrollRectOf::try_new(Point::ZERO, border_box_size)
         .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
+    let mut contributions = ScrollContributionAccumulatorOf::new(scrollable_overflow);
+    contributions.include_direct_line(scrollable_overflow);
     let source = CanonicalScrollGeometrySourceOf {
         flow_axes,
         computed_overflow: overflow,
@@ -3198,7 +3268,7 @@ pub(crate) fn scroll_geometry_from_layout<S: LayoutScalar>(
         settled_auto_scrollbars: SettledAutoScrollbarState::new(false, false),
         clip_margin: ClipMarginSourceOf::default(),
         scroll_padding: OptimalRegionInsetsOf::default(),
-        contributions: ScrollContributionAccumulatorOf::new(scrollable_overflow),
+        contributions,
         origin_axes: ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
             ScrollOriginProgression::FlowEndward,

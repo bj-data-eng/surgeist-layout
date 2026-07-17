@@ -3666,11 +3666,11 @@ fn assert_logical_flex_intrinsic_vertical_lr_row_uses_unequal_intrinsic_contribu
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 1).content_size,
-        Size::new(scalar(20.0), scalar(30.0))
+        Size::new(scalar(30.0), scalar(30.0))
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 2).content_size,
-        Size::new(scalar(20.0), scalar(70.0))
+        Size::new(scalar(30.0), scalar(70.0))
     );
     assert_eq!(
         public_flow_output(batch.final_entries(), 0)
@@ -4117,12 +4117,16 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
         cold_child_entry.output().size,
         Size::new(scalar(10.25), scalar(20.25))
     );
-    assert_eq!(cold_child_entry.output().content_size, Size::ZERO);
+    assert_eq!(
+        cold_child_entry.output().content_size,
+        Size::new(scalar(10.25), scalar(20.25))
+    );
     assert_eq!(
         public_flow_output(cold_cache_batch.final_entries(), 1),
         NodeOutputOf {
             location: Point::new(S::ZERO, scalar(80.0)),
             size: Size::new(scalar(10.0), scalar(20.0)),
+            content_size: Size::new(scalar(10.0), scalar(20.0)),
             ..NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
         }
     );
@@ -8359,4 +8363,96 @@ fn fri05_c03_block_tiny_root_available_below_raw_edges_avoids_false_auto_settlem
     assert_eq!(geometry.physical_range().x().maximum(), 0.0);
     assert_eq!(geometry.physical_range().y().maximum(), 0.0);
     assert_eq!(geometry.scrollbar_size(), Size::ZERO);
+}
+
+#[test]
+fn fri05_c03_block_nested_partial_axes_and_trapped_values_preserve_independent_intervals() {
+    for (overflow, nested_size, expected) in [
+        (
+            computed_overflow(Overflow::Visible, Overflow::Clip),
+            Size::new(0.0, 5.0),
+            Size::new(20.0, 0.0),
+        ),
+        (
+            computed_overflow(Overflow::Clip, Overflow::Visible),
+            Size::new(5.0, 0.0),
+            Size::new(0.0, 30.0),
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            Size::ZERO,
+            Size::ZERO,
+        ),
+        (
+            computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            Size::ZERO,
+            Size::ZERO,
+        ),
+        (
+            computed_overflow(Overflow::Auto, Overflow::Auto),
+            Size::ZERO,
+            Size::ZERO,
+        ),
+    ] {
+        let tree = RootSessionTree::<&'static str>::default()
+            .children(0, [1])
+            .children(1, [2])
+            .children(2, [])
+            .style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    size: Size::new(PreferredSize::px(0.0), PreferredSize::px(0.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Block,
+                    position: Position::Absolute,
+                    overflow,
+                    size: nested_size.map(PreferredSize::px),
+                    ..NodeInput::default()
+                },
+            )
+            .style(
+                2,
+                NodeInput {
+                    display: Display::InlineBlock,
+                    ..NodeInput::default()
+                },
+            )
+            .measure(2, Ok(Size::new(20.0, 30.0)));
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap(),
+        )
+        .expect("nested block contribution layout succeeds");
+        let output = |node| {
+            batch
+                .final_entries()
+                .iter()
+                .find(|entry| entry.node() == node)
+                .expect("nested block output is staged")
+                .output()
+        };
+
+        let nested = output(1);
+        assert_eq!(nested.content_size, Size::new(20.0, 30.0));
+        assert_eq!(
+            nested.scroll_geometry.unwrap().scrollable_overflow().size(),
+            Size::new(20.0, 30.0)
+        );
+
+        let root = output(0);
+        let geometry = root
+            .scroll_geometry
+            .expect("root block geometry is present");
+        assert_eq!(geometry.scrollable_overflow().origin(), Point::ZERO);
+        assert_eq!(geometry.scrollable_overflow().size(), expected);
+        assert_eq!(root.content_size, expected);
+    }
 }

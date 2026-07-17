@@ -24,10 +24,10 @@ use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxi
 use crate::scroll::{
     CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
     ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
-    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression,
-    ScrollUnsupportedFeature, UsedOverflow, canonical_scroll_box_from_source,
-    canonical_scroll_geometry_from_source, scroll_geometry_from_layout,
-    scrollbar_size_from_overflow,
+    ScrollContributionAccumulatorOf, ScrollContributionErrorOf, ScrollOriginAxes,
+    ScrollOriginProgression, ScrollUnsupportedFeature, UsedOverflow,
+    canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
+    scroll_geometry_from_layout, scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -211,57 +211,74 @@ where
         output.block_margin_collapse = block_margin_collapse;
         Ok(output)
     } else {
+        let final_scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+            flow_axes: final_constants.flow_axes,
+            computed_overflow: style.overflow,
+            item_is_replaced: style.item_is_replaced,
+            border_box_size: output_size,
+            border: final_constants.border,
+            padding: final_constants.padding,
+            scrollbar_gutter: style.scrollbar_gutter,
+            scrollbar_width: style.scrollbar_width,
+            settled_auto_scrollbars: final_constants.settled_auto_scrollbars,
+        })
+        .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?;
+        let mut contributions = final_pass.contributions;
+        contributions.replace_container_seed(final_scroll_box.scrollport());
+        for (axis, extent) in [
+            (crate::LogicalAxis::Inline, final_pass.content_size.inline),
+            (crate::LogicalAxis::Block, final_pass.content_size.block),
+        ] {
+            contributions
+                .record_final_in_flow_end(
+                    final_constants.flow_axes,
+                    axis,
+                    block_final_in_flow_end(
+                        final_scroll_box.content_box(),
+                        final_constants.flow_axes,
+                        axis,
+                        extent,
+                    ),
+                )
+                .map_err(|error| block_own_contribution_error(node, input.run_mode(), error))?;
+        }
         layout_floats(
             tree,
             node,
             &final_pass.pending_floats,
             output_size,
             &final_constants,
+            &mut contributions,
         )?;
-        let absolute = layout_absolute_children(
+        layout_absolute_children(
             tree,
             node,
             &children,
             &final_pass.static_positions,
             output_size,
             &final_constants,
+            &mut contributions,
         )?;
-        let content_size = max_content_size(
-            final_constants
-                .flow_axes
-                .physical_size(final_pass.content_size),
-            absolute.content_size,
-        );
-        let scrollable_overflow = crate::scroll::scroll_rect_union(
-            final_pass.scrollable_overflow,
-            final_content_box_scroll_rect(
-                &style,
-                input.run_mode(),
-                output_size,
-                content_size,
-                &final_constants,
-            )
-            .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?,
-        )
-        .map_err(|error| block_own_scroll_error(node, input.run_mode(), error))?;
-        let scrollable_overflow = match absolute.scrollable_overflow {
-            Some(absolute) => crate::scroll::scroll_rect_union(scrollable_overflow, absolute)
-                .map_err(|error| block_own_scroll_error(node, input.run_mode(), error))?,
-            None => scrollable_overflow,
-        };
-        let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
-            output_size,
-            content_size,
-            final_pass.baselines,
-        );
-        output.scroll_geometry = Some(block_scroll_geometry::<Tree, S, M>(
+        contributions
+            .include_terminal_padding(final_constants.padding)
+            .map_err(|error| block_own_contribution_error(node, input.run_mode(), error))?;
+        let scroll_geometry = block_scroll_geometry::<Tree, S, M>(
             node,
             input.run_mode(),
             &style,
             &final_constants,
             output_size,
-            scrollable_overflow,
-        )?);
+            contributions,
+        )?;
+        let content_size = contributions
+            .content_size_from_anchor(scroll_geometry.content_box().origin())
+            .map_err(|error| block_own_contribution_error(node, input.run_mode(), error))?;
+        let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
+            output_size,
+            content_size,
+            final_pass.baselines,
+        );
+        output.scroll_geometry = Some(scroll_geometry);
         output.block_margin_collapse = block_margin_collapse;
         Ok(output)
     }
@@ -303,7 +320,6 @@ struct PendingFloat<Node, S: LayoutScalar> {
     padding: Edges<S>,
     margin: Edges<S>,
     style: Box<NodeInputOf<S>>,
-    scrollable_overflow: super::ScrollRectOf<S>,
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
 }
 
@@ -444,7 +460,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
 
 struct InFlowResult<Node, S: LayoutScalar> {
     content_size: LogicalSizeOf<S>,
-    scrollable_overflow: super::ScrollRectOf<S>,
+    contributions: ScrollContributionAccumulatorOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
     pending_floats: Vec<PendingFloat<Node, S>>,
@@ -688,9 +704,9 @@ where
         constants.content_box_inset.left,
         constants.content_box_inset.top,
     );
-    let mut scrollable_overflow =
-        ScrollableOverflowAccumulator::new(content_box_origin, content_box_size)
-            .map_err(|error| block_own_scroll_error(node, input.run_mode(), error))?;
+    let contribution_seed = super::ScrollRectOf::new(content_box_origin, content_box_size)
+        .map_err(|error| block_own_scroll_error(node, input.run_mode(), error))?;
+    let mut contributions = ScrollContributionAccumulatorOf::new(contribution_seed);
 
     let mut index = 0;
     while index < children.len() {
@@ -732,8 +748,7 @@ where
                     tree,
                     node,
                     children,
-                    run_start,
-                    index,
+                    run_start..index,
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
@@ -743,14 +758,12 @@ where
                         set_layout,
                     },
                     &float_exclusions,
+                    &mut contributions,
                 )?;
                 let placement_content_size =
                     constants.flow_axes.logical_size(placement.content_size);
                 content_size.inline = content_size.inline.max(placement_content_size.inline);
                 content_size.block = content_size.block.max(placement_content_size.block);
-                scrollable_overflow
-                    .include_rect(placement.scrollable_overflow)
-                    .map_err(|error| block_child_scroll_error(node, child, error))?;
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
                 static_positions.extend(placement.static_positions);
                 cursor_block =
@@ -783,8 +796,7 @@ where
                     tree,
                     node,
                     children,
-                    run_start,
-                    index,
+                    run_start..index,
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
@@ -794,14 +806,12 @@ where
                         set_layout,
                     },
                     &float_exclusions,
+                    &mut contributions,
                 )?;
                 let placement_content_size =
                     constants.flow_axes.logical_size(placement.content_size);
                 content_size.inline = content_size.inline.max(placement_content_size.inline);
                 content_size.block = content_size.block.max(placement_content_size.block);
-                scrollable_overflow
-                    .include_rect(placement.scrollable_overflow)
-                    .map_err(|error| block_child_scroll_error(node, child, error))?;
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
                 static_positions.extend(placement.static_positions);
                 cursor_block =
@@ -859,8 +869,7 @@ where
                 tree,
                 node,
                 children,
-                run_start,
-                index,
+                run_start..index,
                 InlineRunContext {
                     source_index_start: run_start,
                     cursor_block,
@@ -870,13 +879,11 @@ where
                     set_layout,
                 },
                 &float_exclusions,
+                &mut contributions,
             )?;
             let placement_content_size = constants.flow_axes.logical_size(placement.content_size);
             content_size.inline = content_size.inline.max(placement_content_size.inline);
             content_size.block = content_size.block.max(placement_content_size.block);
-            scrollable_overflow
-                .include_rect(placement.scrollable_overflow)
-                .map_err(|error| block_child_scroll_error(node, child, error))?;
             record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
             static_positions.extend(placement.static_positions);
             cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
@@ -970,15 +977,6 @@ where
         if !child_style.float.is_none() {
             let margin_box = output.size + child_margin.sum_axes();
             float_intrinsics.add(margin_box.width, child_style.float, child_style.clear);
-            let float_parent_overflow = child_scrollable_overflow_for_parent(
-                &child_style,
-                output.size,
-                output.content_size,
-                child_padding,
-                child_border,
-                output.scroll_geometry,
-            )
-            .map_err(|error| block_child_scroll_error(node, child, error))?;
             let pending_float = PendingFloat {
                 node: child,
                 source_index,
@@ -991,26 +989,9 @@ where
                 padding: child_padding,
                 margin: child_margin,
                 style: Box::new(child_style),
-                scrollable_overflow: float_parent_overflow,
                 child_compute_geometry: output.scroll_geometry,
             };
             let float_location = float_exclusions.place_float(&pending_float, float_bfc_cursor_y);
-            scrollable_overflow
-                .include_child(
-                    float_location,
-                    pending_float.size,
-                    pending_float.content_size,
-                    pending_float.margin,
-                    pending_float.style.overflow,
-                    pending_float.style.item_is_replaced,
-                )
-                .map_err(|error| block_child_scroll_error(node, child, error))?;
-            scrollable_overflow
-                .include_translated_child_overflow(
-                    float_location,
-                    pending_float.scrollable_overflow,
-                )
-                .map_err(|error| block_child_scroll_error(node, child, error))?;
             if set_layout {
                 pending_floats.push(pending_float);
             }
@@ -1105,7 +1086,7 @@ where
             fallback_location
         };
         if set_layout {
-            let scroll_geometry = child_node_scroll_geometry(
+            let scroll_geometry = retained_child_scroll_geometry(
                 &child_style,
                 output.size,
                 output.content_size,
@@ -1114,6 +1095,9 @@ where
                 output.scroll_geometry,
             )
             .map_err(|error| block_child_scroll_error(node, child, error))?;
+            contributions
+                .include_in_flow_geometry(location, child_margin, scroll_geometry)
+                .map_err(|error| block_child_contribution_error(node, child, error))?;
             tree.set_unrounded(
                 child,
                 NodeOutputOf::<S> {
@@ -1159,28 +1143,6 @@ where
             .block
             .max(logical_contribution.block)
             .max(child_block_end - constants.logical_content_box_inset().block_start);
-        scrollable_overflow
-            .include_child(
-                location,
-                output.size,
-                output.content_size,
-                child_margin,
-                child_style.overflow,
-                child_style.item_is_replaced,
-            )
-            .map_err(|error| block_child_scroll_error(node, child, error))?;
-        let child_overflow = child_scrollable_overflow_for_parent(
-            &child_style,
-            output.size,
-            output.content_size,
-            child_padding,
-            child_border,
-            output.scroll_geometry,
-        )
-        .map_err(|error| block_child_scroll_error(node, child, error))?;
-        scrollable_overflow
-            .include_translated_child_overflow(location, child_overflow)
-            .map_err(|error| block_child_scroll_error(node, child, error))?;
         if let Some(baseline) = output.baselines().first_block_baseline(child_flow_axes) {
             baselines.record_first(baseline.translated(location));
         }
@@ -1217,7 +1179,7 @@ where
 
     Ok(InFlowResult {
         content_size,
-        scrollable_overflow: scrollable_overflow.finish(),
+        contributions,
         baselines,
         static_positions,
         pending_floats,
@@ -1232,7 +1194,6 @@ where
 struct InlineRunPlacement<Node, S: LayoutScalar> {
     size: Size<S>,
     content_size: Size<S>,
-    scrollable_overflow: super::ScrollRectOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
     baselines: BaselinesOf<S>,
     first_baseline: Option<S>,
@@ -1316,6 +1277,7 @@ fn layout_inline_segments<Tree, S, M>(
     run: &[<Tree as Traverse>::Node],
     context: InlineSegmentsContext<'_, S>,
     float_exclusions: &FloatExclusions<S>,
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
@@ -1335,7 +1297,6 @@ where
     let mut first_baseline = None;
     let mut last_baseline = None;
     let start_y = cursor_block;
-    let mut scrollable_overflow: Option<super::ScrollRectOf<S>> = None;
 
     while offset < run.len() {
         let mut segment_end = run.len();
@@ -1361,6 +1322,7 @@ where
                     node_inner_size,
                     set_layout: false,
                 },
+                contributions,
             )?;
             let segment_bottom = cursor_block + probe.size.height;
             if float_exclusions.clearance_y(segment_bottom, candidate.clear) > segment_bottom {
@@ -1383,25 +1345,11 @@ where
                 node_inner_size,
                 set_layout,
             },
+            contributions,
         )?;
 
         content_size.width = content_size.width.max(placement.content_size.width);
         content_size.height = content_size.height.max(placement.content_size.height);
-        scrollable_overflow = Some(match scrollable_overflow {
-            Some(existing) => {
-                crate::scroll::scroll_rect_union(existing, placement.scrollable_overflow).map_err(
-                    |error| {
-                        block_inline_scroll_error(
-                            container,
-                            run.get(offset).copied(),
-                            input.run_mode(),
-                            error,
-                        )
-                    },
-                )?
-            }
-            None => placement.scrollable_overflow,
-        });
         static_positions.extend(placement.static_positions);
         if let Some(baseline) = placement.first_baseline {
             first_baseline.get_or_insert(cursor_block - start_y + baseline);
@@ -1420,19 +1368,9 @@ where
         offset = segment_end;
     }
 
-    let scrollable_overflow = match scrollable_overflow {
-        Some(scrollable_overflow) => scrollable_overflow,
-        None => super::ScrollRectOf::new(
-            Point::new(constants.content_box_inset.left, start_y),
-            Size::ZERO,
-        )
-        .map_err(|error| block_own_scroll_error(container, input.run_mode(), error))?,
-    };
-
     Ok(InlineRunPlacement {
         size: Size::new(content_size.width, cursor_block - start_y),
         content_size,
-        scrollable_overflow,
         static_positions,
         baselines: BaselinesOf::NONE,
         first_baseline,
@@ -1444,17 +1382,25 @@ fn layout_inline_run_with_clear<Tree, S, M>(
     tree: &mut Tree,
     container: <Tree as Traverse>::Node,
     children: &[<Tree as Traverse>::Node],
-    run_start: usize,
-    run_end: usize,
+    run: core::ops::Range<usize>,
     context: InlineRunContext<'_, S>,
     float_exclusions: &FloatExclusions<S>,
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
+    let run_start = run.start;
+    let run_end = run.end;
     if !inline_run_contains_clear(tree, children, run_start, run_end, context.constants) {
-        return layout_inline_run_children(tree, container, &children[run_start..run_end], context);
+        return layout_inline_run_children(
+            tree,
+            container,
+            &children[run_start..run_end],
+            context,
+            contributions,
+        );
     }
 
     layout_inline_segments(
@@ -1470,6 +1416,7 @@ where
             set_layout: context.set_layout,
         },
         float_exclusions,
+        contributions,
     )
 }
 
@@ -1478,6 +1425,7 @@ fn layout_inline_run_children<Tree, S, M>(
     container: <Tree as Traverse>::Node,
     run: &[<Tree as Traverse>::Node],
     context: InlineRunContext<'_, S>,
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
@@ -1679,6 +1627,13 @@ where
         constants,
         containing_size,
     );
+    if set_layout {
+        let direct_line =
+            super::ScrollRectOf::new(report_location, report.size).map_err(|error| {
+                block_inline_scroll_error(container, run.first().copied(), input.run_mode(), error)
+            })?;
+        contributions.include_direct_line(direct_line);
+    }
     let mut content_size = content_size_contribution(
         Point::new(
             report_location.x - constants.content_box_inset.left,
@@ -1696,12 +1651,6 @@ where
         .copied()
         .map(|item| (item.source_index, item))
         .collect::<BTreeMap<_, _>>();
-    let inline_subject = run.first().copied();
-    let mut run_scrollable_overflow = ScrollableOverflowAccumulator::new(Point::ZERO, report.size)
-        .map_err(|error| {
-            block_inline_scroll_error(container, inline_subject, input.run_mode(), error)
-        })?;
-
     for run_child in &run_children {
         match run_child {
             InlineRunChild::Box {
@@ -1722,22 +1671,6 @@ where
                         .transpose_with_node(tree, *child)?,
                     constants.flow_axes,
                 );
-                let run_child_location = Point::new(
-                    item.location.x + inset_offset.x,
-                    item.location.y + inset_offset.y,
-                );
-                let child_overflow = child_scrollable_overflow_for_parent(
-                    child_style,
-                    item.size,
-                    item.content_size,
-                    item.padding,
-                    item.border,
-                    output.scroll_geometry,
-                )
-                .map_err(|error| block_child_scroll_error(container, *child, error))?;
-                run_scrollable_overflow
-                    .include_translated_child_overflow(run_child_location, child_overflow)
-                    .map_err(|error| block_child_scroll_error(container, *child, error))?;
                 let projected_location = project_inline_report_item(
                     item.location,
                     item.size,
@@ -1764,7 +1697,7 @@ where
                 content_size = max_content_size(content_size, contribution);
 
                 if set_layout {
-                    let scroll_geometry = child_node_scroll_geometry(
+                    let scroll_geometry = retained_child_scroll_geometry(
                         child_style,
                         item.size,
                         item.content_size,
@@ -1773,6 +1706,11 @@ where
                         output.scroll_geometry,
                     )
                     .map_err(|error| block_child_scroll_error(container, *child, error))?;
+                    contributions
+                        .include_in_flow_geometry(location, item.margin, scroll_geometry)
+                        .map_err(|error| {
+                            block_child_contribution_error(container, *child, error)
+                        })?;
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
@@ -1855,13 +1793,6 @@ where
     Ok(InlineRunPlacement {
         size: report.size,
         content_size,
-        scrollable_overflow: translate_scroll_rect(
-            run_scrollable_overflow.finish(),
-            report_location,
-        )
-        .map_err(|error| {
-            block_inline_scroll_error(container, inline_subject, input.run_mode(), error)
-        })?,
         static_positions,
         baselines: inline_report_baselines(
             &report,
@@ -2019,6 +1950,7 @@ fn layout_floats<Tree, S, M>(
     floats: &[PendingFloat<<Tree as Traverse>::Node, S>],
     container_size: Size<S>,
     constants: &Constants<S>,
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, (), S, M>
 where
     Tree: Compute<M, Scalar = S>,
@@ -2031,7 +1963,7 @@ where
 
     for float in floats {
         let location = float_exclusions.place_float(float, float.y);
-        let scroll_geometry = child_node_scroll_geometry(
+        let scroll_geometry = retained_child_scroll_geometry(
             &float.style,
             float.size,
             float.content_size,
@@ -2040,6 +1972,9 @@ where
             float.child_compute_geometry,
         )
         .map_err(|error| block_child_scroll_error(container, float.node, error))?;
+        contributions
+            .include_in_flow_geometry(location, float.margin, scroll_geometry)
+            .map_err(|error| block_child_contribution_error(container, float.node, error))?;
         tree.set_unrounded(
             float.node,
             NodeOutputOf::<S> {
@@ -2333,15 +2268,31 @@ fn content_size_contribution<S: LayoutScalar>(
             size.height
         },
     );
-    if contribution_size.width <= S::ZERO || contribution_size.height <= S::ZERO {
-        return Size::ZERO;
-    }
-
     let max_x = (location.x + contribution_size.width).max(S::ZERO);
     let min_x = location.x.min(S::ZERO);
     let max_y = (location.y + contribution_size.height).max(S::ZERO);
     let min_y = location.y.min(S::ZERO);
     Size::new(max_x - min_x, max_y - min_y)
+}
+
+fn block_final_in_flow_end<S: LayoutScalar>(
+    content_box: super::ScrollRectOf<S>,
+    flow_axes: crate::FlowAxes,
+    axis: crate::LogicalAxis,
+    extent: S,
+) -> S {
+    let origin = content_box.origin();
+    let size = content_box.size();
+    let side = match axis {
+        crate::LogicalAxis::Inline => flow_axes.inline_end(),
+        crate::LogicalAxis::Block => flow_axes.block_end(),
+    };
+    match side {
+        PhysicalSide::Top => origin.y + size.height - extent,
+        PhysicalSide::Right => origin.x + extent,
+        PhysicalSide::Bottom => origin.y + extent,
+        PhysicalSide::Left => origin.x + size.width - extent,
+    }
 }
 
 fn block_scroll_geometry<Tree, S, M>(
@@ -2350,7 +2301,7 @@ fn block_scroll_geometry<Tree, S, M>(
     style: &NodeInputOf<S>,
     constants: &Constants<S>,
     output_size: Size<S>,
-    scrollable_overflow: super::ScrollRectOf<S>,
+    contributions: ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, super::ScrollGeometryOf<S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
@@ -2375,7 +2326,7 @@ where
             style.overflow_clip_margin.margin(),
         ),
         scroll_padding: block_scroll_padding(style.scroll_padding),
-        contributions: ScrollContributionAccumulatorOf::new(scrollable_overflow),
+        contributions,
         origin_axes: ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
             ScrollOriginProgression::FlowEndward,
@@ -2457,6 +2408,33 @@ where
     )
 }
 
+fn block_own_contribution_error<Node, S, M>(
+    node: Node,
+    run_mode: RunMode,
+    error: ScrollContributionErrorOf<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
+        (
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        )
+    } else {
+        (
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        )
+    };
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        operation,
+        LayoutErrorKindOf::InternalInvariant(invariant),
+    )
+}
+
 fn block_child_scroll_error<Node, S, M>(
     container: Node,
     subject: Node,
@@ -2470,6 +2448,22 @@ where
         LayoutOperation::ChildLayout,
         LayoutInternalInvariant::InvalidBlockScrollGeometry,
         error,
+    )
+}
+
+fn block_child_contribution_error<Node, S, M>(
+    container: Node,
+    subject: Node,
+    error: ScrollContributionErrorOf<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::ContainerSubject { container, subject },
+        LayoutOperation::ChildLayout,
+        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidBlockScrollGeometry),
     )
 }
 
@@ -2502,7 +2496,7 @@ where
     LayoutErrorOf::new(site, operation, kind)
 }
 
-fn child_node_scroll_geometry<S: LayoutScalar>(
+fn retained_child_scroll_geometry<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     size: Size<S>,
     content_size: Size<S>,
@@ -2510,14 +2504,26 @@ fn child_node_scroll_geometry<S: LayoutScalar>(
     border: Edges<S>,
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
 ) -> Result<super::ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
-    let scrollable_overflow = child_scrollable_overflow(
-        style,
+    if let Some(geometry) = child_compute_geometry
+        && geometry.border_box().origin() == Point::ZERO
+        && geometry.border_box().size() == size
+    {
+        return Ok(geometry);
+    }
+
+    let base = crate::scroll::scrollable_overflow_from_layout_content_size(
+        style.direction,
+        UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
         size,
-        content_size,
         padding,
         border,
-        child_compute_geometry,
+        style.scrollbar_width.get(),
+        content_size,
     )?;
+    let scrollable_overflow = match child_compute_geometry {
+        Some(geometry) => crate::scroll::scroll_rect_union(base, geometry.scrollable_overflow())?,
+        None => base,
+    };
     scroll_geometry_from_layout(
         crate::FlowAxes::new(style.writing_mode, style.direction),
         style.overflow,
@@ -2530,216 +2536,8 @@ fn child_node_scroll_geometry<S: LayoutScalar>(
     )
 }
 
-fn child_scrollable_overflow<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-    size: Size<S>,
-    content_size: Size<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
-) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let base = crate::scroll::scrollable_overflow_from_layout_content_size(
-        style.direction,
-        UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
-        size,
-        padding,
-        border,
-        style.scrollbar_width.get(),
-        content_size,
-    )?;
-    let Some(child_compute_geometry) = child_compute_geometry else {
-        return Ok(base);
-    };
-
-    crate::scroll::scroll_rect_union(base, child_compute_geometry.scrollable_overflow())
-}
-
-fn child_scrollable_overflow_for_parent<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-    size: Size<S>,
-    content_size: Size<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
-) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let child_overflow = child_scrollable_overflow(
-        style,
-        size,
-        content_size,
-        padding,
-        border,
-        child_compute_geometry,
-    )?;
-    project_child_scrollable_overflow_for_parent(
-        style.overflow,
-        style.item_is_replaced,
-        size,
-        child_overflow,
-    )
-}
-
-fn project_child_scrollable_overflow_for_parent<S: LayoutScalar>(
-    overflow: ComputedOverflow,
-    item_is_replaced: bool,
-    size: Size<S>,
-    child_overflow: super::ScrollRectOf<S>,
-) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let overflow = UsedOverflow::from_computed(overflow, item_is_replaced);
-    let child_origin = child_overflow.origin();
-    let child_size = child_overflow.size();
-    let child_end = Point::new(
-        child_origin.x + child_size.width,
-        child_origin.y + child_size.height,
-    );
-    let projected_origin = Point::new(
-        if overflow.x().value() == Overflow::Visible {
-            child_origin.x
-        } else {
-            S::ZERO
-        },
-        if overflow.y().value() == Overflow::Visible {
-            child_origin.y
-        } else {
-            S::ZERO
-        },
-    );
-    let projected_end = Point::new(
-        if overflow.x().value() == Overflow::Visible {
-            child_end.x
-        } else {
-            size.width
-        },
-        if overflow.y().value() == Overflow::Visible {
-            child_end.y
-        } else {
-            size.height
-        },
-    );
-
-    super::ScrollRectOf::new(
-        projected_origin,
-        Size::new(
-            (projected_end.x - projected_origin.x).max(S::ZERO),
-            (projected_end.y - projected_origin.y).max(S::ZERO),
-        ),
-    )
-}
-
-fn translate_scroll_rect<S: LayoutScalar>(
-    rect: super::ScrollRectOf<S>,
-    offset: Point<S>,
-) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    super::ScrollRectOf::new(
-        Point::new(rect.origin().x + offset.x, rect.origin().y + offset.y),
-        rect.size(),
-    )
-}
-
-fn final_content_box_scroll_rect<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-    run_mode: RunMode,
-    size: Size<S>,
-    content_size: Size<S>,
-    constants: &Constants<S>,
-) -> Result<super::ScrollRectOf<S>, CanonicalScrollGeometryErrorOf<S>> {
-    let content_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
-        flow_axes: constants.flow_axes,
-        computed_overflow: style.overflow,
-        item_is_replaced: style.item_is_replaced,
-        border_box_size: size,
-        border: constants.border,
-        padding: constants.padding,
-        scrollbar_gutter: style.scrollbar_gutter,
-        scrollbar_width: style.scrollbar_width,
-        settled_auto_scrollbars: constants.settled_auto_scrollbars,
-    })
-    .map(|boxes| boxes.content_box())?;
-    let contribution_size = if run_mode == RunMode::PerformRootLayout {
-        Size::new(
-            content_box.size().width.max(content_size.width),
-            content_box.size().height.max(content_size.height),
-        )
-    } else {
-        content_box.size()
-    };
-    super::ScrollRectOf::try_new(content_box.origin(), contribution_size)
-        .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)
-}
-
-#[derive(Clone, Copy, Debug)]
-struct ScrollableOverflowAccumulator<S: LayoutScalar> {
-    rect: super::ScrollRectOf<S>,
-}
-
-impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
-    fn new(
-        content_box_origin: Point<S>,
-        content_box_size: Size<S>,
-    ) -> Result<Self, ScrollUnsupportedFeature> {
-        Ok(Self {
-            rect: super::ScrollRectOf::new(content_box_origin, content_box_size)?,
-        })
-    }
-
-    fn include_rect(
-        &mut self,
-        rect: super::ScrollRectOf<S>,
-    ) -> Result<(), ScrollUnsupportedFeature> {
-        self.rect = crate::scroll::scroll_rect_union(self.rect, rect)?;
-        Ok(())
-    }
-
-    fn include_translated_child_overflow(
-        &mut self,
-        location: Point<S>,
-        overflow: super::ScrollRectOf<S>,
-    ) -> Result<(), ScrollUnsupportedFeature> {
-        self.include_rect(translate_scroll_rect(overflow, location)?)
-    }
-
-    fn include_child(
-        &mut self,
-        location: Point<S>,
-        size: Size<S>,
-        content_size: Size<S>,
-        margin: Edges<S>,
-        overflow: ComputedOverflow,
-        item_is_replaced: bool,
-    ) -> Result<(), ScrollUnsupportedFeature> {
-        let margin_rect = super::ScrollRectOf::new(
-            Point::new(location.x - margin.left, location.y - margin.top),
-            size + margin.sum_axes(),
-        )?;
-        self.include_rect(margin_rect)?;
-
-        let overflow = UsedOverflow::from_computed(overflow, item_is_replaced);
-        let visible_size = Size::new(
-            if overflow.x().value() == Overflow::Visible {
-                size.width.max(content_size.width)
-            } else {
-                size.width
-            },
-            if overflow.y().value() == Overflow::Visible {
-                size.height.max(content_size.height)
-            } else {
-                size.height
-            },
-        );
-        self.include_rect(super::ScrollRectOf::new(location, visible_size)?)
-    }
-
-    fn finish(self) -> super::ScrollRectOf<S> {
-        self.rect
-    }
-}
-
 fn max_content_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
     Size::new(a.width.max(b.width), a.height.max(b.height))
-}
-
-struct AbsoluteLayoutResult<S: LayoutScalar> {
-    content_size: Size<S>,
-    scrollable_overflow: Option<super::ScrollRectOf<S>>,
 }
 
 fn layout_absolute_children<Tree, S, M>(
@@ -2749,7 +2547,8 @@ fn layout_absolute_children<Tree, S, M>(
     static_positions: &[(<Tree as Traverse>::Node, Point<S>)],
     container: Size<S>,
     constants: &Constants<S>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, AbsoluteLayoutResult<S>, S, M>
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, (), S, M>
 where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
@@ -2776,8 +2575,6 @@ where
         AvailableOf::<S>::definite(area_size.height),
     );
 
-    let mut absolute_content_size = Size::ZERO;
-    let mut absolute_scrollable_overflow: Option<super::ScrollRectOf<S>> = None;
     for (source_index, child) in children.iter().copied().enumerate() {
         let LayoutInputOf::Box(style) = tree.layout_input(child) else {
             continue;
@@ -2958,31 +2755,7 @@ where
             }
             .location(),
         );
-        absolute_content_size = max_content_size(
-            absolute_content_size,
-            content_size_contribution(
-                Point::new(location.x - area_offset.x, location.y - area_offset.y),
-                final_size,
-                output.content_size,
-                style.overflow,
-                style.item_is_replaced,
-            ),
-        );
-        let margin_box_origin = Point::new(location.x - margin.left, location.y - margin.top);
-        let mut absolute_accumulator =
-            ScrollableOverflowAccumulator::new(margin_box_origin, final_size + margin.sum_axes())
-                .map_err(|error| block_child_scroll_error(container_node, child, error))?;
-        absolute_accumulator
-            .include_child(
-                location,
-                final_size,
-                output.content_size,
-                margin,
-                style.overflow,
-                style.item_is_replaced,
-            )
-            .map_err(|error| block_child_scroll_error(container_node, child, error))?;
-        let child_overflow = child_scrollable_overflow_for_parent(
+        let scroll_geometry = retained_child_scroll_geometry(
             &style,
             final_size,
             output.content_size,
@@ -2991,25 +2764,9 @@ where
             output.scroll_geometry,
         )
         .map_err(|error| block_child_scroll_error(container_node, child, error))?;
-        absolute_accumulator
-            .include_translated_child_overflow(location, child_overflow)
-            .map_err(|error| block_child_scroll_error(container_node, child, error))?;
-        let child_rect = absolute_accumulator.finish();
-        absolute_scrollable_overflow = Some(match absolute_scrollable_overflow {
-            Some(existing) => crate::scroll::scroll_rect_union(existing, child_rect)
-                .map_err(|error| block_child_scroll_error(container_node, child, error))?,
-            None => child_rect,
-        });
-
-        let scroll_geometry = child_node_scroll_geometry(
-            &style,
-            final_size,
-            output.content_size,
-            padding,
-            border,
-            output.scroll_geometry,
-        )
-        .map_err(|error| block_child_scroll_error(container_node, child, error))?;
+        contributions
+            .include_current_out_of_flow_geometry(location, margin, scroll_geometry)
+            .map_err(|error| block_child_contribution_error(container_node, child, error))?;
         tree.set_unrounded(
             child,
             NodeOutputOf::<S> {
@@ -3026,10 +2783,7 @@ where
         );
     }
 
-    Ok(AbsoluteLayoutResult {
-        content_size: absolute_content_size,
-        scrollable_overflow: absolute_scrollable_overflow,
-    })
+    Ok(())
 }
 
 fn static_axis_direction(flow_axes: crate::geometry::FlowAxes, axis: PhysicalAxis) -> Direction {

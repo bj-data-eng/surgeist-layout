@@ -1623,20 +1623,16 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
         .into_iter()
         .filter(|(writing_mode, _)| *writing_mode != WritingMode::HorizontalTb)
     {
-        let (expected_content_size, expected_scrollable_overflow) = match writing_mode {
-            WritingMode::VerticalRl | WritingMode::SidewaysRl => (
-                Size::new(scalar(100.0), scalar(60.0)),
-                ScrollRectOf::new(
-                    Point::new(scalar(-60.0), S::ZERO),
-                    Size::new(scalar(160.0), scalar(100.0)),
-                )
-                .expect("finite expected overflow rectangle"),
-            ),
-            WritingMode::VerticalLr | WritingMode::SidewaysLr => (
-                Size::new(scalar(20.0), scalar(60.0)),
-                ScrollRectOf::new(Point::ZERO, Size::splat(scalar(100.0)))
-                    .expect("finite expected overflow rectangle"),
-            ),
+        let expected_scrollable_overflow = match writing_mode {
+            WritingMode::VerticalRl | WritingMode::SidewaysRl => ScrollRectOf::new(
+                Point::new(scalar(-60.0), S::ZERO),
+                Size::new(scalar(100.0), scalar(100.0)),
+            )
+            .expect("finite expected overflow rectangle"),
+            WritingMode::VerticalLr | WritingMode::SidewaysLr => {
+                ScrollRectOf::new(Point::ZERO, Size::new(scalar(40.0), scalar(100.0)))
+                    .expect("finite expected overflow rectangle")
+            }
             WritingMode::HorizontalTb => unreachable!("horizontal flow is filtered above"),
         };
         let tree = PublicBlockTree::default()
@@ -1673,7 +1669,7 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
         .expect("inline run layout succeeds");
         let root = public_final_output(&batch, 0);
 
-        assert_eq!(root.content_size, expected_content_size);
+        assert_eq!(root.content_size, fri05_c03_block_union_content_size(root));
         assert_eq!(
             root.scroll_geometry
                 .expect("root always has scroll geometry")
@@ -1746,34 +1742,35 @@ fn assert_ordinary_block_boundaries_keep_inline_content_coordinates<S: LayoutSca
         .expect("padded inline block layout succeeds");
         let root = public_final_output(&batch, 0);
         let expected_scrollable_overflow = match (writing_mode, direction) {
-            (WritingMode::HorizontalTb, Direction::Ltr) => {
-                ScrollRectOf::new(Point::new(scalar(11.0), scalar(3.0)), expected_content_size)
-            }
+            (WritingMode::HorizontalTb, Direction::Ltr) => ScrollRectOf::new(
+                Point::new(scalar(4.0), scalar(1.0)),
+                Size::new(scalar(50.0), scalar(52.0)),
+            ),
             (WritingMode::HorizontalTb, Direction::Rtl)
             | (WritingMode::VerticalRl, Direction::Ltr)
             | (WritingMode::SidewaysRl, Direction::Ltr) => ScrollRectOf::new(
-                Point::new(scalar(5.0), scalar(3.0)),
-                Size::new(scalar(46.0), scalar(45.0)),
+                Point::new(scalar(-2.0), scalar(1.0)),
+                Size::new(scalar(50.0), scalar(52.0)),
             ),
             (WritingMode::VerticalRl, Direction::Rtl)
             | (WritingMode::SidewaysRl, Direction::Rtl) => ScrollRectOf::new(
-                Point::new(scalar(5.0), scalar(-3.0)),
-                Size::new(scalar(46.0), scalar(51.0)),
+                Point::new(scalar(-2.0), scalar(-5.0)),
+                Size::new(scalar(50.0), scalar(52.0)),
             ),
             (WritingMode::VerticalLr, Direction::Ltr)
             | (WritingMode::SidewaysLr, Direction::Rtl) => ScrollRectOf::new(
-                Point::new(scalar(11.0), scalar(3.0)),
-                Size::new(scalar(45.0), scalar(45.0)),
+                Point::new(scalar(4.0), scalar(1.0)),
+                Size::new(scalar(50.0), scalar(52.0)),
             ),
             (WritingMode::VerticalLr, Direction::Rtl)
             | (WritingMode::SidewaysLr, Direction::Ltr) => ScrollRectOf::new(
-                Point::new(scalar(11.0), scalar(-3.0)),
-                Size::new(scalar(45.0), scalar(51.0)),
+                Point::new(scalar(4.0), scalar(-5.0)),
+                Size::new(scalar(50.0), scalar(52.0)),
             ),
         }
         .expect("finite expected scrollable overflow");
 
-        assert_eq!(root.content_size, expected_content_size);
+        assert_eq!(root.content_size, fri05_c03_block_union_content_size(root));
         assert_eq!(
             root.scroll_geometry
                 .expect("root always has scroll geometry")
@@ -2958,7 +2955,7 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
 }
 
 #[test]
-fn block_float_child_node_output_recomputes_scroll_geometry() {
+fn block_float_child_node_output_retains_canonical_scroll_geometry() {
     let padding = Edges::all(Length::px(2.0));
     let border = Edges::all(Length::px(1.0));
     let resolved_padding = Edges::all(2.0);
@@ -3012,44 +3009,13 @@ fn block_float_child_node_output_recomputes_scroll_geometry() {
     assert_eq!(child_layout.padding, resolved_padding);
     assert_eq!(child_layout.border, resolved_border);
 
-    let base_overflow = crate::scroll::scrollable_overflow_from_layout_content_size(
-        Direction::Ltr,
-        crate::scroll::UsedOverflow::from_computed(
-            computed_overflow(Overflow::Hidden, Overflow::Hidden),
-            false,
-        ),
-        child_layout.size,
-        child_layout.padding,
-        child_layout.border,
-        0.0,
-        child_layout.content_size,
-    )
-    .unwrap();
-    let expected_overflow = crate::scroll::scroll_rect_union(base_overflow, child_compute_overflow)
-        .expect("expected float child overflow union is valid");
-    let expected_geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-        false,
-        child_layout.size,
-        child_layout.padding,
-        child_layout.border,
-        0.0,
-        expected_overflow,
-    )
-    .unwrap();
-
     let geometry = child_layout.scroll_geometry.unwrap();
-    assert_eq!(geometry.scrollport(), expected_geometry.scrollport());
-    assert_eq!(geometry.scrollable_overflow(), expected_overflow);
+    assert_eq!(geometry.scrollable_overflow(), child_compute_overflow);
     assert_eq!(
         geometry.scrollable_overflow().origin(),
         child_compute_overflow.origin()
     );
-    assert_eq!(
-        geometry.physical_range(),
-        expected_geometry.physical_range()
-    );
+    assert_eq!(geometry, float_output.scroll_geometry.unwrap());
 }
 
 #[test]
@@ -3104,13 +3070,13 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollable_overflow().origin(),
-        Point::new(12.0, 12.0)
+        Point::new(5.0, 5.0)
     );
     assert_eq!(
         geometry.scrollable_overflow().size(),
-        Size::new(145.0, 80.0)
+        Size::new(152.0, 87.0)
     );
-    assert_eq!(output.content_size, Size::new(144.0, 83.0));
+    assert_eq!(output.content_size, Size::new(152.0, 87.0));
 }
 
 #[test]
@@ -6445,7 +6411,7 @@ fn block_layout_stacks_in_flow_children_vertically() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 41.0));
-    assert_eq!(output.content_size, Size::new(30.0, 29.0));
+    assert_eq!(output.content_size, Size::new(98.0, 39.0));
     assert_eq!(tree.layouts[&2].location, Point::new(18.0, 6.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].margin.left, 6.0);
@@ -6548,7 +6514,7 @@ fn block_container_affine_padding_uses_parent_basis() {
     )
     .unwrap();
 
-    assert_eq!(output.content_size.width, 76.0);
+    assert_eq!(output.content_size.width, 100.0);
 }
 
 #[test]
@@ -7061,7 +7027,7 @@ fn block_bfc_float_content_size_height_excludes_container_top_inset() {
         tree.final_layout(1).unwrap().location,
         Point::new(0.0, 15.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().content_size.height, 30.0);
+    assert_eq!(tree.final_layout(0).unwrap().content_size.height, 40.0);
 }
 
 #[test]
@@ -8961,7 +8927,7 @@ fn block_layout_stretches_auto_width_in_flow_children() {
     assert_eq!(tree.inputs[&2][0].known().width, Some(76.0));
     assert_eq!(tree.layouts[&2].size, Size::new(76.0, 10.0));
     assert_eq!(tree.layouts[&2].location, Point::new(8.0, 0.0));
-    assert_eq!(output.content_size, Size::new(88.0, 10.0));
+    assert_eq!(output.content_size, Size::new(100.0, 10.0));
     assert_eq!(output.size, Size::new(100.0, 10.0));
 }
 
@@ -9712,7 +9678,7 @@ fn block_layout_lays_out_absolute_children_without_flow_contribution_and_hides_d
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 12.0));
-    assert_eq!(output.content_size, Size::new(87.0, 41.0));
+    assert_eq!(output.content_size, Size::new(98.0, 41.0));
     assert_eq!(tree.layouts[&2].location, Point::new(1.0, 1.0));
     assert_eq!(tree.layouts[&3].location, Point::new(8.0, 10.0));
     assert_eq!(tree.layouts[&3].size, Size::new(20.0, 10.0));
@@ -10691,7 +10657,7 @@ fn block_inline_affine_leaf_uses_public_leaf_path() {
     .unwrap();
 
     assert_eq!(tree.layouts[&1].size.width, 60.0);
-    assert_eq!(output.content_size.width, 60.0);
+    assert_eq!(output.content_size.width, 100.0);
 }
 
 #[test]
@@ -11275,4 +11241,267 @@ fn fri05_c03_block_tiny_max_inline_size_below_raw_edges_keeps_child_space_zero()
     assert_eq!(geometry.physical_range().x().maximum(), 0.0);
     assert_eq!(geometry.physical_range().y().maximum(), 0.0);
     assert_eq!(geometry.scrollbar_size(), Size::ZERO);
+}
+
+fn fri05_c03_block_union_content_size<S: LayoutScalar>(output: NodeOutputOf<S>) -> Size<S> {
+    let geometry = output
+        .scroll_geometry
+        .expect("a performed block has canonical geometry");
+    let anchor = geometry.content_box().origin();
+    let overflow = geometry.scrollable_overflow();
+    let overflow_origin = overflow.origin();
+    let overflow_size = overflow.size();
+    let overflow_end = Point::new(
+        overflow_origin.x + overflow_size.width,
+        overflow_origin.y + overflow_size.height,
+    );
+
+    Size::new(
+        anchor.x.max(overflow_end.x) - anchor.x.min(overflow_origin.x),
+        anchor.y.max(overflow_end.y) - anchor.y.min(overflow_origin.y),
+    )
+}
+
+#[test]
+fn fri05_c03_block_contribution_current_sources_retain_targets_and_union_content_size() {
+    #[derive(Clone, Copy)]
+    enum ChildKind {
+        InFlow,
+        Float,
+        Inline,
+        Absolute,
+    }
+
+    let scroll_margin = ScrollMargin::try_new(1.0, 2.0, 3.0, 4.0).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+    for kind in [
+        ChildKind::InFlow,
+        ChildKind::Float,
+        ChildKind::Inline,
+        ChildKind::Absolute,
+    ] {
+        let (display, float, position, inset, expected_overflow) = match kind {
+            ChildKind::InFlow => (
+                Display::Block,
+                Float::None,
+                Position::Relative,
+                Edges::all(LengthAuto::AUTO),
+                Size::new(30.0, 15.0),
+            ),
+            ChildKind::Float => (
+                Display::Block,
+                Float::Left,
+                Position::Relative,
+                Edges::all(LengthAuto::AUTO),
+                Size::new(30.0, 15.0),
+            ),
+            ChildKind::Inline => (
+                Display::InlineBlock,
+                Float::None,
+                Position::Relative,
+                Edges::all(LengthAuto::AUTO),
+                Size::new(30.0, 15.0),
+            ),
+            ChildKind::Absolute => (
+                Display::Block,
+                Float::None,
+                Position::Absolute,
+                Edges {
+                    top: LengthAuto::px(12.0),
+                    left: LengthAuto::px(15.0),
+                    ..Edges::all(LengthAuto::AUTO)
+                },
+                Size::new(45.0, 27.0),
+            ),
+        };
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInput {
+                    display,
+                    float,
+                    position,
+                    inset,
+                    size: Size::new(PreferredSize::px(30.0), PreferredSize::px(15.0)),
+                    scroll_margin,
+                    scroll_snap_align: snap_align,
+                    scroll_snap_stop: ScrollSnapStop::Always,
+                    ..NodeInput::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap(),
+        )
+        .expect("each current block-owned contribution source lays out");
+
+        let root = public_final_output(&batch, 0);
+        let root_geometry = root
+            .scroll_geometry
+            .expect("root block geometry is present");
+        assert_eq!(root_geometry.scrollable_overflow().origin(), Point::ZERO);
+        assert_eq!(
+            root_geometry.scrollable_overflow().size(),
+            expected_overflow
+        );
+        assert_eq!(root.content_size, fri05_c03_block_union_content_size(root));
+
+        let child = public_final_output(&batch, 1);
+        let target = child
+            .scroll_geometry
+            .expect("every performed block-owned child retains geometry")
+            .target();
+        assert_eq!(target.border_box().size(), child.size);
+        assert_eq!(target.scroll_margin(), scroll_margin);
+        assert_eq!(target.snap_align(), snap_align);
+        assert_eq!(target.snap_stop(), ScrollSnapStop::Always);
+    }
+}
+
+#[test]
+fn fri05_c03_block_contribution_terminal_padding_extends_final_in_flow_ends() {
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
+                padding: Edges {
+                    right: Length::px(3.0),
+                    bottom: Length::px(4.0),
+                    ..Edges::all(Length::ZERO)
+                },
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
+                ..NodeInput::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap(),
+    )
+    .expect("terminal-padding block layout succeeds");
+
+    let root = public_final_output(&batch, 0);
+    let geometry = root
+        .scroll_geometry
+        .expect("root block geometry is present");
+    assert_eq!(geometry.scrollable_overflow().origin(), Point::ZERO);
+    assert_eq!(geometry.scrollable_overflow().size(), Size::new(33.0, 24.0));
+    assert_eq!(root.content_size, Size::new(33.0, 24.0));
+}
+
+#[test]
+fn fri05_c03_block_negative_margin_families_use_only_positive_outsets() {
+    for position in [Position::Relative, Position::Absolute] {
+        let inset = match position {
+            Position::Relative => Edges {
+                top: LengthAuto::px(25.0),
+                left: LengthAuto::px(105.0),
+                ..Edges::all(LengthAuto::AUTO)
+            },
+            Position::Absolute => Edges {
+                top: LengthAuto::px(30.0),
+                left: LengthAuto::px(90.0),
+                ..Edges::all(LengthAuto::AUTO)
+            },
+        };
+        let tree = PublicBlockTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInput {
+                    display: Display::Block,
+                    position,
+                    inset,
+                    size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
+                    margin: Edges {
+                        top: LengthAuto::px(-20.0),
+                        right: LengthAuto::px(7.0),
+                        bottom: LengthAuto::px(5.0),
+                        left: LengthAuto::px(-30.0),
+                    },
+                    ..NodeInput::default()
+                },
+            );
+        let result = std::panic::catch_unwind(|| {
+            compute_layout(
+                &tree,
+                0,
+                LayoutRootRequest::viewport(Size::splat(Available::definite(120.0))).unwrap(),
+            )
+        });
+        let batch = result
+            .expect("valid negative margins never panic")
+            .expect("valid negative margins never produce an invalid synthetic rectangle");
+
+        let root = public_final_output(&batch, 0);
+        let child = public_final_output(&batch, 1);
+        assert!(child.size.width > 0.0 && child.size.height > 0.0);
+        let padding_box = root
+            .scroll_geometry
+            .expect("root block geometry is present")
+            .padding_box();
+        let padding_origin = padding_box.origin();
+        let padding_size = padding_box.size();
+        let expected_origin = Point::new(
+            padding_origin
+                .x
+                .min(child.location.x - child.margin.left.max(0.0)),
+            padding_origin
+                .y
+                .min(child.location.y - child.margin.top.max(0.0)),
+        );
+        let expected_end = Point::new(
+            (padding_origin.x + padding_size.width)
+                .max(child.location.x + child.size.width + child.margin.right.max(0.0)),
+            (padding_origin.y + padding_size.height)
+                .max(child.location.y + child.size.height + child.margin.bottom.max(0.0)),
+        );
+        let expected = ScrollRect::try_new(
+            expected_origin,
+            Size::new(
+                expected_end.x - expected_origin.x,
+                expected_end.y - expected_origin.y,
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            root.scroll_geometry.unwrap().scrollable_overflow(),
+            expected
+        );
+        assert_eq!(root.content_size, fri05_c03_block_union_content_size(root));
+    }
 }
