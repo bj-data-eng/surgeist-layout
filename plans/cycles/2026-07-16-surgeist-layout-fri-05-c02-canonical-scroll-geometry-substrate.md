@@ -117,7 +117,7 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
 **Dependency:** The confirmed recurring parallel-only C02-T1 generator gate failure.
-**Intended commit:** `fix(generator): release acquisition gate explicitly`.
+**Intended commit:** `fix(generator): release generation locks explicitly`.
 ### `C02-T2` Canonical Boxes Clips And Saturated Gutters
 **Files:** `src/scroll.rs` and focused substrate tests.
 **Outcome:** Add private effective scrollbar-state and edge-reservation facts;
