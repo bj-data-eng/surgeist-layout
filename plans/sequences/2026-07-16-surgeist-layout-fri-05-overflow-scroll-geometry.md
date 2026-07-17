@@ -10,8 +10,8 @@ Owning repository: `surgeist-layout`
 
 This sequence implements the independently reviewed specification at
 `plans/specs/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`, SHA-256
-`b2bc5d8cf1f7b65dcef74adf34b5b63ab1f8b519fcbd1094ff4e335ab419286f`,
-committed as `5a51d0f67ef781eef724f86a9232bc3616c3773f`.
+`c175f668240ad1a556f008a09ba2ba3973db396b11166c133fe925efeaee9895`,
+committed as `dd158dc598d453a1b9055cb285534717c9a2d4f0`.
 
 The specification is authoritative for behavior, API, ownership, artifacts, non-goals, and
 acceptance. This sequence owns only durable ordering; only the next ready cycle receives a detailed just-in-time plan.
