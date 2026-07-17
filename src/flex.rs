@@ -213,6 +213,8 @@ where
         let mut contributions = flex_scroll_contributions(
             final_items,
             &absolute_contributions,
+            &resolved_items,
+            &lines,
             &layout_constants,
             scroll_box,
         )
@@ -264,7 +266,9 @@ struct Constants<S: LayoutScalar> {
     settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState,
     gap: Size<S>,
     align_items: AlignItems,
+    authored_align_content: Option<AlignContent>,
     align_content: AlignContent,
+    authored_justify_content: Option<AlignContent>,
     justify_content: AlignContent,
     wraps: bool,
     available: Size<AvailableOf<S>>,
@@ -396,7 +400,9 @@ impl<S: LayoutScalar> Constants<S> {
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
             gap,
             align_items: style.align_items.unwrap_or(AlignItems::Stretch),
+            authored_align_content: style.align_content,
             align_content: style.align_content.unwrap_or(AlignContent::Stretch),
+            authored_justify_content: style.justify_content,
             justify_content: style.justify_content.unwrap_or(AlignContent::FlexStart),
             wraps: matches!(
                 style.flex_wrap,
@@ -522,6 +528,24 @@ impl FlexAxes {
     #[must_use]
     pub(crate) const fn flow_direction(self) -> Direction {
         self.flow_axes.direction()
+    }
+
+    #[must_use]
+    pub(crate) const fn scroll_origin_axes(self) -> ScrollOriginAxes {
+        let main = if self.main_reversed {
+            ScrollOriginProgression::FlowStartward
+        } else {
+            ScrollOriginProgression::FlowEndward
+        };
+        let cross = if self.cross_reversed {
+            ScrollOriginProgression::FlowStartward
+        } else {
+            ScrollOriginProgression::FlowEndward
+        };
+        match self.main_logical_axis {
+            LogicalAxis::Inline => ScrollOriginAxes::new(main, cross),
+            LogicalAxis::Block => ScrollOriginAxes::new(cross, main),
+        }
     }
 
     #[must_use]
@@ -2784,6 +2808,8 @@ where
 fn flex_scroll_contributions<Node, S: LayoutScalar>(
     final_items: &[FinalFlexItem<Node, S>],
     absolute_contributions: &[FlexChildContribution<S>],
+    resolved_items: &[ResolvedFlexItem<Node, S>],
+    lines: &[FlexLine<S>],
     constants: &Constants<S>,
     scroll_box: CanonicalScrollBoxOf<S>,
 ) -> Result<ScrollContributionAccumulatorOf<S>, crate::scroll::ScrollContributionErrorOf<S>> {
@@ -2839,8 +2865,140 @@ fn flex_scroll_contributions<Node, S: LayoutScalar>(
             contributions.record_final_in_flow_end(constants.flow_axes, axis, coordinate)?;
         }
     }
+    include_flex_alignment_subjects(
+        &mut contributions,
+        final_items,
+        resolved_items,
+        lines,
+        constants,
+    )?;
     contributions.include_terminal_padding(constants.padding)?;
     Ok(contributions)
+}
+
+fn include_flex_alignment_subjects<Node, S: LayoutScalar>(
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
+    final_items: &[FinalFlexItem<Node, S>],
+    resolved_items: &[ResolvedFlexItem<Node, S>],
+    lines: &[FlexLine<S>],
+    constants: &Constants<S>,
+) -> Result<(), crate::scroll::ScrollContributionErrorOf<S>> {
+    if let Some(authored) = constants.authored_justify_content
+        && lines.iter().any(|line| {
+            let free_space = line_free_space(&resolved_items[line.start..line.end], constants);
+            !safe_alignment_lands_at_origin_start(authored, free_space)
+        })
+        && let Some((minimum, maximum)) = final_item_subject_interval(final_items, constants)
+    {
+        set_alignment_subject_interval(
+            contributions,
+            constants.axes.main_physical_axis(),
+            minimum,
+            maximum,
+        )?;
+    }
+
+    if let Some(authored) = constants.authored_align_content
+        && constants.wraps
+        && let Some(free_space) = line_cross_free_space(lines, constants)
+        && !safe_alignment_lands_at_origin_start(authored, free_space)
+        && let Some((minimum, maximum)) = line_subject_interval(lines, constants)
+    {
+        set_alignment_subject_interval(
+            contributions,
+            constants.axes.cross_physical_axis(),
+            minimum,
+            maximum,
+        )?;
+    }
+    Ok(())
+}
+
+fn safe_alignment_lands_at_origin_start<S: LayoutScalar>(
+    authored: AlignContent,
+    free_space: S,
+) -> bool {
+    free_space < S::ZERO
+        && matches!(
+            authored,
+            AlignContent::SafeEnd | AlignContent::SafeFlexEnd | AlignContent::SafeCenter
+        )
+}
+
+fn final_item_subject_interval<Node, S: LayoutScalar>(
+    final_items: &[FinalFlexItem<Node, S>],
+    constants: &Constants<S>,
+) -> Option<(S, S)> {
+    final_items.iter().fold(None, |bounds, item| {
+        let border_box = item
+            .output
+            .scroll_geometry
+            .expect("final flex items retain canonical geometry")
+            .border_box();
+        let origin = match constants.axes.main_physical_axis() {
+            PhysicalAxis::Horizontal => item.location.x + border_box.origin().x,
+            PhysicalAxis::Vertical => item.location.y + border_box.origin().y,
+        };
+        let end = origin + constants.axes.main_size(border_box.size());
+        Some(bounds.map_or((origin, end), |(minimum, maximum): (S, S)| {
+            (minimum.min(origin), maximum.max(end))
+        }))
+    })
+}
+
+fn line_cross_free_space<S: LayoutScalar>(
+    lines: &[FlexLine<S>],
+    constants: &Constants<S>,
+) -> Option<S> {
+    let container_cross_size = constants.axes.cross_size(constants.node_inner_size)?;
+    let cross_gap = constants.axes.cross_size(constants.gap);
+    let used_cross_size = lines
+        .iter()
+        .fold(S::ZERO, |sum, line| sum + line.cross_size)
+        + cross_gap * S::from_usize(lines.len().saturating_sub(1));
+    Some(container_cross_size - used_cross_size)
+}
+
+fn line_subject_interval<S: LayoutScalar>(
+    lines: &[FlexLine<S>],
+    constants: &Constants<S>,
+) -> Option<(S, S)> {
+    let container = constants
+        .node_outer_size
+        .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO));
+    lines.iter().fold(None, |bounds, line| {
+        let origin = constants.axes.cross_position_from_start(
+            container,
+            constants.axes.cross_start_edge(constants.content_box_inset),
+            line.offset_cross,
+            line.cross_size,
+            S::ZERO,
+        );
+        let end = origin + line.cross_size;
+        Some(bounds.map_or((origin, end), |(minimum, maximum): (S, S)| {
+            (minimum.min(origin), maximum.max(end))
+        }))
+    })
+}
+
+fn set_alignment_subject_interval<S: LayoutScalar>(
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
+    axis: PhysicalAxis,
+    minimum: S,
+    maximum: S,
+) -> Result<(), crate::scroll::ScrollContributionErrorOf<S>> {
+    let subject = match axis {
+        PhysicalAxis::Horizontal => super::ScrollRectOf::try_new(
+            Point::new(minimum, S::ZERO),
+            Size::new(maximum - minimum, S::ZERO),
+        ),
+        PhysicalAxis::Vertical => super::ScrollRectOf::try_new(
+            Point::new(S::ZERO, minimum),
+            Size::new(S::ZERO, maximum - minimum),
+        ),
+    }?;
+    contributions.set_active_alignment_subject(axis, subject);
+    Ok(())
 }
 
 fn child_flow_end<S: LayoutScalar>(child: FlexChildContribution<S>, side: PhysicalSide) -> S {
@@ -2898,10 +3056,7 @@ where
         ),
         scroll_padding: flex_scroll_padding(style.scroll_padding),
         contributions,
-        origin_axes: ScrollOriginAxes::new(
-            ScrollOriginProgression::FlowEndward,
-            ScrollOriginProgression::FlowEndward,
-        ),
+        origin_axes: constants.axes.scroll_origin_axes(),
         scroll_snap_type: style.scroll_snap_type,
         target_border_box: scroll_box.border_box(),
         target_scroll_margin: style.scroll_margin,
@@ -4306,7 +4461,9 @@ mod final_baseline_selection_tests {
             settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
             gap: Size::ZERO,
             align_items: AlignItems::Stretch,
+            authored_align_content: None,
             align_content: AlignContent::Stretch,
+            authored_justify_content: None,
             justify_content: AlignContent::FlexStart,
             wraps: false,
             available: Size::splat(AvailableOf::MAX_CONTENT),

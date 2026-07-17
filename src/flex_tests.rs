@@ -10635,3 +10635,361 @@ fn fri05_c04_flex_absolute_margin_and_visible_descendant_contribute_once_without
     assert_eq!(output.content_size, geometry.scrollable_overflow().size());
     assert_ne!(geometry.scrollable_overflow().size().width, own_max_x + 4.0);
 }
+
+fn fri05_c04_flex_origin_output(
+    flow_axes: FlowAxes,
+    direction: FlexDirection,
+    wrap: FlexWrap,
+) -> (ScrollGeometry, ScrollGeometry) {
+    let axes = FlexAxes::new(flow_axes, direction, wrap);
+    let size = axes.size_from_main_cross(100.0, 80.0);
+    let child_size = axes.size_from_main_cross(140.0, 60.0);
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2])
+        .children(1, [])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                overflow: fri05_c04_flex_overflow_at_flow_axes(
+                    flow_axes,
+                    Overflow::Scroll,
+                    Overflow::Scroll,
+                ),
+                size: size.map(PreferredSize::px),
+                flex_direction: direction,
+                flex_wrap: wrap,
+                align_content: Some(AlignContent::FlexStart),
+                align_items: Some(AlignItems::FlexStart),
+                justify_content: Some(AlignContent::FlexStart),
+                ..NodeInput::default()
+            },
+        );
+    for child in [1, 2] {
+        tree = tree.style(
+            child,
+            NodeInput {
+                size: child_size.map(PreferredSize::px),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                ..NodeInput::default()
+            },
+        );
+    }
+
+    let output = compute_flex(&mut tree, 0, fri05_c04_flex_input(size, flow_axes))
+        .expect("origin-aware flex layout succeeds");
+    let unrounded = output
+        .scroll_geometry
+        .expect("performed flex layout has geometry");
+    tree.set_unrounded(
+        0,
+        NodeOutput {
+            size: output.size,
+            content_size: output.content_size,
+            ..NodeOutput::new()
+        }
+        .with_scroll_geometry(Some(unrounded)),
+    );
+    crate::round_layout(&mut tree, 0).expect("canonical flex geometry rounds");
+    let rounded = tree
+        .final_layout(0)
+        .and_then(|output| output.scroll_geometry)
+        .expect("rounded flex geometry is retained");
+    (unrounded, rounded)
+}
+
+fn fri05_c04_assert_flow_range(
+    geometry: ScrollGeometry,
+    flow_axes: FlowAxes,
+    inline: (f32, f32),
+    block: (f32, f32),
+    context: &str,
+) {
+    let expected = FlowRelativeScrollRange::try_new(inline.0, inline.1, block.0, block.1)
+        .expect("expected flow range is ordered");
+    assert_eq!(
+        geometry.physical_range(),
+        flow_axes.physical_scroll_range(expected),
+        "{context}"
+    );
+    assert_eq!(
+        flow_axes.flow_relative_scroll_range(geometry.physical_range()),
+        expected,
+        "{context}"
+    );
+}
+
+#[test]
+fn fri05_c04_flex_origin_main_cross_progressions_project_all_flows_before_and_after_rounding() {
+    for flow_axes in fri05_c04_flex_all_flow_axes() {
+        for direction in [
+            FlexDirection::Row,
+            FlexDirection::RowReverse,
+            FlexDirection::Column,
+            FlexDirection::ColumnReverse,
+        ] {
+            for wrap in [FlexWrap::Wrap, FlexWrap::WrapReverse] {
+                let main = if direction.is_reverse() {
+                    (-40.0, 0.0)
+                } else {
+                    (0.0, 40.0)
+                };
+                let cross = if wrap == FlexWrap::WrapReverse {
+                    (-40.0, 0.0)
+                } else {
+                    (0.0, 40.0)
+                };
+                let (inline, block) = if direction.is_row() {
+                    (main, cross)
+                } else {
+                    (cross, main)
+                };
+                let context = format!("{flow_axes:?} {direction:?} {wrap:?}");
+                let (unrounded, rounded) = fri05_c04_flex_origin_output(flow_axes, direction, wrap);
+                fri05_c04_assert_flow_range(unrounded, flow_axes, inline, block, &context);
+                fri05_c04_assert_flow_range(rounded, flow_axes, inline, block, &context);
+            }
+        }
+    }
+}
+
+fn fri05_c04_flex_alignment_output(
+    justify_content: Option<AlignContent>,
+    align_content: Option<AlignContent>,
+    wrap: FlexWrap,
+    child_sizes: &[Size<f32>],
+) -> (ComputeOutput, crate::test_support::layout_tree::OracleTree) {
+    let size = Size::new(100.0, 80.0);
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let children = (1..=u32::try_from(child_sizes.len()).unwrap()).collect::<Vec<_>>();
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, children.iter().copied())
+        .style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                size: size.map(PreferredSize::px),
+                flex_wrap: wrap,
+                align_content,
+                align_items: Some(AlignItems::FlexStart),
+                justify_content,
+                ..NodeInput::default()
+            },
+        );
+    for (child, child_size) in children.into_iter().zip(child_sizes.iter().copied()) {
+        tree = tree.children(child, []).style(
+            child,
+            NodeInput {
+                size: child_size.map(PreferredSize::px),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                ..NodeInput::default()
+            },
+        );
+    }
+    let output = compute_flex(&mut tree, 0, fri05_c04_flex_input(size, flow_axes))
+        .expect("alignment-aware flex layout succeeds");
+    (output, tree)
+}
+
+fn fri05_c04_assert_physical_range(output: ComputeOutput, expected: (f32, f32, f32, f32)) {
+    let range = output.scroll_geometry.unwrap().physical_range();
+    assert_eq!(
+        (
+            range.x().minimum(),
+            range.x().maximum(),
+            range.y().minimum(),
+            range.y().maximum(),
+        ),
+        expected
+    );
+}
+
+#[test]
+fn fri05_c04_flex_alignment_justify_subjects_cover_start_end_center_space_none_and_safe_fallback() {
+    for (alignment, expected) in [
+        (Some(AlignContent::Start), (0.0, 40.0, 0.0, 0.0)),
+        (Some(AlignContent::End), (-40.0, 0.0, 0.0, 0.0)),
+        (Some(AlignContent::Center), (-20.0, 20.0, 0.0, 0.0)),
+        (None, (0.0, 40.0, 0.0, 0.0)),
+        (Some(AlignContent::SafeEnd), (0.0, 40.0, 0.0, 0.0)),
+    ] {
+        let (output, _) = fri05_c04_flex_alignment_output(
+            alignment,
+            None,
+            FlexWrap::NoWrap,
+            &[Size::new(140.0, 20.0)],
+        );
+        fri05_c04_assert_physical_range(output, expected);
+    }
+
+    let (distributed, tree) = fri05_c04_flex_alignment_output(
+        Some(AlignContent::SpaceBetween),
+        None,
+        FlexWrap::NoWrap,
+        &[Size::new(20.0, 20.0), Size::new(20.0, 20.0)],
+    );
+    fri05_c04_assert_physical_range(distributed, (0.0, 0.0, 0.0, 0.0));
+    assert_eq!(tree.layout(1).unwrap().location.x, 0.0);
+    assert_eq!(tree.layout(2).unwrap().location.x, 80.0);
+}
+
+#[test]
+fn fri05_c04_flex_alignment_align_content_records_only_applicable_multiline_line_subject() {
+    let (inapplicable, _) = fri05_c04_flex_alignment_output(
+        None,
+        Some(AlignContent::End),
+        FlexWrap::NoWrap,
+        &[Size::new(20.0, 120.0)],
+    );
+    fri05_c04_assert_physical_range(inapplicable, (0.0, 0.0, 0.0, 40.0));
+
+    let multiline_sizes = [Size::new(60.0, 60.0), Size::new(60.0, 60.0)];
+    let (applicable, _) = fri05_c04_flex_alignment_output(
+        None,
+        Some(AlignContent::End),
+        FlexWrap::Wrap,
+        &multiline_sizes,
+    );
+    fri05_c04_assert_physical_range(applicable, (0.0, 0.0, -40.0, 0.0));
+
+    let (safe, _) = fri05_c04_flex_alignment_output(
+        None,
+        Some(AlignContent::SafeEnd),
+        FlexWrap::Wrap,
+        &multiline_sizes,
+    );
+    fri05_c04_assert_physical_range(safe, (0.0, 0.0, 0.0, 40.0));
+}
+
+#[test]
+fn fri05_c04_flex_alignment_main_subject_projects_all_flows_and_orientations() {
+    for flow_axes in fri05_c04_flex_all_flow_axes() {
+        for direction in [
+            FlexDirection::Row,
+            FlexDirection::RowReverse,
+            FlexDirection::Column,
+            FlexDirection::ColumnReverse,
+        ] {
+            let axes = FlexAxes::new(flow_axes, direction, FlexWrap::NoWrap);
+            let size = axes.size_from_main_cross(100.0, 80.0);
+            let child_size = axes.size_from_main_cross(140.0, 20.0);
+            let mut tree = crate::test_support::layout_tree::OracleTree::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(
+                    0,
+                    NodeInput {
+                        display: Display::Flex,
+                        writing_mode: flow_axes.writing_mode(),
+                        direction: flow_axes.direction(),
+                        overflow: fri05_c04_flex_overflow_at_flow_axes(
+                            flow_axes,
+                            Overflow::Scroll,
+                            Overflow::Scroll,
+                        ),
+                        size: size.map(PreferredSize::px),
+                        flex_direction: direction,
+                        align_items: Some(AlignItems::FlexStart),
+                        justify_content: Some(AlignContent::Center),
+                        ..NodeInput::default()
+                    },
+                )
+                .style(
+                    1,
+                    NodeInput {
+                        size: child_size.map(PreferredSize::px),
+                        min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                        flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                        ..NodeInput::default()
+                    },
+                );
+            let output = compute_flex(&mut tree, 0, fri05_c04_flex_input(size, flow_axes))
+                .expect("mapped alignment flex layout succeeds");
+            let main = (-20.0, 20.0);
+            let (inline, block) = if direction.is_row() {
+                (main, (0.0, 0.0))
+            } else {
+                ((0.0, 0.0), main)
+            };
+            fri05_c04_assert_flow_range(
+                output.scroll_geometry.unwrap(),
+                flow_axes,
+                inline,
+                block,
+                &format!("{flow_axes:?} {direction:?}"),
+            );
+        }
+    }
+}
+
+#[test]
+fn fri05_c04_flex_alignment_subject_bounds_farther_absolute_and_nested_start_overflow() {
+    let size = Size::new(100.0, 80.0);
+    let absolute = |left| NodeInput {
+        display: Display::Block,
+        position: Position::Absolute,
+        size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
+        inset: Edges::new(
+            LengthAuto::px(0.0),
+            LengthAuto::AUTO,
+            LengthAuto::AUTO,
+            LengthAuto::px(left),
+        ),
+        ..NodeInput::default()
+    };
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 3, 4])
+        .children(1, [2])
+        .children(2, [])
+        .children(3, [])
+        .children(4, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                size: size.map(PreferredSize::px),
+                align_items: Some(AlignItems::FlexStart),
+                justify_content: Some(AlignContent::Center),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                overflow: ComputedOverflow::VISIBLE,
+                size: Size::new(PreferredSize::px(140.0), PreferredSize::px(20.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                ..NodeInput::default()
+            },
+        )
+        .style(2, absolute(-100.0))
+        .style(3, absolute(-100.0))
+        .style(4, absolute(160.0));
+
+    let output = compute_flex(
+        &mut tree,
+        0,
+        fri05_c04_flex_input(
+            size,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ),
+    )
+    .expect("bounded alignment overflow layout succeeds");
+    let geometry = output.scroll_geometry.unwrap();
+    let overflow = geometry.scrollable_overflow();
+    assert!(
+        overflow.origin().x < -100.0,
+        "nested start overflow is retained"
+    );
+    assert_eq!(overflow.origin().x + overflow.size().width, 170.0);
+    fri05_c04_assert_physical_range(output, (-20.0, 70.0, 0.0, 0.0));
+}
