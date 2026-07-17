@@ -1105,9 +1105,12 @@ auto-gutter pass. A stable pass emits geometry with its required nested target;
 rounding rebuilds both together. Their scroll-origin axes are the ordinary
 `FlowAxes` progression and they have no content-distribution start adjustment.
 The public direct `compute_leaf` callback is `FnMut`, not `FnOnce`: it is invoked
-once for each geometry-changing auto-gutter pass and no more than three times.
-When no non-zero conditional reservation changes available geometry, it is
-invoked exactly once. Tree-backed measurement follows the same input sequence.
+once for each geometry-changing auto-gutter pass that requires measurement and
+no more than three times. When measurement is required and no non-zero
+conditional reservation changes available geometry, it is invoked exactly once.
+The existing fully known `ComputeSize` fast path remains measurement-free and
+invokes it zero times. Tree-backed measurement follows the same applicable input
+sequence.
 
 ### Block
 
@@ -1183,7 +1186,7 @@ The initiative requires these named evidence families:
 | Canonical geometry | Box nesting, finite ends, partial-axis clips, clip-margin reference boxes, gutter placement, proportional small-box saturation, and constructor inaccessibility. |
 | Flow direction and origin | Range and gutter placement across all ten `WritingMode`/`Direction` pairs before and after rounding, including every reversed physical axis plus flex row/column reverse and wrap-reverse origin mappings. |
 | Alignment-origin range | Existing flex/grid start, end, center, safe fallback, reverse, and distributed content cases prove zero initial anchor, both-sided bounds, start-alignment reach, terminal padding, and exclusion of farther start-side out-of-flow overflow in all flow mappings. |
-| Auto coupling | No-overflow, x-only, y-only, x-induces-y, y-induces-x, forced scroll, hidden stable, stable both-edges, and zero-thickness overlay cases; direct and tree-backed leaf evidence proves the exact effective measurement inputs and the one-to-three call bound. |
+| Auto coupling | No-overflow, x-only, y-only, x-induces-y, y-induces-x, forced scroll, hidden stable, stable both-edges, and zero-thickness overlay cases; direct and tree-backed leaf evidence proves the exact effective measurement inputs, the one-to-three measurement-required call bound, and the fully known `ComputeSize` zero-call fast path. |
 | Block blockers | The named negative-margin and smaller-than-scrollbar browser families complete without panic and match geometry. |
 | Nested contribution | Under block, flex, grid, and lanes, used `Visible` propagates only its physical-axis descendant interval; `Clip`, `Hidden`, `Scroll`, and `Auto` trap nested overflow even when their local clip or full scrollable-overflow rectangle is non-empty. Partial-axis cases prove the two decisions are independent, and current absolute children are included once. |
 | Zero-area contribution | `0xN` and `Nx0` child boxes prove that a real used-visible propagatable descendant interval survives on the non-zero axis in block, flex, grid, and grid-lanes, while the same nested geometry under every trapped value contributes zero to the parent. |
