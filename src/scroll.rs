@@ -1241,9 +1241,16 @@ impl<S: LayoutScalar> From<ScrollRectErrorOf<S>> for ScrollContributionErrorOf<S
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ContainerRangeBasis {
+    PaddingBox,
+    Scrollport,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ScrollContributionAccumulatorOf<S: LayoutScalar> {
     container_seed: PhysicalContributionBoundsOf<S>,
+    container_range_basis: ContainerRangeBasis,
     propagatable_descendants: OptionalPhysicalContributionIntervalsOf<S>,
     final_in_flow_ends: PhysicalFinalInFlowEndsOf<S>,
     terminal_padding_overflow: OptionalPhysicalContributionIntervalsOf<S>,
@@ -1254,6 +1261,7 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
     pub(crate) fn new(padding_box: ScrollRectOf<S>) -> Self {
         Self {
             container_seed: PhysicalContributionBoundsOf::from_rect(padding_box),
+            container_range_basis: ContainerRangeBasis::PaddingBox,
             propagatable_descendants: OptionalPhysicalContributionIntervalsOf::NONE,
             final_in_flow_ends: PhysicalFinalInFlowEndsOf::NONE,
             terminal_padding_overflow: OptionalPhysicalContributionIntervalsOf::NONE,
@@ -1390,6 +1398,10 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
         self.container_seed = PhysicalContributionBoundsOf::from_rect(container_seed);
     }
 
+    pub(crate) fn exclude_reserved_gutter_from_range(&mut self) {
+        self.container_range_basis = ContainerRangeBasis::Scrollport;
+    }
+
     pub(crate) fn record_final_in_flow_end(
         &mut self,
         flow_axes: FlowAxes,
@@ -1469,16 +1481,31 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
 
     #[must_use]
     fn complete_overflow(self) -> PhysicalContributionBoundsOf<S> {
-        let mut complete_overflow = self.container_seed;
+        self.overflow_from_container_seed(self.container_seed)
+    }
+
+    #[must_use]
+    fn range_overflow(self, scrollport: ScrollRectOf<S>) -> PhysicalContributionBoundsOf<S> {
+        let container_seed = match self.container_range_basis {
+            ContainerRangeBasis::PaddingBox => self.container_seed,
+            ContainerRangeBasis::Scrollport => PhysicalContributionBoundsOf::from_rect(scrollport),
+        };
+        self.overflow_from_container_seed(container_seed)
+    }
+
+    fn overflow_from_container_seed(
+        self,
+        mut overflow: PhysicalContributionBoundsOf<S>,
+    ) -> PhysicalContributionBoundsOf<S> {
         for axis in [PhysicalAxis::Horizontal, PhysicalAxis::Vertical] {
             if let Some(interval) = self.propagatable_descendants.at(axis) {
-                complete_overflow.include(axis, interval);
+                overflow.include(axis, interval);
             }
             if let Some(interval) = self.terminal_padding_overflow.at(axis) {
-                complete_overflow.include(axis, interval);
+                overflow.include(axis, interval);
             }
         }
-        complete_overflow
+        overflow
     }
 
     #[must_use]
@@ -1590,13 +1617,14 @@ fn derive_origin_aware_scroll_range<S: LayoutScalar>(
     scrollport: ScrollRectOf<S>,
     contributions: &ScrollContributionAccumulatorOf<S>,
 ) -> Result<PhysicalScrollRangeOf<S>, ScrollCoordinateErrorOf<S>> {
+    let range_overflow = contributions.range_overflow(scrollport);
     let inline = derive_origin_aware_axis_range(
         flow_axes,
         origin_axes,
         LogicalAxis::Inline,
         used_overflow,
         scrollport,
-        contributions.complete_overflow(),
+        range_overflow,
         contributions.active_alignment_subject_intervals(),
     );
     let block = derive_origin_aware_axis_range(
@@ -1605,7 +1633,7 @@ fn derive_origin_aware_scroll_range<S: LayoutScalar>(
         LogicalAxis::Block,
         used_overflow,
         scrollport,
-        contributions.complete_overflow(),
+        range_overflow,
         contributions.active_alignment_subject_intervals(),
     );
     let flow_relative = FlowRelativeScrollRangeOf::try_new(inline.0, inline.1, block.0, block.1)?;
@@ -2848,6 +2876,7 @@ fn round_canonical_contributions<S: LayoutScalar>(
 
     Ok(ScrollContributionAccumulatorOf {
         container_seed,
+        container_range_basis: ContainerRangeBasis::PaddingBox,
         propagatable_descendants,
         final_in_flow_ends,
         terminal_padding_overflow,
@@ -4176,6 +4205,32 @@ mod fri05_c02_contribution_range_tests {
         assert_scalar_padding_and_direct_line::<f64>();
     }
 
+    fn assert_scalar_flex_range_basis<S: LayoutScalar>() {
+        let scrollport = rect(0.0, 0.0, 93.0, 80.0);
+        let mut accumulator =
+            ScrollContributionAccumulatorOf::<S>::new(rect(0.0, 0.0, 100.0, 80.0));
+        accumulator.exclude_reserved_gutter_from_range();
+
+        assert_bounds(accumulator.complete_overflow(), 0.0, 100.0, 0.0, 80.0);
+        assert_bounds(accumulator.range_overflow(scrollport), 0.0, 93.0, 0.0, 80.0);
+
+        accumulator.include_direct_line(rect(-5.0, 0.0, 115.0, 80.0));
+        assert_bounds(accumulator.complete_overflow(), -5.0, 110.0, 0.0, 80.0);
+        assert_bounds(
+            accumulator.range_overflow(scrollport),
+            -5.0,
+            110.0,
+            0.0,
+            80.0,
+        );
+    }
+
+    #[test]
+    fn fri05_c04_flex_geometry_range_basis_retains_padding_seed_and_descendant_overflow() {
+        assert_scalar_flex_range_basis::<f32>();
+        assert_scalar_flex_range_basis::<f64>();
+    }
+
     fn assert_scalar_border_margin_and_absolute<S: LayoutScalar>() {
         let mut accumulator = ScrollContributionAccumulatorOf::<S>::new(rect(0.0, 0.0, 10.0, 10.0));
         let none = empty_descendants::<S>();
@@ -5263,6 +5318,7 @@ mod fri05_c02_factory_rounding_tests {
                     cumulative_origin,
                 ),
             },
+            container_range_basis: ContainerRangeBasis::PaddingBox,
             propagatable_descendants: expected_round_optional_intervals(
                 contributions.propagatable_descendants,
                 cumulative_origin,

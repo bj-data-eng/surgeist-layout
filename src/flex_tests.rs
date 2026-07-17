@@ -9907,6 +9907,7 @@ fn fri05_c04_flex_geometry_forced_stable_both_zero_and_tiny_saturate_all_flows()
                     "unexpected {side:?} gutter for {case}/{flow_axes:?}: {geometry:#?}"
                 );
             }
+            fri05_c04_assert_zero_range(geometry, &format!("{case} {flow_axes:?}"));
         }
 
         let expected_one_edge = match flow_axes.inline_axis() {
@@ -9969,6 +9970,7 @@ fn fri05_c04_flex_geometry_forced_stable_both_zero_and_tiny_saturate_all_flows()
         );
         assert!(fri05_c04_flex_gutter_at(tiny.gutters(), flow_axes.inline_start()).is_some());
         assert!(fri05_c04_flex_gutter_at(tiny.gutters(), flow_axes.inline_end()).is_some());
+        fri05_c04_assert_zero_range(tiny, &format!("tiny {flow_axes:?}"));
 
         let zero_size = Size::ZERO;
         let zero = fri05_c04_empty_flex_output(

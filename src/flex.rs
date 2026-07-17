@@ -2702,7 +2702,8 @@ where
         settled_auto_scrollbars: constants.settled_auto_scrollbars,
     })
     .map_err(|error| flex_own_geometry_error(node, run_mode, error))?;
-    let contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
+    let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
+    contributions.exclude_reserved_gutter_from_range();
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
         flow_axes: constants.flow_axes,
         computed_overflow: style.overflow,
