@@ -1,5 +1,5 @@
 # FRI-05-C02 Canonical Scroll Geometry Substrate
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-05-C02`
 Owning repository: `surgeist-layout`
 Cycle base: `a6a6011aedb952572b8c0eac6f2a67b94c219f1a`
