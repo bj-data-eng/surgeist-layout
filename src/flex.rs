@@ -2899,7 +2899,7 @@ fn include_flex_alignment_subjects<Node, S: LayoutScalar>(
     }
 
     if let Some(authored) = constants.authored_align_content
-        && constants.wraps
+        && lines.len() > 1
         && let Some(free_space) = line_cross_free_space(lines, constants)
         && !safe_alignment_lands_at_origin_start(authored, free_space)
         && let Some((minimum, maximum)) = line_subject_interval(lines, constants)
@@ -2935,11 +2935,22 @@ fn final_item_subject_interval<Node, S: LayoutScalar>(
             .scroll_geometry
             .expect("final flex items retain canonical geometry")
             .border_box();
-        let origin = match constants.axes.main_physical_axis() {
-            PhysicalAxis::Horizontal => item.location.x + border_box.origin().x,
-            PhysicalAxis::Vertical => item.location.y + border_box.origin().y,
+        let (origin, end) = match constants.axes.main_physical_axis() {
+            PhysicalAxis::Horizontal => {
+                let origin = item.location.x + border_box.origin().x;
+                (
+                    origin - item.margin.left.max(S::ZERO),
+                    origin + border_box.size().width + item.margin.right.max(S::ZERO),
+                )
+            }
+            PhysicalAxis::Vertical => {
+                let origin = item.location.y + border_box.origin().y;
+                (
+                    origin - item.margin.top.max(S::ZERO),
+                    origin + border_box.size().height + item.margin.bottom.max(S::ZERO),
+                )
+            }
         };
-        let end = origin + constants.axes.main_size(border_box.size());
         Some(bounds.map_or((origin, end), |(minimum, maximum): (S, S)| {
             (minimum.min(origin), maximum.max(end))
         }))

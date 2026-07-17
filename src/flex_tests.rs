@@ -10840,6 +10840,97 @@ fn fri05_c04_flex_alignment_justify_subjects_cover_start_end_center_space_none_a
 }
 
 #[test]
+fn fri05_c04_flex_alignment_main_subject_includes_positive_margins_and_gaps_once() {
+    let size = Size::new(100.0, 80.0);
+    let layout = |justify_content, gap, children: &[(f32, Edges<LengthAuto>)]| {
+        let child_ids = (1..=u32::try_from(children.len()).unwrap()).collect::<Vec<_>>();
+        let mut tree = crate::test_support::layout_tree::OracleTree::new()
+            .children(0, child_ids.iter().copied())
+            .style(
+                0,
+                NodeInput {
+                    display: Display::Flex,
+                    overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    size: size.map(PreferredSize::px),
+                    gap: Size::new(Length::px(gap), Length::ZERO),
+                    align_items: Some(AlignItems::FlexStart),
+                    justify_content: Some(justify_content),
+                    ..NodeInput::default()
+                },
+            );
+        for (child, (width, margin)) in child_ids.into_iter().zip(children.iter().copied()) {
+            tree = tree.children(child, []).style(
+                child,
+                NodeInput {
+                    size: Size::new(PreferredSize::px(width), PreferredSize::px(20.0)),
+                    min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                    flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                    margin,
+                    ..NodeInput::default()
+                },
+            );
+        }
+        compute_flex(
+            &mut tree,
+            0,
+            fri05_c04_flex_input(
+                size,
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ),
+        )
+        .expect("margin-aware alignment layout succeeds")
+    };
+
+    let start_margin = layout(
+        AlignContent::End,
+        0.0,
+        &[(
+            120.0,
+            Edges {
+                left: LengthAuto::px(20.0),
+                ..Edges::all(LengthAuto::ZERO)
+            },
+        )],
+    );
+    fri05_c04_assert_physical_range(start_margin, (-40.0, 0.0, 0.0, 0.0));
+
+    let end_margin = layout(
+        AlignContent::Start,
+        0.0,
+        &[(
+            120.0,
+            Edges {
+                right: LengthAuto::px(20.0),
+                ..Edges::all(LengthAuto::ZERO)
+            },
+        )],
+    );
+    fri05_c04_assert_physical_range(end_margin, (0.0, 40.0, 0.0, 0.0));
+
+    let gap = layout(
+        AlignContent::End,
+        20.0,
+        &[
+            (
+                40.0,
+                Edges {
+                    left: LengthAuto::px(10.0),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+            ),
+            (
+                40.0,
+                Edges {
+                    right: LengthAuto::px(10.0),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+            ),
+        ],
+    );
+    fri05_c04_assert_physical_range(gap, (-20.0, 0.0, 0.0, 0.0));
+}
+
+#[test]
 fn fri05_c04_flex_alignment_align_content_records_only_applicable_multiline_line_subject() {
     let (inapplicable, _) = fri05_c04_flex_alignment_output(
         None,
@@ -10848,6 +10939,26 @@ fn fri05_c04_flex_alignment_align_content_records_only_applicable_multiline_line
         &[Size::new(20.0, 120.0)],
     );
     fri05_c04_assert_physical_range(inapplicable, (0.0, 0.0, 0.0, 40.0));
+
+    let (wrapped_single_line, _) = fri05_c04_flex_alignment_output(
+        None,
+        Some(AlignContent::End),
+        FlexWrap::Wrap,
+        &[Size::new(20.0, 20.0), Size::new(20.0, 20.0)],
+    );
+    fri05_c04_assert_physical_range(wrapped_single_line, (0.0, 0.0, 0.0, 0.0));
+
+    let (empty_wrapped, _) =
+        fri05_c04_flex_alignment_output(None, Some(AlignContent::End), FlexWrap::Wrap, &[]);
+    fri05_c04_assert_physical_range(empty_wrapped, (0.0, 0.0, 0.0, 0.0));
+
+    let (oversized_single_line, _) = fri05_c04_flex_alignment_output(
+        None,
+        Some(AlignContent::End),
+        FlexWrap::Wrap,
+        &[Size::new(20.0, 120.0)],
+    );
+    fri05_c04_assert_physical_range(oversized_single_line, (0.0, 0.0, 0.0, 0.0));
 
     let multiline_sizes = [Size::new(60.0, 60.0), Size::new(60.0, 60.0)];
     let (applicable, _) = fri05_c04_flex_alignment_output(
