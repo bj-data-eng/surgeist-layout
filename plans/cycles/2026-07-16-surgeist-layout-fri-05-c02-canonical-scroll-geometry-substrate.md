@@ -1,5 +1,5 @@
 # FRI-05-C02 Canonical Scroll Geometry Substrate
-Status: in_progress
+Status: draft
 Cycle ID: `FRI-05-C02`
 Owning repository: `surgeist-layout`
 Cycle base: `a6a6011aedb952572b8c0eac6f2a67b94c219f1a`
@@ -49,9 +49,9 @@ value; `NonFiniteEnd` also retains the finite origin and size that overflowed.
 to `InvalidScrollRect`; its removal and the legacy geometry/facts constructors,
 public `ScrollGeometryOf` replacement, output helper switch, and compatibility
 projection removal remain assigned to the integration cycles.
-The user additionally authorizes one provenance-only update to `NOTICE.md` and
-`LICENSE-TAFFY.md`. It changes no layout behavior, public API, or generator
-input/output.
+The user additionally authorizes one separate provenance-only commit containing
+exactly `NOTICE.md` and `LICENSE-TAFFY.md`. It changes no layout behavior, public
+API, or generator input/output and remains outside every implementation task.
 This cycle does not change `NodeOutputOf`, `ComputeOutputOf`, cache publication,
 root/leaf/block/flex/grid production calls, auto-gutter layout passes, final
 format origins/subjects, browser comparison, fixture parser/helper/serializer,
@@ -60,8 +60,11 @@ MSRV, root, siblings, unsafe code, or generator architecture. `C02-T1G` is the
 sole generator-file exception; no generation or `parity-all` command is
 applicable.
 ## Impacts
-Public API: additive typed rectangle error and read-only clip/target carriers.
-The final breaking replacement/removal of legacy geometry surfaces is deferred
+Public API: additive typed rectangle error and read-only clip/target carriers,
+plus an intentional source-compatible but behaviorally breaking validation
+tightening: `ScrollRectOf::new` now maps finite-component rectangles whose summed
+end is non-finite to `InvalidScrollRect`. Its signature remains unchanged. The
+final breaking replacement/removal of legacy geometry surfaces is deferred
 exactly to C03-C05; no compatibility alias is added for a new type.
 Documentation: `NOTICE.md` clarifies the Taffy 0.10.1 provenance and
 `LICENSE-TAFFY.md` preserves the corresponding license text. Dependencies,
@@ -82,12 +85,14 @@ because finite-end errors and the clip/target carriers are absent.
 rectangles, finite-end overflow, f32/f64 traits/accessors, target metadata, and
 compile-fail/static evidence for no public field construction or `Default` pass.
 The public reexports compose and legacy callers retain their mapped error only.
+T1 acceptance ends with focused and default-feature verification; the
+generator-feature aggregate is deferred to T1G because the recurring T1 gate
+failure is T1G's confirmed trigger.
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c02_rect_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c02_carrier_
 CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
 ```
 **Dependency:** Published C01 candidate.
 **Intended commit:** `api(layout): add finite scroll geometry carriers`.
