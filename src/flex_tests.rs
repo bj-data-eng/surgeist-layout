@@ -10149,3 +10149,147 @@ fn fri05_c04_flex_child_geometry_direct_retains_in_flow_and_rebuilds_absolute_ta
         absolute_geometry.scrollbar_size()
     );
 }
+
+fn fri05_c04_flex_child_geometry_tiny_absolute_styles(
+    flow_axes: FlowAxes,
+) -> (NodeInput, NodeInput) {
+    (
+        NodeInput {
+            display: Display::Flex,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            flex_direction: FlexDirection::Column,
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_gutter: ScrollbarGutter::Auto,
+            scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
+            max_size: Size::new(MaxSize::NONE, MaxSize::px(5.0)),
+            ..NodeInput::default()
+        },
+        NodeInput {
+            position: Position::Absolute,
+            size: Size::new(PreferredSize::px(0.0), PreferredSize::px(0.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            inset: Edges::new(
+                LengthAuto::AUTO,
+                LengthAuto::AUTO,
+                LengthAuto::px(0.0),
+                LengthAuto::AUTO,
+            ),
+            ..NodeInput::default()
+        },
+    )
+}
+
+#[test]
+fn fri05_c04_flex_child_geometry_direct_auto_max_tiny_gutter_keeps_absolute_inputs_non_negative_all_flows()
+ {
+    let available_size = Size::new(100.0, 100.0);
+
+    for flow_axes in fri05_c04_flex_all_flow_axes() {
+        let (root_style, absolute_style) =
+            fri05_c04_flex_child_geometry_tiny_absolute_styles(flow_axes);
+        let mut tree = crate::test_support::layout_tree::OracleTree::new()
+            .children(0, [1])
+            .children(1, [])
+            .style(0, root_style)
+            .style(1, absolute_style);
+        let output = compute_flex(
+            &mut tree,
+            0,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                available_size.map(Some),
+                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                available_size.map(Available::definite),
+            ),
+        )
+        .unwrap_or_else(|error| panic!("tiny absolute flex succeeds for {flow_axes:?}: {error:?}"));
+
+        assert_eq!(output.size, Size::new(100.0, 5.0), "{flow_axes:?}");
+        let root_geometry = output
+            .scroll_geometry
+            .expect("performed flex retains final canonical geometry");
+        assert_eq!(
+            root_geometry.scrollport().size(),
+            Size::new(90.0, 0.0),
+            "{flow_axes:?}"
+        );
+
+        let absolute = tree
+            .layout(1)
+            .expect("tiny absolute child is staged without a negative basis");
+        let absolute_geometry = absolute
+            .scroll_geometry
+            .expect("tiny absolute child retains canonical geometry");
+        assert_eq!(absolute.size, Size::ZERO, "{flow_axes:?}");
+        assert_eq!(absolute_geometry.border_box().size(), Size::ZERO);
+        assert_eq!(
+            absolute_geometry.target().border_box(),
+            absolute_geometry.border_box()
+        );
+        assert_eq!(
+            absolute.location.y,
+            root_geometry.scrollport().origin().y + root_geometry.scrollport().size().height,
+            "bottom: 0 uses the final saturated scrollport for {flow_axes:?}"
+        );
+
+        let child_input = tree
+            .inputs(1)
+            .iter()
+            .find(|input| input.run_mode() == RunMode::PerformLayout)
+            .expect("absolute child receives a perform-layout request");
+        assert_eq!(
+            child_input.parent(),
+            root_geometry.content_box().size().map(Some),
+            "final canonical content-box basis for {flow_axes:?}"
+        );
+        assert_eq!(
+            child_input.available(),
+            root_geometry.scrollport().size().map(Available::definite),
+            "final canonical available space for {flow_axes:?}"
+        );
+
+        let mut ordinary_root = fri05_c04_flex_child_geometry_tiny_absolute_styles(flow_axes).0;
+        ordinary_root.size.height = PreferredSize::px(80.0);
+        ordinary_root.max_size.height = MaxSize::NONE;
+        let ordinary_absolute = fri05_c04_flex_child_geometry_tiny_absolute_styles(flow_axes).1;
+        let mut ordinary_tree = crate::test_support::layout_tree::OracleTree::new()
+            .children(0, [1])
+            .children(1, [])
+            .style(0, ordinary_root)
+            .style(1, ordinary_absolute);
+        let ordinary = compute_flex(
+            &mut ordinary_tree,
+            0,
+            ComputeInput::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                available_size.map(Some),
+                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                available_size.map(Available::definite),
+            ),
+        )
+        .unwrap_or_else(|error| {
+            panic!("ordinary absolute flex succeeds for {flow_axes:?}: {error:?}")
+        });
+        let ordinary_geometry = ordinary
+            .scroll_geometry
+            .expect("ordinary flex retains canonical geometry");
+        let ordinary_child = ordinary_tree
+            .layout(1)
+            .expect("ordinary absolute child remains staged");
+        assert_eq!(ordinary.size, Size::new(100.0, 80.0), "{flow_axes:?}");
+        assert_eq!(
+            ordinary_child.location.y,
+            ordinary_geometry.scrollport().origin().y
+                + ordinary_geometry.scrollport().size().height,
+            "ordinary bottom placement remains on the settled scrollport for {flow_axes:?}"
+        );
+    }
+}

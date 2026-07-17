@@ -15,11 +15,11 @@ use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, 
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
-    CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
-    ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
-    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression, UsedOverflow,
-    canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
-    rebuild_canonical_scroll_geometry_for_border_box,
+    CanonicalScrollBoxOf, CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf,
+    CanonicalScrollGeometrySourceOf, ClipMarginSourceOf, OptimalRegionInsetOf,
+    OptimalRegionInsetsOf, ScrollContributionAccumulatorOf, ScrollOriginAxes,
+    ScrollOriginProgression, UsedOverflow, canonical_scroll_box_from_source,
+    canonical_scroll_geometry_from_source, rebuild_canonical_scroll_geometry_for_border_box,
 };
 use crate::sizing::{MaxSizeOf, MinSizeOf, PreferredSizeOf};
 
@@ -177,9 +177,26 @@ where
     } else {
         layout_constants = cross_layout_constants;
     }
+    let container_sizes = container_sizes(input, &layout_constants, &resolved_items, &lines);
+    let final_scroll_box = if input.run_mode().is_perform_layout() {
+        Some(flex_container_scroll_box::<_, S, M>(
+            node,
+            input.run_mode(),
+            &style,
+            &layout_constants,
+            container_sizes.output,
+        )?)
+    } else {
+        None
+    };
     let (absolute_content_size, final_items) = if input.run_mode().is_perform_layout() {
         let final_items = final_layout(tree, node, &resolved_items, &layout_constants)?;
-        let absolute_content_size = layout_absolute_children(tree, node, &layout_constants)?;
+        let absolute_content_size = layout_absolute_children(
+            tree,
+            node,
+            &layout_constants,
+            final_scroll_box.expect("performed flex layout derives its final canonical box"),
+        )?;
         layout_hidden_children(tree, node, layout_constants.axes.flow_axes())?;
         (absolute_content_size, Some(final_items))
     } else {
@@ -193,6 +210,7 @@ where
         final_items.as_deref(),
         &lines,
         absolute_content_size,
+        container_sizes,
     );
     if input.run_mode().is_perform_layout() {
         output.scroll_geometry = Some(flex_container_scroll_geometry::<_, S, M>(
@@ -200,7 +218,7 @@ where
             input.run_mode(),
             &style,
             &layout_constants,
-            output.size,
+            final_scroll_box.expect("performed flex layout retains its final canonical box"),
         )?);
     }
     Ok(output)
@@ -365,6 +383,15 @@ impl<S: LayoutScalar> Constants<S> {
             available: input.available(),
             available_main: axes.main_size(input.available()),
         })
+    }
+
+    fn with_final_scroll_box(mut self, scroll_box: CanonicalScrollBoxOf<S>) -> Self {
+        self.node_outer_size = scroll_box.border_box().size().map(Some);
+        self.node_inner_size = scroll_box.content_box().size().map(Some);
+        self.effective_border = scroll_box.effective_border();
+        self.scrollbar_gutter = scroll_box.effective_gutter();
+        self.content_box_inset = scroll_box.content_box_inset();
+        self
     }
 }
 
@@ -2609,14 +2636,18 @@ fn clamp_main_size_axes<S: LayoutScalar>(
     min.map_or(value, |min| value.max(min))
 }
 
-fn container_output<Node, S: LayoutScalar>(
+#[derive(Clone, Copy)]
+struct FlexContainerSizes<S: LayoutScalar> {
+    output: Size<S>,
+    intrinsic_content: Size<S>,
+}
+
+fn container_sizes<Node, S: LayoutScalar>(
     input: ComputeInputOf<S>,
     constants: &Constants<S>,
     resolved_items: &[ResolvedFlexItem<Node, S>],
-    final_items: Option<&[FinalFlexItem<Node, S>]>,
     lines: &[FlexLine<S>],
-    absolute_content_size: Size<S>,
-) -> ComputeOutputOf<S> {
+) -> FlexContainerSizes<S> {
     let line_cross_gap =
         constants.axes.cross_size(constants.gap) * S::from_usize(lines.len().saturating_sub(1));
     let content_main = intrinsic_content_main_size(input, constants, resolved_items, lines);
@@ -2648,9 +2679,26 @@ fn container_output<Node, S: LayoutScalar>(
             constants.axes.main_size(output_size).max(available_main),
         );
     }
-    let content_size = constants
-        .axes
-        .size_from_main_cross(content_main, content_cross);
+
+    FlexContainerSizes {
+        output: output_size,
+        intrinsic_content: content_size,
+    }
+}
+
+fn container_output<Node, S: LayoutScalar>(
+    input: ComputeInputOf<S>,
+    constants: &Constants<S>,
+    resolved_items: &[ResolvedFlexItem<Node, S>],
+    final_items: Option<&[FinalFlexItem<Node, S>]>,
+    lines: &[FlexLine<S>],
+    absolute_content_size: Size<S>,
+    container_sizes: FlexContainerSizes<S>,
+) -> ComputeOutputOf<S> {
+    let FlexContainerSizes {
+        output: output_size,
+        intrinsic_content: content_size,
+    } = container_sizes;
     let content_size = if input.run_mode().is_perform_layout() {
         let final_items = final_items.expect("perform-layout flex output requires final items");
         max_size(
@@ -2679,18 +2727,18 @@ fn container_output<Node, S: LayoutScalar>(
     )
 }
 
-fn flex_container_scroll_geometry<Node, S, M>(
+fn flex_container_scroll_box<Node, S, M>(
     node: Node,
     run_mode: RunMode,
     style: &NodeInputOf<S>,
     constants: &Constants<S>,
     output_size: Size<S>,
-) -> LayoutResultOf<Node, super::ScrollGeometryOf<S>, S, M>
+) -> LayoutResultOf<Node, CanonicalScrollBoxOf<S>, S, M>
 where
     Node: Copy,
     S: LayoutScalar,
 {
-    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+    canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
         flow_axes: constants.flow_axes,
         computed_overflow: style.overflow,
         item_is_replaced: style.item_is_replaced,
@@ -2701,14 +2749,27 @@ where
         scrollbar_width: style.scrollbar_width,
         settled_auto_scrollbars: constants.settled_auto_scrollbars,
     })
-    .map_err(|error| flex_own_geometry_error(node, run_mode, error))?;
+    .map_err(|error| flex_own_geometry_error(node, run_mode, error))
+}
+
+fn flex_container_scroll_geometry<Node, S, M>(
+    node: Node,
+    run_mode: RunMode,
+    style: &NodeInputOf<S>,
+    constants: &Constants<S>,
+    scroll_box: CanonicalScrollBoxOf<S>,
+) -> LayoutResultOf<Node, super::ScrollGeometryOf<S>, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
     let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
     contributions.exclude_reserved_gutter_from_range();
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
         flow_axes: constants.flow_axes,
         computed_overflow: style.overflow,
         item_is_replaced: style.item_is_replaced,
-        border_box_size: output_size,
+        border_box_size: scroll_box.border_box().size(),
         border: constants.border,
         padding: constants.padding,
         scrollbar_gutter: style.scrollbar_gutter,
@@ -3499,28 +3560,20 @@ fn layout_absolute_children<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     constants: &Constants<Tree::Scalar>,
+    final_scroll_box: CanonicalScrollBoxOf<Tree::Scalar>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
+    let settled_constants = constants.with_final_scroll_box(final_scroll_box);
+    let constants = &settled_constants;
     let children = tree.children(node).collect::<Vec<_>>();
     let mut content_size: Size<Tree::Scalar> = Size::ZERO;
-    let inset_relative_size = constants
-        .node_outer_size
-        .sub_optional(constants.effective_border.sum_axes())
-        .sub_optional(constants.scrollbar_gutter.sum_axes());
-    let available = Size::new(
-        constants
-            .node_outer_size
-            .width
-            .map(AvailableOf::definite)
-            .unwrap_or(AvailableOf::MAX_CONTENT),
-        constants
-            .node_outer_size
-            .height
-            .map(AvailableOf::definite)
-            .unwrap_or(AvailableOf::MAX_CONTENT),
-    );
+    let inset_relative_size = final_scroll_box.scrollport().size().map(Some);
+    let available = final_scroll_box
+        .scrollport()
+        .size()
+        .map(AvailableOf::definite);
 
     for (source_index, child) in children.into_iter().enumerate() {
         let style = tree.node_input(child).clone();

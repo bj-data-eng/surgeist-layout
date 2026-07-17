@@ -8761,6 +8761,87 @@ fn fri05_c04_flex_child_geometry_tree_retains_in_flow_and_absolute_targets() {
     }
 }
 
+#[test]
+fn fri05_c04_flex_child_geometry_public_auto_max_tiny_gutter_rounds_absolute_all_flows() {
+    let available_size = Size::new(100.0, 100.0);
+
+    for flow_axes in fri05_c03_root_all_flow_axes() {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInput {
+                    display: Display::Flex,
+                    writing_mode: flow_axes.writing_mode(),
+                    direction: flow_axes.direction(),
+                    flex_direction: FlexDirection::Column,
+                    overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    scrollbar_gutter: ScrollbarGutter::Auto,
+                    scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
+                    max_size: Size::new(MaxSize::NONE, MaxSize::px(5.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInput {
+                    position: Position::Absolute,
+                    size: Size::new(PreferredSize::px(0.0), PreferredSize::px(0.0)),
+                    min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                    inset: Edges::new(
+                        LengthAuto::AUTO,
+                        LengthAuto::AUTO,
+                        LengthAuto::px(0.0),
+                        LengthAuto::AUTO,
+                    ),
+                    ..NodeInput::default()
+                },
+            );
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequest::viewport(available_size.map(Available::definite)).unwrap(),
+        )
+        .unwrap_or_else(|error| {
+            panic!("public tiny absolute flex succeeds for {flow_axes:?}: {error:?}")
+        });
+
+        for (phase, entries) in [
+            ("unrounded", batch.unrounded_entries()),
+            ("rounded", batch.final_entries()),
+        ] {
+            let root = public_flow_output(entries, 0);
+            let root_geometry = root
+                .scroll_geometry
+                .unwrap_or_else(|| panic!("{phase} root retains geometry for {flow_axes:?}"));
+            let absolute = public_flow_output(entries, 1);
+            let absolute_geometry = absolute.scroll_geometry.unwrap_or_else(|| {
+                panic!("{phase} absolute child retains geometry for {flow_axes:?}")
+            });
+
+            assert_eq!(root.size, Size::new(100.0, 5.0), "{phase}/{flow_axes:?}");
+            assert_eq!(
+                root_geometry.scrollport().size(),
+                Size::new(90.0, 0.0),
+                "{phase}/{flow_axes:?}"
+            );
+            assert_eq!(absolute.size, Size::ZERO, "{phase}/{flow_axes:?}");
+            assert_eq!(absolute_geometry.border_box().size(), Size::ZERO);
+            assert_eq!(
+                absolute_geometry.target().border_box(),
+                absolute_geometry.border_box()
+            );
+            assert_eq!(
+                absolute.location.y,
+                root_geometry.scrollport().origin().y + root_geometry.scrollport().size().height,
+                "{phase} bottom: 0 uses the saturated scrollport for {flow_axes:?}"
+            );
+        }
+    }
+}
+
 fn fri05_c03_block_root_output(batch: &CompletedLayoutBatch<u32>, node: u32) -> NodeOutput {
     batch
         .unrounded_entries()

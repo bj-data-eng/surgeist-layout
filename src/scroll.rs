@@ -731,8 +731,18 @@ impl<S: LayoutScalar> CanonicalScrollBoxOf<S> {
     }
 
     #[must_use]
+    pub(crate) const fn scrollport(self) -> ScrollRectOf<S> {
+        self.scrollport
+    }
+
+    #[must_use]
     pub(crate) const fn content_box(self) -> ScrollRectOf<S> {
         self.content_box
+    }
+
+    #[must_use]
+    pub(crate) fn content_box_inset(self) -> Edges<S> {
+        self.effective_border + self.effective_gutter + self.effective_padding
     }
 }
 
