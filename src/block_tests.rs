@@ -11856,3 +11856,373 @@ fn fri05_c03_block_negative_margin_families_use_only_positive_outsets() {
         assert_eq!(root.content_size, fri05_c03_block_union_content_size(root));
     }
 }
+
+#[test]
+fn fri05_c03_integration_padding_seed_direct_block_retains_gutter_area_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>()
+    where
+        crate::test_support::layout_tree::OracleTreeOf<S>:
+            Compute + Traverse<Node = u32, Scalar = S>,
+    {
+        fn gutter_at<S: LayoutScalar>(
+            gutters: ScrollbarGutterRectsOf<S>,
+            side: PhysicalSide,
+        ) -> Option<ScrollRectOf<S>> {
+            match side {
+                PhysicalSide::Top => gutters.top(),
+                PhysicalSide::Right => gutters.right(),
+                PhysicalSide::Bottom => gutters.bottom(),
+                PhysicalSide::Left => gutters.left(),
+            }
+        }
+
+        fn expected_axis_range<S: LayoutScalar>(
+            geometry: ScrollGeometryOf<S>,
+            origin_end: PhysicalSide,
+        ) -> (S, S) {
+            let Some(gutter) = gutter_at(geometry.gutters(), origin_end) else {
+                return (S::ZERO, S::ZERO);
+            };
+            let thickness = match origin_end.axis() {
+                PhysicalAxis::Horizontal => gutter.size().width,
+                PhysicalAxis::Vertical => gutter.size().height,
+            };
+            match origin_end {
+                PhysicalSide::Top | PhysicalSide::Left => (S::ZERO - thickness, S::ZERO),
+                PhysicalSide::Right | PhysicalSide::Bottom => (S::ZERO, thickness),
+            }
+        }
+
+        let scalar = scalar_value::<S>;
+        let size = Size::new(scalar(100.0), scalar(80.0));
+        for flow_axes in fri05_c03_block_all_flow_axes() {
+            for (case, inline, block, scrollbar_gutter, expected_sides) in [
+                (
+                    "forced-block",
+                    Overflow::Hidden,
+                    Overflow::Scroll,
+                    ScrollbarGutter::Auto,
+                    vec![flow_axes.inline_end()],
+                ),
+                (
+                    "stable-block",
+                    Overflow::Hidden,
+                    Overflow::Hidden,
+                    ScrollbarGutter::Stable,
+                    vec![flow_axes.inline_end()],
+                ),
+                (
+                    "both-edge-block",
+                    Overflow::Hidden,
+                    Overflow::Hidden,
+                    ScrollbarGutter::StableBothEdges,
+                    vec![flow_axes.inline_start(), flow_axes.inline_end()],
+                ),
+                (
+                    "forced-inline",
+                    Overflow::Scroll,
+                    Overflow::Hidden,
+                    ScrollbarGutter::Auto,
+                    vec![flow_axes.block_end()],
+                ),
+            ] {
+                let style = NodeInputOf::<S> {
+                    display: Display::Block,
+                    writing_mode: flow_axes.writing_mode(),
+                    direction: flow_axes.direction(),
+                    overflow: fri05_c03_block_overflow_at_flow_axes(flow_axes, inline, block),
+                    scrollbar_gutter,
+                    scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.0)).unwrap(),
+                    size: Size::new(
+                        PreferredSizeOf::px(size.width),
+                        PreferredSizeOf::px(size.height),
+                    ),
+                    padding: Edges::all(LengthOf::px(scalar(3.0))),
+                    border: Edges::all(LengthOf::px(scalar(2.0))),
+                    ..NodeInputOf::default()
+                };
+                let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+                    .children(0, [])
+                    .style(0, style);
+                let output = crate::compute_block(
+                    &mut tree,
+                    0,
+                    ComputeInputOf::for_child(
+                        RunMode::PerformLayout,
+                        SizingMode::InherentSize,
+                        RequestedAxis::Both,
+                        size.map(Some),
+                        size.map(Some),
+                        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                        size.map(AvailableOf::definite),
+                    ),
+                )
+                .expect("guttered direct block lays out");
+                let geometry = output
+                    .scroll_geometry
+                    .expect("performed direct block emits geometry");
+
+                assert_ne!(
+                    geometry.padding_box(),
+                    geometry.scrollport(),
+                    "{case}/{flow_axes:?}"
+                );
+                assert_eq!(
+                    geometry.scrollable_overflow(),
+                    geometry.padding_box(),
+                    "the canonical own padding box must remain complete overflow for {case}/{flow_axes:?}"
+                );
+                for side in [
+                    PhysicalSide::Top,
+                    PhysicalSide::Right,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Left,
+                ] {
+                    assert_eq!(
+                        gutter_at(geometry.gutters(), side).is_some(),
+                        expected_sides.contains(&side),
+                        "unexpected {side:?} gutter for {case}/{flow_axes:?}"
+                    );
+                }
+
+                let x_end = if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
+                    flow_axes.inline_end()
+                } else {
+                    flow_axes.block_end()
+                };
+                let y_end = if flow_axes.inline_axis() == PhysicalAxis::Vertical {
+                    flow_axes.inline_end()
+                } else {
+                    flow_axes.block_end()
+                };
+                let range = geometry.physical_range();
+                assert_eq!(
+                    (range.x().minimum(), range.x().maximum()),
+                    expected_axis_range(geometry, x_end),
+                    "x range must derive from the retained padding seed for {case}/{flow_axes:?}"
+                );
+                assert_eq!(
+                    (range.y().minimum(), range.y().maximum()),
+                    expected_axis_range(geometry, y_end),
+                    "y range must derive from the retained padding seed for {case}/{flow_axes:?}"
+                );
+
+                let node_output = NodeOutputOf::<S>::new().with_scroll_geometry(Some(geometry));
+                assert_eq!(
+                    node_output.content_box_size(),
+                    geometry.content_box().size()
+                );
+                assert_eq!(node_output.scrollbar_size(), geometry.scrollbar_size());
+                assert_eq!(node_output.scrollbar_size, geometry.scrollbar_size());
+                assert_eq!(geometry.target().border_box(), geometry.border_box());
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri05_c03_integration_absolute_top_gutter_offsets_reduced_area_margin_contribution_and_tiny_origins()
+ {
+    fn assert_lane<S: LayoutScalar>()
+    where
+        crate::test_support::layout_tree::OracleTreeOf<S>:
+            Compute + Traverse<Node = u32, Scalar = S>,
+    {
+        let scalar = scalar_value::<S>;
+        let top_gutter_flows = [
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+            FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+            FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl),
+            FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+        ];
+
+        for flow_axes in top_gutter_flows {
+            assert_eq!(flow_axes.inline_end(), PhysicalSide::Top);
+            let container_size = Size::new(scalar(100.0), scalar(80.0));
+            let child_size = Size::new(scalar(110.0), scalar(70.0));
+            let child_margin = Edges::new(scalar(3.0), scalar(7.0), scalar(11.0), scalar(2.0));
+            let container_style = NodeInputOf::<S> {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                overflow: fri05_c03_block_overflow_at_flow_axes(
+                    flow_axes,
+                    Overflow::Hidden,
+                    Overflow::Scroll,
+                ),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(10.0)).unwrap(),
+                size: Size::new(
+                    PreferredSizeOf::px(container_size.width),
+                    PreferredSizeOf::px(container_size.height),
+                ),
+                border: Edges::all(LengthOf::px(scalar(5.0))),
+                ..NodeInputOf::default()
+            };
+            let child_style = NodeInputOf::<S> {
+                display: Display::Block,
+                position: Position::Absolute,
+                size: Size::new(
+                    PreferredSizeOf::px(child_size.width),
+                    PreferredSizeOf::px(child_size.height),
+                ),
+                inset: Edges {
+                    top: LengthAutoOf::px(S::ZERO),
+                    left: LengthAutoOf::px(S::ZERO),
+                    ..Edges::all(LengthAutoOf::AUTO)
+                },
+                margin: Edges::new(
+                    LengthAutoOf::px(child_margin.top),
+                    LengthAutoOf::px(child_margin.right),
+                    LengthAutoOf::px(child_margin.bottom),
+                    LengthAutoOf::px(child_margin.left),
+                ),
+                ..NodeInputOf::default()
+            };
+            let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(0, container_style)
+                .style(1, child_style)
+                .measure(1, ComputeOutputOf::from_outer_size(child_size));
+            let output = crate::compute_block(
+                &mut tree,
+                0,
+                ComputeInputOf::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    container_size.map(Some),
+                    container_size.map(Some),
+                    ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                    container_size.map(AvailableOf::definite),
+                ),
+            )
+            .expect("top-gutter absolute layout succeeds");
+            let geometry = output
+                .scroll_geometry
+                .expect("performed block emits geometry");
+            let top_gutter = geometry
+                .gutters()
+                .top()
+                .expect("flow reserves a top gutter");
+            assert_eq!(top_gutter.size().height, scalar(10.0));
+            assert_eq!(geometry.scrollport().origin().y, scalar(15.0));
+            assert_eq!(
+                geometry.scrollport().size(),
+                Size::new(scalar(90.0), scalar(60.0))
+            );
+
+            let perform_inputs = tree
+                .inputs(1)
+                .iter()
+                .filter(|input| input.run_mode() == RunMode::PerformLayout)
+                .copied()
+                .collect::<Vec<_>>();
+            assert_eq!(perform_inputs.len(), 1, "absolute child is performed once");
+            assert_eq!(
+                perform_inputs[0].parent(),
+                Size::new(Some(scalar(90.0)), Some(scalar(60.0)))
+            );
+            assert_eq!(
+                perform_inputs[0].available(),
+                Size::new(
+                    AvailableOf::definite(scalar(90.0)),
+                    AvailableOf::definite(scalar(60.0)),
+                )
+            );
+
+            let child = tree.layout(1).expect("absolute child is staged");
+            assert_eq!(child.location, Point::new(scalar(7.0), scalar(18.0)));
+            assert_eq!(child.size, child_size);
+            assert_eq!(child.margin, child_margin);
+            let expected_overflow = ScrollRectOf::try_new(
+                Point::new(scalar(5.0), scalar(5.0)),
+                Size::new(scalar(119.0), scalar(94.0)),
+            )
+            .unwrap();
+            assert_eq!(
+                geometry.scrollable_overflow(),
+                expected_overflow,
+                "the final absolute margin area contributes exactly once"
+            );
+            assert_eq!(output.content_size, expected_overflow.size());
+
+            let tiny_size = Size::splat(scalar(2.0));
+            let tiny_child_size = Size::splat(scalar(1.0));
+            let tiny_container = NodeInputOf::<S> {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(15.0)).unwrap(),
+                size: Size::new(
+                    PreferredSizeOf::px(tiny_size.width),
+                    PreferredSizeOf::px(tiny_size.height),
+                ),
+                border: Edges::new(
+                    LengthOf::px(scalar(1.0)),
+                    LengthOf::ZERO,
+                    LengthOf::ZERO,
+                    LengthOf::px(scalar(1.0)),
+                ),
+                ..NodeInputOf::default()
+            };
+            let tiny_child = NodeInputOf::<S> {
+                display: Display::Block,
+                position: Position::Absolute,
+                size: Size::new(
+                    PreferredSizeOf::px(tiny_child_size.width),
+                    PreferredSizeOf::px(tiny_child_size.height),
+                ),
+                inset: Edges {
+                    top: LengthAutoOf::px(S::ZERO),
+                    left: LengthAutoOf::px(S::ZERO),
+                    ..Edges::all(LengthAutoOf::AUTO)
+                },
+                ..NodeInputOf::default()
+            };
+            let mut tiny_tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(0, tiny_container)
+                .style(1, tiny_child)
+                .measure(1, ComputeOutputOf::from_outer_size(tiny_child_size));
+            let tiny_output = crate::compute_block(
+                &mut tiny_tree,
+                0,
+                ComputeInputOf::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    tiny_size.map(Some),
+                    tiny_size.map(Some),
+                    ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                    tiny_size.map(AvailableOf::definite),
+                ),
+            )
+            .expect("tiny top-gutter absolute layout stays ordered");
+            let tiny_geometry = tiny_output
+                .scroll_geometry
+                .expect("tiny geometry is present");
+            assert_eq!(tiny_geometry.scrollport().size(), Size::ZERO);
+            let tiny_child = tiny_tree.layout(1).expect("tiny absolute child is staged");
+            assert_eq!(tiny_child.location, tiny_geometry.scrollport().origin());
+            let tiny_input = tiny_tree
+                .inputs(1)
+                .iter()
+                .find(|input| input.run_mode() == RunMode::PerformLayout)
+                .expect("tiny absolute child receives a perform input");
+            assert_eq!(tiny_input.parent(), Size::splat(Some(S::ZERO)));
+            assert_eq!(
+                tiny_input.available(),
+                Size::splat(AvailableOf::definite(S::ZERO))
+            );
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}

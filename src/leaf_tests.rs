@@ -1515,3 +1515,170 @@ fn fri05_c03_leaf_auto_compute_size_keeps_zero_call_fast_path_and_no_geometry() 
     );
     assert_eq!(measured_output.scroll_geometry, None);
 }
+
+#[test]
+fn fri05_c03_integration_padding_seed_direct_measured_leaf_retains_gutter_area_in_both_scalar_lanes()
+ {
+    fn assert_lane<S: LayoutScalar>() {
+        fn gutter_at<S: LayoutScalar>(
+            gutters: ScrollbarGutterRectsOf<S>,
+            side: PhysicalSide,
+        ) -> Option<ScrollRectOf<S>> {
+            match side {
+                PhysicalSide::Top => gutters.top(),
+                PhysicalSide::Right => gutters.right(),
+                PhysicalSide::Bottom => gutters.bottom(),
+                PhysicalSide::Left => gutters.left(),
+            }
+        }
+
+        fn overflow_at_flow_axes(
+            flow_axes: FlowAxes,
+            inline: Overflow,
+            block: Overflow,
+        ) -> ComputedOverflow {
+            match flow_axes.inline_axis() {
+                PhysicalAxis::Horizontal => computed_overflow(inline, block),
+                PhysicalAxis::Vertical => computed_overflow(block, inline),
+            }
+        }
+
+        fn expected_axis_range<S: LayoutScalar>(
+            geometry: ScrollGeometryOf<S>,
+            origin_end: PhysicalSide,
+        ) -> (S, S) {
+            let Some(gutter) = gutter_at(geometry.gutters(), origin_end) else {
+                return (S::ZERO, S::ZERO);
+            };
+            let thickness = match origin_end.axis() {
+                PhysicalAxis::Horizontal => gutter.size().width,
+                PhysicalAxis::Vertical => gutter.size().height,
+            };
+            match origin_end {
+                PhysicalSide::Top | PhysicalSide::Left => (S::ZERO - thickness, S::ZERO),
+                PhysicalSide::Right | PhysicalSide::Bottom => (S::ZERO, thickness),
+            }
+        }
+
+        let scalar = S::from_f64;
+        let size = Size::new(scalar(100.0), scalar(80.0));
+        for flow_axes in fri05_c03_leaf_all_flow_axes() {
+            for (case, inline, block, scrollbar_gutter, expected_sides) in [
+                (
+                    "forced-block",
+                    Overflow::Hidden,
+                    Overflow::Scroll,
+                    ScrollbarGutter::Auto,
+                    vec![flow_axes.inline_end()],
+                ),
+                (
+                    "stable-block",
+                    Overflow::Hidden,
+                    Overflow::Hidden,
+                    ScrollbarGutter::Stable,
+                    vec![flow_axes.inline_end()],
+                ),
+                (
+                    "both-edge-block",
+                    Overflow::Hidden,
+                    Overflow::Hidden,
+                    ScrollbarGutter::StableBothEdges,
+                    vec![flow_axes.inline_start(), flow_axes.inline_end()],
+                ),
+                (
+                    "forced-inline",
+                    Overflow::Scroll,
+                    Overflow::Hidden,
+                    ScrollbarGutter::Auto,
+                    vec![flow_axes.block_end()],
+                ),
+            ] {
+                let style = NodeInputOf::<S> {
+                    writing_mode: flow_axes.writing_mode(),
+                    direction: flow_axes.direction(),
+                    overflow: overflow_at_flow_axes(flow_axes, inline, block),
+                    scrollbar_gutter,
+                    scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.0)).unwrap(),
+                    size: Size::new(
+                        PreferredSizeOf::px(size.width),
+                        PreferredSizeOf::px(size.height),
+                    ),
+                    padding: Edges::all(LengthOf::px(scalar(3.0))),
+                    border: Edges::all(LengthOf::px(scalar(2.0))),
+                    ..NodeInputOf::default()
+                };
+                let input = ComputeInputOf::<S>::leaf_layout(
+                    Size::NONE,
+                    size.map(Some),
+                    ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                    size.map(AvailableOf::definite),
+                )
+                .expect("FRI-05 direct measured-leaf input is valid");
+                let output = compute_leaf(input, &style, |_measurement| {
+                    Ok::<_, ()>(Size::new(scalar(2.0), scalar(3.0)))
+                })
+                .expect("guttered direct measured leaf lays out");
+                let geometry = output
+                    .scroll_geometry
+                    .expect("performed direct measured leaf emits geometry");
+
+                assert_ne!(
+                    geometry.padding_box(),
+                    geometry.scrollport(),
+                    "{case}/{flow_axes:?}"
+                );
+                assert_eq!(
+                    geometry.scrollable_overflow(),
+                    geometry.padding_box(),
+                    "the canonical own padding box must remain complete overflow for {case}/{flow_axes:?}"
+                );
+                for side in [
+                    PhysicalSide::Top,
+                    PhysicalSide::Right,
+                    PhysicalSide::Bottom,
+                    PhysicalSide::Left,
+                ] {
+                    assert_eq!(
+                        gutter_at(geometry.gutters(), side).is_some(),
+                        expected_sides.contains(&side),
+                        "unexpected {side:?} gutter for {case}/{flow_axes:?}"
+                    );
+                }
+
+                let x_end = if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
+                    flow_axes.inline_end()
+                } else {
+                    flow_axes.block_end()
+                };
+                let y_end = if flow_axes.inline_axis() == PhysicalAxis::Vertical {
+                    flow_axes.inline_end()
+                } else {
+                    flow_axes.block_end()
+                };
+                let range = geometry.physical_range();
+                assert_eq!(
+                    (range.x().minimum(), range.x().maximum()),
+                    expected_axis_range(geometry, x_end),
+                    "x range must derive from the retained padding seed for {case}/{flow_axes:?}"
+                );
+                assert_eq!(
+                    (range.y().minimum(), range.y().maximum()),
+                    expected_axis_range(geometry, y_end),
+                    "y range must derive from the retained padding seed for {case}/{flow_axes:?}"
+                );
+
+                let node_output = NodeOutputOf::<S>::new().with_scroll_geometry(Some(geometry));
+                assert_eq!(
+                    node_output.content_box_size(),
+                    geometry.content_box().size()
+                );
+                assert_eq!(node_output.scrollbar_size(), geometry.scrollbar_size());
+                assert_eq!(node_output.scrollbar_size, geometry.scrollbar_size());
+                assert_eq!(geometry.target().border_box(), geometry.border_box());
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}

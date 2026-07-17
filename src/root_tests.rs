@@ -8740,3 +8740,90 @@ fn fri05_c03_block_nested_partial_axes_and_trapped_values_preserve_independent_i
         assert_eq!(root.content_size, expected);
     }
 }
+
+#[test]
+fn fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_area_in_both_scalar_lanes()
+ {
+    fn assert_lane<S: LayoutScalar>() {
+        let scalar = scalar::<S>;
+        let flow_axes = FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl);
+        assert_eq!(flow_axes.inline_end(), PhysicalSide::Top);
+        let size = Size::new(scalar(100.4), scalar(80.4));
+        let style = NodeInputOf::<S> {
+            display: Display::Block,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow: match flow_axes.inline_axis() {
+                PhysicalAxis::Horizontal => computed_overflow(Overflow::Hidden, Overflow::Scroll),
+                PhysicalAxis::Vertical => computed_overflow(Overflow::Scroll, Overflow::Hidden),
+            },
+            scrollbar_width: ScrollbarWidthOf::try_new(scalar(6.6)).unwrap(),
+            size: Size::new(
+                PreferredSizeOf::px(size.width),
+                PreferredSizeOf::px(size.height),
+            ),
+            padding: Edges::all(LengthOf::px(scalar(0.4))),
+            border: Edges::all(LengthOf::px(scalar(0.3))),
+            ..NodeInputOf::default()
+        };
+        let tree = PublicFlowTree::default()
+            .with_children(0, [])
+            .with_style(0, style);
+        let request = LayoutRootRequestOf::viewport(size.map(AvailableOf::definite))
+            .expect("fractional viewport request is valid");
+        let cold = compute_layout(&tree, 0, request).expect("cold guttered block root lays out");
+
+        for (phase, output) in [
+            ("unrounded", public_flow_output(cold.unrounded_entries(), 0)),
+            ("rounded", public_flow_output(cold.final_entries(), 0)),
+        ] {
+            let geometry = output
+                .scroll_geometry
+                .expect("performed block root emits geometry");
+            assert_ne!(geometry.padding_box(), geometry.scrollport(), "{phase}");
+            assert_eq!(
+                geometry.scrollable_overflow(),
+                geometry.padding_box(),
+                "root publication must retain the canonical own padding seed after {phase} publication"
+            );
+            let top_gutter = geometry
+                .gutters()
+                .top()
+                .expect("the representative sideways flow has a top gutter");
+            let range = geometry.physical_range();
+            assert_eq!(
+                (range.x().minimum(), range.x().maximum()),
+                (S::ZERO, S::ZERO)
+            );
+            assert_eq!(
+                (range.y().minimum(), range.y().maximum()),
+                (S::ZERO - top_gutter.size().height, S::ZERO)
+            );
+            assert_eq!(output.content_box_size(), geometry.content_box().size());
+            assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
+            assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
+            assert_eq!(geometry.target().border_box(), geometry.border_box());
+        }
+
+        tree.apply_cache_entries(cold.cache_store_entries());
+        tree.clear_cache_inputs();
+        let warm = compute_layout(&tree, 0, request).expect("warm guttered block root lays out");
+        assert_eq!(
+            public_flow_output(warm.unrounded_entries(), 0),
+            public_flow_output(cold.unrounded_entries(), 0)
+        );
+        assert_eq!(
+            public_flow_output(warm.final_entries(), 0),
+            public_flow_output(cold.final_entries(), 0)
+        );
+        assert!(
+            warm.cache_store_entries()
+                .iter()
+                .all(|entry| entry.node() != 0),
+            "the stable ordinary root request must reuse its cached geometry"
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}

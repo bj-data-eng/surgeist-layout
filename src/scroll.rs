@@ -417,14 +417,15 @@ impl SettledAutoScrollbarState {
 
     #[must_use]
     pub(crate) fn transition<S: LayoutScalar>(self, geometry: ScrollGeometryOf<S>) -> Self {
-        let range = geometry.physical_range();
         Self {
             x: self.x
                 || matches!(geometry.used_overflow_x(), Overflow::Auto)
-                    && range.x().maximum() > range.x().minimum(),
+                    && geometry
+                        .auto_scrollbar_overflow
+                        .at(PhysicalAxis::Horizontal),
             y: self.y
                 || matches!(geometry.used_overflow_y(), Overflow::Auto)
-                    && range.y().maximum() > range.y().minimum(),
+                    && geometry.auto_scrollbar_overflow.at(PhysicalAxis::Vertical),
         }
     }
 }
@@ -703,11 +704,6 @@ impl<S: LayoutScalar> CanonicalScrollBoxOf<S> {
     #[must_use]
     pub(crate) const fn effective_gutter(self) -> Edges<S> {
         self.effective_gutter
-    }
-
-    #[must_use]
-    pub(crate) const fn scrollport(self) -> ScrollRectOf<S> {
-        self.scrollport
     }
 
     #[must_use]
@@ -2250,6 +2246,7 @@ pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
     overflow_clip: OverflowClipOf<S>,
     scrollable_overflow: ScrollRectOf<S>,
     physical_range: PhysicalScrollRangeOf<S>,
+    auto_scrollbar_overflow: SettledAutoScrollbarState,
     gutters: ScrollbarGutterRectsOf<S>,
     aggregate_reservation: Size<S>,
     resolved_scroll_padding: Edges<S>,
@@ -2493,6 +2490,23 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
         &source.contributions,
     )
     .map_err(CanonicalScrollGeometryErrorOf::Range)?;
+    let mut auto_contributions = source.contributions;
+    auto_contributions.replace_container_seed(boxes.scrollport);
+    auto_contributions
+        .include_terminal_padding(source.padding)
+        .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
+    let auto_range = derive_origin_aware_scroll_range(
+        source.flow_axes,
+        source.origin_axes,
+        used_overflow,
+        boxes.scrollport,
+        &auto_contributions,
+    )
+    .map_err(CanonicalScrollGeometryErrorOf::Range)?;
+    let auto_scrollbar_overflow = SettledAutoScrollbarState {
+        x: auto_range.x().maximum() > auto_range.x().minimum(),
+        y: auto_range.y().maximum() > auto_range.y().minimum(),
+    };
     let target = ScrollTargetGeometryOf {
         border_box: source.target_border_box,
         scroll_margin: source.target_scroll_margin,
@@ -2512,6 +2526,7 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
         overflow_clip: boxes.overflow_clip,
         scrollable_overflow,
         physical_range,
+        auto_scrollbar_overflow,
         gutters: boxes.gutters,
         aggregate_reservation: boxes.aggregate_reservation,
         resolved_scroll_padding: boxes.resolved_scroll_padding,
@@ -2545,7 +2560,7 @@ pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
         source.measured_content_size,
     )
     .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
-    let mut contributions = ScrollContributionAccumulatorOf::new(boxes.scrollport);
+    let mut contributions = ScrollContributionAccumulatorOf::new(boxes.padding_box);
     contributions.include_direct_line(measured_content);
     for axis in [LogicalAxis::Inline, LogicalAxis::Block] {
         let side = match axis {

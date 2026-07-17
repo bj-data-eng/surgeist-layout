@@ -223,7 +223,7 @@ where
         })
         .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
         let mut contributions = final_pass.contributions;
-        contributions.replace_container_seed(final_scroll_box.scrollport());
+        contributions.replace_container_seed(final_scroll_box.padding_box());
         for (axis, extent) in [
             (crate::LogicalAxis::Inline, final_pass.content_size.inline),
             (crate::LogicalAxis::Block, final_pass.content_size.block),
@@ -2494,9 +2494,12 @@ where
     let area_start_x = constants.effective_border.left + constants.scrollbar_gutter.left;
     let max_area_start_x =
         (container.width - constants.effective_border.right).max(constants.effective_border.left);
+    let area_start_y = constants.effective_border.top + constants.scrollbar_gutter.top;
+    let max_area_start_y =
+        (container.height - constants.effective_border.bottom).max(constants.effective_border.top);
     let area_offset = Point::new(
         area_start_x.min(max_area_start_x),
-        constants.effective_border.top,
+        area_start_y.min(max_area_start_y),
     );
     let area_size = Size::new(
         (container.width
