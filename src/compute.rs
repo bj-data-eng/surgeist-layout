@@ -1705,6 +1705,9 @@ where
             || style.scrollbar_width.get() == S::ZERO
         {
             if input.run_mode().is_perform_layout() {
+                output.content_size = geometry.canonical_content_size().map_err(|error| {
+                    leaf_scroll_error_at_site(site, pass_input.run_mode(), error)
+                })?;
                 output.scroll_geometry = Some(geometry);
             }
             return Ok(output);

@@ -8170,6 +8170,12 @@ fn fri05_c03_leaf_geometry_tree_backed_emits_flow_clip_and_target_geometry() {
             .expect("tree-backed performed leaf emits geometry");
         assert_eq!(geometry.flow_axes(), flow_axes);
         assert_eq!(geometry.content_box().size(), expected_content_size);
+        assert_eq!(output.content_size, Size::new(100.0, 80.0), "{flow_axes:?}");
+        assert_eq!(
+            output.content_size,
+            geometry.scrollable_overflow().size(),
+            "{flow_axes:?}"
+        );
         assert!(
             fri05_c03_root_gutter_at(geometry.gutters(), flow_axes.inline_end()).is_some(),
             "missing inline-end gutter for {flow_axes:?}"

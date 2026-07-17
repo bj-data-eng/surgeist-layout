@@ -2366,6 +2366,15 @@ impl<S: LayoutScalar> ScrollGeometryOf<S> {
     pub const fn target(self) -> ScrollTargetGeometryOf<S> {
         self.target
     }
+
+    pub(crate) fn canonical_content_size(
+        self,
+    ) -> Result<Size<S>, CanonicalScrollGeometryErrorOf<S>> {
+        self.source
+            .contributions
+            .content_size_from_anchor(self.content_box.origin())
+            .map_err(CanonicalScrollGeometryErrorOf::Contribution)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

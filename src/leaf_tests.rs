@@ -276,7 +276,7 @@ fn leaf_layout_reserves_scrollbar_gutter_for_scroll_overflow() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(61.0, 18.0));
-    assert_eq!(output.content_size, Size::new(44.0, 16.0));
+    assert_eq!(output.content_size, Size::new(59.0, 16.0));
 }
 
 #[test]
@@ -478,7 +478,7 @@ fn leaf_layout_preserves_physical_end_scrollbar_gutter_for_rtl() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(61.0, 18.0));
-    assert_eq!(output.content_size, Size::new(44.0, 16.0));
+    assert_eq!(output.content_size, Size::new(59.0, 16.0));
 }
 
 #[test]
@@ -1156,6 +1156,12 @@ fn fri05_c03_leaf_geometry_direct_emits_flow_clip_and_target_geometry() {
             .expect("performed leaf layout emits canonical geometry");
         assert_eq!(geometry.flow_axes(), flow_axes);
         assert_eq!(geometry.content_box().size(), expected_content_size);
+        assert_eq!(output.content_size, Size::new(100.0, 80.0), "{flow_axes:?}");
+        assert_eq!(
+            output.content_size,
+            geometry.scrollable_overflow().size(),
+            "{flow_axes:?}"
+        );
         assert!(
             fri05_c03_leaf_gutter_at(geometry.gutters(), flow_axes.inline_end()).is_some(),
             "missing inline-end gutter for {flow_axes:?}"
