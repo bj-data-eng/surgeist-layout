@@ -49,18 +49,25 @@ value; `NonFiniteEnd` also retains the finite origin and size that overflowed.
 to `InvalidScrollRect`; its removal and the legacy geometry/facts constructors,
 public `ScrollGeometryOf` replacement, output helper switch, and compatibility
 projection removal remain assigned to the integration cycles.
+The user additionally authorizes one provenance-only update to `NOTICE.md` and
+`LICENSE-TAFFY.md`. It changes no layout behavior, public API, or generator
+input/output.
 This cycle does not change `NodeOutputOf`, `ComputeOutputOf`, cache publication,
 root/leaf/block/flex/grid production calls, auto-gutter layout passes, final
 format origins/subjects, browser comparison, fixture parser/helper/serializer,
-HTML, manifest, XML, reports, provenance, docs, dependencies, features, MSRV,
-root, siblings, unsafe code, or generator architecture. `C02-T1G` is the sole
-generator-file exception; no generation or `parity-all` command is applicable.
+HTML, manifest, XML, reports, crate or parity docs, dependencies, features,
+MSRV, root, siblings, unsafe code, or generator architecture. `C02-T1G` is the
+sole generator-file exception; no generation or `parity-all` command is
+applicable.
 ## Impacts
 Public API: additive typed rectangle error and read-only clip/target carriers.
 The final breaking replacement/removal of legacy geometry surfaces is deferred
 exactly to C03-C05; no compatibility alias is added for a new type.
-Dependencies, features, generated artifacts, docs, examples, MSRV, root, and
-siblings are unchanged; the private generator gate release is error-checked, and all owned Rust remains unsafe-free.
+Documentation: `NOTICE.md` clarifies the Taffy 0.10.1 provenance and
+`LICENSE-TAFFY.md` preserves the corresponding license text. Dependencies,
+features, generated artifacts, crate docs, examples, MSRV, root, and siblings
+are unchanged; the private generator gate release is error-checked, and all
+owned Rust remains unsafe-free.
 ## Tasks
 ### `C02-T1` Finite Rectangles And Read-Only Geometry Carriers
 **Files:** `src/scroll.rs`, `src/lib.rs`, and focused model/public-contract tests.
@@ -179,7 +186,10 @@ CARGO_NET_OFFLINE=true just verify-generator
 3. Rect errors, saturation, contribution, origin, projection, and target behavior match D-03 through D-11 without a panic, unsupported result, guessed context, or alternate constructor.
 4. Current production geometry, outputs, caches, and format-local integration remain for C03-C05; no new canonical result is published from a formatting path.
 5. Normal and generator-feature verification pass with no generation or generated/input artifact delta.
-6. No later integration, comparator, fixture, documentation, root, sibling, dependency, feature, MSRV, generator architecture, lint-suppression, or unsafe change enters the range.
+6. No later integration, comparator, fixture, crate/parity documentation, root,
+   sibling, dependency, feature, MSRV, generator architecture, lint-suppression,
+   or unsafe change enters the range; the only provenance documentation is
+   `NOTICE.md` and `LICENSE-TAFFY.md`.
 ## Final Verification
 ```sh
 CARGO_NET_OFFLINE=true just verify
@@ -189,7 +199,8 @@ rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:
 ```
 The unsafe scan covers tracked and non-ignored owned Rust and must report no
 executable match. The cycle inventory contains only its plan, named layout Rust
-source/tests, and T1G's generator file; no fixture, artifact, doc, manifest, or external-repo change.
+source/tests, T1G's generator file, `NOTICE.md`, and `LICENSE-TAFFY.md`; no
+fixture, artifact, other documentation, manifest, or external-repo change.
 ## Handoff And Blockers
 The completed cycle hands C03 one reviewed source-fact factory and additive
 public carriers. C03 may integrate root/leaf/block and begin legacy removal; C04
