@@ -1,5 +1,5 @@
 # FRI-05-C03 Root Leaf And Block Geometry Integration
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-05-C03`
 Owning repository: `surgeist-layout`
 Cycle base: `019f2f0a39afbd820640b29f82305b01aeeb5fe3`
