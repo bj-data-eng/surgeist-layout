@@ -109,7 +109,26 @@ pub(crate) fn compute_flex<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    compute_flex_inner::<Tree, Tree::Scalar, M>(tree, node, input)
+    let mut pass_input = input;
+    loop {
+        let output = compute_flex_inner::<Tree, Tree::Scalar, M>(tree, node, pass_input)?;
+        if !input.run_mode().is_perform_layout() {
+            return Ok(output);
+        }
+        let Some(geometry) = output.scroll_geometry else {
+            return Ok(output);
+        };
+        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
+        if next_state == pass_input.settled_auto_scrollbars()
+            || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
+                geometry, next_state,
+            )
+            .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?
+        {
+            return Ok(output);
+        }
+        pass_input = input.with_settled_auto_scrollbars(next_state);
+    }
 }
 
 fn compute_flex_inner<Tree, S, M>(
@@ -197,7 +216,12 @@ where
             &layout_constants,
             final_scroll_box.expect("performed flex layout derives its final canonical box"),
         )?;
-        layout_hidden_children(tree, node, layout_constants.axes.flow_axes())?;
+        layout_hidden_children(
+            tree,
+            node,
+            layout_constants.axes.flow_axes(),
+            layout_constants.settled_auto_scrollbars,
+        )?;
         (absolute_contributions, Some(final_items))
     } else {
         (Vec::new(), None)
@@ -1304,7 +1328,8 @@ where
             available_inner_size,
             ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
             child_available,
-        ),
+        )
+        .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
     )?;
     let automatic_min_main_size = automatic_min_main_size(
         tree,
@@ -1339,7 +1364,8 @@ where
                     constants
                         .axes
                         .with_main_size(child_available, AvailableOf::MAX_CONTENT),
-                ),
+                )
+                .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
             )?
             .size,
         )
@@ -1515,7 +1541,8 @@ where
                 .with_main_size(constants.node_inner_size, None),
             ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
             available,
-        ),
+        )
+        .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
     )?;
 
     let mut min_content = constants
@@ -1870,7 +1897,8 @@ where
                             .unwrap_or(AvailableOf::MAX_CONTENT),
                         available_cross,
                     ),
-                ),
+                )
+                .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
             )?;
             item.baseline.refresh(measured);
             constants
@@ -3499,7 +3527,8 @@ where
                             ParentFormattingContext::Flex,
                         ),
                         child_available,
-                    ),
+                    )
+                    .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
                 )?
                 .size,
             );
@@ -3656,7 +3685,8 @@ where
                         .map(AvailableOf::definite)
                         .unwrap_or(AvailableOf::MAX_CONTENT),
                 ),
-            ),
+            )
+            .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
         )?;
         let resolved_flex_basis = match resolve_flex_basis(
             &style.flex_basis,
@@ -3926,7 +3956,8 @@ where
                 constants.node_inner_size,
                 ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
                 available,
-            ),
+            )
+            .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
         )?;
         let final_size = known_size
             .unwrap_or(output.size)
@@ -3979,6 +4010,7 @@ fn layout_hidden_children<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     containing_flow_axes: crate::geometry::FlowAxes,
+    settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, (), Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -3998,7 +4030,8 @@ where
             ComputeInputOf::hidden(ContainingLayoutContext::new(
                 containing_flow_axes,
                 ParentFormattingContext::Flex,
-            )),
+            ))
+            .with_settled_auto_scrollbars(settled_auto_scrollbars),
         )?;
     }
     Ok(())

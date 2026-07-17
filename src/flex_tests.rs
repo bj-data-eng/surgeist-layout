@@ -11104,3 +11104,375 @@ fn fri05_c04_flex_alignment_subject_bounds_farther_absolute_and_nested_start_ove
     assert_eq!(overflow.origin().x + overflow.size().width, 170.0);
     fri05_c04_assert_physical_range(output, (-20.0, 70.0, 0.0, 0.0));
 }
+
+#[derive(Default)]
+struct Fri05C04FlexAutoPassTree {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInput>,
+    child_output: Option<ComputeOutput>,
+    child_inputs: Vec<ComputeInput>,
+    layouts: Vec<(u32, NodeOutput)>,
+}
+
+impl Traverse for Fri05C04FlexAutoPassTree {
+    type Node = u32;
+    type Scalar = Scalar;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map_or(0, Vec::len)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl Compute for Fri05C04FlexAutoPassTree {
+    fn node_input(&self, node: Self::Node) -> &NodeInput {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInput {
+        LayoutInput::box_input(self.styles[&node].clone())
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+        self.layouts.push((node, layout));
+    }
+
+    fn compute_child(
+        &mut self,
+        _node: Self::Node,
+        input: ComputeInput,
+    ) -> crate::LayoutResultOf<Self::Node, ComputeOutput, Self::Scalar> {
+        self.child_inputs.push(input);
+        Ok(self
+            .child_output
+            .expect("FRI-05 flex auto child output is configured"))
+    }
+}
+
+fn fri05_c04_flex_auto_states(inputs: &[ComputeInput]) -> Vec<(bool, bool)> {
+    let mut states = inputs
+        .iter()
+        .map(|input| {
+            let state = input.settled_auto_scrollbars();
+            (
+                state.at(PhysicalAxis::Horizontal),
+                state.at(PhysicalAxis::Vertical),
+            )
+        })
+        .collect::<Vec<_>>();
+    states.dedup();
+    states
+}
+
+fn fri05_c04_flex_auto_absolute_case(
+    flow_axes: FlowAxes,
+    container_size: Size<f32>,
+    child_size: Size<f32>,
+    overflow: ComputedOverflow,
+    gutter: ScrollbarGutter,
+    scrollbar_width: f32,
+) -> (ComputeOutput, Fri05C04FlexAutoPassTree) {
+    let (left, right) = match flow_axes.physical_axis_progression(PhysicalAxis::Horizontal) {
+        PhysicalProgression::Increasing => (LengthAuto::px(0.0), LengthAuto::AUTO),
+        PhysicalProgression::Decreasing => (LengthAuto::AUTO, LengthAuto::px(0.0)),
+    };
+    let (top, bottom) = match flow_axes.physical_axis_progression(PhysicalAxis::Vertical) {
+        PhysicalProgression::Increasing => (LengthAuto::px(0.0), LengthAuto::AUTO),
+        PhysicalProgression::Decreasing => (LengthAuto::AUTO, LengthAuto::px(0.0)),
+    };
+    let mut tree = Fri05C04FlexAutoPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Flex,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow,
+            scrollbar_gutter: gutter,
+            scrollbar_width: ScrollbarWidth::try_new(scrollbar_width).unwrap(),
+            size: container_size.map(PreferredSize::px),
+            align_items: Some(AlignItems::FlexStart),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            position: Position::Absolute,
+            size: child_size.map(PreferredSize::px),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            inset: Edges::new(top, right, bottom, left),
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_sizes(child_size, child_size));
+
+    let output = compute_flex(
+        &mut tree,
+        0,
+        fri05_c04_flex_input(container_size, flow_axes),
+    )
+    .expect("monotone flex auto layout succeeds");
+    (output, tree)
+}
+
+#[test]
+fn fri05_c04_flex_auto_root_axis_cases_settle_monotonically_from_actual_pass_geometry() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let size = Size::splat(100.0);
+    for (child_size, expected_states, expected_scrollbars) in [
+        (Size::new(80.0, 80.0), vec![(false, false)], Size::ZERO),
+        (
+            Size::new(120.0, 80.0),
+            vec![(false, false), (true, false)],
+            Size::new(0.0, 15.0),
+        ),
+        (
+            Size::new(80.0, 120.0),
+            vec![(false, false), (false, true)],
+            Size::new(15.0, 0.0),
+        ),
+        (
+            Size::new(120.0, 100.0),
+            vec![(false, false), (true, false), (true, true)],
+            Size::splat(15.0),
+        ),
+        (
+            Size::new(100.0, 120.0),
+            vec![(false, false), (false, true), (true, true)],
+            Size::splat(15.0),
+        ),
+    ] {
+        let (output, tree) = fri05_c04_flex_auto_absolute_case(
+            flow_axes,
+            size,
+            child_size,
+            computed_overflow(Overflow::Auto, Overflow::Auto),
+            ScrollbarGutter::Auto,
+            15.0,
+        );
+        let states = fri05_c04_flex_auto_states(&tree.child_inputs);
+        assert_eq!(states, expected_states, "child size {child_size:?}");
+        assert!(states.len() <= 3);
+        assert_eq!(
+            output.scroll_geometry.unwrap().scrollbar_size(),
+            expected_scrollbars,
+            "child size {child_size:?}"
+        );
+    }
+}
+
+#[test]
+fn fri05_c04_flex_auto_alignment_subject_start_overflow_can_induce_other_axis() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let size = Size::splat(100.0);
+    let child_size = Size::new(120.0, 100.0);
+    let mut tree = Fri05C04FlexAutoPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Flex,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: size.map(PreferredSize::px),
+            align_items: Some(AlignItems::FlexStart),
+            justify_content: Some(AlignContent::End),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            size: child_size.map(PreferredSize::px),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_sizes(child_size, child_size));
+
+    let output = compute_flex(&mut tree, 0, fri05_c04_flex_input(size, flow_axes))
+        .expect("alignment-subject auto layout succeeds");
+    assert_eq!(
+        fri05_c04_flex_auto_states(&tree.child_inputs),
+        [(false, false), (true, false), (true, true)]
+    );
+    let range = output.scroll_geometry.unwrap().physical_range();
+    assert!(
+        range.x().minimum() < 0.0,
+        "the actual start subject is observed"
+    );
+    assert_eq!(range.x().maximum(), 0.0);
+}
+
+#[test]
+fn fri05_c04_flex_reservation_forced_stable_both_zero_and_auto_map_all_flows() {
+    let size = Size::new(100.0, 80.0);
+    for flow_axes in fri05_c04_flex_all_flow_axes() {
+        for (overflow, gutter, width, inline_start, inline_end) in [
+            (
+                fri05_c04_flex_overflow_at_flow_axes(flow_axes, Overflow::Hidden, Overflow::Scroll),
+                ScrollbarGutter::Auto,
+                15.0,
+                false,
+                true,
+            ),
+            (
+                fri05_c04_flex_overflow_at_flow_axes(flow_axes, Overflow::Hidden, Overflow::Hidden),
+                ScrollbarGutter::Stable,
+                15.0,
+                false,
+                true,
+            ),
+            (
+                fri05_c04_flex_overflow_at_flow_axes(flow_axes, Overflow::Hidden, Overflow::Hidden),
+                ScrollbarGutter::StableBothEdges,
+                15.0,
+                true,
+                true,
+            ),
+            (
+                computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                ScrollbarGutter::StableBothEdges,
+                0.0,
+                false,
+                false,
+            ),
+        ] {
+            let (output, _) = fri05_c04_flex_auto_absolute_case(
+                flow_axes,
+                size,
+                Size::new(20.0, 20.0),
+                overflow,
+                gutter,
+                width,
+            );
+            let gutters = output.scroll_geometry.unwrap().gutters();
+            for side in [
+                PhysicalSide::Top,
+                PhysicalSide::Right,
+                PhysicalSide::Bottom,
+                PhysicalSide::Left,
+            ] {
+                let expected = (side == flow_axes.inline_start() && inline_start)
+                    || (side == flow_axes.inline_end() && inline_end);
+                assert_eq!(
+                    fri05_c04_flex_gutter_at(gutters, side).is_some(),
+                    expected,
+                    "{flow_axes:?} {side:?}"
+                );
+            }
+        }
+
+        let (auto_output, auto) = fri05_c04_flex_auto_absolute_case(
+            flow_axes,
+            size,
+            Size::new(120.0, 20.0),
+            computed_overflow(Overflow::Auto, Overflow::Auto),
+            ScrollbarGutter::Auto,
+            15.0,
+        );
+        assert_eq!(
+            fri05_c04_flex_auto_states(&auto.child_inputs),
+            [(false, false), (true, false)],
+            "{flow_axes:?}"
+        );
+        let expected_auto_side = if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
+            flow_axes.block_end()
+        } else {
+            flow_axes.inline_end()
+        };
+        let auto_gutters = auto_output.scroll_geometry.unwrap().gutters();
+        for side in [
+            PhysicalSide::Top,
+            PhysicalSide::Right,
+            PhysicalSide::Bottom,
+            PhysicalSide::Left,
+        ] {
+            assert_eq!(
+                fri05_c04_flex_gutter_at(auto_gutters, side).is_some(),
+                side == expected_auto_side,
+                "auto {flow_axes:?} {side:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri05_c04_flex_tiny_induced_reservations_saturate_without_extra_evaluations() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let (output, tree) = fri05_c04_flex_auto_absolute_case(
+        flow_axes,
+        Size::splat(2.0),
+        Size::new(3.0, 2.0),
+        computed_overflow(Overflow::Auto, Overflow::Auto),
+        ScrollbarGutter::Auto,
+        15.0,
+    );
+    assert_eq!(
+        fri05_c04_flex_auto_states(&tree.child_inputs),
+        [(false, false), (true, false), (true, true)]
+    );
+    let geometry = output.scroll_geometry.unwrap();
+    assert_eq!(geometry.content_box().size(), Size::ZERO);
+    assert_eq!(geometry.scrollport().size(), Size::ZERO);
+    assert_eq!(geometry.scrollbar_size(), Size::splat(2.0));
+    assert!(
+        [
+            geometry.border_box(),
+            geometry.padding_box(),
+            geometry.content_box(),
+            geometry.scrollport(),
+        ]
+        .into_iter()
+        .all(|rect| rect.size().width >= 0.0 && rect.size().height >= 0.0)
+    );
+
+    let mut measurement_tree = Fri05C04FlexAutoPassTree::default();
+    measurement_tree.children.insert(0, vec![1]);
+    measurement_tree.children.insert(1, vec![]);
+    measurement_tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Flex,
+            size: Size::new(PreferredSize::px(2.0), PreferredSize::px(2.0)),
+            ..NodeInput::default()
+        },
+    );
+    measurement_tree.styles.insert(1, NodeInput::default());
+    measurement_tree.child_output = Some(ComputeOutput::from_outer_size(Size::splat(1.0)));
+    let measurement = compute_flex(
+        &mut measurement_tree,
+        0,
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::splat(Some(2.0)),
+            Size::splat(Some(2.0)),
+            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+            Size::splat(Available::definite(2.0)),
+        ),
+    )
+    .expect("fixed flex measurement remains geometry-free");
+    assert!(measurement.scroll_geometry.is_none());
+    assert!(measurement_tree.child_inputs.is_empty());
+}
