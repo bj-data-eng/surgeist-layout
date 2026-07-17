@@ -8,7 +8,7 @@ Reviewed specification:
 at SHA-256
 `b2bc5d8cf1f7b65dcef74adf34b5b63ab1f8b519fcbd1094ff4e335ab419286f`,
 commit `5a51d0f67ef781eef724f86a9232bc3616c3773f`, the confirmed-generator-bug
-exception in `FRI-05.3`, sections `FRI-05.4 D-03` through `D-11`, the output/substrate rows of `FRI-05.5` and `FRI-05.6`, the
+exception in `FRI-05.2`, sections `FRI-05.4 D-03` through `D-11`, the output/substrate rows of `FRI-05.5` and `FRI-05.6`, the
 canonical-geometry, flow/origin, contribution, zero-area, rounding, target, and
 public-surface rows of `FRI-05.8`, the `scroll.rs` and `lib.rs` rows of
 `FRI-05.9`, `FRI-05.10`, and the substrate portions of acceptance items 3
