@@ -4060,7 +4060,7 @@ fn assert_logical_flex_sizing_preserves_horizontal_and_child_flow_ownership<S: L
         public_flow_output(horizontal_batch.final_entries(), 0)
             .content_size
             .height,
-        scalar(28.0)
+        scalar(80.0)
     );
 }
 
@@ -9418,4 +9418,64 @@ fn fri05_c03_integration_padding_seed_fractional_terminal_auto_probe_survives_ro
 
     assert_lane::<f32>();
     assert_lane::<f64>();
+}
+
+#[test]
+fn fri05_c04_flex_contribution_root_content_size_unions_anchor_and_overflow_per_axis() {
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(8.0)),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(3.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                inset: Edges {
+                    left: LengthAuto::px(-6.0),
+                    top: LengthAuto::px(-4.0),
+                    ..Edges::all(LengthAuto::AUTO)
+                },
+                ..NodeInput::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::new(
+            Available::definite(10.0),
+            Available::definite(8.0),
+        ))
+        .unwrap(),
+    )
+    .expect("root flex contribution layout succeeds");
+    let root = public_flow_output(batch.final_entries(), 0);
+    let geometry = root.scroll_geometry.expect("root flex geometry is present");
+    let overflow = geometry.scrollable_overflow();
+    let anchor = geometry.content_box().origin();
+    let minimum = Point::new(
+        anchor.x.min(overflow.origin().x),
+        anchor.y.min(overflow.origin().y),
+    );
+    let maximum = Point::new(
+        anchor.x.max(overflow.origin().x + overflow.size().width),
+        anchor.y.max(overflow.origin().y + overflow.size().height),
+    );
+
+    assert!(overflow.origin().x < 0.0);
+    assert!(overflow.origin().y < 0.0);
+    assert_eq!(
+        root.content_size,
+        Size::new(maximum.x - minimum.x, maximum.y - minimum.y)
+    );
 }

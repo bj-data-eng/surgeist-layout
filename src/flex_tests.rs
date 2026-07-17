@@ -2133,7 +2133,7 @@ fn flex_row_lays_out_fixed_children_with_gap_and_container_insets() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(200.0, 42.0));
-    assert_eq!(output.content_size, Size::new(80.0, 30.0));
+    assert_eq!(output.content_size, Size::new(198.0, 40.0));
 
     assert_eq!(tree.layouts[&2].location, Point::new(6.0, 6.0));
     assert_eq!(tree.layouts[&2].size, Size::new(40.0, 20.0));
@@ -3616,7 +3616,7 @@ fn flex_container_reserves_scrollbar_gutter_from_inner_size() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
-    assert_eq!(output.content_size, Size::new(90.0, 40.0));
+    assert_eq!(output.content_size, Size::new(100.0, 40.0));
     assert_eq!(tree.layouts[&2].size, Size::new(90.0, 10.0));
     assert_eq!(tree.layouts[&2].location, Point::ZERO);
 }
@@ -3929,7 +3929,7 @@ fn flex_absolute_child_uses_insets_without_affecting_flow() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 40.0));
-    assert_eq!(output.content_size, Size::new(87.0, 41.0));
+    assert_eq!(output.content_size, Size::new(100.0, 41.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(25.0, 10.0));
     assert_eq!(tree.layouts[&3].location, Point::new(7.0, 9.0));
@@ -5947,7 +5947,7 @@ fn flex_row_wraps_items_into_multiple_lines() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 38.0));
-    assert_eq!(output.content_size, Size::new(60.0, 38.0));
+    assert_eq!(output.content_size, Size::new(100.0, 38.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 14.0));
     assert_eq!(tree.layouts[&4].location, Point::new(0.0, 28.0));
@@ -6051,7 +6051,7 @@ fn flex_row_auto_width_wraps_against_definite_available_width() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 38.0));
-    assert_eq!(output.content_size, Size::new(60.0, 38.0));
+    assert_eq!(output.content_size, Size::new(100.0, 38.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 14.0));
     assert_eq!(tree.layouts[&4].location, Point::new(0.0, 28.0));
@@ -7968,7 +7968,7 @@ fn flex_row_stretches_wrapped_lines_with_align_content_stretch() {
     .unwrap();
 
     assert_eq!(output.size, Size::new(100.0, 60.0));
-    assert_eq!(output.content_size, Size::new(80.0, 60.0));
+    assert_eq!(output.content_size, Size::new(100.0, 60.0));
     assert_eq!(tree.layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.layouts[&3].location, Point::new(0.0, 32.0));
 }
@@ -10292,4 +10292,346 @@ fn fri05_c04_flex_child_geometry_direct_auto_max_tiny_gutter_keeps_absolute_inpu
             "ordinary bottom placement remains on the settled scrollport for {flow_axes:?}"
         );
     }
+}
+
+fn fri05_c04_positive_margin_rect(output: NodeOutput) -> ScrollRect {
+    let top = output.margin.top.max(0.0);
+    let right = output.margin.right.max(0.0);
+    let bottom = output.margin.bottom.max(0.0);
+    let left = output.margin.left.max(0.0);
+    ScrollRect::try_new(
+        Point::new(output.location.x - left, output.location.y - top),
+        Size::new(
+            output.size.width + left + right,
+            output.size.height + top + bottom,
+        ),
+    )
+    .unwrap()
+}
+
+fn fri05_c04_union_rects(rects: impl IntoIterator<Item = ScrollRect>) -> ScrollRect {
+    let mut rects = rects.into_iter();
+    let first = rects.next().expect("the test union is nonempty");
+    let mut minimum = first.origin();
+    let mut maximum = Point::new(
+        first.origin().x + first.size().width,
+        first.origin().y + first.size().height,
+    );
+    for rect in rects {
+        minimum.x = minimum.x.min(rect.origin().x);
+        minimum.y = minimum.y.min(rect.origin().y);
+        maximum.x = maximum.x.max(rect.origin().x + rect.size().width);
+        maximum.y = maximum.y.max(rect.origin().y + rect.size().height);
+    }
+    ScrollRect::try_new(
+        minimum,
+        Size::new(maximum.x - minimum.x, maximum.y - minimum.y),
+    )
+    .unwrap()
+}
+
+#[test]
+fn fri05_c04_flex_contribution_positive_outsets_negative_margins_and_source_order_are_exact() {
+    let size = Size::new(10.0, 10.0);
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1, 2])
+        .children(1, [])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                size: size.map(PreferredSize::px),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                item_order: ItemOrder::new(10),
+                size: Size::new(PreferredSize::px(7.0), PreferredSize::px(4.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                margin: Edges::new(
+                    LengthAuto::px(3.0),
+                    LengthAuto::px(5.0),
+                    LengthAuto::px(2.0),
+                    LengthAuto::px(4.0),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                item_order: ItemOrder::new(-10),
+                size: Size::new(PreferredSize::px(6.0), PreferredSize::px(3.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                margin: Edges::new(
+                    LengthAuto::px(-7.0),
+                    LengthAuto::px(-11.0),
+                    LengthAuto::px(-5.0),
+                    LengthAuto::px(-13.0),
+                ),
+                ..NodeInput::default()
+            },
+        );
+
+    let output = compute_flex(
+        &mut tree,
+        0,
+        fri05_c04_flex_input(
+            size,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ),
+    )
+    .expect("flex contribution layout succeeds");
+    let first = tree.layout(1).expect("first source output is retained");
+    let second = tree.layout(2).expect("second source output is retained");
+    assert_eq!(first.source_index, SourceIndex::new(0));
+    assert_eq!(second.source_index, SourceIndex::new(1));
+
+    let expected = fri05_c04_union_rects([
+        ScrollRect::try_new(Point::ZERO, size).unwrap(),
+        fri05_c04_positive_margin_rect(first),
+        fri05_c04_positive_margin_rect(second),
+    ]);
+    let geometry = output.scroll_geometry.expect("flex geometry is present");
+    assert_eq!(geometry.scrollable_overflow(), expected);
+    let expected_maximum = Point::new(
+        expected.origin().x + expected.size().width,
+        expected.origin().y + expected.size().height,
+    );
+    assert_eq!(
+        output.content_size,
+        Size::new(
+            expected_maximum.x.max(0.0) - expected.origin().x.min(0.0),
+            expected_maximum.y.max(0.0) - expected.origin().y.min(0.0),
+        ),
+        "negative starts and positive ends remain independent"
+    );
+}
+
+#[test]
+fn fri05_c04_flex_contribution_terminal_padding_extends_only_the_final_in_flow_ends() {
+    let size = Size::new(10.0, 8.0);
+    let padding = Edges {
+        right: Length::px(4.0),
+        bottom: Length::px(3.0),
+        ..Edges::all(Length::ZERO)
+    };
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                size: size.map(PreferredSize::px),
+                padding,
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(12.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                ..NodeInput::default()
+            },
+        );
+    let output = compute_flex(
+        &mut tree,
+        0,
+        fri05_c04_flex_input(
+            size,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ),
+    )
+    .expect("terminal-padding flex layout succeeds");
+    let child = tree.layout(1).unwrap();
+    let overflow = output.scroll_geometry.unwrap().scrollable_overflow();
+
+    assert_eq!(overflow.origin(), Point::ZERO);
+    assert_eq!(
+        overflow.size().width,
+        child.location.x + child.size.width + 4.0
+    );
+    assert_eq!(
+        overflow.size().height,
+        child.location.y + child.size.height + 3.0
+    );
+}
+
+fn fri05_c04_flex_nested_output(
+    overflow: ComputedOverflow,
+    child_size: Size<f32>,
+) -> ComputeOutput {
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                size: Size::ZERO.map(PreferredSize::px),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                overflow,
+                size: child_size.map(PreferredSize::px),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                align_self: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                ..NodeInput::default()
+            },
+        );
+    compute_flex(
+        &mut tree,
+        0,
+        fri05_c04_flex_input(
+            Size::ZERO,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ),
+    )
+    .expect("nested flex contribution layout succeeds")
+}
+
+#[test]
+fn fri05_c04_flex_nested_visible_and_trapped_axes_preserve_zero_area_intervals_independently() {
+    for (overflow, child_size, expected) in [
+        (
+            computed_overflow(Overflow::Visible, Overflow::Clip),
+            Size::new(0.0, 5.0),
+            Size::new(20.0, 0.0),
+        ),
+        (
+            computed_overflow(Overflow::Clip, Overflow::Visible),
+            Size::new(5.0, 0.0),
+            Size::new(0.0, 30.0),
+        ),
+        (
+            computed_overflow(Overflow::Clip, Overflow::Clip),
+            Size::new(0.0, 5.0),
+            Size::ZERO,
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Scroll),
+            Size::new(0.0, 5.0),
+            Size::ZERO,
+        ),
+        (
+            computed_overflow(Overflow::Scroll, Overflow::Auto),
+            Size::new(5.0, 0.0),
+            Size::ZERO,
+        ),
+        (
+            computed_overflow(Overflow::Auto, Overflow::Hidden),
+            Size::new(5.0, 0.0),
+            Size::ZERO,
+        ),
+    ] {
+        let output = fri05_c04_flex_nested_output(overflow, child_size);
+        let geometry = output
+            .scroll_geometry
+            .expect("nested flex geometry is present");
+        assert_eq!(geometry.scrollable_overflow().origin(), Point::ZERO);
+        assert_eq!(
+            geometry.scrollable_overflow().size(),
+            expected,
+            "{overflow:?}"
+        );
+        assert_eq!(output.content_size, expected, "{overflow:?}");
+    }
+}
+
+#[test]
+fn fri05_c04_flex_absolute_margin_and_visible_descendant_contribute_once_without_terminal_padding()
+{
+    let size = Size::ZERO;
+    let mut tree = crate::test_support::layout_tree::OracleTree::new()
+        .children(0, [1])
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                size: size.map(PreferredSize::px),
+                padding: Edges {
+                    right: Length::px(4.0),
+                    bottom: Length::px(3.0),
+                    ..Edges::all(Length::ZERO)
+                },
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Absolute,
+                overflow: ComputedOverflow::VISIBLE,
+                size: Size::new(PreferredSize::px(5.0), PreferredSize::px(5.0)),
+                inset: Edges::new(
+                    LengthAuto::px(0.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(10.0),
+                ),
+                margin: Edges {
+                    right: LengthAuto::px(7.0),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(9.0), PreferredSize::px(12.0)),
+                ..NodeInput::default()
+            },
+        );
+    let output = compute_flex(
+        &mut tree,
+        0,
+        fri05_c04_flex_input(
+            size,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ),
+    )
+    .expect("absolute flex contribution layout succeeds");
+    let absolute = tree.layout(1).expect("absolute output is retained");
+    let own_margin = fri05_c04_positive_margin_rect(absolute);
+    let own_max_x = own_margin.origin().x + own_margin.size().width;
+    let geometry = output
+        .scroll_geometry
+        .expect("absolute flex geometry is present");
+
+    assert_eq!(geometry.scrollable_overflow().origin(), Point::ZERO);
+    assert_eq!(geometry.scrollable_overflow().size().width, own_max_x);
+    assert_eq!(geometry.scrollable_overflow().size().height, 12.0);
+    assert_eq!(output.content_size, geometry.scrollable_overflow().size());
+    assert_ne!(geometry.scrollable_overflow().size().width, own_max_x + 4.0);
 }
