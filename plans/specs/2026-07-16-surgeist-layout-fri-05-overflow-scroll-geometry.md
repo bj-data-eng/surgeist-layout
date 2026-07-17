@@ -435,6 +435,34 @@ own.
 - the optimal viewing region; and
 - the container's `ScrollSnapType`.
 
+The exact read-only accessor surface is:
+
+```rust
+pub const fn flow_axes(self) -> FlowAxes
+pub const fn used_overflow_x(self) -> Overflow
+pub const fn used_overflow_y(self) -> Overflow
+pub const fn border_box(self) -> ScrollRectOf<S>
+pub const fn padding_box(self) -> ScrollRectOf<S>
+pub const fn content_box(self) -> ScrollRectOf<S>
+pub const fn scrollport(self) -> ScrollRectOf<S>
+pub const fn overflow_clip(self) -> OverflowClipOf<S>
+pub const fn scrollable_overflow(self) -> ScrollRectOf<S>
+pub const fn physical_range(self) -> PhysicalScrollRangeOf<S>
+pub const fn gutters(self) -> ScrollbarGutterRectsOf<S>
+pub const fn scrollbar_size(self) -> Size<S>
+pub const fn resolved_scroll_padding(self) -> Edges<S>
+pub const fn optimal_viewing_region(self) -> ScrollRectOf<S>
+pub const fn scroll_snap_type(self) -> ScrollSnapType
+pub const fn target(self) -> ScrollTargetGeometryOf<S>
+```
+
+`ScrollbarGutterRectsOf<S>` is the immutable physical-edge gutter output. It
+has private `top`, `right`, `bottom`, and `left` optional rectangles and exposes
+only matching `top()`, `right()`, `bottom()`, and `left()` accessors. It has no
+public constructor and no `Default`. `ScrollGeometryOf::scrollbar_size()` is the
+aggregate physical reservation derived from those effective edges, not the
+requested classic scrollbar thickness.
+
 The value privately retains one canonical source record containing the final
 border size, resolved edges, effective gutter state, used overflow, clip margin,
 resolved scroll padding, finite target scroll margin, accumulated overflow,
@@ -986,11 +1014,12 @@ The breaking API delta is:
 | `Overflow` without `Auto` | `Overflow` with `Auto` and corrected predicates |
 | Per-axis public `clips_contents()` and `blocks_margin_collapse()` | Pair-level computed IFC/BFC predicate plus private used-axis clip/range/gutter predicates |
 | Public `ScrollRectOf::new` returning `ScrollUnsupportedFeature` | `ScrollRectOf::try_new` returning `ScrollRectErrorOf<S>` |
-| Public `ScrollbarGutterRectsOf::new` | No public constructor; canonical output accessors only |
-| Public `ScrollGeometryOf::new` | No public constructor; layout factory output only |
+| Public `ScrollbarGutterRectsOf::new` and horizontal/vertical-only output | No public constructor; private physical-edge output with `top()`/`right()`/`bottom()`/`left()` accessors |
+| Public `ScrollGeometryOf::new` | No public constructor; layout factory output with the exact D-03 accessors only |
 | Exported `ScrollOverflowExposure`, `ScrollContainerAxis`, `ScrollContainerFacts`, their public constructors, crate-visible `scroll_container_facts_from_overflow`, and `ScrollGeometryOf::container()` | Removed; private used-overflow derivation plus read-only `ScrollGeometryOf::used_overflow_x()` and `used_overflow_y()` |
 | One `Option<ScrollRectOf>` overflow clip | `OverflowClipOf<S>` with independent x/y intervals |
 | Public mutable `NodeOutputOf::scrollbar_size` field | Derived `NodeOutputOf::scrollbar_size()` method |
+| `compute_leaf` accepts a one-shot `FnOnce` measurement callback | `compute_leaf` accepts `FnMut(LeafMeasureInputOf<S>) -> Result<Size<S>, M>` so one logical call can perform the bounded auto-gutter passes |
 | No target output | Required `ScrollTargetGeometryOf<S>` nested in every present `ScrollGeometryOf<S>` and exposed by `target()` |
 | `ScrollUnsupportedFeature` and `ScrollOverflowCouplingPolicy` | Removed; real capabilities and typed input/rect errors |
 
@@ -1075,6 +1104,10 @@ containers. Leaf measurement receives the effective content box for the current
 auto-gutter pass. A stable pass emits geometry with its required nested target;
 rounding rebuilds both together. Their scroll-origin axes are the ordinary
 `FlowAxes` progression and they have no content-distribution start adjustment.
+The public direct `compute_leaf` callback is `FnMut`, not `FnOnce`: it is invoked
+once for each geometry-changing auto-gutter pass and no more than three times.
+When no non-zero conditional reservation changes available geometry, it is
+invoked exactly once. Tree-backed measurement follows the same input sequence.
 
 ### Block
 
@@ -1150,7 +1183,7 @@ The initiative requires these named evidence families:
 | Canonical geometry | Box nesting, finite ends, partial-axis clips, clip-margin reference boxes, gutter placement, proportional small-box saturation, and constructor inaccessibility. |
 | Flow direction and origin | Range and gutter placement across all ten `WritingMode`/`Direction` pairs before and after rounding, including every reversed physical axis plus flex row/column reverse and wrap-reverse origin mappings. |
 | Alignment-origin range | Existing flex/grid start, end, center, safe fallback, reverse, and distributed content cases prove zero initial anchor, both-sided bounds, start-alignment reach, terminal padding, and exclusion of farther start-side out-of-flow overflow in all flow mappings. |
-| Auto coupling | No-overflow, x-only, y-only, x-induces-y, y-induces-x, forced scroll, hidden stable, stable both-edges, and zero-thickness overlay cases. |
+| Auto coupling | No-overflow, x-only, y-only, x-induces-y, y-induces-x, forced scroll, hidden stable, stable both-edges, and zero-thickness overlay cases; direct and tree-backed leaf evidence proves the exact effective measurement inputs and the one-to-three call bound. |
 | Block blockers | The named negative-margin and smaller-than-scrollbar browser families complete without panic and match geometry. |
 | Nested contribution | Under block, flex, grid, and lanes, used `Visible` propagates only its physical-axis descendant interval; `Clip`, `Hidden`, `Scroll`, and `Auto` trap nested overflow even when their local clip or full scrollable-overflow rectangle is non-empty. Partial-axis cases prove the two decisions are independent, and current absolute children are included once. |
 | Zero-area contribution | `0xN` and `Nx0` child boxes prove that a real used-visible propagatable descendant interval survives on the non-zero axis in block, flex, grid, and grid-lanes, while the same nested geometry under every trapped value contributes zero to the parent. |
