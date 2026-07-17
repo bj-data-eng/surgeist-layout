@@ -1,5 +1,5 @@
 # FRI-05-C02 Canonical Scroll Geometry Substrate
-Status: in_progress
+Status: draft
 Cycle ID: `FRI-05-C02`
 Owning repository: `surgeist-layout`
 Cycle base: `a6a6011aedb952572b8c0eac6f2a67b94c219f1a`
@@ -69,8 +69,8 @@ exactly to C03-C05; no compatibility alias is added for a new type.
 Documentation: `NOTICE.md` clarifies the Taffy 0.10.1 provenance and
 `LICENSE-TAFFY.md` preserves the corresponding license text. Dependencies,
 features, generated artifacts, crate docs, examples, MSRV, root, and siblings
-are unchanged; the private generator gate release is error-checked, and all
-owned Rust remains unsafe-free.
+are unchanged; the private generator gate and owner-lease releases are
+error-checked on normal completion, and all owned Rust remains unsafe-free.
 ## Tasks
 ### `C02-T1` Finite Rectangles And Read-Only Geometry Carriers
 **Files:** `src/scroll.rs`, `src/lib.rs`, and focused model/public-contract tests.
@@ -96,14 +96,20 @@ CARGO_NET_OFFLINE=true just verify
 ```
 **Dependency:** Published C01 candidate.
 **Intended commit:** `api(layout): add finite scroll geometry carriers`.
-### `C02-T1G` Deterministic Generator Acquisition-Gate Release
+### `C02-T1G` Deterministic Generator Gate And Owner-Lease Release
 **Files:** `tests/bin/surgeist-layout-generate/generator.rs` and its focused tests.
 **Outcome:** Explicitly unlock the short-lived acquisition gate after durable
-owner publication so a duplicated or inherited descriptor cannot retain it.
-**RED:** Extract the current drop-only release path without changing behavior;
-retain a cloned gate handle and prove an independent contender stays blocked.
-**Acceptance:** Error-checked explicit release lets the contender acquire while
-the clone lives, preserves the owner lease lock and diagnostics, and adds no API.
+owner publication and the long-lived owner lease after generation completion so
+a duplicated or inherited descriptor cannot retain either lock. Keep close-based
+release only as the cancellation/unwind fallback.
+**RED:** For the acquisition gate, retain a cloned gate handle and prove an
+independent contender stays blocked after the current drop-only release. For the
+owner lease, retain a cloned lease handle and prove immediate full-to-scoped
+reacquisition stays blocked after owner drop.
+**Acceptance:** Error-checked normal-path release lets independent contenders
+acquire while retained gate or lease descriptors remain alive, preserves owner
+metadata and exclusion while active, retains a drop fallback, and reports a
+release failure without hiding an existing generation failure. No API is added.
 **Commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate generation_lock_
