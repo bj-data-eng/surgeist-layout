@@ -10940,6 +10940,7 @@ fn fri05_c03_block_reservation_places_forced_and_stable_gutters_in_all_flows() {
 }
 
 fn fri05_c03_block_auto_case(
+    gutter: ScrollbarGutter,
     child_size: Size<f32>,
     expected_states: &[(bool, bool)],
     expected_reservation: Size<f32>,
@@ -10954,6 +10955,7 @@ fn fri05_c03_block_auto_case(
         NodeInput {
             display: Display::Block,
             overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_gutter: gutter,
             scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
             size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
             ..NodeInput::default()
@@ -10982,6 +10984,11 @@ fn fri05_c03_block_auto_case(
         })
         .collect::<Vec<_>>();
     assert_eq!(states, expected_states, "child size {child_size:?}");
+    assert_eq!(
+        tree.layouts.iter().filter(|(node, _)| *node == 1).count(),
+        expected_states.len(),
+        "each geometry-changing evaluation stages the child once"
+    );
     assert!(
         states.len() <= 3,
         "auto geometry must settle within three passes"
@@ -10994,25 +11001,56 @@ fn fri05_c03_block_auto_case(
 
 #[test]
 fn fri05_c03_block_auto_runs_only_monotone_geometry_changing_evaluations() {
-    fri05_c03_block_auto_case(Size::new(80.0, 80.0), &[(false, false)], Size::ZERO);
     fri05_c03_block_auto_case(
+        ScrollbarGutter::Auto,
+        Size::new(80.0, 80.0),
+        &[(false, false)],
+        Size::ZERO,
+    );
+    fri05_c03_block_auto_case(
+        ScrollbarGutter::Auto,
         Size::new(120.0, 80.0),
         &[(false, false), (true, false)],
         Size::new(0.0, 15.0),
     );
     fri05_c03_block_auto_case(
+        ScrollbarGutter::Auto,
         Size::new(80.0, 120.0),
         &[(false, false), (false, true)],
         Size::new(15.0, 0.0),
     );
     fri05_c03_block_auto_case(
+        ScrollbarGutter::Auto,
         Size::new(120.0, 100.0),
         &[(false, false), (true, false), (true, true)],
         Size::new(15.0, 15.0),
     );
     fri05_c03_block_auto_case(
+        ScrollbarGutter::Auto,
         Size::new(100.0, 120.0),
         &[(false, false), (false, true), (true, true)],
+        Size::new(15.0, 15.0),
+    );
+}
+
+#[test]
+fn fri05_c03_block_auto_stable_reservations_skip_redundant_full_evaluations() {
+    fri05_c03_block_auto_case(
+        ScrollbarGutter::Stable,
+        Size::new(80.0, 120.0),
+        &[(false, false)],
+        Size::new(15.0, 0.0),
+    );
+    fri05_c03_block_auto_case(
+        ScrollbarGutter::StableBothEdges,
+        Size::new(60.0, 120.0),
+        &[(false, false)],
+        Size::new(30.0, 0.0),
+    );
+    fri05_c03_block_auto_case(
+        ScrollbarGutter::Stable,
+        Size::new(90.0, 120.0),
+        &[(false, false), (true, true)],
         Size::new(15.0, 15.0),
     );
 }
@@ -11064,4 +11102,177 @@ fn fri05_c03_block_tiny_saturates_opposing_reservations_before_child_layout() {
     assert_eq!(right.size(), Size::new(1.0, 20.0));
     assert_eq!(left.origin(), Point::ZERO);
     assert_eq!(right.origin(), Point::new(1.0, 0.0));
+}
+
+#[test]
+fn fri05_c03_block_tiny_max_size_below_raw_edges_keeps_layout_geometry_coherent() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let mut tree = Fri05C03BlockPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
+            max_size: Size::new(MaxSize::NONE, MaxSize::px(12.0)),
+            border: Edges {
+                top: Length::px(15.0),
+                bottom: Length::px(15.0),
+                ..Edges::all(Length::ZERO)
+            },
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_outer_size(Size::ZERO));
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(100.0), None),
+            Size::new(Some(100.0), None),
+            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+            Size::new(Available::definite(100.0), Available::MAX_CONTENT),
+        ),
+    )
+    .expect("raw edges larger than max size remain supported");
+
+    assert_eq!(tree.child_inputs.len(), 1);
+    assert_eq!(
+        tree.child_inputs[0].settled_auto_scrollbars(),
+        crate::scroll::SettledAutoScrollbarState::INITIAL
+    );
+    assert_eq!(
+        tree.child_inputs[0].available().width,
+        Available::definite(100.0)
+    );
+    let child = tree
+        .layouts
+        .iter()
+        .find_map(|(node, layout)| (*node == 1).then_some(*layout))
+        .expect("the coherent pass stages its child");
+    assert_eq!(child.location, Point::new(0.0, 15.0));
+
+    assert_eq!(output.size, Size::new(100.0, 30.0));
+    let geometry = output
+        .scroll_geometry
+        .expect("performed block emits canonical geometry");
+    assert_eq!(geometry.border_box().size(), Size::new(100.0, 30.0));
+    assert_eq!(geometry.padding_box().origin(), Point::new(0.0, 15.0));
+    assert_eq!(geometry.padding_box().size(), Size::new(100.0, 0.0));
+    assert_eq!(geometry.content_box(), geometry.padding_box());
+    assert_eq!(geometry.scrollport(), geometry.padding_box());
+    assert_eq!(geometry.physical_range().x().minimum(), 0.0);
+    assert_eq!(geometry.physical_range().x().maximum(), 0.0);
+    assert_eq!(geometry.physical_range().y().minimum(), 0.0);
+    assert_eq!(geometry.physical_range().y().maximum(), 0.0);
+    assert_eq!(geometry.scrollbar_size(), Size::ZERO);
+}
+
+#[test]
+fn fri05_c03_block_tiny_max_inline_size_below_raw_edges_keeps_child_space_zero() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let mut tree = Fri05C03BlockPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::AUTO, PreferredSize::px(20.0)),
+            max_size: Size::new(MaxSize::px(12.0), MaxSize::NONE),
+            border: Edges {
+                right: Length::px(10.0),
+                left: Length::px(10.0),
+                ..Edges::all(Length::ZERO)
+            },
+            padding: Edges {
+                right: Length::px(5.0),
+                left: Length::px(5.0),
+                ..Edges::all(Length::ZERO)
+            },
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_outer_size(Size::ZERO));
+
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInput::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(None, Some(20.0)),
+            Size::new(None, Some(20.0)),
+            ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+            Size::new(Available::MAX_CONTENT, Available::definite(20.0)),
+        ),
+    )
+    .expect("raw inline edges larger than max size remain supported");
+
+    assert_eq!(
+        tree.child_inputs
+            .iter()
+            .map(|input| {
+                let state = input.settled_auto_scrollbars();
+                (
+                    state.at(PhysicalAxis::Horizontal),
+                    state.at(PhysicalAxis::Vertical),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [(false, false), (false, false)]
+    );
+    assert_eq!(
+        tree.child_inputs[0].available().width,
+        Available::MAX_CONTENT
+    );
+    assert_eq!(tree.child_inputs[1].known().width, Some(0.0));
+    assert_eq!(
+        tree.child_inputs[1].available().width,
+        Available::definite(0.0)
+    );
+    let child = tree
+        .layouts
+        .iter()
+        .find_map(|(node, layout)| (*node == 1).then_some(*layout))
+        .expect("the final coherent pass stages its child");
+    assert_eq!(child.location, Point::new(15.0, 0.0));
+
+    assert_eq!(output.size, Size::new(30.0, 20.0));
+    let geometry = output
+        .scroll_geometry
+        .expect("performed block emits canonical geometry");
+    assert_eq!(geometry.border_box().size(), output.size);
+    assert_eq!(geometry.padding_box().origin(), Point::new(10.0, 0.0));
+    assert_eq!(geometry.padding_box().size(), Size::new(10.0, 20.0));
+    assert_eq!(geometry.content_box().origin(), Point::new(15.0, 0.0));
+    assert_eq!(geometry.content_box().size(), Size::new(0.0, 20.0));
+    assert_eq!(geometry.scrollport(), geometry.padding_box());
+    assert_eq!(geometry.physical_range().x().maximum(), 0.0);
+    assert_eq!(geometry.physical_range().y().maximum(), 0.0);
+    assert_eq!(geometry.scrollbar_size(), Size::ZERO);
 }

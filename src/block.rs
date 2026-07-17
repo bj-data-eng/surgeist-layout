@@ -51,6 +51,10 @@ where
         let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
         if next_state == pass_input.settled_auto_scrollbars()
             || scrollbar_width == Tree::Scalar::ZERO
+            || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
+                geometry, next_state,
+            )
+            .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?
         {
             return Ok(output);
         }
@@ -3394,7 +3398,8 @@ impl<S: LayoutScalar> Constants<S> {
         let scroll_box_size = node_outer_size
             .or(input.available().map(AvailableOf::into_option))
             .or(max_size)
-            .unwrap_or(unconstrained_scroll_box_size);
+            .unwrap_or(unconstrained_scroll_box_size)
+            .zip_map(padding_border_size, |size, minimum| size.max(minimum));
         let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
             flow_axes,
             computed_overflow: style.overflow,

@@ -2357,6 +2357,29 @@ pub(crate) fn canonical_scroll_box_from_source<S: LayoutScalar>(
     })
 }
 
+pub(crate) fn settled_auto_scrollbars_change_available_geometry<S: LayoutScalar>(
+    geometry: ScrollGeometryOf<S>,
+    next_state: SettledAutoScrollbarState,
+) -> Result<bool, CanonicalScrollGeometryErrorOf<S>> {
+    let source = geometry.source;
+    let box_source = |settled_auto_scrollbars| CanonicalScrollBoxSourceOf {
+        flow_axes: source.flow_axes,
+        computed_overflow: source.computed_overflow,
+        item_is_replaced: source.item_is_replaced,
+        border_box_size: source.border_box_size,
+        border: source.border,
+        padding: source.padding,
+        scrollbar_gutter: source.scrollbar_gutter,
+        scrollbar_width: source.scrollbar_width,
+        settled_auto_scrollbars,
+    };
+    let current = canonical_scroll_box_from_source(box_source(source.settled_auto_scrollbars))?;
+    let prospective = canonical_scroll_box_from_source(box_source(next_state))?;
+
+    Ok(current.effective_gutter() != prospective.effective_gutter()
+        || current.content_box() != prospective.content_box())
+}
+
 pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
     source: CanonicalScrollGeometrySourceOf<S>,
 ) -> Result<ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {

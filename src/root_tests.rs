@@ -8173,6 +8173,95 @@ fn fri05_c03_block_auto_root_keys_each_pass_and_publishes_only_stable_nodes() {
 }
 
 #[test]
+fn fri05_c03_block_auto_root_stable_reservations_stage_only_geometry_changes() {
+    for (gutter, child_size, expected_states, expected_scrollbar_size) in [
+        (
+            ScrollbarGutter::Stable,
+            Size::new(80.0, 120.0),
+            vec![(false, false)],
+            Size::new(15.0, 0.0),
+        ),
+        (
+            ScrollbarGutter::StableBothEdges,
+            Size::new(60.0, 120.0),
+            vec![(false, false)],
+            Size::new(30.0, 0.0),
+        ),
+        (
+            ScrollbarGutter::Stable,
+            Size::new(90.0, 120.0),
+            vec![(false, false), (true, true)],
+            Size::new(15.0, 15.0),
+        ),
+    ] {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(
+                0,
+                NodeInput {
+                    display: Display::Block,
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                    scrollbar_gutter: gutter,
+                    scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                    ..NodeInput::default()
+                },
+            )
+            .with_style(
+                1,
+                NodeInput {
+                    display: Display::Block,
+                    size: Size::new(
+                        PreferredSize::px(child_size.width),
+                        PreferredSize::px(child_size.height),
+                    ),
+                    ..NodeInput::default()
+                },
+            );
+        let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap();
+        let batch = compute_layout(&tree, 0, request).expect("stable auto block root succeeds");
+
+        let cache_inputs = tree.cache_inputs(1);
+        assert_eq!(
+            cache_inputs
+                .iter()
+                .map(fri05_c03_block_root_state)
+                .collect::<Vec<_>>(),
+            expected_states,
+            "{gutter:?} child size {child_size:?}"
+        );
+        assert_eq!(
+            batch
+                .cache_store_entries()
+                .iter()
+                .filter(|entry| entry.node() == 1)
+                .count(),
+            expected_states.len(),
+            "only geometry-changing child evaluations are staged"
+        );
+        for node in [0, 1] {
+            assert_eq!(
+                batch
+                    .unrounded_entries()
+                    .iter()
+                    .filter(|entry| entry.node() == node)
+                    .count(),
+                1,
+                "only one stable unrounded output is published for node {node}"
+            );
+        }
+        assert_eq!(
+            fri05_c03_block_root_output(&batch, 0)
+                .scroll_geometry
+                .expect("stable root geometry is present")
+                .scrollbar_size(),
+            expected_scrollbar_size
+        );
+    }
+}
+
+#[test]
 fn fri05_c03_block_tiny_root_keeps_ordered_zero_scrollport_geometry() {
     let tree = PublicFlowTree::default().with_children(0, []).with_style(
         0,
@@ -8199,4 +8288,75 @@ fn fri05_c03_block_tiny_root_keeps_ordered_zero_scrollport_geometry() {
     assert_eq!(geometry.content_box().size(), Size::new(0.0, 20.0));
     assert_eq!(geometry.scrollport().size(), Size::new(0.0, 20.0));
     assert_eq!(geometry.scrollbar_size(), Size::new(2.0, 0.0));
+}
+
+#[test]
+fn fri05_c03_block_tiny_root_available_below_raw_edges_avoids_false_auto_settlement() {
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::AUTO),
+                border: Edges {
+                    top: Length::px(15.0),
+                    bottom: Length::px(15.0),
+                    ..Edges::all(Length::ZERO)
+                },
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(0.0), PreferredSize::px(0.0)),
+                ..NodeInput::default()
+            },
+        );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(12.0),
+    ))
+    .unwrap();
+    let batch = compute_layout(&tree, 0, request)
+        .expect("root availability below raw edges remains supported");
+
+    let cache_inputs = tree.cache_inputs(1);
+    assert_eq!(cache_inputs.len(), 1);
+    assert_eq!(fri05_c03_block_root_state(&cache_inputs[0]), (false, false));
+    assert_eq!(
+        cache_inputs[0].available().width,
+        Available::definite(100.0)
+    );
+    assert_eq!(
+        batch
+            .cache_store_entries()
+            .iter()
+            .filter(|entry| entry.node() == 1)
+            .count(),
+        1
+    );
+    assert_eq!(
+        fri05_c03_block_root_output(&batch, 1).location,
+        Point::new(0.0, 15.0)
+    );
+
+    let root = fri05_c03_block_root_output(&batch, 0);
+    assert_eq!(root.size, Size::new(100.0, 30.0));
+    let geometry = root
+        .scroll_geometry
+        .expect("performed root emits canonical geometry");
+    assert_eq!(geometry.border_box().size(), root.size);
+    assert_eq!(geometry.padding_box().origin(), Point::new(0.0, 15.0));
+    assert_eq!(geometry.padding_box().size(), Size::new(100.0, 0.0));
+    assert_eq!(geometry.content_box(), geometry.padding_box());
+    assert_eq!(geometry.scrollport(), geometry.padding_box());
+    assert_eq!(geometry.physical_range().x().maximum(), 0.0);
+    assert_eq!(geometry.physical_range().y().maximum(), 0.0);
+    assert_eq!(geometry.scrollbar_size(), Size::ZERO);
 }
