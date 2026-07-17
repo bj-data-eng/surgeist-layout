@@ -157,8 +157,11 @@ axis. A computed `hidden` value has a used value of `clip` on a replaced box.
 
 CSS Grid Level 2 and CSS Flexbox define a content-based automatic minimum only
 when the item's computed overflow in the applicable axis is non-scrollable. For
-a flex item, that applicable axis is the completed flex container's main axis,
-not either physical axis:
+a flex item, that applicable axis is the completed flex container's main axis.
+After CSS computed-value coupling, however, D-01 permits only pairs whose axes
+have the same scrollability class. Layout therefore observes the same automatic-
+minimum predicate for either physical axis and must not fabricate a rejected
+cross-group pair to simulate main-only or cross-only scrollability:
 
 - <https://www.w3.org/TR/css-grid-2/#min-size-auto>
 - <https://www.w3.org/TR/css-flexbox-1/#min-size-auto>
@@ -289,7 +292,7 @@ Every other current overflow decision names its phase:
 | Decision | Owning value | Exact rule |
 | --- | --- | --- |
 | Grid content-based automatic minimum | One computed `Overflow` axis selected through the grid container's `FlowAxes` and `GridAxisKind` | `Hidden`, `Scroll`, and `Auto` are scrollable; `Visible` and `Clip` are non-scrollable. |
-| Flex main-axis automatic minimum | One computed `Overflow` axis selected through the completed container `FlexAxes::main_physical_axis()` | Select x for `PhysicalAxis::Horizontal` and y for `PhysicalAxis::Vertical`; `Hidden`, `Scroll`, and `Auto` zero the automatic minimum, while `Visible` and `Clip` retain the content-based minimum. The cross-axis value never participates. |
+| Flex main-axis automatic minimum | The complete post-coupling `ComputedOverflow` pair | Construction guarantees `x.is_scrollable() == y.is_scrollable()`. Both callers use one pair classifier: every `Hidden`/`Scroll`/`Auto` pair zeros the automatic minimum, while every `Visible`/`Clip` pair retains the content-based minimum. No physical-axis projection can change that Boolean. |
 | Grid intrinsic/min-content and percent-track contribution | One used-overflow axis selected through the grid container's `FlowAxes` | Only `Visible` admits nested `content_size`; `Clip`, `Hidden`, `Scroll`, and `Auto` trap it and use the item box/min-track priority. |
 | Independent formatting context for a non-replaced block container | Complete `ComputedOverflow` pair | Every canonical pair from the scrollable group establishes one; every canonical `Visible`/`Clip` pair does not. |
 | Block child-margin collapse | Complete `ComputedOverflow` pair | Collapse is blocked exactly when the pair establishes that independent formatting context. |
@@ -324,17 +327,14 @@ Columns select the container inline physical axis and rows select its block
 physical axis. Ordinary-grid, intrinsic-subgrid, and grid-lanes callers use
 that helper; no context-free column-to-x/row-to-y overflow match remains.
 
-Flex has a separate crate-private selector because its applicable axis is the
-container's main axis. It receives the item's `ComputedOverflow` and the
-completed `FlexAxes`, selects x or y only through
-`FlexAxes::main_physical_axis()`, and returns whether that selected value is
-scrollable. Both current callers, `automatic_min_main_size` and the intrinsic
-main-size contribution branch, use this one selector. Row versus column changes
-which physical axis is selected after the container's `FlowAxes` mapping;
-row-reverse, column-reverse, and wrap-reverse change progression or sides but
-never change the selected main physical axis. Focused evidence distinguishes
-main-only from cross-only scrollable overflow for all four flex directions and
-all ten `WritingMode`/`Direction` mappings.
+Flex has one crate-private canonical-pair classifier shared by
+`automatic_min_main_size` and the intrinsic main-size contribution branch. It
+receives the item's `ComputedOverflow` and returns the common computed
+scrollability class guaranteed by `ComputedOverflow::try_new`; it does not need
+`FlexAxes` to choose a physical axis because no valid pair can change the result.
+The exhaustive thirteen-pair constructor evidence plus real flex front-door
+controls for both pair groups proves the branch. Main-only and cross-only
+scrollability remain rejected pre-coupling input, not a layout test state.
 
 Rejected alternative: retaining `Point<Overflow>` permits a post-construction
 mixed pair that contradicts computed CSS.
@@ -1131,13 +1131,14 @@ Flex performs its sizing and placement with the effective scrollbar reservation
 for the current pass. After final placement it accumulates every in-flow item and
 current absolute item in source/output identity order, retains child geometry,
 and emits its own canonical geometry. Both automatic-minimum callers use one
-crate-private computed-overflow selector keyed only by the completed
-`FlexAxes::main_physical_axis()`; scrollable cross-axis overflow cannot zero a
-main-axis automatic minimum. Flex derives main/cross scroll-origin progression
-from `FlexAxes`, including row/column reverse and wrap-reverse, and supplies the
-final applicable justify/align-content subjects independently from out-of-flow
-overflow. FRI-07 remains responsible for missing flex sizing and positioning
-semantics, not for a second overflow path.
+crate-private classifier for the canonical computed pair. The D-01 construction
+invariant makes the pair's x/y scrollability classes equal, so no physical-axis
+selection or rejected mixed pair is part of layout behavior. Flex derives
+main/cross scroll-origin progression from `FlexAxes`, including row/column
+reverse and wrap-reverse, and supplies the final applicable justify/align-
+content subjects independently from out-of-flow overflow. FRI-07 remains
+responsible for missing flex sizing and positioning semantics, not for a second
+overflow path.
 
 ### Grid, Subgrid, And Grid-Lanes
 
@@ -1190,7 +1191,7 @@ The initiative requires these named evidence families:
 | Block blockers | The named negative-margin and smaller-than-scrollbar browser families complete without panic and match geometry. |
 | Nested contribution | Under block, flex, grid, and lanes, used `Visible` propagates only its physical-axis descendant interval; `Clip`, `Hidden`, `Scroll`, and `Auto` trap nested overflow even when their local clip or full scrollable-overflow rectangle is non-empty. Partial-axis cases prove the two decisions are independent, and current absolute children are included once. |
 | Zero-area contribution | `0xN` and `Nx0` child boxes prove that a real used-visible propagatable descendant interval survives on the non-zero axis in block, flex, grid, and grid-lanes, while the same nested geometry under every trapped value contributes zero to the parent. |
-| Flex automatic minimum | Main-only versus cross-only `Hidden`, `Scroll`, and `Auto` prove that both current callers select exactly the completed flex main physical axis for row, row-reverse, column, and column-reverse across all ten flow mappings; reverse and wrap-reverse do not change axis selection. |
+| Flex automatic minimum | The exhaustive thirteen accepted computed pairs prove equal x/y scrollability classes; rejected cross-group pairs prove main-only or cross-only scrollability cannot reach layout. Real flex front-door controls prove both callers retain content-based minimums for the `Visible`/`Clip` group and zero them for the `Hidden`/`Scroll`/`Auto` group without depending on flex direction or flow mapping. |
 | Grid automatic minimum | Hidden, scroll, auto, visible, and clip cases through ordinary grid and lanes front doors. |
 | Grid intrinsic used overflow | All five values through ordinary grid, intrinsic subgrid, and lanes callers prove the physical axis selected through all `FlowAxes` mappings, the visible-only `content_size` branch, trapped alternatives, and replaced-hidden conversion. |
 | Grid origin | An item at non-zero container origin contributes through its final end; old area-relative expectation no longer passes. |
@@ -1219,7 +1220,7 @@ executable `unsafe`.
 | `src/output.rs` | Existing optional geometry carriers, complete compute-to-node propagation, removal of independent scrollbar field, canonical helper methods. |
 | `src/compute.rs` | Root/leaf pass integration, nested target construction, contextual geometry errors, final rounding, cache-safe publication. |
 | `src/block.rs` | Shared accumulation calls, saturated constants, auto-gutter pass, retained child geometry. |
-| `src/flex.rs` | One `FlexAxes::main_physical_axis()` computed-overflow selector shared by both automatic-minimum callers, flow-aware reservation, auto-gutter pass, retained child/absolute geometry, shared accumulation, `FlexAxes` scroll origin, and final content-distribution subjects. |
+| `src/flex.rs` | One canonical computed-pair classifier shared by both automatic-minimum callers, flow-aware reservation, auto-gutter pass, retained child/absolute geometry, shared accumulation, `FlexAxes` scroll origin, and final content-distribution subjects. |
 | `src/grid/mod.rs` | Grid container reservation/pass integration, final content-distribution subjects, and final geometry. |
 | `src/grid/child.rs` | Final container-local item contribution, retained child/absolute geometry, zero-axis behavior. |
 | `src/grid/lanes.rs` and `src/grid/subgrid.rs` | Shared origin, contribution, clipping, and geometry behavior for lanes/subgrid paths. |
@@ -1673,7 +1674,7 @@ FRI-05 is complete only when:
 3. every successfully laid-out block, flex, grid, subgrid, and grid-lanes box
    emits coherent geometry through the shared contract;
 4. computed versus used overflow, all thirteen valid pairs, twelve invalid
-   pairs, five axis values, current IFC/margin predicates, flex main-axis-only
+   pairs, five axis values, current IFC/margin predicates, flex canonical-pair
    and grid automatic minimum, grid flow-aware intrinsic mapping, partial clips,
    stable/both-edge gutters, auto cross-axis coupling, and replaced hidden
    behavior have focused proof;
