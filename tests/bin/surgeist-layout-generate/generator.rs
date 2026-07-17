@@ -706,6 +706,15 @@ fn generation_acquisition_gate_path(config: &GenerationConfig) -> PathBuf {
         .join(GENERATION_ACQUISITION_GATE_FILE)
 }
 
+fn release_generation_acquisition_gate(gate: File, path: &Path) -> Result<(), String> {
+    gate.unlock().map_err(|error| {
+        format!(
+            "failed to release generation acquisition gate {}: {error}",
+            path.display()
+        )
+    })
+}
+
 fn acquire_generation_lease(config: &GenerationConfig) -> Result<GenerationLease, String> {
     let lease_path = generation_lease_path(config);
     let gate_path = generation_acquisition_gate_path(config);
@@ -790,6 +799,7 @@ fn acquire_generation_lease(config: &GenerationConfig) -> Result<GenerationLease
             lease_path.display()
         )
     })?;
+    release_generation_acquisition_gate(gate, &gate_path)?;
     Ok(GenerationLease { _file: file })
 }
 
@@ -4772,6 +4782,42 @@ mod tests {
         drop(lease);
         drop(gate);
         fs::remove_dir_all(root).expect("remove temporary generation lease root");
+    }
+
+    #[test]
+    fn generation_lock_cloned_gate_descriptor_allows_independent_acquisition_after_release() {
+        let root = test_browser_root("generation-acquisition-gate-clone");
+        let config = test_generation_lock_config(root.clone(), None);
+        let gate_path = generation_acquisition_gate_path(&config);
+        fs::create_dir_all(gate_path.parent().expect("generation gate parent"))
+            .expect("generation gate directory");
+        let gate = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&gate_path)
+            .expect("acquisition gate handle");
+        gate.try_lock().expect("lock acquisition gate");
+        let retained_gate = gate.try_clone().expect("clone acquisition gate handle");
+
+        release_generation_acquisition_gate(gate, &gate_path)
+            .expect("release acquisition gate after owner publication");
+
+        let contender = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&gate_path)
+            .expect("independent acquisition gate handle");
+        let acquisition = contender.try_lock();
+        assert!(
+            acquisition.is_ok(),
+            "independent contender must acquire while cloned gate descriptor remains alive: {acquisition:?}"
+        );
+
+        drop(contender);
+        drop(retained_gate);
+        fs::remove_dir_all(root).expect("remove temporary generation gate root");
     }
 
     #[test]
