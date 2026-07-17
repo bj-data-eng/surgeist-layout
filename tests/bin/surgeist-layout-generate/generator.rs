@@ -77,8 +77,9 @@ pub async fn run_from_env() -> Result<(), String> {
             let environment = GenerationEnvironment::capture()?;
             let manifest = read_corpus_manifest(&config)?;
             let generation = GenerationConfig::new(config, manifest, mode, environment)?;
-            let _lease = acquire_generation_lease(&generation)?;
-            generate(generation).await
+            let lease = acquire_generation_lease(&generation)?;
+            let generation_result = generate(generation).await;
+            combine_generation_and_lease_release(generation_result, lease.release())
         }
         CommandRequest::CheckCorpus => check_corpus(&config),
         CommandRequest::CheckTaffyCorpus => check_taffy_corpus(&config),
@@ -689,7 +690,19 @@ fn normalize_generation_filter(
 }
 
 struct GenerationLease {
-    _file: File,
+    file: File,
+    path: PathBuf,
+}
+
+impl GenerationLease {
+    fn release(self) -> Result<(), String> {
+        self.file.unlock().map_err(|error| {
+            format!(
+                "failed to release generation lease {}: {error}",
+                self.path.display()
+            )
+        })
+    }
 }
 
 fn generation_lease_path(config: &GenerationConfig) -> PathBuf {
@@ -713,6 +726,19 @@ fn release_generation_acquisition_gate(gate: File, path: &Path) -> Result<(), St
             path.display()
         )
     })
+}
+
+fn combine_generation_and_lease_release(
+    generation_result: Result<(), String>,
+    release_result: Result<(), String>,
+) -> Result<(), String> {
+    match (generation_result, release_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), Ok(())) | (Ok(()), Err(error)) => Err(error),
+        (Err(generation_error), Err(release_error)) => {
+            Err(format!("{generation_error}\nadditionally, {release_error}"))
+        }
+    }
 }
 
 fn acquire_generation_lease(config: &GenerationConfig) -> Result<GenerationLease, String> {
@@ -800,7 +826,10 @@ fn acquire_generation_lease(config: &GenerationConfig) -> Result<GenerationLease
         )
     })?;
     release_generation_acquisition_gate(gate, &gate_path)?;
-    Ok(GenerationLease { _file: file })
+    Ok(GenerationLease {
+        file,
+        path: lease_path,
+    })
 }
 
 fn active_generation_lease_error(path: &Path) -> Result<String, String> {
@@ -4818,6 +4847,51 @@ mod tests {
         drop(contender);
         drop(retained_gate);
         fs::remove_dir_all(root).expect("remove temporary generation gate root");
+    }
+
+    #[test]
+    fn generation_lock_normal_completion_allows_reacquisition_with_cloned_owner_descriptor() {
+        let root = test_browser_root("generation-lease-clone");
+        let full = test_generation_lock_config(root.clone(), None);
+        let scoped = test_generation_lock_config(root.clone(), Some("grid/grid_axes"));
+        let first = acquire_generation_lease(&full).expect("full generation lease");
+        let retained_lease = first
+            .file
+            .try_clone()
+            .expect("clone generation lease handle");
+
+        first
+            .release()
+            .expect("release generation lease after normal completion");
+
+        let scoped_lease = acquire_generation_lease(&scoped).expect(
+            "normal completion must release the repository lease while a cloned descriptor remains alive",
+        );
+        drop(scoped_lease);
+        drop(retained_lease);
+        fs::remove_dir_all(root).expect("remove temporary generation lease root");
+    }
+
+    #[test]
+    fn generation_lock_release_failure_is_reported_without_hiding_generation_failure() {
+        let release_error = combine_generation_and_lease_release(
+            Ok(()),
+            Err("failed to release generation lease test.lock: release failure".to_string()),
+        )
+        .expect_err("release failure must fail successful generation");
+        assert_eq!(
+            release_error,
+            "failed to release generation lease test.lock: release failure"
+        );
+
+        let generation_error = combine_generation_and_lease_release(
+            Err("generation failure".to_string()),
+            Err("failed to release generation lease test.lock: release failure".to_string()),
+        )
+        .expect_err("both failures must fail generation");
+        assert!(generation_error.contains("generation failure"));
+        assert!(generation_error.contains("failed to release generation lease test.lock"));
+        assert!(generation_error.contains("release failure"));
     }
 
     #[test]
