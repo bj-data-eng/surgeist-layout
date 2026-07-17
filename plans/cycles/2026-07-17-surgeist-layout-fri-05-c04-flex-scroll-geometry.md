@@ -6,22 +6,23 @@ Cycle base: `63f8823df0262f886b8031cf527021ded5f0098b`
 Reviewed specification:
 `plans/specs/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`
 at SHA-256
-`c175f668240ad1a556f008a09ba2ba3973db396b11166c133fe925efeaee9895`,
-commit `dd158dc598d453a1b9055cb285534717c9a2d4f0`, sections `FRI-05.4 D-01`
+`747dcd6c12ae7d883999b5517572d6877d3c803bdb611143af7affc5afd44f39`,
+commit `50c83f01ded0fe4a284e087ffcbd677bfc12af2a`, sections `FRI-05.4 D-01`
 and `D-06` through `D-11`, the flex contract in `FRI-05.7`, the flex rows
 of `FRI-05.8` and `FRI-05.9`, `FRI-05.10`, and the flex portions of
 acceptance items 3 through 7, 11, and 13 in `FRI-05.15`.
 Reviewed sequence:
 `plans/sequences/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`
 at SHA-256
-`a08dd4dc134ee512ceab9ff16fab12ba183219f3135a5b720c26c76b869494d6`,
-commit `45e12b360ececa1ea4518c4da7400f58331b3a3a`, entry `FRI-05-C04`.
+`45b66b5a47c3a1bd47e22869e4b841a46aef2ac0ffab37dce5b91e6fc2a996d0`,
+commit `07ed42c2a832a7c6fccb11b5d77953fa9c159917`, entry `FRI-05-C04`.
 
 ## Outcome
-Make the completed `FlexAxes` the sole owner of flex main-axis overflow
-selection and scroll-origin progression. Integrate canonical effective boxes,
-retained child geometry, shared contribution, monotone auto settlement, final
-content-distribution subjects, source-based rounding, and cache-safe publication
+Preserve the one correct canonical-pair classifier shared by both flex
+automatic-minimum callers, and make the completed `FlexAxes` the sole owner of
+flex scroll-origin progression. Integrate canonical effective boxes, retained
+child geometry, shared contribution, monotone auto settlement, final content-
+distribution subjects, source-based rounding, and cache-safe publication
 through the real flex front door. Remove flex-local scrollbar and content-extent
 projections while leaving grid-family migration and final mutable output-field
 removal to C05.
@@ -34,15 +35,18 @@ settled-auto state. C04 consumes those contracts; it does not add another box,
 range, contribution, origin, or auto-state model.
 
 At the cycle base, `src/flex.rs` has the complete `FlexAxes` main/cross physical
-axes, sides, reversals, and progressions. Both automatic-minimum callers instead
-use one context-free predicate that zeros the minimum when either overflow axis
-is scrollable. Flex constants derive one-pass right/bottom-style reservation
-through `ScrollbarReservationOf`, store a size-only gutter point, and subtract
-it through a legacy inset helper. Container output projects visible child and
-absolute extents as sizes and emits no canonical geometry. Final in-flow and
-absolute child outputs discard the child geometry and populate the temporary
-scrollbar field through two flex-owned bridge sites. The C03 static accounting
-retains exactly those two flex sites plus three grid-family sites.
+axes, sides, reversals, and progressions. Both automatic-minimum callers already
+share one pair classifier. `ComputedOverflow::try_new` guarantees equal x/y
+scrollability classes across all thirteen accepted pairs, and rejects all twelve
+mixed-class pairs, so the classifier is correct without a physical-axis
+projection. C04 preserves that invariant and does not manufacture invalid test
+input. Flex constants derive one-pass right/bottom-style reservation through
+`ScrollbarReservationOf`, store a size-only gutter point, and subtract it through
+a legacy inset helper. Container output projects visible child and absolute
+extents as sizes and emits no canonical geometry. Final in-flow and absolute
+child outputs discard the child geometry and populate the temporary scrollbar
+field through two flex-owned bridge sites. The C03 static accounting retains
+exactly those two flex sites plus three grid-family sites.
 
 C04 owns `src/flex.rs`, narrowly required shared-scroll integration in
 `src/scroll.rs`, the affected flex/root/cache/contract/static tests, and no other
@@ -78,38 +82,7 @@ tests, and lints the existing generator feature.
 
 ## Tasks
 
-### `C04-T1` Main-Axis Computed-Overflow Selection
-**Files:** `src/flex.rs` and focused flex front-door tests.
-
-**Outcome:** Replace the context-free either-axis automatic-minimum predicate
-with one crate-private selector that receives an item's `ComputedOverflow` and
-the completed container `FlexAxes`, selects only
-`FlexAxes::main_physical_axis()`, and classifies that computed axis through
-`Overflow::is_scrollable()`. Route both `automatic_min_main_size` and the
-intrinsic main-size contribution branch through that selector.
-
-**RED:** Add `fri05_c04_flex_auto_min_` tests first. They fail because main-only
-and cross-only overflow currently produce the same result.
-
-**Acceptance:** Real flex sizing proves main-only versus cross-only `Hidden`,
-`Scroll`, and `Auto`, with `Visible` and `Clip` controls, for row, row-reverse,
-column, and column-reverse across all ten leaf flow mappings. Both current
-callers use the same selector; reversal and wrap-reversal never change the
-selected physical axis.
-
-**Commands:**
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_auto_min_
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
-```
-
-**Dependency:** Published C03 candidate and the clean specification and sequence
-revisions in the header.
-
-**Intended commit:** `fix(layout): select flex automatic minimum on main axis`.
-
-### `C04-T2` Canonical Flex Box And Retained Child Output
+### `C04-T1` Canonical Flex Box And Retained Child Output
 **Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, `src/flex_tests.rs`,
 focused root tests, and flex/grid bridge-accounting tests in `src/lib_tests.rs`.
 
@@ -143,11 +116,13 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
 
-**Dependency:** C04-T1 closes the only flex overflow-axis ambiguity.
+**Dependency:** Published C03 candidate and the clean revised specification and
+sequence revisions in the header. Existing C01 pair construction and flex
+front-door controls account for the preserved automatic-minimum classifier.
 
 **Intended commit:** `feat(layout): emit canonical flex scroll geometry`.
 
-### `C04-T3` Shared Flex Contribution And Content Extent
+### `C04-T2` Shared Flex Contribution And Content Extent
 **Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, and focused flex and
 root integration tests.
 
@@ -181,12 +156,12 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
 
-**Dependency:** C04-T2 retains exact child geometry and establishes the canonical
+**Dependency:** C04-T1 retains exact child geometry and establishes the canonical
 container source.
 
 **Intended commit:** `fix(layout): unify flex scroll contributions`.
 
-### `C04-T4` Monotone Flex Auto Settlement
+### `C04-T3` Monotone Flex Auto Settlement
 **Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, and focused flex,
 root, and cache tests.
 
@@ -218,12 +193,12 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
 
-**Dependency:** C04-T3 supplies complete provisional overflow for the state
+**Dependency:** C04-T2 supplies complete provisional overflow for the state
 transition.
 
 **Intended commit:** `feat(layout): settle flex auto scrollbars`.
 
-### `C04-T5` Flex Origins And Content-Distribution Subjects
+### `C04-T4` Flex Origins And Content-Distribution Subjects
 **Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, and focused flex and
 root tests.
 
@@ -255,18 +230,18 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
 
-**Dependency:** C04-T4 supplies stable final placement and complete overflow.
+**Dependency:** C04-T3 supplies stable final placement and complete overflow.
 
 **Intended commit:** `feat(layout): derive flex scroll origins and subjects`.
 
-### `C04-T6` Flex Rounding Cache And Legacy Closure
+### `C04-T5` Flex Rounding Cache And Legacy Closure
 **Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, `src/lib_tests.rs`,
 and focused flex, root, cache, rounding, contract, and static tests.
 
 **Outcome:** Reconcile aggregate flex output through source-based rounding and
 ordinary cache publication. Remove flex-local reservation, scrollbar-side,
 size-projection, contribution, and geometry-discard helpers made obsolete by
-T1 through T5. Prove the temporary output field is synchronized only by
+T1 through T4. Prove the temporary output field is synchronized only by
 canonical geometry and that only the three C05 grid-family bridges remain.
 
 **RED:** Add `fri05_c04_flex_round_cache_` and
@@ -290,15 +265,16 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
 
-**Dependency:** C04-T5 completes the flex source facts rebuilt by rounding.
+**Dependency:** C04-T4 completes the flex source facts rebuilt by rounding.
 
 **Intended commit:** `fix(layout): close flex scroll geometry paths`.
 
 ## Cycle Acceptance
-1. All six task ranges have genuine RED/GREEN evidence, clean independent task
+1. All five task ranges have genuine RED/GREEN evidence, clean independent task
    reviews, and coordinator-rerun acceptance commands.
-2. Both automatic-minimum callers select only the completed flex main physical
-   axis for every flex direction and flow mapping.
+2. Both automatic-minimum callers retain one canonical-pair classifier; the
+   thirteen accepted and twelve rejected pair matrix plus real pair-group flex
+   controls prove its result without fabricated mixed input.
 3. Performed flex containers, in-flow items, and current absolute items retain
    canonical geometry and target metadata; partial-axis nested propagation,
    trapped values, zero-area descendants, margins, terminal padding, and
@@ -335,8 +311,9 @@ part of C04 verification.
 
 ## Handoff And Blockers
 The completed, reviewed, published, and remotely read-back cycle hands C05 one
-canonical flex output path, main-axis overflow selector, shared contribution,
-monotone auto settlement, and flex-origin/alignment-subject contract. C05 may
+canonical flex output path, preserved automatic-minimum pair classifier, shared
+contribution, monotone auto settlement, and flex-origin/alignment-subject
+contract. C05 may
 integrate ordinary grid, subgrid, and grid-lanes and then remove the final shared
 mutable output field; it may not reopen flex geometry or add another source
 model.
