@@ -8,5 +8,5 @@ The implementation has been informed by:
 
 - CSS layout specifications.
 - Browser behavior observed through local parity fixtures.
-- Taffy behavior and issue-derived layout scenarios.
-- WebKit and Blink algorithms studied as implementation references for grid, subgrid, grid-lanes, inline layout, and baseline behavior.
+- surgeist-layout was ported and adapted from Taffy 0.10.1 and has since diverged substantially. We still use Taffy's layout fixtures as supplemental tests.
+- WebKit and Blink algorithms were studied as implementation references for grid, subgrid, grid-lanes, inline layout, and baseline behavior.
