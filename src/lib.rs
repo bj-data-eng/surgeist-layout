@@ -172,11 +172,12 @@ pub use scroll::{
     FlowRelativeScrollOffsetOf, FlowRelativeScrollRange, FlowRelativeScrollRangeOf, OverflowClip,
     OverflowClipOf, PhysicalClipAxis, PhysicalClipAxisOf, PhysicalScrollAxisRange,
     PhysicalScrollAxisRangeOf, PhysicalScrollOffset, PhysicalScrollOffsetOf, PhysicalScrollRange,
-    PhysicalScrollRangeOf, ScrollContainerAxis, ScrollContainerFacts, ScrollCoordinateError,
-    ScrollCoordinateErrorOf, ScrollGeometry, ScrollGeometryOf, ScrollOverflowExposure, ScrollRect,
-    ScrollRectError, ScrollRectErrorOf, ScrollRectOf, ScrollTargetGeometry, ScrollTargetGeometryOf,
-    ScrollUnsupportedFeature, ScrollbarGutterRects, ScrollbarGutterRectsOf,
+    PhysicalScrollRangeOf, ScrollCoordinateError, ScrollCoordinateErrorOf, ScrollGeometry,
+    ScrollGeometryOf, ScrollRect, ScrollRectError, ScrollRectErrorOf, ScrollRectOf,
+    ScrollTargetGeometry, ScrollTargetGeometryOf, ScrollbarGutterRects, ScrollbarGutterRectsOf,
 };
+#[cfg(test)]
+pub(crate) use scroll::{ScrollContainerAxis, ScrollContainerFacts};
 pub use sizing::{
     CalcSizeCalculation, CalcSizeCalculationErrorOf, CalcSizeCalculationOf,
     CalcSizeConstructionError, FlexBasis, FlexBasisCalcBasis, FlexBasisOf, MaxSize,

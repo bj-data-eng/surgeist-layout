@@ -22,8 +22,8 @@ use crate::compute::{
 };
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
-    ScrollbarReservationOf, UsedOverflow, content_box_inset_with_scrollbar,
-    scroll_geometry_from_layout, scrollbar_size_from_overflow,
+    ScrollUnsupportedFeature, ScrollbarReservationOf, UsedOverflow,
+    content_box_inset_with_scrollbar, scroll_geometry_from_layout, scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -268,7 +268,6 @@ struct PendingFloat<Node, S: LayoutScalar> {
     y: S,
     size: Size<S>,
     content_size: Size<S>,
-    scrollbar_size: Size<S>,
     border: Edges<S>,
     padding: Edges<S>,
     margin: Edges<S>,
@@ -953,7 +952,6 @@ where
                 y: float_bfc_cursor_y,
                 size: output.size,
                 content_size: output.content_size,
-                scrollbar_size: child_scrollbar_size(&child_style),
                 border: child_border,
                 padding: child_padding,
                 margin: child_margin,
@@ -1072,6 +1070,15 @@ where
             fallback_location
         };
         if set_layout {
+            let scroll_geometry = child_node_scroll_geometry(
+                &child_style,
+                output.size,
+                output.content_size,
+                child_padding,
+                child_border,
+                output.scroll_geometry,
+            )
+            .map_err(|error| block_child_scroll_error(node, child, error))?;
             tree.set_unrounded(
                 child,
                 NodeOutputOf::<S> {
@@ -1079,18 +1086,8 @@ where
                     location,
                     size: output.size,
                     content_size: output.content_size,
-                    scroll_geometry: Some(
-                        child_node_scroll_geometry(
-                            &child_style,
-                            output.size,
-                            output.content_size,
-                            child_padding,
-                            child_border,
-                            output.scroll_geometry,
-                        )
-                        .map_err(|error| block_child_scroll_error(node, child, error))?,
-                    ),
-                    scrollbar_size: child_scrollbar_size(&child_style),
+                    scroll_geometry: Some(scroll_geometry),
+                    scrollbar_size: scroll_geometry.scrollbar_size(),
                     border: child_border,
                     padding: child_padding,
                     margin: child_margin,
@@ -1725,6 +1722,15 @@ where
                 content_size = max_content_size(content_size, contribution);
 
                 if set_layout {
+                    let scroll_geometry = child_node_scroll_geometry(
+                        child_style,
+                        item.size,
+                        item.content_size,
+                        item.padding,
+                        item.border,
+                        output.scroll_geometry,
+                    )
+                    .map_err(|error| block_child_scroll_error(container, *child, error))?;
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
@@ -1732,20 +1738,8 @@ where
                             location,
                             size: item.size,
                             content_size: item.content_size,
-                            scroll_geometry: Some(
-                                child_node_scroll_geometry(
-                                    child_style,
-                                    item.size,
-                                    item.content_size,
-                                    item.padding,
-                                    item.border,
-                                    output.scroll_geometry,
-                                )
-                                .map_err(|error| {
-                                    block_child_scroll_error(container, *child, error)
-                                })?,
-                            ),
-                            scrollbar_size: item.scrollbar_size,
+                            scroll_geometry: Some(scroll_geometry),
+                            scrollbar_size: scroll_geometry.scrollbar_size(),
                             border: item.border,
                             padding: item.padding,
                             margin: item.margin,
@@ -1995,6 +1989,15 @@ where
 
     for float in floats {
         let location = float_exclusions.place_float(float, float.y);
+        let scroll_geometry = child_node_scroll_geometry(
+            &float.style,
+            float.size,
+            float.content_size,
+            float.padding,
+            float.border,
+            float.child_compute_geometry,
+        )
+        .map_err(|error| block_child_scroll_error(container, float.node, error))?;
         tree.set_unrounded(
             float.node,
             NodeOutputOf::<S> {
@@ -2002,18 +2005,8 @@ where
                 location,
                 size: float.size,
                 content_size: float.content_size,
-                scroll_geometry: Some(
-                    child_node_scroll_geometry(
-                        &float.style,
-                        float.size,
-                        float.content_size,
-                        float.padding,
-                        float.border,
-                        float.child_compute_geometry,
-                    )
-                    .map_err(|error| block_child_scroll_error(container, float.node, error))?,
-                ),
-                scrollbar_size: float.scrollbar_size,
+                scroll_geometry: Some(scroll_geometry),
+                scrollbar_size: scroll_geometry.scrollbar_size(),
                 border: float.border,
                 padding: float.padding,
                 margin: float.margin,
@@ -2337,7 +2330,7 @@ where
 fn block_own_scroll_error<Node, S, M>(
     node: Node,
     run_mode: RunMode,
-    error: super::ScrollUnsupportedFeature,
+    error: ScrollUnsupportedFeature,
 ) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
@@ -2359,7 +2352,7 @@ where
 fn block_child_scroll_error<Node, S, M>(
     container: Node,
     subject: Node,
-    error: super::ScrollUnsupportedFeature,
+    error: ScrollUnsupportedFeature,
 ) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
@@ -2376,7 +2369,7 @@ fn block_inline_scroll_error<Node, S, M>(
     container: Node,
     subject: Option<Node>,
     run_mode: RunMode,
-    error: super::ScrollUnsupportedFeature,
+    error: ScrollUnsupportedFeature,
 ) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
@@ -2391,7 +2384,7 @@ fn block_scroll_error<Node, S, M>(
     site: LayoutErrorSiteOf<Node>,
     operation: LayoutOperation,
     invariant: LayoutInternalInvariant,
-    error: super::ScrollUnsupportedFeature,
+    error: ScrollUnsupportedFeature,
 ) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
@@ -2408,7 +2401,7 @@ fn child_node_scroll_geometry<S: LayoutScalar>(
     padding: Edges<S>,
     border: Edges<S>,
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
-) -> Result<super::ScrollGeometryOf<S>, super::ScrollUnsupportedFeature> {
+) -> Result<super::ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
     let scrollable_overflow = child_scrollable_overflow(
         style,
         size,
@@ -2436,7 +2429,7 @@ fn child_scrollable_overflow<S: LayoutScalar>(
     padding: Edges<S>,
     border: Edges<S>,
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
-) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
+) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
     let base = crate::scroll::scrollable_overflow_from_layout_content_size(
         style.direction,
         UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
@@ -2460,7 +2453,7 @@ fn child_scrollable_overflow_for_parent<S: LayoutScalar>(
     padding: Edges<S>,
     border: Edges<S>,
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
-) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
+) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
     let child_overflow = child_scrollable_overflow(
         style,
         size,
@@ -2482,7 +2475,7 @@ fn project_child_scrollable_overflow_for_parent<S: LayoutScalar>(
     item_is_replaced: bool,
     size: Size<S>,
     child_overflow: super::ScrollRectOf<S>,
-) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
+) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
     let overflow = UsedOverflow::from_computed(overflow, item_is_replaced);
     let child_origin = child_overflow.origin();
     let child_size = child_overflow.size();
@@ -2527,7 +2520,7 @@ fn project_child_scrollable_overflow_for_parent<S: LayoutScalar>(
 fn translate_scroll_rect<S: LayoutScalar>(
     rect: super::ScrollRectOf<S>,
     offset: Point<S>,
-) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
+) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
     super::ScrollRectOf::new(
         Point::new(rect.origin().x + offset.x, rect.origin().y + offset.y),
         rect.size(),
@@ -2539,7 +2532,7 @@ fn final_content_box_scroll_rect<S: LayoutScalar>(
     size: Size<S>,
     padding: Edges<S>,
     border: Edges<S>,
-) -> Result<super::ScrollRectOf<S>, super::ScrollUnsupportedFeature> {
+) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
     let reservation = ScrollbarReservationOf::from_overflow(
         style.overflow,
         style.item_is_replaced,
@@ -2563,7 +2556,7 @@ impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
     fn new(
         content_box_origin: Point<S>,
         content_box_size: Size<S>,
-    ) -> Result<Self, super::ScrollUnsupportedFeature> {
+    ) -> Result<Self, ScrollUnsupportedFeature> {
         Ok(Self {
             rect: super::ScrollRectOf::new(content_box_origin, content_box_size)?,
         })
@@ -2572,7 +2565,7 @@ impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
     fn include_rect(
         &mut self,
         rect: super::ScrollRectOf<S>,
-    ) -> Result<(), super::ScrollUnsupportedFeature> {
+    ) -> Result<(), ScrollUnsupportedFeature> {
         self.rect = crate::scroll::scroll_rect_union(self.rect, rect)?;
         Ok(())
     }
@@ -2581,7 +2574,7 @@ impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
         &mut self,
         location: Point<S>,
         overflow: super::ScrollRectOf<S>,
-    ) -> Result<(), super::ScrollUnsupportedFeature> {
+    ) -> Result<(), ScrollUnsupportedFeature> {
         self.include_rect(translate_scroll_rect(overflow, location)?)
     }
 
@@ -2593,7 +2586,7 @@ impl<S: LayoutScalar> ScrollableOverflowAccumulator<S> {
         margin: Edges<S>,
         overflow: ComputedOverflow,
         item_is_replaced: bool,
-    ) -> Result<(), super::ScrollUnsupportedFeature> {
+    ) -> Result<(), ScrollUnsupportedFeature> {
         let margin_rect = super::ScrollRectOf::new(
             Point::new(location.x - margin.left, location.y - margin.top),
             size + margin.sum_axes(),
@@ -2884,6 +2877,15 @@ where
             None => child_rect,
         });
 
+        let scroll_geometry = child_node_scroll_geometry(
+            &style,
+            final_size,
+            output.content_size,
+            padding,
+            border,
+            output.scroll_geometry,
+        )
+        .map_err(|error| block_child_scroll_error(container_node, child, error))?;
         tree.set_unrounded(
             child,
             NodeOutputOf::<S> {
@@ -2891,18 +2893,8 @@ where
                 location,
                 size: final_size,
                 content_size: output.content_size,
-                scroll_geometry: Some(
-                    child_node_scroll_geometry(
-                        &style,
-                        final_size,
-                        output.content_size,
-                        padding,
-                        border,
-                        output.scroll_geometry,
-                    )
-                    .map_err(|error| block_child_scroll_error(container_node, child, error))?,
-                ),
-                scrollbar_size: child_scrollbar_size(&style),
+                scroll_geometry: Some(scroll_geometry),
+                scrollbar_size: scroll_geometry.scrollbar_size(),
                 border,
                 padding,
                 margin,

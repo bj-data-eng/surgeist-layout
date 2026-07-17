@@ -10,7 +10,7 @@ use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
     ScrollUnsupportedFeature, ScrollbarReservationOf, UsedOverflow,
     content_box_inset_with_scrollbar, round_scroll_geometry, scroll_geometry_from_layout,
-    scroll_rect_union, scrollable_overflow_from_layout_content_size, scrollbar_size_from_overflow,
+    scroll_rect_union, scrollable_overflow_from_layout_content_size,
 };
 use crate::sizing::{
     DispatchedSizingRequest, SizingDispatch, dispatch_flex_basis, dispatch_maximum_size,
@@ -848,11 +848,6 @@ where
         ComputeInputOf::root_layout(known, parent, containing_layout_context, available),
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
-    let scrollbar_size = scrollbar_size_from_overflow(
-        style.overflow,
-        style.item_is_replaced,
-        style.scrollbar_width.get(),
-    );
     let scrollable_overflow = scrollable_overflow_from_layout_content_size(
         style.direction,
         UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
@@ -869,19 +864,19 @@ where
         .transpose()
         .map_err(|error| root_scroll_error(root, error))?
         .unwrap_or(scrollable_overflow);
-    let scroll_geometry = Some(
-        scroll_geometry_from_layout(
-            containing_flow_axes,
-            style.overflow,
-            style.item_is_replaced,
-            output.size,
-            root_edges.padding,
-            root_edges.border,
-            style.scrollbar_width.get(),
-            scrollable_overflow,
-        )
-        .map_err(|error| root_scroll_error(root, error))?,
-    );
+    let scroll_geometry = scroll_geometry_from_layout(
+        containing_flow_axes,
+        style.overflow,
+        style.item_is_replaced,
+        output.size,
+        root_edges.padding,
+        root_edges.border,
+        style.scrollbar_width.get(),
+        scrollable_overflow,
+    )
+    .map_err(|error| root_scroll_error(root, error))?;
+    let scrollbar_size = scroll_geometry.scrollbar_size();
+    let scroll_geometry = Some(scroll_geometry);
     let location = root_start_location(containing_flow_axes, output.size, available);
 
     tree.set_unrounded(
@@ -1179,6 +1174,9 @@ where
                 ),
             )
         })?;
+    if let Some(geometry) = layout.scroll_geometry {
+        layout.scrollbar_size = geometry.scrollbar_size();
+    }
 
     tree.set_final(node, layout);
 

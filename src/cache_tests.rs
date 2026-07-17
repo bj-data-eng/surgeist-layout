@@ -150,7 +150,7 @@ fn compute_size_cache_input<S: LayoutScalar>() -> ComputeInputOf<S> {
 }
 
 fn cache_scroll_rect<S: LayoutScalar>(x: f64, y: f64, width: f64, height: f64) -> ScrollRectOf<S> {
-    ScrollRectOf::new(
+    ScrollRectOf::try_new(
         Point::new(scalar(x), scalar(y)),
         Size::new(scalar(width), scalar(height)),
     )
@@ -158,24 +158,18 @@ fn cache_scroll_rect<S: LayoutScalar>(x: f64, y: f64, width: f64, height: f64) -
 }
 
 fn cache_scroll_geometry<S: LayoutScalar>() -> ScrollGeometryOf<S> {
-    let scroll_axis =
-        ScrollContainerAxis::from_overflow(Overflow::Scroll).expect("scroll overflow is supported");
-    let container = ScrollContainerFacts::new(scroll_axis, scroll_axis);
-
-    ScrollGeometryOf::new(
+    crate::scroll::scroll_geometry_from_layout(
         crate::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
-        container,
-        cache_scroll_rect(2.0, 3.0, 40.0, 20.0),
-        Some(cache_scroll_rect(1.0, 1.0, 44.0, 24.0)),
+        ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll)
+            .expect("same-group computed overflow is valid"),
+        false,
+        Size::new(scalar(44.0), scalar(24.0)),
+        Edges::ZERO,
+        Edges::ZERO,
+        scalar(2.0),
         cache_scroll_rect(0.0, 0.0, 100.0, 80.0),
-        PhysicalScrollRangeOf::try_new(scalar(-60.0), scalar(0.0), scalar(-60.0), scalar(0.0))
-            .expect("test signed physical range is valid"),
-        ScrollbarGutterRectsOf::new(
-            Some(cache_scroll_rect(2.0, 21.0, 30.0, 2.0)),
-            Some(cache_scroll_rect(40.0, 3.0, 2.0, 18.0)),
-        ),
     )
-    .expect("test scroll geometry is valid")
+    .expect("canonical cache geometry is valid")
 }
 
 fn complete_compute_size_output<S: LayoutScalar>() -> ComputeOutputOf<S> {

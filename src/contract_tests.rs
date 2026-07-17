@@ -291,40 +291,169 @@ fn fri05_c02_carrier_public_aliases_and_generic_traits_are_available() {
 }
 
 #[test]
-fn scroll_geometry_public_surface_uses_signed_physical_ranges() {
+fn fri05_c03_public_geometry_all_exact_accessors_compose_in_both_scalar_lanes() {
     fn assert_scalar<S: crate::LayoutScalar>() {
-        let flow_axes = crate::FlowAxes::new(crate::WritingMode::VerticalRl, crate::Direction::Rtl);
-        let range = crate::PhysicalScrollRangeOf::<S>::try_new(
-            -S::from_f64(40.0),
-            S::ZERO,
-            -S::from_f64(30.0),
-            S::ZERO,
+        let scalar = S::from_f64;
+        let flow_axes =
+            crate::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr);
+        let scrollable_overflow = crate::ScrollRectOf::try_new(
+            crate::Point::new(scalar(-5.0), scalar(-3.0)),
+            crate::Size::new(scalar(140.0), scalar(70.0)),
         )
-        .expect("finite signed physical range is valid");
-        let scroll_axis = crate::ScrollContainerAxis::from_overflow(crate::Overflow::Scroll)
-            .expect("scroll overflow is supported");
-        let scrollport = crate::ScrollRectOf::new(
-            crate::Point::ZERO,
-            crate::Size::new(S::from_f64(100.0), S::from_f64(40.0)),
-        )
-        .expect("finite scrollport is valid");
-        let geometry = crate::ScrollGeometryOf::new(
+        .expect("finite overflow source is valid");
+        let geometry = crate::scroll::scroll_geometry_from_layout(
             flow_axes,
-            crate::ScrollContainerFacts::new(scroll_axis, scroll_axis),
-            scrollport,
-            Some(scrollport),
-            scrollport,
-            range,
-            crate::ScrollbarGutterRectsOf::new(None, None),
+            crate::ComputedOverflow::try_new(crate::Overflow::Scroll, crate::Overflow::Scroll)
+                .expect("same-group computed overflow is valid"),
+            false,
+            crate::Size::new(scalar(100.0), scalar(40.0)),
+            crate::Edges::all(scalar(2.0)),
+            crate::Edges::all(scalar(1.0)),
+            scalar(10.0),
+            scrollable_overflow,
         )
-        .expect("scroll geometry accepts signed exposed ranges");
+        .expect("canonical source facts produce geometry");
 
         assert_eq!(geometry.flow_axes(), flow_axes);
-        assert_eq!(geometry.physical_range(), range);
+        assert_eq!(geometry.used_overflow_x(), crate::Overflow::Scroll);
+        assert_eq!(geometry.used_overflow_y(), crate::Overflow::Scroll);
+        assert_eq!(geometry.border_box().origin(), crate::Point::ZERO);
+        assert_eq!(
+            geometry.border_box().size(),
+            crate::Size::new(scalar(100.0), scalar(40.0))
+        );
+        assert_eq!(
+            geometry.padding_box().origin(),
+            crate::Point::new(scalar(1.0), scalar(1.0))
+        );
+        assert_eq!(
+            geometry.content_box().size(),
+            crate::Size::new(scalar(84.0), scalar(24.0))
+        );
+        assert_eq!(
+            geometry.scrollport().size(),
+            crate::Size::new(scalar(88.0), scalar(28.0))
+        );
+        assert!(geometry.overflow_clip().x().is_some());
+        assert!(geometry.overflow_clip().y().is_some());
+        assert_eq!(geometry.scrollable_overflow(), scrollable_overflow);
+        let range = geometry.physical_range();
+        assert!(range.x().minimum() <= S::ZERO);
+        assert!(range.x().maximum() >= S::ZERO);
+        assert!(range.y().minimum() <= S::ZERO);
+        assert!(range.y().maximum() >= S::ZERO);
+        let gutters = geometry.gutters();
+        assert_eq!(gutters.top(), None);
+        assert!(gutters.right().is_some());
+        assert!(gutters.bottom().is_some());
+        assert_eq!(gutters.left(), None);
+        assert_eq!(geometry.scrollbar_size(), crate::Size::splat(scalar(10.0)));
+        assert_eq!(geometry.resolved_scroll_padding(), crate::Edges::ZERO);
+        assert_eq!(geometry.optimal_viewing_region(), geometry.scrollport());
+        assert_eq!(geometry.scroll_snap_type(), crate::ScrollSnapType::None);
+        let target = geometry.target();
+        assert_eq!(target.border_box(), geometry.border_box());
+        assert_eq!(target.flow_axes(), flow_axes);
+        assert_eq!(
+            target.scroll_margin(),
+            crate::ScrollMarginOf::<S>::default()
+        );
+        assert_eq!(target.snap_align(), crate::ScrollSnapAlign::default());
+        assert_eq!(target.snap_stop(), crate::ScrollSnapStop::Normal);
     }
 
     assert_scalar::<f32>();
     assert_scalar::<f64>();
+}
+
+#[test]
+fn fri05_c03_output_helper_no_geometry_fallback_saturates_each_scalar_lane() {
+    fn assert_scalar<S: crate::LayoutScalar>() {
+        fn geometry<S: crate::LayoutScalar>(
+            x: crate::Overflow,
+            y: crate::Overflow,
+            size: crate::Size<S>,
+            scrollbar_width: S,
+        ) -> crate::ScrollGeometryOf<S> {
+            crate::scroll::scroll_geometry_from_layout(
+                crate::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
+                crate::ComputedOverflow::try_new(x, y)
+                    .expect("same-group output-helper overflow is valid"),
+                false,
+                size,
+                crate::Edges::ZERO,
+                crate::Edges::ZERO,
+                scrollbar_width,
+                crate::ScrollRectOf::try_new(crate::Point::ZERO, size)
+                    .expect("output-helper overflow rect is valid"),
+            )
+            .expect("output-helper geometry is valid")
+        }
+
+        let no_geometry = crate::NodeOutputOf::<S> {
+            size: crate::Size::new(S::from_f64(2.0), S::from_f64(3.0)),
+            padding: crate::Edges::new(
+                S::from_f64(2.0),
+                S::from_f64(2.0),
+                S::from_f64(2.0),
+                S::from_f64(2.0),
+            ),
+            border: crate::Edges::all(S::from_f64(1.0)),
+            scrollbar_size: crate::Size::splat(S::from_f64(99.0)),
+            ..crate::NodeOutputOf::<S>::new()
+        };
+
+        assert_eq!(no_geometry.content_box_size(), crate::Size::ZERO);
+        assert_eq!(no_geometry.scrollbar_size(), crate::Size::ZERO);
+
+        for (x, y, size, width, expected_scrollbars) in [
+            (
+                crate::Overflow::Visible,
+                crate::Overflow::Visible,
+                crate::Size::splat(S::from_f64(40.0)),
+                S::from_f64(10.0),
+                crate::Size::ZERO,
+            ),
+            (
+                crate::Overflow::Scroll,
+                crate::Overflow::Auto,
+                crate::Size::splat(S::from_f64(40.0)),
+                S::from_f64(10.0),
+                crate::Size::new(S::ZERO, S::from_f64(10.0)),
+            ),
+            (
+                crate::Overflow::Scroll,
+                crate::Overflow::Scroll,
+                crate::Size::splat(S::from_f64(40.0)),
+                S::from_f64(10.0),
+                crate::Size::splat(S::from_f64(10.0)),
+            ),
+            (
+                crate::Overflow::Scroll,
+                crate::Overflow::Scroll,
+                crate::Size::splat(S::from_f64(2.0)),
+                S::from_f64(15.0),
+                crate::Size::splat(S::from_f64(2.0)),
+            ),
+        ] {
+            let geometry = geometry(x, y, size, width);
+            let output = crate::NodeOutputOf::<S> {
+                size: crate::Size::splat(S::from_f64(999.0)),
+                scroll_geometry: Some(geometry),
+                scrollbar_size: crate::Size::splat(S::from_f64(99.0)),
+                ..crate::NodeOutputOf::<S>::new()
+            };
+
+            assert_eq!(output.scrollbar_size(), expected_scrollbars);
+            assert_eq!(output.content_box_size(), geometry.content_box().size());
+        }
+    }
+
+    assert_scalar::<f32>();
+    assert_scalar::<f64>();
+
+    let output = include_str!("output.rs");
+    assert!(output.contains("pub const fn scrollbar_size(self) -> Size<S>"));
 }
 
 #[test]

@@ -243,7 +243,7 @@ fn fri05_c02_carrier_private_fields_constructors_and_no_default_are_static() {
 }
 
 #[test]
-fn fri05_c02_rect_legacy_wrapper_has_one_static_validation_path() {
+fn fri05_c03_legacy_surface_rect_has_only_the_typed_public_constructor() {
     let scroll = include_str!("scroll.rs");
     let rect_impl = scroll
         .split_once("impl<S: LayoutScalar> ScrollRectOf<S> {")
@@ -252,17 +252,205 @@ fn fri05_c02_rect_legacy_wrapper_has_one_static_validation_path() {
         .split_once("/// A finite ordered physical clip interval.")
         .expect("rectangle implementation end")
         .0;
-    let legacy_new = rect_impl
-        .split_once("pub fn new(")
-        .expect("legacy constructor")
+
+    assert!(!rect_impl.contains("pub fn new("));
+    assert_eq!(rect_impl.matches("pub fn try_new(").count(), 1);
+}
+
+#[test]
+fn fri05_c03_public_geometry_surface_has_exact_read_only_accessors() {
+    let scroll = include_str!("scroll.rs");
+    let public_front_door = include_str!("lib.rs");
+
+    fn assert_read_only_output_carrier(source: &str, type_name: &str, section_end: &str) {
+        let declaration = format!("pub struct {type_name}");
+        let declaration_index = source.find(&declaration).expect("carrier declaration");
+        let section = source[declaration_index..]
+            .split_once(section_end)
+            .expect("carrier section end")
+            .0;
+        let fields = section
+            .split_once('{')
+            .expect("carrier fields begin")
+            .1
+            .split_once('}')
+            .expect("carrier fields end")
+            .0;
+        assert!(!fields.contains("pub "), "{type_name} fields stay private");
+        for public_constructor in [
+            "pub fn new(",
+            "pub const fn new(",
+            "pub fn try_new(",
+            "pub const fn try_new(",
+        ] {
+            assert!(
+                !section.contains(public_constructor),
+                "{type_name} has no public constructor"
+            );
+        }
+        assert!(
+            !source.contains(&format!("Default for {type_name}")),
+            "{type_name} has no Default implementation"
+        );
+
+        let derive_start = source[..declaration_index]
+            .rfind("#[derive(")
+            .expect("carrier derive");
+        assert!(
+            !source[derive_start..declaration_index].contains("Default"),
+            "{type_name} does not derive Default"
+        );
+    }
+
+    assert_read_only_output_carrier(
+        scroll,
+        "ScrollbarGutterRectsOf",
+        "pub(crate) struct ClipMarginSourceOf",
+    );
+    assert_read_only_output_carrier(
+        scroll,
+        "ScrollGeometryOf",
+        "pub(crate) enum CanonicalScrollRectFact",
+    );
+
+    let geometry_impl = scroll
+        .split_once("pub struct ScrollGeometryOf")
+        .expect("canonical public geometry declaration")
         .1
-        .split_once("pub fn try_new(")
-        .expect("typed constructor")
+        .split_once("pub type ScrollGeometry")
+        .expect("canonical default-scalar alias")
+        .1
+        .split_once("pub(crate) enum CanonicalScrollRectFact")
+        .expect("canonical geometry implementation end")
         .0;
 
-    assert_eq!(legacy_new.matches("Self::try_new(origin, size)").count(), 1);
-    assert!(!legacy_new.contains("is_finite"));
-    assert!(!legacy_new.contains("< S::ZERO"));
+    let geometry_accessors = [
+        "pub const fn flow_axes(self) -> FlowAxes",
+        "pub const fn used_overflow_x(self) -> Overflow",
+        "pub const fn used_overflow_y(self) -> Overflow",
+        "pub const fn border_box(self) -> ScrollRectOf<S>",
+        "pub const fn padding_box(self) -> ScrollRectOf<S>",
+        "pub const fn content_box(self) -> ScrollRectOf<S>",
+        "pub const fn scrollport(self) -> ScrollRectOf<S>",
+        "pub const fn overflow_clip(self) -> OverflowClipOf<S>",
+        "pub const fn scrollable_overflow(self) -> ScrollRectOf<S>",
+        "pub const fn physical_range(self) -> PhysicalScrollRangeOf<S>",
+        "pub const fn gutters(self) -> ScrollbarGutterRectsOf<S>",
+        "pub const fn scrollbar_size(self) -> Size<S>",
+        "pub const fn resolved_scroll_padding(self) -> Edges<S>",
+        "pub const fn optimal_viewing_region(self) -> ScrollRectOf<S>",
+        "pub const fn scroll_snap_type(self) -> ScrollSnapType",
+        "pub const fn target(self) -> ScrollTargetGeometryOf<S>",
+    ];
+    for accessor in geometry_accessors {
+        assert!(
+            geometry_impl.contains(accessor),
+            "missing accessor: {accessor}"
+        );
+    }
+    assert_eq!(
+        geometry_impl.matches("pub const fn ").count(),
+        geometry_accessors.len(),
+        "canonical geometry has only the exact D-03 accessor set"
+    );
+    assert!(!geometry_impl.contains("pub fn "));
+
+    let gutter_impl = scroll
+        .split_once("pub struct ScrollbarGutterRectsOf")
+        .expect("public gutter output declaration")
+        .1
+        .split_once("pub type ScrollbarGutterRects")
+        .expect("gutter default-scalar alias")
+        .1
+        .split_once("pub(crate) struct ClipMarginSourceOf")
+        .expect("gutter output implementation end")
+        .0;
+    let gutter_accessors = [
+        "pub const fn top(self) -> Option<ScrollRectOf<S>>",
+        "pub const fn right(self) -> Option<ScrollRectOf<S>>",
+        "pub const fn bottom(self) -> Option<ScrollRectOf<S>>",
+        "pub const fn left(self) -> Option<ScrollRectOf<S>>",
+    ];
+    for accessor in gutter_accessors {
+        assert!(
+            gutter_impl.contains(accessor),
+            "missing accessor: {accessor}"
+        );
+    }
+    assert_eq!(
+        gutter_impl.matches("pub const fn ").count(),
+        gutter_accessors.len(),
+        "gutter output has only four physical-edge accessors"
+    );
+    assert!(!gutter_impl.contains("pub fn "));
+
+    for public_name in [
+        "ScrollGeometryOf",
+        "ScrollGeometry",
+        "ScrollbarGutterRectsOf",
+        "ScrollbarGutterRects",
+    ] {
+        assert!(
+            public_front_door.contains(public_name),
+            "{public_name} is reexported"
+        );
+    }
+}
+
+#[test]
+fn fri05_c03_legacy_surface_is_absent_from_public_source() {
+    let scroll = include_str!("scroll.rs");
+    let public_front_door = include_str!("lib.rs");
+    let public_scroll_reexports = public_front_door
+        .split_once("pub use scroll::{")
+        .expect("public scroll reexports")
+        .1
+        .split_once("};")
+        .expect("public scroll reexports end")
+        .0;
+
+    for removed_declaration in [
+        "pub enum ScrollOverflowExposure",
+        "pub struct ScrollContainerAxis",
+        "pub struct ScrollContainerFacts",
+        "pub fn scroll_container_facts_from_overflow",
+        "pub enum ScrollUnsupportedFeature",
+    ] {
+        assert!(
+            !scroll.contains(removed_declaration),
+            "retained public legacy declaration: {removed_declaration}"
+        );
+    }
+    for removed_reexport in [
+        "ScrollOverflowExposure",
+        "ScrollContainerAxis",
+        "ScrollContainerFacts",
+        "ScrollUnsupportedFeature",
+    ] {
+        assert!(
+            !public_scroll_reexports.contains(removed_reexport),
+            "retained legacy reexport: {removed_reexport}"
+        );
+    }
+
+    let rect_impl = scroll
+        .split_once("impl<S: LayoutScalar> ScrollRectOf<S> {")
+        .expect("rectangle implementation")
+        .1
+        .split_once("/// A finite ordered physical clip interval.")
+        .expect("rectangle implementation end")
+        .0;
+    assert!(!rect_impl.contains("pub fn new("));
+
+    let geometry_impl = scroll
+        .split_once("impl<S: LayoutScalar> ScrollGeometryOf<S> {")
+        .expect("geometry implementation")
+        .1
+        .split_once("#[cfg(test)]\nmod fri05_c02_carrier_tests")
+        .expect("production scroll source end")
+        .0;
+    assert!(!geometry_impl.contains("pub fn new("));
+    assert!(!geometry_impl.contains("pub const fn container("));
 }
 
 #[test]

@@ -1016,18 +1016,32 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
 
     #[must_use]
     pub fn content_box_size(self) -> Size<S> {
+        if let Some(geometry) = self.scroll_geometry {
+            return geometry.content_box().size();
+        }
+
         Size::new(
-            self.size.width
+            (self.size.width
                 - self.padding.left
                 - self.padding.right
                 - self.border.left
-                - self.border.right,
-            self.size.height
+                - self.border.right)
+                .max(S::ZERO),
+            (self.size.height
                 - self.padding.top
                 - self.padding.bottom
                 - self.border.top
-                - self.border.bottom,
+                - self.border.bottom)
+                .max(S::ZERO),
         )
+    }
+
+    #[must_use]
+    pub const fn scrollbar_size(self) -> Size<S> {
+        match self.scroll_geometry {
+            Some(geometry) => geometry.scrollbar_size(),
+            None => Size::ZERO,
+        }
     }
 }
 
