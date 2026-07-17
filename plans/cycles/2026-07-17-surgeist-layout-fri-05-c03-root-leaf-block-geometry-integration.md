@@ -294,8 +294,45 @@ CARGO_NET_OFFLINE=true just verify-generator
 
 **Intended commit:** `fix(layout): close root and block scroll geometry paths`.
 
+### `C03-T6` Padding Seed And Top-Gutter Integration Closure
+**Files:** `src/scroll.rs`, `src/block.rs`, and focused leaf, block, root,
+rounding, and cache tests.
+
+**Outcome:** Enforce D-08 in direct measured-leaf and block production by seeding
+the shared accumulator with the canonical own padding box while retaining direct
+content and terminal padding exactly once. Make the absolute containing area
+start after an effective top gutter with the same saturating clamp used for the
+left edge, without changing flex/grid internals or later positioned behavior.
+
+**RED:** Add `fri05_c03_integration_padding_seed_` and
+`fri05_c03_integration_absolute_top_gutter_` tests first. They fail because
+direct block/leaf paths seed from the gutter-inset scrollport and the absolute
+physical y area starts at the border edge when a valid flow maps a gutter to top.
+
+**Acceptance:** Direct measured-leaf and block/root front doors distinguish the
+padding box from the scrollport under forced, stable, and both-edge gutters;
+overflow, signed ranges, helpers, rounding, and cache output remain coherent in
+both scalar lanes and representative mappings for every physical gutter side.
+An absolute child laid out with a top gutter starts after the gutter, uses the
+reduced containing area, and contributes its final margin area exactly once.
+Small boxes clamp both area origins without inversion. Existing C03 evidence and
+the bounded flex/grid bridge remain unchanged.
+
+**Commands:**
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c03_integration_padding_seed_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c03_integration_absolute_top_gutter_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c03_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+```
+
+**Dependency:** C03-T5 and the holistic findings against candidate `c5b20b354`.
+
+**Intended commit:** `fix(layout): preserve padding seeds and top gutters`.
+
 ## Cycle Acceptance
-1. All five task ranges have genuine RED/GREEN evidence, clean independent task
+1. All six task ranges have genuine RED/GREEN evidence, clean independent task
    reviews, and coordinator-rerun acceptance commands.
 2. Root, measured leaf, and block use one canonical source factory, one shared
    accumulator, flow-aware effective edges, ordinary origins, and required target
