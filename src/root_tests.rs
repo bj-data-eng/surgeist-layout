@@ -8047,3 +8047,156 @@ fn fri05_c03_leaf_auto_tree_backed_runs_exact_monotone_passes() {
         Size::ZERO,
     );
 }
+
+fn fri05_c03_block_root_output(batch: &CompletedLayoutBatch<u32>, node: u32) -> NodeOutput {
+    batch
+        .unrounded_entries()
+        .iter()
+        .find(|entry| entry.node() == node)
+        .unwrap_or_else(|| panic!("FRI-05 block node {node} has staged output"))
+        .output()
+}
+
+fn fri05_c03_block_root_state(input: &ComputeInput) -> (bool, bool) {
+    let state = input.settled_auto_scrollbars();
+    (
+        state.at(PhysicalAxis::Horizontal),
+        state.at(PhysicalAxis::Vertical),
+    )
+}
+
+#[test]
+fn fri05_c03_block_reservation_root_preserves_hidden_stable_both_edges() {
+    let tree = PublicFlowTree::default().with_children(0, []).with_style(
+        0,
+        NodeInput {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+            ..NodeInput::default()
+        },
+    );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+    let batch = compute_layout(&tree, 0, request).expect("stable block root succeeds");
+    let geometry = fri05_c03_block_root_output(&batch, 0)
+        .scroll_geometry
+        .expect("block root emits geometry");
+
+    assert_eq!(geometry.scrollbar_size(), Size::new(30.0, 0.0));
+    assert!(geometry.gutters().left().is_some());
+    assert!(geometry.gutters().right().is_some());
+    assert_eq!(geometry.gutters().top(), None);
+    assert_eq!(geometry.gutters().bottom(), None);
+    assert_eq!(geometry.content_box().size(), Size::new(70.0, 80.0));
+}
+
+#[test]
+fn fri05_c03_block_auto_root_keys_each_pass_and_publishes_only_stable_nodes() {
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(100.0)),
+                ..NodeInput::default()
+            },
+        );
+    let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap();
+    let batch = compute_layout(&tree, 0, request).expect("auto block root succeeds");
+
+    let expected_states = [(false, false), (true, false), (true, true)];
+    let cache_inputs = tree.cache_inputs(1);
+    assert_eq!(
+        cache_inputs
+            .iter()
+            .map(fri05_c03_block_root_state)
+            .collect::<Vec<_>>(),
+        expected_states,
+        "recorded child cache inputs: {cache_inputs:#?}"
+    );
+    assert_eq!(
+        batch
+            .cache_store_entries()
+            .iter()
+            .filter(|entry| entry.node() == 1)
+            .map(|entry| fri05_c03_block_root_state(entry.input()))
+            .collect::<Vec<_>>(),
+        expected_states
+    );
+
+    for node in [0, 1] {
+        assert_eq!(
+            batch
+                .unrounded_entries()
+                .iter()
+                .filter(|entry| entry.node() == node)
+                .count(),
+            1,
+            "only the stable unrounded output for node {node} is published"
+        );
+        assert_eq!(
+            batch
+                .final_entries()
+                .iter()
+                .filter(|entry| entry.node() == node)
+                .count(),
+            1,
+            "only the stable rounded output for node {node} is published"
+        );
+    }
+
+    let root = fri05_c03_block_root_output(&batch, 0);
+    let geometry = root
+        .scroll_geometry
+        .expect("stable block root output includes geometry");
+    assert_eq!(geometry.content_box().size(), Size::new(85.0, 85.0));
+    assert_eq!(geometry.scrollbar_size(), Size::new(15.0, 15.0));
+    assert_eq!(root.scrollbar_size(), Size::new(15.0, 15.0));
+}
+
+#[test]
+fn fri05_c03_block_tiny_root_keeps_ordered_zero_scrollport_geometry() {
+    let tree = PublicFlowTree::default().with_children(0, []).with_style(
+        0,
+        NodeInput {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(2.0), PreferredSize::px(20.0)),
+            ..NodeInput::default()
+        },
+    );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(2.0),
+        Available::definite(20.0),
+    ))
+    .unwrap();
+    let batch = compute_layout(&tree, 0, request).expect("tiny block root remains supported");
+    let geometry = fri05_c03_block_root_output(&batch, 0)
+        .scroll_geometry
+        .expect("tiny block root emits geometry");
+
+    assert_eq!(geometry.border_box().size(), Size::new(2.0, 20.0));
+    assert_eq!(geometry.content_box().size(), Size::new(0.0, 20.0));
+    assert_eq!(geometry.scrollport().size(), Size::new(0.0, 20.0));
+    assert_eq!(geometry.scrollbar_size(), Size::new(2.0, 0.0));
+}

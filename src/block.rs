@@ -22,8 +22,12 @@ use crate::compute::{
 };
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
-    ScrollUnsupportedFeature, ScrollbarReservationOf, UsedOverflow,
-    content_box_inset_with_scrollbar, scroll_geometry_from_layout, scrollbar_size_from_overflow,
+    CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
+    ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
+    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression,
+    ScrollUnsupportedFeature, UsedOverflow, canonical_scroll_box_from_source,
+    canonical_scroll_geometry_from_source, scroll_geometry_from_layout,
+    scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -34,7 +38,24 @@ pub(crate) fn compute_block<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    compute_block_inner::<Tree, Tree::Scalar, M>(tree, node, input)
+    let scrollbar_width = tree.node_input(node).scrollbar_width.get();
+    let mut pass_input = input;
+    loop {
+        let output = compute_block_inner::<Tree, Tree::Scalar, M>(tree, node, pass_input)?;
+        if !input.run_mode().is_perform_layout() {
+            return Ok(output);
+        }
+        let Some(geometry) = output.scroll_geometry else {
+            return Ok(output);
+        };
+        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
+        if next_state == pass_input.settled_auto_scrollbars()
+            || scrollbar_width == Tree::Scalar::ZERO
+        {
+            return Ok(output);
+        }
+        pass_input = input.with_settled_auto_scrollbars(next_state);
+    }
 }
 
 fn edge_at_physical_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
@@ -209,8 +230,14 @@ where
         );
         let scrollable_overflow = crate::scroll::scroll_rect_union(
             final_pass.scrollable_overflow,
-            final_content_box_scroll_rect(&style, output_size, constants.padding, constants.border)
-                .map_err(|error| block_own_scroll_error(node, input.run_mode(), error))?,
+            final_content_box_scroll_rect(
+                &style,
+                input.run_mode(),
+                output_size,
+                content_size,
+                &final_constants,
+            )
+            .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?,
         )
         .map_err(|error| block_own_scroll_error(node, input.run_mode(), error))?;
         let scrollable_overflow = match absolute.scrollable_overflow {
@@ -227,7 +254,7 @@ where
             node,
             input.run_mode(),
             &style,
-            &constants,
+            &final_constants,
             output_size,
             scrollable_overflow,
         )?);
@@ -640,16 +667,16 @@ where
     let mut float_intrinsics = FloatIntrinsics::new(
         inner_inline
             .map(AvailableOf::<S>::definite)
-            .unwrap_or(input.available().width),
+            .unwrap_or(constants.available_content.width),
     );
     let content_width = inner_inline
-        .or(input.available().width.into_option())
+        .or(constants.available_content.width.into_option())
         .unwrap_or(S::ZERO);
     let mut float_exclusions = FloatExclusions::new(content_width, constants.content_box_inset);
     let content_box_size = Size::new(
         inner_inline
             .or(constants.node_inner_size.width)
-            .or(input.available().width.into_option())
+            .or(constants.available_content.width.into_option())
             .unwrap_or(S::ZERO),
         constants.node_inner_size.height.unwrap_or(S::ZERO),
     );
@@ -793,7 +820,8 @@ where
                     ComputeInputOf::<S>::hidden(ContainingLayoutContext::new(
                         constants.flow_axes,
                         ParentFormattingContext::BlockFlow,
-                    )),
+                    ))
+                    .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
                 )?;
             }
             index += 1;
@@ -877,12 +905,14 @@ where
             )
             .transpose_with_node(tree, child)?;
         let parent_logical_unresolved_margin = constants.flow_axes.logical_edges(unresolved_margin);
-        let parent_logical_available = constants.flow_axes.logical_size(input.available());
+        let parent_logical_available = constants
+            .flow_axes
+            .logical_size(constants.available_content);
         let child_flow_axes =
             crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
         let child_parent_size = constants.child_containing_block_size(child_flow_axes);
         let child_logical_node_inner_size = child_flow_axes.logical_size(child_parent_size);
-        let child_logical_available = child_flow_axes.logical_size(input.available());
+        let child_logical_available = child_flow_axes.logical_size(constants.available_content);
         let child_non_auto_margin = child_flow_axes
             .logical_edges(unresolved_margin)
             .map(resolved_length_auto_fallback_zero);
@@ -920,7 +950,8 @@ where
                     ),
                     AvailableOf::<S>::MAX_CONTENT,
                 )),
-            ),
+            )
+            .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
         )?;
 
         let logical_child_size = constants.flow_axes.logical_size(output.size);
@@ -1460,7 +1491,12 @@ where
     let available_inline_extent = logical_node_inner_size
         .inline
         .map(AvailableOf::<S>::definite)
-        .unwrap_or(constants.flow_axes.logical_size(input.available()).inline);
+        .unwrap_or(
+            constants
+                .flow_axes
+                .logical_size(constants.available_content)
+                .inline,
+        );
     let containing_size = constants.containing_size(logical_node_inner_size);
     let mut items = Vec::with_capacity(run.len());
     let mut run_children = Vec::with_capacity(run.len());
@@ -1530,7 +1566,8 @@ where
                     ComputeInputOf::<S>::hidden(ContainingLayoutContext::new(
                         constants.flow_axes,
                         ParentFormattingContext::BlockFlow,
-                    )),
+                    ))
+                    .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
                 )?;
             }
             continue;
@@ -1576,7 +1613,8 @@ where
                     available_inline_extent,
                     AvailableOf::<S>::MAX_CONTENT,
                 )),
-            ),
+            )
+            .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
         )?;
         let unresolved_margin = constants
             .flow_axes
@@ -2314,17 +2352,56 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    scroll_geometry_from_layout(
-        constants.flow_axes,
-        style.overflow,
-        style.item_is_replaced,
-        output_size,
-        constants.padding,
-        constants.border,
-        style.scrollbar_width.get(),
-        scrollable_overflow,
+    let target_border_box =
+        super::ScrollRectOf::try_new(Point::ZERO, output_size).map_err(|_| {
+            block_own_scroll_error(node, run_mode, ScrollUnsupportedFeature::InvalidScrollRect)
+        })?;
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes: constants.flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: output_size,
+        border: constants.border,
+        padding: constants.padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars: constants.settled_auto_scrollbars,
+        clip_margin: ClipMarginSourceOf::new(
+            style.overflow_clip_margin.clip_box(),
+            style.overflow_clip_margin.margin(),
+        ),
+        scroll_padding: block_scroll_padding(style.scroll_padding),
+        contributions: ScrollContributionAccumulatorOf::new(scrollable_overflow),
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: style.scroll_snap_type,
+        target_border_box,
+        target_scroll_margin: style.scroll_margin,
+        target_flow_axes: constants.flow_axes,
+        target_snap_align: style.scroll_snap_align,
+        target_snap_stop: style.scroll_snap_stop,
+    })
+    .map_err(|error| block_own_canonical_scroll_error(node, run_mode, error))
+}
+
+fn block_scroll_padding<S: LayoutScalar>(
+    scroll_padding: crate::ScrollPaddingOf<S>,
+) -> OptimalRegionInsetsOf<S> {
+    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
+        match value {
+            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
+            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
+        }
+    }
+
+    OptimalRegionInsetsOf::new(
+        inset(scroll_padding.top()),
+        inset(scroll_padding.right()),
+        inset(scroll_padding.bottom()),
+        inset(scroll_padding.left()),
     )
-    .map_err(|error| block_own_scroll_error(node, run_mode, error))
 }
 
 fn block_own_scroll_error<Node, S, M>(
@@ -2347,6 +2424,33 @@ where
         )
     };
     block_scroll_error(LayoutErrorSiteOf::Node(node), operation, invariant, error)
+}
+
+fn block_own_canonical_scroll_error<Node, S, M>(
+    node: Node,
+    run_mode: RunMode,
+    error: CanonicalScrollGeometryErrorOf<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
+        (
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        )
+    } else {
+        (
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        )
+    };
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        operation,
+        LayoutErrorKindOf::InternalInvariant(invariant),
+    )
 }
 
 fn block_child_scroll_error<Node, S, M>(
@@ -2529,22 +2633,33 @@ fn translate_scroll_rect<S: LayoutScalar>(
 
 fn final_content_box_scroll_rect<S: LayoutScalar>(
     style: &NodeInputOf<S>,
+    run_mode: RunMode,
     size: Size<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-) -> Result<super::ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let reservation = ScrollbarReservationOf::from_overflow(
-        style.overflow,
-        style.item_is_replaced,
-        style.scrollbar_width.get(),
-        style.direction,
-    );
-    let inset = content_box_inset_with_scrollbar(padding, border, reservation);
-    let content_size = Size::new(
-        (size.width - inset.horizontal_sum()).max(S::ZERO),
-        (size.height - inset.vertical_sum()).max(S::ZERO),
-    );
-    super::ScrollRectOf::new(Point::new(inset.left, inset.top), content_size)
+    content_size: Size<S>,
+    constants: &Constants<S>,
+) -> Result<super::ScrollRectOf<S>, CanonicalScrollGeometryErrorOf<S>> {
+    let content_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+        flow_axes: constants.flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: size,
+        border: constants.border,
+        padding: constants.padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars: constants.settled_auto_scrollbars,
+    })
+    .map(|boxes| boxes.content_box())?;
+    let contribution_size = if run_mode == RunMode::PerformRootLayout {
+        Size::new(
+            content_box.size().width.max(content_size.width),
+            content_box.size().height.max(content_size.height),
+        )
+    } else {
+        content_box.size()
+    };
+    super::ScrollRectOf::try_new(content_box.origin(), contribution_size)
+        .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -2635,16 +2750,20 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    let area_start_x = constants.border.left + constants.scrollbar_gutter.left;
-    let max_area_start_x = (container.width - constants.border.right).max(constants.border.left);
-    let area_offset = Point::new(area_start_x.min(max_area_start_x), constants.border.top);
+    let area_start_x = constants.effective_border.left + constants.scrollbar_gutter.left;
+    let max_area_start_x =
+        (container.width - constants.effective_border.right).max(constants.effective_border.left);
+    let area_offset = Point::new(
+        area_start_x.min(max_area_start_x),
+        constants.effective_border.top,
+    );
     let area_size = Size::new(
         (container.width
-            - constants.border.horizontal_sum()
+            - constants.effective_border.horizontal_sum()
             - constants.scrollbar_gutter.horizontal_sum())
         .max(S::ZERO),
         (container.height
-            - constants.border.vertical_sum()
+            - constants.effective_border.vertical_sum()
             - constants.scrollbar_gutter.vertical_sum())
         .max(S::ZERO),
     );
@@ -2780,7 +2899,8 @@ where
                     ParentFormattingContext::BlockFlow,
                 ),
                 available,
-            ),
+            )
+            .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
         )?;
         let final_size = known_size
             .unwrap_or(output.size)
@@ -3072,9 +3192,12 @@ struct Constants<S: LayoutScalar> {
     text_align: TextAlign,
     border: Edges<S>,
     padding: Edges<S>,
+    effective_border: Edges<S>,
     padding_border_size: Size<S>,
     scrollbar_gutter: Edges<S>,
     content_box_inset: Edges<S>,
+    available_content: Size<AvailableOf<S>>,
+    settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState,
     own_top_margin: CollapsibleMarginOf<S>,
     own_bottom_margin: CollapsibleMarginOf<S>,
     collapse_top_margin: bool,
@@ -3201,17 +3324,7 @@ impl<S: LayoutScalar> Constants<S> {
                 |length, basis| resolve_auto_optional(length, basis),
             )
             .transpose_with_node(tree, node)?;
-        let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
-            style.overflow,
-            style.item_is_replaced,
-            style.scrollbar_width.get(),
-            style.direction,
-        );
-        let scrollbar_gutter = scrollbar_reservation.inset();
         let padding_border_size = (padding + border).sum_axes();
-        let content_box_inset =
-            content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
-        let content_box_inset_size = content_box_inset.sum_axes();
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
             padding_border_size
         } else {
@@ -3276,7 +3389,40 @@ impl<S: LayoutScalar> Constants<S> {
             .or(min_max_definite_size)
             .or(style_size.clamp_optional(min_size, max_size))
             .max_optional(padding_border_size.map(Some));
+        let unconstrained_scroll_box_size = padding_border_size
+            + Size::splat(style.scrollbar_width.get() + style.scrollbar_width.get());
+        let scroll_box_size = node_outer_size
+            .or(input.available().map(AvailableOf::into_option))
+            .or(max_size)
+            .unwrap_or(unconstrained_scroll_box_size);
+        let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+            flow_axes,
+            computed_overflow: style.overflow,
+            item_is_replaced: style.item_is_replaced,
+            border_box_size: scroll_box_size,
+            border,
+            padding,
+            scrollbar_gutter: style.scrollbar_gutter,
+            scrollbar_width: style.scrollbar_width,
+            settled_auto_scrollbars: input.settled_auto_scrollbars(),
+        })
+        .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?;
+        let effective_border = scroll_box.effective_border();
+        let scrollbar_gutter = scroll_box.effective_gutter();
+        let content_box_inset =
+            effective_border + scrollbar_gutter + scroll_box.effective_padding();
+        let content_box_inset_size = content_box_inset.sum_axes();
         let node_inner_size = node_outer_size.sub_optional(content_box_inset_size);
+        let available_content =
+            input
+                .available()
+                .zip_map(content_box_inset_size, |available, inset| match available {
+                    AvailableOf::Definite(value) => {
+                        AvailableOf::Definite((value - inset).max(S::ZERO))
+                    }
+                    AvailableOf::MinContent => AvailableOf::MinContent,
+                    AvailableOf::MaxContent => AvailableOf::MaxContent,
+                });
         let logical_padding = flow_axes.logical_edges(padding);
         let logical_border = flow_axes.logical_edges(border);
         let logical_style_size = flow_axes.logical_size(style_size);
@@ -3295,9 +3441,12 @@ impl<S: LayoutScalar> Constants<S> {
             text_align: style.text_align,
             border,
             padding,
+            effective_border,
             padding_border_size,
             scrollbar_gutter,
             content_box_inset,
+            available_content,
+            settled_auto_scrollbars: input.settled_auto_scrollbars(),
             own_top_margin: CollapsibleMarginOf::<S>::from_margin(
                 logical_margin.block_start.unwrap_or(S::ZERO),
             ),
@@ -3471,8 +3620,9 @@ impl<S: LayoutScalar> SizeOptionExt<S> for Size<Option<S>> {
 
     fn sub_optional(self, amount: Size<S>) -> Self {
         Size::new(
-            self.width.map(|width| width - amount.width),
-            self.height.map(|height| height - amount.height),
+            self.width.map(|width| (width - amount.width).max(S::ZERO)),
+            self.height
+                .map(|height| (height - amount.height).max(S::ZERO)),
         )
     }
 

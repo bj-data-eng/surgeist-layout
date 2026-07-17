@@ -678,11 +678,57 @@ struct ScrollBoxClipGutterSourceOf<S: LayoutScalar> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CanonicalScrollBoxSourceOf<S: LayoutScalar> {
+    pub(crate) flow_axes: FlowAxes,
+    pub(crate) computed_overflow: ComputedOverflow,
+    pub(crate) item_is_replaced: bool,
+    pub(crate) border_box_size: Size<S>,
+    pub(crate) border: Edges<S>,
+    pub(crate) padding: Edges<S>,
+    pub(crate) scrollbar_gutter: ScrollbarGutter,
+    pub(crate) scrollbar_width: ScrollbarWidthOf<S>,
+    pub(crate) settled_auto_scrollbars: SettledAutoScrollbarState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CanonicalScrollBoxOf<S: LayoutScalar> {
+    effective_border: Edges<S>,
+    effective_padding: Edges<S>,
+    effective_gutter: Edges<S>,
+    content_box: ScrollRectOf<S>,
+}
+
+impl<S: LayoutScalar> CanonicalScrollBoxOf<S> {
+    #[must_use]
+    pub(crate) const fn effective_border(self) -> Edges<S> {
+        self.effective_border
+    }
+
+    #[must_use]
+    pub(crate) const fn effective_padding(self) -> Edges<S> {
+        self.effective_padding
+    }
+
+    #[must_use]
+    pub(crate) const fn effective_gutter(self) -> Edges<S> {
+        self.effective_gutter
+    }
+
+    #[must_use]
+    pub(crate) const fn content_box(self) -> ScrollRectOf<S> {
+        self.content_box
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct ScrollBoxClipGutterResultOf<S: LayoutScalar> {
     border_box: ScrollRectOf<S>,
     padding_box: ScrollRectOf<S>,
     content_box: ScrollRectOf<S>,
     scrollport: ScrollRectOf<S>,
+    effective_border: Edges<S>,
+    effective_padding: Edges<S>,
+    effective_reservation: Edges<S>,
     gutters: ScrollbarGutterRectsOf<S>,
     aggregate_reservation: Size<S>,
     overflow_clip: OverflowClipOf<S>,
@@ -718,7 +764,7 @@ fn derive_scroll_box_clip_gutter<S: LayoutScalar>(
     }
 
     let border_box = ScrollRectOf::try_new(Point::ZERO, source.border_box_size)?;
-    let (_, padding_box) = inset_scroll_rect_saturated(border_box, source.border)?;
+    let (effective_border, padding_box) = inset_scroll_rect_saturated(border_box, source.border)?;
     let scrollbar_state = EffectiveScrollbarState::derive(
         source.flow_axes,
         source.used_overflow,
@@ -732,7 +778,7 @@ fn derive_scroll_box_clip_gutter<S: LayoutScalar>(
     );
     let (effective_reservation, scrollport) =
         inset_scroll_rect_saturated(padding_box, requested_reservation.requested)?;
-    let (_, content_box) = inset_scroll_rect_saturated(scrollport, source.padding)?;
+    let (effective_padding, content_box) = inset_scroll_rect_saturated(scrollport, source.padding)?;
     let gutters = physical_gutter_rects(padding_box, scrollport, effective_reservation)?;
     let overflow_clip = derive_overflow_clip(
         source.used_overflow,
@@ -752,6 +798,9 @@ fn derive_scroll_box_clip_gutter<S: LayoutScalar>(
         padding_box,
         content_box,
         scrollport,
+        effective_border,
+        effective_padding,
+        effective_reservation,
         gutters,
         aggregate_reservation: effective_reservation.sum_axes(),
         overflow_clip,
@@ -2279,6 +2328,33 @@ pub(crate) enum CanonicalScrollGeometryErrorOf<S: LayoutScalar> {
         side: PhysicalSide,
         value: S,
     },
+}
+
+pub(crate) fn canonical_scroll_box_from_source<S: LayoutScalar>(
+    source: CanonicalScrollBoxSourceOf<S>,
+) -> Result<CanonicalScrollBoxOf<S>, CanonicalScrollGeometryErrorOf<S>> {
+    let used_overflow =
+        UsedOverflow::from_computed(source.computed_overflow, source.item_is_replaced);
+    let boxes = derive_scroll_box_clip_gutter(ScrollBoxClipGutterSourceOf {
+        flow_axes: source.flow_axes,
+        used_overflow,
+        border_box_size: source.border_box_size,
+        border: source.border,
+        padding: source.padding,
+        scrollbar_gutter: source.scrollbar_gutter,
+        scrollbar_width: source.scrollbar_width,
+        settled_auto_scrollbars: source.settled_auto_scrollbars,
+        clip_margin: ClipMarginSourceOf::default(),
+        optimal_region_insets: OptimalRegionInsetsOf::default(),
+    })
+    .map_err(CanonicalScrollGeometryErrorOf::BoxClipGutter)?;
+
+    Ok(CanonicalScrollBoxOf {
+        effective_border: boxes.effective_border,
+        effective_padding: boxes.effective_padding,
+        effective_gutter: boxes.effective_reservation,
+        content_box: boxes.content_box,
+    })
 }
 
 pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(

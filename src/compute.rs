@@ -10,9 +10,10 @@ use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
     CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafContentBoxInsetSourceOf,
     MeasuredLeafScrollGeometrySourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
-    ScrollUnsupportedFeature, UsedOverflow, canonical_measured_leaf_scroll_geometry,
-    measured_leaf_content_box_inset, round_scroll_geometry, scroll_geometry_from_layout,
-    scroll_rect_union, scrollable_overflow_from_layout_content_size,
+    ScrollUnsupportedFeature, SettledAutoScrollbarState, UsedOverflow,
+    canonical_measured_leaf_scroll_geometry, measured_leaf_content_box_inset,
+    round_scroll_geometry, scroll_geometry_from_layout, scroll_rect_union,
+    scrollable_overflow_from_layout_content_size,
 };
 use crate::sizing::{
     DispatchedSizingRequest, SizingDispatch, dispatch_flex_basis, dispatch_maximum_size,
@@ -684,6 +685,13 @@ where
     }
 
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>) {
+        if let Some(index) = self
+            .unrounded_entries
+            .iter()
+            .position(|entry| entry.node() == node)
+        {
+            self.unrounded_entries.remove(index);
+        }
         self.unrounded_entries
             .push(LayoutOutputEntryOf::new(node, layout));
     }
@@ -706,11 +714,17 @@ where
         }
 
         if input.run_mode().is_perform_layout() && self.child_count(node) != 0 {
-            return self.compute_child_uncached(node, input);
+            return self.compute_child_uncached(
+                node,
+                input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL),
+            );
         }
 
         crate::traits::compute_cached(self, node, input, |session, node, input| {
-            session.compute_child_uncached(node, input)
+            session.compute_child_uncached(
+                node,
+                input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL),
+            )
         })
     }
 }
@@ -741,6 +755,13 @@ where
     }
 
     fn set_final(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>) {
+        if let Some(index) = self
+            .final_entries
+            .iter()
+            .position(|entry| entry.node() == node)
+        {
+            self.final_entries.remove(index);
+        }
         self.final_entries
             .push(LayoutOutputEntryOf::new(node, layout));
     }
@@ -773,11 +794,23 @@ where
         context: super::CacheKeyContext,
         output: ComputeOutputOf<Self::Scalar>,
     ) {
+        if let Some(index) = self.cache_store_entries.iter().position(|entry| {
+            entry.node() == node && entry.input() == input && entry.context() == context
+        }) {
+            self.cache_store_entries.remove(index);
+        }
         self.cache_store_entries
             .push(LayoutCacheStoreEntryOf::new(node, *input, context, output));
     }
 
     fn cache_clear(&mut self, node: Self::Node) {
+        if let Some(index) = self
+            .cache_clear_entries
+            .iter()
+            .position(|entry| entry.node() == node)
+        {
+            self.cache_clear_entries.remove(index);
+        }
         self.cache_clear_entries
             .push(LayoutCacheClearEntry::new(node));
     }
@@ -851,7 +884,12 @@ where
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
     let scroll_geometry = match output.scroll_geometry {
-        Some(scroll_geometry) if scroll_geometry.is_measured_leaf() => scroll_geometry,
+        Some(scroll_geometry)
+            if scroll_geometry.is_measured_leaf()
+                || style.display.inner_display() == super::Display::Block =>
+        {
+            scroll_geometry
+        }
         existing_geometry => {
             let scrollable_overflow = scrollable_overflow_from_layout_content_size(
                 style.direction,

@@ -10750,3 +10750,318 @@ fn invalid_numeric_margin_keeps_explicit_failure_without_panicking() {
 
     assert_eq!(resolved.block_start, 0.0);
 }
+
+#[derive(Default)]
+struct Fri05C03BlockPassTree {
+    children: HashMap<u32, Vec<u32>>,
+    styles: HashMap<u32, NodeInput>,
+    child_output: Option<ComputeOutput>,
+    child_inputs: Vec<ComputeInput>,
+    layouts: Vec<(u32, NodeOutput)>,
+}
+
+impl Traverse for Fri05C03BlockPassTree {
+    type Node = u32;
+    type Scalar = Scalar;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map_or(0, Vec::len)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl Compute for Fri05C03BlockPassTree {
+    fn node_input(&self, node: Self::Node) -> &NodeInput {
+        &self.styles[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInput {
+        LayoutInput::box_input(self.styles[&node].clone())
+    }
+
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+        self.layouts.push((node, layout));
+    }
+
+    fn compute_child(
+        &mut self,
+        _node: Self::Node,
+        input: ComputeInput,
+    ) -> crate::LayoutResultOf<Self::Node, ComputeOutput, Self::Scalar> {
+        self.child_inputs.push(input);
+        Ok(self
+            .child_output
+            .expect("FRI-05 block pass child output is configured"))
+    }
+}
+
+fn fri05_c03_block_input(size: Size<f32>, flow_axes: FlowAxes) -> ComputeInput {
+    ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        size.map(Some),
+        size.map(Some),
+        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+        size.map(Available::definite),
+    )
+}
+
+fn fri05_c03_block_overflow_at_flow_axes(
+    flow_axes: FlowAxes,
+    inline: Overflow,
+    block: Overflow,
+) -> ComputedOverflow {
+    match flow_axes.inline_axis() {
+        PhysicalAxis::Horizontal => computed_overflow(inline, block),
+        PhysicalAxis::Vertical => computed_overflow(block, inline),
+    }
+}
+
+fn fri05_c03_block_gutter_at(
+    gutters: ScrollbarGutterRects,
+    side: PhysicalSide,
+) -> Option<ScrollRect> {
+    match side {
+        PhysicalSide::Top => gutters.top(),
+        PhysicalSide::Right => gutters.right(),
+        PhysicalSide::Bottom => gutters.bottom(),
+        PhysicalSide::Left => gutters.left(),
+    }
+}
+
+fn fri05_c03_block_all_flow_axes() -> [FlowAxes; 10] {
+    [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
+    ]
+}
+
+fn fri05_c03_empty_block_geometry(style: NodeInput) -> ScrollGeometry {
+    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let size = Size::new(100.0, 80.0);
+    let mut tree = Fri05C03BlockPassTree::default();
+    tree.children.insert(0, vec![]);
+    tree.styles.insert(0, style);
+    crate::compute_block(&mut tree, 0, fri05_c03_block_input(size, flow_axes))
+        .expect("FRI-05 empty block layout succeeds")
+        .scroll_geometry
+        .expect("performed block layout emits geometry")
+}
+
+#[test]
+fn fri05_c03_block_reservation_places_forced_and_stable_gutters_in_all_flows() {
+    for flow_axes in fri05_c03_block_all_flow_axes() {
+        let style = |overflow, gutter, width| NodeInput {
+            display: Display::Block,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow,
+            scrollbar_gutter: gutter,
+            scrollbar_width: ScrollbarWidth::try_new(width).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+            ..NodeInput::default()
+        };
+        let forced = fri05_c03_empty_block_geometry(style(
+            fri05_c03_block_overflow_at_flow_axes(flow_axes, Overflow::Hidden, Overflow::Scroll),
+            ScrollbarGutter::Auto,
+            7.0,
+        ));
+        let stable = fri05_c03_empty_block_geometry(style(
+            fri05_c03_block_overflow_at_flow_axes(flow_axes, Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::Stable,
+            7.0,
+        ));
+        let both = fri05_c03_empty_block_geometry(style(
+            fri05_c03_block_overflow_at_flow_axes(flow_axes, Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::StableBothEdges,
+            7.0,
+        ));
+
+        for (geometry, expected_sides) in [
+            (forced, vec![flow_axes.inline_end()]),
+            (stable, vec![flow_axes.inline_end()]),
+            (both, vec![flow_axes.inline_start(), flow_axes.inline_end()]),
+        ] {
+            for side in [
+                PhysicalSide::Top,
+                PhysicalSide::Right,
+                PhysicalSide::Bottom,
+                PhysicalSide::Left,
+            ] {
+                assert_eq!(
+                    fri05_c03_block_gutter_at(geometry.gutters(), side).is_some(),
+                    expected_sides.contains(&side),
+                    "unexpected {side:?} gutter for {flow_axes:?}: {geometry:#?}"
+                );
+            }
+        }
+
+        let expected_one_edge = match flow_axes.inline_axis() {
+            PhysicalAxis::Horizontal => Size::new(7.0, 0.0),
+            PhysicalAxis::Vertical => Size::new(0.0, 7.0),
+        };
+        assert_eq!(forced.scrollbar_size(), expected_one_edge, "{flow_axes:?}");
+        assert_eq!(stable.scrollbar_size(), expected_one_edge, "{flow_axes:?}");
+        assert_eq!(both.scrollbar_size(), expected_one_edge + expected_one_edge);
+
+        let zero = fri05_c03_empty_block_geometry(style(
+            fri05_c03_block_overflow_at_flow_axes(flow_axes, Overflow::Scroll, Overflow::Scroll),
+            ScrollbarGutter::StableBothEdges,
+            0.0,
+        ));
+        assert_eq!(zero.scrollbar_size(), Size::ZERO, "{flow_axes:?}");
+        assert_eq!(zero.gutters().top(), None);
+        assert_eq!(zero.gutters().right(), None);
+        assert_eq!(zero.gutters().bottom(), None);
+        assert_eq!(zero.gutters().left(), None);
+    }
+}
+
+fn fri05_c03_block_auto_case(
+    child_size: Size<f32>,
+    expected_states: &[(bool, bool)],
+    expected_reservation: Size<f32>,
+) {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let size = Size::splat(100.0);
+    let mut tree = Fri05C03BlockPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_sizes(child_size, child_size));
+
+    let output = crate::compute_block(&mut tree, 0, fri05_c03_block_input(size, flow_axes))
+        .expect("FRI-05 auto block layout succeeds");
+    let states = tree
+        .child_inputs
+        .iter()
+        .map(|input| {
+            let state = input.settled_auto_scrollbars();
+            (
+                state.at(PhysicalAxis::Horizontal),
+                state.at(PhysicalAxis::Vertical),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(states, expected_states, "child size {child_size:?}");
+    assert!(
+        states.len() <= 3,
+        "auto geometry must settle within three passes"
+    );
+    let geometry = output
+        .scroll_geometry
+        .expect("stable auto block output includes geometry");
+    assert_eq!(geometry.scrollbar_size(), expected_reservation);
+}
+
+#[test]
+fn fri05_c03_block_auto_runs_only_monotone_geometry_changing_evaluations() {
+    fri05_c03_block_auto_case(Size::new(80.0, 80.0), &[(false, false)], Size::ZERO);
+    fri05_c03_block_auto_case(
+        Size::new(120.0, 80.0),
+        &[(false, false), (true, false)],
+        Size::new(0.0, 15.0),
+    );
+    fri05_c03_block_auto_case(
+        Size::new(80.0, 120.0),
+        &[(false, false), (false, true)],
+        Size::new(15.0, 0.0),
+    );
+    fri05_c03_block_auto_case(
+        Size::new(120.0, 100.0),
+        &[(false, false), (true, false), (true, true)],
+        Size::new(15.0, 15.0),
+    );
+    fri05_c03_block_auto_case(
+        Size::new(100.0, 120.0),
+        &[(false, false), (false, true), (true, true)],
+        Size::new(15.0, 15.0),
+    );
+}
+
+#[test]
+fn fri05_c03_block_tiny_saturates_opposing_reservations_before_child_layout() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let size = Size::new(2.0, 20.0);
+    let mut tree = Fri05C03BlockPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Block,
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(2.0), PreferredSize::px(20.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Block,
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_outer_size(Size::ZERO));
+
+    let output = crate::compute_block(&mut tree, 0, fri05_c03_block_input(size, flow_axes))
+        .expect("tiny block geometry remains supported");
+    assert_eq!(tree.child_inputs.len(), 1);
+    assert_eq!(tree.child_inputs[0].known().width, Some(0.0));
+    let geometry = output
+        .scroll_geometry
+        .expect("tiny performed block emits geometry");
+    assert_eq!(geometry.border_box().size(), size);
+    assert_eq!(geometry.content_box().size(), Size::new(0.0, 20.0));
+    assert_eq!(geometry.scrollport().size(), Size::new(0.0, 20.0));
+    assert_eq!(geometry.scrollbar_size(), Size::new(2.0, 0.0));
+    let left = geometry.gutters().left().expect("left gutter is retained");
+    let right = geometry
+        .gutters()
+        .right()
+        .expect("right gutter is retained");
+    assert_eq!(left.size(), Size::new(1.0, 20.0));
+    assert_eq!(right.size(), Size::new(1.0, 20.0));
+    assert_eq!(left.origin(), Point::ZERO);
+    assert_eq!(right.origin(), Point::new(1.0, 0.0));
+}
