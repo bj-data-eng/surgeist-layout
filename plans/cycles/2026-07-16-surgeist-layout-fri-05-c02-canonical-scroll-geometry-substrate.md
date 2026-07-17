@@ -1,5 +1,5 @@
 # FRI-05-C02 Canonical Scroll Geometry Substrate
-Status: in_progress
+Status: draft
 Cycle ID: `FRI-05-C02`
 Owning repository: `surgeist-layout`
 Cycle base: `a6a6011aedb952572b8c0eac6f2a67b94c219f1a`
@@ -7,8 +7,8 @@ Reviewed specification:
 `plans/specs/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`
 at SHA-256
 `b2bc5d8cf1f7b65dcef74adf34b5b63ab1f8b519fcbd1094ff4e335ab419286f`,
-commit `5a51d0f67ef781eef724f86a9232bc3616c3773f`, sections `FRI-05.4 D-03`
-through `D-11`, the output/substrate rows of `FRI-05.5` and `FRI-05.6`, the
+commit `5a51d0f67ef781eef724f86a9232bc3616c3773f`, the confirmed-generator-bug
+exception in `FRI-05.3`, sections `FRI-05.4 D-03` through `D-11`, the output/substrate rows of `FRI-05.5` and `FRI-05.6`, the
 canonical-geometry, flow/origin, contribution, zero-area, rounding, target, and
 public-surface rows of `FRI-05.8`, the `scroll.rs` and `lib.rs` rows of
 `FRI-05.9`, `FRI-05.10`, and the substrate portions of acceptance items 3
@@ -53,14 +53,14 @@ This cycle does not change `NodeOutputOf`, `ComputeOutputOf`, cache publication,
 root/leaf/block/flex/grid production calls, auto-gutter layout passes, final
 format origins/subjects, browser comparison, fixture parser/helper/serializer,
 HTML, manifest, XML, reports, provenance, docs, dependencies, features, MSRV,
-root or siblings, unsafe code, or generator architecture. No generation or
-`parity-all` command is applicable.
+root, siblings, unsafe code, or generator architecture. `C02-T1G` is the sole
+generator-file exception; no generation or `parity-all` command is applicable.
 ## Impacts
 Public API: additive typed rectangle error and read-only clip/target carriers.
 The final breaking replacement/removal of legacy geometry surfaces is deferred
 exactly to C03-C05; no compatibility alias is added for a new type.
 Dependencies, features, generated artifacts, docs, examples, MSRV, root, and
-siblings: unchanged. Safety: all owned Rust remains unsafe-free.
+siblings are unchanged; the private generator gate release is error-checked, and all owned Rust remains unsafe-free.
 ## Tasks
 ### `C02-T1` Finite Rectangles And Read-Only Geometry Carriers
 **Files:** `src/scroll.rs`, `src/lib.rs`, and focused model/public-contract tests.
@@ -84,6 +84,22 @@ CARGO_NET_OFFLINE=true just verify-generator
 ```
 **Dependency:** Published C01 candidate.
 **Intended commit:** `api(layout): add finite scroll geometry carriers`.
+### `C02-T1G` Deterministic Generator Acquisition-Gate Release
+**Files:** `tests/bin/surgeist-layout-generate/generator.rs` and its focused tests.
+**Outcome:** Explicitly unlock the short-lived acquisition gate after durable
+owner publication so a duplicated or inherited descriptor cannot retain it.
+**RED:** Extract the current drop-only release path without changing behavior;
+retain a cloned gate handle and prove an independent contender stays blocked.
+**Acceptance:** Error-checked explicit release lets the contender acquire while
+the clone lives, preserves the owner lease lock and diagnostics, and adds no API.
+**Commands:**
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate generation_lock_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+```
+**Dependency:** The confirmed recurring parallel-only C02-T1 generator gate failure.
+**Intended commit:** `fix(generator): release acquisition gate explicitly`.
 ### `C02-T2` Canonical Boxes Clips And Saturated Gutters
 **Files:** `src/scroll.rs` and focused substrate tests.
 **Outcome:** Add private effective scrollbar-state and edge-reservation facts;
@@ -105,7 +121,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c02_box_clip
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
-**Dependency:** `C02-T1` supplies validated rectangles and clip carriers.
+**Dependency:** `C02-T1` supplies validated rectangles and clip carriers; `C02-T1G` restores the configured gate.
 **Intended commit:** `feat(layout): derive canonical scroll boxes`.
 ### `C02-T3` Shared Contribution And Origin-Aware Range Substrate
 **Files:** `src/scroll.rs` and focused accumulator/range tests.
@@ -158,12 +174,12 @@ CARGO_NET_OFFLINE=true just verify-generator
 **Dependency:** `C02-T2` and `C02-T3` complete every source derivation.
 **Intended commit:** `feat(layout): add canonical scroll geometry factory`.
 ## Cycle Acceptance
-1. All four task ranges have genuine RED/GREEN evidence and clean independent task reviews.
+1. All five task ranges have genuine RED/GREEN evidence and clean independent task reviews.
 2. One private source/factory owns every new derived box, clip, gutter, range, target, and rounded value in f32/f64.
 3. Rect errors, saturation, contribution, origin, projection, and target behavior match D-03 through D-11 without a panic, unsupported result, guessed context, or alternate constructor.
 4. Current production geometry, outputs, caches, and format-local integration remain for C03-C05; no new canonical result is published from a formatting path.
 5. Normal and generator-feature verification pass with no generation or generated/input artifact delta.
-6. No later integration, comparator, fixture, documentation, root, sibling, dependency, feature, MSRV, lint-suppression, or unsafe change enters the range.
+6. No later integration, comparator, fixture, documentation, root, sibling, dependency, feature, MSRV, generator architecture, lint-suppression, or unsafe change enters the range.
 ## Final Verification
 ```sh
 CARGO_NET_OFFLINE=true just verify
@@ -172,8 +188,8 @@ git diff --check
 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^\"]*")?\s*\{' --glob '*.rs' .
 ```
 The unsafe scan covers tracked and non-ignored owned Rust and must report no
-executable match. The cycle inventory contains only its plan and the named Rust
-source/tests; no generator, fixture, artifact, doc, manifest, or external-repo change.
+executable match. The cycle inventory contains only its plan, named layout Rust
+source/tests, and T1G's generator file; no fixture, artifact, doc, manifest, or external-repo change.
 ## Handoff And Blockers
 The completed cycle hands C03 one reviewed source-fact factory and additive
 public carriers. C03 may integrate root/leaf/block and begin legacy removal; C04
@@ -181,4 +197,4 @@ and C05 retain flex/grid integration and final compatibility removal.
 A genuine blocker exists only if the reviewed substrate cannot coexist with the
 current production path, if a D-03-D-11 invariant requires missing product
 authority, or if completion requires a new dependency, unsafe code, generator
-change, or later-cycle integration. Such evidence returns to planning review.
+architecture, or later-cycle integration. Such evidence returns to planning review.
