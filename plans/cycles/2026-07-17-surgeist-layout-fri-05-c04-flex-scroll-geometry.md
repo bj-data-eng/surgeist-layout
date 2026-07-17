@@ -1,5 +1,5 @@
 # FRI-05-C04 Flex Scroll Geometry And Main-Axis Semantics
-Status: in_progress
+Status: draft
 Cycle ID: `FRI-05-C04`
 Owning repository: `surgeist-layout`
 Cycle base: `63f8823df0262f886b8031cf527021ded5f0098b`
