@@ -8356,6 +8356,295 @@ fn fri05_c03_leaf_auto_tree_backed_runs_exact_monotone_passes() {
     );
 }
 
+fn fri05_c04_flex_geometry_overflow_at_flow_axes(
+    flow_axes: FlowAxes,
+    inline: Overflow,
+    block: Overflow,
+) -> ComputedOverflow {
+    match flow_axes.inline_axis() {
+        PhysicalAxis::Horizontal => computed_overflow(inline, block),
+        PhysicalAxis::Vertical => computed_overflow(block, inline),
+    }
+}
+
+fn fri05_c04_flex_geometry_assert_zero_range(geometry: ScrollGeometry, context: &str) {
+    let range = geometry.physical_range();
+    assert_eq!(
+        (
+            range.x().minimum(),
+            range.x().maximum(),
+            range.y().minimum(),
+            range.y().maximum(),
+        ),
+        (0.0, 0.0, 0.0, 0.0),
+        "{context}"
+    );
+}
+
+#[test]
+fn fri05_c04_flex_geometry_rounded_publication_excludes_reserved_gutters_all_flows() {
+    let regular_size = Size::new(100.0, 80.0);
+
+    for flow_axes in fri05_c03_root_all_flow_axes() {
+        let assert_case = |case: &str,
+                           size: Size<f32>,
+                           overflow: ComputedOverflow,
+                           gutter: ScrollbarGutter,
+                           scrollbar_width: f32,
+                           expected_sides: &[PhysicalSide],
+                           expected_thickness: f32| {
+            let tree = PublicFlowTree::default().with_children(0, []).with_style(
+                0,
+                NodeInput {
+                    display: Display::Flex,
+                    writing_mode: flow_axes.writing_mode(),
+                    direction: flow_axes.direction(),
+                    overflow,
+                    scrollbar_gutter: gutter,
+                    scrollbar_width: ScrollbarWidth::try_new(scrollbar_width).unwrap(),
+                    size: Size::new(
+                        PreferredSize::px(size.width),
+                        PreferredSize::px(size.height),
+                    ),
+                    ..NodeInput::default()
+                },
+            );
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequest::viewport(size.map(Available::definite)).unwrap(),
+            )
+            .unwrap_or_else(|error| {
+                panic!("{case}/{flow_axes:?} public flex layout succeeds: {error:?}")
+            });
+            assert_eq!(batch.unrounded_entries().len(), 1, "{case}/{flow_axes:?}");
+            assert_eq!(batch.final_entries().len(), 1, "{case}/{flow_axes:?}");
+
+            let unrounded = batch.unrounded_entries()[0]
+                .output()
+                .scroll_geometry
+                .expect("unrounded flex root retains canonical geometry");
+            fri05_c04_flex_geometry_assert_zero_range(
+                unrounded,
+                &format!("unrounded {case}/{flow_axes:?}"),
+            );
+
+            let output = batch.final_entries()[0].output();
+            let geometry = output
+                .scroll_geometry
+                .expect("rounded flex root retains canonical geometry");
+            let expected_padding_box = ScrollRect::try_new(Point::ZERO, size).unwrap();
+            let thickness = |side| {
+                if expected_sides.contains(&side) {
+                    expected_thickness
+                } else {
+                    0.0
+                }
+            };
+            let top = thickness(PhysicalSide::Top);
+            let right = thickness(PhysicalSide::Right);
+            let bottom = thickness(PhysicalSide::Bottom);
+            let left = thickness(PhysicalSide::Left);
+            let expected_scrollport = ScrollRect::try_new(
+                Point::new(left, top),
+                Size::new(size.width - left - right, size.height - top - bottom),
+            )
+            .unwrap();
+
+            assert_eq!(output.size, size, "{case}/{flow_axes:?}");
+            assert_eq!(geometry.flow_axes(), flow_axes, "{case}/{flow_axes:?}");
+            assert_eq!(
+                geometry.border_box(),
+                expected_padding_box,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                geometry.padding_box(),
+                expected_padding_box,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                geometry.scrollable_overflow(),
+                expected_padding_box,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                geometry.scrollport(),
+                expected_scrollport,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                geometry.content_box(),
+                expected_scrollport,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                output.content_box_size(),
+                expected_scrollport.size(),
+                "{case}/{flow_axes:?}"
+            );
+
+            let expected_gutter = |side| {
+                let side_thickness = thickness(side);
+                if side_thickness == 0.0 {
+                    return None;
+                }
+                let origin = expected_padding_box.origin();
+                let padding_size = expected_padding_box.size();
+                let scrollport_origin = expected_scrollport.origin();
+                let scrollport_size = expected_scrollport.size();
+                let (origin, gutter_size) = match side {
+                    PhysicalSide::Top => (
+                        Point::new(scrollport_origin.x, origin.y),
+                        Size::new(scrollport_size.width, side_thickness),
+                    ),
+                    PhysicalSide::Right => (
+                        Point::new(
+                            origin.x + padding_size.width - side_thickness,
+                            scrollport_origin.y,
+                        ),
+                        Size::new(side_thickness, scrollport_size.height),
+                    ),
+                    PhysicalSide::Bottom => (
+                        Point::new(
+                            scrollport_origin.x,
+                            origin.y + padding_size.height - side_thickness,
+                        ),
+                        Size::new(scrollport_size.width, side_thickness),
+                    ),
+                    PhysicalSide::Left => (
+                        Point::new(origin.x, scrollport_origin.y),
+                        Size::new(side_thickness, scrollport_size.height),
+                    ),
+                };
+                Some(ScrollRect::try_new(origin, gutter_size).unwrap())
+            };
+            for side in [
+                PhysicalSide::Top,
+                PhysicalSide::Right,
+                PhysicalSide::Bottom,
+                PhysicalSide::Left,
+            ] {
+                assert_eq!(
+                    fri05_c03_root_gutter_at(geometry.gutters(), side),
+                    expected_gutter(side),
+                    "{case}/{flow_axes:?}/{side:?}"
+                );
+            }
+
+            let expected_scrollbar_size = Size::new(left + right, top + bottom);
+            assert_eq!(
+                geometry.scrollbar_size(),
+                expected_scrollbar_size,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                output.scrollbar_size, expected_scrollbar_size,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                output.scrollbar_size(),
+                expected_scrollbar_size,
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                geometry.target().border_box(),
+                geometry.border_box(),
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                geometry.target().flow_axes(),
+                flow_axes,
+                "{case}/{flow_axes:?}"
+            );
+
+            let x_clip = geometry.overflow_clip().x().expect("x clip is present");
+            let y_clip = geometry.overflow_clip().y().expect("y clip is present");
+            assert_eq!(
+                (x_clip.minimum(), x_clip.maximum()),
+                (
+                    expected_scrollport.origin().x,
+                    expected_scrollport.origin().x + expected_scrollport.size().width,
+                ),
+                "{case}/{flow_axes:?}"
+            );
+            assert_eq!(
+                (y_clip.minimum(), y_clip.maximum()),
+                (
+                    expected_scrollport.origin().y,
+                    expected_scrollport.origin().y + expected_scrollport.size().height,
+                ),
+                "{case}/{flow_axes:?}"
+            );
+            fri05_c04_flex_geometry_assert_zero_range(
+                geometry,
+                &format!("rounded {case}/{flow_axes:?}"),
+            );
+        };
+
+        let one_edge = [flow_axes.inline_end()];
+        let both_edges = [flow_axes.inline_start(), flow_axes.inline_end()];
+        assert_case(
+            "forced",
+            regular_size,
+            fri05_c04_flex_geometry_overflow_at_flow_axes(
+                flow_axes,
+                Overflow::Hidden,
+                Overflow::Scroll,
+            ),
+            ScrollbarGutter::Auto,
+            7.0,
+            &one_edge,
+            7.0,
+        );
+        assert_case(
+            "stable",
+            regular_size,
+            fri05_c04_flex_geometry_overflow_at_flow_axes(
+                flow_axes,
+                Overflow::Hidden,
+                Overflow::Hidden,
+            ),
+            ScrollbarGutter::Stable,
+            7.0,
+            &one_edge,
+            7.0,
+        );
+        assert_case(
+            "stable-both-edges",
+            regular_size,
+            fri05_c04_flex_geometry_overflow_at_flow_axes(
+                flow_axes,
+                Overflow::Hidden,
+                Overflow::Hidden,
+            ),
+            ScrollbarGutter::StableBothEdges,
+            7.0,
+            &both_edges,
+            7.0,
+        );
+
+        let tiny_size = Size::new(5.0, 3.0);
+        let saturated_thickness = match flow_axes.inline_axis() {
+            PhysicalAxis::Horizontal => tiny_size.width / 2.0,
+            PhysicalAxis::Vertical => tiny_size.height / 2.0,
+        };
+        assert_case(
+            "saturated-tiny",
+            tiny_size,
+            fri05_c04_flex_geometry_overflow_at_flow_axes(
+                flow_axes,
+                Overflow::Hidden,
+                Overflow::Hidden,
+            ),
+            ScrollbarGutter::StableBothEdges,
+            10.0,
+            &both_edges,
+            saturated_thickness,
+        );
+    }
+}
+
 #[test]
 fn fri05_c04_flex_child_geometry_tree_retains_in_flow_and_absolute_targets() {
     let parent_size = Size::new(140.0, 90.0);

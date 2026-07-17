@@ -2876,7 +2876,7 @@ fn round_canonical_contributions<S: LayoutScalar>(
 
     Ok(ScrollContributionAccumulatorOf {
         container_seed,
-        container_range_basis: ContainerRangeBasis::PaddingBox,
+        container_range_basis: contributions.container_range_basis,
         propagatable_descendants,
         final_in_flow_ends,
         terminal_padding_overflow,
@@ -4223,6 +4223,14 @@ mod fri05_c02_contribution_range_tests {
             0.0,
             80.0,
         );
+
+        let rounded = round_canonical_contributions(accumulator, Point::ZERO).unwrap();
+        assert_eq!(
+            rounded.container_range_basis,
+            ContainerRangeBasis::Scrollport
+        );
+        assert_bounds(rounded.complete_overflow(), -5.0, 110.0, 0.0, 80.0);
+        assert_bounds(rounded.range_overflow(scrollport), -5.0, 110.0, 0.0, 80.0);
     }
 
     #[test]
@@ -5318,7 +5326,7 @@ mod fri05_c02_factory_rounding_tests {
                     cumulative_origin,
                 ),
             },
-            container_range_basis: ContainerRangeBasis::PaddingBox,
+            container_range_basis: contributions.container_range_basis,
             propagatable_descendants: expected_round_optional_intervals(
                 contributions.propagatable_descendants,
                 cumulative_origin,

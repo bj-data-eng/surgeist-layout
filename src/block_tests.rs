@@ -11640,6 +11640,11 @@ fn fri05_c03_block_contribution_flex_and_grid_fallback_seed_padding_with_stable_
         let geometry = child
             .scroll_geometry
             .expect("the fallback child has canonical geometry");
+        let expected_range = match display {
+            Display::Flex => (0.0, 0.0, 0.0, 0.0),
+            Display::Grid => (-9.0, 0.0, 0.0, 0.0),
+            _ => unreachable!("the fallback range cases are flex and grid"),
+        };
         assert_ne!(geometry.padding_box(), geometry.scrollport(), "{display:?}");
         assert_ne!(
             geometry.padding_box(),
@@ -11653,7 +11658,7 @@ fn fri05_c03_block_contribution_flex_and_grid_fallback_seed_padding_with_stable_
                 geometry.physical_range().y().minimum(),
                 geometry.physical_range().y().maximum(),
             ),
-            (-9.0, 0.0, 0.0, 0.0),
+            expected_range,
             "{display:?}"
         );
         assert_eq!(
