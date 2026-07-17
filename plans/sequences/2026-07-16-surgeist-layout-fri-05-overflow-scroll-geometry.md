@@ -10,8 +10,8 @@ Owning repository: `surgeist-layout`
 
 This sequence implements the independently reviewed specification at
 `plans/specs/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`, SHA-256
-`c175f668240ad1a556f008a09ba2ba3973db396b11166c133fe925efeaee9895`,
-committed as `dd158dc598d453a1b9055cb285534717c9a2d4f0`.
+`747dcd6c12ae7d883999b5517572d6877d3c803bdb611143af7affc5afd44f39`,
+committed as `50c83f01ded0fe4a284e087ffcbd677bfc12af2a`.
 
 The specification is authoritative for behavior, API, ownership, artifacts, non-goals, and
 acceptance. This sequence owns only durable ordering; only the next ready cycle receives a detailed just-in-time plan.
@@ -100,18 +100,22 @@ Root/block legacy facts and constructors are absent; shared output removal remai
 
 **Prerequisites:** `FRI-05-C03` complete.
 
-**Entry state:** Flex lacks canonical container output and retained child geometry, and both automatic-minimum callers can observe the wrong overflow axis.
+**Entry state:** Flex lacks canonical container output and retained child geometry. Its two
+automatic-minimum callers already share one classifier whose result is correct for every valid
+post-coupling pair, while prior planning incorrectly required an unconstructable mixed-pair axis distinction.
 
-**Bounded outcome:** Route both automatic-minimum callers through the completed
-flex main physical axis, integrate pass-local reservation and canonical output,
-retain in-flow/current absolute child geometry, apply shared contribution and
-trapping, and derive reverse/wrap-reverse origins plus final content-distribution
-subjects.
+**Bounded outcome:** Preserve both automatic-minimum callers on one canonical-pair
+classifier and account for its thirteen accepted and twelve rejected pair invariant;
+integrate pass-local reservation and canonical output, retain in-flow/current
+absolute child geometry, apply shared contribution and trapping, and derive
+reverse/wrap-reverse origins plus final content-distribution subjects.
 
-**Observable exit evidence:** Main-only versus cross-only overflow is distinct
-for every flex direction and leaf flow mapping; nested and zero-area geometry,
-auto coupling, reverse signed ranges, alignment-origin bounds, rounding, and
-cached/uncached output pass through the real flex front door.
+**Observable exit evidence:** Exhaustive computed-pair evidence and real flex
+front-door controls prove both automatic-minimum callers retain the content-based
+minimum for the `Visible`/`Clip` group and zero it for the
+`Hidden`/`Scroll`/`Auto` group without fabricated mixed input. Nested and
+zero-area geometry, auto coupling, reverse signed ranges, alignment-origin bounds,
+rounding, and cached/uncached output pass through the real flex front door.
 
 **Handoff:** Flex owns no separate scroll path; grid-family integration remains.
 
