@@ -57,6 +57,14 @@ while the same-named method is canonical immediately and root/leaf/block keep th
 field equal to the derived value. C05 removes the field after the last producers
 migrate.
 
+The no-public-construction rule applies only to canonical geometry, gutter,
+clip, and target output carriers. `NodeOutputOf::new`, its real empty `Default`,
+and its existing public layout fields remain available in C03; only its
+independently mutable scrollbar field is scheduled for C05 removal. Existing
+fixture/parity consumers may continue constructing an empty node output and
+reading `location`, `size`, and other ordinary layout fields without a helper or
+serializer migration.
+
 Root/leaf/block use ordinary flow inline/block-start origins and no alignment
 subject. Root proof in this cycle uses measured-leaf and block roots; flex and
 grid internal reservation, accumulation, target retention, and auto reruns remain
@@ -108,10 +116,12 @@ public.
 
 **Acceptance:** Both scalar lanes compile and inspect every exact D-03 accessor;
 present geometry always has its target; gutter edges are independently readable;
-no output carrier has public fields, `Default`, or public construction; helpers
-agree for no/one/both/saturated gutters and no-geometry saturation; compile-fail
-and static evidence rejects every removed public name. Existing production
-compiles through one private source-fact adapter and one factory only.
+canonical geometry/gutter/clip/target carriers have no public fields, `Default`,
+or public construction; `NodeOutputOf` retains its ordinary public construction
+and layout fields; helpers agree for no/one/both/saturated gutters and
+no-geometry saturation; compile-fail and static evidence rejects every removed
+public name. Existing production compiles through one private source-fact adapter
+and one factory only.
 
 **Commands:**
 ```sh
@@ -128,15 +138,18 @@ sequence revisions in the header.
 **Intended commit:** `api(layout): expose canonical scroll geometry output`.
 
 ### `C03-T2` Cache-Keyed Auto State And Measured-Leaf Geometry
-**Files:** `src/scroll.rs`, `src/output.rs`, `src/compute.rs`, `src/leaf_tests.rs`,
-`src/root_tests.rs`, and focused cache tests.
+**Files:** `src/scroll.rs`, `src/output.rs`, `src/cache.rs`, `src/compute.rs`,
+`src/leaf_tests.rs`, `src/root_tests.rs`, and focused cache tests.
 
 **Outcome:** Add the private monotone physical x/y auto state and transition to
 the complete compute input/cache identity. Change direct leaf measurement to
 `FnMut`; run only measurement-required geometry-changing states; derive each
 pass's flow-aware effective content box and canonical geometry; and publish the
 first stable result with its target. Preserve the fully known `ComputeSize`
-zero-call/no-geometry fast path and all other measurement-only absence.
+zero-call/no-geometry fast path and all other measurement-only absence. Copy the
+state into `CacheKeyOf::from_input` and compare it in `matches_output` so
+speculative child entries remain state-keyed, while the stable leaf result is
+stored under the caller's unchanged ordinary request.
 
 **RED:** Add `fri05_c03_leaf_geometry_`, `fri05_c03_leaf_auto_`, and
 `fri05_c03_leaf_cache_` tests first. They fail because leaf emits no geometry,
@@ -148,7 +161,9 @@ x-induces-y, y-induces-x, forced scroll, hidden stable, stable both-edges,
 zero-thickness, all ten flow mappings, partial clips, target metadata, and exact
 effective measurement inputs. Measurement occurs zero times for fully known
 `ComputeSize`, otherwise one to three times with monotone bits; only the stable
-output is stored under the ordinary request and cached/uncached results agree.
+output is stored under the ordinary request, every speculative lookup requires
+the exact state bits in both key construction and matching, and cached/uncached
+results agree.
 
 **Commands:**
 ```sh
@@ -306,14 +321,17 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 git diff --check
-rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs' .
+git ls-files -co --exclude-standard -- '*.rs'
+rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $(git ls-files -co --exclude-standard -- '*.rs')
 ```
 
-The unsafe scan covers every tracked and non-ignored owned Rust file and must
-report no executable match. Static range inspection also proves no added
+The first Git command is the explicit tracked and non-ignored owned-Rust
+manifest. The scan consumes exactly that manifest; every textual match is
+classified and no executable match may remain. Static range inspection also proves no added
 `#[allow]`/`#[expect]`, no changed generator/fixture/artifact input, and no C04+
 formatting implementation. The exact cycle inventory contains only the revised
-FRI-05 specification and sequence, this plan, and the named Rust source/tests.
+FRI-05 specification and sequence, this plan, and the named Rust source/tests,
+including `src/cache.rs`.
 
 ## Handoff And Blockers
 The completed, reviewed, published, and remotely read-back cycle hands C04 one
