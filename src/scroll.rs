@@ -2140,8 +2140,11 @@ fn rebuild_rounded_canonical_scroll_geometry<S: LayoutScalar>(
         ),
         padding: round_canonical_source_edges(
             source.padding,
-            source.border_box_size,
-            cumulative_origin,
+            geometry.scrollport.size(),
+            Point::new(
+                cumulative_origin.x + scrollport_origin.x,
+                cumulative_origin.y + scrollport_origin.y,
+            ),
         ),
         scrollbar_width,
         clip_margin: ClipMarginSourceOf::new(
@@ -5350,7 +5353,14 @@ mod fri05_c02_factory_rounding_tests {
         CanonicalScrollGeometrySourceOf {
             border_box_size: rounded_border_box.size(),
             border: expected_round_edges(source.border, original_size, cumulative_origin),
-            padding: expected_round_edges(source.padding, original_size, cumulative_origin),
+            padding: expected_round_edges(
+                source.padding,
+                geometry.scrollport.size(),
+                Point::new(
+                    cumulative_origin.x + scrollport_origin.x,
+                    cumulative_origin.y + scrollport_origin.y,
+                ),
+            ),
             scrollbar_width: ScrollbarWidthOf::try_new(expected_round_value(
                 source.scrollbar_width.get(),
             ))
@@ -5426,6 +5436,80 @@ mod fri05_c02_factory_rounding_tests {
     fn fri05_c02_rounding_rebuilds_from_expected_sources_in_all_flows_and_scalar_lanes() {
         assert_rounding_contract::<f32>();
         assert_rounding_contract::<f64>();
+    }
+
+    fn assert_nested_padding_rounding_uses_absolute_boundaries<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let cumulative_origin = Point::new(scalar(0.25), scalar(0.25));
+
+        let mut no_gutter = factory_source(flow_axes);
+        no_gutter.computed_overflow =
+            ComputedOverflow::try_new(Overflow::Clip, Overflow::Clip).unwrap();
+        no_gutter.border_box_size = Size::new(scalar(10.0), scalar(10.0));
+        no_gutter.border = Edges::new(scalar(0.40), scalar(0.40), scalar(0.40), scalar(0.40));
+        no_gutter.padding = Edges::new(scalar(0.40), scalar(0.40), scalar(0.40), scalar(0.40));
+        no_gutter.scrollbar_gutter = ScrollbarGutter::Auto;
+        no_gutter.scrollbar_width = ScrollbarWidthOf::try_new(scalar(0.60)).unwrap();
+        no_gutter.clip_margin = ClipMarginSourceOf::new(OverflowClipBox::ContentBox, S::ZERO);
+        no_gutter.scroll_padding = OptimalRegionInsetsOf::default();
+        no_gutter.contributions =
+            ScrollContributionAccumulatorOf::new(rect(0.40, 0.40, 9.20, 9.20));
+        no_gutter.target_border_box = rect(0.0, 0.0, 10.0, 10.0);
+
+        let no_gutter = canonical_scroll_geometry_from_source(no_gutter).unwrap();
+        let rounded_no_gutter =
+            rebuild_rounded_canonical_scroll_geometry(no_gutter, cumulative_origin).unwrap();
+
+        // Independent absolute-boundary oracle: 0.25 + 0.40 + 0.40 rounds to
+        // 1 on each start side, while 0.25 + 10.0 - 0.40 - 0.40 rounds to 9
+        // on each end side. These constants do not use either edge-rounding helper.
+        assert_eq!(rounded_no_gutter.padding_box, rect(1.0, 1.0, 9.0, 9.0));
+        assert_eq!(rounded_no_gutter.content_box, rect(1.0, 1.0, 8.0, 8.0));
+        let x_clip = rounded_no_gutter.overflow_clip.x().unwrap();
+        let y_clip = rounded_no_gutter.overflow_clip.y().unwrap();
+        assert_eq!(
+            (x_clip.minimum(), x_clip.maximum()),
+            (scalar(1.0), scalar(9.0))
+        );
+        assert_eq!(
+            (y_clip.minimum(), y_clip.maximum()),
+            (scalar(1.0), scalar(9.0))
+        );
+
+        let mut guttered = no_gutter.source;
+        guttered.computed_overflow =
+            ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll).unwrap();
+        guttered.border = Edges::new(scalar(0.10), scalar(0.30), scalar(0.30), scalar(0.10));
+        guttered.padding = Edges::new(scalar(0.40), scalar(0.80), scalar(0.80), scalar(0.40));
+        guttered.scrollbar_gutter = ScrollbarGutter::StableBothEdges;
+        guttered.contributions = ScrollContributionAccumulatorOf::new(rect(0.10, 0.10, 9.60, 9.60));
+
+        let guttered = canonical_scroll_geometry_from_source(guttered).unwrap();
+        let rounded_guttered =
+            rebuild_rounded_canonical_scroll_geometry(guttered, cumulative_origin).unwrap();
+
+        // The x boundaries 0.25 + 0.10 + 0.60 + 0.40 and
+        // 0.25 + 10.0 - 0.30 - 0.60 - 0.80 round to 1 and 9. The
+        // corresponding y content boundaries also round to 1 and 9.
+        assert_eq!(rounded_guttered.scrollport, rect(1.0, 0.0, 8.0, 9.0));
+        assert_eq!(rounded_guttered.content_box, rect(1.0, 1.0, 8.0, 8.0));
+
+        let mut orthogonal_guttered = guttered.source;
+        orthogonal_guttered.flow_axes = FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr);
+        let orthogonal_guttered =
+            canonical_scroll_geometry_from_source(orthogonal_guttered).unwrap();
+        let rounded_orthogonal =
+            rebuild_rounded_canonical_scroll_geometry(orthogonal_guttered, cumulative_origin)
+                .unwrap();
+
+        assert_eq!(rounded_orthogonal.scrollport, rect(0.0, 1.0, 9.0, 8.0));
+        assert_eq!(rounded_orthogonal.content_box, rect(1.0, 1.0, 8.0, 8.0));
+    }
+
+    #[test]
+    fn fri05_c02_rounding_nested_padding_uses_absolute_boundaries_in_both_scalar_lanes() {
+        assert_nested_padding_rounding_uses_absolute_boundaries::<f32>();
+        assert_nested_padding_rounding_uses_absolute_boundaries::<f64>();
     }
 
     fn assert_rounding_failure<S>(largest: S)
