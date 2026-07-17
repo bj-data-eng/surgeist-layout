@@ -1,6 +1,6 @@
 use super::{
     AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CollapsibleMarginOf, Compute,
-    ComputeInputOf, ComputeOutputOf, DefaultScalar, Direction, Edges, LayoutCacheClearEntry,
+    ComputeInputOf, ComputeOutputOf, DefaultScalar, Edges, LayoutCacheClearEntry,
     LayoutCacheStoreEntryOf, LayoutInputOf, LayoutOutputEntryOf, LayoutRootContextOf,
     LayoutRootRequestOf, LayoutScalar, LengthResolutionOf, LengthResolutionStatus, NodeInputOf,
     NodeOutputOf, NonNegativeFiniteOf, NonNegativeFiniteScalarErrorOf,
@@ -8,8 +8,10 @@ use super::{
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
-    ScrollUnsupportedFeature, ScrollbarReservationOf, UsedOverflow,
-    content_box_inset_with_scrollbar, round_scroll_geometry, scroll_geometry_from_layout,
+    CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafContentBoxInsetSourceOf,
+    MeasuredLeafScrollGeometrySourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
+    ScrollUnsupportedFeature, UsedOverflow, canonical_measured_leaf_scroll_geometry,
+    measured_leaf_content_box_inset, round_scroll_geometry, scroll_geometry_from_layout,
     scroll_rect_union, scrollable_overflow_from_layout_content_size,
 };
 use crate::sizing::{
@@ -848,33 +850,39 @@ where
         ComputeInputOf::root_layout(known, parent, containing_layout_context, available),
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
-    let scrollable_overflow = scrollable_overflow_from_layout_content_size(
-        style.direction,
-        UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
-        output.size,
-        root_edges.padding,
-        root_edges.border,
-        style.scrollbar_width.get(),
-        output.content_size,
-    )
-    .map_err(|error| root_scroll_error(root, error))?;
-    let scrollable_overflow = output
-        .scroll_geometry
-        .map(|geometry| scroll_rect_union(scrollable_overflow, geometry.scrollable_overflow()))
-        .transpose()
-        .map_err(|error| root_scroll_error(root, error))?
-        .unwrap_or(scrollable_overflow);
-    let scroll_geometry = scroll_geometry_from_layout(
-        containing_flow_axes,
-        style.overflow,
-        style.item_is_replaced,
-        output.size,
-        root_edges.padding,
-        root_edges.border,
-        style.scrollbar_width.get(),
-        scrollable_overflow,
-    )
-    .map_err(|error| root_scroll_error(root, error))?;
+    let scroll_geometry = match output.scroll_geometry {
+        Some(scroll_geometry) if scroll_geometry.is_measured_leaf() => scroll_geometry,
+        existing_geometry => {
+            let scrollable_overflow = scrollable_overflow_from_layout_content_size(
+                style.direction,
+                UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
+                output.size,
+                root_edges.padding,
+                root_edges.border,
+                style.scrollbar_width.get(),
+                output.content_size,
+            )
+            .map_err(|error| root_scroll_error(root, error))?;
+            let scrollable_overflow = existing_geometry
+                .map(|geometry| {
+                    scroll_rect_union(scrollable_overflow, geometry.scrollable_overflow())
+                })
+                .transpose()
+                .map_err(|error| root_scroll_error(root, error))?
+                .unwrap_or(scrollable_overflow);
+            scroll_geometry_from_layout(
+                containing_flow_axes,
+                style.overflow,
+                style.item_is_replaced,
+                output.size,
+                root_edges.padding,
+                root_edges.border,
+                style.scrollbar_width.get(),
+                scrollable_overflow,
+            )
+            .map_err(|error| root_scroll_error(root, error))?
+        }
+    };
     let scrollbar_size = scroll_geometry.scrollbar_size();
     let scroll_geometry = Some(scroll_geometry);
     let location = root_start_location(containing_flow_axes, output.size, available);
@@ -1287,6 +1295,7 @@ impl<S: LayoutScalar> InvalidMeasurementOutputOf<S> {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct LeafResolvedValues<S: LayoutScalar> {
     margin: Edges<S>,
     padding: Edges<S>,
@@ -1459,7 +1468,7 @@ fn edge_at_physical_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
 pub fn compute_leaf<S, M>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
-    measure: impl FnOnce(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
+    mut measure: impl FnMut(LeafMeasureInputOf<S>) -> Result<Size<S>, M>,
 ) -> LayoutResultOf<(), ComputeOutputOf<S>, S, M>
 where
     S: LayoutScalar,
@@ -1484,33 +1493,22 @@ fn compute_leaf_with_resolved_values<Node, S, M>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
     resolved: LeafResolvedValues<S>,
-    measure: impl FnOnce(LeafMeasureInputOf<S>) -> LayoutResultOf<Node, Size<S>, S, M>,
+    mut measure: impl FnMut(LeafMeasureInputOf<S>) -> LayoutResultOf<Node, Size<S>, S, M>,
 ) -> LayoutResultOf<Node, ComputeOutputOf<S>, S, M>
 where
     Node: Copy,
     S: LayoutScalar,
 {
     let LeafResolvedValues {
-        margin,
         padding,
         border,
         node_size,
         node_min_size,
         node_max_size,
-        preferred_intrinsic_availability,
-        aspect_ratio,
+        ..
     } = resolved;
     let padding_border = padding + border;
     let padding_border_size = padding_border.sum_axes();
-    let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
-        style.overflow,
-        style.item_is_replaced,
-        style.scrollbar_width.get(),
-        Direction::Ltr,
-    );
-    let content_box_inset =
-        content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
-    let content_box_inset_size = content_box_inset.sum_axes();
     let leaf_flow_axes = FlowAxes::new(style.writing_mode, style.direction);
     let block_start = leaf_flow_axes.block_start();
     let block_end = leaf_flow_axes.block_end();
@@ -1548,17 +1546,142 @@ where
         return Ok(ComputeOutputOf::from_outer_size(size));
     }
 
+    let mut pass_input = input;
+    let mut reusable_measurement = None;
+    loop {
+        let pass = leaf_pass_input(site, pass_input, style, &resolved)?;
+        let measured = match reusable_measurement.take() {
+            Some((measurement_input, measured)) if measurement_input == pass.measurement_input => {
+                measured
+            }
+            _ => validate_measurement_output(measure(pass.measurement_input)?)
+                .map_err(|error| leaf_measurement_error_at_site(site, error))?,
+        };
+        let unclamped = pass_input
+            .known()
+            .or(resolved.node_size)
+            .unwrap_or(measured + pass.content_box_inset_size);
+        let height_is_definite =
+            pass_input.known().height.is_some() || resolved.node_size.height.is_some();
+        let aspect_height = if height_is_definite {
+            unclamped.height
+        } else {
+            unclamped.height.max(
+                resolved
+                    .aspect_ratio
+                    .map(|ratio| unclamped.width / ratio.get())
+                    .unwrap_or(S::ZERO),
+            )
+        };
+        let aspect_size = Size::new(unclamped.width, aspect_height)
+            .clamp_optional(resolved.node_min_size, resolved.node_max_size)
+            .max_optional(padding_border_size.map(Some));
+
+        let mut output =
+            ComputeOutputOf::from_sizes(aspect_size, measured + resolved.padding.sum_axes());
+        let can_collapse_through = !prevents_margin_collapse
+            && leaf_flow_axes.logical_size(aspect_size).block == S::ZERO
+            && leaf_flow_axes.logical_size(measured).block == S::ZERO;
+        output.block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
+            leaf_flow_axes,
+            CollapsibleMarginOf::ZERO,
+            CollapsibleMarginOf::ZERO,
+            can_collapse_through,
+        );
+        let geometry =
+            canonical_measured_leaf_scroll_geometry(MeasuredLeafScrollGeometrySourceOf {
+                flow_axes: leaf_flow_axes,
+                computed_overflow: style.overflow,
+                item_is_replaced: style.item_is_replaced,
+                border_box_size: aspect_size,
+                border: resolved.border,
+                padding: resolved.padding,
+                scrollbar_gutter: style.scrollbar_gutter,
+                scrollbar_width: style.scrollbar_width,
+                settled_auto_scrollbars: pass_input.settled_auto_scrollbars(),
+                clip_margin: ClipMarginSourceOf::new(
+                    style.overflow_clip_margin.clip_box(),
+                    style.overflow_clip_margin.margin(),
+                ),
+                scroll_padding: leaf_scroll_padding(style.scroll_padding),
+                measured_content_size: measured,
+                scroll_snap_type: style.scroll_snap_type,
+                target_scroll_margin: style.scroll_margin,
+                target_snap_align: style.scroll_snap_align,
+                target_snap_stop: style.scroll_snap_stop,
+            })
+            .map_err(|error| leaf_scroll_error_at_site(site, pass_input.run_mode(), error))?;
+        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
+        if next_state == pass_input.settled_auto_scrollbars()
+            || style.scrollbar_width.get() == S::ZERO
+        {
+            if input.run_mode().is_perform_layout() {
+                output.scroll_geometry = Some(geometry);
+            }
+            return Ok(output);
+        }
+
+        reusable_measurement = Some((pass.measurement_input, measured));
+        pass_input = pass_input.with_settled_auto_scrollbars(next_state);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct LeafPassInputOf<S: LayoutScalar> {
+    content_box_inset_size: Size<S>,
+    measurement_input: LeafMeasureInputOf<S>,
+}
+
+fn leaf_scroll_padding<S: LayoutScalar>(
+    scroll_padding: crate::ScrollPaddingOf<S>,
+) -> OptimalRegionInsetsOf<S> {
+    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
+        match value {
+            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
+            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
+        }
+    }
+
+    OptimalRegionInsetsOf::new(
+        inset(scroll_padding.top()),
+        inset(scroll_padding.right()),
+        inset(scroll_padding.bottom()),
+        inset(scroll_padding.left()),
+    )
+}
+
+fn leaf_pass_input<Node, S, M>(
+    site: LayoutErrorSiteOf<Node>,
+    input: ComputeInputOf<S>,
+    style: &NodeInputOf<S>,
+    resolved: &LeafResolvedValues<S>,
+) -> LayoutResultOf<Node, LeafPassInputOf<S>, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    let content_box_inset = measured_leaf_content_box_inset(MeasuredLeafContentBoxInsetSourceOf {
+        flow_axes: FlowAxes::new(style.writing_mode, style.direction),
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars: input.settled_auto_scrollbars(),
+        padding: resolved.padding,
+        border: resolved.border,
+    });
+    let content_box_inset_size = content_box_inset.sum_axes();
     let available = Size::new(
         input
             .known()
             .width
             .map(AvailableOf::definite)
             .unwrap_or(input.available().width)
-            .sub_margin(margin.horizontal_sum())
+            .sub_margin(resolved.margin.horizontal_sum())
             .set_optional(input.known().width)
-            .set_optional(node_size.width)
+            .set_optional(resolved.node_size.width)
             .map_definite(|value| {
-                value.clamp_optional(node_min_size.width, node_max_size.width)
+                value.clamp_optional(resolved.node_min_size.width, resolved.node_max_size.width)
                     - content_box_inset.horizontal_sum()
             }),
         input
@@ -1566,17 +1689,18 @@ where
             .height
             .map(AvailableOf::definite)
             .unwrap_or(input.available().height)
-            .sub_margin(margin.vertical_sum())
+            .sub_margin(resolved.margin.vertical_sum())
             .set_optional(input.known().height)
-            .set_optional(node_size.height)
+            .set_optional(resolved.node_size.height)
             .map_definite(|value| {
-                value.clamp_optional(node_min_size.height, node_max_size.height)
+                value.clamp_optional(resolved.node_min_size.height, resolved.node_max_size.height)
                     - content_box_inset.vertical_sum()
             }),
     )
-    .zip_map(preferred_intrinsic_availability, |available, intrinsic| {
-        intrinsic.unwrap_or(available)
-    });
+    .zip_map(
+        resolved.preferred_intrinsic_availability,
+        |available, intrinsic| intrinsic.unwrap_or(available),
+    );
 
     let known_content_size = match input.run_mode() {
         RunMode::ComputeSize => input.known(),
@@ -1600,37 +1724,40 @@ where
         known_content_size,
         available_content_size,
     };
-    let measured = validate_measurement_output(measure(measurement_input)?)
-        .map_err(|error| leaf_measurement_error_at_site(site, error))?;
-    let unclamped = input
-        .known()
-        .or(node_size)
-        .unwrap_or(measured + content_box_inset_size);
-    let height_is_definite = input.known().height.is_some() || node_size.height.is_some();
-    let aspect_height = if height_is_definite {
-        unclamped.height
-    } else {
-        unclamped.height.max(
-            aspect_ratio
-                .map(|ratio| unclamped.width / ratio.get())
-                .unwrap_or(S::ZERO),
-        )
-    };
-    let aspect_size = Size::new(unclamped.width, aspect_height)
-        .clamp_optional(node_min_size, node_max_size)
-        .max_optional(padding_border_size.map(Some));
+    Ok(LeafPassInputOf {
+        content_box_inset_size,
+        measurement_input,
+    })
+}
 
-    let mut output = ComputeOutputOf::from_sizes(aspect_size, measured + padding.sum_axes());
-    let can_collapse_through = !prevents_margin_collapse
-        && leaf_flow_axes.logical_size(aspect_size).block == S::ZERO
-        && leaf_flow_axes.logical_size(measured).block == S::ZERO;
-    output.block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
-        leaf_flow_axes,
-        CollapsibleMarginOf::ZERO,
-        CollapsibleMarginOf::ZERO,
-        can_collapse_through,
-    );
-    Ok(output)
+fn leaf_scroll_error_at_site<Node, S, M>(
+    site: LayoutErrorSiteOf<Node>,
+    run_mode: RunMode,
+    _error: CanonicalScrollGeometryErrorOf<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    let (operation, invariant) = match (site, run_mode) {
+        (LayoutErrorSiteOf::Standalone, _) => (
+            LayoutOperation::LeafMeasurement,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        ),
+        (_, RunMode::PerformRootLayout) => (
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        ),
+        _ => (
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        ),
+    };
+    LayoutErrorOf::new(
+        site,
+        operation,
+        LayoutErrorKindOf::InternalInvariant(invariant),
+    )
 }
 
 fn validate_measurement_output<S, M>(measured: Size<S>) -> Result<Size<S>, LeafMeasureErrorOf<S, M>>

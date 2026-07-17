@@ -1065,3 +1065,453 @@ fn fri04_c04_leaf_block_positioned_calc_size_invalid_numeric_maps_exactly() {
             if *value == f32::INFINITY
     ));
 }
+
+fn fri05_c03_leaf_layout_input(size: Size<f32>) -> ComputeInput {
+    ComputeInput::leaf_layout(
+        Size::NONE,
+        size.map(Some),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        size.map(Available::definite),
+    )
+    .expect("FRI-05 leaf input is valid")
+}
+
+fn fri05_c03_leaf_measurement_size(input: LeafMeasureInput) -> Size<f32> {
+    assert_eq!(input.known_content_size(), Size::NONE);
+    input.available_content_size().map(|available| {
+        available
+            .definite_value()
+            .expect("FRI-05 test availability is definite")
+            .get()
+    })
+}
+
+fn fri05_c03_leaf_gutter_at(
+    gutters: ScrollbarGutterRects,
+    side: PhysicalSide,
+) -> Option<ScrollRect> {
+    match side {
+        PhysicalSide::Top => gutters.top(),
+        PhysicalSide::Right => gutters.right(),
+        PhysicalSide::Bottom => gutters.bottom(),
+        PhysicalSide::Left => gutters.left(),
+    }
+}
+
+fn fri05_c03_leaf_all_flow_axes() -> [FlowAxes; 10] {
+    [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
+    ]
+}
+
+#[test]
+fn fri05_c03_leaf_geometry_direct_emits_flow_clip_and_target_geometry() {
+    for flow_axes in fri05_c03_leaf_all_flow_axes() {
+        let overflow = match flow_axes.block_axis() {
+            PhysicalAxis::Horizontal => computed_overflow(Overflow::Scroll, Overflow::Hidden),
+            PhysicalAxis::Vertical => computed_overflow(Overflow::Hidden, Overflow::Scroll),
+        };
+        let style = NodeInput {
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow,
+            scrollbar_width: ScrollbarWidth::try_new(7.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+            ..NodeInput::default()
+        };
+        let expected_content_size = match flow_axes.inline_axis() {
+            PhysicalAxis::Horizontal => Size::new(93.0, 80.0),
+            PhysicalAxis::Vertical => Size::new(100.0, 73.0),
+        };
+        let mut measured_inputs = Vec::new();
+        let output = compute_leaf(
+            fri05_c03_leaf_layout_input(Size::new(100.0, 80.0)),
+            &style,
+            |input| {
+                measured_inputs.push(fri05_c03_leaf_measurement_size(input));
+                Ok::<_, ()>(Size::new(20.0, 10.0))
+            },
+        )
+        .expect("forced-scroll leaf layout succeeds");
+
+        assert_eq!(
+            measured_inputs,
+            vec![expected_content_size],
+            "{flow_axes:?}"
+        );
+        let geometry = output
+            .scroll_geometry
+            .expect("performed leaf layout emits canonical geometry");
+        assert_eq!(geometry.flow_axes(), flow_axes);
+        assert_eq!(geometry.content_box().size(), expected_content_size);
+        assert!(
+            fri05_c03_leaf_gutter_at(geometry.gutters(), flow_axes.inline_end()).is_some(),
+            "missing inline-end gutter for {flow_axes:?}"
+        );
+        for side in [
+            PhysicalSide::Top,
+            PhysicalSide::Right,
+            PhysicalSide::Bottom,
+            PhysicalSide::Left,
+        ] {
+            if side != flow_axes.inline_end() {
+                assert_eq!(fri05_c03_leaf_gutter_at(geometry.gutters(), side), None);
+            }
+        }
+
+        let zero_thickness = NodeInput {
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::ZERO,
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+            ..NodeInput::default()
+        };
+        let zero_geometry = compute_leaf(
+            fri05_c03_leaf_layout_input(Size::new(100.0, 80.0)),
+            &zero_thickness,
+            |_input| Ok::<_, ()>(Size::new(120.0, 100.0)),
+        )
+        .expect("zero-thickness flow mapping succeeds")
+        .scroll_geometry
+        .expect("zero-thickness leaf still emits geometry");
+        let x_start = if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
+            flow_axes.inline_start()
+        } else {
+            flow_axes.block_start()
+        };
+        let y_start = if flow_axes.inline_axis() == PhysicalAxis::Vertical {
+            flow_axes.inline_start()
+        } else {
+            flow_axes.block_start()
+        };
+        let expected_x = match x_start {
+            PhysicalSide::Left => (0.0, 20.0),
+            PhysicalSide::Right => (-20.0, 0.0),
+            PhysicalSide::Top | PhysicalSide::Bottom => unreachable!(),
+        };
+        let expected_y = match y_start {
+            PhysicalSide::Top => (0.0, 20.0),
+            PhysicalSide::Bottom => (-20.0, 0.0),
+            PhysicalSide::Right | PhysicalSide::Left => unreachable!(),
+        };
+        let range = zero_geometry.physical_range();
+        assert_eq!((range.x().minimum(), range.x().maximum()), expected_x);
+        assert_eq!((range.y().minimum(), range.y().maximum()), expected_y);
+        assert_eq!(zero_geometry.scrollbar_size(), Size::ZERO);
+    }
+
+    let visible = compute_leaf(
+        fri05_c03_leaf_layout_input(Size::new(40.0, 30.0)),
+        &NodeInput {
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
+            ..NodeInput::default()
+        },
+        |_input| Ok::<_, ()>(Size::new(60.0, 50.0)),
+    )
+    .expect("visible-overflow leaf succeeds")
+    .scroll_geometry
+    .expect("visible-overflow leaf emits geometry");
+    assert_eq!(visible.overflow_clip().x(), None);
+    assert_eq!(visible.overflow_clip().y(), None);
+    assert_eq!(
+        visible.physical_range(),
+        PhysicalScrollRange::try_new(0.0, 0.0, 0.0, 0.0).unwrap()
+    );
+
+    let scroll_margin = ScrollMargin::try_new(1.0, -2.0, 3.0, -4.0).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+    let scroll_padding = ScrollPadding::new(
+        ScrollPaddingValue::value(LengthPercentageOf::px(2.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(4.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(3.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(1.0).unwrap()),
+    );
+    let style = NodeInput {
+        writing_mode: WritingMode::VerticalRl,
+        direction: Direction::Rtl,
+        overflow: computed_overflow(Overflow::Visible, Overflow::Clip),
+        overflow_clip_margin: OverflowClipMargin::try_new(OverflowClipBox::BorderBox, 3.0).unwrap(),
+        size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
+        scroll_padding,
+        scroll_margin,
+        scroll_snap_type: ScrollSnapType::Enabled {
+            axis: ScrollSnapAxis::Both,
+            strictness: ScrollSnapStrictness::Mandatory,
+        },
+        scroll_snap_align: snap_align,
+        scroll_snap_stop: ScrollSnapStop::Always,
+        ..NodeInput::default()
+    };
+    let output = compute_leaf(
+        fri05_c03_leaf_layout_input(Size::new(40.0, 30.0)),
+        &style,
+        |_input| Ok::<_, ()>(Size::new(60.0, 50.0)),
+    )
+    .expect("partial-clip leaf layout succeeds");
+    let geometry = output.scroll_geometry.expect("leaf geometry is present");
+    assert_eq!(geometry.overflow_clip().x(), None);
+    let y_clip = geometry
+        .overflow_clip()
+        .y()
+        .expect("only the clipped y axis has a clip interval");
+    assert_eq!((y_clip.minimum(), y_clip.maximum()), (-3.0, 33.0));
+    assert_eq!(geometry.used_overflow_x(), Overflow::Visible);
+    assert_eq!(geometry.used_overflow_y(), Overflow::Clip);
+    assert_eq!(
+        geometry.resolved_scroll_padding(),
+        Edges::new(2.0, 4.0, 3.0, 1.0)
+    );
+    assert_eq!(
+        geometry.optimal_viewing_region(),
+        ScrollRect::try_new(Point::new(1.0, 2.0), Size::new(35.0, 25.0)).unwrap()
+    );
+    assert_eq!(
+        geometry.scroll_snap_type(),
+        ScrollSnapType::Enabled {
+            axis: ScrollSnapAxis::Both,
+            strictness: ScrollSnapStrictness::Mandatory,
+        }
+    );
+    let target = geometry.target();
+    assert_eq!(
+        target.border_box(),
+        ScrollRect::try_new(Point::ZERO, Size::new(40.0, 30.0)).unwrap()
+    );
+    assert_eq!(target.scroll_margin(), scroll_margin);
+    assert_eq!(
+        target.flow_axes(),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl)
+    );
+    assert_eq!(target.snap_align(), snap_align);
+    assert_eq!(target.snap_stop(), ScrollSnapStop::Always);
+
+    let reverse_partial = compute_leaf(
+        fri05_c03_leaf_layout_input(Size::new(40.0, 30.0)),
+        &NodeInput {
+            overflow: computed_overflow(Overflow::Clip, Overflow::Visible),
+            overflow_clip_margin: OverflowClipMargin::try_new(OverflowClipBox::BorderBox, 2.0)
+                .unwrap(),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
+            ..NodeInput::default()
+        },
+        |_input| Ok::<_, ()>(Size::new(60.0, 50.0)),
+    )
+    .expect("reverse partial clip succeeds")
+    .scroll_geometry
+    .expect("reverse partial clip emits geometry");
+    let x_clip = reverse_partial
+        .overflow_clip()
+        .x()
+        .expect("only x is clipped");
+    assert_eq!((x_clip.minimum(), x_clip.maximum()), (-2.0, 42.0));
+    assert_eq!(reverse_partial.overflow_clip().y(), None);
+}
+
+fn fri05_c03_leaf_auto_case(
+    style: NodeInput,
+    measured: Size<f32>,
+    expected_inputs: &[Size<f32>],
+    expected_content_box: Size<f32>,
+    expected_scrollbar_size: Size<f32>,
+) -> ComputeOutput {
+    let mut measured_inputs = Vec::new();
+    let output = compute_leaf(
+        fri05_c03_leaf_layout_input(Size::new(100.0, 100.0)),
+        &style,
+        |input| {
+            measured_inputs.push(fri05_c03_leaf_measurement_size(input));
+            Ok::<_, ()>(measured)
+        },
+    )
+    .expect("auto-gutter leaf layout succeeds");
+
+    assert_eq!(measured_inputs, expected_inputs);
+    let geometry = output
+        .scroll_geometry
+        .expect("performed leaf layout emits stable geometry");
+    assert_eq!(geometry.content_box().size(), expected_content_box);
+    assert_eq!(geometry.scrollbar_size(), expected_scrollbar_size);
+    output
+}
+
+#[test]
+fn fri05_c03_leaf_auto_direct_runs_only_monotone_geometry_changing_passes() {
+    let automatic = NodeInput {
+        overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+        scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+        ..NodeInput::default()
+    };
+
+    fri05_c03_leaf_auto_case(
+        automatic.clone(),
+        Size::new(120.0, 100.0),
+        &[
+            Size::new(100.0, 100.0),
+            Size::new(100.0, 85.0),
+            Size::new(85.0, 85.0),
+        ],
+        Size::new(85.0, 85.0),
+        Size::new(15.0, 15.0),
+    );
+    fri05_c03_leaf_auto_case(
+        automatic.clone(),
+        Size::new(100.0, 120.0),
+        &[
+            Size::new(100.0, 100.0),
+            Size::new(85.0, 100.0),
+            Size::new(85.0, 85.0),
+        ],
+        Size::new(85.0, 85.0),
+        Size::new(15.0, 15.0),
+    );
+    fri05_c03_leaf_auto_case(
+        automatic.clone(),
+        Size::new(80.0, 80.0),
+        &[Size::new(100.0, 100.0)],
+        Size::new(100.0, 100.0),
+        Size::ZERO,
+    );
+    fri05_c03_leaf_auto_case(
+        automatic.clone(),
+        Size::new(120.0, 80.0),
+        &[Size::new(100.0, 100.0), Size::new(100.0, 85.0)],
+        Size::new(100.0, 85.0),
+        Size::new(0.0, 15.0),
+    );
+    fri05_c03_leaf_auto_case(
+        automatic,
+        Size::new(80.0, 120.0),
+        &[Size::new(100.0, 100.0), Size::new(85.0, 100.0)],
+        Size::new(85.0, 100.0),
+        Size::new(15.0, 0.0),
+    );
+
+    fri05_c03_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(80.0, 80.0),
+        &[Size::new(85.0, 85.0)],
+        Size::new(85.0, 85.0),
+        Size::new(15.0, 15.0),
+    );
+    fri05_c03_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::Stable,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(80.0, 80.0),
+        &[Size::new(85.0, 100.0)],
+        Size::new(85.0, 100.0),
+        Size::new(15.0, 0.0),
+    );
+    fri05_c03_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(60.0, 80.0),
+        &[Size::new(70.0, 100.0)],
+        Size::new(70.0, 100.0),
+        Size::new(30.0, 0.0),
+    );
+    fri05_c03_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::ZERO,
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(120.0, 80.0),
+        &[Size::new(100.0, 100.0)],
+        Size::new(100.0, 100.0),
+        Size::ZERO,
+    );
+}
+
+#[test]
+fn fri05_c03_leaf_auto_compute_size_keeps_zero_call_fast_path_and_no_geometry() {
+    let context = ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ParentFormattingContext::NoParent,
+    );
+    let fully_known = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::splat(Some(100.0)),
+        Size::splat(Some(100.0)),
+        context,
+        Size::splat(Available::definite(100.0)),
+    );
+    let style = NodeInput {
+        display: Display::Block,
+        overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+        scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+        ..NodeInput::default()
+    };
+    let mut calls = 0;
+    let known_output = compute_leaf(fully_known, &style, |_input| {
+        calls += 1;
+        Ok::<_, ()>(Size::new(120.0, 100.0))
+    })
+    .expect("fully known ComputeSize succeeds");
+    assert_eq!(calls, 0);
+    assert_eq!(known_output.scroll_geometry, None);
+
+    let measured = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::splat(Some(100.0)),
+        context,
+        Size::splat(Available::definite(100.0)),
+    );
+    let measured_style = NodeInput {
+        display: Display::Block,
+        overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+        scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+        max_size: Size::new(MaxSize::px(100.0), MaxSize::px(100.0)),
+        ..NodeInput::default()
+    };
+    let mut measured_inputs = Vec::new();
+    let measured_output = compute_leaf(measured, &measured_style, |input| {
+        measured_inputs.push(fri05_c03_leaf_measurement_size(input));
+        Ok::<_, ()>(Size::new(120.0, 100.0))
+    })
+    .expect("measured ComputeSize succeeds");
+    assert_eq!(
+        measured_inputs,
+        [
+            Size::new(100.0, 100.0),
+            Size::new(100.0, 85.0),
+            Size::new(85.0, 85.0),
+        ]
+    );
+    assert_eq!(measured_output.scroll_geometry, None);
+}

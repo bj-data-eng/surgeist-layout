@@ -410,6 +410,8 @@ pub(crate) struct SettledAutoScrollbarState {
 }
 
 impl SettledAutoScrollbarState {
+    pub(crate) const INITIAL: Self = Self { x: false, y: false };
+
     #[must_use]
     pub(crate) const fn new(x: bool, y: bool) -> Self {
         Self { x, y }
@@ -419,6 +421,19 @@ impl SettledAutoScrollbarState {
         match axis {
             PhysicalAxis::Horizontal => self.x,
             PhysicalAxis::Vertical => self.y,
+        }
+    }
+
+    #[must_use]
+    pub(crate) fn transition<S: LayoutScalar>(self, geometry: ScrollGeometryOf<S>) -> Self {
+        let range = geometry.physical_range();
+        Self {
+            x: self.x
+                || matches!(geometry.used_overflow_x(), Overflow::Auto)
+                    && range.x().maximum() > range.x().minimum(),
+            y: self.y
+                || matches!(geometry.used_overflow_y(), Overflow::Auto)
+                    && range.y().maximum() > range.y().minimum(),
         }
     }
 }
@@ -493,6 +508,38 @@ impl<S: LayoutScalar> PhysicalEdgeReservationOf<S> {
             requested: flow_axes.physical_edges(logical),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct MeasuredLeafContentBoxInsetSourceOf<S: LayoutScalar> {
+    pub(crate) flow_axes: FlowAxes,
+    pub(crate) computed_overflow: ComputedOverflow,
+    pub(crate) item_is_replaced: bool,
+    pub(crate) scrollbar_gutter: ScrollbarGutter,
+    pub(crate) scrollbar_width: ScrollbarWidthOf<S>,
+    pub(crate) settled_auto_scrollbars: SettledAutoScrollbarState,
+    pub(crate) padding: Edges<S>,
+    pub(crate) border: Edges<S>,
+}
+
+#[must_use]
+pub(crate) fn measured_leaf_content_box_inset<S: LayoutScalar>(
+    source: MeasuredLeafContentBoxInsetSourceOf<S>,
+) -> Edges<S> {
+    let used_overflow =
+        UsedOverflow::from_computed(source.computed_overflow, source.item_is_replaced);
+    let scrollbar_state = EffectiveScrollbarState::derive(
+        source.flow_axes,
+        used_overflow,
+        source.scrollbar_gutter,
+        source.settled_auto_scrollbars,
+    );
+    let reservation = PhysicalEdgeReservationOf::derive(
+        source.flow_axes,
+        scrollbar_state,
+        source.scrollbar_width,
+    );
+    source.border + source.padding + reservation.requested
 }
 
 /// Immutable physical-edge scrollbar gutter output.
@@ -2061,13 +2108,43 @@ pub(crate) struct CanonicalScrollGeometrySourceOf<S: LayoutScalar> {
     pub(crate) target_snap_stop: ScrollSnapStop,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct MeasuredLeafScrollGeometrySourceOf<S: LayoutScalar> {
+    pub(crate) flow_axes: FlowAxes,
+    pub(crate) computed_overflow: ComputedOverflow,
+    pub(crate) item_is_replaced: bool,
+    pub(crate) border_box_size: Size<S>,
+    pub(crate) border: Edges<S>,
+    pub(crate) padding: Edges<S>,
+    pub(crate) scrollbar_gutter: ScrollbarGutter,
+    pub(crate) scrollbar_width: ScrollbarWidthOf<S>,
+    pub(crate) settled_auto_scrollbars: SettledAutoScrollbarState,
+    pub(crate) clip_margin: ClipMarginSourceOf<S>,
+    pub(crate) scroll_padding: OptimalRegionInsetsOf<S>,
+    pub(crate) measured_content_size: Size<S>,
+    pub(crate) scroll_snap_type: ScrollSnapType,
+    pub(crate) target_scroll_margin: ScrollMarginOf<S>,
+    pub(crate) target_snap_align: ScrollSnapAlign,
+    pub(crate) target_snap_stop: ScrollSnapStop,
+}
+
 /// Immutable canonical scroll-container and target geometry in local physical coordinates.
 ///
 /// Layout owns construction from source facts. Public callers can inspect the
 /// coherent result but cannot manufacture or mutate its derived parts.
+#[derive(Clone, Copy, Debug)]
+struct MeasuredLeafProvenance(bool);
+
+impl PartialEq for MeasuredLeafProvenance {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
     source: CanonicalScrollGeometrySourceOf<S>,
+    measured_leaf: MeasuredLeafProvenance,
     flow_axes: FlowAxes,
     used_overflow: UsedOverflow,
     border_box: ScrollRectOf<S>,
@@ -2088,6 +2165,11 @@ pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
 pub type ScrollGeometry = ScrollGeometryOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ScrollGeometryOf<S> {
+    #[must_use]
+    pub(crate) const fn is_measured_leaf(self) -> bool {
+        self.measured_leaf.0
+    }
+
     #[must_use]
     pub const fn flow_axes(self) -> FlowAxes {
         self.flow_axes
@@ -2178,6 +2260,7 @@ pub(crate) enum CanonicalScrollRectFact {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum CanonicalScrollGeometryErrorOf<S: LayoutScalar> {
     BoxClipGutter(ScrollBoxClipGutterErrorOf<S>),
+    Contribution(ScrollContributionErrorOf<S>),
     ScrollableOverflow(ScrollRectErrorOf<S>),
     Range(ScrollCoordinateErrorOf<S>),
     RoundedRect {
@@ -2244,6 +2327,7 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
 
     Ok(ScrollGeometryOf {
         source,
+        measured_leaf: MeasuredLeafProvenance(false),
         flow_axes: source.flow_axes,
         used_overflow,
         border_box: boxes.border_box,
@@ -2260,6 +2344,117 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
         scroll_snap_type: source.scroll_snap_type,
         target,
     })
+}
+
+pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
+    source: MeasuredLeafScrollGeometrySourceOf<S>,
+) -> Result<ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
+    let used_overflow =
+        UsedOverflow::from_computed(source.computed_overflow, source.item_is_replaced);
+    let boxes = derive_scroll_box_clip_gutter(ScrollBoxClipGutterSourceOf {
+        flow_axes: source.flow_axes,
+        used_overflow,
+        border_box_size: source.border_box_size,
+        border: source.border,
+        padding: source.padding,
+        scrollbar_gutter: source.scrollbar_gutter,
+        scrollbar_width: source.scrollbar_width,
+        settled_auto_scrollbars: source.settled_auto_scrollbars,
+        clip_margin: source.clip_margin,
+        optimal_region_insets: source.scroll_padding,
+    })
+    .map_err(CanonicalScrollGeometryErrorOf::BoxClipGutter)?;
+    let measured_content = measured_leaf_content_rect(
+        source.flow_axes,
+        boxes.content_box,
+        source.measured_content_size,
+    )
+    .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
+    let mut contributions = ScrollContributionAccumulatorOf::new(boxes.scrollport);
+    contributions.include_direct_line(measured_content);
+    for axis in [LogicalAxis::Inline, LogicalAxis::Block] {
+        let side = match axis {
+            LogicalAxis::Inline => source.flow_axes.inline_end(),
+            LogicalAxis::Block => source.flow_axes.block_end(),
+        };
+        let coordinate = match side {
+            PhysicalSide::Top => measured_content.origin().y,
+            PhysicalSide::Right => measured_content.origin().x + measured_content.size().width,
+            PhysicalSide::Bottom => measured_content.origin().y + measured_content.size().height,
+            PhysicalSide::Left => measured_content.origin().x,
+        };
+        contributions
+            .record_final_in_flow_end(source.flow_axes, axis, coordinate)
+            .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
+    }
+    contributions
+        .include_terminal_padding(source.padding)
+        .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
+
+    let mut geometry = canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes: source.flow_axes,
+        computed_overflow: source.computed_overflow,
+        item_is_replaced: source.item_is_replaced,
+        border_box_size: source.border_box_size,
+        border: source.border,
+        padding: source.padding,
+        scrollbar_gutter: source.scrollbar_gutter,
+        scrollbar_width: source.scrollbar_width,
+        settled_auto_scrollbars: source.settled_auto_scrollbars,
+        clip_margin: source.clip_margin,
+        scroll_padding: source.scroll_padding,
+        contributions,
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: source.scroll_snap_type,
+        target_border_box: boxes.border_box,
+        target_scroll_margin: source.target_scroll_margin,
+        target_flow_axes: source.flow_axes,
+        target_snap_align: source.target_snap_align,
+        target_snap_stop: source.target_snap_stop,
+    })?;
+    geometry.measured_leaf = MeasuredLeafProvenance(true);
+    Ok(geometry)
+}
+
+fn measured_leaf_content_rect<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    content_box: ScrollRectOf<S>,
+    measured_content_size: Size<S>,
+) -> Result<ScrollRectOf<S>, ScrollRectErrorOf<S>> {
+    let origin = content_box.origin();
+    let size = content_box.size();
+    let x_start = if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
+        flow_axes.inline_start()
+    } else {
+        flow_axes.block_start()
+    };
+    let y_start = if flow_axes.inline_axis() == PhysicalAxis::Vertical {
+        flow_axes.inline_start()
+    } else {
+        flow_axes.block_start()
+    };
+    ScrollRectOf::try_new(
+        Point::new(
+            match x_start {
+                PhysicalSide::Left => origin.x,
+                PhysicalSide::Right => origin.x + size.width - measured_content_size.width,
+                PhysicalSide::Top | PhysicalSide::Bottom => {
+                    unreachable!("physical x start side must be left or right")
+                }
+            },
+            match y_start {
+                PhysicalSide::Top => origin.y,
+                PhysicalSide::Bottom => origin.y + size.height - measured_content_size.height,
+                PhysicalSide::Right | PhysicalSide::Left => {
+                    unreachable!("physical y start side must be top or bottom")
+                }
+            },
+        ),
+        measured_content_size,
+    )
 }
 
 pub(crate) fn rebuild_rounded_canonical_scroll_geometry<S: LayoutScalar>(
@@ -5441,8 +5636,8 @@ mod fri05_c02_factory_rounding_tests {
             production
                 .matches("canonical_scroll_geometry_from_source(")
                 .count(),
-            2,
-            "rounding and the temporary source adapter are the only production callers"
+            3,
+            "measured leaf, rounding, and the temporary source adapter are the production callers"
         );
         assert_eq!(
             production

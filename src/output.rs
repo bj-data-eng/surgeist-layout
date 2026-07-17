@@ -3,6 +3,7 @@ use super::{
     NonNegativeFiniteScalarErrorOf, PhysicalAxis, Point, ScrollGeometryOf, Size,
 };
 use crate::geometry::{FlowAxes, PhysicalSide};
+use crate::scroll::SettledAutoScrollbarState;
 
 /// The resolved formatting algorithm of the generated parent containing a box.
 ///
@@ -112,6 +113,7 @@ pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
     parent: Size<Option<S>>,
     containing_layout_context: ContainingLayoutContext,
     available: Size<AvailableOf<S>>,
+    settled_auto_scrollbars: SettledAutoScrollbarState,
 }
 
 pub type ComputeInput = ComputeInputOf<DefaultScalar>;
@@ -135,6 +137,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             parent: validate_optional_size(parent)?,
             containing_layout_context,
             available: validate_root_available_size(available)?,
+            settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
         })
     }
 
@@ -156,6 +159,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             parent: validate_optional_size(parent)?,
             containing_layout_context,
             available: validate_root_available_size(available)?,
+            settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
         })
     }
 
@@ -223,6 +227,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             parent,
             containing_layout_context,
             available,
+            settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
         }
     }
 
@@ -267,6 +272,20 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
     #[must_use]
     pub(crate) const fn available(&self) -> Size<AvailableOf<S>> {
         self.available
+    }
+
+    #[must_use]
+    pub(crate) const fn settled_auto_scrollbars(&self) -> SettledAutoScrollbarState {
+        self.settled_auto_scrollbars
+    }
+
+    #[must_use]
+    pub(crate) const fn with_settled_auto_scrollbars(
+        mut self,
+        settled_auto_scrollbars: SettledAutoScrollbarState,
+    ) -> Self {
+        self.settled_auto_scrollbars = settled_auto_scrollbars;
+        self
     }
 }
 

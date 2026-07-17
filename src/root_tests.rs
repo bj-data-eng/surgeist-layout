@@ -7739,3 +7739,311 @@ fn orthogonal_child_fixed_parent_height_remains_definite_f32() {
 fn orthogonal_child_fixed_parent_height_remains_definite_f64() {
     assert_orthogonal_child_fixed_parent_height_remains_definite::<f64>();
 }
+
+struct Fri05C03MeasuredLeafTree {
+    style: NodeInput,
+    measured: Size<f32>,
+    measurement_inputs: RefCell<Vec<LeafMeasureInput>>,
+}
+
+impl Traverse for Fri05C03MeasuredLeafTree {
+    type Node = u32;
+    type Scalar = f32;
+    type Children<'a> = std::iter::Empty<u32>;
+
+    fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+        std::iter::empty()
+    }
+
+    fn child_count(&self, _node: Self::Node) -> usize {
+        0
+    }
+
+    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+        unreachable!("FRI-05 measured-leaf tree has no children")
+    }
+}
+
+impl LayoutTree for Fri05C03MeasuredLeafTree {
+    type MeasureError = ();
+
+    fn node_input(&self, _node: Self::Node) -> &NodeInput {
+        &self.style
+    }
+
+    fn layout_input(&self, _node: Self::Node) -> LayoutInput {
+        LayoutInput::box_input(self.style.clone())
+    }
+
+    fn has_leaf_measurement(&self, _node: Self::Node) -> bool {
+        true
+    }
+
+    fn measure_leaf(
+        &self,
+        _node: Self::Node,
+        input: LeafMeasureInput,
+    ) -> Option<Result<Size<f32>, Self::MeasureError>> {
+        self.measurement_inputs.borrow_mut().push(input);
+        Some(Ok(self.measured))
+    }
+}
+
+fn fri05_c03_root_measurement_size(input: LeafMeasureInput) -> Size<f32> {
+    assert_eq!(input.known_content_size(), Size::NONE);
+    input.available_content_size().map(|available| {
+        available
+            .definite_value()
+            .expect("FRI-05 root measurement availability is definite")
+            .get()
+    })
+}
+
+fn fri05_c03_tree_leaf_layout(
+    style: NodeInput,
+    measured: Size<f32>,
+    available: Size<f32>,
+) -> (NodeOutput, Vec<Size<f32>>) {
+    let tree = Fri05C03MeasuredLeafTree {
+        style,
+        measured,
+        measurement_inputs: RefCell::new(Vec::new()),
+    };
+    let request = LayoutRootRequest::viewport(available.map(Available::definite))
+        .expect("FRI-05 root request is valid");
+    let batch = compute_layout(&tree, 0, request).expect("tree-backed measured leaf succeeds");
+    let output = batch
+        .unrounded_entries()
+        .iter()
+        .find(|entry| entry.node() == 0)
+        .expect("tree-backed leaf stages its unrounded root output")
+        .output();
+    let inputs = tree
+        .measurement_inputs
+        .borrow()
+        .iter()
+        .copied()
+        .map(fri05_c03_root_measurement_size)
+        .collect();
+    (output, inputs)
+}
+
+fn fri05_c03_root_gutter_at(
+    gutters: ScrollbarGutterRects,
+    side: PhysicalSide,
+) -> Option<ScrollRect> {
+    match side {
+        PhysicalSide::Top => gutters.top(),
+        PhysicalSide::Right => gutters.right(),
+        PhysicalSide::Bottom => gutters.bottom(),
+        PhysicalSide::Left => gutters.left(),
+    }
+}
+
+fn fri05_c03_root_all_flow_axes() -> [FlowAxes; 10] {
+    [
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
+        FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
+    ]
+}
+
+#[test]
+fn fri05_c03_leaf_geometry_tree_backed_emits_flow_clip_and_target_geometry() {
+    for flow_axes in fri05_c03_root_all_flow_axes() {
+        let overflow = match flow_axes.block_axis() {
+            PhysicalAxis::Horizontal => computed_overflow(Overflow::Scroll, Overflow::Hidden),
+            PhysicalAxis::Vertical => computed_overflow(Overflow::Hidden, Overflow::Scroll),
+        };
+        let style = NodeInput {
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow,
+            scrollbar_width: ScrollbarWidth::try_new(7.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+            ..NodeInput::default()
+        };
+        let expected_content_size = match flow_axes.inline_axis() {
+            PhysicalAxis::Horizontal => Size::new(93.0, 80.0),
+            PhysicalAxis::Vertical => Size::new(100.0, 73.0),
+        };
+        let (output, inputs) =
+            fri05_c03_tree_leaf_layout(style, Size::new(20.0, 10.0), Size::new(100.0, 80.0));
+        assert_eq!(inputs, [expected_content_size], "{flow_axes:?}");
+        let geometry = output
+            .scroll_geometry
+            .expect("tree-backed performed leaf emits geometry");
+        assert_eq!(geometry.flow_axes(), flow_axes);
+        assert_eq!(geometry.content_box().size(), expected_content_size);
+        assert!(
+            fri05_c03_root_gutter_at(geometry.gutters(), flow_axes.inline_end()).is_some(),
+            "missing inline-end gutter for {flow_axes:?}"
+        );
+    }
+
+    let scroll_margin = ScrollMargin::try_new(1.0, -2.0, 3.0, -4.0).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+    let (output, inputs) = fri05_c03_tree_leaf_layout(
+        NodeInput {
+            writing_mode: WritingMode::VerticalRl,
+            direction: Direction::Rtl,
+            overflow: computed_overflow(Overflow::Visible, Overflow::Clip),
+            overflow_clip_margin: OverflowClipMargin::try_new(OverflowClipBox::BorderBox, 3.0)
+                .unwrap(),
+            size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
+            scroll_margin,
+            scroll_snap_type: ScrollSnapType::Enabled {
+                axis: ScrollSnapAxis::Both,
+                strictness: ScrollSnapStrictness::Mandatory,
+            },
+            scroll_snap_align: snap_align,
+            scroll_snap_stop: ScrollSnapStop::Always,
+            ..NodeInput::default()
+        },
+        Size::new(60.0, 50.0),
+        Size::new(40.0, 30.0),
+    );
+    assert_eq!(inputs, [Size::new(40.0, 30.0)]);
+    let geometry = output
+        .scroll_geometry
+        .expect("tree leaf geometry is present");
+    assert_eq!(geometry.overflow_clip().x(), None);
+    let y_clip = geometry.overflow_clip().y().expect("y clip is present");
+    assert_eq!((y_clip.minimum(), y_clip.maximum()), (-3.0, 33.0));
+    let target = geometry.target();
+    assert_eq!(target.scroll_margin(), scroll_margin);
+    assert_eq!(target.snap_align(), snap_align);
+    assert_eq!(target.snap_stop(), ScrollSnapStop::Always);
+    assert_eq!(
+        target.flow_axes(),
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl)
+    );
+}
+
+fn fri05_c03_tree_leaf_auto_case(
+    style: NodeInput,
+    measured: Size<f32>,
+    expected_inputs: &[Size<f32>],
+    expected_content_box: Size<f32>,
+    expected_scrollbar_size: Size<f32>,
+) {
+    let (output, inputs) = fri05_c03_tree_leaf_layout(style, measured, Size::new(100.0, 100.0));
+    assert_eq!(inputs, expected_inputs);
+    let geometry = output
+        .scroll_geometry
+        .expect("tree-backed leaf publishes stable geometry");
+    assert_eq!(geometry.content_box().size(), expected_content_box);
+    assert_eq!(geometry.scrollbar_size(), expected_scrollbar_size);
+    assert_eq!(output.scrollbar_size, expected_scrollbar_size);
+    assert_eq!(output.scrollbar_size(), expected_scrollbar_size);
+}
+
+#[test]
+fn fri05_c03_leaf_auto_tree_backed_runs_exact_monotone_passes() {
+    let automatic = NodeInput {
+        overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+        scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+        ..NodeInput::default()
+    };
+    fri05_c03_tree_leaf_auto_case(
+        automatic.clone(),
+        Size::new(120.0, 100.0),
+        &[
+            Size::new(100.0, 100.0),
+            Size::new(100.0, 85.0),
+            Size::new(85.0, 85.0),
+        ],
+        Size::new(85.0, 85.0),
+        Size::new(15.0, 15.0),
+    );
+    fri05_c03_tree_leaf_auto_case(
+        automatic.clone(),
+        Size::new(100.0, 120.0),
+        &[
+            Size::new(100.0, 100.0),
+            Size::new(85.0, 100.0),
+            Size::new(85.0, 85.0),
+        ],
+        Size::new(85.0, 85.0),
+        Size::new(15.0, 15.0),
+    );
+    fri05_c03_tree_leaf_auto_case(
+        automatic.clone(),
+        Size::new(80.0, 80.0),
+        &[Size::new(100.0, 100.0)],
+        Size::new(100.0, 100.0),
+        Size::ZERO,
+    );
+    fri05_c03_tree_leaf_auto_case(
+        automatic.clone(),
+        Size::new(120.0, 80.0),
+        &[Size::new(100.0, 100.0), Size::new(100.0, 85.0)],
+        Size::new(100.0, 85.0),
+        Size::new(0.0, 15.0),
+    );
+    fri05_c03_tree_leaf_auto_case(
+        automatic,
+        Size::new(80.0, 120.0),
+        &[Size::new(100.0, 100.0), Size::new(85.0, 100.0)],
+        Size::new(85.0, 100.0),
+        Size::new(15.0, 0.0),
+    );
+    fri05_c03_tree_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(80.0, 80.0),
+        &[Size::new(85.0, 85.0)],
+        Size::new(85.0, 85.0),
+        Size::new(15.0, 15.0),
+    );
+    fri05_c03_tree_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::Stable,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(80.0, 80.0),
+        &[Size::new(85.0, 100.0)],
+        Size::new(85.0, 100.0),
+        Size::new(15.0, 0.0),
+    );
+    fri05_c03_tree_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(60.0, 80.0),
+        &[Size::new(70.0, 100.0)],
+        Size::new(70.0, 100.0),
+        Size::new(30.0, 0.0),
+    );
+    fri05_c03_tree_leaf_auto_case(
+        NodeInput {
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::ZERO,
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        Size::new(120.0, 80.0),
+        &[Size::new(100.0, 100.0)],
+        Size::new(100.0, 100.0),
+        Size::ZERO,
+    );
+}

@@ -536,3 +536,172 @@ fn f64_cache_key_distinguishes_available_values_that_collide_as_f32() {
     assert_eq!(cache.get_with_context(&base, context), Some(output));
     assert_eq!(cache.get_with_context(&nearby, context), None);
 }
+
+struct Fri05C03CacheLeafTree {
+    style: NodeInput,
+    cache: std::cell::RefCell<Cache>,
+    measurement_inputs: std::cell::RefCell<Vec<LeafMeasureInput>>,
+}
+
+impl Traverse for Fri05C03CacheLeafTree {
+    type Node = u32;
+    type Scalar = f32;
+    type Children<'a> = std::iter::Empty<u32>;
+
+    fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+        std::iter::empty()
+    }
+
+    fn child_count(&self, _node: Self::Node) -> usize {
+        0
+    }
+
+    fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+        unreachable!("FRI-05 cache leaf has no children")
+    }
+}
+
+impl LayoutTree for Fri05C03CacheLeafTree {
+    type MeasureError = ();
+
+    fn node_input(&self, _node: Self::Node) -> &NodeInput {
+        &self.style
+    }
+
+    fn layout_input(&self, _node: Self::Node) -> LayoutInput {
+        LayoutInput::box_input(self.style.clone())
+    }
+
+    fn has_leaf_measurement(&self, _node: Self::Node) -> bool {
+        true
+    }
+
+    fn measure_leaf(
+        &self,
+        _node: Self::Node,
+        input: LeafMeasureInput,
+    ) -> Option<Result<Size<f32>, Self::MeasureError>> {
+        self.measurement_inputs.borrow_mut().push(input);
+        Some(Ok(Size::new(120.0, 100.0)))
+    }
+
+    fn cache_get(
+        &self,
+        _node: Self::Node,
+        input: &ComputeInput,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutput> {
+        self.cache.borrow().get_with_context(input, context)
+    }
+}
+
+impl Fri05C03CacheLeafTree {
+    fn apply_cache_entries(&self, entries: &[LayoutCacheStoreEntryOf<u32>]) {
+        let mut cache = self.cache.borrow_mut();
+        for entry in entries {
+            cache.store_with_context(entry.input(), entry.context(), entry.output());
+        }
+    }
+
+    fn measured_available_sizes(&self) -> Vec<Size<f32>> {
+        self.measurement_inputs
+            .borrow()
+            .iter()
+            .map(|input| {
+                assert_eq!(input.known_content_size(), Size::NONE);
+                input.available_content_size().map(|available| {
+                    available
+                        .definite_value()
+                        .expect("FRI-05 cache measurement availability is definite")
+                        .get()
+                })
+            })
+            .collect()
+    }
+}
+
+#[test]
+fn fri05_c03_leaf_cache_tree_backed_stores_only_stable_ordinary_result() {
+    let tree = Fri05C03CacheLeafTree {
+        style: NodeInput {
+            overflow: ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto).unwrap(),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+        cache: std::cell::RefCell::new(Cache::new()),
+        measurement_inputs: std::cell::RefCell::new(Vec::new()),
+    };
+    let available = Size::splat(Available::definite(100.0));
+    let request = LayoutRootRequest::viewport(available).unwrap();
+
+    let cold = compute_layout(&tree, 0, request).expect("cold measured leaf layout succeeds");
+    assert_eq!(
+        tree.measured_available_sizes(),
+        [
+            Size::new(100.0, 100.0),
+            Size::new(100.0, 85.0),
+            Size::new(85.0, 85.0),
+        ]
+    );
+    assert_eq!(cold.cache_store_entries().len(), 1);
+    let ordinary_input = ComputeInput::root_layout(
+        Size::NONE,
+        Size::splat(Some(100.0)),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        available,
+    );
+    assert_eq!(cold.cache_store_entries()[0].input(), &ordinary_input);
+    let cold_output = cold.unrounded_entries()[0].output();
+    let cold_geometry = cold_output
+        .scroll_geometry
+        .expect("cold stable leaf output includes geometry");
+    assert_eq!(cold_geometry.content_box().size(), Size::new(85.0, 85.0));
+    assert_eq!(cold_geometry.scrollbar_size(), Size::new(15.0, 15.0));
+
+    tree.apply_cache_entries(cold.cache_store_entries());
+    tree.measurement_inputs.borrow_mut().clear();
+    let warm = compute_layout(&tree, 0, request).expect("warm measured leaf layout succeeds");
+    assert!(tree.measurement_inputs.borrow().is_empty());
+    assert!(warm.cache_store_entries().is_empty());
+    assert_eq!(warm.unrounded_entries()[0].output(), cold_output);
+}
+
+#[test]
+fn fri05_c03_leaf_cache_key_construction_and_matching_use_exact_state_bits() {
+    let ordinary = cache_test_input();
+    let states = [
+        crate::scroll::SettledAutoScrollbarState::new(false, false),
+        crate::scroll::SettledAutoScrollbarState::new(true, false),
+        crate::scroll::SettledAutoScrollbarState::new(false, true),
+        crate::scroll::SettledAutoScrollbarState::new(true, true),
+    ];
+    let inputs = states.map(|state| ordinary.with_settled_auto_scrollbars(state));
+    assert_eq!(inputs[0], ordinary);
+    for (index, input) in inputs.iter().enumerate().skip(1) {
+        assert_ne!(
+            *input, ordinary,
+            "state {index} must be part of input identity"
+        );
+    }
+
+    for (stored_index, stored_input) in inputs.iter().enumerate() {
+        let mut cache = Cache::new();
+        let output = ComputeOutput::from_outer_size(Size::new(
+            40.0 + stored_index as f32,
+            20.0 + stored_index as f32,
+        ));
+        cache.store_with_context(stored_input, static_cache_context(), output);
+
+        for (lookup_index, lookup_input) in inputs.iter().enumerate() {
+            assert_eq!(
+                cache.get_with_context(lookup_input, static_cache_context()),
+                (lookup_index == stored_index).then_some(output),
+                "stored state {stored_index}, lookup state {lookup_index}"
+            );
+        }
+    }
+}

@@ -3,6 +3,7 @@ use super::{
     RunMode, Size, SizingMode,
 };
 use crate::ContainingLayoutContext;
+use crate::scroll::SettledAutoScrollbarState;
 
 const CACHE_SIZE: usize = 9;
 
@@ -25,6 +26,7 @@ struct CacheKeyOf<S: LayoutScalar = DefaultScalar> {
     parent: Size<Option<S>>,
     containing_layout_context: ContainingLayoutContext,
     available: Size<AvailableOf<S>>,
+    settled_auto_scrollbars: SettledAutoScrollbarState,
     context: CacheKeyContext,
 }
 
@@ -38,6 +40,7 @@ impl<S: LayoutScalar> CacheKeyOf<S> {
             parent: input.parent(),
             containing_layout_context: input.containing_layout_context(),
             available: input.available(),
+            settled_auto_scrollbars: input.settled_auto_scrollbars(),
             context,
         }
     }
@@ -185,6 +188,7 @@ fn matches_output<S: LayoutScalar, T>(
         && input.requested_axis() == entry.key.axis
         && input.parent() == entry.key.parent
         && input.containing_layout_context() == entry.key.containing_layout_context
+        && key.settled_auto_scrollbars == entry.key.settled_auto_scrollbars
         && context == entry.key.context
         && (input.known().width == entry.key.known.width
             || input.known().width == Some(cached_size.width))
