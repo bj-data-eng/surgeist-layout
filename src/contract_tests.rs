@@ -290,6 +290,56 @@ fn fri05_c02_carrier_public_aliases_and_generic_traits_are_available() {
     assert_traits::<crate::ScrollRectErrorOf<f64>>();
 }
 
+struct Fri05C03ContractGeometryFacts<S: crate::LayoutScalar> {
+    flow_axes: crate::FlowAxes,
+    overflow: crate::ComputedOverflow,
+    item_is_replaced: bool,
+    border_box_size: crate::Size<S>,
+    padding: crate::Edges<S>,
+    border: crate::Edges<S>,
+    scrollbar_width: S,
+    scrollable_overflow: crate::ScrollRectOf<S>,
+}
+
+fn fri05_c03_contract_geometry<S: crate::LayoutScalar>(
+    facts: Fri05C03ContractGeometryFacts<S>,
+) -> crate::ScrollGeometryOf<S> {
+    let mut contributions =
+        crate::scroll::ScrollContributionAccumulatorOf::new(facts.scrollable_overflow);
+    contributions.include_direct_line(facts.scrollable_overflow);
+    crate::scroll::canonical_scroll_geometry_from_source(
+        crate::scroll::CanonicalScrollGeometrySourceOf {
+            flow_axes: facts.flow_axes,
+            computed_overflow: facts.overflow,
+            item_is_replaced: facts.item_is_replaced,
+            border_box_size: facts.border_box_size,
+            border: facts.border,
+            padding: facts.padding,
+            scrollbar_gutter: crate::ScrollbarGutter::Auto,
+            scrollbar_width: crate::ScrollbarWidthOf::try_new(facts.scrollbar_width).unwrap(),
+            settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
+            clip_margin: crate::scroll::ClipMarginSourceOf::default(),
+            scroll_padding: crate::scroll::OptimalRegionInsetsOf::default(),
+            contributions,
+            origin_axes: crate::scroll::ScrollOriginAxes::new(
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+            ),
+            scroll_snap_type: crate::ScrollSnapType::default(),
+            target_border_box: crate::ScrollRectOf::try_new(
+                crate::Point::ZERO,
+                facts.border_box_size,
+            )
+            .unwrap(),
+            target_scroll_margin: crate::ScrollMarginOf::default(),
+            target_flow_axes: facts.flow_axes,
+            target_snap_align: crate::ScrollSnapAlign::default(),
+            target_snap_stop: crate::ScrollSnapStop::default(),
+        },
+    )
+    .expect("canonical contract source facts produce geometry")
+}
+
 #[test]
 fn fri05_c03_public_geometry_all_exact_accessors_compose_in_both_scalar_lanes() {
     fn assert_scalar<S: crate::LayoutScalar>() {
@@ -301,18 +351,20 @@ fn fri05_c03_public_geometry_all_exact_accessors_compose_in_both_scalar_lanes() 
             crate::Size::new(scalar(140.0), scalar(70.0)),
         )
         .expect("finite overflow source is valid");
-        let geometry = crate::scroll::scroll_geometry_from_layout(
+        let geometry = fri05_c03_contract_geometry(Fri05C03ContractGeometryFacts {
             flow_axes,
-            crate::ComputedOverflow::try_new(crate::Overflow::Scroll, crate::Overflow::Scroll)
-                .expect("same-group computed overflow is valid"),
-            false,
-            crate::Size::new(scalar(100.0), scalar(40.0)),
-            crate::Edges::all(scalar(2.0)),
-            crate::Edges::all(scalar(1.0)),
-            scalar(10.0),
+            overflow: crate::ComputedOverflow::try_new(
+                crate::Overflow::Scroll,
+                crate::Overflow::Scroll,
+            )
+            .expect("same-group computed overflow is valid"),
+            item_is_replaced: false,
+            border_box_size: crate::Size::new(scalar(100.0), scalar(40.0)),
+            padding: crate::Edges::all(scalar(2.0)),
+            border: crate::Edges::all(scalar(1.0)),
+            scrollbar_width: scalar(10.0),
             scrollable_overflow,
-        )
-        .expect("canonical source facts produce geometry");
+        });
 
         assert_eq!(geometry.flow_axes(), flow_axes);
         assert_eq!(geometry.used_overflow_x(), crate::Overflow::Scroll);
@@ -375,19 +427,21 @@ fn fri05_c03_output_helper_no_geometry_fallback_saturates_each_scalar_lane() {
             size: crate::Size<S>,
             scrollbar_width: S,
         ) -> crate::ScrollGeometryOf<S> {
-            crate::scroll::scroll_geometry_from_layout(
-                crate::FlowAxes::new(crate::WritingMode::HorizontalTb, crate::Direction::Ltr),
-                crate::ComputedOverflow::try_new(x, y)
+            fri05_c03_contract_geometry(Fri05C03ContractGeometryFacts {
+                flow_axes: crate::FlowAxes::new(
+                    crate::WritingMode::HorizontalTb,
+                    crate::Direction::Ltr,
+                ),
+                overflow: crate::ComputedOverflow::try_new(x, y)
                     .expect("same-group output-helper overflow is valid"),
-                false,
-                size,
-                crate::Edges::ZERO,
-                crate::Edges::ZERO,
+                item_is_replaced: false,
+                border_box_size: size,
+                padding: crate::Edges::ZERO,
+                border: crate::Edges::ZERO,
                 scrollbar_width,
-                crate::ScrollRectOf::try_new(crate::Point::ZERO, size)
+                scrollable_overflow: crate::ScrollRectOf::try_new(crate::Point::ZERO, size)
                     .expect("output-helper overflow rect is valid"),
-            )
-            .expect("output-helper geometry is valid")
+            })
         }
 
         let no_geometry = crate::NodeOutputOf::<S> {

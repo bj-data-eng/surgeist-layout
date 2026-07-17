@@ -158,16 +158,37 @@ fn cache_scroll_rect<S: LayoutScalar>(x: f64, y: f64, width: f64, height: f64) -
 }
 
 fn cache_scroll_geometry<S: LayoutScalar>() -> ScrollGeometryOf<S> {
-    crate::scroll::scroll_geometry_from_layout(
-        crate::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
-        ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll)
-            .expect("same-group computed overflow is valid"),
-        false,
-        Size::new(scalar(44.0), scalar(24.0)),
-        Edges::ZERO,
-        Edges::ZERO,
-        scalar(2.0),
-        cache_scroll_rect(0.0, 0.0, 100.0, 80.0),
+    let flow_axes = crate::FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let scrollable_overflow = cache_scroll_rect(0.0, 0.0, 100.0, 80.0);
+    let mut contributions =
+        crate::scroll::ScrollContributionAccumulatorOf::new(scrollable_overflow);
+    contributions.include_direct_line(scrollable_overflow);
+    crate::scroll::canonical_scroll_geometry_from_source(
+        crate::scroll::CanonicalScrollGeometrySourceOf {
+            flow_axes,
+            computed_overflow: ComputedOverflow::try_new(Overflow::Scroll, Overflow::Scroll)
+                .expect("same-group computed overflow is valid"),
+            item_is_replaced: false,
+            border_box_size: Size::new(scalar(44.0), scalar(24.0)),
+            border: Edges::ZERO,
+            padding: Edges::ZERO,
+            scrollbar_gutter: ScrollbarGutter::Auto,
+            scrollbar_width: ScrollbarWidthOf::try_new(scalar(2.0)).unwrap(),
+            settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
+            clip_margin: crate::scroll::ClipMarginSourceOf::default(),
+            scroll_padding: crate::scroll::OptimalRegionInsetsOf::default(),
+            contributions,
+            origin_axes: crate::scroll::ScrollOriginAxes::new(
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+            ),
+            scroll_snap_type: ScrollSnapType::default(),
+            target_border_box: cache_scroll_rect(0.0, 0.0, 44.0, 24.0),
+            target_scroll_margin: ScrollMarginOf::default(),
+            target_flow_axes: flow_axes,
+            target_snap_align: ScrollSnapAlign::default(),
+            target_snap_stop: ScrollSnapStop::default(),
+        },
     )
     .expect("canonical cache geometry is valid")
 }

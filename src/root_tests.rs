@@ -8,6 +8,52 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+struct RootTestScrollGeometryFacts<S: LayoutScalar> {
+    flow_axes: FlowAxes,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
+    border_box_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    scrollbar_width: S,
+    scrollable_overflow: ScrollRectOf<S>,
+}
+
+fn root_test_scroll_geometry<S: LayoutScalar>(
+    facts: RootTestScrollGeometryFacts<S>,
+) -> ScrollGeometryOf<S> {
+    let mut contributions =
+        crate::scroll::ScrollContributionAccumulatorOf::new(facts.scrollable_overflow);
+    contributions.include_direct_line(facts.scrollable_overflow);
+    crate::scroll::canonical_scroll_geometry_from_source(
+        crate::scroll::CanonicalScrollGeometrySourceOf {
+            flow_axes: facts.flow_axes,
+            computed_overflow: facts.overflow,
+            item_is_replaced: facts.item_is_replaced,
+            border_box_size: facts.border_box_size,
+            border: facts.border,
+            padding: facts.padding,
+            scrollbar_gutter: ScrollbarGutter::Auto,
+            scrollbar_width: ScrollbarWidthOf::try_new(facts.scrollbar_width).unwrap(),
+            settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
+            clip_margin: crate::scroll::ClipMarginSourceOf::default(),
+            scroll_padding: crate::scroll::OptimalRegionInsetsOf::default(),
+            contributions,
+            origin_axes: crate::scroll::ScrollOriginAxes::new(
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+            ),
+            scroll_snap_type: ScrollSnapType::default(),
+            target_border_box: ScrollRectOf::try_new(Point::ZERO, facts.border_box_size).unwrap(),
+            target_scroll_margin: ScrollMarginOf::default(),
+            target_flow_axes: facts.flow_axes,
+            target_snap_align: ScrollSnapAlign::default(),
+            target_snap_stop: ScrollSnapStop::default(),
+        },
+    )
+    .expect("canonical root-test source facts produce geometry")
+}
+
 #[test]
 fn root_and_hidden_contexts_are_explicit_in_both_scalar_lanes() {
     fn assert_lane<S: LayoutScalar>() {
@@ -5094,21 +5140,16 @@ fn scroll_geometry_error_maps_rounding_overflow_through_the_public_front_door() 
         ..NodeInput::default()
     };
     let mut output = ComputeOutput::from_outer_size(Size::new(1.0, 1.0));
-    output.scroll_geometry = Some(
-        ScrollGeometry::new(
-            flow_axes,
-            ScrollContainerFacts::new(
-                ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
-                ScrollContainerAxis::from_overflow(Overflow::Hidden).unwrap(),
-            ),
-            ScrollRect::new(Point::ZERO, Size::new(1.0, 1.0)).unwrap(),
-            Some(ScrollRect::new(Point::ZERO, Size::new(1.0, 1.0)).unwrap()),
-            ScrollRect::new(Point::ZERO, Size::new(f32::MAX, 1.0)).unwrap(),
-            PhysicalScrollRange::try_new(-f32::MAX, 0.0, 0.0, 0.0).unwrap(),
-            ScrollbarGutterRects::new(None, None),
-        )
-        .unwrap(),
-    );
+    output.scroll_geometry = Some(root_test_scroll_geometry(RootTestScrollGeometryFacts {
+        flow_axes,
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        item_is_replaced: false,
+        border_box_size: Size::new(1.0, 1.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width: 0.0,
+        scrollable_overflow: ScrollRect::try_new(Point::ZERO, Size::new(f32::MAX, 1.0)).unwrap(),
+    }));
     let mut cache = Cache::new();
     cache.store_with_context(
         &ComputeInput::for_child(
@@ -6727,7 +6768,7 @@ fn root_layout_emits_scroll_geometry_for_scroll_overflow() {
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollport(),
-        ScrollRect::new(Point::ZERO, Size::new(90.0, 30.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(90.0, 30.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::new(40.0, 40.0));
     assert_eq!(
@@ -6759,7 +6800,7 @@ fn root_layout_emits_visible_scroll_geometry_without_range() {
     assert_eq!(geometry.overflow_clip(), None);
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
@@ -6807,11 +6848,11 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
     let geometry = tree.layouts[&1].scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollport(),
-        ScrollRect::new(Point::new(3.0, 3.0), Size::new(84.0, 34.0)).unwrap()
+        ScrollRect::try_new(Point::new(3.0, 3.0), Size::new(84.0, 34.0)).unwrap()
     );
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::new(5.0, 5.0), Size::new(130.0, 70.0)).unwrap()
+        ScrollRect::try_new(Point::new(5.0, 5.0), Size::new(130.0, 70.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::new(48.0, 38.0));
     assert_eq!(
@@ -6829,18 +6870,18 @@ fn root_scroll_geometry_preserves_child_origin_bearing_scrollable_overflow() {
         size: Size::new(PreferredSize::px(100.0), PreferredSize::px(40.0)),
         ..NodeInput::default()
     });
-    let child_overflow = ScrollRect::new(Point::new(-12.0, -4.0), Size::new(160.0, 74.0)).unwrap();
-    let child_geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-        false,
-        Size::new(100.0, 40.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
-        child_overflow,
-    )
-    .unwrap();
+    let child_overflow =
+        ScrollRect::try_new(Point::new(-12.0, -4.0), Size::new(160.0, 74.0)).unwrap();
+    let child_geometry = root_test_scroll_geometry(RootTestScrollGeometryFacts {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        item_is_replaced: false,
+        border_box_size: Size::new(100.0, 40.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width: 0.0,
+        scrollable_overflow: child_overflow,
+    });
     tree.output = ComputeOutput::from_sizes(Size::new(100.0, 40.0), Size::new(130.0, 70.0));
     tree.output.scroll_geometry = Some(child_geometry);
 
@@ -6887,19 +6928,20 @@ fn round_layout_rounds_scroll_geometry_with_node_output() {
             location: Point::new(10.25, 20.25),
             size: Size::new(100.5, 40.5),
             content_size: Size::new(120.5, 70.5),
-            scroll_geometry: Some(
-                crate::scroll::scroll_geometry_from_layout(
-                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                    false,
-                    Size::new(100.5, 40.5),
-                    Edges::ZERO,
-                    Edges::all(0.25),
-                    0.0,
-                    ScrollRectOf::new(Point::new(0.25, 0.25), Size::new(120.5, 70.5)).unwrap(),
+            scroll_geometry: Some(root_test_scroll_geometry(RootTestScrollGeometryFacts {
+                flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                item_is_replaced: false,
+                border_box_size: Size::new(100.5, 40.5),
+                padding: Edges::ZERO,
+                border: Edges::all(0.25),
+                scrollbar_width: 0.0,
+                scrollable_overflow: ScrollRectOf::try_new(
+                    Point::new(0.25, 0.25),
+                    Size::new(120.5, 70.5),
                 )
                 .unwrap(),
-            ),
+            })),
             ..NodeOutputOf::<f64>::default()
         },
     );
@@ -6926,18 +6968,17 @@ fn round_layout_rounds_scroll_geometry_with_node_output() {
 
 #[test]
 fn round_layout_diagnostics_rejects_invalid_rounded_scroll_geometry() {
-    let scrollable_overflow = ScrollRect::new(Point::new(f32::MAX, 0.0), Size::ZERO).unwrap();
-    let scroll_geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-        false,
-        Size::new(1.0, 1.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
+    let scrollable_overflow = ScrollRect::try_new(Point::new(f32::MAX, 0.0), Size::ZERO).unwrap();
+    let scroll_geometry = root_test_scroll_geometry(RootTestScrollGeometryFacts {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        item_is_replaced: false,
+        border_box_size: Size::new(1.0, 1.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width: 0.0,
         scrollable_overflow,
-    )
-    .unwrap();
+    });
     let mut tree = OracleTreeOf::<f32>::new().unrounded(
         0,
         NodeOutput {
@@ -7857,6 +7898,164 @@ fn fri05_c03_root_all_flow_axes() -> [FlowAxes; 10] {
         FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
         FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
     ]
+}
+
+#[test]
+fn fri05_c03_root_geometry_viewport_flex_rebuilds_complete_source_and_target() {
+    let flow_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let scroll_padding = ScrollPadding::new(
+        ScrollPaddingValue::value(LengthPercentageOf::px(2.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(4.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(3.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(1.0).unwrap()),
+    );
+    let scroll_margin = ScrollMargin::try_new(1.0, -2.0, 3.0, -4.0).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+    let tree = PublicFlowTree::default().with_children(0, []).with_style(
+        0,
+        NodeInput {
+            display: Display::Flex,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+            overflow_clip_margin: OverflowClipMargin::try_new(OverflowClipBox::BorderBox, 5.0)
+                .unwrap(),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(6.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+            scroll_padding,
+            scroll_margin,
+            scroll_snap_type: ScrollSnapType::Enabled {
+                axis: ScrollSnapAxis::Both,
+                strictness: ScrollSnapStrictness::Mandatory,
+            },
+            scroll_snap_align: snap_align,
+            scroll_snap_stop: ScrollSnapStop::Always,
+            ..NodeInput::default()
+        },
+    );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::new(
+            Available::definite(100.0),
+            Available::definite(80.0),
+        ))
+        .unwrap(),
+    )
+    .expect("viewport flex root publishes canonical geometry");
+
+    for output in [
+        batch.unrounded_entries()[0].output(),
+        batch.final_entries()[0].output(),
+    ] {
+        let geometry = output
+            .scroll_geometry
+            .expect("a performed viewport flex root has geometry");
+        assert_eq!(geometry.flow_axes(), flow_axes);
+        assert_eq!(geometry.used_overflow_x(), Overflow::Hidden);
+        assert_eq!(geometry.used_overflow_y(), Overflow::Scroll);
+        assert_eq!(
+            geometry.resolved_scroll_padding(),
+            Edges::new(2.0, 4.0, 3.0, 1.0)
+        );
+        assert_eq!(
+            geometry.scroll_snap_type(),
+            ScrollSnapType::Enabled {
+                axis: ScrollSnapAxis::Both,
+                strictness: ScrollSnapStrictness::Mandatory,
+            }
+        );
+        let target = geometry.target();
+        assert_eq!(target.border_box(), geometry.border_box());
+        assert_eq!(target.scroll_margin(), scroll_margin);
+        assert_eq!(target.flow_axes(), flow_axes);
+        assert_eq!(target.snap_align(), snap_align);
+        assert_eq!(target.snap_stop(), ScrollSnapStop::Always);
+        assert_eq!(output.content_box_size(), geometry.content_box().size());
+        assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
+        assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
+    }
+}
+
+#[test]
+fn fri05_c03_round_cache_flex_item_root_keeps_cached_geometry_through_rounded_publication() {
+    let own_flow_axes = FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl);
+    let parent_flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let scroll_margin = ScrollMargin::try_new(-1.0, 2.0, 3.0, -4.0).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::Center, ScrollSnapAlignValue::End);
+    let tree = Fri05C03MeasuredLeafTree {
+        style: NodeInput {
+            display: Display::Block,
+            writing_mode: own_flow_axes.writing_mode(),
+            direction: own_flow_axes.direction(),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(3.6).unwrap(),
+            size: Size::new(PreferredSize::px(100.4), PreferredSize::px(80.6)),
+            scroll_margin,
+            scroll_snap_type: ScrollSnapType::Enabled {
+                axis: ScrollSnapAxis::Inline,
+                strictness: ScrollSnapStrictness::Proximity,
+            },
+            scroll_snap_align: snap_align,
+            scroll_snap_stop: ScrollSnapStop::Always,
+            ..NodeInput::default()
+        },
+        measured: Size::new(120.25, 90.75),
+        measurement_inputs: RefCell::new(Vec::new()),
+    };
+    let available = Size::new(Available::definite(140.0), Available::definite(120.0));
+    let viewport = Size::new(Available::definite(800.0), Available::definite(600.0));
+    let context = FlexItemRootContext::under_viewport(viewport, parent_flow_axes).unwrap();
+    let request = LayoutRootRequest::flex_item_under_viewport(available, context).unwrap();
+    let batch = compute_layout(&tree, 0, request)
+        .expect("flex-item measured root publishes cached and rounded geometry");
+
+    assert_eq!(batch.cache_store_entries().len(), 1);
+    let cached = batch.cache_store_entries()[0]
+        .output()
+        .scroll_geometry
+        .expect("the stable cached result retains geometry");
+    assert_eq!(cached.flow_axes(), own_flow_axes);
+    assert_eq!(cached.used_overflow_x(), Overflow::Hidden);
+    assert_eq!(cached.used_overflow_y(), Overflow::Scroll);
+    assert_eq!(cached.target().scroll_margin(), scroll_margin);
+    assert_eq!(cached.target().snap_align(), snap_align);
+    assert_eq!(cached.target().snap_stop(), ScrollSnapStop::Always);
+
+    let unrounded = batch.unrounded_entries()[0].output();
+    let unrounded_geometry = unrounded
+        .scroll_geometry
+        .expect("flex-item root publication preserves cached geometry");
+    assert_eq!(unrounded_geometry, cached);
+    assert_eq!(unrounded.scrollbar_size, cached.scrollbar_size());
+    assert_eq!(unrounded.scrollbar_size(), cached.scrollbar_size());
+
+    let rounded = batch.final_entries()[0].output();
+    let rounded_geometry = rounded
+        .scroll_geometry
+        .expect("rounding preserves present flex-item root geometry");
+    assert_eq!(rounded_geometry.flow_axes(), own_flow_axes);
+    assert_eq!(rounded_geometry.used_overflow_x(), Overflow::Hidden);
+    assert_eq!(rounded_geometry.used_overflow_y(), Overflow::Scroll);
+    assert_eq!(rounded_geometry.target().scroll_margin(), scroll_margin);
+    assert_eq!(rounded_geometry.target().flow_axes(), own_flow_axes);
+    assert_eq!(rounded_geometry.target().snap_align(), snap_align);
+    assert_eq!(
+        rounded_geometry.target().snap_stop(),
+        ScrollSnapStop::Always
+    );
+    assert_eq!(
+        rounded_geometry.target().border_box(),
+        rounded_geometry.border_box()
+    );
+    assert_eq!(
+        rounded.content_box_size(),
+        rounded_geometry.content_box().size()
+    );
+    assert_eq!(rounded.scrollbar_size, rounded_geometry.scrollbar_size());
+    assert_eq!(rounded.scrollbar_size(), rounded_geometry.scrollbar_size());
 }
 
 #[test]

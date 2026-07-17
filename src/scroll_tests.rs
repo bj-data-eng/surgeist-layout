@@ -1,16 +1,73 @@
 use crate::scroll::{
-    FlowRelativeScrollOffsetOf, FlowRelativeScrollRangeOf, OverflowClipOf, PhysicalClipAxisOf,
-    PhysicalScrollOffsetOf, PhysicalScrollRangeOf, ScrollBoxRects, ScrollCoordinateErrorOf,
-    ScrollRectErrorOf, ScrollRectOf, ScrollTargetGeometryOf, ScrollbarReservation, UsedOverflow,
-    UsedOverflowGutter,
+    CanonicalScrollGeometrySourceOf, ClipMarginSourceOf, FlowRelativeScrollOffsetOf,
+    FlowRelativeScrollRangeOf, OptimalRegionInsetsOf, OverflowClipOf, PhysicalClipAxisOf,
+    PhysicalScrollOffsetOf, PhysicalScrollRangeOf, ScrollContributionAccumulatorOf,
+    ScrollCoordinateErrorOf, ScrollOriginAxes, ScrollOriginProgression, ScrollRectErrorOf,
+    ScrollRectOf, ScrollTargetGeometryOf, ScrollbarReservationOf, SettledAutoScrollbarState,
+    UsedOverflow, UsedOverflowGutter, canonical_scroll_geometry_from_source,
+    rebuild_rounded_canonical_scroll_geometry,
 };
 use crate::{
     ComputedOverflow, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis, Overflow,
-    PhysicalAxis, Point, ScrollRect, Size, WritingMode,
+    PhysicalAxis, Point, ScrollGeometryOf, ScrollMarginOf, ScrollRect, ScrollSnapAlign,
+    ScrollSnapStop, ScrollSnapType, ScrollbarGutter, ScrollbarWidthOf, Size, WritingMode,
 };
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
+struct CanonicalTestGeometryFactsOf<S: LayoutScalar> {
+    flow_axes: FlowAxes,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
+    border_box_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    scrollbar_width_value: S,
+    scrollable_overflow: ScrollRectOf<S>,
+}
+
+fn canonical_test_geometry<S: LayoutScalar>(
+    facts: CanonicalTestGeometryFactsOf<S>,
+) -> ScrollGeometryOf<S> {
+    let CanonicalTestGeometryFactsOf {
+        flow_axes,
+        overflow,
+        item_is_replaced,
+        border_box_size,
+        padding,
+        border,
+        scrollbar_width_value,
+        scrollable_overflow,
+    } = facts;
+    let mut contributions = ScrollContributionAccumulatorOf::new(scrollable_overflow);
+    contributions.include_direct_line(scrollable_overflow);
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes,
+        computed_overflow: overflow,
+        item_is_replaced,
+        border_box_size,
+        border,
+        padding,
+        scrollbar_gutter: ScrollbarGutter::Auto,
+        scrollbar_width: ScrollbarWidthOf::try_new(scrollbar_width_value).unwrap(),
+        settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
+        clip_margin: ClipMarginSourceOf::default(),
+        scroll_padding: OptimalRegionInsetsOf::default(),
+        contributions,
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: ScrollSnapType::default(),
+        target_border_box: ScrollRectOf::try_new(Point::ZERO, border_box_size).unwrap(),
+        target_scroll_margin: ScrollMarginOf::default(),
+        target_flow_axes: flow_axes,
+        target_snap_align: ScrollSnapAlign::default(),
+        target_snap_stop: ScrollSnapStop::default(),
+    })
+    .expect("canonical test source facts produce geometry")
 }
 
 #[test]
@@ -68,31 +125,29 @@ fn fri05_c01_node_input_private_used_overflow_phase_is_exact_through_scroll_cons
         }
 
         let rect = ScrollRect::try_new(Point::ZERO, Size::splat(10.0)).unwrap();
-        let ordinary_geometry = crate::scroll::scroll_geometry_from_layout(
-            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            computed_pair,
-            false,
-            Size::splat(10.0),
-            Edges::ZERO,
-            Edges::ZERO,
-            0.0,
-            rect,
-        )
-        .expect("computed pair lowers through canonical geometry");
+        let ordinary_geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+            flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            overflow: computed_pair,
+            item_is_replaced: false,
+            border_box_size: Size::splat(10.0),
+            padding: Edges::ZERO,
+            border: Edges::ZERO,
+            scrollbar_width_value: 0.0,
+            scrollable_overflow: rect,
+        });
         assert_eq!(ordinary_geometry.used_overflow_x(), computed);
         assert_eq!(ordinary_geometry.used_overflow_y(), computed);
 
-        let replaced_geometry = crate::scroll::scroll_geometry_from_layout(
-            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            computed_pair,
-            true,
-            Size::splat(10.0),
-            Edges::ZERO,
-            Edges::ZERO,
-            0.0,
-            rect,
-        )
-        .expect("replaced pair lowers through canonical geometry");
+        let replaced_geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+            flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            overflow: computed_pair,
+            item_is_replaced: true,
+            border_box_size: Size::splat(10.0),
+            padding: Edges::ZERO,
+            border: Edges::ZERO,
+            scrollbar_width_value: 0.0,
+            scrollable_overflow: rect,
+        });
         assert_eq!(replaced_geometry.used_overflow_x(), replaced);
         assert_eq!(replaced_geometry.used_overflow_y(), replaced);
     }
@@ -1010,13 +1065,13 @@ fn scrollbar_size_uses_scroll_overflow_on_opposite_physical_axis() {
 
 #[test]
 fn scrollbar_reservation_places_inline_gutter_by_direction() {
-    let ltr = ScrollbarReservation::from_overflow(
+    let ltr = ScrollbarReservationOf::from_overflow(
         computed_overflow(Overflow::Auto, Overflow::Scroll),
         false,
         12.0,
         Direction::Ltr,
     );
-    let rtl = ScrollbarReservation::from_overflow(
+    let rtl = ScrollbarReservationOf::from_overflow(
         computed_overflow(Overflow::Auto, Overflow::Scroll),
         false,
         12.0,
@@ -1033,7 +1088,7 @@ fn scrollbar_reservation_places_inline_gutter_by_direction() {
 fn content_box_inset_includes_padding_border_and_scrollbar_reservation() {
     let padding = Edges::new(1.0, 2.0, 3.0, 4.0);
     let border = Edges::new(5.0, 6.0, 7.0, 8.0);
-    let reservation = ScrollbarReservation::from_overflow(
+    let reservation = ScrollbarReservationOf::from_overflow(
         computed_overflow(Overflow::Auto, Overflow::Scroll),
         false,
         9.0,
@@ -1047,113 +1102,22 @@ fn content_box_inset_includes_padding_border_and_scrollbar_reservation() {
 }
 
 #[test]
-fn scrollbar_box_rects_derive_ltr_scrollport_and_gutter_rects() {
-    let rects = crate::scroll::scroll_box_rects_from_border_box(
-        ScrollRect::new(Point::new(10.0, 20.0), Size::new(100.0, 80.0)).unwrap(),
-        Edges::new(2.0, 3.0, 4.0, 5.0),
-        Edges::all(1.0),
-        ScrollbarReservation::from_overflow(
-            computed_overflow(Overflow::Scroll, Overflow::Scroll),
-            false,
-            10.0,
-            Direction::Ltr,
-        ),
-    )
-    .unwrap();
-
-    assert_eq!(
-        rects.border_box(),
-        ScrollRect::new(Point::new(10.0, 20.0), Size::new(100.0, 80.0)).unwrap()
-    );
-    assert_eq!(
-        rects.padding_box(),
-        ScrollRect::new(Point::new(11.0, 21.0), Size::new(98.0, 78.0)).unwrap()
-    );
-    assert_eq!(
-        rects.content_box(),
-        ScrollRect::new(Point::new(16.0, 23.0), Size::new(80.0, 62.0)).unwrap()
-    );
-    assert_eq!(
-        rects.scrollport(),
-        ScrollRect::new(Point::new(11.0, 21.0), Size::new(88.0, 68.0)).unwrap()
-    );
-    assert_eq!(
-        rects.gutters().right(),
-        Some(ScrollRect::new(Point::new(99.0, 21.0), Size::new(10.0, 68.0)).unwrap())
-    );
-    assert_eq!(
-        rects.gutters().bottom(),
-        Some(ScrollRect::new(Point::new(11.0, 89.0), Size::new(88.0, 10.0)).unwrap())
-    );
-}
-
-#[test]
-fn scrollbar_box_rects_shift_rtl_scrollport_after_left_gutter() {
-    let rects = crate::scroll::scroll_box_rects_from_border_box(
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
-        Edges::ZERO,
-        Edges::ZERO,
-        ScrollbarReservation::from_overflow(
-            computed_overflow(Overflow::Auto, Overflow::Scroll),
-            false,
-            12.0,
-            Direction::Rtl,
-        ),
-    )
-    .unwrap();
-
-    assert_eq!(
-        rects.scrollport(),
-        ScrollRect::new(Point::new(12.0, 0.0), Size::new(88.0, 40.0)).unwrap()
-    );
-    assert_eq!(
-        rects.gutters().left(),
-        Some(ScrollRect::new(Point::ZERO, Size::new(12.0, 40.0)).unwrap())
-    );
-    assert_eq!(rects.gutters().bottom(), None);
-}
-
-#[test]
-fn scrollbar_box_rects_clamp_overlarge_insets_to_empty_rects() {
-    let rects: ScrollBoxRects = crate::scroll::scroll_box_rects_from_border_box(
-        ScrollRect::new(Point::ZERO, Size::new(10.0, 10.0)).unwrap(),
-        Edges::all(20.0),
-        Edges::all(20.0),
-        ScrollbarReservation::from_overflow(
-            computed_overflow(Overflow::Scroll, Overflow::Scroll),
-            false,
-            20.0,
-            Direction::Ltr,
-        ),
-    )
-    .unwrap();
-
-    assert_eq!(rects.content_box().size(), Size::ZERO);
-    assert_eq!(rects.scrollport().size(), Size::ZERO);
-}
-
-#[test]
-fn scroll_geometry_from_layout_exposes_hidden_range_and_clip() {
-    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
-        Size::new(140.0, 70.0),
-    )
-    .unwrap();
-    let geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-        false,
-        Size::new(100.0, 40.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
+fn canonical_geometry_exposes_hidden_range_and_clip() {
+    let scrollable_overflow = ScrollRect::try_new(Point::ZERO, Size::new(140.0, 70.0)).unwrap();
+    let geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        item_is_replaced: false,
+        border_box_size: Size::new(100.0, 40.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width_value: 0.0,
         scrollable_overflow,
-    )
-    .unwrap();
+    });
 
     assert_eq!(
         geometry.scrollport(),
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
     );
     let clip = geometry.overflow_clip();
     assert_eq!(
@@ -1168,29 +1132,24 @@ fn scroll_geometry_from_layout_exposes_hidden_range_and_clip() {
     assert_eq!(clip.y().unwrap().maximum(), 40.0);
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
     );
     assert_physical_range_maximum(geometry.physical_range(), Size::new(40.0, 30.0));
 }
 
 #[test]
-fn scroll_geometry_from_layout_keeps_clip_range_zero() {
-    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
-        Size::new(140.0, 70.0),
-    )
-    .unwrap();
-    let geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Clip, Overflow::Clip),
-        false,
-        Size::new(100.0, 40.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
+fn canonical_geometry_keeps_clip_range_zero() {
+    let scrollable_overflow = ScrollRect::try_new(Point::ZERO, Size::new(140.0, 70.0)).unwrap();
+    let geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        overflow: computed_overflow(Overflow::Clip, Overflow::Clip),
+        item_is_replaced: false,
+        border_box_size: Size::new(100.0, 40.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width_value: 0.0,
         scrollable_overflow,
-    )
-    .unwrap();
+    });
 
     assert!(geometry.overflow_clip().x().is_some());
     assert!(geometry.overflow_clip().y().is_some());
@@ -1198,56 +1157,50 @@ fn scroll_geometry_from_layout_keeps_clip_range_zero() {
 }
 
 #[test]
-fn scroll_geometry_from_layout_keeps_visible_range_zero_with_visible_overflow() {
-    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
-        Size::new(140.0, 70.0),
-    )
-    .unwrap();
-    let geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Visible, Overflow::Visible),
-        false,
-        Size::new(100.0, 40.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
+fn canonical_geometry_keeps_visible_range_zero_with_visible_overflow() {
+    let scrollable_overflow = ScrollRect::try_new(Point::ZERO, Size::new(140.0, 70.0)).unwrap();
+    let geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
+        item_is_replaced: false,
+        border_box_size: Size::new(100.0, 40.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width_value: 0.0,
         scrollable_overflow,
-    )
-    .unwrap();
+    });
 
     assert_eq!(geometry.overflow_clip().x(), None);
     assert_eq!(geometry.overflow_clip().y(), None);
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(140.0, 70.0)).unwrap()
     );
     assert_physical_range_maximum(geometry.physical_range(), Size::ZERO);
 }
 
 #[test]
-fn scroll_geometry_from_layout_accounts_for_scrollbar_gutter() {
+fn canonical_geometry_accounts_for_scrollbar_gutter() {
     let scrollable_overflow =
         ScrollRect::try_new(Point::new(-20.0, 0.0), Size::new(120.0, 40.0)).unwrap();
-    let geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
-        computed_overflow(Overflow::Hidden, Overflow::Scroll),
-        false,
-        Size::new(100.0, 40.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        10.0,
+    let geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+        item_is_replaced: false,
+        border_box_size: Size::new(100.0, 40.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width_value: 10.0,
         scrollable_overflow,
-    )
-    .unwrap();
+    });
 
     assert_eq!(
         geometry.scrollport(),
-        ScrollRect::new(Point::new(10.0, 0.0), Size::new(90.0, 40.0)).unwrap()
+        ScrollRect::try_new(Point::new(10.0, 0.0), Size::new(90.0, 40.0)).unwrap()
     );
     assert_eq!(
         geometry.gutters().left(),
-        Some(ScrollRect::new(Point::ZERO, Size::new(10.0, 40.0)).unwrap())
+        Some(ScrollRect::try_new(Point::ZERO, Size::new(10.0, 40.0)).unwrap())
     );
     assert_eq!(geometry.physical_range().x().minimum(), -30.0);
     assert_eq!(geometry.physical_range().x().maximum(), 0.0);
@@ -1256,23 +1209,18 @@ fn scroll_geometry_from_layout_accounts_for_scrollbar_gutter() {
 }
 
 #[test]
-fn scroll_geometry_from_layout_replaced_hidden_axis_has_no_range_when_other_axis_scrolls() {
-    let scrollable_overflow = crate::scroll::scrollable_overflow_from_content_size(
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap(),
-        Size::new(140.0, 70.0),
-    )
-    .unwrap();
-    let geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Hidden, Overflow::Scroll),
-        true,
-        Size::new(100.0, 40.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
+fn canonical_geometry_replaced_hidden_axis_has_no_range_when_other_axis_scrolls() {
+    let scrollable_overflow = ScrollRect::try_new(Point::ZERO, Size::new(140.0, 70.0)).unwrap();
+    let geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+        item_is_replaced: true,
+        border_box_size: Size::new(100.0, 40.0),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width_value: 0.0,
         scrollable_overflow,
-    )
-    .unwrap();
+    });
 
     assert!(geometry.overflow_clip().x().is_some());
     assert!(geometry.overflow_clip().y().is_some());
@@ -1280,26 +1228,26 @@ fn scroll_geometry_from_layout_replaced_hidden_axis_has_no_range_when_other_axis
 }
 
 #[test]
-fn round_scroll_geometry_rounds_rects_with_cumulative_origin() {
+fn source_rounding_rounds_rects_with_cumulative_origin() {
     let scrollable_overflow =
-        ScrollRect::new(Point::new(0.25, 0.25), Size::new(10.5, 20.5)).unwrap();
-    let geometry = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-        false,
-        Size::new(5.5, 6.5),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
+        ScrollRect::try_new(Point::new(0.25, 0.25), Size::new(10.5, 20.5)).unwrap();
+    let geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        item_is_replaced: false,
+        border_box_size: Size::new(5.5, 6.5),
+        padding: Edges::ZERO,
+        border: Edges::ZERO,
+        scrollbar_width_value: 0.0,
         scrollable_overflow,
-    )
-    .unwrap();
+    });
 
-    let rounded = crate::scroll::round_scroll_geometry(geometry, Point::new(10.25, 20.25)).unwrap();
+    let rounded =
+        rebuild_rounded_canonical_scroll_geometry(geometry, Point::new(10.25, 20.25)).unwrap();
 
     assert_eq!(
         rounded.scrollport(),
-        ScrollRect::new(Point::ZERO, Size::new(6.0, 7.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(6.0, 7.0)).unwrap()
     );
     assert_eq!(rounded.overflow_clip().x().unwrap().minimum(), 0.0);
     assert_eq!(rounded.overflow_clip().x().unwrap().maximum(), 6.0);
@@ -1307,7 +1255,7 @@ fn round_scroll_geometry_rounds_rects_with_cumulative_origin() {
     assert_eq!(rounded.overflow_clip().y().unwrap().maximum(), 7.0);
     assert_eq!(
         rounded.scrollable_overflow(),
-        ScrollRect::new(Point::new(1.0, 1.0), Size::new(10.0, 20.0)).unwrap()
+        ScrollRect::try_new(Point::new(1.0, 1.0), Size::new(10.0, 20.0)).unwrap()
     );
     assert_eq!(rounded.gutters().top(), None);
     assert_eq!(rounded.gutters().right(), None);
@@ -1392,25 +1340,24 @@ fn scroll_geometry_projects_signed_ranges_for_all_flow_mappings_before_and_after
                     S::ZERO
                 },
             );
-            let geometry = crate::scroll::scroll_geometry_from_layout(
+            let geometry = canonical_test_geometry(CanonicalTestGeometryFactsOf {
                 flow_axes,
-                computed_overflow(Overflow::Hidden, Overflow::Hidden),
-                false,
-                Size::new(S::from_f64(100.0), S::from_f64(40.0)),
-                Edges::ZERO,
-                Edges::ZERO,
-                S::ZERO,
-                ScrollRectOf::try_new(
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                item_is_replaced: false,
+                border_box_size: Size::new(S::from_f64(100.0), S::from_f64(40.0)),
+                padding: Edges::ZERO,
+                border: Edges::ZERO,
+                scrollbar_width_value: S::ZERO,
+                scrollable_overflow: ScrollRectOf::try_new(
                     overflow_origin,
                     Size::new(S::from_f64(140.0), S::from_f64(70.0)),
                 )
                 .expect("finite overflow rectangle is valid"),
-            )
-            .expect("finite layout geometry is valid");
+            });
 
             for geometry in [
                 geometry,
-                crate::scroll::round_scroll_geometry(
+                rebuild_rounded_canonical_scroll_geometry(
                     geometry,
                     Point::new(S::from_f64(0.25), S::from_f64(0.25)),
                 )

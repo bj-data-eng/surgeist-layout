@@ -7,12 +7,6 @@ use super::{
 use crate::geometry::LogicalEdgesOf;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ScrollUnsupportedFeature {
-    InvalidScrollRect,
-    InvalidScrollGeometry,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum UsedOverflowGutter {
     None,
     StableOnly,
@@ -152,10 +146,6 @@ pub struct ScrollRectOf<S: LayoutScalar = DefaultScalar> {
 pub type ScrollRect = ScrollRectOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ScrollRectOf<S> {
-    pub(crate) fn new(origin: Point<S>, size: Size<S>) -> Result<Self, ScrollUnsupportedFeature> {
-        Self::try_new(origin, size).map_err(|_| ScrollUnsupportedFeature::InvalidScrollRect)
-    }
-
     pub fn try_new(origin: Point<S>, size: Size<S>) -> Result<Self, ScrollRectErrorOf<S>> {
         if !origin.x.is_finite() {
             return Err(ScrollRectErrorOf::NonFiniteOrigin {
@@ -413,6 +403,7 @@ impl SettledAutoScrollbarState {
     pub(crate) const INITIAL: Self = Self { x: false, y: false };
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn new(x: bool, y: bool) -> Self {
         Self { x, y }
     }
@@ -579,19 +570,6 @@ impl<S: LayoutScalar> ScrollbarGutterRectsOf<S> {
     }
 
     #[cfg(test)]
-    pub(crate) const fn new(
-        horizontal: Option<ScrollRectOf<S>>,
-        vertical: Option<ScrollRectOf<S>>,
-    ) -> Self {
-        Self {
-            top: None,
-            right: vertical,
-            bottom: horizontal,
-            left: None,
-        }
-    }
-
-    #[cfg(test)]
     pub(crate) const fn vertical(self) -> Option<ScrollRectOf<S>> {
         match self.right {
             Some(right) => Some(right),
@@ -692,6 +670,7 @@ pub(crate) struct CanonicalScrollBoxSourceOf<S: LayoutScalar> {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct CanonicalScrollBoxOf<S: LayoutScalar> {
+    border_box: ScrollRectOf<S>,
     effective_border: Edges<S>,
     effective_padding: Edges<S>,
     effective_gutter: Edges<S>,
@@ -700,6 +679,11 @@ pub(crate) struct CanonicalScrollBoxOf<S: LayoutScalar> {
 }
 
 impl<S: LayoutScalar> CanonicalScrollBoxOf<S> {
+    #[must_use]
+    pub(crate) const fn border_box(self) -> ScrollRectOf<S> {
+        self.border_box
+    }
+
     #[must_use]
     pub(crate) const fn effective_border(self) -> Edges<S> {
         self.effective_border
@@ -2248,19 +2232,9 @@ pub(crate) struct MeasuredLeafScrollGeometrySourceOf<S: LayoutScalar> {
 ///
 /// Layout owns construction from source facts. Public callers can inspect the
 /// coherent result but cannot manufacture or mutate its derived parts.
-#[derive(Clone, Copy, Debug)]
-struct MeasuredLeafProvenance(bool);
-
-impl PartialEq for MeasuredLeafProvenance {
-    fn eq(&self, _other: &Self) -> bool {
-        true
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
     source: CanonicalScrollGeometrySourceOf<S>,
-    measured_leaf: MeasuredLeafProvenance,
     flow_axes: FlowAxes,
     used_overflow: UsedOverflow,
     border_box: ScrollRectOf<S>,
@@ -2281,11 +2255,6 @@ pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
 pub type ScrollGeometry = ScrollGeometryOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ScrollGeometryOf<S> {
-    #[must_use]
-    pub(crate) const fn is_measured_leaf(self) -> bool {
-        self.measured_leaf.0
-    }
-
     #[must_use]
     pub const fn flow_axes(self) -> FlowAxes {
         self.flow_axes
@@ -2417,6 +2386,7 @@ pub(crate) fn canonical_scroll_box_from_source<S: LayoutScalar>(
     .map_err(CanonicalScrollGeometryErrorOf::BoxClipGutter)?;
 
     Ok(CanonicalScrollBoxOf {
+        border_box: boxes.border_box,
         effective_border: boxes.effective_border,
         effective_padding: boxes.effective_padding,
         effective_gutter: boxes.effective_reservation,
@@ -2446,6 +2416,34 @@ pub(crate) fn settled_auto_scrollbars_change_available_geometry<S: LayoutScalar>
 
     Ok(current.effective_gutter() != prospective.effective_gutter()
         || current.content_box() != prospective.content_box())
+}
+
+pub(crate) fn rebuild_canonical_scroll_geometry_for_border_box<S: LayoutScalar>(
+    geometry: ScrollGeometryOf<S>,
+    border_box_size: Size<S>,
+    border: Edges<S>,
+    padding: Edges<S>,
+) -> Result<ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
+    let mut source = geometry.source;
+    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+        flow_axes: source.flow_axes,
+        computed_overflow: source.computed_overflow,
+        item_is_replaced: source.item_is_replaced,
+        border_box_size,
+        border,
+        padding,
+        scrollbar_gutter: source.scrollbar_gutter,
+        scrollbar_width: source.scrollbar_width,
+        settled_auto_scrollbars: source.settled_auto_scrollbars,
+    })?;
+    source.border_box_size = border_box_size;
+    source.border = border;
+    source.padding = padding;
+    source
+        .contributions
+        .replace_container_seed(scroll_box.scrollport());
+    source.target_border_box = scroll_box.border_box();
+    canonical_scroll_geometry_from_source(source)
 }
 
 pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
@@ -2494,7 +2492,6 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
 
     Ok(ScrollGeometryOf {
         source,
-        measured_leaf: MeasuredLeafProvenance(false),
         flow_axes: source.flow_axes,
         used_overflow,
         border_box: boxes.border_box,
@@ -2558,7 +2555,7 @@ pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
         .include_terminal_padding(source.padding)
         .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
 
-    let mut geometry = canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
         flow_axes: source.flow_axes,
         computed_overflow: source.computed_overflow,
         item_is_replaced: source.item_is_replaced,
@@ -2581,9 +2578,7 @@ pub(crate) fn canonical_measured_leaf_scroll_geometry<S: LayoutScalar>(
         target_flow_axes: source.flow_axes,
         target_snap_align: source.target_snap_align,
         target_snap_stop: source.target_snap_stop,
-    })?;
-    geometry.measured_leaf = MeasuredLeafProvenance(true);
-    Ok(geometry)
+    })
 }
 
 fn measured_leaf_content_rect<S: LayoutScalar>(
@@ -2877,76 +2872,15 @@ type DefaultCanonicalScrollGeometryRounding =
 const _: DefaultCanonicalScrollGeometryRounding =
     rebuild_rounded_canonical_scroll_geometry::<DefaultScalar>;
 
-#[cfg(test)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct ScrollContainerAxis {
-    overflow: Overflow,
-}
-
-#[cfg(test)]
-impl ScrollContainerAxis {
-    pub(crate) const fn from_overflow(
-        overflow: Overflow,
-    ) -> Result<Self, ScrollUnsupportedFeature> {
-        Ok(Self { overflow })
-    }
-}
-
-#[cfg(test)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct ScrollContainerFacts {
-    x: ScrollContainerAxis,
-    y: ScrollContainerAxis,
-}
-
-#[cfg(test)]
-impl ScrollContainerFacts {
-    pub(crate) const fn new(x: ScrollContainerAxis, y: ScrollContainerAxis) -> Self {
-        Self { x, y }
-    }
-}
-
-#[cfg(test)]
-impl<S: LayoutScalar> ScrollGeometryOf<S> {
-    pub(crate) fn new(
-        flow_axes: FlowAxes,
-        container: ScrollContainerFacts,
-        scrollport: ScrollRectOf<S>,
-        overflow_clip: Option<ScrollRectOf<S>>,
-        scrollable_overflow: ScrollRectOf<S>,
-        physical_range: PhysicalScrollRangeOf<S>,
-        gutters: ScrollbarGutterRectsOf<S>,
-    ) -> Result<Self, ScrollUnsupportedFeature> {
-        let _ = (overflow_clip, physical_range, gutters);
-        let overflow = ComputedOverflow::try_new(container.x.overflow, container.y.overflow)
-            .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
-        scroll_geometry_from_layout(
-            flow_axes,
-            overflow,
-            false,
-            scrollport.size(),
-            Edges::ZERO,
-            Edges::ZERO,
-            S::ZERO,
-            scrollable_overflow,
-        )
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(dead_code)]
-pub struct ScrollbarReservationOf<S: LayoutScalar = DefaultScalar> {
+pub(crate) struct ScrollbarReservationOf<S: LayoutScalar> {
     size: Size<S>,
     inset: Edges<S>,
 }
 
-#[allow(dead_code)]
-pub type ScrollbarReservation = ScrollbarReservationOf<DefaultScalar>;
-
-#[allow(dead_code)]
 impl<S: LayoutScalar> ScrollbarReservationOf<S> {
     #[must_use]
-    pub fn from_overflow(
+    pub(crate) fn from_overflow(
         overflow: ComputedOverflow,
         item_is_replaced: bool,
         scrollbar_width_value: S,
@@ -2972,19 +2906,18 @@ impl<S: LayoutScalar> ScrollbarReservationOf<S> {
     }
 
     #[must_use]
-    pub const fn size(self) -> Size<S> {
+    pub(crate) const fn size(self) -> Size<S> {
         self.size
     }
 
     #[must_use]
-    pub const fn inset(self) -> Edges<S> {
+    pub(crate) const fn inset(self) -> Edges<S> {
         self.inset
     }
 }
 
 #[must_use]
-#[allow(dead_code)]
-pub fn scrollbar_size_from_overflow<S: LayoutScalar>(
+pub(crate) fn scrollbar_size_from_overflow<S: LayoutScalar>(
     overflow: ComputedOverflow,
     item_is_replaced: bool,
     scrollbar_width_value: S,
@@ -3020,8 +2953,7 @@ fn scrollbar_size_from_used_overflow<S: LayoutScalar>(
 }
 
 #[must_use]
-#[allow(dead_code)]
-pub fn scrollbar_inset_from_size<S: LayoutScalar>(size: Size<S>, direction: Direction) -> Edges<S> {
+fn scrollbar_inset_from_size<S: LayoutScalar>(size: Size<S>, direction: Direction) -> Edges<S> {
     match direction {
         Direction::Ltr => Edges {
             right: size.width,
@@ -3037,260 +2969,12 @@ pub fn scrollbar_inset_from_size<S: LayoutScalar>(size: Size<S>, direction: Dire
 }
 
 #[must_use]
-#[allow(dead_code)]
-pub fn content_box_inset_with_scrollbar<S: LayoutScalar>(
+pub(crate) fn content_box_inset_with_scrollbar<S: LayoutScalar>(
     padding: Edges<S>,
     border: Edges<S>,
     reservation: ScrollbarReservationOf<S>,
 ) -> Edges<S> {
     padding + border + reservation.inset()
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[allow(dead_code)]
-pub struct ScrollBoxRectsOf<S: LayoutScalar = DefaultScalar> {
-    border_box: ScrollRectOf<S>,
-    padding_box: ScrollRectOf<S>,
-    content_box: ScrollRectOf<S>,
-    scrollport: ScrollRectOf<S>,
-    gutters: ScrollbarGutterRectsOf<S>,
-}
-
-#[allow(dead_code)]
-pub type ScrollBoxRects = ScrollBoxRectsOf<DefaultScalar>;
-
-#[allow(dead_code)]
-impl<S: LayoutScalar> ScrollBoxRectsOf<S> {
-    #[must_use]
-    pub const fn border_box(self) -> ScrollRectOf<S> {
-        self.border_box
-    }
-
-    #[must_use]
-    pub const fn padding_box(self) -> ScrollRectOf<S> {
-        self.padding_box
-    }
-
-    #[must_use]
-    pub const fn content_box(self) -> ScrollRectOf<S> {
-        self.content_box
-    }
-
-    #[must_use]
-    pub const fn scrollport(self) -> ScrollRectOf<S> {
-        self.scrollport
-    }
-
-    #[must_use]
-    pub const fn gutters(self) -> ScrollbarGutterRectsOf<S> {
-        self.gutters
-    }
-}
-
-#[allow(dead_code)]
-pub fn scroll_box_rects_from_border_box<S: LayoutScalar>(
-    border_box: ScrollRectOf<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-    reservation: ScrollbarReservationOf<S>,
-) -> Result<ScrollBoxRectsOf<S>, ScrollUnsupportedFeature> {
-    let padding_box = inset_scroll_rect(border_box, border)?;
-    let content_box = inset_scroll_rect(
-        border_box,
-        content_box_inset_with_scrollbar(padding, border, reservation),
-    )?;
-    let scrollport = inset_scroll_rect(padding_box, reservation.inset())?;
-    let gutters = scrollbar_gutter_rects_from_padding_box(padding_box, reservation)?;
-
-    Ok(ScrollBoxRectsOf {
-        border_box,
-        padding_box,
-        content_box,
-        scrollport,
-        gutters,
-    })
-}
-
-fn inset_scroll_rect<S: LayoutScalar>(
-    rect: ScrollRectOf<S>,
-    inset: Edges<S>,
-) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let origin = rect.origin();
-    let size = rect.size();
-    ScrollRectOf::new(
-        Point::new(origin.x + inset.left, origin.y + inset.top),
-        Size::new(
-            (size.width - inset.horizontal_sum()).max(S::ZERO),
-            (size.height - inset.vertical_sum()).max(S::ZERO),
-        ),
-    )
-}
-
-fn scrollbar_gutter_rects_from_padding_box<S: LayoutScalar>(
-    padding_box: ScrollRectOf<S>,
-    reservation: ScrollbarReservationOf<S>,
-) -> Result<ScrollbarGutterRectsOf<S>, ScrollUnsupportedFeature> {
-    let origin = padding_box.origin();
-    let size = padding_box.size();
-    let gutter_size = reservation.size();
-    let inset = reservation.inset();
-
-    let vertical = if gutter_size.width > S::ZERO {
-        let x = if inset.left > S::ZERO {
-            origin.x
-        } else {
-            origin.x + (size.width - gutter_size.width).max(S::ZERO)
-        };
-        Some(ScrollRectOf::new(
-            Point::new(x, origin.y),
-            Size::new(
-                gutter_size.width.min(size.width),
-                (size.height - gutter_size.height).max(S::ZERO),
-            ),
-        )?)
-    } else {
-        None
-    };
-
-    let horizontal = if gutter_size.height > S::ZERO {
-        let x = origin.x + inset.left.min(size.width);
-        Some(ScrollRectOf::new(
-            Point::new(
-                x,
-                origin.y + (size.height - gutter_size.height).max(S::ZERO),
-            ),
-            Size::new(
-                (size.width - gutter_size.width).max(S::ZERO),
-                gutter_size.height.min(size.height),
-            ),
-        )?)
-    } else {
-        None
-    };
-
-    Ok(ScrollbarGutterRectsOf {
-        top: None,
-        right: if inset.right > S::ZERO {
-            vertical
-        } else {
-            None
-        },
-        bottom: horizontal,
-        left: if inset.left > S::ZERO { vertical } else { None },
-    })
-}
-
-#[allow(dead_code)]
-pub fn scroll_rect_union<S: LayoutScalar>(
-    a: ScrollRectOf<S>,
-    b: ScrollRectOf<S>,
-) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let a_origin = a.origin();
-    let b_origin = b.origin();
-    let a_size = a.size();
-    let b_size = b.size();
-    let min_x = a_origin.x.min(b_origin.x);
-    let min_y = a_origin.y.min(b_origin.y);
-    let max_x = (a_origin.x + a_size.width).max(b_origin.x + b_size.width);
-    let max_y = (a_origin.y + a_size.height).max(b_origin.y + b_size.height);
-
-    ScrollRectOf::new(
-        Point::new(min_x, min_y),
-        Size::new((max_x - min_x).max(S::ZERO), (max_y - min_y).max(S::ZERO)),
-    )
-}
-
-#[allow(dead_code)]
-pub fn scrollable_overflow_from_content_size<S: LayoutScalar>(
-    content_box: ScrollRectOf<S>,
-    content_size: Size<S>,
-) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    scroll_rect_union(
-        content_box,
-        ScrollRectOf::new(
-            content_box.origin(),
-            Size::new(
-                content_box.size().width.max(content_size.width),
-                content_box.size().height.max(content_size.height),
-            ),
-        )?,
-    )
-}
-
-#[allow(dead_code)]
-pub(crate) fn scrollable_overflow_from_layout_content_size<S: LayoutScalar>(
-    direction: Direction,
-    overflow: UsedOverflow,
-    border_box_size: Size<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-    scrollbar_width_value: S,
-    content_size: Size<S>,
-) -> Result<ScrollRectOf<S>, ScrollUnsupportedFeature> {
-    let reservation =
-        ScrollbarReservationOf::from_used_overflow(overflow, scrollbar_width_value, direction);
-    let rects = scroll_box_rects_from_border_box(
-        ScrollRectOf::new(Point::ZERO, border_box_size)?,
-        padding,
-        border,
-        reservation,
-    )?;
-    scrollable_overflow_from_content_size(rects.content_box(), content_size)
-}
-
-#[allow(clippy::too_many_arguments)]
-#[allow(dead_code)]
-pub(crate) fn scroll_geometry_from_layout<S: LayoutScalar>(
-    flow_axes: FlowAxes,
-    overflow: ComputedOverflow,
-    item_is_replaced: bool,
-    border_box_size: Size<S>,
-    padding: Edges<S>,
-    border: Edges<S>,
-    scrollbar_width_value: S,
-    scrollable_overflow: ScrollRectOf<S>,
-) -> Result<ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
-    let scrollbar_width = ScrollbarWidthOf::try_new(scrollbar_width_value)
-        .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
-    let target_border_box = ScrollRectOf::try_new(Point::ZERO, border_box_size)
-        .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
-    let mut contributions = ScrollContributionAccumulatorOf::new(scrollable_overflow);
-    contributions.include_direct_line(scrollable_overflow);
-    let source = CanonicalScrollGeometrySourceOf {
-        flow_axes,
-        computed_overflow: overflow,
-        item_is_replaced,
-        border_box_size,
-        border,
-        padding,
-        scrollbar_gutter: ScrollbarGutter::Auto,
-        scrollbar_width,
-        settled_auto_scrollbars: SettledAutoScrollbarState::new(false, false),
-        clip_margin: ClipMarginSourceOf::default(),
-        scroll_padding: OptimalRegionInsetsOf::default(),
-        contributions,
-        origin_axes: ScrollOriginAxes::new(
-            ScrollOriginProgression::FlowEndward,
-            ScrollOriginProgression::FlowEndward,
-        ),
-        scroll_snap_type: ScrollSnapType::default(),
-        target_border_box,
-        target_scroll_margin: ScrollMarginOf::default(),
-        target_flow_axes: flow_axes,
-        target_snap_align: ScrollSnapAlign::default(),
-        target_snap_stop: ScrollSnapStop::default(),
-    };
-
-    canonical_scroll_geometry_from_source(source)
-        .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)
-}
-
-pub(crate) fn round_scroll_geometry<S: LayoutScalar>(
-    geometry: ScrollGeometryOf<S>,
-    cumulative_origin: Point<S>,
-) -> Result<ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
-    rebuild_rounded_canonical_scroll_geometry(geometry, cumulative_origin)
-        .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)
 }
 
 fn round<S: LayoutScalar>(value: S) -> S {
@@ -5643,6 +5327,18 @@ mod fri05_c02_factory_rounding_tests {
             let actual =
                 rebuild_rounded_canonical_scroll_geometry(unrounded, cumulative_origin).unwrap();
 
+            for geometry in [unrounded, actual] {
+                let output = crate::NodeOutputOf::<S> {
+                    size: geometry.border_box().size(),
+                    scrollbar_size: Size::splat(scalar(99.0)),
+                    ..crate::NodeOutputOf::new()
+                }
+                .with_scroll_geometry(Some(geometry));
+                assert_eq!(output.content_box_size(), geometry.content_box().size());
+                assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
+                assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
+            }
+
             assert_eq!(actual, expected, "{writing_mode:?}/{direction:?}");
             assert_canonical_coherence(actual);
             assert_eq!(actual.source.computed_overflow, source.computed_overflow);
@@ -5682,6 +5378,12 @@ mod fri05_c02_factory_rounding_tests {
 
     #[test]
     fn fri05_c02_rounding_rebuilds_from_expected_sources_in_all_flows_and_scalar_lanes() {
+        assert_rounding_contract::<f32>();
+        assert_rounding_contract::<f64>();
+    }
+
+    #[test]
+    fn fri05_c03_round_cache_ranges_and_output_helpers_agree_after_source_rounding() {
         assert_rounding_contract::<f32>();
         assert_rounding_contract::<f64>();
     }
@@ -5789,7 +5491,7 @@ mod fri05_c02_factory_rounding_tests {
     }
 
     #[test]
-    fn fri05_c03_factory_static_accounting_has_one_crate_private_source_adapter() {
+    fn fri05_c03_root_block_legacy_absence_factory_has_no_migration_or_rounding_adapter() {
         let source = include_str!("scroll.rs");
         let production = source
             .split("#[cfg(test)]\nmod fri05_c02_carrier_tests")
@@ -5806,7 +5508,7 @@ mod fri05_c02_factory_rounding_tests {
                 .matches("canonical_scroll_geometry_from_source(")
                 .count(),
             3,
-            "measured leaf, rounding, and the temporary source adapter are the production callers"
+            "measured leaf, retained-source rebuild, and rounding are the production callers"
         );
         assert_eq!(
             production
@@ -5818,8 +5520,8 @@ mod fri05_c02_factory_rounding_tests {
             production
                 .matches("rebuild_rounded_canonical_scroll_geometry(")
                 .count(),
-            1,
-            "the canonical rounding wrapper is the only production caller"
+            0,
+            "callers invoke canonical rounding directly without a compatibility wrapper"
         );
         for forbidden in [
             "pub struct CanonicalScrollGeometrySourceOf",
@@ -5832,28 +5534,15 @@ mod fri05_c02_factory_rounding_tests {
                 "unexpected surface: {forbidden}"
             );
         }
-        let canonical_block = production
-            .split("struct CanonicalScrollGeometrySourceOf")
-            .nth(1)
-            .unwrap()
-            .split("type DefaultCanonicalScrollGeometryFactory")
-            .next()
-            .unwrap();
-        assert!(!canonical_block.contains("ScrollUnsupportedFeature"));
-        let adapter = production
-            .split("pub(crate) fn scroll_geometry_from_layout")
-            .nth(1)
-            .expect("temporary source adapter")
-            .split("pub(crate) fn round_scroll_geometry")
-            .next()
-            .expect("temporary source adapter end");
-        assert_eq!(
-            adapter
-                .matches("canonical_scroll_geometry_from_source(")
-                .count(),
-            1
-        );
-        assert!(!adapter.contains("ScrollGeometryOf::new"));
+        for removed in [
+            "ScrollUnsupportedFeature",
+            "scroll_geometry_from_layout",
+            "round_scroll_geometry",
+            "ScrollGeometryOf::new",
+            "MeasuredLeafProvenance",
+        ] {
+            assert!(!production.contains(removed), "retained adapter: {removed}");
+        }
         let public_front_door = include_str!("lib.rs");
         assert!(!public_front_door.contains("CanonicalScrollGeometry"));
     }

@@ -454,6 +454,77 @@ fn fri05_c03_legacy_surface_is_absent_from_public_source() {
 }
 
 #[test]
+fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() {
+    let scroll = include_str!("scroll.rs");
+    let compute = include_str!("compute.rs");
+    let block = include_str!("block.rs");
+    let public_front_door = include_str!("lib.rs");
+    let scroll_production = scroll
+        .split("#[cfg(test)]\nmod fri05_c02_carrier_tests")
+        .next()
+        .expect("production scroll source");
+    let root_block_production =
+        format!("{scroll_production}\n{compute}\n{block}\n{public_front_door}");
+
+    let forbidden = [
+        "ScrollUnsupportedFeature",
+        "ScrollRectOf::new",
+        "ScrollGeometryOf::new",
+        "ScrollContainerAxis",
+        "ScrollContainerFacts",
+        "scroll_geometry_from_layout",
+        "scrollable_overflow_from_layout_content_size",
+        "scrollable_overflow_from_content_size",
+        "scroll_rect_union",
+        "ScrollBoxRectsOf",
+        "scroll_box_rects_from_border_box",
+        "#[allow(dead_code)]",
+        "#[allow(clippy::too_many_arguments)]",
+    ]
+    .into_iter()
+    .filter(|symbol| root_block_production.contains(symbol))
+    .collect::<Vec<_>>();
+    assert!(
+        forbidden.is_empty(),
+        "root/block production retains legacy paths or their lint allowances: {forbidden:?}"
+    );
+
+    assert_eq!(
+        block
+            .matches("scrollbar_size: scroll_geometry.scrollbar_size()")
+            .count(),
+        0,
+        "migrated block outputs synchronize through the canonical output helper"
+    );
+
+    let flex = include_str!("flex.rs");
+    let grid_child = include_str!("grid/child.rs");
+    let grid_lanes = include_str!("grid/lanes.rs");
+    assert_eq!(
+        flex.matches("scrollbar_size: item_scrollbar_size(").count(),
+        2
+    );
+    assert_eq!(
+        grid_child
+            .matches("scrollbar_size: item.scrollbar_size")
+            .count(),
+        1
+    );
+    assert_eq!(
+        grid_child
+            .matches("scroll_geometry: None,\n            scrollbar_size,\n")
+            .count(),
+        1
+    );
+    assert_eq!(
+        grid_lanes
+            .matches("scrollbar_size: item.scrollbar_size")
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract() {
     fn assert_closed<T: Clone + Copy + core::fmt::Debug + Eq + core::hash::Hash + PartialEq>() {}
 

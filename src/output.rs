@@ -1034,6 +1034,18 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
     }
 
     #[must_use]
+    pub(crate) fn with_scroll_geometry(
+        mut self,
+        scroll_geometry: Option<ScrollGeometryOf<S>>,
+    ) -> Self {
+        self.scroll_geometry = scroll_geometry;
+        if let Some(geometry) = scroll_geometry {
+            self.scrollbar_size = geometry.scrollbar_size();
+        }
+        self
+    }
+
+    #[must_use]
     pub fn content_box_size(self) -> Size<S> {
         if let Some(geometry) = self.scroll_geometry {
             return geometry.content_box().size();

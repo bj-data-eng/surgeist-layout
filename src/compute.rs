@@ -8,12 +8,13 @@ use super::{
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
-    CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafContentBoxInsetSourceOf,
-    MeasuredLeafScrollGeometrySourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
-    ScrollUnsupportedFeature, SettledAutoScrollbarState, UsedOverflow,
-    canonical_measured_leaf_scroll_geometry, measured_leaf_content_box_inset,
-    round_scroll_geometry, scroll_geometry_from_layout, scroll_rect_union,
-    scrollable_overflow_from_layout_content_size,
+    CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
+    ClipMarginSourceOf, MeasuredLeafContentBoxInsetSourceOf, MeasuredLeafScrollGeometrySourceOf,
+    OptimalRegionInsetOf, OptimalRegionInsetsOf, ScrollContributionAccumulatorOf, ScrollOriginAxes,
+    ScrollOriginProgression, SettledAutoScrollbarState, canonical_measured_leaf_scroll_geometry,
+    canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
+    measured_leaf_content_box_inset, rebuild_canonical_scroll_geometry_for_border_box,
+    rebuild_rounded_canonical_scroll_geometry,
 };
 use crate::sizing::{
     DispatchedSizingRequest, SizingDispatch, dispatch_flex_basis, dispatch_maximum_size,
@@ -630,10 +631,7 @@ pub(crate) fn resolve_flex_basis<S: LayoutScalar>(
     }
 }
 
-fn root_scroll_error<Node, S, M>(
-    node: Node,
-    error: ScrollUnsupportedFeature,
-) -> LayoutErrorOf<Node, S, M>
+fn root_scroll_error<Node, S, M, E>(node: Node, error: E) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
 {
@@ -883,46 +881,7 @@ where
         ComputeInputOf::root_layout(known, parent, containing_layout_context, available),
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
-    let scroll_geometry = match output.scroll_geometry {
-        Some(scroll_geometry)
-            if scroll_geometry.is_measured_leaf()
-                || style.display.inner_display() == super::Display::Block =>
-        {
-            scroll_geometry
-        }
-        existing_geometry => {
-            let scrollable_overflow = scrollable_overflow_from_layout_content_size(
-                style.direction,
-                UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
-                output.size,
-                root_edges.padding,
-                root_edges.border,
-                style.scrollbar_width.get(),
-                output.content_size,
-            )
-            .map_err(|error| root_scroll_error(root, error))?;
-            let scrollable_overflow = existing_geometry
-                .map(|geometry| {
-                    scroll_rect_union(scrollable_overflow, geometry.scrollable_overflow())
-                })
-                .transpose()
-                .map_err(|error| root_scroll_error(root, error))?
-                .unwrap_or(scrollable_overflow);
-            scroll_geometry_from_layout(
-                containing_flow_axes,
-                style.overflow,
-                style.item_is_replaced,
-                output.size,
-                root_edges.padding,
-                root_edges.border,
-                style.scrollbar_width.get(),
-                scrollable_overflow,
-            )
-            .map_err(|error| root_scroll_error(root, error))?
-        }
-    };
-    let scrollbar_size = scroll_geometry.scrollbar_size();
-    let scroll_geometry = Some(scroll_geometry);
+    let scroll_geometry = root_scroll_geometry(root, &style, output, &root_edges)?;
     let location = root_start_location(containing_flow_axes, output.size, available);
 
     tree.set_unrounded(
@@ -932,12 +891,12 @@ where
             location,
             size: output.size,
             content_size: output.content_size,
-            scroll_geometry,
-            scrollbar_size,
             padding: root_edges.padding,
             border: root_edges.border,
             margin: root_edges.margin,
-        },
+            ..NodeOutputOf::new()
+        }
+        .with_scroll_geometry(scroll_geometry),
     );
     Ok(())
 }
@@ -965,6 +924,7 @@ where
         ComputeInputOf::flex_item_root(known, parent, containing_layout_context, available),
     )?;
     let root_edges = resolve_root_edges(tree, root, &style, containing_flow_axes, parent)?;
+    let scroll_geometry = root_scroll_geometry(root, &style, output, &root_edges)?;
     tree.set_unrounded(
         root,
         NodeOutputOf {
@@ -976,7 +936,8 @@ where
             border: root_edges.border,
             margin: root_edges.margin,
             ..NodeOutputOf::new()
-        },
+        }
+        .with_scroll_geometry(scroll_geometry),
     );
     Ok(())
 }
@@ -985,6 +946,95 @@ struct RootEdges<S: LayoutScalar> {
     padding: Edges<S>,
     border: Edges<S>,
     margin: Edges<S>,
+}
+
+fn root_scroll_geometry<Node, S, M>(
+    node: Node,
+    style: &NodeInputOf<S>,
+    output: ComputeOutputOf<S>,
+    edges: &RootEdges<S>,
+) -> LayoutResultOf<Node, Option<crate::ScrollGeometryOf<S>>, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    if style.display == super::Display::None {
+        return Ok(None);
+    }
+
+    if let Some(geometry) = output.scroll_geometry {
+        if geometry.border_box().origin() == Point::ZERO
+            && geometry.border_box().size() == output.size
+        {
+            return Ok(Some(geometry));
+        }
+        return rebuild_canonical_scroll_geometry_for_border_box(
+            geometry,
+            output.size,
+            edges.border,
+            edges.padding,
+        )
+        .map(Some)
+        .map_err(|error| root_scroll_error(node, error));
+    }
+
+    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let settled_auto_scrollbars = SettledAutoScrollbarState::INITIAL;
+    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+        flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: output.size,
+        border: edges.border,
+        padding: edges.padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars,
+    })
+    .map_err(|error| root_scroll_error(node, error))?;
+    let content_box = scroll_box.content_box();
+    let direct_content = crate::ScrollRectOf::try_new(
+        content_box.origin(),
+        Size::new(
+            content_box.size().width.max(output.content_size.width),
+            content_box.size().height.max(output.content_size.height),
+        ),
+    )
+    .map_err(|error| root_scroll_error(node, error))?;
+    // Root fallback overflow is content-anchored; the scrollport remains an
+    // independently derived canonical box rather than an extra contribution.
+    let mut contributions = ScrollContributionAccumulatorOf::new(direct_content);
+    contributions.include_direct_line(direct_content);
+
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: output.size,
+        border: edges.border,
+        padding: edges.padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars,
+        clip_margin: ClipMarginSourceOf::new(
+            style.overflow_clip_margin.clip_box(),
+            style.overflow_clip_margin.margin(),
+        ),
+        scroll_padding: leaf_scroll_padding(style.scroll_padding),
+        contributions,
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: style.scroll_snap_type,
+        target_border_box: scroll_box.border_box(),
+        target_scroll_margin: style.scroll_margin,
+        target_flow_axes: flow_axes,
+        target_snap_align: style.scroll_snap_align,
+        target_snap_stop: style.scroll_snap_stop,
+    })
+    .map(Some)
+    .map_err(|error| root_scroll_error(node, error))
 }
 
 type RootKnownInlineResult<Node, S, M> = LayoutResultOf<Node, Size<Option<S>>, S, M>;
@@ -1207,9 +1257,14 @@ where
     layout.padding.top = round(cumulative_y + unrounded.padding.top) - round(cumulative_y);
     layout.padding.bottom = round(cumulative_y + unrounded.size.height)
         - round(cumulative_y + unrounded.size.height - unrounded.padding.bottom);
-    layout.scroll_geometry = unrounded
+    let scroll_geometry = unrounded
         .scroll_geometry
-        .map(|geometry| round_scroll_geometry(geometry, Point::new(cumulative_x, cumulative_y)))
+        .map(|geometry| {
+            rebuild_rounded_canonical_scroll_geometry(
+                geometry,
+                Point::new(cumulative_x, cumulative_y),
+            )
+        })
         .transpose()
         .map_err(|_| {
             LayoutErrorOf::new(
@@ -1220,9 +1275,7 @@ where
                 ),
             )
         })?;
-    if let Some(geometry) = layout.scroll_geometry {
-        layout.scrollbar_size = geometry.scrollbar_size();
-    }
+    layout = layout.with_scroll_geometry(scroll_geometry);
 
     tree.set_final(node, layout);
 

@@ -1624,13 +1624,13 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
         .filter(|(writing_mode, _)| *writing_mode != WritingMode::HorizontalTb)
     {
         let expected_scrollable_overflow = match writing_mode {
-            WritingMode::VerticalRl | WritingMode::SidewaysRl => ScrollRectOf::new(
+            WritingMode::VerticalRl | WritingMode::SidewaysRl => ScrollRectOf::try_new(
                 Point::new(scalar(-60.0), S::ZERO),
                 Size::new(scalar(100.0), scalar(100.0)),
             )
             .expect("finite expected overflow rectangle"),
             WritingMode::VerticalLr | WritingMode::SidewaysLr => {
-                ScrollRectOf::new(Point::ZERO, Size::new(scalar(40.0), scalar(100.0)))
+                ScrollRectOf::try_new(Point::ZERO, Size::new(scalar(40.0), scalar(100.0)))
                     .expect("finite expected overflow rectangle")
             }
             WritingMode::HorizontalTb => unreachable!("horizontal flow is filtered above"),
@@ -1742,28 +1742,28 @@ fn assert_ordinary_block_boundaries_keep_inline_content_coordinates<S: LayoutSca
         .expect("padded inline block layout succeeds");
         let root = public_final_output(&batch, 0);
         let expected_scrollable_overflow = match (writing_mode, direction) {
-            (WritingMode::HorizontalTb, Direction::Ltr) => ScrollRectOf::new(
+            (WritingMode::HorizontalTb, Direction::Ltr) => ScrollRectOf::try_new(
                 Point::new(scalar(4.0), scalar(1.0)),
                 Size::new(scalar(50.0), scalar(52.0)),
             ),
             (WritingMode::HorizontalTb, Direction::Rtl)
             | (WritingMode::VerticalRl, Direction::Ltr)
-            | (WritingMode::SidewaysRl, Direction::Ltr) => ScrollRectOf::new(
+            | (WritingMode::SidewaysRl, Direction::Ltr) => ScrollRectOf::try_new(
                 Point::new(scalar(-2.0), scalar(1.0)),
                 Size::new(scalar(50.0), scalar(52.0)),
             ),
             (WritingMode::VerticalRl, Direction::Rtl)
-            | (WritingMode::SidewaysRl, Direction::Rtl) => ScrollRectOf::new(
+            | (WritingMode::SidewaysRl, Direction::Rtl) => ScrollRectOf::try_new(
                 Point::new(scalar(-2.0), scalar(-5.0)),
                 Size::new(scalar(50.0), scalar(52.0)),
             ),
             (WritingMode::VerticalLr, Direction::Ltr)
-            | (WritingMode::SidewaysLr, Direction::Rtl) => ScrollRectOf::new(
+            | (WritingMode::SidewaysLr, Direction::Rtl) => ScrollRectOf::try_new(
                 Point::new(scalar(4.0), scalar(1.0)),
                 Size::new(scalar(50.0), scalar(52.0)),
             ),
             (WritingMode::VerticalLr, Direction::Rtl)
-            | (WritingMode::SidewaysLr, Direction::Ltr) => ScrollRectOf::new(
+            | (WritingMode::SidewaysLr, Direction::Ltr) => ScrollRectOf::try_new(
                 Point::new(scalar(4.0), scalar(-5.0)),
                 Size::new(scalar(50.0), scalar(52.0)),
             ),
@@ -2360,17 +2360,53 @@ fn child_scroll_geometry(
     size: Size,
     scrollable_overflow: ScrollRect,
 ) -> ScrollGeometry {
-    crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+    child_scroll_geometry_with_edges(
         overflow,
-        false,
         size,
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
         scrollable_overflow,
+        Edges::ZERO,
+        Edges::ZERO,
     )
-    .unwrap()
+}
+
+fn child_scroll_geometry_with_edges(
+    overflow: ComputedOverflow,
+    size: Size,
+    scrollable_overflow: ScrollRect,
+    padding: Edges<f32>,
+    border: Edges<f32>,
+) -> ScrollGeometry {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let mut contributions =
+        crate::scroll::ScrollContributionAccumulatorOf::new(scrollable_overflow);
+    contributions.include_direct_line(scrollable_overflow);
+    crate::scroll::canonical_scroll_geometry_from_source(
+        crate::scroll::CanonicalScrollGeometrySourceOf {
+            flow_axes,
+            computed_overflow: overflow,
+            item_is_replaced: false,
+            border_box_size: size,
+            border,
+            padding,
+            scrollbar_gutter: ScrollbarGutter::Auto,
+            scrollbar_width: ScrollbarWidth::ZERO,
+            settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
+            clip_margin: crate::scroll::ClipMarginSourceOf::default(),
+            scroll_padding: crate::scroll::OptimalRegionInsetsOf::default(),
+            contributions,
+            origin_axes: crate::scroll::ScrollOriginAxes::new(
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+                crate::scroll::ScrollOriginProgression::FlowEndward,
+            ),
+            scroll_snap_type: ScrollSnapType::default(),
+            target_border_box: ScrollRect::try_new(Point::ZERO, size).unwrap(),
+            target_scroll_margin: ScrollMargin::default(),
+            target_flow_axes: flow_axes,
+            target_snap_align: ScrollSnapAlign::default(),
+            target_snap_stop: ScrollSnapStop::default(),
+        },
+    )
+    .expect("canonical block-test source facts produce geometry")
 }
 
 #[test]
@@ -2425,7 +2461,7 @@ fn block_scroll_geometry_uses_visible_child_overflow_content_size() {
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(130.0, 70.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::new(30.0, 30.0));
 }
@@ -2463,7 +2499,7 @@ fn block_scroll_geometry_clips_hidden_child_overflow_from_parent_range() {
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
@@ -2580,7 +2616,7 @@ fn block_scroll_geometry_uses_node_local_padding_border_and_gutter_coordinates()
     assert_eq!(geometry.scrollport().size(), Size::new(84.0, 34.0));
     assert_eq!(
         geometry.gutters().vertical(),
-        Some(ScrollRect::new(Point::new(3.0, 3.0), Size::new(10.0, 34.0)).unwrap())
+        Some(ScrollRect::try_new(Point::new(3.0, 3.0), Size::new(10.0, 34.0)).unwrap())
     );
 }
 
@@ -2678,7 +2714,7 @@ fn block_scroll_geometry_includes_final_content_box_after_size_resolution() {
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(140.0, 80.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(140.0, 80.0)).unwrap()
     );
 }
 
@@ -2708,7 +2744,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
     inline_output.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(20.0, 10.0),
-        ScrollRect::new(Point::new(-12.0, -3.0), Size::new(70.0, 26.0)).unwrap(),
+        ScrollRect::try_new(Point::new(-12.0, -3.0), Size::new(70.0, 26.0)).unwrap(),
     ));
     tree.outputs.insert(2, inline_output);
 
@@ -2750,7 +2786,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
     inline_output.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Hidden, Overflow::Hidden),
         Size::new(30.0, 10.0),
-        ScrollRect::new(Point::new(-20.0, -7.0), Size::new(180.0, 92.0)).unwrap(),
+        ScrollRect::try_new(Point::new(-20.0, -7.0), Size::new(180.0, 92.0)).unwrap(),
     ));
     tree.outputs.insert(2, inline_output);
 
@@ -2759,7 +2795,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(100.0, 40.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::ZERO);
 }
@@ -2810,13 +2846,13 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
     first_inline.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(10.0, 10.0),
-        ScrollRect::new(Point::new(-20.0, 0.0), Size::new(30.0, 10.0)).unwrap(),
+        ScrollRect::try_new(Point::new(-20.0, 0.0), Size::new(30.0, 10.0)).unwrap(),
     ));
     let mut second_inline = ComputeOutput::from_sizes(Size::new(10.0, 10.0), Size::new(10.0, 10.0));
     second_inline.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(10.0, 10.0),
-        ScrollRect::new(Point::new(-7.0, 0.0), Size::new(25.0, 12.0)).unwrap(),
+        ScrollRect::try_new(Point::new(-7.0, 0.0), Size::new(25.0, 12.0)).unwrap(),
     ));
     tree.outputs
         .insert(2, ComputeOutput::from_outer_size(Size::new(80.0, 50.0)));
@@ -2940,7 +2976,7 @@ fn block_scroll_geometry_includes_float_child_overflow_rect() {
     float_output.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(30.0, 10.0),
-        ScrollRect::new(Point::ZERO, Size::new(140.0, 55.0)).unwrap(),
+        ScrollRect::try_new(Point::ZERO, Size::new(140.0, 55.0)).unwrap(),
     ));
     tree.outputs.insert(2, float_output);
 
@@ -2961,21 +2997,15 @@ fn block_float_child_node_output_retains_canonical_scroll_geometry() {
     let resolved_padding = Edges::all(2.0);
     let resolved_border = Edges::all(1.0);
     let child_compute_overflow =
-        ScrollRect::new(Point::new(-8.0, -3.0), Size::new(50.0, 20.0)).unwrap();
+        ScrollRect::try_new(Point::new(-8.0, -3.0), Size::new(50.0, 20.0)).unwrap();
     let mut float_output = ComputeOutput::from_sizes(Size::new(30.0, 10.0), Size::new(70.0, 32.0));
-    float_output.scroll_geometry = Some(
-        crate::scroll::scroll_geometry_from_layout(
-            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            computed_overflow(Overflow::Hidden, Overflow::Hidden),
-            false,
-            Size::new(30.0, 10.0),
-            resolved_padding,
-            resolved_border,
-            0.0,
-            child_compute_overflow,
-        )
-        .unwrap(),
-    );
+    float_output.scroll_geometry = Some(child_scroll_geometry_with_edges(
+        computed_overflow(Overflow::Hidden, Overflow::Hidden),
+        Size::new(30.0, 10.0),
+        child_compute_overflow,
+        resolved_padding,
+        resolved_border,
+    ));
 
     let mut tree = ScrollBlockTree::default();
     tree.children.insert(1, vec![2]);
@@ -3061,7 +3091,7 @@ fn block_scroll_geometry_includes_absolute_margin_box_with_area_offset() {
     absolute_output.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Visible, Overflow::Visible),
         Size::new(20.0, 10.0),
-        ScrollRect::new(Point::new(-2.0, -1.0), Size::new(60.0, 25.0)).unwrap(),
+        ScrollRect::try_new(Point::new(-2.0, -1.0), Size::new(60.0, 25.0)).unwrap(),
     ));
     tree.outputs.insert(2, absolute_output);
 
@@ -3146,7 +3176,7 @@ fn block_child_node_output_keeps_hidden_child_own_scroll_range() {
     let geometry = tree.layouts[&2].scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::new(Point::ZERO, Size::new(160.0, 90.0)).unwrap()
+        ScrollRect::try_new(Point::ZERO, Size::new(160.0, 90.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::new(110.0, 70.0));
 }
@@ -3195,7 +3225,8 @@ fn block_absolute_child_scroll_geometry_uses_final_node_output_size() {
 
 #[test]
 fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
-    let child_overflow = ScrollRect::new(Point::new(-15.0, -4.0), Size::new(95.0, 49.0)).unwrap();
+    let child_overflow =
+        ScrollRect::try_new(Point::new(-15.0, -4.0), Size::new(95.0, 49.0)).unwrap();
     let mut child_output = ComputeOutput::from_sizes(Size::new(50.0, 20.0), Size::new(80.0, 45.0));
     child_output.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Hidden, Overflow::Hidden),
@@ -3237,7 +3268,8 @@ fn block_child_node_output_preserves_child_scrollable_overflow_origin() {
 
 #[test]
 fn block_inline_child_node_output_uses_final_inline_item_geometry() {
-    let child_overflow = ScrollRect::new(Point::new(-9.0, -3.0), Size::new(74.0, 34.0)).unwrap();
+    let child_overflow =
+        ScrollRect::try_new(Point::new(-9.0, -3.0), Size::new(74.0, 34.0)).unwrap();
     let mut child_output = ComputeOutput::from_sizes(Size::new(40.0, 12.0), Size::new(65.0, 31.0));
     child_output.scroll_geometry = Some(child_scroll_geometry(
         computed_overflow(Overflow::Hidden, Overflow::Hidden),

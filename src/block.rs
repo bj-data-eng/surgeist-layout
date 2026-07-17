@@ -24,10 +24,9 @@ use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxi
 use crate::scroll::{
     CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
     ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
-    ScrollContributionAccumulatorOf, ScrollContributionErrorOf, ScrollOriginAxes,
-    ScrollOriginProgression, ScrollUnsupportedFeature, UsedOverflow,
+    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression, UsedOverflow,
     canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
-    scrollbar_size_from_overflow,
+    rebuild_canonical_scroll_geometry_for_border_box, scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -54,7 +53,7 @@ where
             || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
                 geometry, next_state,
             )
-            .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?
+            .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?
         {
             return Ok(output);
         }
@@ -222,7 +221,7 @@ where
             scrollbar_width: style.scrollbar_width,
             settled_auto_scrollbars: final_constants.settled_auto_scrollbars,
         })
-        .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?;
+        .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
         let mut contributions = final_pass.contributions;
         contributions.replace_container_seed(final_scroll_box.scrollport());
         for (axis, extent) in [
@@ -240,7 +239,7 @@ where
                         extent,
                     ),
                 )
-                .map_err(|error| block_own_contribution_error(node, input.run_mode(), error))?;
+                .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
         }
         layout_floats(
             tree,
@@ -261,7 +260,7 @@ where
         )?;
         contributions
             .include_terminal_padding(final_constants.padding)
-            .map_err(|error| block_own_contribution_error(node, input.run_mode(), error))?;
+            .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
         let scroll_geometry = block_scroll_geometry::<Tree, S, M>(
             node,
             input.run_mode(),
@@ -272,7 +271,7 @@ where
         )?;
         let content_size = contributions
             .content_size_from_anchor(scroll_geometry.content_box().origin())
-            .map_err(|error| block_own_contribution_error(node, input.run_mode(), error))?;
+            .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
         let mut output = ComputeOutputOf::<S>::from_sizes_and_baselines(
             output_size,
             content_size,
@@ -704,8 +703,8 @@ where
         constants.content_box_inset.left,
         constants.content_box_inset.top,
     );
-    let contribution_seed = super::ScrollRectOf::new(content_box_origin, content_box_size)
-        .map_err(|error| block_own_scroll_error(node, input.run_mode(), error))?;
+    let contribution_seed = super::ScrollRectOf::try_new(content_box_origin, content_box_size)
+        .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
     let mut contributions = ScrollContributionAccumulatorOf::new(contribution_seed);
 
     let mut index = 0;
@@ -1094,10 +1093,10 @@ where
                 child_border,
                 output.scroll_geometry,
             )
-            .map_err(|error| block_child_scroll_error(node, child, error))?;
+            .map_err(|error| block_child_geometry_error(node, child, error))?;
             contributions
                 .include_in_flow_geometry(location, child_margin, scroll_geometry)
-                .map_err(|error| block_child_contribution_error(node, child, error))?;
+                .map_err(|error| block_child_geometry_error(node, child, error))?;
             tree.set_unrounded(
                 child,
                 NodeOutputOf::<S> {
@@ -1105,12 +1104,12 @@ where
                     location,
                     size: output.size,
                     content_size: output.content_size,
-                    scroll_geometry: Some(scroll_geometry),
-                    scrollbar_size: scroll_geometry.scrollbar_size(),
                     border: child_border,
                     padding: child_padding,
                     margin: child_margin,
-                },
+                    ..NodeOutputOf::new()
+                }
+                .with_scroll_geometry(Some(scroll_geometry)),
             );
         }
 
@@ -1629,8 +1628,13 @@ where
     );
     if set_layout {
         let direct_line =
-            super::ScrollRectOf::new(report_location, report.size).map_err(|error| {
-                block_inline_scroll_error(container, run.first().copied(), input.run_mode(), error)
+            super::ScrollRectOf::try_new(report_location, report.size).map_err(|error| {
+                block_inline_geometry_error(
+                    container,
+                    run.first().copied(),
+                    input.run_mode(),
+                    error,
+                )
             })?;
         contributions.include_direct_line(direct_line);
     }
@@ -1705,12 +1709,10 @@ where
                         item.border,
                         output.scroll_geometry,
                     )
-                    .map_err(|error| block_child_scroll_error(container, *child, error))?;
+                    .map_err(|error| block_child_geometry_error(container, *child, error))?;
                     contributions
                         .include_in_flow_geometry(location, item.margin, scroll_geometry)
-                        .map_err(|error| {
-                            block_child_contribution_error(container, *child, error)
-                        })?;
+                        .map_err(|error| block_child_geometry_error(container, *child, error))?;
                     tree.set_unrounded(
                         *child,
                         NodeOutputOf::<S> {
@@ -1718,12 +1720,12 @@ where
                             location,
                             size: item.size,
                             content_size: item.content_size,
-                            scroll_geometry: Some(scroll_geometry),
-                            scrollbar_size: scroll_geometry.scrollbar_size(),
                             border: item.border,
                             padding: item.padding,
                             margin: item.margin,
-                        },
+                            ..NodeOutputOf::new()
+                        }
+                        .with_scroll_geometry(Some(scroll_geometry)),
                     );
                 }
             }
@@ -1746,13 +1748,7 @@ where
                                 constants,
                                 containing_size,
                             ),
-                            size: Size::ZERO,
-                            content_size: Size::ZERO,
-                            scroll_geometry: None,
-                            scrollbar_size: Size::ZERO,
-                            border: Edges::ZERO,
-                            padding: Edges::ZERO,
-                            margin: Edges::ZERO,
+                            ..NodeOutputOf::new()
                         },
                     );
                 }
@@ -1776,13 +1772,7 @@ where
                                 constants,
                                 containing_size,
                             ),
-                            size: Size::ZERO,
-                            content_size: Size::ZERO,
-                            scroll_geometry: None,
-                            scrollbar_size: Size::ZERO,
-                            border: Edges::ZERO,
-                            padding: Edges::ZERO,
-                            margin: Edges::ZERO,
+                            ..NodeOutputOf::new()
                         },
                     );
                 }
@@ -1971,10 +1961,10 @@ where
             float.border,
             float.child_compute_geometry,
         )
-        .map_err(|error| block_child_scroll_error(container, float.node, error))?;
+        .map_err(|error| block_child_geometry_error(container, float.node, error))?;
         contributions
             .include_in_flow_geometry(location, float.margin, scroll_geometry)
-            .map_err(|error| block_child_contribution_error(container, float.node, error))?;
+            .map_err(|error| block_child_geometry_error(container, float.node, error))?;
         tree.set_unrounded(
             float.node,
             NodeOutputOf::<S> {
@@ -1982,12 +1972,12 @@ where
                 location,
                 size: float.size,
                 content_size: float.content_size,
-                scroll_geometry: Some(scroll_geometry),
-                scrollbar_size: scroll_geometry.scrollbar_size(),
                 border: float.border,
                 padding: float.padding,
                 margin: float.margin,
-            },
+                ..NodeOutputOf::new()
+            }
+            .with_scroll_geometry(Some(scroll_geometry)),
         );
     }
 
@@ -2307,10 +2297,8 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    let target_border_box =
-        super::ScrollRectOf::try_new(Point::ZERO, output_size).map_err(|_| {
-            block_own_scroll_error(node, run_mode, ScrollUnsupportedFeature::InvalidScrollRect)
-        })?;
+    let target_border_box = super::ScrollRectOf::try_new(Point::ZERO, output_size)
+        .map_err(|error| block_own_geometry_error(node, run_mode, error))?;
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
         flow_axes: constants.flow_axes,
         computed_overflow: style.overflow,
@@ -2338,7 +2326,7 @@ where
         target_snap_align: style.scroll_snap_align,
         target_snap_stop: style.scroll_snap_stop,
     })
-    .map_err(|error| block_own_canonical_scroll_error(node, run_mode, error))
+    .map_err(|error| block_own_geometry_error(node, run_mode, error))
 }
 
 fn block_scroll_padding<S: LayoutScalar>(
@@ -2359,32 +2347,10 @@ fn block_scroll_padding<S: LayoutScalar>(
     )
 }
 
-fn block_own_scroll_error<Node, S, M>(
+fn block_own_geometry_error<Node, S, M, E>(
     node: Node,
     run_mode: RunMode,
-    error: ScrollUnsupportedFeature,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
-        (
-            LayoutOperation::RootLayout,
-            LayoutInternalInvariant::InvalidRootScrollGeometry,
-        )
-    } else {
-        (
-            LayoutOperation::ChildLayout,
-            LayoutInternalInvariant::InvalidBlockScrollGeometry,
-        )
-    };
-    block_scroll_error(LayoutErrorSiteOf::Node(node), operation, invariant, error)
-}
-
-fn block_own_canonical_scroll_error<Node, S, M>(
-    node: Node,
-    run_mode: RunMode,
-    error: CanonicalScrollGeometryErrorOf<S>,
+    error: E,
 ) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
@@ -2408,53 +2374,10 @@ where
     )
 }
 
-fn block_own_contribution_error<Node, S, M>(
-    node: Node,
-    run_mode: RunMode,
-    error: ScrollContributionErrorOf<S>,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    let _ = error;
-    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
-        (
-            LayoutOperation::RootLayout,
-            LayoutInternalInvariant::InvalidRootScrollGeometry,
-        )
-    } else {
-        (
-            LayoutOperation::ChildLayout,
-            LayoutInternalInvariant::InvalidBlockScrollGeometry,
-        )
-    };
-    LayoutErrorOf::new(
-        LayoutErrorSiteOf::Node(node),
-        operation,
-        LayoutErrorKindOf::InternalInvariant(invariant),
-    )
-}
-
-fn block_child_scroll_error<Node, S, M>(
+fn block_child_geometry_error<Node, S, M, E>(
     container: Node,
     subject: Node,
-    error: ScrollUnsupportedFeature,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    block_scroll_error(
-        LayoutErrorSiteOf::ContainerSubject { container, subject },
-        LayoutOperation::ChildLayout,
-        LayoutInternalInvariant::InvalidBlockScrollGeometry,
-        error,
-    )
-}
-
-fn block_child_contribution_error<Node, S, M>(
-    container: Node,
-    subject: Node,
-    error: ScrollContributionErrorOf<S>,
+    error: E,
 ) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
@@ -2467,33 +2390,19 @@ where
     )
 }
 
-fn block_inline_scroll_error<Node, S, M>(
+fn block_inline_geometry_error<Node, S, M, E>(
     container: Node,
     subject: Option<Node>,
     run_mode: RunMode,
-    error: ScrollUnsupportedFeature,
+    error: E,
 ) -> LayoutErrorOf<Node, S, M>
 where
     S: LayoutScalar,
 {
     match subject {
-        Some(subject) => block_child_scroll_error(container, subject, error),
-        None => block_own_scroll_error(container, run_mode, error),
+        Some(subject) => block_child_geometry_error(container, subject, error),
+        None => block_own_geometry_error(container, run_mode, error),
     }
-}
-
-fn block_scroll_error<Node, S, M>(
-    site: LayoutErrorSiteOf<Node>,
-    operation: LayoutOperation,
-    invariant: LayoutInternalInvariant,
-    error: ScrollUnsupportedFeature,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    let _ = error;
-    let kind = LayoutErrorKindOf::InternalInvariant(invariant);
-    LayoutErrorOf::new(site, operation, kind)
 }
 
 fn retained_child_scroll_geometry<S: LayoutScalar>(
@@ -2503,12 +2412,12 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
     padding: Edges<S>,
     border: Edges<S>,
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
-) -> Result<super::ScrollGeometryOf<S>, ScrollUnsupportedFeature> {
-    if let Some(geometry) = child_compute_geometry
-        && geometry.border_box().origin() == Point::ZERO
-        && geometry.border_box().size() == size
-    {
-        return Ok(geometry);
+) -> Result<super::ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
+    if let Some(geometry) = child_compute_geometry {
+        if geometry.border_box().origin() == Point::ZERO && geometry.border_box().size() == size {
+            return Ok(geometry);
+        }
+        return rebuild_canonical_scroll_geometry_for_border_box(geometry, size, border, padding);
     }
 
     let flow_axes = crate::FlowAxes::new(style.writing_mode, style.direction);
@@ -2523,19 +2432,18 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
         scrollbar_gutter: style.scrollbar_gutter,
         scrollbar_width: style.scrollbar_width,
         settled_auto_scrollbars,
-    })
-    .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
-    let direct_overflow = crate::scroll::scrollable_overflow_from_content_size(
-        scroll_box.content_box(),
-        content_size,
-    )?;
+    })?;
+    let content_box = scroll_box.content_box();
+    let direct_content = super::ScrollRectOf::try_new(
+        content_box.origin(),
+        Size::new(
+            content_box.size().width.max(content_size.width),
+            content_box.size().height.max(content_size.height),
+        ),
+    )
+    .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
     let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.scrollport());
-    contributions.include_direct_line(direct_overflow);
-    if let Some(geometry) = child_compute_geometry {
-        contributions.include_direct_line(geometry.scrollable_overflow());
-    }
-    let target_border_box = super::ScrollRectOf::try_new(Point::ZERO, size)
-        .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
+    contributions.include_direct_line(direct_content);
 
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
         flow_axes,
@@ -2558,13 +2466,12 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
             ScrollOriginProgression::FlowEndward,
         ),
         scroll_snap_type: style.scroll_snap_type,
-        target_border_box,
+        target_border_box: scroll_box.border_box(),
         target_scroll_margin: style.scroll_margin,
         target_flow_axes: flow_axes,
         target_snap_align: style.scroll_snap_align,
         target_snap_stop: style.scroll_snap_stop,
     })
-    .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)
 }
 
 fn max_content_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
@@ -2794,10 +2701,10 @@ where
             border,
             output.scroll_geometry,
         )
-        .map_err(|error| block_child_scroll_error(container_node, child, error))?;
+        .map_err(|error| block_child_geometry_error(container_node, child, error))?;
         contributions
             .include_current_out_of_flow_geometry(location, margin, scroll_geometry)
-            .map_err(|error| block_child_contribution_error(container_node, child, error))?;
+            .map_err(|error| block_child_geometry_error(container_node, child, error))?;
         tree.set_unrounded(
             child,
             NodeOutputOf::<S> {
@@ -2805,12 +2712,12 @@ where
                 location,
                 size: final_size,
                 content_size: output.content_size,
-                scroll_geometry: Some(scroll_geometry),
-                scrollbar_size: scroll_geometry.scrollbar_size(),
                 border,
                 padding,
                 margin,
-            },
+                ..NodeOutputOf::new()
+            }
+            .with_scroll_geometry(Some(scroll_geometry)),
         );
     }
 
@@ -3196,7 +3103,7 @@ impl<S: LayoutScalar> Constants<S> {
             scrollbar_width: style.scrollbar_width,
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
         })
-        .map_err(|error| block_own_canonical_scroll_error(node, input.run_mode(), error))?;
+        .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
         let effective_border = scroll_box.effective_border();
         let scrollbar_gutter = scroll_box.effective_gutter();
         let content_box_inset =

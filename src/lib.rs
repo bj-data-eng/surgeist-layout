@@ -176,8 +176,6 @@ pub use scroll::{
     ScrollGeometryOf, ScrollRect, ScrollRectError, ScrollRectErrorOf, ScrollRectOf,
     ScrollTargetGeometry, ScrollTargetGeometryOf, ScrollbarGutterRects, ScrollbarGutterRectsOf,
 };
-#[cfg(test)]
-pub(crate) use scroll::{ScrollContainerAxis, ScrollContainerFacts};
 pub use sizing::{
     CalcSizeCalculation, CalcSizeCalculationErrorOf, CalcSizeCalculationOf,
     CalcSizeConstructionError, FlexBasis, FlexBasisCalcBasis, FlexBasisOf, MaxSize,
