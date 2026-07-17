@@ -4909,7 +4909,9 @@ mod tests {
         assert!(error.contains("generation already active"));
         assert!(error.contains("scope=full"));
 
-        drop(first);
+        first
+            .release()
+            .expect("release full generation lease after normal completion");
         let scoped_lease = acquire_generation_lease(&scoped)
             .expect("scoped generation must acquire the released repository lease");
         let owner = fs::read_to_string(generation_lease_path(&scoped))
