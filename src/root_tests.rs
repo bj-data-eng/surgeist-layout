@@ -4167,14 +4167,28 @@ fn assert_logical_flex_public_contexts<S: LayoutScalar>() {
         cold_child_entry.output().content_size,
         Size::new(scalar(10.25), scalar(20.25))
     );
+    let cold_child = public_flow_output(cold_cache_batch.final_entries(), 1);
+    assert_eq!(cold_child.source_index, crate::SourceIndex::new(0));
+    assert_eq!(cold_child.location, Point::new(S::ZERO, scalar(80.0)));
+    assert_eq!(cold_child.size, Size::new(scalar(10.0), scalar(20.0)));
     assert_eq!(
-        public_flow_output(cold_cache_batch.final_entries(), 1),
-        NodeOutputOf {
-            location: Point::new(S::ZERO, scalar(80.0)),
-            size: Size::new(scalar(10.0), scalar(20.0)),
-            content_size: Size::new(scalar(10.0), scalar(20.0)),
-            ..NodeOutputOf::with_source_index(crate::SourceIndex::new(0))
-        }
+        cold_child.content_size,
+        Size::new(scalar(10.0), scalar(20.0))
+    );
+    assert_eq!(cold_child.border, Edges::ZERO);
+    assert_eq!(cold_child.padding, Edges::ZERO);
+    assert_eq!(cold_child.margin, Edges::ZERO);
+    let cold_child_geometry = cold_child
+        .scroll_geometry
+        .expect("performed flex child retains canonical geometry");
+    assert_eq!(cold_child_geometry.border_box().size(), cold_child.size);
+    assert_eq!(
+        cold_child_geometry.target().border_box(),
+        cold_child_geometry.border_box()
+    );
+    assert_eq!(
+        cold_child.scrollbar_size(),
+        cold_child_geometry.scrollbar_size()
     );
 
     vertical_cache_tree.apply_cache_entries(cold_cache_batch.cache_store_entries());
@@ -8340,6 +8354,122 @@ fn fri05_c03_leaf_auto_tree_backed_runs_exact_monotone_passes() {
         Size::new(100.0, 100.0),
         Size::ZERO,
     );
+}
+
+#[test]
+fn fri05_c04_flex_child_geometry_tree_retains_in_flow_and_absolute_targets() {
+    let parent_size = Size::new(140.0, 90.0);
+    let in_flow_axes = FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl);
+    let absolute_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr);
+    let in_flow_margin = ScrollMargin::try_new(1.0, -2.0, 3.0, -4.0).unwrap();
+    let absolute_margin = ScrollMargin::try_new(-5.0, 6.0, -7.0, 8.0).unwrap();
+    let in_flow_align =
+        ScrollSnapAlign::new(ScrollSnapAlignValue::Center, ScrollSnapAlignValue::End);
+    let absolute_align =
+        ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+    let tree = PublicFlowTree::default()
+        .with_children(0, [1, 2])
+        .with_children(1, [])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                size: Size::new(
+                    PreferredSize::px(parent_size.width),
+                    PreferredSize::px(parent_size.height),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                writing_mode: in_flow_axes.writing_mode(),
+                direction: in_flow_axes.direction(),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+                scrollbar_gutter: ScrollbarGutter::Stable,
+                scrollbar_width: ScrollbarWidth::try_new(4.0).unwrap(),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(22.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                scroll_margin: in_flow_margin,
+                scroll_snap_align: in_flow_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Absolute,
+                writing_mode: absolute_axes.writing_mode(),
+                direction: absolute_axes.direction(),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+                scrollbar_width: ScrollbarWidth::try_new(3.0).unwrap(),
+                size: Size::new(PreferredSize::px(28.0), PreferredSize::px(18.0)),
+                inset: Edges::new(
+                    LengthAuto::px(4.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(6.0),
+                ),
+                scroll_margin: absolute_margin,
+                scroll_snap_align: absolute_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInput::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(parent_size.map(Available::definite)).unwrap(),
+    )
+    .expect("tree-backed flex child geometry layout succeeds");
+
+    for (phase, entries) in [
+        ("unrounded", batch.unrounded_entries()),
+        ("rounded", batch.final_entries()),
+    ] {
+        for (node, expected_axes, expected_margin, expected_align) in [
+            (1, in_flow_axes, in_flow_margin, in_flow_align),
+            (2, absolute_axes, absolute_margin, absolute_align),
+        ] {
+            let output = public_flow_output(entries, node);
+            let geometry = output
+                .scroll_geometry
+                .unwrap_or_else(|| panic!("{phase} flex child {node} retains canonical geometry"));
+            assert_eq!(geometry.border_box().size(), output.size, "{phase}/{node}");
+            assert_eq!(
+                geometry.target().border_box(),
+                geometry.border_box(),
+                "{phase}/{node}"
+            );
+            assert_eq!(
+                geometry.target().flow_axes(),
+                expected_axes,
+                "{phase}/{node}"
+            );
+            assert_eq!(
+                geometry.target().scroll_margin(),
+                expected_margin,
+                "{phase}/{node}"
+            );
+            assert_eq!(
+                geometry.target().snap_align(),
+                expected_align,
+                "{phase}/{node}"
+            );
+            assert_eq!(
+                geometry.target().snap_stop(),
+                ScrollSnapStop::Always,
+                "{phase}/{node}"
+            );
+            assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
+            assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
+        }
+    }
 }
 
 fn fri05_c03_block_root_output(batch: &CompletedLayoutBatch<u32>, node: u32) -> NodeOutput {

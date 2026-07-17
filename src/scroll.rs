@@ -2937,6 +2937,7 @@ const _: DefaultCanonicalScrollGeometryRounding =
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ScrollbarReservationOf<S: LayoutScalar> {
+    #[cfg(test)]
     size: Size<S>,
     inset: Edges<S>,
 }
@@ -2963,12 +2964,14 @@ impl<S: LayoutScalar> ScrollbarReservationOf<S> {
     ) -> Self {
         let size = scrollbar_size_from_used_overflow(overflow, scrollbar_width_value);
         Self {
+            #[cfg(test)]
             size,
             inset: scrollbar_inset_from_size(size, direction),
         }
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn size(self) -> Size<S> {
         self.size
     }

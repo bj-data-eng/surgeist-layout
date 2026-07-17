@@ -502,7 +502,7 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
     let grid_lanes = include_str!("grid/lanes.rs");
     assert_eq!(
         flex.matches("scrollbar_size: item_scrollbar_size(").count(),
-        2
+        0
     );
     assert_eq!(
         grid_child
@@ -522,6 +522,32 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
             .count(),
         1
     );
+}
+
+#[test]
+fn fri05_c04_flex_bridge_accounting_leaves_exactly_three_grid_family_writers() {
+    let flex = include_str!("flex.rs");
+    let grid_child = include_str!("grid/child.rs");
+    let grid_lanes = include_str!("grid/lanes.rs");
+    let flex_bridges = flex.matches("scrollbar_size: item_scrollbar_size(").count();
+    assert_eq!(
+        flex_bridges, 0,
+        "C04-T1 must remove both legacy flex direct writers; found {flex_bridges}"
+    );
+
+    let grid_item_bridges = grid_child
+        .matches("scrollbar_size: item.scrollbar_size")
+        .count();
+    let grid_local_bridges = grid_child
+        .matches("scroll_geometry: None,\n            scrollbar_size,\n")
+        .count();
+    let lanes_bridges = grid_lanes
+        .matches("scrollbar_size: item.scrollbar_size")
+        .count();
+    assert_eq!(grid_item_bridges, 1);
+    assert_eq!(grid_local_bridges, 1);
+    assert_eq!(lanes_bridges, 1);
+    assert_eq!(grid_item_bridges + grid_local_bridges + lanes_bridges, 3);
 }
 
 #[test]

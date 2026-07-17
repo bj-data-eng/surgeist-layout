@@ -1,7 +1,8 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
-    FlexDirection, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
+    FlexDirection, FlexWrap, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf,
+    LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
     LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, Overflow,
     ParentFormattingContext, Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
@@ -14,8 +15,11 @@ use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, 
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
-    ScrollbarReservationOf, UsedOverflow, content_box_inset_with_scrollbar,
-    scrollbar_size_from_overflow,
+    CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
+    ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
+    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression, UsedOverflow,
+    canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
+    rebuild_canonical_scroll_geometry_for_border_box,
 };
 use crate::sizing::{MaxSizeOf, MinSizeOf, PreferredSizeOf};
 
@@ -174,7 +178,7 @@ where
         layout_constants = cross_layout_constants;
     }
     let (absolute_content_size, final_items) = if input.run_mode().is_perform_layout() {
-        let final_items = final_layout(tree, &resolved_items, &layout_constants)?;
+        let final_items = final_layout(tree, node, &resolved_items, &layout_constants)?;
         let absolute_content_size = layout_absolute_children(tree, node, &layout_constants)?;
         layout_hidden_children(tree, node, layout_constants.axes.flow_axes())?;
         (absolute_content_size, Some(final_items))
@@ -182,14 +186,24 @@ where
         (Size::<S>::ZERO, None)
     };
 
-    Ok(container_output(
+    let mut output = container_output(
         input,
         &layout_constants,
         &resolved_items,
         final_items.as_deref(),
         &lines,
         absolute_content_size,
-    ))
+    );
+    if input.run_mode().is_perform_layout() {
+        output.scroll_geometry = Some(flex_container_scroll_geometry::<_, S, M>(
+            node,
+            input.run_mode(),
+            &style,
+            &layout_constants,
+            output.size,
+        )?);
+    }
+    Ok(output)
 }
 
 #[derive(Clone, Copy)]
@@ -202,9 +216,12 @@ struct Constants<S: LayoutScalar> {
     max_outer_size: Size<Option<S>>,
     max_inner_size: Size<Option<S>>,
     border: Edges<S>,
+    padding: Edges<S>,
+    effective_border: Edges<S>,
     padding_border_size: Size<S>,
-    scrollbar_gutter: Point<S>,
+    scrollbar_gutter: Edges<S>,
     content_box_inset: Edges<S>,
+    settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState,
     gap: Size<S>,
     align_items: AlignItems,
     align_content: AlignContent,
@@ -240,20 +257,7 @@ impl<S: LayoutScalar> Constants<S> {
                 resolve_length_or_zero(length, basis)
             })
             .transpose_with_node(tree, node)?;
-        let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
-            style.overflow,
-            style.item_is_replaced,
-            style.scrollbar_width.get(),
-            style.direction,
-        );
-        let scrollbar_gutter = Point::new(
-            scrollbar_reservation.size().width,
-            scrollbar_reservation.size().height,
-        );
-        let content_box_inset =
-            content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
         let padding_border = (padding + border).sum_axes();
-        let content_box_inset_size = content_box_inset.sum_axes();
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
             padding_border
         } else {
@@ -298,6 +302,30 @@ impl<S: LayoutScalar> Constants<S> {
             .known()
             .or(min_max_definite_size.or(style_size.clamp_optional(min_size, max_size)))
             .max_optional(padding_border.map(Some));
+        let unconstrained_scroll_box_size =
+            padding_border + Size::splat(style.scrollbar_width.get() + style.scrollbar_width.get());
+        let scroll_box_size = node_outer_size
+            .or(input.available().map(AvailableOf::into_option))
+            .or(max_size)
+            .unwrap_or(unconstrained_scroll_box_size)
+            .zip_map(padding_border, |size, minimum| size.max(minimum));
+        let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+            flow_axes,
+            computed_overflow: style.overflow,
+            item_is_replaced: style.item_is_replaced,
+            border_box_size: scroll_box_size,
+            border,
+            padding,
+            scrollbar_gutter: style.scrollbar_gutter,
+            scrollbar_width: style.scrollbar_width,
+            settled_auto_scrollbars: input.settled_auto_scrollbars(),
+        })
+        .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?;
+        let effective_border = scroll_box.effective_border();
+        let scrollbar_gutter = scroll_box.effective_gutter();
+        let content_box_inset =
+            effective_border + scrollbar_gutter + scroll_box.effective_padding();
+        let content_box_inset_size = content_box_inset.sum_axes();
         let node_inner_size = node_outer_size
             .sub_optional(content_box_inset_size)
             .max_optional(Size::<S>::ZERO.map(Some));
@@ -320,9 +348,12 @@ impl<S: LayoutScalar> Constants<S> {
             max_outer_size: max_size,
             max_inner_size,
             border,
+            padding,
+            effective_border,
             padding_border_size: padding_border,
             scrollbar_gutter,
             content_box_inset,
+            settled_auto_scrollbars: input.settled_auto_scrollbars(),
             gap,
             align_items: style.align_items.unwrap_or(AlignItems::Stretch),
             align_content: style.align_content.unwrap_or(AlignContent::Stretch),
@@ -551,6 +582,7 @@ impl FlexAxes {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn main_point<T>(self, point: Point<T>) -> T {
         match self.main_physical_axis {
             PhysicalAxis::Horizontal => point.x,
@@ -559,6 +591,7 @@ impl FlexAxes {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn cross_point<T>(self, point: Point<T>) -> T {
         match self.cross_physical_axis {
             PhysicalAxis::Horizontal => point.x,
@@ -860,7 +893,6 @@ struct CollectedFlexItem<Node, S: LayoutScalar> {
     border: Edges<S>,
     overflow: ComputedOverflow,
     item_is_replaced: bool,
-    scrollbar_width_value: S,
     align_self: AlignItems,
     initial_baseline: FlexItemBaseline<S>,
     flex_grow_factor: S,
@@ -890,7 +922,6 @@ struct ResolvedFlexItem<Node, S: LayoutScalar> {
     border: Edges<S>,
     overflow: ComputedOverflow,
     item_is_replaced: bool,
-    scrollbar_width_value: S,
     align_self: AlignItems,
     baseline: FlexItemBaseline<S>,
     flex_grow_factor: S,
@@ -942,7 +973,6 @@ impl<Node, S: LayoutScalar> From<CollectedFlexItem<Node, S>> for ResolvedFlexIte
             border: item.border,
             overflow: item.overflow,
             item_is_replaced: item.item_is_replaced,
-            scrollbar_width_value: item.scrollbar_width_value,
             align_self: item.align_self,
             baseline: item.initial_baseline,
             flex_grow_factor: item.flex_grow_factor,
@@ -1312,7 +1342,6 @@ where
         border,
         overflow: style.overflow,
         item_is_replaced: style.item_is_replaced,
-        scrollbar_width_value: style.scrollbar_width.get(),
         align_self,
         initial_baseline: baseline,
         flex_grow_factor: style.flex_grow.get(),
@@ -2091,14 +2120,6 @@ fn item_physical_baseline<S: LayoutScalar>(
     baseline.translated(size, location)
 }
 
-fn item_scrollbar_size<S: LayoutScalar>(
-    overflow: ComputedOverflow,
-    item_is_replaced: bool,
-    scrollbar_width_value: S,
-) -> Size<S> {
-    scrollbar_size_from_overflow(overflow, item_is_replaced, scrollbar_width_value)
-}
-
 fn resolve_cross_axis_auto_margins<Node, S: LayoutScalar>(
     item: &mut ResolvedFlexItem<Node, S>,
     line_cross_size: S,
@@ -2658,6 +2679,178 @@ fn container_output<Node, S: LayoutScalar>(
     )
 }
 
+fn flex_container_scroll_geometry<Node, S, M>(
+    node: Node,
+    run_mode: RunMode,
+    style: &NodeInputOf<S>,
+    constants: &Constants<S>,
+    output_size: Size<S>,
+) -> LayoutResultOf<Node, super::ScrollGeometryOf<S>, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+        flow_axes: constants.flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: output_size,
+        border: constants.border,
+        padding: constants.padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars: constants.settled_auto_scrollbars,
+    })
+    .map_err(|error| flex_own_geometry_error(node, run_mode, error))?;
+    let contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes: constants.flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: output_size,
+        border: constants.border,
+        padding: constants.padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars: constants.settled_auto_scrollbars,
+        clip_margin: ClipMarginSourceOf::new(
+            style.overflow_clip_margin.clip_box(),
+            style.overflow_clip_margin.margin(),
+        ),
+        scroll_padding: flex_scroll_padding(style.scroll_padding),
+        contributions,
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: style.scroll_snap_type,
+        target_border_box: scroll_box.border_box(),
+        target_scroll_margin: style.scroll_margin,
+        target_flow_axes: constants.flow_axes,
+        target_snap_align: style.scroll_snap_align,
+        target_snap_stop: style.scroll_snap_stop,
+    })
+    .map_err(|error| flex_own_geometry_error(node, run_mode, error))
+}
+
+fn flex_scroll_padding<S: LayoutScalar>(
+    scroll_padding: crate::ScrollPaddingOf<S>,
+) -> OptimalRegionInsetsOf<S> {
+    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
+        match value {
+            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
+            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
+        }
+    }
+
+    OptimalRegionInsetsOf::new(
+        inset(scroll_padding.top()),
+        inset(scroll_padding.right()),
+        inset(scroll_padding.bottom()),
+        inset(scroll_padding.left()),
+    )
+}
+
+fn flex_own_geometry_error<Node, S, M, E>(
+    node: Node,
+    run_mode: RunMode,
+    error: E,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
+        (
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        )
+    } else {
+        (
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        )
+    };
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        operation,
+        LayoutErrorKindOf::InternalInvariant(invariant),
+    )
+}
+
+fn flex_child_geometry_error<Node, S, M, E>(
+    container: Node,
+    subject: Node,
+    error: E,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::ContainerSubject { container, subject },
+        LayoutOperation::ChildLayout,
+        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidBlockScrollGeometry),
+    )
+}
+
+fn retained_flex_child_scroll_geometry<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
+) -> Result<super::ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
+    if let Some(geometry) = child_compute_geometry {
+        if geometry.border_box().origin() == Point::ZERO && geometry.border_box().size() == size {
+            return Ok(geometry);
+        }
+        return rebuild_canonical_scroll_geometry_for_border_box(geometry, size, border, padding);
+    }
+
+    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    let settled_auto_scrollbars = crate::scroll::SettledAutoScrollbarState::INITIAL;
+    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+        flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: size,
+        border,
+        padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars,
+    })?;
+    let contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: size,
+        border,
+        padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars,
+        clip_margin: ClipMarginSourceOf::new(
+            style.overflow_clip_margin.clip_box(),
+            style.overflow_clip_margin.margin(),
+        ),
+        scroll_padding: flex_scroll_padding(style.scroll_padding),
+        contributions,
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: style.scroll_snap_type,
+        target_border_box: scroll_box.border_box(),
+        target_scroll_margin: style.scroll_margin,
+        target_flow_axes: flow_axes,
+        target_snap_align: style.scroll_snap_align,
+        target_snap_stop: style.scroll_snap_stop,
+    })
+}
+
 fn intrinsic_content_main_size<Node, S: LayoutScalar>(
     input: ComputeInputOf<S>,
     constants: &Constants<S>,
@@ -2795,7 +2988,9 @@ where
             constants
                 .axes
                 .main_size(constants.content_box_inset.sum_axes())
-                - constants.axes.main_point(constants.scrollbar_gutter),
+                - constants
+                    .axes
+                    .main_size(constants.scrollbar_gutter.sum_axes()),
         );
     let inner_main_size = (outer_main_size
         - constants
@@ -3033,7 +3228,12 @@ fn resolved_cross_layout_constants<S: LayoutScalar>(
             constants.axes.cross_size(constants.min_outer_size),
             constants.axes.cross_size(constants.max_outer_size),
         )
-        .max(cross_inset - constants.axes.cross_point(constants.scrollbar_gutter))
+        .max(
+            cross_inset
+                - constants
+                    .axes
+                    .cross_size(constants.scrollbar_gutter.sum_axes()),
+        )
         .max(constants.axes.cross_size(constants.padding_border_size));
     let inner_cross_size = (outer_cross_size - cross_inset).max(S::ZERO);
 
@@ -3114,6 +3314,7 @@ fn content_size_contribution<S: LayoutScalar>(
 )]
 fn final_layout<Tree, M>(
     tree: &mut Tree,
+    container_node: <Tree as Traverse>::Node,
     items: &[ResolvedFlexItem<<Tree as Traverse>::Node, Tree::Scalar>],
     constants: &Constants<Tree::Scalar>,
 ) -> LayoutResultOf<
@@ -3175,23 +3376,28 @@ where
             item.final_main_location(constants, output.size),
             item.final_cross_location(constants, output.size),
         );
+        let scroll_geometry = retained_flex_child_scroll_geometry(
+            &style,
+            output.size,
+            item.padding,
+            item.border,
+            output.scroll_geometry,
+        )
+        .map_err(|error| flex_child_geometry_error(container_node, item.node, error))?;
+        output.scroll_geometry = Some(scroll_geometry);
         tree.set_unrounded(
             item.node,
-            NodeOutputOf {
+            NodeOutputOf::<Tree::Scalar> {
                 source_index: crate::SourceIndex::new(item.source_index),
                 location,
                 size: output.size,
                 content_size: output.content_size,
-                scroll_geometry: None,
-                scrollbar_size: item_scrollbar_size(
-                    item.overflow,
-                    item.item_is_replaced,
-                    item.scrollbar_width_value,
-                ),
                 border: item.border,
                 padding: item.padding,
                 margin: item.margin,
-            },
+                ..NodeOutputOf::new()
+            }
+            .with_scroll_geometry(Some(scroll_geometry)),
         );
         final_items.push(FinalFlexItem {
             _node: core::marker::PhantomData,
@@ -3300,11 +3506,8 @@ where
     let mut content_size: Size<Tree::Scalar> = Size::ZERO;
     let inset_relative_size = constants
         .node_outer_size
-        .sub_optional(constants.border.sum_axes())
-        .sub_optional(Size::new(
-            constants.scrollbar_gutter.x,
-            constants.scrollbar_gutter.y,
-        ));
+        .sub_optional(constants.effective_border.sum_axes())
+        .sub_optional(constants.scrollbar_gutter.sum_axes());
     let available = Size::new(
         constants
             .node_outer_size
@@ -3438,24 +3641,28 @@ where
             style.align_self.unwrap_or(constants.align_items),
             constants,
         );
+        let scroll_geometry = retained_flex_child_scroll_geometry(
+            &style,
+            final_size,
+            padding,
+            border,
+            output.scroll_geometry,
+        )
+        .map_err(|error| flex_child_geometry_error(node, child, error))?;
 
         tree.set_unrounded(
             child,
-            NodeOutputOf {
+            NodeOutputOf::<Tree::Scalar> {
                 source_index: crate::SourceIndex::new(source_index),
                 location,
                 size: final_size,
                 content_size: output.content_size,
-                scroll_geometry: None,
-                scrollbar_size: item_scrollbar_size(
-                    style.overflow,
-                    style.item_is_replaced,
-                    style.scrollbar_width.get(),
-                ),
                 border,
                 padding,
                 margin,
-            },
+                ..NodeOutputOf::new()
+            }
+            .with_scroll_geometry(Some(scroll_geometry)),
         );
         let contribution = content_size_contribution(
             Point::new(
@@ -3553,29 +3760,29 @@ fn absolute_location<S: LayoutScalar>(
     let main_start = constants.axes.normal_main_start_edge(inset);
     let main_end = constants.axes.normal_main_end_edge(inset);
     let main_start_scrollbar = scrollbar_gutter_at_side(
-        constants.axes,
-        constants.axes.main_physical_axis(),
         constants
             .axes
             .normal_axis_start_side(constants.axes.main_logical_axis()),
         constants.scrollbar_gutter,
     );
     let main_end_scrollbar = scrollbar_gutter_at_side(
-        constants.axes,
-        constants.axes.main_physical_axis(),
         constants
             .axes
             .normal_axis_end_side(constants.axes.main_logical_axis()),
         constants.scrollbar_gutter,
     );
     let main = if let Some(start) = main_start {
-        constants.axes.normal_main_start_edge(constants.border)
+        constants
+            .axes
+            .normal_main_start_edge(constants.effective_border)
             + main_start_scrollbar
             + start
             + constants.axes.normal_main_start_edge(margin)
     } else if let Some(end) = main_end {
         constants.axes.main_size(container)
-            - constants.axes.normal_main_end_edge(constants.border)
+            - constants
+                .axes
+                .normal_main_end_edge(constants.effective_border)
             - main_end_scrollbar
             - constants.axes.main_size(size)
             - end
@@ -3601,29 +3808,29 @@ fn absolute_location<S: LayoutScalar>(
     let cross_start = constants.axes.normal_cross_start_edge(inset);
     let cross_end = constants.axes.normal_cross_end_edge(inset);
     let cross_start_scrollbar = scrollbar_gutter_at_side(
-        constants.axes,
-        constants.axes.cross_physical_axis(),
         constants
             .axes
             .normal_axis_start_side(constants.axes.cross_logical_axis()),
         constants.scrollbar_gutter,
     );
     let cross_end_scrollbar = scrollbar_gutter_at_side(
-        constants.axes,
-        constants.axes.cross_physical_axis(),
         constants
             .axes
             .normal_axis_end_side(constants.axes.cross_logical_axis()),
         constants.scrollbar_gutter,
     );
     let cross = if let Some(start) = cross_start {
-        constants.axes.normal_cross_start_edge(constants.border)
+        constants
+            .axes
+            .normal_cross_start_edge(constants.effective_border)
             + cross_start_scrollbar
             + start
             + constants.axes.normal_cross_start_edge(margin)
     } else if let Some(end) = cross_end {
         constants.axes.cross_size(container)
-            - constants.axes.normal_cross_end_edge(constants.border)
+            - constants
+                .axes
+                .normal_cross_end_edge(constants.effective_border)
             - cross_end_scrollbar
             - constants.axes.cross_size(size)
             - end
@@ -3650,24 +3857,12 @@ fn absolute_location<S: LayoutScalar>(
     constants.axes.point_from_main_cross(main, cross)
 }
 
-fn scrollbar_gutter_at_side<S: LayoutScalar>(
-    axes: FlexAxes,
-    axis: PhysicalAxis,
-    side: PhysicalSide,
-    gutter: Point<S>,
-) -> S {
-    let scrollbar_side = match axis {
-        PhysicalAxis::Horizontal if axes.flow_direction() == Direction::Rtl => PhysicalSide::Left,
-        PhysicalAxis::Horizontal => PhysicalSide::Right,
-        PhysicalAxis::Vertical => PhysicalSide::Bottom,
-    };
-    if side == scrollbar_side {
-        match axis {
-            PhysicalAxis::Horizontal => gutter.x,
-            PhysicalAxis::Vertical => gutter.y,
-        }
-    } else {
-        S::ZERO
+fn scrollbar_gutter_at_side<S: LayoutScalar>(side: PhysicalSide, gutter: Edges<S>) -> S {
+    match side {
+        PhysicalSide::Top => gutter.top,
+        PhysicalSide::Right => gutter.right,
+        PhysicalSide::Bottom => gutter.bottom,
+        PhysicalSide::Left => gutter.left,
     }
 }
 
@@ -3974,9 +4169,12 @@ mod final_baseline_selection_tests {
             max_outer_size: Size::NONE,
             max_inner_size: Size::NONE,
             border: Edges::ZERO,
+            padding: Edges::ZERO,
+            effective_border: Edges::ZERO,
             padding_border_size: Size::ZERO,
-            scrollbar_gutter: Point::ZERO,
+            scrollbar_gutter: Edges::ZERO,
             content_box_inset: Edges::ZERO,
+            settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
             gap: Size::ZERO,
             align_items: AlignItems::Stretch,
             align_content: AlignContent::Stretch,
