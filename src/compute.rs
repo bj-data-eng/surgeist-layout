@@ -1001,9 +1001,7 @@ where
         ),
     )
     .map_err(|error| root_scroll_error(node, error))?;
-    // Root fallback overflow is content-anchored; the scrollport remains an
-    // independently derived canonical box rather than an extra contribution.
-    let mut contributions = ScrollContributionAccumulatorOf::new(direct_content);
+    let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
     contributions.include_direct_line(direct_content);
 
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {

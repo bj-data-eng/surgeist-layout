@@ -2442,7 +2442,7 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
         ),
     )
     .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
-    let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.scrollport());
+    let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
     contributions.include_direct_line(direct_content);
 
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {

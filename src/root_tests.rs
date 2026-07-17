@@ -6852,7 +6852,7 @@ fn root_scroll_geometry_range_accounts_for_padding_border_and_gutter() {
     );
     assert_eq!(
         geometry.scrollable_overflow(),
-        ScrollRect::try_new(Point::new(5.0, 5.0), Size::new(130.0, 70.0)).unwrap()
+        ScrollRect::try_new(Point::new(3.0, 3.0), Size::new(132.0, 72.0)).unwrap()
     );
     assert_positive_physical_range(geometry.physical_range(), Size::new(48.0, 38.0));
     assert_eq!(
@@ -7898,6 +7898,91 @@ fn fri05_c03_root_all_flow_axes() -> [FlowAxes; 10] {
         FlowAxes::new(WritingMode::SidewaysLr, Direction::Ltr),
         FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
     ]
+}
+
+#[test]
+fn fri05_c03_root_geometry_fallback_roots_seed_their_own_padding_box() {
+    let style = NodeInput {
+        display: Display::Flex,
+        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+        padding: Edges::all(Length::px(10.0)),
+        ..NodeInput::default()
+    };
+    let available = Size::splat(Available::definite(100.0));
+    let parent_flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let flex_context = FlexItemRootContext::under_viewport(available, parent_flow_axes).unwrap();
+    let requests = [
+        (
+            "viewport",
+            LayoutRootRequest::viewport(available).expect("viewport request is valid"),
+        ),
+        (
+            "flex-item",
+            LayoutRootRequest::flex_item_under_viewport(available, flex_context)
+                .expect("flex-item root request is valid"),
+        ),
+    ];
+
+    for (root_kind, request) in requests {
+        let tree = PublicFlowTree::default()
+            .with_children(0, [])
+            .with_style(0, style.clone());
+        let batch = compute_layout(&tree, 0, request).expect("empty flex root lays out");
+        assert_eq!(batch.unrounded_entries().len(), 1, "{root_kind}");
+        assert_eq!(batch.final_entries().len(), 1, "{root_kind}");
+
+        for (phase, output) in [
+            ("unrounded", batch.unrounded_entries()[0].output()),
+            ("rounded", batch.final_entries()[0].output()),
+        ] {
+            let geometry = output
+                .scroll_geometry
+                .expect("a performed fallback root has canonical geometry");
+            let expected_padding_box =
+                ScrollRect::try_new(Point::ZERO, Size::splat(100.0)).unwrap();
+            let expected_content_box =
+                ScrollRect::try_new(Point::new(10.0, 10.0), Size::splat(80.0)).unwrap();
+
+            assert_eq!(output.size, Size::splat(100.0), "{root_kind}/{phase}");
+            assert_eq!(
+                geometry.padding_box(),
+                expected_padding_box,
+                "{root_kind}/{phase}"
+            );
+            assert_eq!(
+                geometry.content_box(),
+                expected_content_box,
+                "{root_kind}/{phase}"
+            );
+            assert_eq!(
+                geometry.scrollable_overflow(),
+                expected_padding_box,
+                "{root_kind}/{phase}"
+            );
+            assert_eq!(
+                (
+                    geometry.physical_range().x().minimum(),
+                    geometry.physical_range().x().maximum(),
+                    geometry.physical_range().y().minimum(),
+                    geometry.physical_range().y().maximum(),
+                ),
+                (0.0, 0.0, 0.0, 0.0),
+                "{root_kind}/{phase}"
+            );
+            assert_eq!(
+                output.content_box_size(),
+                expected_content_box.size(),
+                "{root_kind}/{phase}"
+            );
+            assert_eq!(output.scrollbar_size(), Size::ZERO, "{root_kind}/{phase}");
+            assert_eq!(output.scrollbar_size, Size::ZERO, "{root_kind}/{phase}");
+            assert_eq!(
+                geometry.target().border_box(),
+                geometry.border_box(),
+                "{root_kind}/{phase}"
+            );
+        }
+    }
 }
 
 #[test]

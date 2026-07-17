@@ -671,6 +671,7 @@ pub(crate) struct CanonicalScrollBoxSourceOf<S: LayoutScalar> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct CanonicalScrollBoxOf<S: LayoutScalar> {
     border_box: ScrollRectOf<S>,
+    padding_box: ScrollRectOf<S>,
     effective_border: Edges<S>,
     effective_padding: Edges<S>,
     effective_gutter: Edges<S>,
@@ -682,6 +683,11 @@ impl<S: LayoutScalar> CanonicalScrollBoxOf<S> {
     #[must_use]
     pub(crate) const fn border_box(self) -> ScrollRectOf<S> {
         self.border_box
+    }
+
+    #[must_use]
+    pub(crate) const fn padding_box(self) -> ScrollRectOf<S> {
+        self.padding_box
     }
 
     #[must_use]
@@ -2387,6 +2393,7 @@ pub(crate) fn canonical_scroll_box_from_source<S: LayoutScalar>(
 
     Ok(CanonicalScrollBoxOf {
         border_box: boxes.border_box,
+        padding_box: boxes.padding_box,
         effective_border: boxes.effective_border,
         effective_padding: boxes.effective_padding,
         effective_gutter: boxes.effective_reservation,
@@ -2441,7 +2448,11 @@ pub(crate) fn rebuild_canonical_scroll_geometry_for_border_box<S: LayoutScalar>(
     source.padding = padding;
     source
         .contributions
-        .replace_container_seed(scroll_box.scrollport());
+        .replace_container_seed(scroll_box.padding_box());
+    source
+        .contributions
+        .include_terminal_padding(padding)
+        .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
     source.target_border_box = scroll_box.border_box();
     canonical_scroll_geometry_from_source(source)
 }
@@ -5386,6 +5397,155 @@ mod fri05_c02_factory_rounding_tests {
     fn fri05_c03_round_cache_ranges_and_output_helpers_agree_after_source_rounding() {
         assert_rounding_contract::<f32>();
         assert_rounding_contract::<f64>();
+    }
+
+    fn assert_mismatched_border_box_rebuild_retains_terminal_padding<S: LayoutScalar>() {
+        for (flow_axes, padding, final_ends, overflow, range) in [
+            (
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                [0.0, 3.0, 4.0, 0.0],
+                [30.0, 20.0],
+                [0.0, 0.0, 33.0, 24.0],
+                [0.0, 23.0, 0.0, 14.0],
+            ),
+            (
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+                [0.0, 0.0, 4.0, 3.0],
+                [0.0, 20.0],
+                [-3.0, 0.0, 33.0, 24.0],
+                [-3.0, 0.0, 0.0, 14.0],
+            ),
+            (
+                FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+                [0.0, 0.0, 3.0, 4.0],
+                [20.0, 0.0],
+                [-4.0, 0.0, 34.0, 23.0],
+                [-4.0, 0.0, 0.0, 13.0],
+            ),
+        ] {
+            let padding = Edges::new(
+                scalar(padding[0]),
+                scalar(padding[1]),
+                scalar(padding[2]),
+                scalar(padding[3]),
+            );
+            let mut contributions = ScrollContributionAccumulatorOf::new(rect(0.0, 0.0, 8.0, 8.0));
+            contributions.include_direct_line(rect(0.0, 0.0, 30.0, 20.0));
+            for (axis, coordinate) in [LogicalAxis::Inline, LogicalAxis::Block]
+                .into_iter()
+                .zip(final_ends)
+            {
+                contributions
+                    .record_final_in_flow_end(flow_axes, axis, scalar(coordinate))
+                    .unwrap();
+            }
+            contributions.include_terminal_padding(padding).unwrap();
+
+            let source = CanonicalScrollGeometrySourceOf {
+                flow_axes,
+                computed_overflow: ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden)
+                    .unwrap(),
+                border_box_size: Size::splat(scalar(8.0)),
+                border: Edges::ZERO,
+                padding,
+                scrollbar_gutter: ScrollbarGutter::Auto,
+                scrollbar_width: ScrollbarWidthOf::try_new(S::ZERO).unwrap(),
+                settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
+                clip_margin: ClipMarginSourceOf::default(),
+                scroll_padding: OptimalRegionInsetsOf::default(),
+                contributions,
+                origin_axes: ScrollOriginAxes::new(
+                    ScrollOriginProgression::FlowEndward,
+                    ScrollOriginProgression::FlowEndward,
+                ),
+                scroll_snap_type: ScrollSnapType::default(),
+                target_border_box: rect(0.0, 0.0, 8.0, 8.0),
+                target_flow_axes: flow_axes,
+                ..factory_source(flow_axes)
+            };
+            let original = canonical_scroll_geometry_from_source(source).unwrap();
+            let original_target = original.target();
+            let rebuilt_size = Size::splat(scalar(10.0));
+            let rebuilt = rebuild_canonical_scroll_geometry_for_border_box(
+                original,
+                rebuilt_size,
+                Edges::ZERO,
+                padding,
+            )
+            .unwrap();
+            let expected_overflow = rect(overflow[0], overflow[1], overflow[2], overflow[3]);
+
+            assert_eq!(
+                rebuilt.scrollable_overflow(),
+                expected_overflow,
+                "{flow_axes:?}"
+            );
+            assert_eq!(
+                (
+                    rebuilt.physical_range().x().minimum(),
+                    rebuilt.physical_range().x().maximum(),
+                    rebuilt.physical_range().y().minimum(),
+                    rebuilt.physical_range().y().maximum(),
+                ),
+                range.map(scalar::<S>).into(),
+                "{flow_axes:?}"
+            );
+            assert_eq!(
+                rebuilt
+                    .source
+                    .contributions
+                    .content_size_from_anchor(rebuilt.content_box().origin())
+                    .unwrap(),
+                expected_overflow.size(),
+                "{flow_axes:?}"
+            );
+            assert_eq!(
+                rebuilt.source.contributions.propagatable_descendants,
+                OptionalPhysicalContributionIntervalsOf {
+                    x: Some(PhysicalContributionIntervalOf {
+                        minimum: S::ZERO,
+                        maximum: scalar(30.0),
+                    }),
+                    y: Some(PhysicalContributionIntervalOf {
+                        minimum: S::ZERO,
+                        maximum: scalar(20.0),
+                    }),
+                },
+                "direct content remains one interval per axis for {flow_axes:?}"
+            );
+            assert_canonical_coherence(rebuilt);
+
+            let output = crate::NodeOutputOf::<S>::new().with_scroll_geometry(Some(rebuilt));
+            assert_eq!(
+                output.content_box_size(),
+                rebuilt.content_box().size(),
+                "{flow_axes:?}"
+            );
+            assert_eq!(
+                output.scrollbar_size(),
+                rebuilt.scrollbar_size(),
+                "{flow_axes:?}"
+            );
+            assert_eq!(
+                rebuilt.target().border_box(),
+                rebuilt.border_box(),
+                "{flow_axes:?}"
+            );
+            assert_eq!(
+                rebuilt.target().scroll_margin(),
+                original_target.scroll_margin()
+            );
+            assert_eq!(rebuilt.target().flow_axes(), original_target.flow_axes());
+            assert_eq!(rebuilt.target().snap_align(), original_target.snap_align());
+            assert_eq!(rebuilt.target().snap_stop(), original_target.snap_stop());
+        }
+    }
+
+    #[test]
+    fn fri05_c03_round_cache_mismatched_border_box_reapplies_terminal_padding_in_both_scalar_lanes()
+    {
+        assert_mismatched_border_box_rebuild_retains_terminal_padding::<f32>();
+        assert_mismatched_border_box_rebuild_retains_terminal_padding::<f64>();
     }
 
     fn assert_nested_padding_rounding_uses_absolute_boundaries<S: LayoutScalar>() {

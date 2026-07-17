@@ -11620,6 +11620,66 @@ fn fri05_c03_block_contribution_flex_fallback_retains_target_and_box_sources() {
 }
 
 #[test]
+fn fri05_c03_block_contribution_flex_and_grid_fallback_seed_padding_with_stable_gutters() {
+    let cases = [Display::Flex, Display::Grid].map(|display| {
+        let (root, child) = fri05_c03_block_contribution_fallback_child(
+            display,
+            computed_overflow(Overflow::Hidden, Overflow::Scroll),
+        );
+        fri05_c03_assert_block_contribution_fallback_common(root, child);
+        (display, child)
+    });
+
+    assert_eq!(
+        cases.map(|(_, child)| child.scroll_geometry.unwrap().scrollable_overflow()),
+        cases.map(|(_, child)| child.scroll_geometry.unwrap().padding_box()),
+        "flex and grid fallback must both retain their own padding and gutter area"
+    );
+
+    for (display, child) in cases {
+        let geometry = child
+            .scroll_geometry
+            .expect("the fallback child has canonical geometry");
+        assert_ne!(geometry.padding_box(), geometry.scrollport(), "{display:?}");
+        assert_ne!(
+            geometry.padding_box(),
+            geometry.content_box(),
+            "{display:?}"
+        );
+        assert_eq!(
+            (
+                geometry.physical_range().x().minimum(),
+                geometry.physical_range().x().maximum(),
+                geometry.physical_range().y().minimum(),
+                geometry.physical_range().y().maximum(),
+            ),
+            (-9.0, 0.0, 0.0, 0.0),
+            "{display:?}"
+        );
+        assert_eq!(
+            child.content_box_size(),
+            geometry.content_box().size(),
+            "{display:?}"
+        );
+        assert_eq!(
+            child.scrollbar_size(),
+            geometry.scrollbar_size(),
+            "{display:?}"
+        );
+        assert_eq!(
+            child.scrollbar_size,
+            geometry.scrollbar_size(),
+            "{display:?}"
+        );
+        assert_eq!(
+            geometry.target().border_box(),
+            geometry.border_box(),
+            "{display:?}"
+        );
+    }
+}
+
+#[test]
 fn fri05_c03_block_contribution_grid_fallback_retains_target_and_clip_sources() {
     let (root, child) = fri05_c03_block_contribution_fallback_child(
         Display::Grid,
