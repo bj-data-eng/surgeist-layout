@@ -161,55 +161,20 @@ container source.
 
 **Intended commit:** `fix(layout): unify flex scroll contributions`.
 
-### `C04-T3` Monotone Flex Auto Settlement
-**Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, and focused flex,
-root, and cache tests.
-
-**Outcome:** Execute complete flex layout inside the shared monotone settled-auto
-transition. Feed the current state into effective boxes and every speculative
-child request, rerun only when a newly added non-zero reservation changes
-available geometry, and publish/cache only the first stable pass under the
-ordinary request. Keep state bits monotone and use the C03 cache identity rather
-than a flex-local counter, tolerance, or retry limit.
-
-**RED:** Add `fri05_c04_flex_auto_`, `fri05_c04_flex_reservation_`, and
-`fri05_c04_flex_tiny_` tests first. They fail because flex performs one legacy
-reservation pass and cannot settle cross-axis induction without exposing
-speculative child output.
-
-**Acceptance:** Root and nested flex front doors prove no overflow, x-only,
-y-only, x-induces-y, y-induces-x, forced scroll, hidden stable, both-edges,
-zero thickness, and tiny saturated boxes for representative physical gutter
-sides and all ten flow mappings. At most three geometry-changing evaluations
-occur; every child/cache lookup has exact state bits; only stable node output is
-published; and cached and uncached results agree.
-
-**Commands:**
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_auto_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_reservation_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_tiny_
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
-```
-
-**Dependency:** C04-T2 supplies complete provisional overflow for the state
-transition.
-
-**Intended commit:** `feat(layout): settle flex auto scrollbars`.
-
-### `C04-T4` Flex Origins And Content-Distribution Subjects
+### `C04-T3` Flex Origins And Content-Distribution Subjects
 **Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, and focused flex and
 root tests.
 
 **Outcome:** Map the completed `FlexAxes` main and cross progression into the
 one canonical `ScrollOriginAxes`: row/column reverse makes the main origin
-flow-startward and wrap-reverse makes the cross origin flow-startward. Record
-the final in-flow main subject only when `justify_content: Some` actually applies
-without an origin-start safe fallback, and the final line cross subject only
-when `align_content: Some` applies to the formed lines. Keep these subjects
-separate from complete overflow and exclude current absolute and farther nested
-start-side geometry from start reachability.
+flow-startward and wrap-reverse makes the cross origin flow-startward. For every
+performed pass, record its final in-flow main subject only when
+`justify_content: Some` actually applies without an origin-start safe fallback,
+and its final line cross subject only when `align_content: Some` applies to the
+formed lines. Feed those facts into that pass's canonical geometry before any
+later auto observation. Keep subjects separate from complete overflow and
+exclude current absolute and farther nested start-side geometry from start
+reachability.
 
 **RED:** Add `fri05_c04_flex_origin_` and `fri05_c04_flex_alignment_` tests
 first. They fail because flex currently has ordinary size-only extent, no
@@ -230,9 +195,52 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 ```
 
-**Dependency:** C04-T3 supplies stable final placement and complete overflow.
+**Dependency:** C04-T2 supplies complete pass-local placement and overflow.
 
 **Intended commit:** `feat(layout): derive flex scroll origins and subjects`.
+
+### `C04-T4` Monotone Flex Auto Settlement
+**Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, and focused flex,
+root, and cache tests.
+
+**Outcome:** Execute complete flex layout inside the shared monotone settled-auto
+transition. Every speculative pass first derives its effective boxes, complete
+overflow, `FlexAxes` origins, and applicable final alignment subjects; only then
+does its canonical geometry produce the auto observation. Feed the current state
+into every child request, rerun only when a newly added non-zero reservation
+changes available geometry, and publish/cache only the first stable pass under
+the ordinary request. Keep state bits monotone and use the C03 cache identity
+rather than a flex-local counter, tolerance, or retry limit.
+
+**RED:** Add `fri05_c04_flex_auto_`, `fri05_c04_flex_auto_alignment_`,
+`fri05_c04_flex_reservation_`, and `fri05_c04_flex_tiny_` tests first. They fail
+because flex performs one legacy reservation pass and cannot settle cross-axis
+or start-side alignment-subject induction without exposing speculative child
+output.
+
+**Acceptance:** Root and nested flex front doors prove no overflow, x-only,
+y-only, x-induces-y, y-induces-x, start-side subject-only overflow, a subject-
+driven reservation that induces the other axis, forced scroll, hidden stable,
+both-edges, zero thickness, and tiny saturated boxes for representative physical
+gutter sides and all ten flow mappings. Each provisional observation includes
+the actual pass's origin and subjects. At most three geometry-changing
+evaluations occur; every child/cache lookup has exact state bits; only stable
+node output is published; and cached and uncached results agree.
+
+**Commands:**
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_auto_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_auto_alignment_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_reservation_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c04_flex_tiny_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+```
+
+**Dependency:** C04-T3 supplies every origin and alignment-subject fact consumed
+by the pass-local auto observation.
+
+**Intended commit:** `feat(layout): settle flex auto scrollbars`.
 
 ### `C04-T5` Flex Rounding Cache And Legacy Closure
 **Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, `src/lib_tests.rs`,
