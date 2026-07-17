@@ -1,12 +1,14 @@
 use crate::scroll::{
-    FlowRelativeScrollOffsetOf, FlowRelativeScrollRangeOf, PhysicalScrollOffsetOf,
-    PhysicalScrollRangeOf, ScrollBoxRects, ScrollCoordinateErrorOf, ScrollRectOf,
-    ScrollbarReservation, UsedOverflow, UsedOverflowGutter,
+    FlowRelativeScrollOffsetOf, FlowRelativeScrollRangeOf, OverflowClipOf, PhysicalClipAxisOf,
+    PhysicalScrollOffsetOf, PhysicalScrollRangeOf, ScrollBoxRects, ScrollCoordinateErrorOf,
+    ScrollRectErrorOf, ScrollRectOf, ScrollTargetGeometryOf, ScrollbarReservation, UsedOverflow,
+    UsedOverflowGutter,
 };
 use crate::{
-    ComputedOverflow, Direction, Edges, FlowAxes, LogicalAxis, Overflow, PhysicalAxis, Point,
-    ScrollContainerAxis, ScrollContainerFacts, ScrollGeometry, ScrollOverflowExposure, ScrollRect,
-    ScrollUnsupportedFeature, ScrollbarGutterRects, Size, WritingMode,
+    ComputedOverflow, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis, Overflow,
+    PhysicalAxis, Point, ScrollContainerAxis, ScrollContainerFacts, ScrollGeometry,
+    ScrollOverflowExposure, ScrollRect, ScrollUnsupportedFeature, ScrollbarGutterRects, Size,
+    WritingMode,
 };
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
@@ -713,6 +715,253 @@ fn physical_scroll_range_clamps_signed_offsets() {
 }
 
 #[test]
+fn fri05_c02_rect_reports_every_axis_error_and_legacy_mapping_in_both_scalar_lanes() {
+    fn assert_scalar<S: LayoutScalar>(maximum: S) {
+        let zero = S::ZERO;
+        let one = S::ONE;
+        let invalid = [
+            (
+                Point::new(S::INFINITY, zero),
+                Size::new(one, one),
+                ScrollRectErrorOf::NonFiniteOrigin {
+                    axis: PhysicalAxis::Horizontal,
+                    value: S::INFINITY,
+                },
+            ),
+            (
+                Point::new(zero, -S::INFINITY),
+                Size::new(one, one),
+                ScrollRectErrorOf::NonFiniteOrigin {
+                    axis: PhysicalAxis::Vertical,
+                    value: -S::INFINITY,
+                },
+            ),
+            (
+                Point::new(zero, zero),
+                Size::new(S::INFINITY, one),
+                ScrollRectErrorOf::NonFiniteSize {
+                    axis: PhysicalAxis::Horizontal,
+                    value: S::INFINITY,
+                },
+            ),
+            (
+                Point::new(zero, zero),
+                Size::new(one, -S::INFINITY),
+                ScrollRectErrorOf::NonFiniteSize {
+                    axis: PhysicalAxis::Vertical,
+                    value: -S::INFINITY,
+                },
+            ),
+            (
+                Point::new(zero, zero),
+                Size::new(-one, one),
+                ScrollRectErrorOf::NegativeSize {
+                    axis: PhysicalAxis::Horizontal,
+                    value: -one,
+                },
+            ),
+            (
+                Point::new(zero, zero),
+                Size::new(one, -one),
+                ScrollRectErrorOf::NegativeSize {
+                    axis: PhysicalAxis::Vertical,
+                    value: -one,
+                },
+            ),
+            (
+                Point::new(maximum, zero),
+                Size::new(maximum, one),
+                ScrollRectErrorOf::NonFiniteEnd {
+                    axis: PhysicalAxis::Horizontal,
+                    value: S::INFINITY,
+                    origin: maximum,
+                    size: maximum,
+                },
+            ),
+            (
+                Point::new(zero, maximum),
+                Size::new(one, maximum),
+                ScrollRectErrorOf::NonFiniteEnd {
+                    axis: PhysicalAxis::Vertical,
+                    value: S::INFINITY,
+                    origin: maximum,
+                    size: maximum,
+                },
+            ),
+        ];
+
+        for (origin, size, expected) in invalid {
+            assert_eq!(ScrollRectOf::try_new(origin, size), Err(expected));
+            assert_eq!(
+                ScrollRectOf::new(origin, size),
+                Err(ScrollUnsupportedFeature::InvalidScrollRect)
+            );
+        }
+    }
+
+    assert_scalar::<f32>(f32::MAX);
+    assert_scalar::<f64>(f64::MAX);
+}
+
+#[test]
+fn fri05_c02_rect_validation_precedence_is_atomic_and_axis_ordered() {
+    let cases = [
+        (
+            Point::new(f32::INFINITY, f32::NEG_INFINITY),
+            Size::new(f32::INFINITY, -1.0),
+            ScrollRectErrorOf::NonFiniteOrigin {
+                axis: PhysicalAxis::Horizontal,
+                value: f32::INFINITY,
+            },
+        ),
+        (
+            Point::new(0.0, f32::INFINITY),
+            Size::new(f32::INFINITY, -1.0),
+            ScrollRectErrorOf::NonFiniteOrigin {
+                axis: PhysicalAxis::Vertical,
+                value: f32::INFINITY,
+            },
+        ),
+        (
+            Point::ZERO,
+            Size::new(f32::INFINITY, f32::NEG_INFINITY),
+            ScrollRectErrorOf::NonFiniteSize {
+                axis: PhysicalAxis::Horizontal,
+                value: f32::INFINITY,
+            },
+        ),
+        (
+            Point::ZERO,
+            Size::new(-1.0, f32::INFINITY),
+            ScrollRectErrorOf::NonFiniteSize {
+                axis: PhysicalAxis::Vertical,
+                value: f32::INFINITY,
+            },
+        ),
+        (
+            Point::ZERO,
+            Size::new(-1.0, -2.0),
+            ScrollRectErrorOf::NegativeSize {
+                axis: PhysicalAxis::Horizontal,
+                value: -1.0,
+            },
+        ),
+        (
+            Point::new(f32::MAX, f32::MAX),
+            Size::new(f32::MAX, f32::MAX),
+            ScrollRectErrorOf::NonFiniteEnd {
+                axis: PhysicalAxis::Horizontal,
+                value: f32::INFINITY,
+                origin: f32::MAX,
+                size: f32::MAX,
+            },
+        ),
+    ];
+
+    for (origin, size, expected) in cases {
+        assert_eq!(ScrollRect::try_new(origin, size), Err(expected));
+    }
+}
+
+#[test]
+fn fri05_c02_rect_canonicalizes_every_signed_zero_in_both_scalar_lanes() {
+    let f32_rect =
+        ScrollRectOf::<f32>::try_new(Point::new(-0.0, 0.0), Size::new(-0.0, 0.0)).unwrap();
+    assert_eq!(f32_rect.origin().x.to_bits(), 0.0_f32.to_bits());
+    assert_eq!(f32_rect.origin().y.to_bits(), 0.0_f32.to_bits());
+    assert_eq!(f32_rect.size().width.to_bits(), 0.0_f32.to_bits());
+    assert_eq!(f32_rect.size().height.to_bits(), 0.0_f32.to_bits());
+
+    let f64_rect =
+        ScrollRectOf::<f64>::try_new(Point::new(0.0, -0.0), Size::new(0.0, -0.0)).unwrap();
+    assert_eq!(f64_rect.origin().x.to_bits(), 0.0_f64.to_bits());
+    assert_eq!(f64_rect.origin().y.to_bits(), 0.0_f64.to_bits());
+    assert_eq!(f64_rect.size().width.to_bits(), 0.0_f64.to_bits());
+    assert_eq!(f64_rect.size().height.to_bits(), 0.0_f64.to_bits());
+}
+
+#[test]
+fn fri05_c02_rect_allows_zero_axes_and_zero_area_without_losing_precision() {
+    fn assert_zero_rects<S: LayoutScalar>() {
+        let seven = S::from_f64(7.0);
+        for size in [
+            Size::new(S::ZERO, seven),
+            Size::new(seven, S::ZERO),
+            Size::ZERO,
+        ] {
+            assert_eq!(
+                ScrollRectOf::<S>::try_new(Point::ZERO, size)
+                    .expect("zero axes and zero area are valid")
+                    .size(),
+                size
+            );
+        }
+    }
+
+    assert_zero_rects::<f32>();
+    assert_zero_rects::<f64>();
+
+    let f32_rect =
+        ScrollRectOf::<f32>::try_new(Point::new(-1.25, 2.5), Size::new(3.75, 4.125)).unwrap();
+    assert_eq!(f32_rect.origin(), Point::new(-1.25, 2.5));
+    assert_eq!(f32_rect.size(), Size::new(3.75, 4.125));
+
+    let f64_rect = ScrollRectOf::<f64>::try_new(
+        Point::new(16_777_217.0, -0.125),
+        Size::new(0.5, 8_388_609.0),
+    )
+    .unwrap();
+    assert_eq!(f64_rect.origin(), Point::new(16_777_217.0, -0.125));
+    assert_eq!(f64_rect.size(), Size::new(0.5, 8_388_609.0));
+}
+
+#[test]
+fn fri05_c02_rect_error_traits_display_and_source_contract_are_exact() {
+    fn assert_error<T: Clone + Copy + core::fmt::Debug + PartialEq + std::error::Error>() {}
+
+    assert_error::<ScrollRectErrorOf<f32>>();
+    assert_error::<ScrollRectErrorOf<f64>>();
+
+    let errors = [
+        (
+            ScrollRectErrorOf::NonFiniteOrigin {
+                axis: PhysicalAxis::Horizontal,
+                value: f32::INFINITY,
+            },
+            "scroll rectangle horizontal origin must be finite",
+        ),
+        (
+            ScrollRectErrorOf::NonFiniteSize {
+                axis: PhysicalAxis::Vertical,
+                value: f32::INFINITY,
+            },
+            "scroll rectangle vertical size must be finite",
+        ),
+        (
+            ScrollRectErrorOf::NegativeSize {
+                axis: PhysicalAxis::Horizontal,
+                value: -1.0,
+            },
+            "scroll rectangle horizontal size must be non-negative",
+        ),
+        (
+            ScrollRectErrorOf::NonFiniteEnd {
+                axis: PhysicalAxis::Vertical,
+                value: f32::INFINITY,
+                origin: f32::MAX,
+                size: f32::MAX,
+            },
+            "scroll rectangle vertical end must be finite",
+        ),
+    ];
+
+    for (error, expected) in errors {
+        assert_eq!(error.to_string(), expected);
+        assert!(std::error::Error::source(&error).is_none());
+    }
+}
+
+#[test]
 fn scroll_rect_rejects_negative_or_non_finite_size() {
     assert_eq!(
         ScrollRect::new(Point::ZERO, Size::new(10.0, -1.0)).unwrap_err(),
@@ -722,6 +971,18 @@ fn scroll_rect_rejects_negative_or_non_finite_size() {
         ScrollRect::new(Point::new(f32::NAN, 0.0), Size::new(10.0, 1.0)).unwrap_err(),
         ScrollUnsupportedFeature::InvalidScrollRect
     );
+}
+
+#[test]
+fn fri05_c02_carrier_copy_clone_debug_partial_eq_contract_is_scalar_generic() {
+    fn assert_traits<T: Clone + Copy + core::fmt::Debug + PartialEq>() {}
+
+    assert_traits::<PhysicalClipAxisOf<f32>>();
+    assert_traits::<PhysicalClipAxisOf<f64>>();
+    assert_traits::<OverflowClipOf<f32>>();
+    assert_traits::<OverflowClipOf<f64>>();
+    assert_traits::<ScrollTargetGeometryOf<f32>>();
+    assert_traits::<ScrollTargetGeometryOf<f64>>();
 }
 
 #[test]
@@ -905,21 +1166,11 @@ fn scroll_geometry_rejects_visible_axis_with_non_zero_range() {
 }
 
 #[test]
-fn scroll_geometry_error_maps_nonfinite_layout_range_to_invalid_geometry() {
-    let error = crate::scroll::scroll_geometry_from_layout(
-        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-        computed_overflow(Overflow::Hidden, Overflow::Hidden),
-        false,
-        Size::new(f32::MAX, 1.0),
-        Edges::ZERO,
-        Edges::ZERO,
-        0.0,
-        ScrollRect::new(Point::new(f32::MAX, 0.0), Size::new(f32::MAX, 1.0))
-            .expect("finite overflow rectangle is valid"),
-    )
-    .expect_err("non-finite layout-produced range must be invalid geometry");
-
-    assert_eq!(error, ScrollUnsupportedFeature::InvalidScrollGeometry);
+fn scroll_geometry_nonfinite_range_fixture_is_rejected_at_rectangle_construction() {
+    assert_eq!(
+        ScrollRect::new(Point::new(f32::MAX, 0.0), Size::new(f32::MAX, 1.0)),
+        Err(ScrollUnsupportedFeature::InvalidScrollRect)
+    );
 }
 
 #[test]

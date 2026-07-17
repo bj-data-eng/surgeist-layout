@@ -277,6 +277,20 @@ fn scroll_geometry_core_is_scalar_generic() {
 }
 
 #[test]
+fn fri05_c02_carrier_public_aliases_and_generic_traits_are_available() {
+    fn assert_traits<T: Clone + Copy + core::fmt::Debug + PartialEq>() {}
+
+    assert_traits::<crate::PhysicalClipAxis>();
+    assert_traits::<crate::PhysicalClipAxisOf<f64>>();
+    assert_traits::<crate::OverflowClip>();
+    assert_traits::<crate::OverflowClipOf<f64>>();
+    assert_traits::<crate::ScrollTargetGeometry>();
+    assert_traits::<crate::ScrollTargetGeometryOf<f64>>();
+    assert_traits::<crate::ScrollRectError>();
+    assert_traits::<crate::ScrollRectErrorOf<f64>>();
+}
+
+#[test]
 fn scroll_geometry_public_surface_uses_signed_physical_ranges() {
     fn assert_scalar<S: crate::LayoutScalar>() {
         let flow_axes = crate::FlowAxes::new(crate::WritingMode::VerticalRl, crate::Direction::Rtl);

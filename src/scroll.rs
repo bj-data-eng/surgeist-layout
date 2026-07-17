@@ -1,6 +1,6 @@
 use super::{
     ComputedOverflow, DefaultScalar, Direction, Edges, FlowAxes, LayoutScalar, LogicalAxis,
-    Overflow, PhysicalAxis, Point, Size,
+    Overflow, PhysicalAxis, Point, ScrollMarginOf, ScrollSnapAlign, ScrollSnapStop, Size,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -88,6 +88,58 @@ impl UsedOverflow {
     }
 }
 
+/// Atomic construction error for a finite physical scroll rectangle.
+///
+/// Every variant identifies the physical axis and rejected scalar. A
+/// non-finite end additionally preserves the finite origin and size whose sum
+/// overflowed.
+///
+/// ```compile_fail
+/// use surgeist_layout::ScrollRectError;
+/// let _ = ScrollRectError::default();
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ScrollRectErrorOf<S: LayoutScalar = DefaultScalar> {
+    NonFiniteOrigin {
+        axis: PhysicalAxis,
+        value: S,
+    },
+    NonFiniteSize {
+        axis: PhysicalAxis,
+        value: S,
+    },
+    NegativeSize {
+        axis: PhysicalAxis,
+        value: S,
+    },
+    NonFiniteEnd {
+        axis: PhysicalAxis,
+        value: S,
+        origin: S,
+        size: S,
+    },
+}
+
+pub type ScrollRectError = ScrollRectErrorOf<DefaultScalar>;
+
+impl<S: LayoutScalar> core::fmt::Display for ScrollRectErrorOf<S> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let (axis, message) = match self {
+            Self::NonFiniteOrigin { axis, .. } => (*axis, "origin must be finite"),
+            Self::NonFiniteSize { axis, .. } => (*axis, "size must be finite"),
+            Self::NegativeSize { axis, .. } => (*axis, "size must be non-negative"),
+            Self::NonFiniteEnd { axis, .. } => (*axis, "end must be finite"),
+        };
+        let axis = match axis {
+            PhysicalAxis::Horizontal => "horizontal",
+            PhysicalAxis::Vertical => "vertical",
+        };
+        write!(f, "scroll rectangle {axis} {message}")
+    }
+}
+
+impl<S: LayoutScalar> std::error::Error for ScrollRectErrorOf<S> {}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollRectOf<S: LayoutScalar = DefaultScalar> {
     origin: Point<S>,
@@ -98,17 +150,76 @@ pub type ScrollRect = ScrollRectOf<DefaultScalar>;
 
 impl<S: LayoutScalar> ScrollRectOf<S> {
     pub fn new(origin: Point<S>, size: Size<S>) -> Result<Self, ScrollUnsupportedFeature> {
-        if !origin.x.is_finite()
-            || !origin.y.is_finite()
-            || !size.width.is_finite()
-            || !size.height.is_finite()
-            || size.width < S::ZERO
-            || size.height < S::ZERO
-        {
-            return Err(ScrollUnsupportedFeature::InvalidScrollRect);
+        Self::try_new(origin, size).map_err(|_| ScrollUnsupportedFeature::InvalidScrollRect)
+    }
+
+    pub fn try_new(origin: Point<S>, size: Size<S>) -> Result<Self, ScrollRectErrorOf<S>> {
+        if !origin.x.is_finite() {
+            return Err(ScrollRectErrorOf::NonFiniteOrigin {
+                axis: PhysicalAxis::Horizontal,
+                value: origin.x,
+            });
+        }
+        if !origin.y.is_finite() {
+            return Err(ScrollRectErrorOf::NonFiniteOrigin {
+                axis: PhysicalAxis::Vertical,
+                value: origin.y,
+            });
+        }
+        if !size.width.is_finite() {
+            return Err(ScrollRectErrorOf::NonFiniteSize {
+                axis: PhysicalAxis::Horizontal,
+                value: size.width,
+            });
+        }
+        if !size.height.is_finite() {
+            return Err(ScrollRectErrorOf::NonFiniteSize {
+                axis: PhysicalAxis::Vertical,
+                value: size.height,
+            });
+        }
+        if size.width < S::ZERO {
+            return Err(ScrollRectErrorOf::NegativeSize {
+                axis: PhysicalAxis::Horizontal,
+                value: size.width,
+            });
+        }
+        if size.height < S::ZERO {
+            return Err(ScrollRectErrorOf::NegativeSize {
+                axis: PhysicalAxis::Vertical,
+                value: size.height,
+            });
         }
 
-        Ok(Self { origin, size })
+        let x_end = origin.x + size.width;
+        if !x_end.is_finite() {
+            return Err(ScrollRectErrorOf::NonFiniteEnd {
+                axis: PhysicalAxis::Horizontal,
+                value: x_end,
+                origin: origin.x,
+                size: size.width,
+            });
+        }
+        let y_end = origin.y + size.height;
+        if !y_end.is_finite() {
+            return Err(ScrollRectErrorOf::NonFiniteEnd {
+                axis: PhysicalAxis::Vertical,
+                value: y_end,
+                origin: origin.y,
+                size: size.height,
+            });
+        }
+
+        Ok(Self {
+            origin: Point::new(
+                canonical_scroll_zero(origin.x),
+                canonical_scroll_zero(origin.y),
+            ),
+            size: Size::new(
+                canonical_scroll_zero(size.width),
+                canonical_scroll_zero(size.height),
+            ),
+        })
     }
 
     #[must_use]
@@ -119,6 +230,155 @@ impl<S: LayoutScalar> ScrollRectOf<S> {
     #[must_use]
     pub const fn size(self) -> Size<S> {
         self.size
+    }
+}
+
+/// A finite ordered physical clip interval.
+///
+/// Construction is crate-private so callers cannot create or mutate an
+/// interval that violates its ordering or finite-value invariant.
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalClipAxis;
+/// let _ = PhysicalClipAxis { range: todo!() };
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalClipAxis;
+/// fn mutate(mut value: PhysicalClipAxis) { value.range = todo!(); }
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalClipAxis;
+/// let _ = PhysicalClipAxis::try_new(0.0, 1.0);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::PhysicalClipAxis;
+/// let _ = PhysicalClipAxis::default();
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PhysicalClipAxisOf<S: LayoutScalar = DefaultScalar> {
+    range: PhysicalScrollAxisRangeOf<S>,
+}
+
+pub type PhysicalClipAxis = PhysicalClipAxisOf<DefaultScalar>;
+
+impl<S: LayoutScalar> PhysicalClipAxisOf<S> {
+    #[must_use]
+    pub const fn minimum(self) -> S {
+        self.range.minimum()
+    }
+
+    #[must_use]
+    pub const fn maximum(self) -> S {
+        self.range.maximum()
+    }
+}
+
+/// Independent optional finite clip intervals for physical x and y axes.
+///
+/// ```compile_fail
+/// use surgeist_layout::OverflowClip;
+/// let _ = OverflowClip { x: None, y: None };
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::OverflowClip;
+/// fn mutate(mut value: OverflowClip) { value.x = None; }
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::OverflowClip;
+/// let _ = OverflowClip::new(None, None);
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::OverflowClip;
+/// let _ = OverflowClip::default();
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OverflowClipOf<S: LayoutScalar = DefaultScalar> {
+    x: Option<PhysicalClipAxisOf<S>>,
+    y: Option<PhysicalClipAxisOf<S>>,
+}
+
+pub type OverflowClip = OverflowClipOf<DefaultScalar>;
+
+impl<S: LayoutScalar> OverflowClipOf<S> {
+    #[must_use]
+    pub const fn x(self) -> Option<PhysicalClipAxisOf<S>> {
+        self.x
+    }
+
+    #[must_use]
+    pub const fn y(self) -> Option<PhysicalClipAxisOf<S>> {
+        self.y
+    }
+}
+
+/// Immutable layout-produced geometry and metadata for one scroll target.
+///
+/// ```compile_fail
+/// use surgeist_layout::ScrollTargetGeometry;
+/// let _ = ScrollTargetGeometry {
+///     border_box: todo!(),
+///     scroll_margin: todo!(),
+///     flow_axes: todo!(),
+///     snap_align: todo!(),
+///     snap_stop: todo!(),
+/// };
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::{FlowAxes, ScrollTargetGeometry};
+/// fn mutate(mut value: ScrollTargetGeometry, axes: FlowAxes) { value.flow_axes = axes; }
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::ScrollTargetGeometry;
+/// let _ = ScrollTargetGeometry::new();
+/// ```
+///
+/// ```compile_fail
+/// use surgeist_layout::ScrollTargetGeometry;
+/// let _ = ScrollTargetGeometry::default();
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollTargetGeometryOf<S: LayoutScalar = DefaultScalar> {
+    border_box: ScrollRectOf<S>,
+    scroll_margin: ScrollMarginOf<S>,
+    flow_axes: FlowAxes,
+    snap_align: ScrollSnapAlign,
+    snap_stop: ScrollSnapStop,
+}
+
+pub type ScrollTargetGeometry = ScrollTargetGeometryOf<DefaultScalar>;
+
+impl<S: LayoutScalar> ScrollTargetGeometryOf<S> {
+    #[must_use]
+    pub const fn border_box(self) -> ScrollRectOf<S> {
+        self.border_box
+    }
+
+    #[must_use]
+    pub const fn scroll_margin(self) -> ScrollMarginOf<S> {
+        self.scroll_margin
+    }
+
+    #[must_use]
+    pub const fn flow_axes(self) -> FlowAxes {
+        self.flow_axes
+    }
+
+    #[must_use]
+    pub const fn snap_align(self) -> ScrollSnapAlign {
+        self.snap_align
+    }
+
+    #[must_use]
+    pub const fn snap_stop(self) -> ScrollSnapStop {
+        self.snap_stop
     }
 }
 
@@ -1321,4 +1581,137 @@ fn round_scroll_rect<S: LayoutScalar>(
 
 fn round<S: LayoutScalar>(value: S) -> S {
     (value + S::from_f64(0.5)).floor()
+}
+
+#[cfg(test)]
+mod fri05_c02_carrier_tests {
+    use super::*;
+    use crate::{Direction, ScrollSnapAlignValue, WritingMode};
+
+    fn clip_axis<S: LayoutScalar>(
+        axis: PhysicalAxis,
+        minimum: S,
+        maximum: S,
+    ) -> PhysicalClipAxisOf<S> {
+        let range = match axis {
+            PhysicalAxis::Horizontal => {
+                PhysicalScrollRangeOf::try_new(minimum, maximum, S::ZERO, S::ZERO)
+                    .map(PhysicalScrollRangeOf::x)
+            }
+            PhysicalAxis::Vertical => {
+                PhysicalScrollRangeOf::try_new(S::ZERO, S::ZERO, minimum, maximum)
+                    .map(PhysicalScrollRangeOf::y)
+            }
+        }
+        .expect("test clip source must be a finite ordered physical range");
+        PhysicalClipAxisOf { range }
+    }
+
+    #[test]
+    fn fri05_c02_carrier_clip_axes_are_finite_ordered_and_scalar_generic() {
+        fn assert_scalar<S: LayoutScalar>() {
+            let minimum = -S::from_f64(4.5);
+            let maximum = S::from_f64(9.25);
+            for axis in [PhysicalAxis::Horizontal, PhysicalAxis::Vertical] {
+                let interval = clip_axis(axis, minimum, maximum);
+                assert_eq!(interval.minimum(), minimum);
+                assert_eq!(interval.maximum(), maximum);
+            }
+
+            assert!(
+                PhysicalScrollRangeOf::<S>::try_new(S::INFINITY, maximum, S::ZERO, S::ZERO,)
+                    .is_err()
+            );
+            assert!(
+                PhysicalScrollRangeOf::<S>::try_new(minimum, S::INFINITY, S::ZERO, S::ZERO,)
+                    .is_err()
+            );
+            assert!(
+                PhysicalScrollRangeOf::<S>::try_new(maximum, minimum, S::ZERO, S::ZERO,).is_err()
+            );
+        }
+
+        assert_scalar::<f32>();
+        assert_scalar::<f64>();
+
+        let zero = clip_axis(PhysicalAxis::Horizontal, -0.0_f32, -0.0_f32);
+        assert_eq!(zero.minimum().to_bits(), 0.0_f32.to_bits());
+        assert_eq!(zero.maximum().to_bits(), 0.0_f32.to_bits());
+    }
+
+    #[test]
+    fn fri05_c02_carrier_overflow_clip_keeps_axes_independently_optional() {
+        fn assert_scalar<S: LayoutScalar>() {
+            let x = clip_axis(
+                PhysicalAxis::Horizontal,
+                -S::from_f64(3.0),
+                S::from_f64(11.0),
+            );
+            let y = clip_axis(PhysicalAxis::Vertical, S::from_f64(5.0), S::from_f64(17.0));
+
+            let x_only = OverflowClipOf {
+                x: Some(x),
+                y: None,
+            };
+            assert_eq!(x_only.x(), Some(x));
+            assert_eq!(x_only.y(), None);
+
+            let y_only = OverflowClipOf {
+                x: None,
+                y: Some(y),
+            };
+            assert_eq!(y_only.x(), None);
+            assert_eq!(y_only.y(), Some(y));
+
+            let both = OverflowClipOf {
+                x: Some(x),
+                y: Some(y),
+            };
+            assert_eq!((both.x(), both.y()), (Some(x), Some(y)));
+
+            let neither = OverflowClipOf::<S> { x: None, y: None };
+            assert_eq!((neither.x(), neither.y()), (None, None));
+        }
+
+        assert_scalar::<f32>();
+        assert_scalar::<f64>();
+    }
+
+    #[test]
+    fn fri05_c02_carrier_target_retains_exact_layout_metadata_in_both_scalar_lanes() {
+        fn assert_scalar<S: LayoutScalar>() {
+            let border_box = ScrollRectOf::<S>::try_new(
+                Point::new(-S::from_f64(2.0), S::from_f64(3.5)),
+                Size::new(S::from_f64(40.25), S::from_f64(19.75)),
+            )
+            .unwrap();
+            let scroll_margin = ScrollMarginOf::<S>::try_new(
+                -S::from_f64(1.0),
+                S::from_f64(2.0),
+                -S::from_f64(3.0),
+                S::from_f64(4.0),
+            )
+            .unwrap();
+            let flow_axes = FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl);
+            let snap_align =
+                ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+            let snap_stop = ScrollSnapStop::Always;
+            let target = ScrollTargetGeometryOf {
+                border_box,
+                scroll_margin,
+                flow_axes,
+                snap_align,
+                snap_stop,
+            };
+
+            assert_eq!(target.border_box(), border_box);
+            assert_eq!(target.scroll_margin(), scroll_margin);
+            assert_eq!(target.flow_axes(), flow_axes);
+            assert_eq!(target.snap_align(), snap_align);
+            assert_eq!(target.snap_stop(), snap_stop);
+        }
+
+        assert_scalar::<f32>();
+        assert_scalar::<f64>();
+    }
 }

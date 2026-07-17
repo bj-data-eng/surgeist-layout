@@ -169,12 +169,13 @@ pub(crate) use output::{RequestedAxis, RunMode, SizingMode};
 pub use scalar::LayoutScalar;
 pub use scroll::{
     FlowRelativeScrollAxisRange, FlowRelativeScrollAxisRangeOf, FlowRelativeScrollOffset,
-    FlowRelativeScrollOffsetOf, FlowRelativeScrollRange, FlowRelativeScrollRangeOf,
-    PhysicalScrollAxisRange, PhysicalScrollAxisRangeOf, PhysicalScrollOffset,
-    PhysicalScrollOffsetOf, PhysicalScrollRange, PhysicalScrollRangeOf, ScrollContainerAxis,
-    ScrollContainerFacts, ScrollCoordinateError, ScrollCoordinateErrorOf, ScrollGeometry,
-    ScrollGeometryOf, ScrollOverflowExposure, ScrollRect, ScrollRectOf, ScrollUnsupportedFeature,
-    ScrollbarGutterRects, ScrollbarGutterRectsOf,
+    FlowRelativeScrollOffsetOf, FlowRelativeScrollRange, FlowRelativeScrollRangeOf, OverflowClip,
+    OverflowClipOf, PhysicalClipAxis, PhysicalClipAxisOf, PhysicalScrollAxisRange,
+    PhysicalScrollAxisRangeOf, PhysicalScrollOffset, PhysicalScrollOffsetOf, PhysicalScrollRange,
+    PhysicalScrollRangeOf, ScrollContainerAxis, ScrollContainerFacts, ScrollCoordinateError,
+    ScrollCoordinateErrorOf, ScrollGeometry, ScrollGeometryOf, ScrollOverflowExposure, ScrollRect,
+    ScrollRectError, ScrollRectErrorOf, ScrollRectOf, ScrollTargetGeometry, ScrollTargetGeometryOf,
+    ScrollUnsupportedFeature, ScrollbarGutterRects, ScrollbarGutterRectsOf,
 };
 pub use sizing::{
     CalcSizeCalculation, CalcSizeCalculationErrorOf, CalcSizeCalculationOf,

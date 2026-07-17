@@ -24,8 +24,6 @@ fn fri05_c01_node_input_removed_phase_unsafe_surfaces_are_absent_from_public_sou
         concat!("ScrollbarGutter", "Stable"),
         concat!("ScrollbarGutter", "BothEdges"),
         concat!("Scroll", "Padding"),
-        concat!("Scroll", "Margin"),
-        concat!("Scroll", "Snap"),
         concat!("LayoutOwnedMixedAxisOverflow", "Coupling"),
     ] {
         assert!(!scroll.contains(removed_variant));
@@ -97,6 +95,174 @@ fn fri05_c01_scroll_input_public_aliases_and_reexports_compose() {
     assert_eq!(generic_clip.margin(), 5.0);
     assert!(generic_padding.top().is_auto());
     assert_eq!(generic_margin.left(), 0.0);
+}
+
+#[test]
+fn fri05_c02_carrier_public_aliases_reexports_and_rect_error_compose() {
+    use crate::{
+        OverflowClip, OverflowClipOf, PhysicalClipAxis, PhysicalClipAxisOf, ScrollRect,
+        ScrollRectError, ScrollRectErrorOf, ScrollTargetGeometry, ScrollTargetGeometryOf,
+    };
+
+    fn accept_default_carriers(
+        _: Option<PhysicalClipAxis>,
+        _: Option<OverflowClip>,
+        _: Option<ScrollTargetGeometry>,
+    ) {
+    }
+    fn accept_generic_carriers(
+        _: Option<PhysicalClipAxisOf<f64>>,
+        _: Option<OverflowClipOf<f64>>,
+        _: Option<ScrollTargetGeometryOf<f64>>,
+    ) {
+    }
+
+    accept_default_carriers(None, None, None);
+    accept_generic_carriers(None, None, None);
+
+    let error: ScrollRectError =
+        ScrollRect::try_new(Point::new(f32::MAX, 0.0), Size::new(f32::MAX, 0.0))
+            .expect_err("default-scalar rectangle error alias");
+    assert_eq!(
+        error,
+        ScrollRectErrorOf::NonFiniteEnd {
+            axis: PhysicalAxis::Horizontal,
+            value: f32::INFINITY,
+            origin: f32::MAX,
+            size: f32::MAX,
+        }
+    );
+
+    let generic_error: ScrollRectErrorOf<f64> =
+        crate::ScrollRectOf::try_new(Point::new(0.0, f64::MAX), Size::new(0.0, f64::MAX))
+            .expect_err("generic rectangle error reexport");
+    assert_eq!(
+        generic_error,
+        ScrollRectErrorOf::NonFiniteEnd {
+            axis: PhysicalAxis::Vertical,
+            value: f64::INFINITY,
+            origin: f64::MAX,
+            size: f64::MAX,
+        }
+    );
+}
+
+#[test]
+fn fri05_c02_carrier_private_fields_constructors_and_no_default_are_static() {
+    fn between<'a>(source: &'a str, start: &str, end: &str) -> &'a str {
+        source
+            .split_once(start)
+            .expect("start marker")
+            .1
+            .split_once(end)
+            .expect("end marker")
+            .0
+    }
+
+    let scroll = include_str!("scroll.rs");
+    let public_front_door = include_str!("lib.rs");
+    let carrier_sections = [
+        (
+            "PhysicalClipAxisOf",
+            between(
+                scroll,
+                "pub struct PhysicalClipAxisOf",
+                "pub struct OverflowClipOf",
+            ),
+        ),
+        (
+            "OverflowClipOf",
+            between(
+                scroll,
+                "pub struct OverflowClipOf",
+                "pub struct ScrollTargetGeometryOf",
+            ),
+        ),
+        (
+            "ScrollTargetGeometryOf",
+            between(
+                scroll,
+                "pub struct ScrollTargetGeometryOf",
+                "/// Construction error for a signed physical or flow-relative scroll coordinate.",
+            ),
+        ),
+    ];
+
+    for (type_name, section) in carrier_sections {
+        let fields = section
+            .split_once('{')
+            .expect("carrier fields begin")
+            .1
+            .split_once('}')
+            .expect("carrier fields end")
+            .0;
+        assert!(!fields.contains("pub "), "{type_name} fields stay private");
+        for public_constructor in [
+            "pub fn new(",
+            "pub const fn new(",
+            "pub fn try_new(",
+            "pub const fn try_new(",
+        ] {
+            assert!(
+                !section.contains(public_constructor),
+                "{type_name} has no public constructor"
+            );
+        }
+        assert!(
+            !scroll.contains(&format!("Default for {type_name}")),
+            "{type_name} has no Default implementation"
+        );
+
+        let declaration = format!("pub struct {type_name}");
+        let declaration_index = scroll.find(&declaration).expect("carrier declaration");
+        let derive_start = scroll[..declaration_index]
+            .rfind("#[derive(")
+            .expect("carrier derive");
+        let derive = &scroll[derive_start..declaration_index];
+        assert!(
+            !derive.contains("Default"),
+            "{type_name} does not derive Default"
+        );
+    }
+
+    for public_name in [
+        "PhysicalClipAxisOf",
+        "PhysicalClipAxis",
+        "OverflowClipOf",
+        "OverflowClip",
+        "ScrollTargetGeometryOf",
+        "ScrollTargetGeometry",
+        "ScrollRectErrorOf",
+        "ScrollRectError",
+    ] {
+        assert!(
+            public_front_door.contains(public_name),
+            "{public_name} is reexported"
+        );
+    }
+}
+
+#[test]
+fn fri05_c02_rect_legacy_wrapper_has_one_static_validation_path() {
+    let scroll = include_str!("scroll.rs");
+    let rect_impl = scroll
+        .split_once("impl<S: LayoutScalar> ScrollRectOf<S> {")
+        .expect("rectangle implementation")
+        .1
+        .split_once("/// A finite ordered physical clip interval.")
+        .expect("rectangle implementation end")
+        .0;
+    let legacy_new = rect_impl
+        .split_once("pub fn new(")
+        .expect("legacy constructor")
+        .1
+        .split_once("pub fn try_new(")
+        .expect("typed constructor")
+        .0;
+
+    assert_eq!(legacy_new.matches("Self::try_new(origin, size)").count(), 1);
+    assert!(!legacy_new.contains("is_finite"));
+    assert!(!legacy_new.contains("< S::ZERO"));
 }
 
 #[test]
