@@ -27,7 +27,7 @@ use crate::scroll::{
     ScrollContributionAccumulatorOf, ScrollContributionErrorOf, ScrollOriginAxes,
     ScrollOriginProgression, ScrollUnsupportedFeature, UsedOverflow,
     canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
-    scroll_geometry_from_layout, scrollbar_size_from_overflow,
+    scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -2511,29 +2511,60 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
         return Ok(geometry);
     }
 
-    let base = crate::scroll::scrollable_overflow_from_layout_content_size(
-        style.direction,
-        UsedOverflow::from_computed(style.overflow, style.item_is_replaced),
-        size,
-        padding,
+    let flow_axes = crate::FlowAxes::new(style.writing_mode, style.direction);
+    let settled_auto_scrollbars = crate::scroll::SettledAutoScrollbarState::INITIAL;
+    let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+        flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: size,
         border,
-        style.scrollbar_width.get(),
+        padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars,
+    })
+    .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
+    let direct_overflow = crate::scroll::scrollable_overflow_from_content_size(
+        scroll_box.content_box(),
         content_size,
     )?;
-    let scrollable_overflow = match child_compute_geometry {
-        Some(geometry) => crate::scroll::scroll_rect_union(base, geometry.scrollable_overflow())?,
-        None => base,
-    };
-    scroll_geometry_from_layout(
-        crate::FlowAxes::new(style.writing_mode, style.direction),
-        style.overflow,
-        style.item_is_replaced,
-        size,
-        padding,
+    let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.scrollport());
+    contributions.include_direct_line(direct_overflow);
+    if let Some(geometry) = child_compute_geometry {
+        contributions.include_direct_line(geometry.scrollable_overflow());
+    }
+    let target_border_box = super::ScrollRectOf::try_new(Point::ZERO, size)
+        .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)?;
+
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: size,
         border,
-        style.scrollbar_width.get(),
-        scrollable_overflow,
-    )
+        padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars,
+        clip_margin: ClipMarginSourceOf::new(
+            style.overflow_clip_margin.clip_box(),
+            style.overflow_clip_margin.margin(),
+        ),
+        scroll_padding: block_scroll_padding(style.scroll_padding),
+        contributions,
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: style.scroll_snap_type,
+        target_border_box,
+        target_scroll_margin: style.scroll_margin,
+        target_flow_axes: flow_axes,
+        target_snap_align: style.scroll_snap_align,
+        target_snap_stop: style.scroll_snap_stop,
+    })
+    .map_err(|_| ScrollUnsupportedFeature::InvalidScrollGeometry)
 }
 
 fn max_content_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {

@@ -11370,6 +11370,265 @@ fn fri05_c03_block_contribution_current_sources_retain_targets_and_union_content
     }
 }
 
+fn fri05_c03_block_contribution_fallback_child(
+    display: Display,
+    overflow: ComputedOverflow,
+) -> (NodeOutput, NodeOutput) {
+    let scroll_padding = ScrollPadding::new(
+        ScrollPaddingValue::value(LengthPercentageOf::px(2.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(4.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(3.0).unwrap()),
+        ScrollPaddingValue::value(LengthPercentageOf::px(1.0).unwrap()),
+    );
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display,
+                writing_mode: WritingMode::HorizontalTb,
+                direction: Direction::Rtl,
+                overflow,
+                overflow_clip_margin: OverflowClipMargin::try_new(OverflowClipBox::BorderBox, 3.0)
+                    .unwrap(),
+                scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+                scrollbar_width: ScrollbarWidth::try_new(9.0).unwrap(),
+                size: Size::new(PreferredSize::px(80.0), PreferredSize::px(60.0)),
+                border: Edges::new(
+                    Length::px(1.0),
+                    Length::px(2.0),
+                    Length::px(3.0),
+                    Length::px(4.0),
+                ),
+                padding: Edges::new(
+                    Length::px(5.0),
+                    Length::px(6.0),
+                    Length::px(7.0),
+                    Length::px(8.0),
+                ),
+                margin: Edges::new(
+                    LengthAuto::px(2.0),
+                    LengthAuto::px(3.0),
+                    LengthAuto::px(4.0),
+                    LengthAuto::px(5.0),
+                ),
+                scroll_padding,
+                scroll_margin: ScrollMargin::try_new(1.0, -2.0, 3.0, -4.0).unwrap(),
+                scroll_snap_type: ScrollSnapType::Enabled {
+                    axis: ScrollSnapAxis::Block,
+                    strictness: ScrollSnapStrictness::Mandatory,
+                },
+                scroll_snap_align: ScrollSnapAlign::new(
+                    ScrollSnapAlignValue::End,
+                    ScrollSnapAlignValue::Center,
+                ),
+                scroll_snap_stop: ScrollSnapStop::Always,
+                ..NodeInput::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::splat(Available::definite(200.0))).unwrap(),
+    )
+    .expect("a block stages fallback geometry for its flex/grid child");
+
+    assert_eq!(
+        batch
+            .final_entries()
+            .iter()
+            .filter(|entry| entry.node() == 1)
+            .count(),
+        1,
+        "the direct child is staged exactly once"
+    );
+    (
+        public_final_output(&batch, 0),
+        public_final_output(&batch, 1),
+    )
+}
+
+fn fri05_c03_assert_block_contribution_fallback_common(root: NodeOutput, child: NodeOutput) {
+    let geometry = child
+        .scroll_geometry
+        .expect("a performed block-owned child has canonical geometry");
+    let target = geometry.target();
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl);
+    let scroll_margin = ScrollMargin::try_new(1.0, -2.0, 3.0, -4.0).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
+
+    assert_eq!(geometry.flow_axes(), flow_axes);
+    assert_eq!(geometry.border_box().origin(), Point::ZERO);
+    assert_eq!(geometry.border_box().size(), child.size);
+    assert_eq!(
+        geometry.padding_box(),
+        ScrollRect::try_new(
+            Point::new(child.border.left, child.border.top),
+            Size::new(
+                child.size.width - child.border.horizontal_sum(),
+                child.size.height - child.border.vertical_sum(),
+            ),
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        geometry.resolved_scroll_padding(),
+        Edges::new(2.0, 4.0, 3.0, 1.0)
+    );
+    assert_eq!(
+        geometry.scroll_snap_type(),
+        ScrollSnapType::Enabled {
+            axis: ScrollSnapAxis::Block,
+            strictness: ScrollSnapStrictness::Mandatory,
+        }
+    );
+    assert_eq!(target.border_box(), geometry.border_box());
+    assert_eq!(target.scroll_margin(), scroll_margin);
+    assert_eq!(target.flow_axes(), flow_axes);
+    assert_eq!(target.snap_align(), snap_align);
+    assert_eq!(target.snap_stop(), ScrollSnapStop::Always);
+
+    let root_geometry = root
+        .scroll_geometry
+        .expect("the performed block root has canonical geometry");
+    let seed = root_geometry.padding_box();
+    let seed_origin = seed.origin();
+    let seed_size = seed.size();
+    let contribution_origin = Point::new(
+        child.location.x - child.margin.left.max(0.0),
+        child.location.y - child.margin.top.max(0.0),
+    );
+    let contribution_end = Point::new(
+        child.location.x + child.size.width + child.margin.right.max(0.0),
+        child.location.y + child.size.height + child.margin.bottom.max(0.0),
+    );
+    let expected_origin = Point::new(
+        seed_origin.x.min(contribution_origin.x),
+        seed_origin.y.min(contribution_origin.y),
+    );
+    let expected_end = Point::new(
+        (seed_origin.x + seed_size.width).max(contribution_end.x),
+        (seed_origin.y + seed_size.height).max(contribution_end.y),
+    );
+    let expected_overflow = ScrollRect::try_new(
+        expected_origin,
+        Size::new(
+            expected_end.x - expected_origin.x,
+            expected_end.y - expected_origin.y,
+        ),
+    )
+    .unwrap();
+    assert_eq!(root_geometry.scrollable_overflow(), expected_overflow);
+    assert_eq!(root.content_size, fri05_c03_block_union_content_size(root));
+}
+
+#[test]
+fn fri05_c03_block_contribution_flex_fallback_retains_target_and_box_sources() {
+    let (root, child) = fri05_c03_block_contribution_fallback_child(
+        Display::Flex,
+        computed_overflow(Overflow::Hidden, Overflow::Scroll),
+    );
+    fri05_c03_assert_block_contribution_fallback_common(root, child);
+
+    let geometry = child.scroll_geometry.unwrap();
+    let padding_box = geometry.padding_box();
+    let expected_scrollport = ScrollRect::try_new(
+        Point::new(padding_box.origin().x + 9.0, padding_box.origin().y),
+        Size::new(padding_box.size().width - 18.0, padding_box.size().height),
+    )
+    .unwrap();
+    assert_eq!(geometry.scrollport(), expected_scrollport);
+    assert_eq!(geometry.scrollbar_size(), Size::new(18.0, 0.0));
+    assert_eq!(geometry.gutters().top(), None);
+    assert_eq!(geometry.gutters().bottom(), None);
+    assert_eq!(geometry.gutters().left().unwrap().size().width, 9.0);
+    assert_eq!(geometry.gutters().right().unwrap().size().width, 9.0);
+    let x_clip = geometry.overflow_clip().x().unwrap();
+    let y_clip = geometry.overflow_clip().y().unwrap();
+    assert_eq!(
+        (x_clip.minimum(), x_clip.maximum()),
+        (
+            expected_scrollport.origin().x,
+            expected_scrollport.origin().x + expected_scrollport.size().width,
+        )
+    );
+    assert_eq!(
+        (y_clip.minimum(), y_clip.maximum()),
+        (
+            expected_scrollport.origin().y,
+            expected_scrollport.origin().y + expected_scrollport.size().height,
+        )
+    );
+    assert_eq!(geometry.used_overflow_x(), Overflow::Hidden);
+    assert_eq!(geometry.used_overflow_y(), Overflow::Scroll);
+    assert_eq!(
+        geometry.content_box(),
+        ScrollRect::try_new(
+            Point::new(
+                expected_scrollport.origin().x + child.padding.left,
+                expected_scrollport.origin().y + child.padding.top,
+            ),
+            Size::new(
+                expected_scrollport.size().width - child.padding.horizontal_sum(),
+                expected_scrollport.size().height - child.padding.vertical_sum(),
+            ),
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn fri05_c03_block_contribution_grid_fallback_retains_target_and_clip_sources() {
+    let (root, child) = fri05_c03_block_contribution_fallback_child(
+        Display::Grid,
+        computed_overflow(Overflow::Clip, Overflow::Visible),
+    );
+    fri05_c03_assert_block_contribution_fallback_common(root, child);
+
+    let geometry = child.scroll_geometry.unwrap();
+    assert_eq!(geometry.scrollport(), geometry.padding_box());
+    assert_eq!(geometry.scrollbar_size(), Size::ZERO);
+    assert_eq!(geometry.gutters().top(), None);
+    assert_eq!(geometry.gutters().right(), None);
+    assert_eq!(geometry.gutters().bottom(), None);
+    assert_eq!(geometry.gutters().left(), None);
+    let x_clip = geometry
+        .overflow_clip()
+        .x()
+        .expect("the child's x clip retains its border-box clip margin");
+    assert_eq!(
+        (x_clip.minimum(), x_clip.maximum()),
+        (-3.0, child.size.width + 3.0)
+    );
+    assert_eq!(geometry.overflow_clip().y(), None);
+    assert_eq!(geometry.used_overflow_x(), Overflow::Clip);
+    assert_eq!(geometry.used_overflow_y(), Overflow::Visible);
+    assert_eq!(
+        geometry.content_box(),
+        ScrollRect::try_new(
+            Point::new(
+                geometry.scrollport().origin().x + child.padding.left,
+                geometry.scrollport().origin().y + child.padding.top,
+            ),
+            Size::new(
+                geometry.scrollport().size().width - child.padding.horizontal_sum(),
+                geometry.scrollport().size().height - child.padding.vertical_sum(),
+            ),
+        )
+        .unwrap()
+    );
+}
+
 #[test]
 fn fri05_c03_block_contribution_terminal_padding_extends_final_in_flow_ends() {
     let tree = PublicBlockTree::default()
