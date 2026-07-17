@@ -7785,15 +7785,15 @@ fn orthogonal_child_fixed_parent_height_remains_definite_f64() {
     assert_orthogonal_child_fixed_parent_height_remains_definite::<f64>();
 }
 
-struct Fri05C03MeasuredLeafTree {
-    style: NodeInput,
-    measured: Size<f32>,
-    measurement_inputs: RefCell<Vec<LeafMeasureInput>>,
+struct Fri05C03MeasuredLeafTree<S: LayoutScalar = f32> {
+    style: NodeInputOf<S>,
+    measured: Size<S>,
+    measurement_inputs: RefCell<Vec<LeafMeasureInputOf<S>>>,
 }
 
-impl Traverse for Fri05C03MeasuredLeafTree {
+impl<S: LayoutScalar> Traverse for Fri05C03MeasuredLeafTree<S> {
     type Node = u32;
-    type Scalar = f32;
+    type Scalar = S;
     type Children<'a> = std::iter::Empty<u32>;
 
     fn children(&self, _node: Self::Node) -> Self::Children<'_> {
@@ -7809,15 +7809,15 @@ impl Traverse for Fri05C03MeasuredLeafTree {
     }
 }
 
-impl LayoutTree for Fri05C03MeasuredLeafTree {
+impl<S: LayoutScalar> LayoutTree for Fri05C03MeasuredLeafTree<S> {
     type MeasureError = ();
 
-    fn node_input(&self, _node: Self::Node) -> &NodeInput {
+    fn node_input(&self, _node: Self::Node) -> &NodeInputOf<S> {
         &self.style
     }
 
-    fn layout_input(&self, _node: Self::Node) -> LayoutInput {
-        LayoutInput::box_input(self.style.clone())
+    fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.style.clone())
     }
 
     fn has_leaf_measurement(&self, _node: Self::Node) -> bool {
@@ -7827,8 +7827,8 @@ impl LayoutTree for Fri05C03MeasuredLeafTree {
     fn measure_leaf(
         &self,
         _node: Self::Node,
-        input: LeafMeasureInput,
-    ) -> Option<Result<Size<f32>, Self::MeasureError>> {
+        input: LeafMeasureInputOf<S>,
+    ) -> Option<Result<Size<S>, Self::MeasureError>> {
         self.measurement_inputs.borrow_mut().push(input);
         Some(Ok(self.measured))
     }
@@ -8822,6 +8822,92 @@ fn fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_ar
                 .all(|entry| entry.node() != 0),
             "the stable ordinary root request must reuse its cached geometry"
         );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri05_c03_integration_padding_seed_fractional_terminal_auto_probe_survives_rounding_and_cache_in_both_scalar_lanes()
+ {
+    fn assert_lane<S: LayoutScalar>() {
+        let scalar = scalar::<S>;
+        let border_size = Size::new(scalar(10.1), scalar(10.0));
+        let measured_content_size = Size::new(scalar(10.4), scalar(1.0));
+        let terminal_padding = scalar(0.4);
+        let tree = Fri05C03MeasuredLeafTree {
+            style: NodeInputOf::<S> {
+                display: Display::Block,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidthOf::try_new(S::ZERO).unwrap(),
+                size: Size::new(
+                    PreferredSizeOf::px(border_size.width),
+                    PreferredSizeOf::px(border_size.height),
+                ),
+                padding: Edges {
+                    right: LengthOf::px(terminal_padding),
+                    ..Edges::all(LengthOf::ZERO)
+                },
+                ..NodeInputOf::default()
+            },
+            measured: measured_content_size,
+            measurement_inputs: RefCell::new(Vec::new()),
+        };
+        let request = LayoutRootRequestOf::viewport(border_size.map(AvailableOf::definite))
+            .expect("fractional terminal viewport request is valid");
+        let cold =
+            compute_layout(&tree, 0, request).expect("fractional terminal measured root lays out");
+
+        let unrounded = public_flow_output(cold.unrounded_entries(), 0);
+        let unrounded_geometry = unrounded
+            .scroll_geometry
+            .expect("unrounded root publication retains geometry");
+        let exact_terminal_end = measured_content_size.width + terminal_padding;
+        assert_eq!(
+            unrounded_geometry.scrollport().size().width,
+            border_size.width
+        );
+        assert_eq!(
+            unrounded_geometry.scrollable_overflow().size().width,
+            exact_terminal_end,
+            "the public complete overflow retains the exact non-seed terminal point"
+        );
+
+        let cached = cold
+            .cache_store_entries()
+            .iter()
+            .find(|entry| entry.node() == 0)
+            .expect("the ordinary root request stages a cache copy")
+            .output()
+            .scroll_geometry
+            .expect("the cached root output retains geometry");
+        assert_eq!(cached, unrounded_geometry);
+
+        let rounded = public_flow_output(cold.final_entries(), 0);
+        let rounded_geometry = rounded
+            .scroll_geometry
+            .expect("rounded root publication retains geometry");
+        assert_eq!(rounded_geometry.scrollport().size().width, scalar(10.0));
+        assert_eq!(
+            rounded_geometry.scrollable_overflow().size().width,
+            scalar(11.0)
+        );
+        assert_eq!(
+            (
+                rounded_geometry.physical_range().x().minimum(),
+                rounded_geometry.physical_range().x().maximum(),
+            ),
+            (S::ZERO, scalar(1.0)),
+            "canonical rounded geometry exposes the retained terminal overflow"
+        );
+        let observed =
+            crate::scroll::SettledAutoScrollbarState::INITIAL.transition(rounded_geometry);
+        assert!(
+            observed.at(PhysicalAxis::Horizontal),
+            "the conditional auto observation must retain the same exact terminal overflow"
+        );
+        assert!(!observed.at(PhysicalAxis::Vertical));
     }
 
     assert_lane::<f32>();

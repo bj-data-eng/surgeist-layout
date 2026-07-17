@@ -421,11 +421,35 @@ impl SettledAutoScrollbarState {
             x: self.x
                 || matches!(geometry.used_overflow_x(), Overflow::Auto)
                     && geometry
-                        .auto_scrollbar_overflow
+                        .auto_scrollbar_observation
                         .at(PhysicalAxis::Horizontal),
             y: self.y
                 || matches!(geometry.used_overflow_y(), Overflow::Auto)
-                    && geometry.auto_scrollbar_overflow.at(PhysicalAxis::Vertical),
+                    && geometry
+                        .auto_scrollbar_observation
+                        .at(PhysicalAxis::Vertical),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct AutoScrollbarOverflowObservation {
+    x: bool,
+    y: bool,
+}
+
+impl AutoScrollbarOverflowObservation {
+    fn from_range<S: LayoutScalar>(range: PhysicalScrollRangeOf<S>) -> Self {
+        Self {
+            x: range.x().maximum() > range.x().minimum(),
+            y: range.y().maximum() > range.y().minimum(),
+        }
+    }
+
+    fn at(self, axis: PhysicalAxis) -> bool {
+        match axis {
+            PhysicalAxis::Horizontal => self.x,
+            PhysicalAxis::Vertical => self.y,
         }
     }
 }
@@ -1219,18 +1243,20 @@ impl<S: LayoutScalar> From<ScrollRectErrorOf<S>> for ScrollContributionErrorOf<S
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct ScrollContributionAccumulatorOf<S: LayoutScalar> {
-    complete_overflow: PhysicalContributionBoundsOf<S>,
+    container_seed: PhysicalContributionBoundsOf<S>,
     propagatable_descendants: OptionalPhysicalContributionIntervalsOf<S>,
     final_in_flow_ends: PhysicalFinalInFlowEndsOf<S>,
+    terminal_padding_overflow: OptionalPhysicalContributionIntervalsOf<S>,
     active_alignment_subjects: OptionalPhysicalContributionIntervalsOf<S>,
 }
 
 impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
     pub(crate) fn new(padding_box: ScrollRectOf<S>) -> Self {
         Self {
-            complete_overflow: PhysicalContributionBoundsOf::from_rect(padding_box),
+            container_seed: PhysicalContributionBoundsOf::from_rect(padding_box),
             propagatable_descendants: OptionalPhysicalContributionIntervalsOf::NONE,
             final_in_flow_ends: PhysicalFinalInFlowEndsOf::NONE,
+            terminal_padding_overflow: OptionalPhysicalContributionIntervalsOf::NONE,
             active_alignment_subjects: OptionalPhysicalContributionIntervalsOf::NONE,
         }
     }
@@ -1357,18 +1383,11 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
         axis: PhysicalAxis,
         interval: PhysicalContributionIntervalOf<S>,
     ) {
-        self.complete_overflow.include(axis, interval);
         self.propagatable_descendants.include(axis, interval);
     }
 
     pub(crate) fn replace_container_seed(&mut self, container_seed: ScrollRectOf<S>) {
-        let mut complete_overflow = PhysicalContributionBoundsOf::from_rect(container_seed);
-        for axis in [PhysicalAxis::Horizontal, PhysicalAxis::Vertical] {
-            if let Some(interval) = self.propagatable_descendants.at(axis) {
-                complete_overflow.include(axis, interval);
-            }
-        }
-        self.complete_overflow = complete_overflow;
+        self.container_seed = PhysicalContributionBoundsOf::from_rect(container_seed);
     }
 
     pub(crate) fn record_final_in_flow_end(
@@ -1409,7 +1428,7 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
             }
         }
 
-        let mut next = *self;
+        let mut terminal_padding_overflow = OptionalPhysicalContributionIntervalsOf::NONE;
         for end in [self.final_in_flow_ends.x, self.final_in_flow_ends.y]
             .into_iter()
             .flatten()
@@ -1425,7 +1444,7 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
                     value: coordinate,
                 });
             }
-            next.complete_overflow.include(
+            terminal_padding_overflow.include(
                 end.side.axis(),
                 PhysicalContributionIntervalOf {
                     minimum: canonical_scroll_zero(coordinate),
@@ -1433,7 +1452,7 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
                 },
             );
         }
-        *self = next;
+        self.terminal_padding_overflow = terminal_padding_overflow;
         Ok(())
     }
 
@@ -1449,8 +1468,17 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
     }
 
     #[must_use]
-    const fn complete_overflow(self) -> PhysicalContributionBoundsOf<S> {
-        self.complete_overflow
+    fn complete_overflow(self) -> PhysicalContributionBoundsOf<S> {
+        let mut complete_overflow = self.container_seed;
+        for axis in [PhysicalAxis::Horizontal, PhysicalAxis::Vertical] {
+            if let Some(interval) = self.propagatable_descendants.at(axis) {
+                complete_overflow.include(axis, interval);
+            }
+            if let Some(interval) = self.terminal_padding_overflow.at(axis) {
+                complete_overflow.include(axis, interval);
+            }
+        }
+        complete_overflow
     }
 
     #[must_use]
@@ -1471,8 +1499,9 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
         self,
         anchor: Point<S>,
     ) -> Result<Size<S>, ScrollContributionErrorOf<S>> {
-        let x = self.complete_overflow.x();
-        let y = self.complete_overflow.y();
+        let complete_overflow = self.complete_overflow();
+        let x = complete_overflow.x();
+        let y = complete_overflow.y();
         let minimum = Point::new(anchor.x.min(x.minimum()), anchor.y.min(y.minimum()));
         let maximum = Point::new(anchor.x.max(x.maximum()), anchor.y.max(y.maximum()));
         Ok(ScrollRectOf::try_new(
@@ -2246,7 +2275,7 @@ pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
     overflow_clip: OverflowClipOf<S>,
     scrollable_overflow: ScrollRectOf<S>,
     physical_range: PhysicalScrollRangeOf<S>,
-    auto_scrollbar_overflow: SettledAutoScrollbarState,
+    auto_scrollbar_observation: AutoScrollbarOverflowObservation,
     gutters: ScrollbarGutterRectsOf<S>,
     aggregate_reservation: Size<S>,
     resolved_scroll_padding: Edges<S>,
@@ -2492,9 +2521,6 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
     .map_err(CanonicalScrollGeometryErrorOf::Range)?;
     let mut auto_contributions = source.contributions;
     auto_contributions.replace_container_seed(boxes.scrollport);
-    auto_contributions
-        .include_terminal_padding(source.padding)
-        .map_err(CanonicalScrollGeometryErrorOf::Contribution)?;
     let auto_range = derive_origin_aware_scroll_range(
         source.flow_axes,
         source.origin_axes,
@@ -2503,10 +2529,7 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
         &auto_contributions,
     )
     .map_err(CanonicalScrollGeometryErrorOf::Range)?;
-    let auto_scrollbar_overflow = SettledAutoScrollbarState {
-        x: auto_range.x().maximum() > auto_range.x().minimum(),
-        y: auto_range.y().maximum() > auto_range.y().minimum(),
-    };
+    let auto_scrollbar_observation = AutoScrollbarOverflowObservation::from_range(auto_range);
     let target = ScrollTargetGeometryOf {
         border_box: source.target_border_box,
         scroll_margin: source.target_scroll_margin,
@@ -2526,7 +2549,7 @@ pub(crate) fn canonical_scroll_geometry_from_source<S: LayoutScalar>(
         overflow_clip: boxes.overflow_clip,
         scrollable_overflow,
         physical_range,
-        auto_scrollbar_overflow,
+        auto_scrollbar_observation,
         gutters: boxes.gutters,
         aggregate_reservation: boxes.aggregate_reservation,
         resolved_scroll_padding: boxes.resolved_scroll_padding,
@@ -2779,14 +2802,14 @@ fn round_canonical_contributions<S: LayoutScalar>(
     contributions: ScrollContributionAccumulatorOf<S>,
     cumulative_origin: Point<S>,
 ) -> Result<ScrollContributionAccumulatorOf<S>, CanonicalScrollGeometryErrorOf<S>> {
-    let complete_overflow = PhysicalContributionBoundsOf {
+    let container_seed = PhysicalContributionBoundsOf {
         x: round_canonical_interval(
-            contributions.complete_overflow.x,
+            contributions.container_seed.x,
             PhysicalAxis::Horizontal,
             cumulative_origin,
         )?,
         y: round_canonical_interval(
-            contributions.complete_overflow.y,
+            contributions.container_seed.y,
             PhysicalAxis::Vertical,
             cumulative_origin,
         )?,
@@ -2797,6 +2820,10 @@ fn round_canonical_contributions<S: LayoutScalar>(
     )?;
     let active_alignment_subjects = round_canonical_optional_intervals(
         contributions.active_alignment_subjects,
+        cumulative_origin,
+    )?;
+    let terminal_padding_overflow = round_canonical_optional_intervals(
+        contributions.terminal_padding_overflow,
         cumulative_origin,
     )?;
     let final_in_flow_ends = PhysicalFinalInFlowEndsOf {
@@ -2811,9 +2838,10 @@ fn round_canonical_contributions<S: LayoutScalar>(
     };
 
     Ok(ScrollContributionAccumulatorOf {
-        complete_overflow,
+        container_seed,
         propagatable_descendants,
         final_in_flow_ends,
+        terminal_padding_overflow,
         active_alignment_subjects,
     })
 }
@@ -5087,7 +5115,7 @@ mod fri05_c02_factory_rounding_tests {
         ));
 
         let mut impossible = factory_source(flow_axes);
-        impossible.contributions.complete_overflow.x = PhysicalContributionIntervalOf {
+        impossible.contributions.container_seed.x = PhysicalContributionIntervalOf {
             minimum: -largest,
             maximum: largest,
         };
@@ -5211,14 +5239,14 @@ mod fri05_c02_factory_rounding_tests {
             }
         };
         ScrollContributionAccumulatorOf {
-            complete_overflow: PhysicalContributionBoundsOf {
+            container_seed: PhysicalContributionBoundsOf {
                 x: expected_round_interval(
-                    contributions.complete_overflow.x,
+                    contributions.container_seed.x,
                     PhysicalAxis::Horizontal,
                     cumulative_origin,
                 ),
                 y: expected_round_interval(
-                    contributions.complete_overflow.y,
+                    contributions.container_seed.y,
                     PhysicalAxis::Vertical,
                     cumulative_origin,
                 ),
@@ -5231,6 +5259,10 @@ mod fri05_c02_factory_rounding_tests {
                 x: contributions.final_in_flow_ends.x.map(round_end),
                 y: contributions.final_in_flow_ends.y.map(round_end),
             },
+            terminal_padding_overflow: expected_round_optional_intervals(
+                contributions.terminal_padding_overflow,
+                cumulative_origin,
+            ),
             active_alignment_subjects: expected_round_optional_intervals(
                 contributions.active_alignment_subjects,
                 cumulative_origin,
