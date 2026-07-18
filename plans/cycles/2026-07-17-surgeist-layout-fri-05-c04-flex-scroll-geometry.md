@@ -254,6 +254,13 @@ CARGO_NET_OFFLINE=true just verify-generator
 **Dependency:** C04-T3 supplies every origin and alignment-subject fact consumed
 by the pass-local auto observation.
 
+**Reconciliation gate:** The initial T4 span ending at
+`9fea1a9a334998b975dc304fa5a4136c2de1ba42` predates the reviewed private-state
+split and is not task-clean by itself. A fresh worker appends one focused
+reconciliation span, reruns every T4 acceptance command, and a fresh task
+reviewer reviews the complete ordered T4 range before T5 may start. T1 through
+T3 remain task-clean and require no re-review.
+
 **Intended commit:** `feat(layout): settle flex auto scrollbars`.
 
 ### `C04-T5` Flex Rounding Cache And Legacy Closure
