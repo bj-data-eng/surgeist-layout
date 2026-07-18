@@ -15,11 +15,21 @@
 //! `surgeist` owns computed-style lowering and supplies that used value through
 //! its cross-crate adapters.
 //!
-//! The signed physical scroll ranges and signed flow-relative scroll ranges keep
-//! finite ordered minimum and maximum bounds. When an axis runs in reverse,
-//! [`FlowAxes`] swaps and negates the endpoints so negative minima and maxima
-//! retain their meaning. Layout owns scroll-container geometry, not a current
-//! offset; root integration owns live scroll state and host/CSSOM policy.
+//! Scroll input is normalized, computed or otherwise layout-ready input rather
+//! than authored CSS. [`ComputedOverflow`] is an atomic canonical pair; layout
+//! privately derives used overflow from that pair and box-generation facts.
+//! [`ScrollbarWidthOf`] is the explicit finite thickness selected by the caller's
+//! scrollbar environment, including zero for overlay or disabled scrollbars.
+//! Layout does not discover host scrollbar metrics or guess a missing policy.
+//!
+//! [`ScrollGeometryOf`] is immutable, layout-produced physical geometry. Its
+//! signed x/y range contains the zero initial anchor, and an axis's scroll size
+//! is the span `maximum - minimum`, including an explicit zero span. Nested
+//! [`ScrollTargetGeometryOf`] preserves the target border box, physical scroll
+//! margin, flow axes, and snap metadata used to integrate that target later.
+//! The general physical and flow-relative range types also keep finite ordered
+//! bounds; when an axis runs in reverse, [`FlowAxes`] swaps and negates endpoints
+//! so signed minima and maxima retain their meaning.
 //!
 //! [`PreferredSizeOf`], [`MinSizeOf`], [`MaxSizeOf`], and [`FlexBasisOf`] are
 //! distinct closed property domains with only their role-valid keywords.
@@ -71,14 +81,81 @@
 //! including the mock-keychain argument; corpus freshness checks remain
 //! browser-free.
 //!
-//! Root `surgeist` owns authored CSS sizing canonicalization and lowering,
-//! authored CSS order lowering, box-generation replacedness, invalidation,
-//! consumer migration and renames, facade composition, cross-crate integration,
-//! retained identity, live scroll state, and generated API artifacts. This crate
-//! consumes layout-ready values; it does not parse authored CSS or own those
-//! integration concerns.
+//! Root `surgeist` owns authored CSS and style lowering, explicit host scrollbar
+//! environment selection, box-generation replacedness, invalidation, retained
+//! node-to-scroll-container association, transformed coordinate mapping, live
+//! offsets, target/focus scrolling, snap selection, CSSOM, host UI and events,
+//! consumer migration, facade composition, cross-crate integration, and generated
+//! API artifacts. This crate consumes normalized layout-ready values and emits
+//! canonical geometry plus target metadata; it does not parse authored CSS,
+//! resolve computed style, or own a live scrolling runtime.
 //! The later inline, overflow, flex, grid, alignment, and positioned initiatives
 //! remain outside this geometry closure and are not claimed here.
+//!
+//! The normalized scroll input and read-only output surface composes through the
+//! crate root in either scalar lane without constructing derived geometry:
+//!
+//! ```
+//! use surgeist_layout::{
+//!     ComputedOverflow, NodeInputOf, NodeOutputOf, Overflow, OverflowClipMarginOf,
+//!     ScrollGeometryOf, ScrollMarginOf, ScrollPaddingOf, ScrollbarWidthOf,
+//! };
+//!
+//! fn normalized_input<S: surgeist_layout::LayoutScalar>() -> NodeInputOf<S> {
+//!     let mut input = NodeInputOf::<S>::default();
+//!     input.overflow = ComputedOverflow::try_new(Overflow::Auto, Overflow::Scroll).unwrap();
+//!     input.overflow_clip_margin = OverflowClipMarginOf::try_new(
+//!         surgeist_layout::OverflowClipBox::PaddingBox,
+//!         S::ZERO,
+//!     ).unwrap();
+//!     input.scrollbar_width = ScrollbarWidthOf::try_new(S::ZERO).unwrap();
+//!     input.scroll_padding = ScrollPaddingOf::default();
+//!     input.scroll_margin = ScrollMarginOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO).unwrap();
+//!     input
+//! }
+//!
+//! fn inspect<S: surgeist_layout::LayoutScalar>(output: NodeOutputOf<S>) {
+//!     let geometry: Option<ScrollGeometryOf<S>> = output.scroll_geometry;
+//!     if let Some(geometry) = geometry {
+//!         let x = geometry.physical_range().x();
+//!         let target = geometry.target();
+//!         let _ = (x.minimum(), x.maximum(), target.border_box(), target.snap_align());
+//!     }
+//! }
+//!
+//! let _ = normalized_input::<f32>();
+//! let _ = normalized_input::<f64>();
+//! inspect(NodeOutputOf::<f64>::default());
+//! ```
+//!
+//! ```compile_fail
+//! use surgeist_layout::{NodeInput, Overflow, Point};
+//! let mut input = NodeInput::DEFAULT;
+//! input.overflow = Point::new(Overflow::Visible, Overflow::Visible);
+//! ```
+//!
+//! ```compile_fail
+//! use surgeist_layout::{NodeOutput, Size};
+//! let mut output = NodeOutput::default();
+//! output.scrollbar_size = Size::ZERO;
+//! ```
+//!
+//! ```compile_fail
+//! use surgeist_layout::{ScrollGeometry, ScrollbarGutterRects};
+//! let _ = ScrollGeometry::default();
+//! let _ = ScrollbarGutterRects::default();
+//! ```
+//!
+//! ```compile_fail
+//! use surgeist_layout::ScrollPaddingValue;
+//! let _ = ScrollPaddingValue::Deferred;
+//! ```
+//!
+//! ```compile_fail
+//! use surgeist_layout::NodeOutput;
+//! let output = NodeOutput::default();
+//! let _ = output.current_scroll_offset;
+//! ```
 //!
 //! ```compile_fail
 //! use surgeist_layout::{LogicalEdgesOf, LogicalPointOf, LogicalRectOf, LogicalSizeOf};

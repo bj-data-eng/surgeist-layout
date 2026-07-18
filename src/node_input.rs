@@ -126,10 +126,13 @@ impl Overflow {
     }
 }
 
-/// A canonical computed overflow pair for layout input.
+/// A normalized canonical computed overflow pair for layout input.
 ///
 /// Both axes are constructed atomically through [`Self::try_new`]; callers
 /// cannot supply the former raw physical point or mutate one axis independently.
+/// This is the post-cascade computed pair, not authored CSS. Layout privately
+/// derives used axis values from this pair and `item_is_replaced`; that used
+/// phase is observable only on layout-produced scroll geometry.
 ///
 /// ```compile_fail
 /// use surgeist_layout::{NodeInput, Overflow, Point};
@@ -259,7 +262,10 @@ impl<S: LayoutScalar> Default for OverflowClipMarginOf<S> {
     }
 }
 
-/// Classic scrollbar gutter reservation policy supplied to layout.
+/// Normalized scrollbar gutter reservation policy supplied to layout.
+///
+/// The companion [`ScrollbarWidthOf`] carries the explicit finite physical
+/// thickness selected by the caller's overlay/classic host environment.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ScrollbarGutter {
     #[default]
@@ -520,7 +526,10 @@ pub enum ScrollSnapStrictness {
     Mandatory,
 }
 
-/// Normalized scroll snap behavior for a scroll container.
+/// Normalized scroll snap metadata for a scroll container.
+///
+/// Layout records geometry for this value but does not select a live snap
+/// position or retain a current scroll offset.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ScrollSnapType {
     #[default]
@@ -542,6 +551,9 @@ pub enum ScrollSnapAlignValue {
 }
 
 /// Explicit semantic block and inline snap alignments for one target.
+///
+/// These roles remain semantic until root associates and transforms the target
+/// against its eventual snap container.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ScrollSnapAlign {
     block: ScrollSnapAlignValue,
@@ -1286,6 +1298,11 @@ impl GridAutoFlow {
     }
 }
 
+/// Explicit finite non-negative physical scrollbar thickness for layout.
+///
+/// Root or a standalone caller lowers its host scrollbar environment before
+/// constructing this value. Zero represents overlay or disabled thickness;
+/// layout never probes host UI metrics or supplies an implicit classic width.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollbarWidthOf<S: LayoutScalar = DefaultScalar> {
     value: S,
@@ -1424,14 +1441,23 @@ pub struct NodeInputOf<S: LayoutScalar = DefaultScalar> {
     pub text_align: TextAlign,
     pub vertical_align: VerticalAlign,
     pub writing_mode: WritingMode,
+    /// Atomic normalized computed overflow supplied by style lowering.
     pub overflow: ComputedOverflow,
+    /// Normalized finite overflow clip reference box and margin.
     pub overflow_clip_margin: OverflowClipMarginOf<S>,
+    /// Normalized gutter reservation policy.
     pub scrollbar_gutter: ScrollbarGutter,
+    /// Explicit finite thickness from the caller's scrollbar environment.
     pub scrollbar_width: self::ScrollbarWidthOf<S>,
+    /// Normalized physical scroll-padding edges.
     pub scroll_padding: ScrollPaddingOf<S>,
+    /// Normalized finite signed physical target outsets.
     pub scroll_margin: ScrollMarginOf<S>,
+    /// Container snap metadata; live selection remains root-owned.
     pub scroll_snap_type: ScrollSnapType,
+    /// Target block/inline alignment metadata.
     pub scroll_snap_align: ScrollSnapAlign,
+    /// Target pass-over metadata; live behavior remains root-owned.
     pub scroll_snap_stop: ScrollSnapStop,
     pub position: Position,
     pub float: Float,

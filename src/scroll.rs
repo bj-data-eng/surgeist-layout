@@ -330,6 +330,11 @@ impl<S: LayoutScalar> PartialEq<Option<ScrollRectOf<S>>> for OverflowClipOf<S> {
 
 /// Immutable layout-produced geometry and metadata for one scroll target.
 ///
+/// The nested value preserves local physical border geometry and scroll margin
+/// together with the target's flow axes and semantic snap metadata. Root owns
+/// retained association, transformed coordinates, oversized-target rules and
+/// live snap selection.
+///
 /// ```compile_fail
 /// use surgeist_layout::ScrollTargetGeometry;
 /// let _ = ScrollTargetGeometry {
@@ -562,7 +567,9 @@ pub(crate) fn measured_leaf_content_box_inset<S: LayoutScalar>(
 ///
 /// Layout constructs this value together with the rest of canonical scroll
 /// geometry. Callers can inspect each edge independently but cannot construct
-/// or mutate gutter geometry.
+/// or mutate gutter geometry. The rectangles reflect the explicit normalized
+/// gutter policy and scrollbar thickness supplied in layout input; no host UI
+/// or live scrollbar state is retained here.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollbarGutterRectsOf<S: LayoutScalar = DefaultScalar> {
     top: Option<ScrollRectOf<S>>,
@@ -1976,6 +1983,11 @@ impl<S: LayoutScalar> FlowRelativeScrollAxisRangeOf<S> {
 
 /// Finite closed x/y scroll intervals in physical coordinates.
 ///
+/// A standalone range accepts any finite ordered endpoints. The range nested in
+/// [`ScrollGeometryOf`] additionally contains the zero initial anchor. Its
+/// canonical physical scroll-size components are `x.maximum() - x.minimum()`
+/// and `y.maximum() - y.minimum()`, including zero for a non-scrollable axis.
+///
 /// ```compile_fail
 /// use surgeist_layout::PhysicalScrollRange;
 /// let _ = PhysicalScrollRange::default();
@@ -2308,7 +2320,14 @@ pub(crate) struct MeasuredLeafScrollGeometrySourceOf<S: LayoutScalar> {
 /// Immutable canonical scroll-container and target geometry in local physical coordinates.
 ///
 /// Layout owns construction from source facts. Public callers can inspect the
-/// coherent result but cannot manufacture or mutate its derived parts.
+/// coherent result but cannot manufacture or mutate its derived parts. Computed
+/// overflow input has already become private used-axis values; box nesting,
+/// independent clips, gutters, the zero-anchored signed range, optimal viewing
+/// region and nested target metadata are one canonical result.
+///
+/// This value deliberately carries no retained identity, transform, current
+/// offset, snap selection, CSSOM state, host scrollbar UI or events. Root owns
+/// those live concerns and consumes this geometry rather than recomputing it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollGeometryOf<S: LayoutScalar = DefaultScalar> {
     source: CanonicalScrollGeometrySourceOf<S>,

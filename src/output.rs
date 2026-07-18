@@ -1032,6 +1032,11 @@ pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {
     pub location: Point<S>,
     pub size: Size<S>,
     pub content_size: Size<S>,
+    /// Immutable canonical local geometry produced by a completed layout.
+    ///
+    /// `None` means this output carries no performed scroll geometry. A present
+    /// value includes used overflow, boxes, clips, signed ranges, gutters and
+    /// nested target metadata; it never contains a live current offset.
     pub scroll_geometry: Option<ScrollGeometryOf<S>>,
     pub border: Edges<S>,
     pub padding: Edges<S>,
@@ -1069,6 +1074,10 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
         self
     }
 
+    /// Returns the canonical content-box size when geometry is present.
+    ///
+    /// The fallback derives a saturated box from ordinary output edges; callers
+    /// do not need to reconstruct canonical scroll geometry.
     #[must_use]
     pub fn content_box_size(self) -> Size<S> {
         if let Some(geometry) = self.scroll_geometry {
@@ -1091,6 +1100,9 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
         )
     }
 
+    /// Returns the reservation derived from canonical gutter geometry.
+    ///
+    /// This is a read-only projection, not independently mutable output state.
     #[must_use]
     pub const fn scrollbar_size(self) -> Size<S> {
         match self.scroll_geometry {

@@ -1845,6 +1845,290 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
 }
 
 #[test]
+fn fri05_c07_public_surface_default_and_f64_input_error_output_contracts_compose() {
+    fn checked_input<S: crate::LayoutScalar>() -> crate::NodeInputOf<S> {
+        let overflow =
+            crate::ComputedOverflow::try_new(crate::Overflow::Auto, crate::Overflow::Scroll)
+                .expect("canonical computed overflow pair");
+        let clip_margin: Result<
+            crate::OverflowClipMarginOf<S>,
+            crate::NonNegativeFiniteScalarErrorOf<S>,
+        > = crate::OverflowClipMarginOf::try_new(crate::OverflowClipBox::PaddingBox, S::ZERO);
+        let scrollbar_width: Result<
+            crate::ScrollbarWidthOf<S>,
+            crate::NonNegativeFiniteScalarErrorOf<S>,
+        > = crate::ScrollbarWidthOf::try_new(S::ZERO);
+        let scroll_margin: Result<crate::ScrollMarginOf<S>, crate::ScrollMarginErrorOf<S>> =
+            crate::ScrollMarginOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        let scroll_padding = crate::ScrollPaddingOf::new(
+            crate::ScrollPaddingValueOf::AUTO,
+            crate::ScrollPaddingValueOf::auto(),
+            crate::ScrollPaddingValueOf::default(),
+            crate::ScrollPaddingValueOf::value(crate::LengthPercentageOf::ZERO),
+        );
+        crate::NodeInputOf::<S> {
+            overflow,
+            overflow_clip_margin: clip_margin.expect("finite clip margin"),
+            scrollbar_gutter: crate::ScrollbarGutter::StableBothEdges,
+            scrollbar_width: scrollbar_width.expect("finite scrollbar width"),
+            scroll_padding,
+            scroll_margin: scroll_margin.expect("finite scroll margin"),
+            scroll_snap_type: crate::ScrollSnapType::Enabled {
+                axis: crate::ScrollSnapAxis::Block,
+                strictness: crate::ScrollSnapStrictness::Proximity,
+            },
+            scroll_snap_align: crate::ScrollSnapAlign::new(
+                crate::ScrollSnapAlignValue::Start,
+                crate::ScrollSnapAlignValue::Center,
+            ),
+            scroll_snap_stop: crate::ScrollSnapStop::Always,
+            ..crate::NodeInputOf::<S>::default()
+        }
+    }
+
+    fn inspect_read_only_output<S: crate::LayoutScalar>(
+        output: crate::NodeOutputOf<S>,
+        geometry: Option<crate::ScrollGeometryOf<S>>,
+        clip_axis: Option<crate::PhysicalClipAxisOf<S>>,
+        clip: Option<crate::OverflowClipOf<S>>,
+        gutters: Option<crate::ScrollbarGutterRectsOf<S>>,
+        target: Option<crate::ScrollTargetGeometryOf<S>>,
+    ) {
+        let _ = (output.content_box_size(), output.scrollbar_size());
+        if let Some(axis) = clip_axis {
+            let _ = (axis.minimum(), axis.maximum());
+        }
+        if let Some(clip) = clip {
+            let _ = (clip.x(), clip.y());
+        }
+        if let Some(gutters) = gutters {
+            let _ = (
+                gutters.top(),
+                gutters.right(),
+                gutters.bottom(),
+                gutters.left(),
+            );
+        }
+        if let Some(target) = target {
+            let _ = (
+                target.border_box(),
+                target.scroll_margin(),
+                target.flow_axes(),
+                target.snap_align(),
+                target.snap_stop(),
+            );
+        }
+        if let Some(geometry) = geometry {
+            let range = geometry.physical_range();
+            let _ = (
+                geometry.flow_axes(),
+                geometry.used_overflow_x(),
+                geometry.used_overflow_y(),
+                geometry.border_box(),
+                geometry.padding_box(),
+                geometry.content_box(),
+                geometry.scrollport(),
+                geometry.overflow_clip(),
+                geometry.scrollable_overflow(),
+                range.x().minimum(),
+                range.x().maximum(),
+                range.y().minimum(),
+                range.y().maximum(),
+                geometry.gutters(),
+                geometry.scrollbar_size(),
+                geometry.resolved_scroll_padding(),
+                geometry.optimal_viewing_region(),
+                geometry.scroll_snap_type(),
+                geometry.target(),
+            );
+        }
+    }
+
+    fn checked_coordinates<S: crate::LayoutScalar>() {
+        let physical_offset: Result<
+            crate::PhysicalScrollOffsetOf<S>,
+            crate::ScrollCoordinateErrorOf<S>,
+        > = crate::PhysicalScrollOffsetOf::try_new(S::ZERO, S::ZERO);
+        let flow_offset: Result<
+            crate::FlowRelativeScrollOffsetOf<S>,
+            crate::ScrollCoordinateErrorOf<S>,
+        > = crate::FlowRelativeScrollOffsetOf::try_new(S::ZERO, S::ZERO);
+        let physical_range: Result<
+            crate::PhysicalScrollRangeOf<S>,
+            crate::ScrollCoordinateErrorOf<S>,
+        > = crate::PhysicalScrollRangeOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        let flow_range: Result<
+            crate::FlowRelativeScrollRangeOf<S>,
+            crate::ScrollCoordinateErrorOf<S>,
+        > = crate::FlowRelativeScrollRangeOf::try_new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        let rect: Result<crate::ScrollRectOf<S>, crate::ScrollRectErrorOf<S>> =
+            crate::ScrollRectOf::try_new(crate::Point::ZERO, crate::Size::ZERO);
+
+        let physical_offset = physical_offset.expect("finite physical offset");
+        let flow_offset = flow_offset.expect("finite flow-relative offset");
+        let physical_range = physical_range.expect("finite ordered physical range");
+        let flow_range = flow_range.expect("finite ordered flow-relative range");
+        assert_eq!(physical_range.clamp(physical_offset), physical_offset);
+        assert_eq!(flow_range.clamp(flow_offset), flow_offset);
+        assert_eq!(rect.expect("finite rectangle").size(), crate::Size::ZERO);
+
+        let _: Option<crate::PhysicalScrollAxisRangeOf<S>> = Some(physical_range.x());
+        let _: Option<crate::FlowRelativeScrollAxisRangeOf<S>> = Some(flow_range.inline());
+    }
+
+    let default = checked_input::<f32>();
+    let generic = checked_input::<f64>();
+    assert_eq!(default.overflow.x(), crate::Overflow::Auto);
+    assert_eq!(generic.overflow.y(), crate::Overflow::Scroll);
+    let _: crate::OverflowClipMargin = default.overflow_clip_margin;
+    let _: crate::ScrollbarGutter = default.scrollbar_gutter;
+    let _: crate::ScrollbarWidth = default.scrollbar_width;
+    let _: crate::ScrollPadding = default.scroll_padding;
+    let _: crate::ScrollPaddingValue = default.scroll_padding.top();
+    let _: crate::ScrollMargin = default.scroll_margin;
+    let _: crate::ScrollSnapType = default.scroll_snap_type;
+    let _: crate::ScrollSnapAlign = default.scroll_snap_align;
+    let _: crate::ScrollSnapStop = default.scroll_snap_stop;
+    let _: crate::OverflowClipMarginOf<f64> = generic.overflow_clip_margin;
+    let _: crate::ScrollbarWidthOf<f64> = generic.scrollbar_width;
+    let _: crate::ScrollPaddingOf<f64> = generic.scroll_padding;
+    let _: crate::ScrollPaddingValueOf<f64> = generic.scroll_padding.top();
+    let _: crate::ScrollMarginOf<f64> = generic.scroll_margin;
+    checked_coordinates::<f32>();
+    checked_coordinates::<f64>();
+
+    let _: crate::NodeInput = default;
+    let _: crate::ComputedOverflowError =
+        crate::ComputedOverflow::try_new(crate::Overflow::Visible, crate::Overflow::Auto)
+            .expect_err("noncanonical pair");
+    let _: crate::ScrollMarginError =
+        crate::ScrollMargin::try_new(f32::NAN, 0.0, 0.0, 0.0).expect_err("non-finite margin");
+    let _: crate::ScrollRectError =
+        crate::ScrollRect::try_new(crate::Point::new(f32::NAN, 0.0), crate::Size::ZERO)
+            .expect_err("non-finite rectangle");
+    let _: crate::ScrollCoordinateError =
+        crate::PhysicalScrollRange::try_new(1.0, 0.0, 0.0, 0.0).expect_err("inverted range");
+
+    let _: Option<crate::PhysicalScrollOffset> = None;
+    let _: Option<crate::FlowRelativeScrollOffset> = None;
+    let _: Option<crate::PhysicalScrollAxisRange> = None;
+    let _: Option<crate::FlowRelativeScrollAxisRange> = None;
+    let _: Option<crate::PhysicalScrollRange> = None;
+    let _: Option<crate::FlowRelativeScrollRange> = None;
+    let _: Option<crate::ScrollRect> = None;
+    let _: Option<crate::PhysicalClipAxis> = None;
+    let _: Option<crate::OverflowClip> = None;
+    let _: Option<crate::ScrollbarGutterRects> = None;
+    let _: Option<crate::ScrollTargetGeometry> = None;
+    let _: Option<crate::ScrollGeometry> = None;
+    inspect_read_only_output(crate::NodeOutput::default(), None, None, None, None, None);
+    inspect_read_only_output(
+        crate::NodeOutputOf::<f64>::default(),
+        None,
+        None,
+        None,
+        None,
+        None,
+    );
+}
+
+#[test]
+fn fri05_c07_public_surface_removed_phase_unsafe_contracts_fail_closed() {
+    let node_input = include_str!("node_input.rs");
+    let output = include_str!("output.rs");
+    let scroll = include_str!("scroll.rs");
+    let public_front_door = include_str!("lib.rs");
+    let production = format!("{node_input}\n{output}\n{scroll}\n{public_front_door}");
+    let tokens = fri05_c05_lex_production_tokens(&production)
+        .expect("public FRI-05 sources must remain lexically auditable");
+
+    for removed in [
+        "ScrollOverflowExposure",
+        "ScrollContainerAxis",
+        "ScrollContainerFacts",
+        "scroll_container_facts_from_overflow",
+        "ScrollUnsupportedFeature",
+        "ScrollOverflowCouplingPolicy",
+        "LayoutOwnedMixedAxisOverflowCoupling",
+        "LiveScrollOffset",
+        "CurrentScrollOffset",
+        "ScrollState",
+    ] {
+        assert!(
+            tokens.iter().all(|token| token.text != removed),
+            "removed phase-unsafe surface remains: {removed}"
+        );
+    }
+
+    assert!(!node_input.contains("pub overflow: Point<Overflow>"));
+    assert!(!output.contains("pub scrollbar_size:"));
+    assert!(!node_input.contains("ScrollPaddingValueOf::Deferred"));
+    assert!(!node_input.contains("pub const fn clips_contents"));
+    assert!(!node_input.contains("pub const fn blocks_margin_collapse"));
+    let rect_impl = scroll
+        .split_once("impl<S: LayoutScalar> ScrollRectOf<S> {")
+        .expect("rectangle implementation")
+        .1
+        .split_once("/// A finite ordered physical clip interval.")
+        .expect("rectangle implementation end")
+        .0;
+    assert!(!rect_impl.contains("pub fn new("));
+    assert_eq!(rect_impl.matches("pub fn try_new(").count(), 1);
+
+    for (type_name, section_end) in [
+        ("PhysicalClipAxisOf", "pub struct OverflowClipOf"),
+        ("OverflowClipOf", "pub struct ScrollTargetGeometryOf"),
+        (
+            "ScrollTargetGeometryOf",
+            "/// Construction error for a signed physical or flow-relative scroll coordinate.",
+        ),
+        (
+            "ScrollbarGutterRectsOf",
+            "pub(crate) struct ClipMarginSourceOf",
+        ),
+        (
+            "ScrollGeometryOf",
+            "pub(crate) enum CanonicalScrollRectFact",
+        ),
+    ] {
+        let declaration = format!("pub struct {type_name}");
+        let declaration_index = scroll.find(&declaration).expect("carrier declaration");
+        let section = scroll[declaration_index..]
+            .split_once(section_end)
+            .expect("carrier section end")
+            .0;
+        let fields = section
+            .split_once('{')
+            .expect("carrier fields begin")
+            .1
+            .split_once('}')
+            .expect("carrier fields end")
+            .0;
+        assert!(!fields.contains("pub "), "{type_name} fields stay private");
+        assert!(
+            !section.contains("pub fn new("),
+            "{type_name} has no constructor"
+        );
+        assert!(
+            !section.contains("pub const fn new("),
+            "{type_name} has no constructor"
+        );
+        assert!(
+            !section.contains("pub fn try_new("),
+            "{type_name} has no constructor"
+        );
+        assert!(
+            !section.contains("pub const fn try_new("),
+            "{type_name} has no constructor"
+        );
+        assert!(
+            !scroll.contains(&format!("Default for {type_name}")),
+            "{type_name} has no placeholder default"
+        );
+    }
+}
+
+#[test]
 fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract() {
     fn assert_closed<T: Clone + Copy + core::fmt::Debug + Eq + core::hash::Hash + PartialEq>() {}
 

@@ -113,15 +113,37 @@ them to physical geometry at a contextual boundary.
 otherwise unresolved CSS. Root `surgeist` owns computed-style lowering and
 supplies that used value through its cross-crate adapters.
 
-The signed physical scroll ranges and signed flow-relative scroll ranges keep
-finite ordered minimum and maximum bounds. When an axis runs in reverse,
-`FlowAxes` swaps and negates the endpoints so negative minima and maxima retain
-their meaning. Layout owns scroll-container geometry, not a current offset;
-root integration owns live scroll state and host/CSSOM policy.
+Scroll inputs are normalized computed or otherwise layout-ready values, not
+authored CSS syntax. `ComputedOverflow` atomically validates the two computed
+axes; layout privately derives used overflow from that pair and replacedness.
+`OverflowClipMarginOf`, `ScrollPaddingOf`, `ScrollMarginOf`, and the snap types
+carry finite closed inputs. `ScrollbarWidthOf` is the explicit physical
+thickness selected by the caller's overlay/classic scrollbar environment, so
+layout neither probes host metrics nor guesses a missing policy.
 
-Root also owns generated API artifacts.
-The later inline, overflow, flex, grid, alignment, and positioned initiatives
-remain outside this geometry closure and are not claimed here.
+Successful layout may publish immutable `ScrollGeometryOf`. Its read-only
+helpers expose canonical border, padding, content and scrollport boxes;
+independent x/y clips; physical-edge gutter rectangles; the optimal viewing
+region; used overflow; and one signed physical range containing the zero
+initial anchor. The canonical scroll size on each axis is `maximum - minimum`,
+including zero. `NodeOutputOf::content_box_size()` and `scrollbar_size()` derive
+from that same geometry instead of maintaining mutable duplicate state.
+
+Every present geometry also contains `ScrollTargetGeometryOf`: the target's
+local physical border box and scroll margin plus its flow axes, block/inline snap
+alignment, and snap-stop metadata. Root consumes these values after retained
+association and coordinate transformation. Root also owns authored CSS parsing,
+computed-style normalization and lowering, explicit host scrollbar policy,
+current offsets, focus/target scrolling, snap-container association and
+selection, CSSOM, scrollbar UI, host events, and invalidation. This crate does
+not claim a live scrolling runtime.
+
+The general signed physical and flow-relative range types keep finite ordered
+minimum and maximum bounds. When an axis runs in reverse, `FlowAxes` swaps and
+negates endpoints so negative minima and maxima retain their meaning.
+
+Root also owns generated API artifacts. Later initiatives and the aggregate
+release gate remain outside this FRI-05 leaf contract and are not claimed here.
 
 ## Inline Metrics Contract
 

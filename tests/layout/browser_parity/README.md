@@ -26,6 +26,41 @@ Inline metrics attributes are layout-ready fixture data. They are not CSS
 syntax. Root/style/text integration is expected to generate them from computed
 style and text/font metrics later.
 
+## FRI-05 Normalized Scroll Adapter
+
+The FRI-05 bridge is likewise a bounded fixture adapter, not authored CSS
+parsing. During the one authorized full C06 run, the generator read browser
+computed style and serialized only these normalized attributes: `overflow-x`,
+`overflow-y`, `scrollbar-width`, `overflow-clip-margin`, `scrollbar-gutter`, the
+four physical `scroll-padding-*` edges, the four physical `scroll-margin-*`
+edges, `scroll-snap-type`, `scroll-snap-align`, and `scroll-snap-stop`. It emits
+the atomic overflow pair together and omits exact initial values where the
+fixture schema permits. The Rust adapter accepts only the finite keyword,
+pixel, percentage, and `calc()` subsets represented by the production layout
+types; it rejects authored shorthands (`overflow`, `scroll-padding`, and
+`scroll-margin`), CSS-wide keywords, variables, unresolved units, and ambiguous
+snap forms. Root CSS/style integration owns full grammar, cascade, computed
+value normalization, logical-to-physical lowering, and explicit scrollbar
+environment selection.
+
+Fixture `scroll_size` means the span of the canonical physical range:
+`x.maximum() - x.minimum()` and `y.maximum() - y.minimum()`. An expected zero is
+still compared; missing geometry, wrong x span, and wrong y span fail rather
+than being skipped. The comparator does not treat a maximum endpoint as a size.
+Target fields are layout-produced metadata only: this harness does not model
+retained association, transformed coordinates, current offsets, snap selection,
+CSSOM, host scrollbar UI, or runtime events.
+
+Artifact ownership is intentionally finite. Exactly one unfiltered full C06 run
+was allowed after all eleven FRI-05 HTML inputs and active manifest records
+settled; that run owned pruning and wrote the canonical XML plus `all.json`.
+After C06, those 44 FRI-05 outputs, the report buckets (5,324 passed, 356
+unsupported, and no failure bucket), and manifest hash
+`bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`
+are frozen and read-only for C07. Filtered generation remains an iteration
+diagnostic, never verification evidence; a confirmed input defect returns to
+C06 and replaces the full run only after corrected inputs settle.
+
 Run checked-in fixtures:
 
 ```sh
