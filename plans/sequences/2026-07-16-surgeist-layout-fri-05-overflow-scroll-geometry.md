@@ -158,14 +158,18 @@ parser transition remains, while the exact computed-style fixture lowering,
 eleven sources, manifest records, comparator activation, and final derived
 browser corpus are absent. Derivation may expose a production parity omission
 inside the specified range-span contract; the frozen corpus has since exposed
-the block path retaining padding-box range basis across reserved gutters.
+the block path retaining padding-box range basis across reserved gutters and the
+target source's active mandatory snap changing Chromium's live offset before
+geometry capture, which is outside leaf layout ownership.
 
 **Bounded outcome:** Remove the legacy pair transition; add only the bounded computed-style fixture lowering, serializer/parser support, eleven active HTML sources and manifest records,
 range-span comparator diagnostics, and frozen bucket/hash contract. After every
 input settles, perform the one full regeneration and retain its canonical XML,
 report, and provenance. Correct only the confirmed block contribution range
-basis so reserved gutters do not create range span, without changing complete
-overflow, the oracle, or the frozen artifacts.
+basis so reserved gutters do not create range span while complete overflow is
+unchanged. Remove only the target source's active snap-container declaration
+while retaining its target metadata fields, then replace the invalidated corpus
+once after the corrected input settles; no later generation is permitted.
 
 **Observable exit evidence:** The frozen manifest and full report agree at
 5,324 generated, 356 unsupported, and zero failure classes; all eleven sources
@@ -173,8 +177,9 @@ produce four variants; comparator negative controls fail correctly; focused
 parity and read-only corpus checks pass with no scoped report or hand edit. The
 block stable-both-edges front door proves RED at range span 15 against the frozen
 browser span 0, GREEN at span 0, and unchanged complete overflow. Read-only hash,
-inventory, provenance, and corpus checks prove the oracle and generated artifacts
-remain identical to the settled replacement run.
+inventory, provenance, and corpus checks prove the final replacement owns the
+unchanged manifest and complete corpus; target layout positions no longer include
+a browser-selected live snap offset.
 
 **Handoff:** Generator inputs and derived artifacts are frozen for read-only
 candidate closure.
