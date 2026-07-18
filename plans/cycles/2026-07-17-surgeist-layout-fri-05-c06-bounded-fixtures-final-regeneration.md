@@ -154,7 +154,9 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 ```
 
-**Dependency:** C06-T1 establishes the expectation consumer.
+**Dependency:** No semantic dependency on C06-T1; this task is independently
+startable from the C05 base. It executes after T1 only because both tasks edit
+`tests/layout/browser_parity/support.rs` in the sequential cycle worktree.
 
 **Intended commit:** `test(parity): lower computed scroll fixture fields`.
 
