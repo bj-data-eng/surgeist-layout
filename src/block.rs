@@ -558,6 +558,42 @@ where
     index
 }
 
+fn mixed_inline_control_text_child<Tree, M>(
+    tree: &Tree,
+    children: &[<Tree as Traverse>::Node],
+) -> Option<<Tree as Traverse>::Node>
+where
+    Tree: Compute<M>,
+{
+    let mut text_child = None;
+    let mut contains_control = false;
+
+    for child in children.iter().copied() {
+        match tree.layout_input(child) {
+            LayoutInputOf::Box(style) => {
+                if style.display != super::Display::None
+                    && style.position != Position::Absolute
+                    && (style.float != Float::None || !style.display.is_inline_level())
+                {
+                    if contains_control && text_child.is_some() {
+                        return text_child;
+                    }
+                    text_child = None;
+                    contains_control = false;
+                }
+            }
+            LayoutInputOf::InlineText(_) => {
+                text_child.get_or_insert(child);
+            }
+            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
+                contains_control = true;
+            }
+        }
+    }
+
+    contains_control.then_some(text_child).flatten()
+}
+
 fn visible_line_break_in_flow<Tree, M>(
     tree: &Tree,
     child: <Tree as Traverse>::Node,
@@ -681,6 +717,12 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
+    if let Some(text_child) = mixed_inline_control_text_child(tree, children) {
+        return Err(crate::compute::mixed_inline_later_capability_error(
+            text_child,
+        ));
+    }
+
     let logical_node_inner_size =
         LogicalSizeOf::new(inner_inline, constants.logical_node_inner_size().block);
     let node_inner_size = constants.flow_axes.physical_size(logical_node_inner_size);

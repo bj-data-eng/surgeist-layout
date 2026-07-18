@@ -478,6 +478,79 @@ fn fri06_c03_mixed_control_interim_visible_hidden_and_boundary_stay_typed_before
 }
 
 #[test]
+fn fri06_c03_mixed_leading_hidden_line_break_stays_typed_before_atomic_compute_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let root_input = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        };
+        let mut atomic_input = fri06_c03_atomic_style(
+            10.0,
+            10.0,
+            0.0,
+            0.0,
+            0,
+            InlineBreakOpportunityOf::prohibited(),
+        );
+        atomic_input.size = Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO);
+        let tree = Fri06C03ControlGateTree {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_input.clone())),
+                (
+                    1,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        99,
+                        5.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                ),
+                (2, LayoutInputOf::box_input(atomic_input.clone())),
+                (
+                    3,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().hidden()),
+                ),
+            ]),
+            node_inputs: HashMap::from([
+                (0, root_input),
+                (1, NodeInputOf::non_box()),
+                (2, atomic_input),
+                (3, NodeInputOf::non_box()),
+            ]),
+            children: HashMap::from([
+                (0, vec![3, 1, 2]),
+                (1, Vec::new()),
+                (2, Vec::new()),
+                (3, Vec::new()),
+            ]),
+            atomic_cache_reads: Cell::new(0),
+            atomic_measurements: Cell::new(0),
+        };
+
+        let error = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(100.0))))
+                .unwrap(),
+        )
+        .expect_err("a leading hidden break must remain inside the mixed control gate");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
+        assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::UnsupportedCapability(
+                LayoutUnsupportedCapability::LaterFriBehavior
+            )
+        );
+        assert_eq!(tree.atomic_cache_reads.get(), 0);
+        assert_eq!(tree.atomic_measurements.get(), 0);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn fri06_c03_mixed_text_atomic_source_gaps_and_repeat_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
         let children = || {
