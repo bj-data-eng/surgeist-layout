@@ -660,147 +660,619 @@ fn fri05_c05_grid_round_cache_has_no_independent_scrollbar_projection() {
     );
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LegacySourceToken {
+    text: String,
+    offset: usize,
+}
+
+fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken>, String> {
+    fn quoted_end(bytes: &[u8], start: usize, quote: u8) -> Result<usize, String> {
+        let mut index = start + 1;
+        while index < bytes.len() {
+            match bytes[index] {
+                b'\\' => index += 2,
+                byte if byte == quote => return Ok(index + 1),
+                b'\n' | b'\r' if quote == b'\'' => break,
+                _ => index += 1,
+            }
+        }
+        Err(format!("unterminated quoted literal at byte {start}"))
+    }
+
+    fn char_end(source: &str, bytes: &[u8], start: usize) -> Option<usize> {
+        let value = start + 1;
+        if value >= bytes.len() || matches!(bytes[value], b'\n' | b'\r' | b'\'') {
+            return None;
+        }
+        let after_value = if bytes[value] == b'\\' {
+            let mut index = value + 1;
+            if index >= bytes.len() {
+                return None;
+            }
+            if bytes[index] == b'u' && bytes.get(index + 1) == Some(&b'{') {
+                index += 2;
+                while index < bytes.len() && bytes[index] != b'}' {
+                    index += 1;
+                }
+                index + 1
+            } else if bytes[index] == b'x' {
+                index + 3
+            } else {
+                index + 1
+            }
+        } else {
+            value + source[value..].chars().next()?.len_utf8()
+        };
+        (bytes.get(after_value) == Some(&b'\'')).then_some(after_value + 1)
+    }
+
+    fn raw_end(bytes: &[u8], r_index: usize) -> Result<Option<usize>, String> {
+        let mut quote = r_index + 1;
+        while bytes.get(quote) == Some(&b'#') {
+            quote += 1;
+        }
+        if bytes.get(quote) != Some(&b'"') {
+            return Ok(None);
+        }
+        let hashes = quote - r_index - 1;
+        let mut index = quote + 1;
+        while index < bytes.len() {
+            if bytes[index] == b'"'
+                && bytes.get(index + 1..index + 1 + hashes) == Some(&bytes[r_index + 1..quote])
+            {
+                return Ok(Some(index + 1 + hashes));
+            }
+            index += 1;
+        }
+        Err(format!("unterminated raw string at byte {r_index}"))
+    }
+
+    fn identifier_start(byte: u8) -> bool {
+        byte.is_ascii_alphabetic() || byte == b'_'
+    }
+
+    fn identifier_continue(byte: u8) -> bool {
+        byte.is_ascii_alphanumeric() || byte == b'_'
+    }
+
+    let bytes = source.as_bytes();
+    let mut tokens = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index].is_ascii_whitespace() {
+            index += 1;
+            continue;
+        }
+        if bytes.get(index..index + 2) == Some(b"//") {
+            index += 2;
+            while index < bytes.len() && !matches!(bytes[index], b'\n' | b'\r') {
+                index += 1;
+            }
+            continue;
+        }
+        if bytes.get(index..index + 2) == Some(b"/*") {
+            let start = index;
+            let mut depth = 1usize;
+            index += 2;
+            while index < bytes.len() && depth != 0 {
+                if bytes.get(index..index + 2) == Some(b"/*") {
+                    depth += 1;
+                    index += 2;
+                } else if bytes.get(index..index + 2) == Some(b"*/") {
+                    depth -= 1;
+                    index += 2;
+                } else {
+                    index += 1;
+                }
+            }
+            if depth != 0 {
+                return Err(format!("unterminated block comment at byte {start}"));
+            }
+            continue;
+        }
+
+        let raw_prefix = if bytes[index] == b'r' {
+            Some(index)
+        } else if matches!(bytes[index], b'b' | b'c') && bytes.get(index + 1) == Some(&b'r') {
+            Some(index + 1)
+        } else {
+            None
+        };
+        if let Some(r_index) = raw_prefix
+            && let Some(end) = raw_end(bytes, r_index)?
+        {
+            index = end;
+            continue;
+        }
+
+        if bytes[index] == b'"' {
+            index = quoted_end(bytes, index, b'"')?;
+            continue;
+        }
+        if matches!(bytes[index], b'b' | b'c') && bytes.get(index + 1) == Some(&b'"') {
+            index = quoted_end(bytes, index + 1, b'"')?;
+            continue;
+        }
+        if bytes[index] == b'\''
+            && let Some(end) = char_end(source, bytes, index)
+        {
+            index = end;
+            continue;
+        }
+        if bytes[index] == b'b'
+            && bytes.get(index + 1) == Some(&b'\'')
+            && let Some(end) = char_end(source, bytes, index + 1)
+        {
+            index = end;
+            continue;
+        }
+
+        if bytes[index] == b'r'
+            && bytes.get(index + 1) == Some(&b'#')
+            && bytes.get(index + 2).copied().is_some_and(identifier_start)
+        {
+            let start = index + 2;
+            index = start + 1;
+            while bytes.get(index).copied().is_some_and(identifier_continue) {
+                index += 1;
+            }
+            tokens.push(LegacySourceToken {
+                text: source[start..index].to_owned(),
+                offset: start,
+            });
+            continue;
+        }
+        if identifier_start(bytes[index]) {
+            let start = index;
+            index += 1;
+            while bytes.get(index).copied().is_some_and(identifier_continue) {
+                index += 1;
+            }
+            tokens.push(LegacySourceToken {
+                text: source[start..index].to_owned(),
+                offset: start,
+            });
+            continue;
+        }
+
+        let start = index;
+        let character = source[index..]
+            .chars()
+            .next()
+            .expect("index is inside source");
+        index += character.len_utf8();
+        tokens.push(LegacySourceToken {
+            text: character.to_string(),
+            offset: start,
+        });
+    }
+
+    let text = |index: usize| tokens.get(index).map(|token| token.text.as_str());
+    let mut omitted = vec![false; tokens.len()];
+    let mut index = 0;
+    while index + 6 < tokens.len() {
+        if ["#", "[", "cfg", "(", "test", ")", "]"]
+            .into_iter()
+            .enumerate()
+            .all(|(offset, expected)| text(index + offset) == Some(expected))
+        {
+            let mut body = index + 7;
+            while body < tokens.len() && !matches!(text(body), Some("{") | Some(";")) {
+                body += 1;
+            }
+            let end = if text(body) == Some("{") {
+                let mut depth = 1usize;
+                let mut cursor = body + 1;
+                while cursor < tokens.len() && depth != 0 {
+                    match text(cursor) {
+                        Some("{") => depth += 1,
+                        Some("}") => depth -= 1,
+                        _ => {}
+                    }
+                    cursor += 1;
+                }
+                if depth != 0 {
+                    return Err(format!(
+                        "unclosed cfg(test) item at byte {}",
+                        tokens[index].offset
+                    ));
+                }
+                cursor
+            } else if text(body) == Some(";") {
+                body + 1
+            } else {
+                return Err(format!(
+                    "cfg(test) attribute has no item at byte {}",
+                    tokens[index].offset
+                ));
+            };
+            omitted[index..end].fill(true);
+            index = end;
+        } else {
+            index += 1;
+        }
+    }
+
+    Ok(tokens
+        .into_iter()
+        .zip(omitted)
+        .filter_map(|(token, omitted)| (!omitted).then_some(token))
+        .collect())
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct LegacyScrollbarAccounting {
+    inline_carrier_fields: usize,
+    inline_carrier_writers: usize,
+    inline_carrier_projections: usize,
+    block_carrier_writers: usize,
+    output_accessors: usize,
+    output_projections: usize,
+    geometry_accessors: usize,
+    node_output_structs: usize,
+    node_output_scroll_geometry_fields: usize,
+    node_output_aliases: usize,
+    node_output_impls: usize,
+}
+
+fn fri05_c05_audit_legacy_source(
+    path: &str,
+    source: &str,
+) -> Result<LegacyScrollbarAccounting, String> {
+    fn has(tokens: &[LegacySourceToken], index: usize, pattern: &[&str]) -> bool {
+        pattern.iter().enumerate().all(|(offset, expected)| {
+            tokens.get(index + offset).map(|token| token.text.as_str()) == Some(*expected)
+        })
+    }
+
+    fn owner_before_brace(tokens: &[LegacySourceToken], brace: usize) -> Option<&str> {
+        let mut index = brace.checked_sub(1)?;
+        if tokens[index].text == ">" {
+            let mut depth = 1usize;
+            while index > 0 && depth != 0 {
+                index -= 1;
+                match tokens[index].text.as_str() {
+                    ">" => depth += 1,
+                    "<" => depth -= 1,
+                    _ => {}
+                }
+            }
+            index = index.checked_sub(1)?;
+        }
+        tokens.get(index).map(|token| token.text.as_str())
+    }
+
+    fn enclosing_owner(tokens: &[LegacySourceToken], target: usize) -> Option<&str> {
+        let mut stack = Vec::new();
+        for (index, token) in tokens.iter().enumerate().take(target) {
+            match token.text.as_str() {
+                "{" => stack.push(index),
+                "}" => {
+                    stack.pop();
+                }
+                _ => {}
+            }
+        }
+        stack
+            .into_iter()
+            .rev()
+            .find_map(|brace| owner_before_brace(tokens, brace))
+    }
+
+    fn enclosing_function(tokens: &[LegacySourceToken], target: usize) -> Option<&str> {
+        let mut stack = Vec::new();
+        for (index, token) in tokens.iter().enumerate().take(target) {
+            match token.text.as_str() {
+                "{" => stack.push(index),
+                "}" => {
+                    stack.pop();
+                }
+                _ => {}
+            }
+        }
+        for brace in stack.into_iter().rev() {
+            let mut index = brace;
+            while index > 0 {
+                index -= 1;
+                match tokens[index].text.as_str() {
+                    "fn" => return tokens.get(index + 1).map(|token| token.text.as_str()),
+                    "{" | "}" | ";" => break,
+                    _ => {}
+                }
+            }
+        }
+        None
+    }
+
+    fn declaration_end(tokens: &[LegacySourceToken], start: usize) -> usize {
+        let mut angle = 0usize;
+        let mut index = start;
+        while index < tokens.len() {
+            match tokens[index].text.as_str() {
+                "<" => angle += 1,
+                ">" => angle = angle.saturating_sub(1),
+                ";" | "{" if angle == 0 => return index,
+                _ => {}
+            }
+            index += 1;
+        }
+        tokens.len()
+    }
+
+    let tokens = fri05_c05_lex_production_tokens(source)?;
+    let mut accounting = LegacyScrollbarAccounting::default();
+
+    for index in 0..tokens.len() {
+        let token = tokens[index].text.as_str();
+        if matches!(token, "struct" | "enum" | "union")
+            && tokens.get(index + 1).map(|token| token.text.as_str()) == Some("NodeOutputOf")
+        {
+            if path != "src/output.rs" || token != "struct" {
+                return Err(format!(
+                    "{path}: shadow NodeOutputOf {token} declaration at byte {}",
+                    tokens[index].offset
+                ));
+            }
+            accounting.node_output_structs += 1;
+        }
+        if token == "type" {
+            let end = declaration_end(&tokens, index + 1);
+            if tokens[index + 1..end]
+                .iter()
+                .any(|token| token.text == "NodeOutputOf")
+            {
+                if path != "src/output.rs"
+                    || tokens.get(index + 1).map(|token| token.text.as_str()) != Some("NodeOutput")
+                {
+                    return Err(format!(
+                        "{path}: NodeOutputOf compatibility alias at byte {}",
+                        tokens[index].offset
+                    ));
+                }
+                accounting.node_output_aliases += 1;
+            }
+        }
+        if token == "impl" {
+            let end = declaration_end(&tokens, index + 1);
+            if tokens[index + 1..end]
+                .iter()
+                .any(|token| token.text == "NodeOutputOf")
+            {
+                if path != "src/output.rs" {
+                    return Err(format!(
+                        "{path}: NodeOutputOf compatibility impl at byte {}",
+                        tokens[index].offset
+                    ));
+                }
+                accounting.node_output_impls += 1;
+            }
+        }
+        if path == "src/output.rs"
+            && token == "scroll_geometry"
+            && index > 0
+            && has(
+                &tokens,
+                index - 1,
+                &[
+                    "pub",
+                    "scroll_geometry",
+                    ":",
+                    "Option",
+                    "<",
+                    "ScrollGeometryOf",
+                    "<",
+                    "S",
+                    ">",
+                    ">",
+                ],
+            )
+            && enclosing_owner(&tokens, index) == Some("NodeOutputOf")
+        {
+            accounting.node_output_scroll_geometry_fields += 1;
+        }
+
+        if token != "scrollbar_size" {
+            continue;
+        }
+        let owner = enclosing_owner(&tokens, index);
+        let previous = index.checked_sub(1);
+        let allowed = if path == "src/inline.rs"
+            && previous.is_some_and(|previous| {
+                has(
+                    &tokens,
+                    previous,
+                    &["pub", "scrollbar_size", ":", "Size", "<", "S", ">"],
+                )
+            })
+            && matches!(
+                owner,
+                Some("AtomicInlineBoxParticipant" | "InlineParticipantLayoutItem")
+            ) {
+            accounting.inline_carrier_fields += 1;
+            true
+        } else if path == "src/inline.rs"
+            && owner == Some("InlineParticipantLayoutItem")
+            && (has(
+                &tokens,
+                index,
+                &["scrollbar_size", ":", "Size", ":", ":", "ZERO"],
+            ) || has(
+                &tokens,
+                index,
+                &["scrollbar_size", ":", "item", ".", "scrollbar_size"],
+            ))
+        {
+            accounting.inline_carrier_writers += 1;
+            true
+        } else if path == "src/inline.rs"
+            && previous.is_some_and(|previous| has(&tokens, previous, &[".", "scrollbar_size"]))
+            && index >= 2
+            && tokens[index - 2].text == "item"
+            && owner == Some("InlineParticipantLayoutItem")
+        {
+            accounting.inline_carrier_projections += 1;
+            true
+        } else if path == "src/block.rs"
+            && has(
+                &tokens,
+                index,
+                &[
+                    "scrollbar_size",
+                    ":",
+                    "child_scrollbar_size",
+                    "(",
+                    "&",
+                    "child_style",
+                    ")",
+                ],
+            )
+            && owner == Some("AtomicInlineBoxParticipant")
+        {
+            accounting.block_carrier_writers += 1;
+            true
+        } else if path == "src/output.rs"
+            && previous.is_some_and(|previous| {
+                has(
+                    &tokens,
+                    previous,
+                    &[
+                        "fn",
+                        "scrollbar_size",
+                        "(",
+                        "self",
+                        ")",
+                        "-",
+                        ">",
+                        "Size",
+                        "<",
+                        "S",
+                        ">",
+                    ],
+                )
+            })
+            && owner == Some("NodeOutputOf")
+        {
+            accounting.output_accessors += 1;
+            true
+        } else if path == "src/output.rs"
+            && index >= 2
+            && has(
+                &tokens,
+                index - 2,
+                &["geometry", ".", "scrollbar_size", "(", ")"],
+            )
+            && enclosing_function(&tokens, index) == Some("scrollbar_size")
+        {
+            accounting.output_projections += 1;
+            true
+        } else if path == "src/scroll.rs"
+            && previous.is_some_and(|previous| {
+                has(
+                    &tokens,
+                    previous,
+                    &[
+                        "fn",
+                        "scrollbar_size",
+                        "(",
+                        "self",
+                        ")",
+                        "-",
+                        ">",
+                        "Size",
+                        "<",
+                        "S",
+                        ">",
+                    ],
+                )
+            })
+            && owner == Some("ScrollGeometryOf")
+        {
+            accounting.geometry_accessors += 1;
+            true
+        } else {
+            false
+        };
+        if !allowed {
+            return Err(format!(
+                "{path}: forbidden scrollbar_size token at byte {} in owner {owner:?}",
+                tokens[index].offset
+            ));
+        }
+    }
+
+    Ok(accounting)
+}
+
 #[test]
 fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
+    for ignored in [
+        "// scrollbar_size\nfn clean() {}",
+        "/* outer scrollbar_size /* nested scrollbar_size */ still ignored */ fn clean() {}",
+        "const NORMAL: &str = \"scrollbar_size\";",
+        "const RAW: &str = r###\"scrollbar_size\"###;",
+        "const BYTE: &[u8] = b\"scrollbar_size\";",
+        "const RAW_BYTE: &[u8] = br##\"scrollbar_size\"##;",
+        "const CHARACTER: char = 's'; const BYTE_CHARACTER: u8 = b's'; // scrollbar_size",
+    ] {
+        assert_eq!(
+            fri05_c05_audit_legacy_source("src/cache.rs", ignored),
+            Ok(LegacyScrollbarAccounting::default()),
+            "comments and string/character literal contents are not source tokens"
+        );
+    }
+    assert!(
+        fri05_c05_lex_production_tokens("'s' b's'")
+            .expect("character literals lex")
+            .is_empty(),
+        "character and byte-character contents do not become tokens"
+    );
+    assert_eq!(
+        fri05_c05_lex_production_tokens("scrollbar_/* ignored */size")
+            .expect("comment boundary lexes")
+            .into_iter()
+            .map(|token| token.text)
+            .collect::<Vec<_>>(),
+        ["scrollbar_", "size"],
+        "removing ignored text preserves identifier token boundaries"
+    );
+    for forbidden in [
+        "struct CompatibilityCarrier < S > { pub scrollbar_size : Size < S > }",
+        "struct NodeOutputOf < S > { scrollbar_size : Size < S > }",
+        "type Shadow < S > = NodeOutputOf < S >;",
+        "fn write() { self . scrollbar_size\n= geometry . scrollbar_size ( ) ; }",
+        "struct CompatibilityCarrier < S > { r#scrollbar_size : Size < S > }",
+    ] {
+        assert!(
+            fri05_c05_audit_legacy_source("src/cache.rs", forbidden).is_err(),
+            "token-equivalent forbidden fields, aliases, and writers are rejected"
+        );
+    }
+
     let sources = [
-        (
-            "src/block.rs",
-            include_str!("block.rs"),
-            "private inline carrier writer",
-            1,
-        ),
-        (
-            "src/cache.rs",
-            include_str!("cache.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/compute.rs",
-            include_str!("compute.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/flex.rs",
-            include_str!("flex.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/geometry.rs",
-            include_str!("geometry.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/alignment.rs",
-            include_str!("grid/alignment.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/axis.rs",
-            include_str!("grid/axis.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/child.rs",
-            include_str!("grid/child.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/lanes.rs",
-            include_str!("grid/lanes.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/mod.rs",
-            include_str!("grid/mod.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/named.rs",
-            include_str!("grid/named.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/placement.rs",
-            include_str!("grid/placement.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/subgrid.rs",
-            include_str!("grid/subgrid.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/grid/tracks.rs",
-            include_str!("grid/tracks.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/inline.rs",
-            include_str!("inline.rs"),
-            "private inline reservation carriers",
-            11,
-        ),
-        (
-            "src/lib.rs",
-            include_str!("lib.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/node_input.rs",
-            include_str!("node_input.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/output.rs",
-            include_str!("output.rs"),
-            "canonical geometry accessor",
-            2,
-        ),
-        (
-            "src/scalar.rs",
-            include_str!("scalar.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/scroll.rs",
-            include_str!("scroll.rs"),
-            "canonical geometry owner and owner-local tests",
-            5,
-        ),
-        (
-            "src/sizing.rs",
-            include_str!("sizing.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/traits.rs",
-            include_str!("traits.rs"),
-            "no scrollbar projection",
-            0,
-        ),
-        (
-            "src/value.rs",
-            include_str!("value.rs"),
-            "no scrollbar projection",
-            0,
-        ),
+        ("src/block.rs", include_str!("block.rs")),
+        ("src/cache.rs", include_str!("cache.rs")),
+        ("src/compute.rs", include_str!("compute.rs")),
+        ("src/flex.rs", include_str!("flex.rs")),
+        ("src/geometry.rs", include_str!("geometry.rs")),
+        ("src/grid/alignment.rs", include_str!("grid/alignment.rs")),
+        ("src/grid/axis.rs", include_str!("grid/axis.rs")),
+        ("src/grid/child.rs", include_str!("grid/child.rs")),
+        ("src/grid/lanes.rs", include_str!("grid/lanes.rs")),
+        ("src/grid/mod.rs", include_str!("grid/mod.rs")),
+        ("src/grid/named.rs", include_str!("grid/named.rs")),
+        ("src/grid/placement.rs", include_str!("grid/placement.rs")),
+        ("src/grid/subgrid.rs", include_str!("grid/subgrid.rs")),
+        ("src/grid/tracks.rs", include_str!("grid/tracks.rs")),
+        ("src/inline.rs", include_str!("inline.rs")),
+        ("src/lib.rs", include_str!("lib.rs")),
+        ("src/node_input.rs", include_str!("node_input.rs")),
+        ("src/output.rs", include_str!("output.rs")),
+        ("src/scalar.rs", include_str!("scalar.rs")),
+        ("src/scroll.rs", include_str!("scroll.rs")),
+        ("src/sizing.rs", include_str!("sizing.rs")),
+        ("src/traits.rs", include_str!("traits.rs")),
+        ("src/value.rs", include_str!("value.rs")),
     ];
 
     fn production_rust_sources(directory: &std::path::Path, paths: &mut Vec<String>) {
@@ -839,102 +1311,56 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
         "every non-test production Rust source must have an exact scrollbar classification"
     );
 
-    for (path, source, classification, expected_mentions) in sources {
-        let mentions = source
-            .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
-            .filter(|identifier| *identifier == "scrollbar_size")
-            .count();
-        assert_eq!(
-            mentions, expected_mentions,
-            "{path} classification {classification} changed"
-        );
-        if path != "src/inline.rs" {
-            assert!(
-                !source.contains("scrollbar_size: item.scrollbar_size"),
-                "{path} relocated an item projection"
-            );
-        }
-        assert!(
-            !source
-                .contains("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,"),
-            "{path} relocated a local geometry projection"
-        );
-        assert!(
-            !source.contains("self.scrollbar_size = geometry.scrollbar_size()"),
-            "{path} relocated a synchronized projection writer"
-        );
-        if path != "src/output.rs" {
-            assert!(
-                !source.contains("impl<S: LayoutScalar> NodeOutputOf<S>"),
-                "{path} adds a NodeOutput compatibility implementation outside its owner"
-            );
-            assert!(
-                !source.contains("struct NodeOutputOf"),
-                "{path} adds a shadow NodeOutput carrier"
-            );
-        }
+    let mut observed = Vec::new();
+    for (path, source) in sources {
+        observed.push((
+            path,
+            fri05_c05_audit_legacy_source(path, source).unwrap_or_else(|error| panic!("{error}")),
+        ));
     }
-
-    let output = include_str!("output.rs");
-    let node_output = output
-        .split_once("pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {")
-        .expect("NodeOutput declaration")
-        .1
-        .split_once("\n}")
-        .expect("NodeOutput declaration end")
-        .0;
     assert_eq!(
-        node_output.matches("scroll_").count(),
-        1,
-        "NodeOutput owns only canonical scroll_geometry storage"
-    );
-    assert!(node_output.contains("pub scroll_geometry: Option<ScrollGeometryOf<S>>"));
-    assert!(!node_output.contains("scrollbar"));
-    assert_eq!(
-        output
-            .matches("pub const fn scrollbar_size(self) -> Size<S>")
-            .count(),
-        1
-    );
-    assert_eq!(
-        output
-            .matches("Some(geometry) => geometry.scrollbar_size()")
-            .count(),
-        1
-    );
-
-    let inline = include_str!("inline.rs");
-    for carrier in ["AtomicInlineBoxParticipant", "InlineParticipantLayoutItem"] {
-        let declaration = inline
-            .split_once(&format!(
-                "pub(super) struct {carrier}<S: LayoutScalar = DefaultScalar> {{"
-            ))
-            .unwrap_or_else(|| panic!("private {carrier} declaration"))
-            .1
-            .split_once("\n}")
-            .expect("private inline carrier declaration end")
-            .0;
-        assert_eq!(
-            declaration.matches("pub scrollbar_size: Size<S>").count(),
-            1,
-            "{carrier} is the exact private reservation carrier"
-        );
-    }
-    assert_eq!(inline.matches("pub scrollbar_size: Size<S>").count(), 2);
-    assert_eq!(
-        inline
-            .matches("scrollbar_size: item.scrollbar_size")
-            .count(),
-        2,
-        "inline has exactly two private carrier-to-report projections"
-    );
-    let block = include_str!("block.rs");
-    assert_eq!(
-        block
-            .matches("scrollbar_size: child_scrollbar_size(&child_style)")
-            .count(),
-        1,
-        "block has one exact private inline-carrier writer"
+        observed
+            .iter()
+            .filter(|(_, accounting)| *accounting != LegacyScrollbarAccounting::default())
+            .collect::<Vec<_>>(),
+        vec![
+            &(
+                "src/block.rs",
+                LegacyScrollbarAccounting {
+                    block_carrier_writers: 1,
+                    ..LegacyScrollbarAccounting::default()
+                }
+            ),
+            &(
+                "src/inline.rs",
+                LegacyScrollbarAccounting {
+                    inline_carrier_fields: 2,
+                    inline_carrier_writers: 6,
+                    inline_carrier_projections: 2,
+                    ..LegacyScrollbarAccounting::default()
+                }
+            ),
+            &(
+                "src/output.rs",
+                LegacyScrollbarAccounting {
+                    output_accessors: 1,
+                    output_projections: 1,
+                    node_output_structs: 1,
+                    node_output_scroll_geometry_fields: 1,
+                    node_output_aliases: 1,
+                    node_output_impls: 2,
+                    ..LegacyScrollbarAccounting::default()
+                }
+            ),
+            &(
+                "src/scroll.rs",
+                LegacyScrollbarAccounting {
+                    geometry_accessors: 1,
+                    ..LegacyScrollbarAccounting::default()
+                }
+            ),
+        ],
+        "only the exact private carriers and canonical geometry projections are allowed"
     );
 }
 
