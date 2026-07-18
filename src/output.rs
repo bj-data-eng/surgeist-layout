@@ -251,6 +251,15 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
     }
 
     #[must_use]
+    pub(crate) const fn hidden_in_containing_pass(
+        containing_layout_context: ContainingLayoutContext,
+        containing_auto_scrollbar_pass: SettledAutoScrollbarState,
+    ) -> Self {
+        Self::hidden(containing_layout_context)
+            .with_containing_auto_scrollbar_pass(containing_auto_scrollbar_pass)
+    }
+
+    #[must_use]
     pub(crate) const fn run_mode(&self) -> RunMode {
         self.run_mode
     }

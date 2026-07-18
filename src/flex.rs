@@ -4027,11 +4027,10 @@ where
         );
         tree.compute_child(
             child,
-            ComputeInputOf::hidden(ContainingLayoutContext::new(
-                containing_flow_axes,
-                ParentFormattingContext::Flex,
-            ))
-            .with_containing_auto_scrollbar_pass(settled_auto_scrollbars),
+            ComputeInputOf::hidden_in_containing_pass(
+                ContainingLayoutContext::new(containing_flow_axes, ParentFormattingContext::Flex),
+                settled_auto_scrollbars,
+            ),
         )?;
     }
     Ok(())

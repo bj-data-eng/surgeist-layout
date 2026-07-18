@@ -6274,6 +6274,7 @@ fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_fl
                 node,
                 SourceIndex::ZERO,
                 input.containing_layout_context(),
+                input.containing_auto_scrollbar_pass(),
             )
         }
     }
@@ -6354,6 +6355,7 @@ fn assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_fl
                 expected_axes,
                 crate::ParentFormattingContext::Grid,
             ),
+            crate::scroll::SettledAutoScrollbarState::INITIAL,
         )
         .unwrap(),
         ComputeOutputOf::HIDDEN
@@ -6509,6 +6511,7 @@ fn hidden_layout_writes_zero_line_break_output_without_box_compute() {
                 ),
                 crate::ParentFormattingContext::NoParent,
             ),
+            crate::scroll::SettledAutoScrollbarState::INITIAL,
         )
         .unwrap(),
         ComputeOutput::HIDDEN
@@ -6658,6 +6661,7 @@ fn hidden_compute_sets_inline_boundary_children_to_hidden_output() {
                 ),
                 crate::ParentFormattingContext::NoParent,
             ),
+            crate::scroll::SettledAutoScrollbarState::INITIAL,
         )
         .unwrap(),
         ComputeOutput::HIDDEN
@@ -8996,6 +9000,103 @@ fn fri05_c04_assert_initial_local_auto_state(inputs: &[ComputeInput]) {
             .all(|input| fri05_c04_local_auto_state(input) == (false, false)),
         "every recursively dispatched node starts local auto settlement at INITIAL: {inputs:#?}"
     );
+}
+
+fn fri05_c04_hidden_auto_tree(display: Display) -> PublicFlowTree<f32> {
+    PublicFlowTree::default()
+        .with_children(0, [1, 4])
+        .with_children(1, [2])
+        .with_children(2, [3])
+        .with_children(3, [])
+        .with_children(4, [])
+        .with_style(
+            0,
+            NodeInput {
+                display,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+                size: Size::splat_clone(PreferredSize::px(100.0)),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::None,
+                ..NodeInput::default()
+            },
+        )
+        .with_style(2, NodeInput::default())
+        .with_style(3, NodeInput::default())
+        .with_style(
+            4,
+            NodeInput {
+                position: Position::Absolute,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
+                inset: Edges::new(
+                    LengthAuto::px(0.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(0.0),
+                ),
+                ..NodeInput::default()
+            },
+        )
+}
+
+#[test]
+fn fri05_c04_flex_auto_hidden_subtrees_retain_immediate_containing_pass() {
+    let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap();
+
+    for display in [Display::Flex, Display::Block] {
+        let tree = fri05_c04_hidden_auto_tree(display);
+        let (batch, hidden_requests) =
+            crate::compute::trace_hidden_compute_session_requests(|| {
+                compute_layout(&tree, 0, request)
+                    .expect("auto container with hidden subtree lays out")
+            });
+        assert_eq!(
+            public_flow_output(batch.unrounded_entries(), 0)
+                .scroll_geometry
+                .unwrap()
+                .scrollbar_size(),
+            Size::new(0.0, 15.0),
+            "{display:?} must transition its horizontal auto pass"
+        );
+        assert_eq!(
+            hidden_requests.len(),
+            6,
+            "{display:?} visits all three hidden nodes in both containing passes"
+        );
+        assert!(
+            hidden_requests
+                .iter()
+                .all(|(local, _)| *local == crate::scroll::SettledAutoScrollbarState::INITIAL),
+            "{display:?} hidden nodes keep child-local settlement INITIAL: {hidden_requests:#?}"
+        );
+        let containing_states = hidden_requests
+            .iter()
+            .map(|(_, state)| {
+                (
+                    state.at(PhysicalAxis::Horizontal),
+                    state.at(PhysicalAxis::Vertical),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            containing_states,
+            [
+                (false, false),
+                (false, false),
+                (false, false),
+                (true, false),
+                (true, false),
+                (true, false),
+            ],
+            "{display:?} direct and recursive hidden nodes retain each immediate containing pass"
+        );
+    }
 }
 
 #[test]

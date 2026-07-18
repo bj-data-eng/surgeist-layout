@@ -830,11 +830,13 @@ where
                 );
                 tree.compute_child(
                     child,
-                    ComputeInputOf::<S>::hidden(ContainingLayoutContext::new(
-                        constants.flow_axes,
-                        ParentFormattingContext::BlockFlow,
-                    ))
-                    .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
+                    ComputeInputOf::<S>::hidden_in_containing_pass(
+                        ContainingLayoutContext::new(
+                            constants.flow_axes,
+                            ParentFormattingContext::BlockFlow,
+                        ),
+                        input.settled_auto_scrollbars(),
+                    ),
                 )?;
             }
             index += 1;
@@ -1514,11 +1516,13 @@ where
                 );
                 tree.compute_child(
                     child,
-                    ComputeInputOf::<S>::hidden(ContainingLayoutContext::new(
-                        constants.flow_axes,
-                        ParentFormattingContext::BlockFlow,
-                    ))
-                    .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
+                    ComputeInputOf::<S>::hidden_in_containing_pass(
+                        ContainingLayoutContext::new(
+                            constants.flow_axes,
+                            ParentFormattingContext::BlockFlow,
+                        ),
+                        input.settled_auto_scrollbars(),
+                    ),
                 )?;
             }
             continue;

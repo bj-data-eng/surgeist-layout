@@ -23,6 +23,27 @@ use crate::sizing::{
 use crate::{CompletedLayoutBatchOf, LayoutTree};
 use crate::{FlexBasisOf, MaxSizeOf, MinSizeOf, PercentageBasisOf, PreferredSizeOf};
 
+#[cfg(test)]
+std::thread_local! {
+    static HIDDEN_COMPUTE_SESSION_REQUESTS: std::cell::RefCell<Vec<(
+        SettledAutoScrollbarState,
+        SettledAutoScrollbarState,
+    )>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+#[cfg(test)]
+pub(crate) fn trace_hidden_compute_session_requests<T>(
+    operation: impl FnOnce() -> T,
+) -> (
+    T,
+    Vec<(SettledAutoScrollbarState, SettledAutoScrollbarState)>,
+) {
+    HIDDEN_COMPUTE_SESSION_REQUESTS.with(|requests| requests.borrow_mut().clear());
+    let result = operation();
+    let requests = HIDDEN_COMPUTE_SESSION_REQUESTS.with(|requests| requests.take());
+    (result, requests)
+}
+
 pub type LayoutResultOf<Node, T, S, M = core::convert::Infallible> =
     Result<T, LayoutErrorOf<Node, S, M>>;
 pub type LayoutResult<Node, T, M> = LayoutResultOf<Node, T, DefaultScalar, M>;
@@ -391,6 +412,7 @@ where
                 node,
                 self.staged_source_index(node),
                 input.containing_layout_context(),
+                input.containing_auto_scrollbar_pass(),
             ),
             super::Display::InlineBlock
             | super::Display::InlineGrid
@@ -703,11 +725,19 @@ where
         let style = self.node_input(node).clone();
         if input.run_mode() == RunMode::PerformHiddenLayout || style.display == super::Display::None
         {
+            #[cfg(test)]
+            HIDDEN_COMPUTE_SESSION_REQUESTS.with(|requests| {
+                requests.borrow_mut().push((
+                    input.settled_auto_scrollbars(),
+                    input.containing_auto_scrollbar_pass(),
+                ));
+            });
             return compute_hidden(
                 self,
                 node,
                 self.staged_source_index(node),
                 input.containing_layout_context(),
+                input.containing_auto_scrollbar_pass(),
             );
         }
 
@@ -819,6 +849,7 @@ pub(crate) fn compute_hidden<Tree, M>(
     node: <Tree as Traverse>::Node,
     source_index: crate::SourceIndex,
     containing_layout_context: crate::ContainingLayoutContext,
+    containing_auto_scrollbar_pass: SettledAutoScrollbarState,
 ) -> LayoutResultOf<
     <Tree as Traverse>::Node,
     ComputeOutputOf<<Tree as Traverse>::Scalar>,
@@ -844,7 +875,13 @@ where
                     containing_layout_context.flow_axes(),
                     crate::ParentFormattingContext::NoParent,
                 );
-                tree.compute_child(child, ComputeInputOf::hidden(descendant_context))?;
+                tree.compute_child(
+                    child,
+                    ComputeInputOf::hidden_in_containing_pass(
+                        descendant_context,
+                        containing_auto_scrollbar_pass,
+                    ),
+                )?;
             }
             LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
