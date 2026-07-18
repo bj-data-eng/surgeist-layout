@@ -1,6 +1,6 @@
 # FRI-06-C02 Unified Shaped-Text Line Construction
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-06-C02`
 
