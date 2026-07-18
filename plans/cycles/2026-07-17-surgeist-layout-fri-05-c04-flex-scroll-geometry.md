@@ -49,9 +49,12 @@ field through two flex-owned bridge sites. The C03 static accounting retains
 exactly those two flex sites plus three grid-family sites.
 
 C04 owns `src/flex.rs`, narrowly required shared-scroll integration in
-`src/scroll.rs`, the affected flex/root/cache/contract/static tests, and no other
-formatting algorithm. The task order may reshape private flex pass records so
-final item and absolute-child geometry remains available to one accumulator.
+`src/scroll.rs`, and the affected flex/root/cache/contract/static tests. T4 also
+owns the narrow private split in `src/output.rs`, `src/cache.rs`, and
+`src/compute.rs` between a computed node's local settled-auto state and its
+immediate containing formatting pass's cache discriminator. The task order may
+reshape private flex pass records so final item and absolute-child geometry
+remains available to one accumulator.
 It may not change flex sizing, line formation, item placement, or absolute
 positioning except where the reviewed effective gutter changes available space.
 
@@ -200,8 +203,8 @@ CARGO_NET_OFFLINE=true just verify-generator
 **Intended commit:** `feat(layout): derive flex scroll origins and subjects`.
 
 ### `C04-T4` Monotone Flex Auto Settlement
-**Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, and focused flex,
-root, and cache tests.
+**Files:** `src/flex.rs`, narrowly required `src/scroll.rs`, `src/output.rs`,
+`src/cache.rs`, and `src/compute.rs`, plus focused flex, root, and cache tests.
 
 **Outcome:** Execute complete flex layout inside the shared monotone settled-auto
 transition. Every speculative pass first derives its effective boxes, complete
@@ -211,12 +214,18 @@ into every child request, rerun only when a newly added non-zero reservation
 changes available geometry, and publish/cache only the first stable pass under
 the ordinary request. Keep state bits monotone and use the C03 cache identity
 rather than a flex-local counter, tolerance, or retry limit.
+Keep the computed node's local settled state distinct from the immediate
+containing pass's private cache discriminator: every nested node starts local
+settlement at `INITIAL`, while each direct child request and cache key retains
+the containing pass bits that produced its inputs.
 
 **RED:** Add `fri05_c04_flex_auto_`, `fri05_c04_flex_auto_alignment_`,
 `fri05_c04_flex_reservation_`, and `fri05_c04_flex_tiny_` tests first. They fail
 because flex performs one legacy reservation pass and cannot settle cross-axis
 or start-side alignment-subject induction without exposing speculative child
-output.
+output. Add real nested flex-under-flex and warm-cache evidence; it fails while
+one private input field conflates child-local settlement with containing-pass
+cache identity.
 
 **Acceptance:** Root and nested flex front doors prove no overflow, x-only,
 y-only, x-induces-y, y-induces-x, start-side subject-only overflow, a subject-
@@ -225,7 +234,12 @@ both-edges, zero thickness, and tiny saturated boxes for representative physical
 gutter sides and all ten flow mappings. Each provisional observation includes
 the actual pass's origin and subjects. At most three geometry-changing
 evaluations occur; every child/cache lookup has exact state bits; only stable
-node output is published; and cached and uncached results agree.
+node output is published; and cached and uncached results agree. A nested flex
+without local overflow starts at local `INITIAL` and inherits no gutter, while
+its child cache discriminator records the outer pass; an independently
+overflowing inner flex settles its own state and gives grandchildren that inner
+pass discriminator. Warm-cache entries with otherwise identical known child
+geometry remain partitioned by containing-pass bits.
 
 **Commands:**
 ```sh
