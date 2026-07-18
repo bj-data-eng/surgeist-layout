@@ -416,71 +416,108 @@ fn invalidation_closure<Tree>(
 where
     Tree: LayoutTree,
 {
-    struct Frame<Node> {
+    #[derive(Clone, Copy, Eq, PartialEq)]
+    enum VisitState {
+        Visiting,
+        Complete,
+    }
+
+    struct DiscoveredNode<Node> {
         node: Node,
+        parents: Vec<usize>,
+        state: VisitState,
+    }
+
+    struct Frame<Node> {
+        node_index: usize,
         children: Vec<Node>,
         next_child: usize,
     }
 
-    let mut reachable = Vec::new();
-    let mut closure = Vec::new();
-    let mut path = vec![Frame {
+    let mut discovered = vec![DiscoveredNode {
         node: root,
+        parents: Vec::new(),
+        state: VisitState::Visiting,
+    }];
+    let mut path = vec![Frame {
+        node_index: 0,
         children: tree.children(root).collect(),
         next_child: 0,
     }];
-    reachable.push(root);
 
     while !path.is_empty() {
         let current = path.len() - 1;
-        let node = path[current].node;
-        if path[current].next_child == 0 && changed_nodes.contains(&node) {
-            for ancestor in path.iter().map(|frame| frame.node) {
-                if !closure.contains(&ancestor) {
-                    closure.push(ancestor);
-                }
-            }
-        }
-
         if path[current].next_child == path[current].children.len() {
+            discovered[path[current].node_index].state = VisitState::Complete;
             path.pop();
             continue;
         }
 
+        let node_index = path[current].node_index;
+        let node = discovered[node_index].node;
         let child = path[current].children[path[current].next_child];
         path[current].next_child += 1;
-        if path.iter().any(|frame| frame.node == child) {
-            return Err(LayoutErrorOf::new(
-                LayoutErrorSiteOf::ContainerSubject {
-                    container: node,
-                    subject: child,
-                },
-                LayoutOperation::CacheInvalidation,
-                LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::TreeTopologyCycle),
-            ));
+
+        if let Some(child_index) = discovered
+            .iter()
+            .position(|discovered| discovered.node == child)
+        {
+            if discovered[child_index].state == VisitState::Visiting {
+                return Err(LayoutErrorOf::new(
+                    LayoutErrorSiteOf::ContainerSubject {
+                        container: node,
+                        subject: child,
+                    },
+                    LayoutOperation::CacheInvalidation,
+                    LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::TreeTopologyCycle),
+                ));
+            }
+            discovered[child_index].parents.push(node_index);
+            continue;
         }
 
-        reachable.push(child);
-        path.push(Frame {
+        let child_index = discovered.len();
+        discovered.push(DiscoveredNode {
             node: child,
+            parents: vec![node_index],
+            state: VisitState::Visiting,
+        });
+        path.push(Frame {
+            node_index: child_index,
             children: tree.children(child).collect(),
             next_child: 0,
         });
     }
 
-    if let Some(subject) = changed_nodes
-        .iter()
-        .copied()
-        .find(|subject| !reachable.contains(subject))
-    {
-        return Err(LayoutErrorOf::new(
-            LayoutErrorSiteOf::Node(subject),
-            LayoutOperation::CacheInvalidation,
-            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidationNodeNotReachable),
-        ));
+    let mut dirty_indices = Vec::new();
+    for subject in changed_nodes.iter().copied() {
+        let Some(index) = discovered
+            .iter()
+            .position(|discovered| discovered.node == subject)
+        else {
+            return Err(LayoutErrorOf::new(
+                LayoutErrorSiteOf::Node(subject),
+                LayoutOperation::CacheInvalidation,
+                LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidationNodeNotReachable),
+            ));
+        };
+        dirty_indices.push(index);
     }
 
-    Ok(closure)
+    let mut included = vec![false; discovered.len()];
+    while let Some(index) = dirty_indices.pop() {
+        if included[index] {
+            continue;
+        }
+        included[index] = true;
+        dirty_indices.extend(discovered[index].parents.iter().copied());
+    }
+
+    Ok(discovered
+        .into_iter()
+        .zip(included)
+        .filter_map(|(discovered, included)| included.then_some(discovered.node))
+        .collect())
 }
 
 fn validate_layout_tree<Tree>(

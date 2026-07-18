@@ -6,6 +6,7 @@ use crate::*;
 #[derive(Clone, Debug, Default)]
 struct InvalidationTree {
     children: HashMap<u32, Vec<u32>>,
+    child_adjacency_queries: Cell<usize>,
     styles: HashMap<u32, NodeInput>,
     measured: HashSet<u32>,
     measurements: RefCell<HashMap<u32, Result<Size, &'static str>>>,
@@ -79,6 +80,8 @@ impl Traverse for InvalidationTree {
         Self: 'a;
 
     fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.child_adjacency_queries
+            .set(self.child_adjacency_queries.get() + 1);
         if let Some(remaining) = self.traversal_budget.get() {
             assert!(
                 remaining > 0,
@@ -237,6 +240,41 @@ fn fri06_c01_invalidation_dag_unions_every_inclusive_path_in_source_order() {
         .expect("a shared DAG descendant is not a topology cycle");
 
     assert_eq!(batch.invalidated_nodes(), &[0, 1, 3, 2]);
+}
+
+#[test]
+fn fri06_c01_invalidation_shared_repeated_edge_dag_expands_each_adjacency_once() {
+    const DEPTH: u32 = 9;
+
+    let mut topology = Vec::new();
+    topology.push((0, vec![1, 1, 2, 2]));
+    for level in 1..DEPTH {
+        let left = level * 2 - 1;
+        let right = level * 2;
+        let next_left = left + 2;
+        let next_right = right + 2;
+        let repeated_children = vec![next_left, next_left, next_right, next_right];
+        topology.push((left, repeated_children.clone()));
+        topology.push((right, repeated_children));
+    }
+    topology.push((DEPTH * 2 - 1, Vec::new()));
+    topology.push((DEPTH * 2, Vec::new()));
+    let borrowed_topology = topology
+        .iter()
+        .map(|(node, children)| (*node, children.as_slice()))
+        .collect::<Vec<_>>();
+    let tree = InvalidationTree::with_topology(&borrowed_topology);
+
+    let error = compute_layout_invalidated(&tree, 0, invalidation_request(), &[u32::MAX])
+        .expect_err("unreachable subject must fail after bounded graph discovery");
+
+    assert_eq!(error.site(), LayoutErrorSite::Node(u32::MAX));
+    assert_eq!(error.operation(), LayoutOperation::CacheInvalidation);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::InvalidationNodeNotReachable)
+    );
+    assert_eq!(tree.child_adjacency_queries.get(), (DEPTH * 2 + 1) as usize);
 }
 
 #[test]
