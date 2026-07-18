@@ -4,8 +4,8 @@ use crate::{
     AvailableOf, Compute, ComputeInputOf, ComputeOutputOf, DefaultScalar, Display,
     InlineBoundaryInputOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf,
     LayoutInternalInvariant, LayoutOperation, LayoutScalar, LineBreakInput, LineBreakInputOf,
-    NodeInput, NodeInputOf, NodeOutput, NodeOutputOf, RequestedAxis, Round, RunMode, Size,
-    SizingMode, Traverse, compute_block, compute_flex, compute_grid,
+    NodeInputOf, NodeOutputOf, RequestedAxis, Round, RunMode, Size, SizingMode, Traverse,
+    compute_block, compute_flex, compute_grid,
 };
 
 pub type OracleTree = OracleTreeOf<DefaultScalar>;
@@ -200,8 +200,8 @@ impl<S: LayoutScalar> Traverse for OracleTreeOf<S> {
     }
 }
 
-impl Compute for OracleTree {
-    fn node_input(&self, node: Self::Node) -> &NodeInput {
+impl<S: LayoutScalar> Compute for OracleTreeOf<S> {
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
         match self.layout_inputs.get(&node) {
             Some(input) => input
                 .as_box()
@@ -210,71 +210,21 @@ impl Compute for OracleTree {
         }
     }
 
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<DefaultScalar> {
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
         self.layout_inputs
             .get(&node)
             .cloned()
             .unwrap_or_else(|| panic!("oracle node {node} must define a layout input"))
     }
 
-    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutput) {
+    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<S>) {
         self.layouts.insert(node, layout);
     }
 
     fn compute_child(
         &mut self,
         node: Self::Node,
-        input: ComputeInputOf<DefaultScalar>,
-    ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
-        self.compute_inputs.entry(node).or_default().push(input);
-
-        if let Some(output) = self.recorded_measurement(node, input) {
-            return Ok(output);
-        }
-
-        match self.node_input(node).display.inner_display() {
-            Display::Block => compute_block(self, node, input),
-            Display::Flex => compute_flex(self, node, input),
-            Display::Grid | Display::GridLanes => compute_grid(self, node, input),
-            Display::None => {
-                self.set_unrounded(
-                    node,
-                    NodeOutput::with_source_index(crate::SourceIndex::ZERO),
-                );
-                Ok(ComputeOutputOf::HIDDEN)
-            }
-            Display::InlineBlock | Display::InlineGrid | Display::InlineGridLanes => {
-                unreachable!("inner_display removes inline display variants")
-            }
-        }
-    }
-}
-
-impl Compute for OracleTreeOf<f64> {
-    fn node_input(&self, node: Self::Node) -> &NodeInputOf<f64> {
-        match self.layout_inputs.get(&node) {
-            Some(input) => input
-                .as_box()
-                .unwrap_or_else(|| panic!("line break node has no box NodeInput")),
-            None => panic!("oracle node {node} must define a layout input"),
-        }
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<f64> {
-        self.layout_inputs
-            .get(&node)
-            .cloned()
-            .unwrap_or_else(|| panic!("oracle node {node} must define a layout input"))
-    }
-
-    fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<f64>) {
-        self.layouts.insert(node, layout);
-    }
-
-    fn compute_child(
-        &mut self,
-        node: Self::Node,
-        input: ComputeInputOf<f64>,
+        input: ComputeInputOf<S>,
     ) -> crate::LayoutResultOf<Self::Node, crate::ComputeOutputOf<Self::Scalar>, Self::Scalar> {
         self.compute_inputs.entry(node).or_default().push(input);
 
@@ -322,9 +272,115 @@ impl<S: LayoutScalar> Round for OracleTreeOf<S> {
 mod tests {
     use super::*;
     use crate::{
-        LayoutErrorKind, LayoutErrorSite, LayoutInput, LayoutInternalInvariant, LayoutOperation,
-        LineBreakDisplay,
+        ContainingLayoutContext, Direction, FlowAxes, LayoutErrorKind, LayoutErrorSite,
+        LayoutInput, LayoutInternalInvariant, LayoutOperation, LineBreakDisplay,
+        ParentFormattingContext, PreferredSizeOf, SourceIndex, WritingMode,
     };
+
+    fn fri06_mr01_oracle_generic_input<S: LayoutScalar>() -> ComputeInputOf<S> {
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        )
+    }
+
+    fn assert_fri06_mr01_oracle_generic_records_and_prefers_measurement<S: LayoutScalar>()
+    where
+        OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+    {
+        let style = NodeInputOf::<S> {
+            display: Display::Grid,
+            ..NodeInputOf::default()
+        };
+        let expected =
+            ComputeOutputOf::from_outer_size(Size::new(S::from_f64(17.0), S::from_f64(23.0)));
+        let input = fri06_mr01_oracle_generic_input();
+        let mut tree = OracleTreeOf::new()
+            .style(1, style.clone())
+            .measure(1, expected);
+
+        assert_eq!(tree.node_input(1), &style);
+        assert_eq!(
+            tree.layout_input(1),
+            LayoutInputOf::box_input(style.clone())
+        );
+        assert_eq!(tree.compute_child(1, input).unwrap(), expected);
+        assert_eq!(tree.inputs(1), &[input]);
+        assert_eq!(tree.layout(1), None);
+    }
+
+    #[test]
+    fn fri06_mr01_oracle_generic_records_inputs_and_prefers_measurements_in_both_scalar_lanes() {
+        assert_fri06_mr01_oracle_generic_records_and_prefers_measurement::<f32>();
+        assert_fri06_mr01_oracle_generic_records_and_prefers_measurement::<f64>();
+    }
+
+    fn assert_fri06_mr01_oracle_generic_hidden_and_dispatch<S: LayoutScalar>()
+    where
+        OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+    {
+        let input = fri06_mr01_oracle_generic_input();
+        let mut hidden = OracleTreeOf::new().style(
+            1,
+            NodeInputOf {
+                display: Display::None,
+                ..NodeInputOf::default()
+            },
+        );
+
+        assert_eq!(
+            hidden.compute_child(1, input).unwrap(),
+            ComputeOutputOf::HIDDEN
+        );
+        assert_eq!(hidden.inputs(1), &[input]);
+        assert_eq!(
+            hidden.layout(1),
+            Some(NodeOutputOf::with_source_index(SourceIndex::ZERO))
+        );
+
+        for (index, display) in [
+            Display::Block,
+            Display::Flex,
+            Display::Grid,
+            Display::GridLanes,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let node = u32::try_from(index + 2).unwrap();
+            let expected_size = Size::new(S::from_f64(31.0), S::from_f64(29.0));
+            let mut tree = OracleTreeOf::new().style(
+                node,
+                NodeInputOf {
+                    display,
+                    size: Size::new(
+                        PreferredSizeOf::px(expected_size.width),
+                        PreferredSizeOf::px(expected_size.height),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            );
+
+            let output = tree.compute_child(node, input).unwrap();
+
+            assert_eq!(tree.inputs(node), &[input]);
+            assert_eq!(output.size, expected_size, "unexpected {display:?} output");
+        }
+    }
+
+    #[test]
+    fn fri06_mr01_oracle_generic_stages_hidden_and_dispatches_algorithms_in_both_scalar_lanes() {
+        assert_fri06_mr01_oracle_generic_hidden_and_dispatch::<f32>();
+        assert_fri06_mr01_oracle_generic_hidden_and_dispatch::<f64>();
+    }
 
     #[test]
     fn output_returns_none_without_a_staged_layout() {
