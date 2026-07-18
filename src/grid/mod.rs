@@ -125,19 +125,6 @@ pub(crate) fn compute_grid_with_report<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    if tree
-        .node_input(node)
-        .display
-        .establishes_grid_lanes_formatting_context()
-    {
-        let result =
-            compute_grid_with_context_result(tree, node, input, GridParentContext::none())?;
-        return Ok(GridComputationOf {
-            output: result.output,
-            report: result.report,
-        });
-    }
-
     let mut pass_input = input;
     loop {
         let result =
@@ -293,7 +280,40 @@ fn compute_grid_with_context<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    Ok(compute_grid_with_context_result(tree, node, input, parent_context)?.output)
+    Ok(compute_grid_with_context_settled(tree, node, input, parent_context)?.output)
+}
+
+fn compute_grid_with_context_settled<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    parent_context: GridParentContext<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridComputeResult<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    let mut pass_input =
+        input.with_settled_auto_scrollbars(crate::scroll::SettledAutoScrollbarState::INITIAL);
+    loop {
+        let result =
+            compute_grid_with_context_result(tree, node, pass_input, parent_context.clone())?;
+        if !input.run_mode().is_perform_layout() {
+            return Ok(result);
+        }
+        let Some(geometry) = result.output.scroll_geometry else {
+            return Ok(result);
+        };
+        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
+        if next_state == pass_input.settled_auto_scrollbars()
+            || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
+                geometry, next_state,
+            )
+            .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?
+        {
+            return Ok(result);
+        }
+        pass_input = input.with_settled_auto_scrollbars(next_state);
+    }
 }
 
 fn compute_grid_with_context_result<Tree, M>(
@@ -306,9 +326,7 @@ where
     Tree: Compute<M>,
 {
     let style = tree.node_input(node).clone();
-    let publishes_ordinary_geometry = !style.display.establishes_grid_lanes_formatting_context()
-        && !parent_context.has_inherited_axis();
-    let constants = if publishes_ordinary_geometry {
+    let constants = if input.run_mode().is_perform_layout() {
         Constants::new_ordinary_scroll::<Tree, M>(tree, node, &style, input)?
     } else {
         Constants::new::<Tree, M>(tree, node, &style, input)?
@@ -484,22 +502,18 @@ where
     };
     let mut final_scroll_geometry = None;
     if input.run_mode().is_perform_layout() {
-        let scroll_box = publishes_ordinary_geometry
-            .then(|| {
-                canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
-                    flow_axes: constants.flow_axes,
-                    computed_overflow: style.overflow,
-                    item_is_replaced: style.item_is_replaced,
-                    border_box_size: output_size,
-                    border: constants.border,
-                    padding: constants.padding,
-                    scrollbar_gutter: style.scrollbar_gutter,
-                    scrollbar_width: style.scrollbar_width,
-                    settled_auto_scrollbars: input.settled_auto_scrollbars(),
-                })
-                .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))
-            })
-            .transpose()?;
+        let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+            flow_axes: constants.flow_axes,
+            computed_overflow: style.overflow,
+            item_is_replaced: style.item_is_replaced,
+            border_box_size: output_size,
+            border: constants.border,
+            padding: constants.padding,
+            scrollbar_gutter: style.scrollbar_gutter,
+            scrollbar_width: style.scrollbar_width,
+            settled_auto_scrollbars: input.settled_auto_scrollbars(),
+        })
+        .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?;
         let mut child_layout = layout_grid_container_children(
             tree,
             node,
@@ -522,30 +536,28 @@ where
             },
         )?;
         content_size = max_size(content_size, child_layout.visible_content_size);
-        if let Some(scroll_box) = scroll_box {
-            child_layout
-                .contributions
-                .replace_container_seed(scroll_box.padding_box());
-            child_layout
-                .contributions
-                .exclude_reserved_gutter_from_range();
-            let geometry = grid_container_scroll_geometry::<_, Tree::Scalar, M>(
-                node,
-                input.run_mode(),
-                &style,
-                &constants,
-                scroll_box,
-                child_layout.contributions,
-                input.settled_auto_scrollbars(),
-            )?;
-            content_size = max_size(
-                content_size,
-                geometry
-                    .canonical_content_size()
-                    .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?,
-            );
-            final_scroll_geometry = Some(geometry);
-        }
+        child_layout
+            .contributions
+            .replace_container_seed(scroll_box.padding_box());
+        child_layout
+            .contributions
+            .exclude_reserved_gutter_from_range();
+        let geometry = grid_container_scroll_geometry::<_, Tree::Scalar, M>(
+            node,
+            input.run_mode(),
+            &style,
+            &constants,
+            scroll_box,
+            child_layout.contributions,
+            input.settled_auto_scrollbars(),
+        )?;
+        content_size = max_size(
+            content_size,
+            geometry
+                .canonical_content_size()
+                .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?,
+        );
+        final_scroll_geometry = Some(geometry);
         baselines = child_layout.baselines;
         baseline_groups = child_layout.baseline_groups;
     }
@@ -750,7 +762,20 @@ where
         rows: Vec::new(),
         columns: Vec::new(),
     };
+    let mut final_scroll_geometry = None;
     if input.run_mode().is_perform_layout() {
+        let scroll_box = canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+            flow_axes: constants.flow_axes,
+            computed_overflow: style.overflow,
+            item_is_replaced: style.item_is_replaced,
+            border_box_size: output_size,
+            border: constants.border,
+            padding: constants.padding,
+            scrollbar_gutter: style.scrollbar_gutter,
+            scrollbar_width: style.scrollbar_width,
+            settled_auto_scrollbars: input.settled_auto_scrollbars(),
+        })
+        .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?;
         let layout_content_box_size =
             (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
         let logical_layout_content_box_size =
@@ -794,7 +819,7 @@ where
             alignment: style.align_content.unwrap_or(AlignContent::Stretch),
             intrinsic_sizes: &row_intrinsic_sizes,
         });
-        let child_layout = layout_grid_lanes_children(
+        let mut child_layout = layout_grid_lanes_children(
             tree,
             node,
             GridLanesLayoutInput {
@@ -807,9 +832,32 @@ where
                 gap: layout_gap,
                 subgrid_report: &subgrid_report,
                 placements: &placements,
+                containing_auto_scrollbar_pass: input.settled_auto_scrollbars(),
             },
         )?;
         content_size = max_size(content_size, child_layout.visible_content_size);
+        child_layout
+            .contributions
+            .replace_container_seed(scroll_box.padding_box());
+        child_layout
+            .contributions
+            .exclude_reserved_gutter_from_range();
+        let geometry = grid_container_scroll_geometry::<_, Tree::Scalar, M>(
+            node,
+            input.run_mode(),
+            &style,
+            &constants,
+            scroll_box,
+            child_layout.contributions,
+            input.settled_auto_scrollbars(),
+        )?;
+        content_size = max_size(
+            content_size,
+            geometry
+                .canonical_content_size()
+                .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?,
+        );
+        final_scroll_geometry = Some(geometry);
         baselines = child_layout.baselines;
         baseline_groups = child_layout.baseline_groups;
     }
@@ -820,7 +868,10 @@ where
         ComputeOutputOf::from_sizes_and_baselines(output_size, content_size, baselines)
     };
     Ok(GridComputeResult {
-        output,
+        output: ComputeOutputOf {
+            scroll_geometry: final_scroll_geometry,
+            ..output
+        },
         report,
         baseline_groups,
     })

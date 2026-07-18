@@ -230,7 +230,7 @@ fn fri05_c05_grid_geometry_reservations_are_effective_per_axis_and_saturate_tiny
 }
 
 #[test]
-fn fri05_c05_grid_geometry_measurement_and_grid_lanes_publication_remain_absent() {
+fn fri05_c05_grid_geometry_measurement_remains_absent_while_grid_lanes_publish() {
     let style = NodeInput {
         display: Display::Grid,
         size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
@@ -272,10 +272,384 @@ fn fri05_c05_grid_geometry_measurement_and_grid_lanes_publication_remain_absent(
         fri05_c05_grid_sizing_input(Size::new(Some(40.0), Some(30.0))),
     )
     .unwrap();
-    assert!(
-        lanes_output.scroll_geometry.is_none(),
-        "C05-T4 still owns grid-lanes container publication"
+    assert!(lanes_output.scroll_geometry.is_some());
+}
+
+#[test]
+fn fri05_c05_subgrid_geometry_settles_local_auto_and_preserves_parent_local_output() {
+    let mut tree = OracleTree::new()
+        .children(0, [1])
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(7.0).unwrap(),
+                grid_template_columns: vec![TrackComponent::px(100.0)],
+                grid_template_rows: vec![TrackComponent::px(100.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Grid,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                grid_template_columns: vec![TrackComponent::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                grid_template_rows: vec![TrackComponent::Subgrid(SubgridTrack {
+                    name_components: Vec::new(),
+                })],
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Relative,
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
+                inset: Edges::new(
+                    LengthAuto::px(95.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(95.0),
+                ),
+                ..NodeInput::default()
+            },
+        );
+
+    compute_grid(
+        &mut tree,
+        0,
+        fri05_c05_grid_sizing_input(Size::splat(Some(100.0))),
+    )
+    .expect("nested inherited subgrid computes");
+
+    let subgrid = tree.layout(1).expect("subgrid output is staged");
+    let geometry = subgrid
+        .scroll_geometry
+        .expect("performed inherited subgrid publishes canonical geometry");
+    assert_eq!(geometry.border_box().size(), subgrid.size);
+    assert_eq!(geometry.target().border_box(), geometry.border_box());
+    assert!(geometry.gutters().right().is_some());
+    assert!(geometry.gutters().bottom().is_some());
+    assert_eq!(geometry.content_box().size(), Size::splat(90.0));
+
+    let performed = tree
+        .inputs(2)
+        .iter()
+        .filter(|input| input.run_mode() == RunMode::PerformLayout)
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        performed.len(),
+        4,
+        "initial layout and baseline refresh each settle the subgrid locally"
     );
+    assert_eq!(
+        performed
+            .iter()
+            .map(ComputeInputOf::containing_auto_scrollbar_pass)
+            .collect::<Vec<_>>(),
+        vec![
+            crate::scroll::SettledAutoScrollbarState::INITIAL,
+            crate::scroll::SettledAutoScrollbarState::new(true, true),
+            crate::scroll::SettledAutoScrollbarState::INITIAL,
+            crate::scroll::SettledAutoScrollbarState::new(true, true),
+        ]
+    );
+    assert!(performed.iter().all(|input| {
+        input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
+    }));
+}
+
+#[test]
+fn fri05_c05_grid_lanes_geometry_publishes_reservation_range_and_target_in_all_flows() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for (overflow, replaced, expected_used) in [
+                (Overflow::Visible, false, Overflow::Visible),
+                (Overflow::Clip, false, Overflow::Clip),
+                (Overflow::Hidden, false, Overflow::Hidden),
+                (Overflow::Scroll, false, Overflow::Scroll),
+                (Overflow::Auto, false, Overflow::Auto),
+                (Overflow::Hidden, true, Overflow::Clip),
+            ] {
+                let mut tree = OracleTree::new().children(0, []).style(
+                    0,
+                    NodeInput {
+                        display: Display::GridLanes,
+                        writing_mode,
+                        direction,
+                        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                        overflow: computed_overflow(overflow, overflow),
+                        item_is_replaced: replaced,
+                        scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+                        scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                        justify_content: Some(AlignContent::End),
+                        align_content: Some(AlignContent::Center),
+                        grid_template_columns: vec![TrackComponent::px(160.0)],
+                        grid_template_rows: vec![TrackComponent::px(140.0)],
+                        scroll_margin: ScrollMargin::try_new(1.0, 2.0, 3.0, 4.0).unwrap(),
+                        scroll_snap_align: ScrollSnapAlign::new(
+                            ScrollSnapAlignValue::End,
+                            ScrollSnapAlignValue::Center,
+                        ),
+                        scroll_snap_stop: ScrollSnapStop::Always,
+                        ..NodeInput::default()
+                    },
+                );
+
+                let output = compute_grid(
+                    &mut tree,
+                    0,
+                    fri05_c05_grid_sizing_input(Size::new(Some(100.0), Some(80.0))),
+                )
+                .expect("grid-lanes geometry computes");
+                let geometry = output
+                    .scroll_geometry
+                    .expect("performed grid-lanes publishes canonical geometry");
+                assert_eq!(geometry.used_overflow_x(), expected_used);
+                assert_eq!(geometry.used_overflow_y(), expected_used);
+                assert_eq!(geometry.target().border_box(), geometry.border_box());
+                assert_eq!(
+                    geometry.target().scroll_margin(),
+                    ScrollMargin::try_new(1.0, 2.0, 3.0, 4.0).unwrap()
+                );
+                assert_eq!(geometry.target().snap_stop(), ScrollSnapStop::Always);
+                assert!(
+                    output.content_size.width >= geometry.canonical_content_size().unwrap().width
+                        && output.content_size.height
+                            >= geometry.canonical_content_size().unwrap().height
+                );
+
+                if matches!(overflow, Overflow::Scroll) && !replaced {
+                    let flow_range = geometry
+                        .flow_axes()
+                        .flow_relative_scroll_range(geometry.physical_range());
+                    assert!(flow_range.inline().minimum() < 0.0);
+                    assert_eq!(flow_range.inline().maximum(), 0.0);
+                    assert!(flow_range.block().minimum() < 0.0);
+                    assert_eq!(flow_range.block().maximum(), 0.0);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fri05_c05_grid_lanes_geometry_reserves_forced_stable_both_zero_tiny_and_auto() {
+    for (overflow, gutter, width, size, expected_edges) in [
+        (
+            computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            ScrollbarGutter::Auto,
+            10.0,
+            Size::new(100.0, 80.0),
+            (false, true, true),
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::Stable,
+            10.0,
+            Size::new(100.0, 80.0),
+            (false, true, false),
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::StableBothEdges,
+            10.0,
+            Size::new(100.0, 80.0),
+            (true, true, false),
+        ),
+        (
+            computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            ScrollbarGutter::Auto,
+            0.0,
+            Size::new(100.0, 80.0),
+            (false, false, false),
+        ),
+        (
+            computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::StableBothEdges,
+            8.0,
+            Size::new(10.0, 6.0),
+            (true, true, false),
+        ),
+    ] {
+        let mut tree = OracleTree::new().children(0, []).style(
+            0,
+            NodeInput {
+                display: Display::GridLanes,
+                size: size.map(PreferredSize::px),
+                overflow,
+                scrollbar_gutter: gutter,
+                scrollbar_width: ScrollbarWidth::try_new(width).unwrap(),
+                grid_template_columns: vec![TrackComponent::px(1.0)],
+                grid_template_rows: vec![TrackComponent::px(1.0)],
+                ..NodeInput::default()
+            },
+        );
+        let geometry = compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(size.map(Some)))
+            .unwrap()
+            .scroll_geometry
+            .unwrap();
+        assert_eq!(geometry.gutters().left().is_some(), expected_edges.0);
+        assert_eq!(geometry.gutters().right().is_some(), expected_edges.1);
+        assert_eq!(geometry.gutters().bottom().is_some(), expected_edges.2);
+        if size == Size::new(10.0, 6.0) {
+            assert_eq!(geometry.content_box().size(), Size::new(0.0, 6.0));
+        }
+    }
+
+    let mut auto = OracleTree::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::GridLanes,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                grid_template_columns: vec![TrackComponent::px(95.0)],
+                grid_template_rows: vec![TrackComponent::px(120.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                position: Position::Relative,
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
+                inset: Edges::new(
+                    LengthAuto::px(95.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(95.0),
+                ),
+                ..NodeInput::default()
+            },
+        );
+    let geometry = compute_grid(
+        &mut auto,
+        0,
+        fri05_c05_grid_sizing_input(Size::splat(Some(100.0))),
+    )
+    .unwrap()
+    .scroll_geometry
+    .unwrap();
+    assert!(geometry.gutters().right().is_some());
+    assert!(geometry.gutters().bottom().is_some());
+    assert!(auto.inputs(1).iter().all(|input| {
+        input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
+    }));
+}
+
+fn assert_fri05_c05_grid_lanes_geometry_round_and_cache<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
+{
+    let scalar = S::from_f64;
+    let mut tree = OracleTreeOf::<S>::new().children(0, []).style(
+        0,
+        NodeInputOf {
+            display: Display::GridLanes,
+            size: Size::new(
+                PreferredSizeOf::px(scalar(100.4)),
+                PreferredSizeOf::px(scalar(80.4)),
+            ),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.4)).unwrap(),
+            grid_template_columns: vec![TrackComponentOf::px(scalar(130.6))],
+            grid_template_rows: vec![TrackComponentOf::px(scalar(110.6))],
+            scroll_margin: ScrollMarginOf::try_new(
+                scalar(1.25),
+                scalar(2.25),
+                scalar(3.25),
+                scalar(4.25),
+            )
+            .unwrap(),
+            ..NodeInputOf::default()
+        },
+    );
+    let input = ComputeInputOf::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::new(
+            AvailableOf::Definite(scalar(100.4)),
+            AvailableOf::Definite(scalar(80.4)),
+        ),
+    );
+    let cold = compute_grid(&mut tree, 0, input).expect("scalar lanes geometry computes");
+    let geometry = cold.scroll_geometry.expect("cold geometry is present");
+    let mut cache = CacheOf::<S>::new();
+    cache.store_with_context(&input, CacheKeyContext::new(), cold);
+    let warm = cache
+        .get_with_context(&input, CacheKeyContext::new())
+        .expect("warm cache returns lanes output");
+    assert_eq!(warm, cold);
+    assert_eq!(warm.scroll_geometry, Some(geometry));
+
+    Compute::set_unrounded(
+        &mut tree,
+        0,
+        NodeOutputOf {
+            source_index: SourceIndex::ZERO,
+            location: Point::ZERO,
+            size: cold.size,
+            content_size: cold.content_size,
+            scroll_geometry: Some(geometry),
+            scrollbar_size: geometry.scrollbar_size(),
+            border: Edges::ZERO,
+            padding: Edges::ZERO,
+            margin: Edges::ZERO,
+        },
+    );
+    round_layout(&mut tree, 0).expect("lanes geometry rounds from canonical source");
+    let rounded = tree.final_layout(0).expect("rounded output is staged");
+    let rounded_geometry = rounded
+        .scroll_geometry
+        .expect("rounding retains canonical lanes geometry");
+    assert_eq!(
+        rounded_geometry.target().scroll_margin(),
+        geometry.target().scroll_margin()
+    );
+    assert_eq!(
+        rounded_geometry.target().snap_align(),
+        geometry.target().snap_align()
+    );
+    assert_eq!(
+        rounded_geometry.target().snap_stop(),
+        geometry.target().snap_stop()
+    );
+    assert_eq!(rounded_geometry.scrollbar_size(), rounded.scrollbar_size());
+}
+
+#[test]
+fn fri05_c05_grid_lanes_geometry_round_and_cache_match_in_both_scalar_lanes() {
+    assert_fri05_c05_grid_lanes_geometry_round_and_cache::<f32>();
+    assert_fri05_c05_grid_lanes_geometry_round_and_cache::<f64>();
 }
 
 #[test]

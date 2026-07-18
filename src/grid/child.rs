@@ -915,7 +915,8 @@ where
         )
         .with_containing_auto_scrollbar_pass(input.containing_auto_scrollbar_pass);
         let row_axis = child_context.rows.clone();
-        let result = compute_grid_with_context_result(tree, item.node, child_input, child_context)?;
+        let result =
+            compute_grid_with_context_settled(tree, item.node, child_input, child_context)?;
         let mut output = result.output;
         let scroll_geometry = retained_grid_child_scroll_geometry(
             &child_style,
