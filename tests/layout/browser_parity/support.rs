@@ -924,6 +924,19 @@ fn compare_expectation(
     compare_optional_number(path, "width", actual.size.width, expected.width)?;
     compare_optional_number(path, "height", actual.size.height, expected.height)?;
 
+    if let Some(expected_scroll_size) = expected.scroll_size {
+        let scroll_geometry = actual.scroll_geometry.ok_or_else(|| {
+            Error::new(format!(
+                "{path}: scroll geometry mismatch, expected canonical geometry"
+            ))
+        })?;
+        let range = scroll_geometry.physical_range();
+        let x_span = range.x().maximum() - range.x().minimum();
+        let y_span = range.y().maximum() - range.y().minimum();
+        compare_number(path, "scroll width", x_span, expected_scroll_size.width)?;
+        compare_number(path, "scroll height", y_span, expected_scroll_size.height)?;
+    }
+
     let children = tree.nodes[node]
         .children
         .iter()
@@ -2655,6 +2668,106 @@ mod tests {
 
     fn observed_overflow_axes(input: &layout::NodeInput) -> (layout::Overflow, layout::Overflow) {
         (input.overflow.x(), input.overflow.y())
+    }
+
+    fn fri05_c06_scroll_expectation(width: Scalar, height: Scalar) -> Golden {
+        let mut golden = Golden::parse(
+            r#"
+            <test name="fri05-c06-nonzero" use-rounding="true">
+                <viewport width="max-content" height="max-content" />
+                <input>
+                    <div display="flex" overflow-x="scroll" overflow-y="scroll"
+                         scrollbar-width="15" align-items="start" justify-content="start"
+                         width="50px" height="50px">
+                        <div display="flex" flex-shrink="0" width="100px" height="100px" />
+                    </div>
+                </input>
+                <expectations>
+                    <node x="0" y="0" width="50" height="50"
+                          scroll_width="65" scroll_height="65">
+                        <node x="0" y="0" width="100" height="100" />
+                    </node>
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("scroll expectation fixture should parse");
+        golden.expectations.scroll_size = Some(Size::new(width, height));
+        golden
+    }
+
+    #[test]
+    fn fri05_c06_comparator_correct_nonzero_range_spans_pass() {
+        assert_surgeist_matches(&fri05_c06_scroll_expectation(65.0, 65.0))
+            .expect("canonical nonzero range spans should match");
+    }
+
+    #[test]
+    fn fri05_c06_comparator_explicit_zero_range_spans_pass() {
+        let golden = Golden::parse(
+            r#"
+            <test name="fri05-c06-zero" use-rounding="true">
+                <viewport width="max-content" height="max-content" />
+                <input>
+                    <div overflow-x="hidden" overflow-y="hidden" width="50px" height="50px" />
+                </input>
+                <expectations>
+                    <node x="0" y="0" width="50" height="50"
+                          scroll_width="0" scroll_height="0" />
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("zero scroll expectation fixture should parse");
+
+        assert_surgeist_matches(&golden).expect("explicit zero range spans should match");
+    }
+
+    #[test]
+    fn fri05_c06_comparator_wrong_x_range_span_names_scroll_width_mismatch() {
+        let error = assert_surgeist_matches(&fri05_c06_scroll_expectation(64.0, 65.0))
+            .expect_err("wrong x range span should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "fri05-c06-nonzero: scroll width mismatch, expected 64, got 65"
+        );
+    }
+
+    #[test]
+    fn fri05_c06_comparator_wrong_y_range_span_names_scroll_height_mismatch() {
+        let error = assert_surgeist_matches(&fri05_c06_scroll_expectation(65.0, 64.0))
+            .expect_err("wrong y range span should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "fri05-c06-nonzero: scroll height mismatch, expected 64, got 65"
+        );
+    }
+
+    #[test]
+    fn fri05_c06_comparator_absent_geometry_names_scroll_geometry_mismatch() {
+        let golden = Golden::parse(
+            r#"
+            <test name="fri05-c06-missing-geometry" use-rounding="true">
+                <viewport width="max-content" height="max-content" />
+                <input>
+                    <div display="none" />
+                </input>
+                <expectations>
+                    <node scroll_width="0" scroll_height="0" />
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("missing geometry fixture should parse");
+        let error = assert_surgeist_matches(&golden)
+            .expect_err("missing canonical scroll geometry should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "fri05-c06-missing-geometry: scroll geometry mismatch, expected canonical geometry"
+        );
     }
 
     #[test]
