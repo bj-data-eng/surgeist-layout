@@ -1,5 +1,5 @@
 # FRI-05-C05 Grid Family Scroll Geometry
-Status: in_progress
+Status: complete
 Cycle ID: `FRI-05-C05`
 Owning repository: `surgeist-layout`
 Cycle base: `90c478c1b4449332c4ba411bf6869ef9fca74bec`
