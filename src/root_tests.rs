@@ -284,9 +284,24 @@ fn fri06_c03_mixed_batch<S: LayoutScalar>(
     children: Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)>,
     available_inline: AvailableOf<S>,
 ) -> CompletedLayoutBatchOf<u32, S> {
+    fri06_c03_mixed_batch_with_root(
+        children,
+        available_inline,
+        NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        },
+    )
+}
+
+fn fri06_c03_mixed_batch_with_root<S: LayoutScalar>(
+    children: Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)>,
+    available_inline: AvailableOf<S>,
+    root_input: NodeInputOf<S>,
+) -> CompletedLayoutBatchOf<u32, S> {
     let root_input = NodeInputOf {
         display: Display::Block,
-        ..NodeInputOf::default()
+        ..root_input
     };
     let child_nodes = children
         .iter()
@@ -321,156 +336,116 @@ fn fri06_c03_text_input<S: LayoutScalar>(
     LayoutInputOf::inline_text(InlineTextInputOf::try_new(segments).unwrap())
 }
 
-struct Fri06C03ControlGateTree<S: LayoutScalar> {
-    inputs: HashMap<u32, LayoutInputOf<S>>,
-    node_inputs: HashMap<u32, NodeInputOf<S>>,
-    children: HashMap<u32, Vec<u32>>,
-    atomic_cache_reads: Cell<usize>,
-    atomic_measurements: Cell<usize>,
-}
-
-impl<S: LayoutScalar> Traverse for Fri06C03ControlGateTree<S> {
-    type Node = u32;
-    type Scalar = S;
-    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
-
-    fn children(&self, node: Self::Node) -> Self::Children<'_> {
-        self.children
-            .get(&node)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-            .iter()
-            .copied()
-    }
-
-    fn child_count(&self, node: Self::Node) -> usize {
-        self.children.get(&node).map(Vec::len).unwrap_or(0)
-    }
-
-    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
-        self.children[&node][index]
-    }
-}
-
-impl<S: LayoutScalar> LayoutTree for Fri06C03ControlGateTree<S> {
-    type MeasureError = ();
-
-    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
-        &self.node_inputs[&node]
-    }
-
-    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
-        self.inputs[&node].clone()
-    }
-
-    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
-        node == 2
-    }
-
-    fn measure_leaf(
-        &self,
-        node: Self::Node,
-        _input: LeafMeasureInputOf<S>,
-    ) -> Option<Result<Size<S>, Self::MeasureError>> {
-        if node != 2 {
-            return None;
-        }
-        self.atomic_measurements
-            .set(self.atomic_measurements.get() + 1);
-        Some(Ok(Size::new(S::from_f64(10.0), S::from_f64(10.0))))
-    }
-
-    fn cache_get(
-        &self,
-        node: Self::Node,
-        _input: &ComputeInputOf<S>,
-        _context: CacheKeyContext,
-    ) -> Option<ComputeOutputOf<S>> {
-        if node == 2 {
-            self.atomic_cache_reads
-                .set(self.atomic_cache_reads.get() + 1);
-        }
-        None
-    }
-}
-
 #[test]
-fn fri06_c03_mixed_control_interim_visible_hidden_and_boundary_stay_typed_before_atomic_compute_both_scalars()
- {
+fn fri06_c03_control_mixed_break_boundary_and_hidden_output_publish_from_one_source_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
-        let controls = [
-            LayoutInputOf::line_break(LineBreakInputOf::new()),
-            LayoutInputOf::line_break(LineBreakInputOf::new().hidden()),
-            LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
-                InlineBoundaryKind::Start,
-                InlineMetricsOf::default(),
-            )),
-        ];
-        for control in controls {
-            let root_input = NodeInputOf {
-                display: Display::Block,
-                ..NodeInputOf::default()
-            };
-            let mut atomic_input = fri06_c03_atomic_style(
-                10.0,
-                10.0,
-                0.0,
-                0.0,
-                0,
-                InlineBreakOpportunityOf::prohibited(),
-            );
-            atomic_input.size = Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO);
-            let tree = Fri06C03ControlGateTree {
-                inputs: HashMap::from([
-                    (0, LayoutInputOf::box_input(root_input.clone())),
-                    (
+        let boundary_metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
+                .unwrap();
+        let break_metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(12.0), S::from_f64(9.0))
+                .unwrap();
+        let atomic_style = fri06_c03_atomic_style(
+            10.0,
+            10.0,
+            0.0,
+            0.0,
+            2,
+            InlineBreakOpportunityOf::prohibited(),
+        );
+        let batch = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                        401,
+                        10.0,
                         1,
-                        fri06_c03_text_input(vec![fri06_c02_segment(
-                            99,
-                            5.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )]),
-                    ),
-                    (2, LayoutInputOf::box_input(atomic_input.clone())),
-                    (3, control),
-                ]),
-                node_inputs: HashMap::from([
-                    (0, root_input),
-                    (1, NodeInputOf::non_box()),
-                    (2, atomic_input),
-                    (3, NodeInputOf::non_box()),
-                ]),
-                children: HashMap::from([
-                    (0, vec![1, 2, 3]),
-                    (1, Vec::new()),
-                    (2, Vec::new()),
-                    (3, Vec::new()),
-                ]),
-                atomic_cache_reads: Cell::new(0),
-                atomic_measurements: Cell::new(0),
-            };
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    2,
+                    LayoutInputOf::box_input(atomic_style.clone()),
+                    atomic_style,
+                ),
+                (
+                    3,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::Start,
+                        boundary_metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    4,
+                    fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                        402,
+                        10.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    5,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(break_metrics)),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    6,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().hidden()),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    7,
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        403,
+                        5.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::definite(S::from_f64(40.0)),
+        );
 
-            let error = compute_layout(
-                &tree,
-                0,
-                LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(
-                    100.0,
-                ))))
-                .unwrap(),
-            )
-            .expect_err("T1 intentionally retains the typed text/control capability gate");
-            assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
-            assert_eq!(error.operation(), LayoutOperation::ChildLayout);
-            assert_eq!(
-                error.kind(),
-                &LayoutErrorKindOf::UnsupportedCapability(
-                    LayoutUnsupportedCapability::LaterFriBehavior
-                )
-            );
-            assert_eq!(tree.atomic_cache_reads.get(), 0);
-            assert_eq!(tree.atomic_measurements.get(), 0);
-        }
+        assert_eq!(
+            fri06_c02_final_node(&batch, 0).size.height,
+            S::from_f64(32.0)
+        );
+        assert_eq!(fri06_c02_final_node(&batch, 3).size, Size::ZERO);
+        assert_eq!(fri06_c02_final_node(&batch, 5).size, Size::ZERO);
+        assert_eq!(fri06_c02_final_node(&batch, 6).size, Size::ZERO);
+        assert_eq!(fri06_c02_final_node(&batch, 6).location, Point::ZERO);
+        assert_eq!(fri06_c02_final_node(&batch, 3).source_index.get(), 2);
+        assert_eq!(fri06_c02_final_node(&batch, 5).source_index.get(), 4);
+        assert_eq!(fri06_c02_final_node(&batch, 6).source_index.get(), 5);
+        assert_eq!(batch.final_inline_fragments().len(), 3);
+        assert_eq!(
+            batch
+                .final_inline_fragments()
+                .iter()
+                .map(|entry| (
+                    entry.fragment().line_index(),
+                    entry.fragment().visual_index()
+                ))
+                .collect::<Vec<_>>(),
+            [(0, 1), (0, 3), (1, 0)]
+        );
+        assert_eq!(fri06_c02_final_node(&batch, 2).location.x, S::ZERO);
+        assert_eq!(
+            fri06_c02_final_node(&batch, 3).location.x,
+            S::from_f64(20.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 5).location.x,
+            S::from_f64(30.0)
+        );
     }
 
     assert_lane::<f32>();
@@ -478,72 +453,310 @@ fn fri06_c03_mixed_control_interim_visible_hidden_and_boundary_stay_typed_before
 }
 
 #[test]
-fn fri06_c03_mixed_leading_hidden_line_break_stays_typed_before_atomic_compute_both_scalars() {
+fn fri06_c03_strut_adjacent_final_breaks_preserve_empty_following_line_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
-        let root_input = NodeInputOf {
-            display: Display::Block,
-            ..NodeInputOf::default()
-        };
-        let mut atomic_input = fri06_c03_atomic_style(
-            10.0,
-            10.0,
-            0.0,
-            0.0,
-            0,
-            InlineBreakOpportunityOf::prohibited(),
+        let metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
+                .unwrap();
+        let batch = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    2,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::MAX_CONTENT,
         );
-        atomic_input.size = Size::new(PreferredSizeOf::AUTO, PreferredSizeOf::AUTO);
-        let tree = Fri06C03ControlGateTree {
-            inputs: HashMap::from([
-                (0, LayoutInputOf::box_input(root_input.clone())),
+
+        assert_eq!(
+            fri06_c02_final_node(&batch, 0).size.height,
+            S::from_f64(60.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 1).location.y,
+            S::from_f64(15.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 2).location.y,
+            S::from_f64(35.0)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c03_control_leading_trailing_only_child_and_boundary_edges_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
+                .unwrap();
+        let text = || {
+            (
+                2,
+                fri06_c03_text_input(vec![fri06_c02_segment(
+                    451,
+                    10.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                )]),
+                NodeInputOf::non_box(),
+            )
+        };
+
+        let leading = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                    NodeInputOf::non_box(),
+                ),
+                text(),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&leading, 0).size.height,
+            S::from_f64(40.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&leading, 1).location.y,
+            S::from_f64(15.0)
+        );
+
+        let trailing = fri06_c03_mixed_batch(
+            vec![
+                text(),
+                (
+                    3,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&trailing, 0).size.height,
+            S::from_f64(40.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&trailing, 3).location,
+            Point::new(S::from_f64(10.0), S::from_f64(15.0))
+        );
+
+        let only_break = fri06_c03_mixed_batch(
+            vec![(
+                1,
+                LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                NodeInputOf::non_box(),
+            )],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&only_break, 0).size.height,
+            S::from_f64(40.0)
+        );
+
+        let only_boundary = fri06_c03_mixed_batch(
+            vec![(
+                1,
+                LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                    InlineBoundaryKind::Start,
+                    metrics,
+                )),
+                NodeInputOf::non_box(),
+            )],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&only_boundary, 0).size.height,
+            S::from_f64(20.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&only_boundary, 1).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
+
+        let adjacent_boundaries = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::Start,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+                (
+                    2,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::End,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&adjacent_boundaries, 1).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
+        assert_eq!(
+            fri06_c02_final_node(&adjacent_boundaries, 2).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
+
+        let boundaries = fri06_c03_mixed_batch(
+            vec![
+                (
+                    1,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::Start,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+                text(),
+                (
+                    3,
+                    LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                        InlineBoundaryKind::End,
+                        metrics,
+                    )),
+                    NodeInputOf::non_box(),
+                ),
+            ],
+            AvailableOf::MAX_CONTENT,
+        );
+        assert_eq!(
+            fri06_c02_final_node(&boundaries, 0).size.height,
+            S::from_f64(20.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&boundaries, 1).location,
+            Point::new(S::ZERO, S::from_f64(15.0))
+        );
+        assert_eq!(
+            fri06_c02_final_node(&boundaries, 3).location,
+            Point::new(S::from_f64(10.0), S::from_f64(15.0))
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c03_control_visible_break_uses_each_unequal_lines_alignment_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(12.0), S::from_f64(9.0))
+                .unwrap();
+        let batch = fri06_c03_mixed_batch_with_root(
+            vec![
                 (
                     1,
                     fri06_c03_text_input(vec![fri06_c02_segment(
-                        99,
-                        5.0,
+                        461,
+                        20.0,
                         InlineWhitespaceEdge::Preserve,
                         InlineBreakOpportunityOf::prohibited(),
                     )]),
+                    NodeInputOf::non_box(),
                 ),
-                (2, LayoutInputOf::box_input(atomic_input.clone())),
+                (
+                    2,
+                    LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                    NodeInputOf::non_box(),
+                ),
                 (
                     3,
-                    LayoutInputOf::line_break(LineBreakInputOf::new().hidden()),
+                    fri06_c03_text_input(vec![fri06_c02_segment(
+                        462,
+                        6.0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )]),
+                    NodeInputOf::non_box(),
                 ),
-            ]),
-            node_inputs: HashMap::from([
-                (0, root_input),
-                (1, NodeInputOf::non_box()),
-                (2, atomic_input),
-                (3, NodeInputOf::non_box()),
-            ]),
-            children: HashMap::from([
-                (0, vec![3, 1, 2]),
-                (1, Vec::new()),
-                (2, Vec::new()),
-                (3, Vec::new()),
-            ]),
-            atomic_cache_reads: Cell::new(0),
-            atomic_measurements: Cell::new(0),
-        };
-
-        let error = compute_layout(
-            &tree,
-            0,
-            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(100.0))))
-                .unwrap(),
-        )
-        .expect_err("a leading hidden break must remain inside the mixed control gate");
-        assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
-        assert_eq!(error.operation(), LayoutOperation::ChildLayout);
-        assert_eq!(
-            error.kind(),
-            &LayoutErrorKindOf::UnsupportedCapability(
-                LayoutUnsupportedCapability::LaterFriBehavior
-            )
+            ],
+            AvailableOf::definite(S::from_f64(40.0)),
+            NodeInputOf {
+                text_align: TextAlign::LegacyCenter,
+                ..NodeInputOf::default()
+            },
         );
-        assert_eq!(tree.atomic_cache_reads.get(), 0);
-        assert_eq!(tree.atomic_measurements.get(), 0);
+
+        assert_eq!(
+            fri06_c02_final_node(&batch, 1).location.x,
+            S::from_f64(10.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 2).location.x,
+            S::from_f64(30.0)
+        );
+        assert_eq!(
+            fri06_c02_final_node(&batch, 3).location.x,
+            S::from_f64(17.0)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c03_clear_all_values_accept_all_containing_flows_without_exclusions_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let writing_modes = [
+            WritingMode::HorizontalTb,
+            WritingMode::VerticalRl,
+            WritingMode::VerticalLr,
+            WritingMode::SidewaysRl,
+            WritingMode::SidewaysLr,
+        ];
+        let directions = [Direction::Ltr, Direction::Rtl];
+        let clears = [Clear::None, Clear::Left, Clear::Right, Clear::Both];
+        for writing_mode in writing_modes {
+            for direction in directions {
+                for clear in clears {
+                    let metrics = InlineMetricsOf::from_line_height_and_baseline(
+                        S::from_f64(10.0),
+                        S::from_f64(7.0),
+                    )
+                    .unwrap();
+                    let batch = fri06_c03_mixed_batch_with_root(
+                        vec![(
+                            1,
+                            LayoutInputOf::line_break(
+                                LineBreakInputOf::new()
+                                    .with_writing_mode(writing_mode)
+                                    .with_direction(direction)
+                                    .with_clear(clear)
+                                    .with_metrics(metrics),
+                            ),
+                            NodeInputOf::non_box(),
+                        )],
+                        AvailableOf::definite(S::from_f64(80.0)),
+                        NodeInputOf {
+                            writing_mode,
+                            direction,
+                            ..NodeInputOf::default()
+                        },
+                    );
+
+                    assert_eq!(fri06_c02_final_node(&batch, 1).size, Size::ZERO);
+                }
+            }
+        }
     }
 
     assert_lane::<f32>();
@@ -2073,15 +2286,15 @@ impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
         );
     }
 
-    fn add_failing_mixed_control(&mut self) {
+    fn add_failing_noncanonical_control(&mut self) {
         self.inputs
             .insert(2, LayoutInputOf::line_break(LineBreakInputOf::new()));
-        self.node_inputs.insert(2, NodeInputOf::non_box());
+        self.node_inputs.insert(2, NodeInputOf::default());
         self.children.insert(0, vec![1, 2]);
         self.children.insert(2, Vec::new());
     }
 
-    fn remove_failing_mixed_control(&mut self) {
+    fn remove_failing_noncanonical_control(&mut self) {
         self.inputs.remove(&2);
         self.node_inputs.remove(&2);
         self.children.insert(0, vec![1]);
@@ -2420,22 +2633,22 @@ fn fri06_c02_transaction_layout_and_preparation_failures_preserve_retained_state
             InlineBreakOpportunityOf::prohibited(),
         )]);
         tree.retained.dirty = vec![1];
-        tree.add_failing_mixed_control();
+        tree.add_failing_noncanonical_control();
         let before_layout_failure = tree.retained.clone();
 
         let error = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
-            .expect_err("mixed text/control layout remains a typed C03 failure");
-        assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
-        assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+            .expect_err("noncanonical control pairing fails before retained-state mutation");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(2));
+        assert_eq!(error.operation(), LayoutOperation::RootLayout);
         assert_eq!(
             error.kind(),
-            &LayoutErrorKindOf::UnsupportedCapability(
-                LayoutUnsupportedCapability::LaterFriBehavior
-            )
+            &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::NonBoxNodeRole {
+                reason: NonBoxNodeRoleError::NonCanonicalNodeInput,
+            })
         );
         assert_eq!(tree.retained, before_layout_failure);
 
-        tree.remove_failing_mixed_control();
+        tree.remove_failing_noncanonical_control();
         let replacement = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
             .expect("dirty text replacement stages successfully");
         tree.reject_preparation = true;

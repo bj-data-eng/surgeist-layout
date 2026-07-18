@@ -4017,9 +4017,9 @@ fn block_line_break_metrics_create_empty_line_height() {
     )
     .unwrap();
 
-    assert_eq!(output.size.height, 40.0);
+    assert_eq!(output.size.height, 60.0);
     assert_eq!(output.first_baselines.y, Some(15.0));
-    assert_eq!(output.last_baselines.y, Some(35.0));
+    assert_eq!(output.last_baselines.y, Some(55.0));
     assert_eq!(tree.layout(1).unwrap().location.y, 15.0);
     assert_eq!(tree.layout(2).unwrap().location.y, 35.0);
 }
@@ -4446,8 +4446,7 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
 }
 
 #[test]
-#[should_panic(expected = "vertical line-break clear layout is not implemented")]
-fn vertical_line_break_clear_panics_until_vertical_clear_is_modeled() {
+fn vertical_line_break_clear_is_accepted_without_active_exclusions() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])
         .style(
@@ -4471,10 +4470,13 @@ fn vertical_line_break_clear_panics_until_vertical_clear_is_modeled() {
         Size::new(Available::definite(80.0), Available::MAX_CONTENT),
     )
     .unwrap();
+    round_layout(&mut tree, 0).unwrap();
+
+    assert_eq!(tree.final_layout(1).unwrap().size, Size::ZERO);
 }
 
 #[test]
-#[should_panic(expected = "vertical line-break clear layout is not implemented")]
+#[should_panic(expected = "line-break flow must match containing inline flow")]
 fn vertical_parent_rejects_clear_even_when_line_break_input_defaults_horizontal() {
     let mut tree = crate::test_support::layout_tree::OracleTree::new()
         .children(0, [1])

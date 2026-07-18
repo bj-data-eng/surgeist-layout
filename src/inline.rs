@@ -1,5 +1,5 @@
 use super::{
-    AtomicInlineParticipationOf, AvailableOf, BidiLevel, Clear, DefaultScalar, Direction, Edges,
+    AtomicInlineParticipationOf, AvailableOf, Clear, DefaultScalar, Direction, Edges,
     InlineBoundaryKind, InlineBreakKind, InlineBreakOpportunityOf, InlineMetricsOf,
     InlineSegmentId, InlineWhitespaceEdge, LayoutScalar, Point, ShapedInlineSegmentOf, Size,
     TextAlign, VerticalAlign, WritingMode,
@@ -27,6 +27,8 @@ pub(super) enum MixedInlineParticipantOf<S: LayoutScalar = DefaultScalar> {
         item: AtomicInlineBoxParticipant<S>,
         participation: AtomicInlineParticipationOf<S>,
     },
+    ForcedLineBreak(ForcedLineBreakControlOf<S>),
+    Boundary(InlineBoundaryControlOf<S>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -68,8 +70,26 @@ pub(super) struct AtomicInlineSourceOf<S: LayoutScalar = DefaultScalar> {
     pub visual_index: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum PostLineClearIntent {
+    None,
+    LineStart,
+    LineEnd,
+    Both,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct InlineControlSourceOf<S: LayoutScalar = DefaultScalar> {
+    pub kind: InlineParticipantLayoutKind,
+    pub source_index: usize,
+    pub inline_start: S,
+    pub block_start: S,
+    pub line_index: usize,
+    pub visual_index: Option<usize>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct ShapedTextRunReportOf<S: LayoutScalar = DefaultScalar> {
+pub(super) struct MixedInlineRunReportOf<S: LayoutScalar = DefaultScalar> {
     pub inline_extent: S,
     pub block_extent: S,
     pub first_baseline: Option<S>,
@@ -77,6 +97,8 @@ pub(super) struct ShapedTextRunReportOf<S: LayoutScalar = DefaultScalar> {
     pub fragments: Vec<ShapedTextFragmentSourceOf<S>>,
     pub anchors: Vec<ShapedTextAnchorOf<S>>,
     pub atomics: Vec<AtomicInlineSourceOf<S>>,
+    pub controls: Vec<InlineControlSourceOf<S>>,
+    pub post_line_clear_intents: Vec<PostLineClearIntent>,
 }
 
 #[derive(Clone, Copy)]
@@ -89,6 +111,8 @@ struct SelectedInlineUnitOf<S: LayoutScalar> {
 #[derive(Clone)]
 struct SelectedInlineLineOf<S: LayoutScalar> {
     units: Vec<SelectedInlineUnitOf<S>>,
+    line_break: Option<ForcedLineBreakControlOf<S>>,
+    post_line_clear_intent: PostLineClearIntent,
     baseline: S,
     after_baseline: S,
     used_inline_extent: S,
@@ -115,24 +139,30 @@ fn discards_at_end(edge: InlineWhitespaceEdge) -> bool {
 }
 
 impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
-    fn following_break(self) -> InlineBreakOpportunityOf<S> {
+    fn following_break(self) -> Option<InlineBreakOpportunityOf<S>> {
         match self {
-            Self::ShapedText(participant) => participant.segment.following_break(),
-            Self::Atomic { participation, .. } => participation.following_break(),
+            Self::ShapedText(participant) => Some(participant.segment.following_break()),
+            Self::Atomic { participation, .. } => Some(participation.following_break()),
+            Self::ForcedLineBreak(_) | Self::Boundary(_) => None,
         }
     }
 
-    fn bidi_level(self) -> BidiLevel {
+    fn bidi_level(self) -> u8 {
         match self {
-            Self::ShapedText(participant) => participant.segment.bidi_level(),
-            Self::Atomic { participation, .. } => participation.bidi_level(),
+            Self::ShapedText(participant) => participant.segment.bidi_level().get(),
+            Self::Atomic { participation, .. } => participation.bidi_level().get(),
+            Self::Boundary(control) => match control.flow().direction() {
+                Direction::Ltr => 0,
+                Direction::Rtl => 1,
+            },
+            Self::ForcedLineBreak(_) => 0,
         }
     }
 
     fn whitespace_edge(self) -> Option<InlineWhitespaceEdge> {
         match self {
             Self::ShapedText(participant) => Some(participant.segment.whitespace_edge()),
-            Self::Atomic { .. } => None,
+            Self::Atomic { .. } | Self::ForcedLineBreak(_) | Self::Boundary(_) => None,
         }
     }
 
@@ -143,6 +173,7 @@ impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
                 let margin = flow_axes.logical_edges(item.margin);
                 flow_axes.logical_size(item.size).inline + margin.inline_sum()
             }
+            Self::ForcedLineBreak(_) | Self::Boundary(_) => S::ZERO,
         }
     }
 
@@ -167,12 +198,41 @@ impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
                     after_baseline: logical_size.block - baseline + logical_margin.block_end,
                 }
             }
+            Self::ForcedLineBreak(control) => {
+                let metrics = control.metrics();
+                InlineMetricContributionOf {
+                    baseline: metrics.baseline(),
+                    after_baseline: metrics.after_baseline(),
+                }
+            }
+            Self::Boundary(control) => {
+                let metrics = control.metrics();
+                InlineMetricContributionOf {
+                    baseline: metrics.baseline(),
+                    after_baseline: metrics.after_baseline(),
+                }
+            }
         }
+    }
+}
+
+#[must_use]
+pub(super) const fn mapped_post_line_clear_intent(
+    flow_axes: FlowAxes,
+    clear: Clear,
+) -> PostLineClearIntent {
+    let _ = flow_axes.inline_start();
+    match clear {
+        Clear::None => PostLineClearIntent::None,
+        Clear::Left => PostLineClearIntent::LineStart,
+        Clear::Right => PostLineClearIntent::LineEnd,
+        Clear::Both => PostLineClearIntent::Both,
     }
 }
 
 fn select_inline_line<S: LayoutScalar>(
     participants: &[MixedInlineParticipantOf<S>],
+    line_break: Option<ForcedLineBreakControlOf<S>>,
     selected_break: bool,
     strut: Option<InlineMetricContributionOf<S>>,
     flow_axes: FlowAxes,
@@ -195,12 +255,18 @@ fn select_inline_line<S: LayoutScalar>(
 
     let mut baseline = strut.map_or(S::ZERO, |metrics| metrics.baseline);
     let mut after_baseline = strut.map_or(S::ZERO, |metrics| metrics.after_baseline);
+    if let Some(control) = line_break {
+        let metrics = control.metrics();
+        baseline = baseline.max(metrics.baseline());
+        after_baseline = after_baseline.max(metrics.after_baseline());
+    }
     let mut used_inline_extent = S::ZERO;
     let selected_replacement = selected_break
         .then(|| {
             participants
                 .last()
-                .and_then(|participant| participant.following_break().replacement_inline_extent())
+                .and_then(|participant| participant.following_break())
+                .and_then(InlineBreakOpportunityOf::replacement_inline_extent)
         })
         .flatten();
     let units = participants
@@ -230,6 +296,10 @@ fn select_inline_line<S: LayoutScalar>(
 
     SelectedInlineLineOf {
         units,
+        line_break,
+        post_line_clear_intent: line_break.map_or(PostLineClearIntent::None, |control| {
+            mapped_post_line_clear_intent(flow_axes, control.clear())
+        }),
         baseline,
         after_baseline,
         used_inline_extent,
@@ -243,16 +313,25 @@ fn inline_min_content<S: LayoutScalar>(
     let mut maximum = S::ZERO;
     let mut group_start = 0;
     for (index, participant) in participants.iter().enumerate() {
-        if participant.following_break().kind() == InlineBreakKind::Prohibited {
+        let Some(following_break) = participant.following_break() else {
+            continue;
+        };
+        if following_break.kind() == InlineBreakKind::Prohibited {
             continue;
         }
-        let line = select_inline_line(&participants[group_start..=index], true, None, flow_axes);
+        let line = select_inline_line(
+            &participants[group_start..=index],
+            None,
+            true,
+            None,
+            flow_axes,
+        );
         maximum = maximum.max(line.used_inline_extent);
         group_start = index + 1;
     }
     if group_start < participants.len() {
         maximum = maximum.max(
-            select_inline_line(&participants[group_start..], false, None, flow_axes)
+            select_inline_line(&participants[group_start..], None, false, None, flow_axes)
                 .used_inline_extent,
         );
     }
@@ -266,18 +345,42 @@ fn inline_max_content<S: LayoutScalar>(
     let mut maximum = S::ZERO;
     let mut group_start = 0;
     for (index, participant) in participants.iter().enumerate() {
-        if participant.following_break().kind() != InlineBreakKind::Mandatory {
+        if matches!(participant, MixedInlineParticipantOf::ForcedLineBreak(_)) {
+            maximum = maximum.max(
+                select_inline_line(
+                    &participants[group_start..index],
+                    None,
+                    false,
+                    None,
+                    flow_axes,
+                )
+                .used_inline_extent,
+            );
+            group_start = index + 1;
+            continue;
+        }
+        if participant
+            .following_break()
+            .map(InlineBreakOpportunityOf::kind)
+            != Some(InlineBreakKind::Mandatory)
+        {
             continue;
         }
         maximum = maximum.max(
-            select_inline_line(&participants[group_start..=index], false, None, flow_axes)
-                .used_inline_extent,
+            select_inline_line(
+                &participants[group_start..=index],
+                None,
+                false,
+                None,
+                flow_axes,
+            )
+            .used_inline_extent,
         );
         group_start = index + 1;
     }
     if group_start < participants.len() {
         maximum = maximum.max(
-            select_inline_line(&participants[group_start..], false, None, flow_axes)
+            select_inline_line(&participants[group_start..], None, false, None, flow_axes)
                 .used_inline_extent,
         );
     }
@@ -302,7 +405,7 @@ fn reordered_inline_unit_indices<S: LayoutScalar>(units: &[SelectedInlineUnitOf<
     let mut indices = (0..units.len()).collect::<Vec<_>>();
     let Some(minimum_odd_level) = units
         .iter()
-        .map(|selected| selected.participant.bidi_level().get())
+        .map(|selected| selected.participant.bidi_level())
         .filter(|level| level % 2 == 1)
         .min()
     else {
@@ -310,21 +413,18 @@ fn reordered_inline_unit_indices<S: LayoutScalar>(units: &[SelectedInlineUnitOf<
     };
     let maximum_level = units
         .iter()
-        .map(|selected| selected.participant.bidi_level().get())
+        .map(|selected| selected.participant.bidi_level())
         .max()
         .unwrap_or(minimum_odd_level);
 
     for level in (minimum_odd_level..=maximum_level).rev() {
         let mut start = 0;
         while start < indices.len() {
-            while start < indices.len()
-                && units[indices[start]].participant.bidi_level().get() < level
-            {
+            while start < indices.len() && units[indices[start]].participant.bidi_level() < level {
                 start += 1;
             }
             let mut end = start;
-            while end < indices.len() && units[indices[end]].participant.bidi_level().get() >= level
-            {
+            while end < indices.len() && units[indices[end]].participant.bidi_level() >= level {
                 end += 1;
             }
             indices[start..end].reverse();
@@ -357,7 +457,7 @@ fn text_line_offset<S: LayoutScalar>(
 #[must_use]
 pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
     input: MixedInlineRunInputOf<S>,
-) -> ShapedTextRunReportOf<S> {
+) -> MixedInlineRunReportOf<S> {
     let available = match input.available_inline_extent {
         AvailableOf::Definite(value) => value,
         AvailableOf::MinContent => inline_min_content(&input.participants, input.flow_axes),
@@ -372,6 +472,20 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
 
     while scan < input.participants.len() {
         let participant = input.participants[scan];
+        if let MixedInlineParticipantOf::ForcedLineBreak(control) = participant {
+            selected_lines.push(select_inline_line(
+                &input.participants[line_start..scan],
+                Some(control),
+                false,
+                pending_strut.take(),
+                input.flow_axes,
+            ));
+            pending_strut = Some(participant.metrics(input.flow_axes));
+            scan += 1;
+            line_start = scan;
+            latest_allowed = None;
+            continue;
+        }
         let candidate_inline_extent =
             pending_inline_extent(&input.participants[line_start..=scan], input.flow_axes);
         if wraps
@@ -380,6 +494,7 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
         {
             selected_lines.push(select_inline_line(
                 &input.participants[line_start..break_end],
+                None,
                 true,
                 pending_strut.take(),
                 input.flow_axes,
@@ -391,13 +506,17 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
         }
 
         scan += 1;
-        match participant.following_break().kind() {
+        let Some(following_break) = participant.following_break() else {
+            continue;
+        };
+        match following_break.kind() {
             InlineBreakKind::Allowed | InlineBreakKind::AllowedWithReplacement => {
                 latest_allowed = Some(scan);
             }
             InlineBreakKind::Mandatory => {
                 selected_lines.push(select_inline_line(
                     &input.participants[line_start..scan],
+                    None,
                     true,
                     pending_strut.take(),
                     input.flow_axes,
@@ -413,12 +532,19 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
     if line_start < input.participants.len() {
         selected_lines.push(select_inline_line(
             &input.participants[line_start..],
+            None,
             false,
             pending_strut.take(),
             input.flow_axes,
         ));
     } else if let Some(strut) = pending_strut {
-        selected_lines.push(select_inline_line(&[], false, Some(strut), input.flow_axes));
+        selected_lines.push(select_inline_line(
+            &[],
+            None,
+            false,
+            Some(strut),
+            input.flow_axes,
+        ));
     }
 
     let mut block_start = S::ZERO;
@@ -428,6 +554,8 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
     let mut fragments = Vec::new();
     let mut anchors = Vec::new();
     let mut atomics = Vec::new();
+    let mut controls = Vec::new();
+    let mut post_line_clear_intents = Vec::new();
     for (line_index, line) in selected_lines.into_iter().enumerate() {
         let line_baseline = block_start + line.baseline;
         first_baseline.get_or_insert(line_baseline);
@@ -439,6 +567,7 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
             input.text_align,
         );
         inline_extent = inline_extent.max(line_inline_start + line.used_inline_extent);
+        post_line_clear_intents.push(line.post_line_clear_intent);
         let visual_order = reordered_inline_unit_indices(&line.units);
         let mut visual_indices = vec![0; line.units.len()];
         let mut inline_starts = vec![S::ZERO; line.units.len()];
@@ -495,12 +624,35 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
                         visual_index: visual_indices[source_index],
                     });
                 }
+                MixedInlineParticipantOf::Boundary(control) => {
+                    controls.push(InlineControlSourceOf {
+                        kind: inline_boundary_layout_kind(control.kind()),
+                        source_index: control.source_index(),
+                        inline_start,
+                        block_start: line_baseline,
+                        line_index,
+                        visual_index: Some(visual_indices[source_index]),
+                    });
+                }
+                MixedInlineParticipantOf::ForcedLineBreak(_) => {
+                    unreachable!("visible line breaks commit before line reordering")
+                }
             }
+        }
+        if let Some(control) = line.line_break {
+            controls.push(InlineControlSourceOf {
+                kind: InlineParticipantLayoutKind::ForcedLineBreak,
+                source_index: control.source_index(),
+                inline_start: line_inline_start + line.used_inline_extent,
+                block_start: line_baseline,
+                line_index,
+                visual_index: None,
+            });
         }
         block_start = block_start + line.baseline + line.after_baseline;
     }
 
-    ShapedTextRunReportOf {
+    MixedInlineRunReportOf {
         inline_extent,
         block_extent: block_start,
         first_baseline,
@@ -508,6 +660,8 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
         fragments,
         anchors,
         atomics,
+        controls,
+        post_line_clear_intents,
     }
 }
 
@@ -548,7 +702,6 @@ impl<S: LayoutScalar> InlineFlowOf<S> {
         self.flow_axes.writing_mode()
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub(super) const fn direction(self) -> Direction {
         self.flow_axes.direction()
@@ -627,7 +780,6 @@ impl<S: LayoutScalar> ForcedLineBreakControlOf<S> {
         self.alignment
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub(super) const fn clear(self) -> Clear {
         self.clear
@@ -643,7 +795,6 @@ pub(super) struct InlineBoundaryControlOf<S: LayoutScalar = DefaultScalar> {
     alignment: InlineControlAlignment,
 }
 
-#[allow(dead_code)]
 impl<S: LayoutScalar> InlineBoundaryControlOf<S> {
     #[must_use]
     pub(super) const fn new(
@@ -672,7 +823,6 @@ impl<S: LayoutScalar> InlineBoundaryControlOf<S> {
         self.kind
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub(super) const fn flow(self) -> InlineFlowOf<S> {
         self.flow
@@ -717,20 +867,17 @@ impl<S: LayoutScalar> InlineParticipant<S> {
         })
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub(super) const fn forced_line_break(control: ForcedLineBreakControlOf<S>) -> Self {
         Self::ForcedLineBreak(control)
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub(super) const fn inline_boundary(control: InlineBoundaryControlOf<S>) -> Self {
         Self::Boundary(control)
     }
 }
 
-#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum InlineParticipant<S: LayoutScalar = DefaultScalar> {
     Box(AtomicInlineBoxParticipant<S>),

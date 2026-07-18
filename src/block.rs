@@ -558,32 +558,29 @@ where
     index
 }
 
-fn mixed_inline_control_text_child<Tree, M>(
+fn run_uses_mixed_inline_builder<Tree, M>(
     tree: &Tree,
     children: &[<Tree as Traverse>::Node],
-) -> Option<<Tree as Traverse>::Node>
+) -> bool
 where
     Tree: Compute<M>,
 {
-    let mut text_child = None;
+    let mut contains_text = false;
     let mut contains_control = false;
+    let mut contains_visible_box = false;
+    let mut visible_boxes_are_normalized_atomics = true;
 
     for child in children.iter().copied() {
         match tree.layout_input(child) {
             LayoutInputOf::Box(style) => {
-                if style.display != super::Display::None
-                    && style.position != Position::Absolute
-                    && (style.float != Float::None || !style.display.is_inline_level())
-                {
-                    if contains_control && text_child.is_some() {
-                        return text_child;
-                    }
-                    text_child = None;
-                    contains_control = false;
+                if style.display != super::Display::None && style.position != Position::Absolute {
+                    contains_visible_box = true;
+                    visible_boxes_are_normalized_atomics &=
+                        style.atomic_inline_participation.is_some();
                 }
             }
             LayoutInputOf::InlineText(_) => {
-                text_child.get_or_insert(child);
+                contains_text = true;
             }
             LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
                 contains_control = true;
@@ -591,7 +588,8 @@ where
         }
     }
 
-    contains_control.then_some(text_child).flatten()
+    contains_text
+        || (contains_control && (!contains_visible_box || visible_boxes_are_normalized_atomics))
 }
 
 fn visible_line_break_in_flow<Tree, M>(
@@ -608,12 +606,6 @@ where
     };
     if line_break.display().is_none() {
         return None;
-    }
-    if crate::geometry::FlowAxes::new(flow_writing_mode, flow_direction).inline_axis()
-        == PhysicalAxis::Vertical
-        && line_break.clear() != Clear::None
-    {
-        panic!("vertical line-break clear layout is not implemented");
     }
     if line_break.writing_mode() != flow_writing_mode || line_break.direction() != flow_direction {
         panic!("line-break flow must match containing inline flow");
@@ -717,12 +709,6 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    if let Some(text_child) = mixed_inline_control_text_child(tree, children) {
-        return Err(crate::compute::mixed_inline_later_capability_error(
-            text_child,
-        ));
-    }
-
     let logical_node_inner_size =
         LogicalSizeOf::new(inner_inline, constants.logical_node_inner_size().block);
     let node_inner_size = constants.flow_axes.physical_size(logical_node_inner_size);
@@ -1537,7 +1523,9 @@ where
 {
     let run_start = run.start;
     let run_end = run.end;
-    if !inline_run_contains_clear(tree, children, run_start, run_end, context.constants) {
+    if run_uses_mixed_inline_builder(tree, &children[run_start..run_end])
+        || !inline_run_contains_clear(tree, children, run_start, run_end, context.constants)
+    {
         return layout_inline_run_children(
             tree,
             container,
@@ -1547,6 +1535,8 @@ where
         );
     }
 
+    // C04 replaces this no-text, pre-normalized atomic bridge with logical
+    // exclusion bands. It remains only to preserve existing rectangular clear.
     layout_inline_segments(
         tree,
         container,
@@ -1596,6 +1586,7 @@ where
     let containing_size = constants.containing_size(logical_node_inner_size);
     let mut participants = Vec::new();
     let mut atomic_children = Vec::new();
+    let mut control_children = Vec::new();
     let mut published_text = Vec::new();
     let mut static_positions = Vec::new();
     for (offset, child) in run.iter().copied().enumerate() {
@@ -1612,8 +1603,46 @@ where
                 continue;
             }
             LayoutInputOf::Box(style) => *style,
-            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
-                unreachable!("mixed text/control gate precedes atomic lowering")
+            LayoutInputOf::LineBreak(line_break) => {
+                if line_break.display().is_none() {
+                    if set_layout {
+                        tree.set_unrounded(
+                            child,
+                            NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
+                                source_index,
+                            )),
+                        );
+                    }
+                    continue;
+                }
+                let line_break = visible_line_break_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                )
+                .expect("visible line-break input remains visible after validation");
+                participants.push(MixedInlineParticipantOf::ForcedLineBreak(
+                    forced_line_break_control(source_index, line_break, available_inline_extent),
+                ));
+                control_children.push((child, source_index));
+                continue;
+            }
+            LayoutInputOf::InlineBoundary(_) => {
+                let boundary = visible_inline_boundary_in_flow(
+                    tree,
+                    child,
+                    constants.writing_mode,
+                    constants.direction,
+                )
+                .expect("inline-boundary input remains present after validation");
+                participants.push(MixedInlineParticipantOf::Boundary(inline_boundary_control(
+                    source_index,
+                    boundary,
+                    available_inline_extent,
+                )));
+                control_children.push((child, source_index));
+                continue;
             }
         };
         if child_style.display == super::Display::None {
@@ -1907,6 +1936,29 @@ where
         }
     }
 
+    let control_sources = report
+        .controls
+        .iter()
+        .map(|source| (source.source_index, *source))
+        .collect::<BTreeMap<_, _>>();
+    if set_layout {
+        for (child, source_index) in control_children {
+            let source = control_sources[&source_index];
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::<S> {
+                    source_index: crate::SourceIndex::new(source_index),
+                    location: project_point(
+                        source.inline_start,
+                        source.block_start,
+                        LogicalSizeOf::new(S::ZERO, S::ZERO),
+                    ),
+                    ..NodeOutputOf::new()
+                },
+            );
+        }
+    }
+
     Ok(InlineRunPlacement {
         size: report_size,
         content_size,
@@ -1929,21 +1981,7 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    if let Some(text_child) = run
-        .iter()
-        .copied()
-        .find(|child| matches!(tree.layout_input(*child), LayoutInputOf::InlineText(_)))
-    {
-        if run.iter().copied().any(|child| {
-            matches!(
-                tree.layout_input(child),
-                LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_)
-            )
-        }) {
-            return Err(crate::compute::mixed_inline_later_capability_error(
-                text_child,
-            ));
-        }
+    if run_uses_mixed_inline_builder(tree, run) {
         return layout_mixed_inline_children(tree, container, run, context, contributions);
     }
 

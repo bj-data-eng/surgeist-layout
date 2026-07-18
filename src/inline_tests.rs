@@ -1,7 +1,9 @@
 use crate::Available;
 use crate::inline::{
-    InlineParticipant, InlineParticipantLayoutKind, InlineRunInput, inline_run_max_content_width,
-    inline_run_min_content_width, layout_inline_run,
+    InlineParticipant, InlineParticipantLayoutKind, InlineRunInput, MixedInlineParticipantOf,
+    MixedInlineRunInputOf, PostLineClearIntent, inline_run_max_content_width,
+    inline_run_min_content_width, layout_inline_run, layout_mixed_inline_run,
+    mapped_post_line_clear_intent,
 };
 use crate::*;
 
@@ -61,6 +63,110 @@ fn inline_boundary_participant(
         metrics,
         crate::inline::InlineControlAlignment::Baseline,
     ))
+}
+
+fn mixed_forced_line_break<S: LayoutScalar>(
+    source_index: usize,
+    flow_axes: FlowAxes,
+    metrics: InlineMetricsOf<S>,
+    clear: Clear,
+) -> MixedInlineParticipantOf<S> {
+    MixedInlineParticipantOf::ForcedLineBreak(crate::inline::ForcedLineBreakControlOf::new(
+        source_index,
+        crate::inline::InlineFlowOf::new(
+            flow_axes.writing_mode(),
+            flow_axes.direction(),
+            AvailableOf::MAX_CONTENT,
+        ),
+        metrics,
+        crate::inline::InlineControlAlignment::Baseline,
+        clear,
+    ))
+}
+
+fn mixed_boundary<S: LayoutScalar>(
+    source_index: usize,
+    flow_axes: FlowAxes,
+    metrics: InlineMetricsOf<S>,
+) -> MixedInlineParticipantOf<S> {
+    MixedInlineParticipantOf::Boundary(crate::inline::InlineBoundaryControlOf::new(
+        source_index,
+        InlineBoundaryKind::Start,
+        crate::inline::InlineFlowOf::new(
+            flow_axes.writing_mode(),
+            flow_axes.direction(),
+            AvailableOf::MAX_CONTENT,
+        ),
+        metrics,
+        crate::inline::InlineControlAlignment::Baseline,
+    ))
+}
+
+#[test]
+fn fri06_c03_clear_private_builder_maps_none_start_end_and_both_in_all_flows() {
+    let writing_modes = [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ];
+    for writing_mode in writing_modes {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            assert_eq!(
+                mapped_post_line_clear_intent(flow_axes, Clear::None),
+                PostLineClearIntent::None
+            );
+            assert_eq!(
+                mapped_post_line_clear_intent(flow_axes, Clear::Left),
+                PostLineClearIntent::LineStart
+            );
+            assert_eq!(
+                mapped_post_line_clear_intent(flow_axes, Clear::Right),
+                PostLineClearIntent::LineEnd
+            );
+            assert_eq!(
+                mapped_post_line_clear_intent(flow_axes, Clear::Both),
+                PostLineClearIntent::Both
+            );
+        }
+    }
+}
+
+#[test]
+fn fri06_c03_strut_private_builder_retains_control_baselines_and_post_line_intent_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let boundary_metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(18.0), S::from_f64(13.0))
+                .unwrap();
+        let break_metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
+                .unwrap();
+        let report = layout_mixed_inline_run(MixedInlineRunInputOf {
+            available_inline_extent: AvailableOf::MAX_CONTENT,
+            flow_axes,
+            text_align: TextAlign::Auto,
+            participants: vec![
+                mixed_boundary(0, flow_axes, boundary_metrics),
+                mixed_forced_line_break(1, flow_axes, break_metrics, Clear::Both),
+            ],
+        });
+
+        assert_eq!(report.block_extent, S::from_f64(40.0));
+        assert_eq!(report.first_baseline, Some(S::from_f64(15.0)));
+        assert_eq!(report.last_baseline, Some(S::from_f64(35.0)));
+        assert_eq!(
+            report.post_line_clear_intents,
+            [PostLineClearIntent::Both, PostLineClearIntent::None]
+        );
+        assert_eq!(report.controls[0].visual_index, Some(0));
+        assert_eq!(report.controls[1].visual_index, None);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]

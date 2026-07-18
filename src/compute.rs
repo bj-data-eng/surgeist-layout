@@ -653,20 +653,6 @@ where
     )
 }
 
-pub(crate) fn mixed_inline_later_capability_error<Node, S, M>(
-    node: Node,
-) -> LayoutErrorOf<Node, S, M>
-where
-    Node: Copy,
-    S: LayoutScalar,
-{
-    LayoutErrorOf::new(
-        LayoutErrorSiteOf::Node(node),
-        LayoutOperation::ChildLayout,
-        LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior),
-    )
-}
-
 struct ComputeSession<'a, Tree>
 where
     Tree: LayoutTree,
