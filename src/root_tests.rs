@@ -453,6 +453,72 @@ fn fri06_c03_control_mixed_break_boundary_and_hidden_output_publish_from_one_sou
 }
 
 #[test]
+fn fri06_c03_control_forced_break_splits_min_content_indivisible_groups_both_scalars() {
+    fn atomic<S: LayoutScalar>(
+        node: u32,
+        extent: f64,
+        following_break: InlineBreakOpportunityOf<S>,
+    ) -> (u32, LayoutInputOf<S>, NodeInputOf<S>) {
+        let style = fri06_c03_atomic_style(extent, 10.0, 0.0, 0.0, 0, following_break);
+        (node, LayoutInputOf::box_input(style.clone()), style)
+    }
+
+    fn children<S: LayoutScalar>() -> Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)> {
+        vec![
+            atomic(1, 12.0, InlineBreakOpportunityOf::prohibited()),
+            atomic(2, 18.0, InlineBreakOpportunityOf::prohibited()),
+            (
+                3,
+                LayoutInputOf::line_break(
+                    LineBreakInputOf::new().with_metrics(
+                        InlineMetricsOf::from_line_height_and_baseline(
+                            S::from_f64(10.0),
+                            S::from_f64(8.0),
+                        )
+                        .unwrap(),
+                    ),
+                ),
+                NodeInputOf::non_box(),
+            ),
+            atomic(4, 17.0, InlineBreakOpportunityOf::prohibited()),
+            atomic(5, 23.0, InlineBreakOpportunityOf::allowed()),
+            atomic(6, 25.0, InlineBreakOpportunityOf::prohibited()),
+        ]
+    }
+
+    fn lane<S: LayoutScalar>() -> (S, S, S, S, S) {
+        let min = fri06_c03_mixed_batch(children(), AvailableOf::MIN_CONTENT);
+        let max = fri06_c03_mixed_batch(children(), AvailableOf::MAX_CONTENT);
+
+        (
+            fri06_c02_final_node(&min, 0).size.width,
+            fri06_c02_final_node(&max, 0).size.width,
+            fri06_c02_final_node(&min, 3).location.x,
+            fri06_c02_final_node(&min, 4).location.x,
+            fri06_c02_final_node(&min, 6).location.x,
+        )
+    }
+
+    let f32_lane = lane::<f32>();
+    let f64_lane = lane::<f64>();
+    assert_eq!(
+        [
+            f64::from(f32_lane.0),
+            f64::from(f32_lane.1),
+            f64::from(f32_lane.2),
+            f64::from(f32_lane.3),
+            f64::from(f32_lane.4),
+            f64_lane.0,
+            f64_lane.1,
+            f64_lane.2,
+            f64_lane.3,
+            f64_lane.4,
+        ],
+        [40.0, 65.0, 30.0, 0.0, 0.0, 40.0, 65.0, 30.0, 0.0, 0.0]
+    );
+}
+
+#[test]
 fn fri06_c03_strut_adjacent_final_breaks_preserve_empty_following_line_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
         let metrics =

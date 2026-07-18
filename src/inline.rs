@@ -313,6 +313,20 @@ fn inline_min_content<S: LayoutScalar>(
     let mut maximum = S::ZERO;
     let mut group_start = 0;
     for (index, participant) in participants.iter().enumerate() {
+        if matches!(participant, MixedInlineParticipantOf::ForcedLineBreak(_)) {
+            maximum = maximum.max(
+                select_inline_line(
+                    &participants[group_start..index],
+                    None,
+                    false,
+                    None,
+                    flow_axes,
+                )
+                .used_inline_extent,
+            );
+            group_start = index + 1;
+            continue;
+        }
         let Some(following_break) = participant.following_break() else {
             continue;
         };
