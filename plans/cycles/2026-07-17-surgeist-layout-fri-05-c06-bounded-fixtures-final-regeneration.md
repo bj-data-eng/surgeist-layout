@@ -8,21 +8,22 @@ Reviewed specification:
 at SHA-256
 `747dcd6c12ae7d883999b5517572d6877d3c803bdb611143af7affc5afd44f39`,
 commit `50c83f01ded0fe4a284e087ffcbd677bfc12af2a`, sections
-`FRI-05.4 D-12` and `D-13`; the fixture and comparator portions of
-`FRI-05.8` and `FRI-05.9`; `FRI-05.11`; and acceptance items 9 through
-11 and 13 in `FRI-05.15`.
+`FRI-05.4 D-04`, `D-06`, `D-08`, `D-09`, `D-12`, and `D-13`; the fixture
+and comparator portions of `FRI-05.8` and `FRI-05.9`; `FRI-05.11`; and
+acceptance items 9 through 11 and 13 in `FRI-05.15`.
 Reviewed sequence:
 `plans/sequences/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`
 at SHA-256
-`45b66b5a47c3a1bd47e22869e4b841a46aef2ac0ffab37dce5b91e6fc2a996d0`,
-commit `07ed42c2a832a7c6fccb11b5d77953fa9c159917`, entry
+`69ac95b20bfc8e4827a620487168e2f23c94bdd8046fe6765961acc75b8a4816`,
+commit `96b54aeae38059f2b65d8ebf0bfd4de952a70fde`, entry
 `FRI-05-C06`.
 
 ## Outcome
 Activate browser scroll expectation comparison against canonical physical range
 spans, lower only the named computed-style scroll fields, add the exact eleven
 active FRI-05 sources, remove the legacy authored-overflow transition, and
-derive the complete frozen corpus with one unfiltered ExistingPinned run.
+retain the complete frozen corpus derived by ExistingPinned. Close
+the block reserved-gutter range-basis omission exposed by that corpus.
 
 ## Boundary
 ### Included
@@ -34,13 +35,16 @@ derive the complete frozen corpus with one unfiltered ExistingPinned run.
 - exactly the eleven FRI-05 HTML sources and matching active manifest records;
 - removal of authored overflow coupling after generated inputs emit both
   computed axes atomically;
-- one frozen-manifest full regeneration, its 44 owned XML outputs, canonical
+- the completed frozen-manifest derivation, its 44 owned XML outputs, canonical
   updates to existing XML provenance, and sole `all.json` report;
+- the narrow block range-basis correction required for reserved gutters to be
+  excluded from range span while remaining in complete overflow;
 - focused parity, corpus, Taffy, normal, generator-feature, provenance, and
   unsafe verification.
 
 ### Excluded
-- production `src/`, public API, layout algorithms, authored CSS parsing,
+- production outside the named block range-basis correction, public API,
+  unrelated layout algorithms, authored CSS parsing,
   root adapters, retained identity, current offsets, rendering, scrolling UI,
   snap selection, or later FRI behavior;
 - changes to pre-existing HTML except a confirmed genuine source-input bug;
@@ -60,9 +64,9 @@ derive the complete frozen corpus with one unfiltered ExistingPinned run.
 - The helper currently retains authored overflow axes, scrollbar width, and
   browser scroll/client dimensions. The serializer couples authored axes in
   the fixture adapter and emits no other FRI-05 scroll property.
-- Existing checked-in XML contains 96 explicit legacy cross-group pairs. The
-  transition remains only until the final task regenerates all XML from
-  computed axes; it is not extended to new properties.
+- At cycle entry, checked-in XML contained 96 explicit legacy cross-group pairs.
+  T4's settled inputs and derived corpus remove that transition without extending
+  it to new properties.
 - The frozen base has 1,409 HTML sources, 5,280 generated XML outputs, 356
   unsupported outputs, no failure classes, one `all.json`, no scoped report,
   and manifest SHA-256
@@ -70,15 +74,23 @@ derive the complete frozen corpus with one unfiltered ExistingPinned run.
 - The already-cached executable is
   `target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`.
   No acquisition is authorized.
-- Scoped ExistingPinned runs are optional diagnostics while an input is
-  changing. They are not required, retained, or final evidence. After every
-  helper, serializer, parser, HTML, manifest, and test input settles, task T4
-  runs exactly one unfiltered full regeneration. A confirmed input bug
-  invalidates that run and permits one replacement only after corrected inputs
-  settle; a failed test, review request, or desire to refresh does not.
+- No scoped ExistingPinned run occurred. T4 executed one unfiltered full run,
+  invalidated it only for the confirmed source-input defects below, and consumed
+  the one permitted replacement after those inputs settled.
+- The settled full run exposed two indefinite-block-size source defects. After
+  correcting only those HTML inputs, one permitted replacement full run produced
+  the frozen corpus. Chromium then reported zero horizontal delta for the stable
+  both-edge block because its scroll and client widths are both 70px; Surgeist
+  reported 15px because block contributions retain a padding-box range basis.
+  Flex and grid already select the accumulator's scrollport range basis. This is
+  a confirmed block production omission, not a fixture-oracle defect. The frozen
+  artifacts remain authoritative and no further generation is permitted.
+- The settled 1,420-source manifest SHA-256 is
+  `bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`.
 
 ## Impacts
-- **Public API and production behavior:** unchanged.
+- **Public API:** unchanged. **Production behavior:** block reserved gutters no
+  longer create scroll range by themselves; complete overflow is unchanged.
 - **Dependencies and features:** unchanged.
 - **Generated artifacts:** eleven HTML sources produce 44 new XML outputs; the
   full XML corpus and sole report receive current generator-owned provenance.
@@ -200,8 +212,8 @@ CARGO_NET_OFFLINE=true just verify-generator
 
 Corpus validation is intentionally deferred: before T4 adds the matching
 manifest records, the corpus checker must reject these new Surgeist sources as
-unmanifested. T4 runs `just corpus-check` only after the records are frozen
-and the sole full regeneration completes.
+unmanifested. T4's completed derivation ran `just corpus-check` only after the
+records and full corpus were frozen.
 
 **Dependency:** C06-T2 settles every serializer and parser field used by the
 sources.
@@ -215,23 +227,28 @@ sources.
 `tests/layout/browser_parity/support.rs` and its transition tests,
 `tests/layout/browser_parity.rs` for final XML, manifest, and report inventory,
 generator-derived `tests/layout/browser_parity/xml/`, and
-`tests/layout/browser_parity/xml/generation-reports/all.json`.
+`tests/layout/browser_parity/xml/generation-reports/all.json`; plus
+`src/block.rs` and focused `src/block_tests.rs` coverage for the confirmed
+reserved-gutter range-basis omission.
 
-**Outcome:** Capture the exact computed-style fields in the browser helper, add
-eleven active records and frozen report counts, remove authored overflow
-coupling and its legacy evidence, record the settled manifest hash, then
-perform the sole unfiltered full ExistingPinned regeneration and switch to
-read-only verification.
+**Outcome:** The exact computed-style helper fields, eleven active records,
+frozen report counts, removed authored-overflow coupling, settled manifest, and
+full ExistingPinned corpus are completed derivation evidence. The remaining
+work preserves that corpus while correcting block layout to exclude reserved
+gutters from physical range, then performs only read-only verification.
 
-**RED:** Add `fri05_c06_helper_`,
+**Historical RED:** `fri05_c06_helper_`,
 `fri05_c06_computed_overflow_transition_`,
 `fri05_c06_manifest_freeze_`, and
-`fri05_c06_computed_overflow_corpus_` tests first. They fail because the
+`fri05_c06_computed_overflow_corpus_` tests failed because the
 helper drops the named fields, authored cross-group pairs still couple inside
 the parser, the manifest and derived corpus do not yet express the eleven
 computed-style sources, and final inventory assertions still expect 5,280 XML.
+The remaining smallest block front-door regression must fail
+with a 15px horizontal range where both-edge gutters and non-overflowing content
+require zero, matching the corpus failure.
 
-**Acceptance before regeneration:** The helper captures all D-13 computed
+**Completed pre-derivation evidence:** The helper captures all D-13 computed
 fields without reading authored shorthand and its focused smoke tests pass.
 `corpus.toml` has one matching active record per source,
 `source_root = "surgeist"`,
@@ -239,10 +256,11 @@ fields without reading authored shorthand and its focused smoke tests pass.
 `all.json`, and exact buckets 5,324 generated, 356 unsupported, and zero
 expected-fail, quarantined, and failed-to-generate. The parser consumes the
 computed pair directly through `ComputedOverflow::try_new`; authored coupling
-and the 96-pair transition evidence are absent. Record the byte-exact manifest
-SHA-256 and require the file to remain identical after generation.
+and the 96-pair transition evidence are absent. The byte-exact manifest SHA-256
+is `bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`;
+every later read-only hash check requires that exact value.
 
-**Commands before regeneration:**
+**Completed pre-derivation commands; reusable only as read-only checks:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_helper_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_transition_
@@ -251,28 +269,40 @@ shasum -a 256 tests/layout/browser_parity/corpus.toml
 test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 ```
 
-**One final regeneration:**
+**Historical regeneration command:** This command completed once for the initial
+inputs and once more as the already-consumed replacement after two confirmed
+source-input defects. It is derivation evidence only and must not be run again.
 ```sh
 CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER= SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
-**Acceptance after regeneration:** The manifest hash is unchanged. Final
+**Frozen derivation evidence:** The manifest hash remains exactly
+`bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`. Final
 inventory is 1,420 HTML and 5,324 XML, each owned source has exactly four
 outputs, and only `all.json` exists. Its metadata names the frozen manifest,
 current helper/base-style/launch-profile provenance, and the exact five frozen
-buckets. Only after derivation, update the staged XML, manifest, and report
-inventory assertions from 5,280 to 5,324 while retaining HTML 1,420 and
+buckets. The staged XML, manifest, and report inventory assertions are updated
+from 5,280 to 5,324 while retaining HTML 1,420 and
 unsupported 356. Every FRI-05 output parses and matches Surgeist layout;
 comparator negative controls remain effective. No pre-existing source changes,
 scoped report, stale XML, hand edit, expected failure, quarantine, or
 unexplained XML body delta remains.
 
-**Read-only commands after regeneration:**
+The frozen stable-both-edge browser expectations remain unchanged. Block layout
+selects the existing scrollport range basis before canonical geometry in every
+current block path that constructs such contributions, including retained-child
+fallback geometry, without changing complete overflow, public API, flex/grid
+behavior, or generator architecture. The focused block regression and original
+44-output corpus comparison pass. This correction and all subsequent checks are
+read-only with respect to generated artifacts; do not regenerate.
+
+**Remaining read-only commands:**
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_helper_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_transition_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_manifest_freeze_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_corpus_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c06_block_reserved_gutter_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
@@ -297,12 +327,14 @@ git diff --check
    unsupported, and zero in every failure class.
 5. The legacy authored-overflow transition and 96-pair evidence are absent.
    Every generated non-default pair is computed and atomic.
-6. Exactly one settled-input full regeneration owns all XML pruning and report
-   output. The frozen manifest hash remains byte-identical afterward, and all
-   later checks are read-only.
+6. Of the two historical full runs, only the consumed replacement used settled
+   inputs and owns all XML pruning and report output. The frozen manifest hash
+   remains byte-identical afterward, and all later checks are read-only.
 7. Focused FRI-05 parity, corpus and Taffy validation, normal and
    generator-feature gates, provenance, diff, unsafe, and scope review pass.
-8. No production, public API, docs, dependency, feature, MSRV, browser policy,
+8. The confirmed block omission has a block-front-door RED/GREEN test; the fix
+   reuses the existing accumulator range basis and preserves complete overflow.
+9. No other production, public API, docs, dependency, feature, MSRV, browser policy,
    base style, task runner, root, sibling, expected-failure, quarantine, or
    unrelated source change enters the range.
 
@@ -316,6 +348,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_transition_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_manifest_freeze_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_corpus_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c06_block_reserved_gutter_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
@@ -330,19 +363,18 @@ The owned-Rust manifest and scan cover every tracked and non-ignored Rust file.
 Every textual match is classified and no executable match may remain. Final
 range inspection proves exactly eleven new HTML sources and records, 44 owned
 new XML outputs, one canonical report, no scoped report or hand edit, no added
-lint suppression, no production or generator-architecture delta, and
-byte-identical frozen manifest content after the one final regeneration.
+lint suppression, no production delta beyond the named block correction, no
+generator-architecture delta, and byte-identical frozen manifest content after
+the settled replacement run.
 
 ## Handoff And Blockers
 The completed, reviewed, published, and remotely read-back cycle hands C07
 frozen read-only generator inputs and derived artifacts, active comparator
 evidence, and no legacy overflow transition.
 
-A genuine blocker is a missing or wrong cached browser, required acquisition,
-an unsupported/report bucket drift, an unexplained pre-existing XML body
-change, a named source that requires later-format behavior, a parser form
-outside D-13, a confirmed input bug after regeneration, or any need to expand
-generator architecture. A confirmed input bug returns to T4 through a fresh
-worker and one replacement full run after corrected inputs settle. Otherwise
-do not broaden grammar, weaken an oracle, edit XML/report data, or rerun the
-generator.
+A genuine blocker is an unsupported/report bucket drift, an unexplained
+pre-existing XML body change, a newly confirmed input bug, a named source that
+requires later-format behavior, a parser form outside D-13, or any need to
+expand generator architecture. The replacement allocation is consumed; any new
+input defect requires a separately reviewed replan. Do not broaden grammar,
+weaken an oracle, edit XML/report data, or rerun the generator.
