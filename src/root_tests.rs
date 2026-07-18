@@ -3330,7 +3330,7 @@ fn fri06_c02_stateful_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
     .unwrap()
 }
 
-type Fri06C03FragmentIdentity<S> = (u32, InlineSegmentId, usize, usize, Option<S>, Point<S>);
+type Fri06C03FragmentIdentity<S> = (u32, InlineSegmentId, usize, usize, Option<S>);
 
 #[test]
 fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_failure_are_atomic_both_scalars()
@@ -3348,7 +3348,6 @@ fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_fai
                     fragment.line_index(),
                     fragment.visual_index(),
                     fragment.replacement_inline_extent(),
-                    fragment.baseline(),
                 )
             })
             .collect()
@@ -3358,15 +3357,35 @@ fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_fai
         let request = fri06_c02_stateful_request::<S>();
         let mut tree = Fri06C02StatefulTextTree::new_mixed();
         let cold = compute_layout(&tree, 0, request).expect("cold mixed layout succeeds");
+        assert_eq!(tree.fragment_readbacks.get(), 0);
+        assert!(
+            cold.cache_store_entries()
+                .iter()
+                .any(|entry| entry.node() == 1),
+            "cold mixed layout must stage the text cache state used by the warm pass"
+        );
+        let cold_unrounded_identity = fragment_identity(cold.unrounded_inline_fragments());
+        let cold_final_identity = fragment_identity(cold.final_inline_fragments());
         assert_eq!(
-            fragment_identity(cold.unrounded_inline_fragments())
-                .into_iter()
-                .map(|identity| (identity.0, identity.1, identity.2, identity.3, identity.4))
+            cold_unrounded_identity,
+            vec![(1, InlineSegmentId::new(91), 0, 0, None)]
+        );
+        assert_eq!(cold_final_identity, cold_unrounded_identity);
+        assert_eq!(
+            cold.unrounded_inline_fragments()
+                .iter()
+                .map(|entry| entry.fragment().baseline())
                 .collect::<Vec<_>>(),
-            fragment_identity(cold.final_inline_fragments())
-                .into_iter()
-                .map(|identity| (identity.0, identity.1, identity.2, identity.3, identity.4))
-                .collect::<Vec<_>>()
+            vec![Point::new(S::ZERO, S::from_f64(8.0))],
+            "the mixed source must retain its exact unrounded baseline"
+        );
+        assert_eq!(
+            cold.final_inline_fragments()
+                .iter()
+                .map(|entry| entry.fragment().baseline())
+                .collect::<Vec<_>>(),
+            vec![Point::new(S::ZERO, S::from_f64(8.0))],
+            "cumulative-origin rounding must publish the exact final baseline"
         );
         let cold_unrounded = cold.unrounded_entries().to_vec();
         let cold_final = cold.final_entries().to_vec();
@@ -3398,8 +3417,39 @@ fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_fai
         );
         assert_eq!(source_indices(&cold_final), source_indices(&cold_unrounded));
         cold.apply_to(&mut tree).expect("cold mixed batch commits");
+        assert!(tree.retained.unrounded_nodes.contains_key(&1));
+        assert!(tree.retained.final_nodes.contains_key(&1));
+        assert!(
+            tree.retained.caches.contains_key(&1),
+            "cold commit must retain the text cache entry"
+        );
+        assert_eq!(
+            tree.retained.unrounded_fragments[&1],
+            cold_unrounded_fragments
+                .iter()
+                .map(InlineFragmentOutputEntryOf::fragment)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            tree.retained.final_fragments[&1],
+            cold_final_fragments
+                .iter()
+                .map(InlineFragmentOutputEntryOf::fragment)
+                .collect::<Vec<_>>()
+        );
 
         let warm = compute_layout(&tree, 0, request).expect("warm mixed layout succeeds");
+        assert_eq!(
+            tree.fragment_readbacks.get(),
+            1,
+            "warm mixed layout must read the committed text fragment state"
+        );
+        assert!(
+            warm.cache_store_entries()
+                .iter()
+                .all(|entry| entry.node() != 1),
+            "the warm cached text node must avoid a cache store/recompute"
+        );
         assert_eq!(warm.unrounded_entries(), cold_unrounded);
         assert_eq!(warm.final_entries(), cold_final);
         assert_eq!(warm.unrounded_inline_fragments(), cold_unrounded_fragments);
@@ -3443,6 +3493,93 @@ fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_fai
 
     assert_lane::<f32>();
     assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c03_lifecycle_unified_mixed_publication_contributes_each_geometry_once() {
+    let block_source = include_str!("block.rs");
+    let unified_path = block_source
+        .split_once("fn layout_inline_run_children<")
+        .expect("unified mixed layout function remains present")
+        .1
+        .split_once("\nfn record_inline_run_baselines<")
+        .expect("unified mixed layout function keeps its narrow source boundary")
+        .0;
+
+    assert_eq!(unified_path.matches("layout_mixed_inline_run(").count(), 1);
+
+    let fragment_projection = unified_path
+        .split_once("for source in &report.fragments {")
+        .expect("unified text-fragment projection remains present")
+        .1
+        .split_once("\n    if set_layout {\n        for (child, source_index, fragments")
+        .expect("text-fragment contribution stays before text-node publication")
+        .0;
+    assert_eq!(
+        fragment_projection
+            .matches("fragments.push(InlineFragmentOutputOf::new(")
+            .count(),
+        1
+    );
+    assert_eq!(
+        fragment_projection
+            .matches("contributions.include_direct_line(rect);")
+            .count(),
+        1
+    );
+
+    let text_publication = unified_path
+        .split_once(
+            "for (child, source_index, fragments, union_min, union_max) in published_text {",
+        )
+        .expect("unified text-node publication remains present")
+        .1
+        .split_once("\n    let atomic_sources =")
+        .expect("text-node publication stays before atomic projection")
+        .0;
+    assert_eq!(text_publication.matches("tree.set_unrounded(").count(), 1);
+    assert_eq!(
+        text_publication
+            .matches("tree.set_unrounded_inline_fragment_state(")
+            .count(),
+        1
+    );
+
+    let atomic_publication = unified_path
+        .split_once("for (child, source_index, child_style, output) in atomic_children {")
+        .expect("unified atomic projection remains present")
+        .1
+        .split_once("\n    let control_sources =")
+        .expect("atomic projection stays before control publication")
+        .0;
+    assert_eq!(
+        atomic_publication
+            .matches(".include_in_flow_geometry(location, source.item.margin, scroll_geometry)")
+            .count(),
+        1
+    );
+    assert_eq!(atomic_publication.matches("tree.set_unrounded(").count(), 1);
+
+    let control_publication = unified_path
+        .split_once("for (child, source_index) in control_children {")
+        .expect("unified zero-geometry control publication remains present")
+        .1
+        .split_once("\n    let projected_baseline =")
+        .expect("control publication stays before baseline projection")
+        .0;
+    assert_eq!(
+        control_publication.matches("tree.set_unrounded(").count(),
+        1
+    );
+    assert_eq!(control_publication.matches("contributions.").count(), 0);
+
+    for deleted_path in [
+        concat!("layout_shaped_text_", "children"),
+        concat!("layout_vertical_inline_", "run"),
+        concat!("layout_vertical_inline_", "lines"),
+    ] {
+        assert!(!block_source.contains(deleted_path));
+    }
 }
 
 #[test]
