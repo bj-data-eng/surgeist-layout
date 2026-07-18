@@ -394,6 +394,24 @@ pub(super) struct FloatBand<S: LayoutScalar> {
     pub(super) evaluated: usize,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FloatBandQueryPurpose {
+    PhysicalMarginBoxCollision,
+    #[cfg(test)]
+    RectangularLineBand,
+}
+
+impl FloatBandQueryPurpose {
+    fn includes(self, exclusion: FloatExclusion) -> bool {
+        let _ = exclusion;
+        match self {
+            Self::PhysicalMarginBoxCollision => true,
+            #[cfg(test)]
+            Self::RectangularLineBand => exclusion == FloatExclusion::MarginBox,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(super) struct FloatExclusions<S: LayoutScalar> {
     flow_axes: crate::geometry::FlowAxes,
@@ -430,7 +448,10 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         let mut candidate_block = self.clearance_block(float.block_start, float.clear);
 
         loop {
-            let band = self.query_band(candidate_block, candidate_block + margin_box_size.block);
+            let band = self.query_physical_margin_box_collisions(
+                candidate_block,
+                candidate_block + margin_box_size.block,
+            );
             let available_inline = (band.inline_end - band.inline_start).max(S::ZERO);
             if margin_box_size.inline <= available_inline || band.next_transition.is_none() {
                 let margin_box_inline = match side {
@@ -490,7 +511,10 @@ impl<S: LayoutScalar> FloatExclusions<S> {
             .logical_point(fallback, size, self.containing_size);
         let mut candidate_block = self.clearance_block(block_start, clear);
         loop {
-            let band = self.query_band(candidate_block, candidate_block + margin_box_block);
+            let band = self.query_physical_margin_box_collisions(
+                candidate_block,
+                candidate_block + margin_box_block,
+            );
             let fallback_start = fallback_logical.inline - logical_margin.inline_start;
             let fallback_end =
                 fallback_logical.inline + logical_size.inline + logical_margin.inline_end;
@@ -532,7 +556,29 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         self.clearance_block(block, clear)
     }
 
-    pub(super) fn query_band(&self, block_start: S, block_end: S) -> FloatBand<S> {
+    fn query_physical_margin_box_collisions(&self, block_start: S, block_end: S) -> FloatBand<S> {
+        self.query_band_for(
+            block_start,
+            block_end,
+            FloatBandQueryPurpose::PhysicalMarginBoxCollision,
+        )
+    }
+
+    #[cfg(test)]
+    pub(super) fn query_rectangular_line_band(&self, block_start: S, block_end: S) -> FloatBand<S> {
+        self.query_band_for(
+            block_start,
+            block_end,
+            FloatBandQueryPurpose::RectangularLineBand,
+        )
+    }
+
+    fn query_band_for(
+        &self,
+        block_start: S,
+        block_end: S,
+        purpose: FloatBandQueryPurpose,
+    ) -> FloatBand<S> {
         debug_assert!(
             self.ledger
                 .windows(2)
@@ -557,7 +603,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                     && entry.physical_margin_box.size.height.is_finite(),
                 "placed float margin boxes remain finite"
             );
-            if entry.exclusion != FloatExclusion::MarginBox {
+            if !purpose.includes(entry.exclusion) {
                 continue;
             }
             if !entry.overlaps_block_span(block_start, block_end) {

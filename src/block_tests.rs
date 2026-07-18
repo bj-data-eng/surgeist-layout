@@ -1605,6 +1605,43 @@ fn fri06_c04_float_batch<S: LayoutScalar>(
     .expect("rectangular float layout succeeds")
 }
 
+fn fri06_c04_block_layout_without_shape_provider<S: LayoutScalar>(
+    children: impl IntoIterator<Item = (u32, NodeInputOf<S>)>,
+) -> crate::test_support::layout_tree::OracleTreeOf<S> {
+    let root_size = Size::new(scalar_value(100.0), scalar_value(160.0));
+    let children = children.into_iter().collect::<Vec<_>>();
+    let child_ids = children.iter().map(|(node, _)| *node).collect::<Vec<_>>();
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(0, child_ids)
+        .style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                size: root_size.map(PreferredSizeOf::px),
+                ..NodeInputOf::default()
+            },
+        );
+    for (node, style) in children {
+        tree = tree.children(node, []).style(node, style);
+    }
+
+    crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInputOf::root_layout(
+            Size::NONE,
+            root_size.map(Some),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            root_size.map(AvailableOf::definite),
+        ),
+    )
+    .expect("C04 block layout succeeds without a shape provider");
+    tree
+}
+
 fn fri06_c04_expected_float_location<S: LayoutScalar>(
     flow_axes: FlowAxes,
     logical_origin: crate::geometry::LogicalPointOf<S>,
@@ -1721,6 +1758,88 @@ fn fri06_c04_float_place_mapped_sides_and_clear_values_all_flows_both_scalars() 
                 );
             }
         }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_place_shape_margin_box_remains_physical_for_later_float_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        let mut shape_float = fri06_c04_float_style(
+            flow_axes,
+            crate::geometry::LogicalSizeOf::new(scalar_value(80.0), scalar_value(20.0)),
+            Float::Left,
+            Clear::None,
+            zero,
+        );
+        shape_float.float_exclusion = FloatExclusion::Shape;
+
+        let tree = fri06_c04_block_layout_without_shape_provider([
+            (1, shape_float),
+            (
+                2,
+                fri06_c04_float_style(
+                    flow_axes,
+                    crate::geometry::LogicalSizeOf::new(scalar_value(30.0), scalar_value(10.0)),
+                    Float::Left,
+                    Clear::None,
+                    zero,
+                ),
+            ),
+        ]);
+
+        assert_eq!(
+            tree.layout(2).expect("later float was laid out").location,
+            Point::new(S::ZERO, scalar_value(20.0)),
+            "later float must avoid the Shape float's physical margin box",
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_bfc_shape_margin_box_remains_physical_without_provider_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        let mut shape_float = fri06_c04_float_style(
+            flow_axes,
+            crate::geometry::LogicalSizeOf::new(scalar_value(80.0), scalar_value(20.0)),
+            Float::Left,
+            Clear::None,
+            zero,
+        );
+        shape_float.float_exclusion = FloatExclusion::Shape;
+
+        let tree = fri06_c04_block_layout_without_shape_provider([
+            (1, shape_float),
+            (
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    size: Size::new(
+                        PreferredSizeOf::px(scalar_value(30.0)),
+                        PreferredSizeOf::px(scalar_value(10.0)),
+                    ),
+                    ..NodeInputOf::default()
+                },
+            ),
+        ]);
+
+        assert_eq!(
+            tree.layout(2)
+                .expect("qualifying BFC was laid out")
+                .location,
+            Point::new(S::ZERO, scalar_value(20.0)),
+            "qualifying BFC must avoid the Shape float's physical margin box",
+        );
     }
 
     assert_lane::<f32>();
@@ -1863,7 +1982,7 @@ fn fri06_c04_float_ledger_evaluates_each_float_span_pair_once_per_candidate_pass
             4,
         );
 
-        let band = exclusions.query_band(S::ZERO, scalar_value(40.0));
+        let band = exclusions.query_rectangular_line_band(S::ZERO, scalar_value(40.0));
         assert_eq!(band.inline_start, scalar_value(50.0));
         assert_eq!(band.inline_end, scalar_value(70.0));
         assert_eq!(band.next_transition, Some(scalar_value(20.0)));
@@ -1875,7 +1994,7 @@ fn fri06_c04_float_ledger_evaluates_each_float_span_pair_once_per_candidate_pass
 }
 
 #[test]
-fn fri06_c04_float_ledger_shape_is_neither_queried_nor_approximated_as_margin_box() {
+fn fri06_c04_float_ledger_shape_is_not_approximated_by_rectangular_line_band() {
     let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
     let mut exclusions = FloatExclusions::new(
         flow_axes,
@@ -1891,7 +2010,7 @@ fn fri06_c04_float_ledger_shape_is_neither_queried_nor_approximated_as_margin_bo
         1,
     );
 
-    let band = exclusions.query_band(0.0, 20.0);
+    let band = exclusions.query_rectangular_line_band(0.0, 20.0);
     assert_eq!(band.inline_start, 0.0);
     assert_eq!(band.inline_end, 100.0);
     assert_eq!(band.next_transition, None);
