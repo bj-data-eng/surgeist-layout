@@ -5407,6 +5407,46 @@ fn compute_layout_stages_cache_store_with_the_cold_root_output() {
 }
 
 #[test]
+fn fri05_c05_grid_geometry_root_front_door_stages_only_canonical_ordinary_output() {
+    let tree: RootSessionTree = RootSessionTree::default().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+            overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+            scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+            grid_template_columns: vec![TrackComponent::px(120.0)],
+            grid_template_rows: vec![TrackComponent::px(90.0)],
+            ..NodeInput::default()
+        },
+    );
+    let request = LayoutRootRequest::viewport(Size::new(
+        Available::definite(100.0),
+        Available::definite(80.0),
+    ))
+    .unwrap();
+
+    let batch = compute_layout(&tree, 0, request).expect("ordinary grid root layout succeeds");
+    let unrounded = batch.unrounded_entries()[0].output();
+    let geometry = unrounded
+        .scroll_geometry
+        .expect("ordinary grid root publishes canonical geometry");
+    assert_eq!(geometry.used_overflow_x(), Overflow::Scroll);
+    assert_eq!(geometry.used_overflow_y(), Overflow::Scroll);
+    assert_eq!(geometry.target().border_box(), geometry.border_box());
+    assert_eq!(unrounded.content_box_size(), geometry.content_box().size());
+    assert_eq!(batch.cache_store_entries().len(), 1);
+    assert_eq!(
+        batch.cache_store_entries()[0]
+            .output()
+            .scroll_geometry
+            .expect("stable root cache entry retains geometry"),
+        geometry
+    );
+    assert!(batch.final_entries()[0].output().scroll_geometry.is_some());
+}
+
+#[test]
 fn compute_layout_uses_a_matching_root_cache_hit_without_staging_a_store() {
     let style = NodeInput {
         size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),

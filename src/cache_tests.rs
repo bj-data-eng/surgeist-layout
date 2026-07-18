@@ -821,3 +821,42 @@ fn fri05_c04_flex_auto_input_constructors_default_both_private_states_to_initial
         );
     }
 }
+
+#[test]
+fn fri05_c05_grid_auto_cache_partitions_local_and_containing_pass_state() {
+    let context = ContainingLayoutContext::new(
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ParentFormattingContext::Grid,
+    );
+    let ordinary = ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::new(Some(95.0), Some(120.0)),
+        Size::splat(Some(100.0)),
+        context,
+        Size::splat(Available::definite(100.0)),
+    );
+    let local = ordinary
+        .with_settled_auto_scrollbars(crate::scroll::SettledAutoScrollbarState::new(true, false));
+    let containing = ordinary.with_containing_auto_scrollbar_pass(
+        crate::scroll::SettledAutoScrollbarState::new(true, false),
+    );
+    let output = ComputeOutput::from_outer_size(Size::new(95.0, 120.0));
+    let mut cache = Cache::new();
+    cache.store_with_context(&ordinary, static_cache_context(), output);
+
+    assert_eq!(
+        cache.get_with_context(&ordinary, static_cache_context()),
+        Some(output)
+    );
+    assert_eq!(cache.get_with_context(&local, static_cache_context()), None);
+    assert_eq!(
+        cache.get_with_context(&containing, static_cache_context()),
+        None
+    );
+    assert_eq!(
+        containing.settled_auto_scrollbars(),
+        crate::scroll::SettledAutoScrollbarState::INITIAL
+    );
+}

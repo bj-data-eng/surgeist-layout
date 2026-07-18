@@ -15,7 +15,12 @@ use crate::compute::{
 use crate::geometry::{LogicalAxis, LogicalSizeOf, PhysicalAxis};
 use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
-use crate::scroll::{ScrollbarReservationOf, content_box_inset_with_scrollbar};
+use crate::scroll::{
+    CanonicalScrollBoxOf, CanonicalScrollBoxSourceOf, CanonicalScrollGeometrySourceOf,
+    ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf, ScrollOriginAxes,
+    ScrollOriginProgression, ScrollbarReservationOf, canonical_scroll_box_from_source,
+    canonical_scroll_geometry_from_source, content_box_inset_with_scrollbar,
+};
 
 mod alignment;
 mod axis;
@@ -120,11 +125,49 @@ pub(crate) fn compute_grid_with_report<Tree, M>(
 where
     Tree: Compute<M>,
 {
-    let result = compute_grid_with_context_result(tree, node, input, GridParentContext::none())?;
-    Ok(GridComputationOf {
-        output: result.output,
-        report: result.report,
-    })
+    if tree
+        .node_input(node)
+        .display
+        .establishes_grid_lanes_formatting_context()
+    {
+        let result =
+            compute_grid_with_context_result(tree, node, input, GridParentContext::none())?;
+        return Ok(GridComputationOf {
+            output: result.output,
+            report: result.report,
+        });
+    }
+
+    let mut pass_input = input;
+    loop {
+        let result =
+            compute_grid_with_context_result(tree, node, pass_input, GridParentContext::none())?;
+        if !input.run_mode().is_perform_layout() {
+            return Ok(GridComputationOf {
+                output: result.output,
+                report: result.report,
+            });
+        }
+        let Some(geometry) = result.output.scroll_geometry else {
+            return Ok(GridComputationOf {
+                output: result.output,
+                report: result.report,
+            });
+        };
+        let next_state = pass_input.settled_auto_scrollbars().transition(geometry);
+        if next_state == pass_input.settled_auto_scrollbars()
+            || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
+                geometry, next_state,
+            )
+            .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?
+        {
+            return Ok(GridComputationOf {
+                output: result.output,
+                report: result.report,
+            });
+        }
+        pass_input = input.with_settled_auto_scrollbars(next_state);
+    }
 }
 
 struct GridComputeResult<S: LayoutScalar = Scalar> {
@@ -263,7 +306,13 @@ where
     Tree: Compute<M>,
 {
     let style = tree.node_input(node).clone();
-    let constants = Constants::new::<Tree, M>(tree, node, &style, input)?;
+    let publishes_ordinary_geometry = !style.display.establishes_grid_lanes_formatting_context()
+        && !parent_context.has_inherited_axis();
+    let constants = if publishes_ordinary_geometry {
+        Constants::new_ordinary_scroll::<Tree, M>(tree, node, &style, input)?
+    } else {
+        Constants::new::<Tree, M>(tree, node, &style, input)?
+    };
 
     if input.run_mode() == RunMode::ComputeSize
         && let Size {
@@ -433,8 +482,25 @@ where
         rows: Vec::new(),
         columns: Vec::new(),
     };
+    let mut final_scroll_geometry = None;
     if input.run_mode().is_perform_layout() {
-        let child_layout = layout_grid_container_children(
+        let scroll_box = publishes_ordinary_geometry
+            .then(|| {
+                canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+                    flow_axes: constants.flow_axes,
+                    computed_overflow: style.overflow,
+                    item_is_replaced: style.item_is_replaced,
+                    border_box_size: output_size,
+                    border: constants.border,
+                    padding: constants.padding,
+                    scrollbar_gutter: style.scrollbar_gutter,
+                    scrollbar_width: style.scrollbar_width,
+                    settled_auto_scrollbars: input.settled_auto_scrollbars(),
+                })
+                .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))
+            })
+            .transpose()?;
+        let mut child_layout = layout_grid_container_children(
             tree,
             node,
             GridChildLayoutInput {
@@ -452,9 +518,34 @@ where
                 subgrid_report: &subgrid_report,
                 parent_context: &parent_context,
                 placements: &placements,
+                containing_auto_scrollbar_pass: input.settled_auto_scrollbars(),
             },
         )?;
         content_size = max_size(content_size, child_layout.visible_content_size);
+        if let Some(scroll_box) = scroll_box {
+            child_layout
+                .contributions
+                .replace_container_seed(scroll_box.padding_box());
+            child_layout
+                .contributions
+                .exclude_reserved_gutter_from_range();
+            let geometry = grid_container_scroll_geometry::<_, Tree::Scalar, M>(
+                node,
+                input.run_mode(),
+                &style,
+                &constants,
+                scroll_box,
+                child_layout.contributions,
+                input.settled_auto_scrollbars(),
+            )?;
+            content_size = max_size(
+                content_size,
+                geometry
+                    .canonical_content_size()
+                    .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?,
+            );
+            final_scroll_geometry = Some(geometry);
+        }
         baselines = child_layout.baselines;
         baseline_groups = child_layout.baseline_groups;
     }
@@ -465,7 +556,10 @@ where
         ComputeOutputOf::from_sizes_and_baselines(output_size, content_size, baselines)
     };
     Ok(GridComputeResult {
-        output,
+        output: ComputeOutputOf {
+            scroll_geometry: final_scroll_geometry,
+            ..output
+        },
         report,
         baseline_groups,
     })
@@ -1671,6 +1765,7 @@ struct GridChildLayoutInput<'a, Node, S: LayoutScalar = Scalar> {
     subgrid_report: &'a GridSubgridReport<Node>,
     parent_context: &'a GridParentContext<S>,
     placements: &'a GridPlacementContext<Node>,
+    containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }
 
 fn layout_grid_container_children<Tree, M>(
@@ -1696,6 +1791,7 @@ where
         subgrid_report,
         parent_context,
         placements,
+        containing_auto_scrollbar_pass,
     } = input;
     let GridContainerContext {
         gap,
@@ -1881,6 +1977,7 @@ where
             subgrid_report,
             parent_context,
             placements,
+            containing_auto_scrollbar_pass,
         },
     )
 }
@@ -1915,6 +2012,7 @@ struct GridLayoutContext<'a, Node, S: LayoutScalar = Scalar> {
     subgrid_report: &'a GridSubgridReport<Node>,
     parent_context: &'a GridParentContext<S>,
     placements: &'a GridPlacementContext<Node>,
+    containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }
 
 fn resolved_logical_layout_gap<Tree, M>(
@@ -2060,6 +2158,31 @@ impl<S: LayoutScalar> Constants<S> {
     where
         Tree: Compute<M, Scalar = S>,
     {
+        Self::new_with_reservation::<Tree, M>(tree, node, style, input, false)
+    }
+
+    fn new_ordinary_scroll<Tree, M>(
+        tree: &Tree,
+        node: <Tree as Traverse>::Node,
+        style: &NodeInputOf<S>,
+        input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
+        Self::new_with_reservation::<Tree, M>(tree, node, style, input, true)
+    }
+
+    fn new_with_reservation<Tree, M>(
+        tree: &Tree,
+        node: <Tree as Traverse>::Node,
+        style: &NodeInputOf<S>,
+        input: ComputeInputOf<S>,
+        canonical_ordinary_reservation: bool,
+    ) -> LayoutResultOf<<Tree as Traverse>::Node, Self, S, M>
+    where
+        Tree: Compute<M, Scalar = S>,
+    {
         let padding = input
             .containing_flow_axes()
             .zip_physical_edges_with_inline_extent(
@@ -2074,16 +2197,19 @@ impl<S: LayoutScalar> Constants<S> {
                 resolve_length_or_zero(length, basis)
             })
             .transpose_with_node(tree, node)?;
-        let scrollbar_reservation = ScrollbarReservationOf::from_overflow(
-            style.overflow,
-            style.item_is_replaced,
-            style.scrollbar_width.get(),
-            style.direction,
-        );
+        let flow_axes = crate::geometry::FlowAxes::new(style.writing_mode, style.direction);
         let padding_border = padding + border;
-        let content_box_inset =
-            content_box_inset_with_scrollbar(padding, border, scrollbar_reservation);
         let padding_border_size = padding_border.sum_axes();
+        let legacy_content_box_inset = content_box_inset_with_scrollbar(
+            padding,
+            border,
+            ScrollbarReservationOf::from_overflow(
+                style.overflow,
+                style.item_is_replaced,
+                style.scrollbar_width.get(),
+                style.direction,
+            ),
+        );
         let box_sizing_adjustment = if style.box_sizing == BoxSizing::ContentBox {
             padding_border_size
         } else {
@@ -2154,6 +2280,34 @@ impl<S: LayoutScalar> Constants<S> {
         )
         .apply_aspect_ratio(style.aspect_ratio)
         .add_optional(box_sizing_adjustment);
+        let content_box_inset = if canonical_ordinary_reservation {
+            let provisional_outer_size = input
+                .known()
+                .or(style_size.clamp_optional(min_size, max_size))
+                .max_optional(padding_border_size.map(Some));
+            let unconstrained_scroll_box_size = padding_border_size
+                + Size::splat(style.scrollbar_width.get() + style.scrollbar_width.get());
+            let scroll_box_size = provisional_outer_size
+                .or(input.available().map(AvailableOf::into_option))
+                .or(max_size)
+                .unwrap_or(unconstrained_scroll_box_size)
+                .max(padding_border_size);
+            canonical_scroll_box_from_source(CanonicalScrollBoxSourceOf {
+                flow_axes,
+                computed_overflow: style.overflow,
+                item_is_replaced: style.item_is_replaced,
+                border_box_size: scroll_box_size,
+                border,
+                padding,
+                scrollbar_gutter: style.scrollbar_gutter,
+                scrollbar_width: style.scrollbar_width,
+                settled_auto_scrollbars: input.settled_auto_scrollbars(),
+            })
+            .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?
+            .content_box_inset()
+        } else {
+            legacy_content_box_inset
+        };
         let explicit_definite_outer_size = input.known().or(style_size);
         let explicit_definite_content_size =
             explicit_definite_outer_size.sub_optional(content_box_inset.sum_axes());
@@ -2170,7 +2324,7 @@ impl<S: LayoutScalar> Constants<S> {
         let available_inner_size = available_size.sub_optional(content_box_inset.sum_axes());
 
         Ok(Self {
-            flow_axes: crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+            flow_axes,
             explicit_definite_content_size,
             node_outer_size,
             node_inner_size,
@@ -2182,6 +2336,94 @@ impl<S: LayoutScalar> Constants<S> {
             border,
         })
     }
+}
+
+fn grid_container_scroll_geometry<Node, S, M>(
+    node: Node,
+    run_mode: RunMode,
+    style: &NodeInputOf<S>,
+    constants: &Constants<S>,
+    scroll_box: CanonicalScrollBoxOf<S>,
+    contributions: crate::scroll::ScrollContributionAccumulatorOf<S>,
+    settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState,
+) -> LayoutResultOf<Node, crate::ScrollGeometryOf<S>, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {
+        flow_axes: constants.flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: scroll_box.border_box().size(),
+        border: constants.border,
+        padding: constants.padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars,
+        clip_margin: ClipMarginSourceOf::new(
+            style.overflow_clip_margin.clip_box(),
+            style.overflow_clip_margin.margin(),
+        ),
+        scroll_padding: grid_scroll_padding(style.scroll_padding),
+        contributions,
+        origin_axes: ScrollOriginAxes::new(
+            ScrollOriginProgression::FlowEndward,
+            ScrollOriginProgression::FlowEndward,
+        ),
+        scroll_snap_type: style.scroll_snap_type,
+        target_border_box: scroll_box.border_box(),
+        target_scroll_margin: style.scroll_margin,
+        target_flow_axes: constants.flow_axes,
+        target_snap_align: style.scroll_snap_align,
+        target_snap_stop: style.scroll_snap_stop,
+    })
+    .map_err(|error| grid_own_geometry_error(node, run_mode, error))
+}
+
+fn grid_scroll_padding<S: LayoutScalar>(
+    scroll_padding: crate::ScrollPaddingOf<S>,
+) -> OptimalRegionInsetsOf<S> {
+    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
+        match value {
+            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
+            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
+        }
+    }
+
+    OptimalRegionInsetsOf::new(
+        inset(scroll_padding.top()),
+        inset(scroll_padding.right()),
+        inset(scroll_padding.bottom()),
+        inset(scroll_padding.left()),
+    )
+}
+
+fn grid_own_geometry_error<Node, S, M, E>(
+    node: Node,
+    run_mode: RunMode,
+    error: E,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
+        (
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        )
+    } else {
+        (
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        )
+    };
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        operation,
+        LayoutErrorKindOf::InternalInvariant(invariant),
+    )
 }
 
 fn resolve_length_or_zero<S: LayoutScalar>(

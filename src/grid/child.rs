@@ -239,6 +239,7 @@ where
         subgrid_report,
         parent_context,
         placements,
+        containing_auto_scrollbar_pass,
     } = context;
 
     if columns.is_empty() || rows.is_empty() {
@@ -254,10 +255,13 @@ where
             );
             tree.compute_child(
                 child,
-                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
-                    crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
-                    crate::ParentFormattingContext::Grid,
-                )),
+                ComputeInputOf::hidden_in_containing_pass(
+                    crate::ContainingLayoutContext::new(
+                        crate::geometry::FlowAxes::new(style.writing_mode, style.direction),
+                        crate::ParentFormattingContext::Grid,
+                    ),
+                    containing_auto_scrollbar_pass,
+                ),
             )?;
         }
         return Ok(GridChildrenLayout {
@@ -357,10 +361,13 @@ where
             );
             tree.compute_child(
                 child,
-                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
-                    constants.flow_axes,
-                    crate::ParentFormattingContext::Grid,
-                )),
+                ComputeInputOf::hidden_in_containing_pass(
+                    crate::ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        crate::ParentFormattingContext::Grid,
+                    ),
+                    containing_auto_scrollbar_pass,
+                ),
             )?;
             continue;
         }
@@ -382,7 +389,8 @@ where
                     rows,
                     gap,
                     lines,
-                }),
+                })
+                .with_containing_auto_scrollbar_pass(containing_auto_scrollbar_pass),
             )?);
             continue;
         }
@@ -397,10 +405,13 @@ where
             );
             tree.compute_child(
                 child,
-                ComputeInputOf::hidden(crate::ContainingLayoutContext::new(
-                    constants.flow_axes,
-                    crate::ParentFormattingContext::Grid,
-                )),
+                ComputeInputOf::hidden_in_containing_pass(
+                    crate::ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        crate::ParentFormattingContext::Grid,
+                    ),
+                    containing_auto_scrollbar_pass,
+                ),
             )?;
             continue;
         }
@@ -478,7 +489,8 @@ where
             ),
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
-        );
+        )
+        .with_containing_auto_scrollbar_pass(containing_auto_scrollbar_pass);
         let mut output = if child_context.has_inherited_axis() {
             // Subgrid layout depends on the parent grid's used tracks, so this
             // intentionally bypasses the generic child layout cache until that
@@ -609,6 +621,7 @@ where
                 area_facts: area_facts.clone(),
                 subgrid_report,
                 baseline_groups: &baseline_group_set,
+                containing_auto_scrollbar_pass,
             },
             &mut pending_items,
         )?;
@@ -708,9 +721,50 @@ where
         )
     };
 
-    let contributions =
+    let mut contributions =
         grid_scroll_contributions(child_contributions, constants.flow_axes, constants.padding)
             .map_err(|error| grid_child_geometry_error(node, node, error))?;
+    let inline_start = logical_column_offsets
+        .iter()
+        .copied()
+        .reduce(Tree::Scalar::min)
+        .unwrap_or(logical_content_box_inset.inline_start);
+    let inline_end = logical_column_offsets
+        .iter()
+        .copied()
+        .zip(columns.iter().copied())
+        .map(|(offset, size)| offset + size)
+        .reduce(Tree::Scalar::max)
+        .unwrap_or(inline_start);
+    let block_start = logical_row_offsets
+        .iter()
+        .copied()
+        .reduce(Tree::Scalar::min)
+        .unwrap_or(logical_content_box_inset.block_start);
+    let block_end = logical_row_offsets
+        .iter()
+        .copied()
+        .zip(rows.iter().copied())
+        .map(|(offset, size)| offset + size)
+        .reduce(Tree::Scalar::max)
+        .unwrap_or(block_start);
+    let logical_subject_size =
+        LogicalSizeOf::new(inline_end - inline_start, block_end - block_start);
+    let subject_size = constants.flow_axes.physical_size(logical_subject_size);
+    let subject_origin = constants.flow_axes.physical_point(
+        LogicalPointOf::new(inline_start, block_start),
+        logical_subject_size,
+        containing_size,
+    );
+    let track_subject = crate::ScrollRectOf::try_new(subject_origin, subject_size)
+        .map_err(|error| grid_child_geometry_error(node, node, error))?;
+    if style.justify_content.is_some() {
+        contributions
+            .set_active_alignment_subject(constants.flow_axes.inline_axis(), track_subject);
+    }
+    if style.align_content.is_some() {
+        contributions.set_active_alignment_subject(constants.flow_axes.block_axis(), track_subject);
+    }
     let visible_content_size = contributions
         .content_size_from_anchor(Point::ZERO)
         .map_err(|error| grid_child_geometry_error(node, node, error))?;
@@ -743,6 +797,7 @@ struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
     area_facts: Option<GridAreaNameFacts>,
     subgrid_report: &'a GridSubgridReport<Node>,
     baseline_groups: &'a GridBaselineGroups<S>,
+    containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }
 
 fn refresh_subgrid_items_with_baselines<Tree, M>(
@@ -857,7 +912,8 @@ where
             sizing
                 .available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
-        );
+        )
+        .with_containing_auto_scrollbar_pass(input.containing_auto_scrollbar_pass);
         let row_axis = child_context.rows.clone();
         let result = compute_grid_with_context_result(tree, item.node, child_input, child_context)?;
         let mut output = result.output;
@@ -2370,6 +2426,7 @@ struct OrdinaryAbsoluteGridContext<'a, S: LayoutScalar> {
     rows: &'a [S],
     gap: LogicalSizeOf<S>,
     lines: GridLines,
+    containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
 }
 
 #[derive(Clone, Copy)]
@@ -2416,7 +2473,16 @@ impl<'a, S: LayoutScalar> AbsoluteGridContext<'a, S> {
             rows,
             gap,
             lines,
+            containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState::INITIAL,
         })
+    }
+
+    pub(super) fn with_containing_auto_scrollbar_pass(
+        mut self,
+        containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState,
+    ) -> Self {
+        self.0.containing_auto_scrollbar_pass = containing_auto_scrollbar_pass;
+        self
     }
 }
 
@@ -2687,7 +2753,8 @@ where
                 AvailableOf::definite(available_size.width),
                 AvailableOf::definite(available_size.height),
             ),
-        ),
+        )
+        .with_containing_auto_scrollbar_pass(context.containing_auto_scrollbar_pass),
     )?;
     let final_size = known
         .unwrap_or(output.size)

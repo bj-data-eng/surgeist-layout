@@ -73,6 +73,464 @@ fn fri05_c05_grid_sizing_tree(
 }
 
 #[test]
+fn fri05_c05_grid_geometry_publishes_canonical_ordinary_container_output() {
+    for (overflow, replaced, expected_used) in [
+        (Overflow::Visible, false, Overflow::Visible),
+        (Overflow::Clip, false, Overflow::Clip),
+        (Overflow::Hidden, false, Overflow::Hidden),
+        (Overflow::Scroll, false, Overflow::Scroll),
+        (Overflow::Auto, false, Overflow::Auto),
+        (Overflow::Hidden, true, Overflow::Clip),
+    ] {
+        let mut tree = OracleTree::new().children(0, []).style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                padding: Edges::all(Length::px(5.0)),
+                border: Edges::all(Length::px(2.0)),
+                overflow: computed_overflow(overflow, overflow),
+                item_is_replaced: replaced,
+                scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+                scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                scroll_margin: ScrollMargin::try_new(1.0, 2.0, 3.0, 4.0).unwrap(),
+                scroll_snap_align: ScrollSnapAlign::new(
+                    ScrollSnapAlignValue::End,
+                    ScrollSnapAlignValue::Center,
+                ),
+                scroll_snap_stop: ScrollSnapStop::Always,
+                grid_template_columns: vec![TrackComponent::px(40.0)],
+                grid_template_rows: vec![TrackComponent::px(30.0)],
+                ..NodeInput::default()
+            },
+        );
+
+        let output = compute_grid(
+            &mut tree,
+            0,
+            fri05_c05_grid_sizing_input(Size::new(Some(100.0), Some(80.0))),
+        )
+        .expect("ordinary grid geometry computes");
+        let geometry = output
+            .scroll_geometry
+            .expect("performed ordinary grid publishes canonical geometry");
+
+        assert_eq!(geometry.border_box().size(), Size::new(100.0, 80.0));
+        assert_eq!(geometry.used_overflow_x(), expected_used);
+        assert_eq!(geometry.used_overflow_y(), expected_used);
+        assert_eq!(geometry.target().border_box(), geometry.border_box());
+        assert_eq!(geometry.target().flow_axes(), geometry.flow_axes());
+        assert_eq!(
+            geometry.target().scroll_margin(),
+            ScrollMargin::try_new(1.0, 2.0, 3.0, 4.0).unwrap()
+        );
+        assert_eq!(
+            geometry.target().snap_align(),
+            ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center)
+        );
+        assert_eq!(geometry.target().snap_stop(), ScrollSnapStop::Always);
+        assert_eq!(
+            output.content_size,
+            geometry.canonical_content_size().unwrap()
+        );
+        assert_eq!(
+            geometry.content_box().size(),
+            output.size - geometry.scrollbar_size() - Size::splat(14.0)
+        );
+    }
+}
+
+#[test]
+fn fri05_c05_grid_geometry_reservations_are_effective_per_axis_and_saturate_tiny_boxes() {
+    for (overflow, gutter, width, expected) in [
+        (
+            (Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::Auto,
+            10.0,
+            (false, false, false),
+        ),
+        (
+            (Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::Stable,
+            10.0,
+            (false, true, false),
+        ),
+        (
+            (Overflow::Hidden, Overflow::Hidden),
+            ScrollbarGutter::StableBothEdges,
+            10.0,
+            (true, true, false),
+        ),
+        (
+            (Overflow::Scroll, Overflow::Hidden),
+            ScrollbarGutter::Auto,
+            10.0,
+            (false, false, true),
+        ),
+        (
+            (Overflow::Hidden, Overflow::Scroll),
+            ScrollbarGutter::Auto,
+            10.0,
+            (false, true, false),
+        ),
+        (
+            (Overflow::Scroll, Overflow::Scroll),
+            ScrollbarGutter::Auto,
+            0.0,
+            (false, false, false),
+        ),
+    ] {
+        let mut tree = OracleTree::new().children(0, []).style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                overflow: computed_overflow(overflow.0, overflow.1),
+                scrollbar_gutter: gutter,
+                scrollbar_width: ScrollbarWidth::try_new(width).unwrap(),
+                grid_template_columns: vec![TrackComponent::px(10.0)],
+                grid_template_rows: vec![TrackComponent::px(10.0)],
+                ..NodeInput::default()
+            },
+        );
+        let geometry = compute_grid(
+            &mut tree,
+            0,
+            fri05_c05_grid_sizing_input(Size::new(Some(100.0), Some(80.0))),
+        )
+        .unwrap()
+        .scroll_geometry
+        .unwrap();
+        assert_eq!(geometry.gutters().left().is_some(), expected.0);
+        assert_eq!(geometry.gutters().right().is_some(), expected.1);
+        assert_eq!(geometry.gutters().bottom().is_some(), expected.2);
+    }
+
+    let mut tiny = OracleTree::new().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::Grid,
+            size: Size::new(PreferredSize::px(10.0), PreferredSize::px(6.0)),
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(8.0).unwrap(),
+            ..NodeInput::default()
+        },
+    );
+    let geometry = compute_grid(
+        &mut tiny,
+        0,
+        fri05_c05_grid_sizing_input(Size::new(Some(10.0), Some(6.0))),
+    )
+    .unwrap()
+    .scroll_geometry
+    .unwrap();
+    assert_eq!(geometry.content_box().size(), Size::new(0.0, 6.0));
+    assert_eq!(geometry.scrollbar_size(), Size::new(10.0, 0.0));
+}
+
+#[test]
+fn fri05_c05_grid_geometry_measurement_and_grid_lanes_publication_remain_absent() {
+    let style = NodeInput {
+        display: Display::Grid,
+        size: Size::new(PreferredSize::px(40.0), PreferredSize::px(30.0)),
+        overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+        grid_template_columns: vec![TrackComponent::px(40.0)],
+        grid_template_rows: vec![TrackComponent::px(30.0)],
+        ..NodeInput::default()
+    };
+    let mut measurement = OracleTree::new().children(0, []).style(0, style.clone());
+    let measurement_output = compute_grid(
+        &mut measurement,
+        0,
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::new(Some(40.0), Some(30.0)),
+            Size::new(Some(40.0), Some(30.0)),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::new(Available::definite(40.0), Available::definite(30.0)),
+        ),
+    )
+    .unwrap();
+    assert!(measurement_output.scroll_geometry.is_none());
+
+    let mut lanes = OracleTree::new().children(0, []).style(
+        0,
+        NodeInput {
+            display: Display::GridLanes,
+            ..style
+        },
+    );
+    let lanes_output = compute_grid(
+        &mut lanes,
+        0,
+        fri05_c05_grid_sizing_input(Size::new(Some(40.0), Some(30.0))),
+    )
+    .unwrap();
+    assert!(
+        lanes_output.scroll_geometry.is_none(),
+        "C05-T4 still owns grid-lanes container publication"
+    );
+}
+
+#[test]
+fn fri05_c05_grid_auto_settles_cross_axis_induction_and_partitions_nested_pass_state() {
+    let mut tree = OracleTree::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                grid_template_columns: vec![TrackComponent::px(95.0)],
+                grid_template_rows: vec![TrackComponent::px(120.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(1, NodeInput::default());
+
+    let output = compute_grid(
+        &mut tree,
+        0,
+        fri05_c05_grid_sizing_input(Size::splat(Some(100.0))),
+    )
+    .expect("ordinary grid auto coupling computes");
+    let geometry = output
+        .scroll_geometry
+        .expect("stable pass publishes geometry");
+    assert!(geometry.gutters().right().is_some());
+    assert!(geometry.gutters().bottom().is_some());
+    assert_eq!(geometry.content_box().size(), Size::splat(90.0));
+
+    let performed = tree
+        .inputs(1)
+        .iter()
+        .filter(|input| input.run_mode() == RunMode::PerformLayout)
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        performed.len(),
+        3,
+        "initial, y-induced, then x-induced passes"
+    );
+    assert_eq!(
+        performed
+            .iter()
+            .map(ComputeInputOf::containing_auto_scrollbar_pass)
+            .collect::<Vec<_>>(),
+        vec![
+            crate::scroll::SettledAutoScrollbarState::INITIAL,
+            crate::scroll::SettledAutoScrollbarState::new(false, true),
+            crate::scroll::SettledAutoScrollbarState::new(true, true),
+        ]
+    );
+    assert!(performed.iter().all(|input| {
+        input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
+    }));
+}
+
+#[test]
+fn fri05_c05_grid_auto_covers_none_single_axis_and_both_induction_orders() {
+    for (tracks, expected_gutters, expected_passes) in [
+        (Size::new(80.0, 80.0), (false, false), 1),
+        (Size::new(120.0, 80.0), (true, false), 2),
+        (Size::new(80.0, 120.0), (false, true), 2),
+        (Size::new(120.0, 95.0), (true, true), 3),
+        (Size::new(95.0, 120.0), (true, true), 3),
+    ] {
+        let mut tree = OracleTree::new()
+            .children(0, [1])
+            .children(1, [])
+            .style(
+                0,
+                NodeInput {
+                    display: Display::Grid,
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                    scrollbar_width: ScrollbarWidth::try_new(10.0).unwrap(),
+                    grid_template_columns: vec![TrackComponent::px(tracks.width)],
+                    grid_template_rows: vec![TrackComponent::px(tracks.height)],
+                    ..NodeInput::default()
+                },
+            )
+            .style(1, NodeInput::default());
+        let geometry = compute_grid(
+            &mut tree,
+            0,
+            fri05_c05_grid_sizing_input(Size::splat(Some(100.0))),
+        )
+        .unwrap()
+        .scroll_geometry
+        .unwrap();
+        assert_eq!(geometry.gutters().bottom().is_some(), expected_gutters.0);
+        assert_eq!(geometry.gutters().right().is_some(), expected_gutters.1);
+        assert_eq!(
+            tree.inputs(1)
+                .iter()
+                .filter(|input| input.run_mode() == RunMode::PerformLayout)
+                .count(),
+            expected_passes
+        );
+    }
+}
+
+#[test]
+fn fri05_c05_grid_alignment_uses_final_track_subject_in_all_flow_mappings() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            let mut tree = OracleTree::new()
+                .children(0, [1])
+                .children(1, [])
+                .style(
+                    0,
+                    NodeInput {
+                        display: Display::Grid,
+                        writing_mode,
+                        direction,
+                        size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                        overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                        scrollbar_width: ScrollbarWidth::ZERO,
+                        justify_content: Some(AlignContent::End),
+                        align_content: Some(AlignContent::Center),
+                        grid_template_columns: vec![TrackComponent::px(160.0)],
+                        grid_template_rows: vec![TrackComponent::px(140.0)],
+                        ..NodeInput::default()
+                    },
+                )
+                .style(1, NodeInput::default());
+
+            let output = compute_grid(
+                &mut tree,
+                0,
+                fri05_c05_grid_sizing_input(Size::new(Some(100.0), Some(80.0))),
+            )
+            .expect("ordinary grid alignment geometry computes");
+            let geometry = output
+                .scroll_geometry
+                .expect("alignment geometry is present");
+            let flow_range = geometry
+                .flow_axes()
+                .flow_relative_scroll_range(geometry.physical_range());
+            let logical_container = geometry.flow_axes().logical_size(Size::new(100.0, 80.0));
+            let inline_start_extent = 160.0 - logical_container.inline;
+            let block_extent = (140.0 - logical_container.block) / 2.0;
+            assert_eq!(
+                (flow_range.inline().minimum(), flow_range.inline().maximum()),
+                (-inline_start_extent, 0.0),
+                "{writing_mode:?} {direction:?} inline end subject"
+            );
+            assert_eq!(
+                (flow_range.block().minimum(), flow_range.block().maximum()),
+                (-block_extent, block_extent),
+                "{writing_mode:?} {direction:?} block center subject"
+            );
+        }
+    }
+}
+
+#[test]
+fn fri05_c05_grid_alignment_start_center_end_safe_distributed_and_out_of_flow_are_bounded() {
+    for (alignment, expected) in [
+        (AlignContent::Start, (0.0, 60.0)),
+        (AlignContent::End, (-60.0, 0.0)),
+        (AlignContent::Center, (-30.0, 30.0)),
+        (AlignContent::SafeEnd, (0.0, 60.0)),
+        (AlignContent::SpaceBetween, (0.0, 60.0)),
+    ] {
+        let mut tree = OracleTree::new()
+            .children(0, [1])
+            .children(1, [])
+            .style(
+                0,
+                NodeInput {
+                    display: Display::Grid,
+                    size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                    overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    scrollbar_width: ScrollbarWidth::ZERO,
+                    justify_content: Some(alignment),
+                    align_content: Some(alignment),
+                    grid_template_columns: vec![TrackComponent::px(160.0)],
+                    grid_template_rows: vec![TrackComponent::px(140.0)],
+                    ..NodeInput::default()
+                },
+            )
+            .style(1, NodeInput::default());
+        let geometry = compute_grid(
+            &mut tree,
+            0,
+            fri05_c05_grid_sizing_input(Size::new(Some(100.0), Some(80.0))),
+        )
+        .unwrap()
+        .scroll_geometry
+        .unwrap();
+        let range = geometry
+            .flow_axes()
+            .flow_relative_scroll_range(geometry.physical_range());
+        assert_eq!(
+            (range.inline().minimum(), range.inline().maximum()),
+            expected
+        );
+    }
+
+    let mut out_of_flow = OracleTree::new()
+        .children(0, [1, 2])
+        .children(1, [])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(80.0)),
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                scrollbar_width: ScrollbarWidth::ZERO,
+                justify_content: Some(AlignContent::End),
+                grid_template_columns: vec![TrackComponent::px(160.0)],
+                grid_template_rows: vec![TrackComponent::px(80.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(1, NodeInput::default())
+        .style(
+            2,
+            NodeInput {
+                position: Position::Absolute,
+                size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
+                inset: Edges {
+                    left: LengthAuto::px(-100.0),
+                    ..Edges::all(LengthAuto::AUTO)
+                },
+                ..NodeInput::default()
+            },
+        );
+    let geometry = compute_grid(
+        &mut out_of_flow,
+        0,
+        fri05_c05_grid_sizing_input(Size::new(Some(100.0), Some(80.0))),
+    )
+    .unwrap()
+    .scroll_geometry
+    .unwrap();
+    let range = geometry
+        .flow_axes()
+        .flow_relative_scroll_range(geometry.physical_range());
+    assert_eq!(range.inline().minimum(), -60.0);
+}
+
+#[test]
 fn fri05_c05_grid_child_geometry_retains_in_flow_and_absolute_target_metadata() {
     for display in [Display::Grid, Display::GridLanes] {
         let size = Size::new(40.0, 30.0);
@@ -3974,10 +4432,16 @@ where
                         (minimum, maximum)
                     },
                 );
-                let expected_visible_extent = Size::new(
+                let legacy_visible_extent = Size::new(
                     physical_container_size.width.max(maximum.x - minimum.x),
                     physical_container_size.height.max(maximum.y - minimum.y),
                 );
+                let canonical_visible_extent = output
+                    .scroll_geometry
+                    .expect("performed ordinary grid publishes geometry")
+                    .canonical_content_size()
+                    .expect("ordinary grid canonical content extent is valid");
+                let expected_visible_extent = legacy_visible_extent.max(canonical_visible_extent);
                 let expected_baseline = physical_baseline_from_logical_block(
                     flow_axes,
                     shared_baseline,
@@ -18827,6 +19291,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         subgrid_report: &subgrid_report,
         parent_context: &parent_context,
         placements: &placements,
+        containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState::INITIAL,
     };
     let _layout_context = GridLayoutContext::<usize, f64> {
         style: &style,
@@ -18845,6 +19310,7 @@ fn shared_grid_contexts_accept_non_default_scalar() {
         subgrid_report: &subgrid_report,
         parent_context: &parent_context,
         placements: &placements,
+        containing_auto_scrollbar_pass: crate::scroll::SettledAutoScrollbarState::INITIAL,
     };
 }
 
