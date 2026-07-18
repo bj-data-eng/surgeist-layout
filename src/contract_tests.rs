@@ -592,6 +592,165 @@ fn fri06_c01_non_box_atomic_and_shape_roles_reject_before_cache_activity() {
     assert_fri06_c01_box_roles::<f64>();
 }
 
+fn assert_fri06_c01_float_exclusion_contract<S: LayoutScalar>() {
+    let axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let margin_box = ScrollRectOf::try_new(
+        Point::new(S::from_f64(-10.0), S::from_f64(20.0)),
+        Size::new(S::from_f64(100.0), S::from_f64(40.0)),
+    )
+    .unwrap();
+    let query =
+        FloatExclusionQueryOf::try_new(margin_box, axes, S::from_f64(21.0), S::from_f64(59.0))
+            .unwrap();
+    assert_eq!(query.margin_box(), margin_box);
+    assert_eq!(query.flow_axes(), axes);
+    assert_eq!(query.band_minimum(), S::from_f64(21.0));
+    assert_eq!(query.band_maximum(), S::from_f64(59.0));
+
+    for (minimum, maximum, expected) in [
+        (-5.0, 25.0, Some((-5.0, 25.0))),
+        (-50.0, 25.0, Some((-10.0, 25.0))),
+        (80.0, 120.0, Some((80.0, 90.0))),
+        (-50.0, -20.0, None),
+        (100.0, 120.0, None),
+        (4.0, 4.0, None),
+    ] {
+        let interval =
+            FloatExclusionIntervalOf::try_new(query, S::from_f64(minimum), S::from_f64(maximum))
+                .unwrap();
+        assert_eq!(
+            interval.map(|interval| (interval.minimum(), interval.maximum())),
+            expected.map(|(minimum, maximum)| (S::from_f64(minimum), S::from_f64(maximum)))
+        );
+    }
+
+    assert!(matches!(
+        FloatExclusionQueryOf::try_new(margin_box, axes, S::NAN, S::ZERO),
+        Err(FloatExclusionIntervalErrorOf::NonFiniteBandMinimum { .. })
+    ));
+    assert!(matches!(
+        FloatExclusionQueryOf::try_new(margin_box, axes, S::ZERO, S::INFINITY),
+        Err(FloatExclusionIntervalErrorOf::NonFiniteBandMaximum { .. })
+    ));
+    assert!(matches!(
+        FloatExclusionQueryOf::try_new(margin_box, axes, S::ONE, S::ZERO),
+        Err(FloatExclusionIntervalErrorOf::InvertedBand { .. })
+    ));
+    assert!(matches!(
+        FloatExclusionIntervalOf::try_new(query, S::NAN, S::ZERO),
+        Err(FloatExclusionIntervalErrorOf::NonFiniteIntervalMinimum { .. })
+    ));
+    assert!(matches!(
+        FloatExclusionIntervalOf::try_new(query, S::ZERO, S::INFINITY),
+        Err(FloatExclusionIntervalErrorOf::NonFiniteIntervalMaximum { .. })
+    ));
+    assert!(matches!(
+        FloatExclusionIntervalOf::try_new(query, S::ONE, S::ZERO),
+        Err(FloatExclusionIntervalErrorOf::InvertedInterval { .. })
+    ));
+
+    let vertical_query = FloatExclusionQueryOf::try_new(
+        margin_box,
+        FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        S::from_f64(-10.0),
+        S::from_f64(90.0),
+    )
+    .unwrap();
+    let vertical =
+        FloatExclusionIntervalOf::try_new(vertical_query, S::from_f64(-20.0), S::from_f64(100.0))
+            .unwrap()
+            .unwrap();
+    assert_eq!(
+        (vertical.minimum(), vertical.maximum()),
+        (S::from_f64(20.0), S::from_f64(60.0))
+    );
+}
+
+#[test]
+fn fri06_c01_float_exclusion_query_and_interval_validate_both_scalar_lanes() {
+    assert_fri06_c01_float_exclusion_contract::<f32>();
+    assert_fri06_c01_float_exclusion_contract::<f64>();
+}
+
+#[test]
+fn fri06_c01_float_exclusion_default_provider_returns_none() {
+    let tree = fri06_c01_tree::<f32>(
+        LayoutInputOf::box_input(NodeInput::default()),
+        NodeInput::default(),
+    );
+    let margin_box = ScrollRect::try_new(Point::ZERO, Size::new(10.0, 20.0)).unwrap();
+    let query = FloatExclusionQuery::try_new(
+        margin_box,
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        1.0,
+        2.0,
+    )
+    .unwrap();
+    assert_eq!(tree.float_exclusion_interval(0, query), None);
+}
+
+#[test]
+fn fri06_c01_float_exclusion_diagnostics_preserve_provider_and_site_context() {
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    struct ProviderFailure(u8);
+
+    let missing = LayoutErrorOf::<u16, f64, ProviderFailure>::new(
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 3,
+            subject: 7,
+        },
+        LayoutOperation::FloatExclusionQuery,
+        LayoutErrorKindOf::MissingContext(LayoutMissingContext::FloatExclusionProvider),
+    );
+    assert_eq!(
+        missing.site(),
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 3,
+            subject: 7,
+        }
+    );
+    assert_eq!(missing.operation(), LayoutOperation::FloatExclusionQuery);
+
+    let query = FloatExclusionQueryOf::try_new(
+        ScrollRectOf::try_new(Point::ZERO, Size::new(10.0_f64, 20.0)).unwrap(),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        4.0,
+        8.0,
+    )
+    .unwrap();
+    assert_eq!((query.band_minimum(), query.band_maximum()), (4.0, 8.0));
+    let invalid_output = FloatExclusionIntervalOf::try_new(query, 9.0, 8.0).unwrap_err();
+    let invalid = LayoutErrorOf::<u16, f64, ProviderFailure>::new(
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 3,
+            subject: 7,
+        },
+        LayoutOperation::FloatExclusionQuery,
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::FloatExclusionProviderOutput {
+            error: invalid_output,
+        }),
+    );
+    assert!(matches!(
+        invalid.kind(),
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::FloatExclusionProviderOutput {
+            error: FloatExclusionIntervalErrorOf::InvertedInterval { .. },
+        })
+    ));
+
+    let provider = LayoutErrorOf::<u16, f64, ProviderFailure>::new(
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 3,
+            subject: 7,
+        },
+        LayoutOperation::FloatExclusionQuery,
+        LayoutErrorKindOf::Measurement(ProviderFailure(11)),
+    );
+    assert_eq!(
+        provider.kind(),
+        &LayoutErrorKindOf::Measurement(ProviderFailure(11))
+    );
+}
+
 #[test]
 fn public_order_source_types_and_defaults_are_exact() {
     use crate::{ItemOrder, SourceIndex};

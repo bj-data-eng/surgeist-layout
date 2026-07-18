@@ -139,6 +139,7 @@ pub enum LayoutOperation {
     ValueResolution,
     CacheAccess,
     CacheInvalidation,
+    FloatExclusionQuery,
     RoundingFinalization,
     GridLanePlacement,
 }
@@ -176,6 +177,9 @@ pub enum LayoutInvalidInputOf<S: LayoutScalar = DefaultScalar> {
     FloatExclusionRole {
         reason: FloatExclusionRoleError,
     },
+    FloatExclusionProviderOutput {
+        error: super::FloatExclusionIntervalErrorOf<S>,
+    },
     InvalidationNodeNotReachable,
     TreeTopologyCycle,
 }
@@ -209,6 +213,7 @@ pub enum FloatExclusionRoleError {
 #[non_exhaustive]
 pub enum LayoutMissingContext {
     RequiredBasis,
+    FloatExclusionProvider,
 }
 
 impl core::hash::Hash for PhysicalAxis {

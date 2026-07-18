@@ -1,10 +1,224 @@
 use crate::{
-    Available, Baselines, CollapsibleMarginOf, ComputeOutput, Direction, Display, Edges, FlowAxes,
-    LayoutScalar, Length, LengthAuto, LengthPercentageOf, LengthResolutionStatus, MaxTrackSizing,
-    MinTrackSizing, PhysicalAxis, PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf,
-    PhysicalSide, Point, PreferredSize, Scalar, Size, SizingCalculation, TrackComponent,
-    TrackComponentList, TrackFlexFactor, TrackRepeatCount, TrackSizing, WritingMode,
+    Available, Baselines, CollapsibleMarginOf, ComputeOutput, Direction, Display, Edges,
+    FloatExclusionInterval, FloatExclusionIntervalError, FloatExclusionIntervalErrorOf,
+    FloatExclusionIntervalOf, FloatExclusionQuery, FloatExclusionQueryOf, FlowAxes,
+    LayoutOperation, LayoutScalar, Length, LengthAuto, LengthPercentageOf, LengthResolutionStatus,
+    MaxTrackSizing, MinTrackSizing, PhysicalAxis, PhysicalBlockMarginCollapse,
+    PhysicalBlockMarginCollapseOf, PhysicalSide, Point, PreferredSize, Scalar, Size,
+    SizingCalculation, TrackComponent, TrackComponentList, TrackFlexFactor, TrackRepeatCount,
+    TrackSizing, WritingMode,
 };
+
+#[test]
+fn fri06_c01_contract_float_exclusion_public_aliases_and_operations_are_exact() {
+    fn aliases(
+        _: Option<FloatExclusionQuery>,
+        _: Option<FloatExclusionInterval>,
+        _: Option<FloatExclusionIntervalError>,
+    ) {
+    }
+    fn generic_aliases(
+        _: Option<FloatExclusionQueryOf<f64>>,
+        _: Option<FloatExclusionIntervalOf<f64>>,
+        _: Option<FloatExclusionIntervalErrorOf<f64>>,
+    ) {
+    }
+    aliases(None, None, None);
+    generic_aliases(None, None, None);
+
+    let operation_name = |operation| match operation {
+        LayoutOperation::RootLayout => "root",
+        LayoutOperation::ChildLayout => "child",
+        LayoutOperation::HiddenLayout => "hidden",
+        LayoutOperation::LeafMeasurement => "measure",
+        LayoutOperation::ValueResolution => "resolve",
+        LayoutOperation::CacheAccess => "cache",
+        LayoutOperation::CacheInvalidation => "invalidate",
+        LayoutOperation::FloatExclusionQuery => "float-exclusion",
+        LayoutOperation::RoundingFinalization => "round",
+        LayoutOperation::GridLanePlacement => "grid-lanes",
+    };
+    assert_eq!(
+        operation_name(LayoutOperation::FloatExclusionQuery),
+        "float-exclusion"
+    );
+}
+
+#[test]
+fn fri06_c01_contract_float_exclusion_surface_is_opaque_cache_neutral_and_deferred() {
+    let node_input = include_str!("node_input.rs");
+    let traits = include_str!("traits.rs");
+    let compute = include_str!("compute.rs");
+    let block = include_str!("block.rs");
+    let cache = include_str!("cache.rs");
+    let public_front_door = include_str!("lib.rs");
+
+    for public_name in [
+        "FloatExclusionQueryOf",
+        "FloatExclusionQuery",
+        "FloatExclusionIntervalOf",
+        "FloatExclusionInterval",
+        "FloatExclusionIntervalErrorOf",
+        "FloatExclusionIntervalError",
+    ] {
+        assert!(
+            public_front_door.contains(public_name),
+            "{public_name} is reexported"
+        );
+    }
+
+    let shape = node_input
+        .split_once("pub enum FloatExclusion")
+        .unwrap()
+        .1
+        .split_once("impl Float")
+        .unwrap()
+        .0;
+    assert!(
+        shape.contains("Shape,"),
+        "Shape is a payload-free closed state"
+    );
+    assert!(
+        !shape.contains("Shape("),
+        "Shape carries no compatibility payload"
+    );
+    assert!(shape.contains("#[default]") && shape.contains("MarginBox"));
+
+    for type_name in ["FloatExclusionQueryOf", "FloatExclusionIntervalOf"] {
+        let section = node_input
+            .split_once(&format!("pub struct {type_name}"))
+            .unwrap()
+            .1
+            .split_once('}')
+            .unwrap()
+            .0;
+        assert!(!section.contains("pub "), "{type_name} fields stay private");
+    }
+    assert!(!node_input.contains("FloatExclusionQueryOf::default"));
+    assert!(!node_input.contains("Default for FloatExclusionQueryOf"));
+    assert!(!node_input.contains("Default for FloatExclusionIntervalOf"));
+    assert!(
+        !cache.contains("revision"),
+        "the cache context has no revision field"
+    );
+    assert!(!node_input.contains(concat!("ShapeExclusion", "Query")));
+    assert!(!public_front_door.contains(concat!("ShapeExclusion", "Query")));
+
+    assert_eq!(traits.matches("fn float_exclusion_interval(").count(), 1);
+    assert!(traits.contains("Option<FloatExclusionProviderResultOf<Self::Scalar"));
+    assert!(
+        traits.contains("None\n    }"),
+        "the provider defaults to no result"
+    );
+    assert!(
+        !compute.contains(".float_exclusion_interval("),
+        "C01 does not invoke the provider"
+    );
+    assert!(
+        !block.contains("FloatExclusion::Shape"),
+        "Shape has no rectangular block fallback"
+    );
+}
+
+#[test]
+fn fri06_c01_contract_aggregate_public_surface_covers_every_cycle_break_and_addition() {
+    let node_input = include_str!("node_input.rs");
+    let output = include_str!("output.rs");
+    let traits = include_str!("traits.rs");
+    let compute = include_str!("compute.rs");
+    let public_front_door = include_str!("lib.rs");
+
+    for public_name in [
+        "InlineSegmentId",
+        "BidiLevel",
+        "InlineWhitespaceEdge",
+        "InlineBreakKind",
+        "InlineBreakOpportunityOf",
+        "InlineBreakOpportunity",
+        "ShapedInlineSegmentOf",
+        "ShapedInlineSegment",
+        "InlineTextInputOf",
+        "InlineTextInput",
+        "AtomicInlineParticipationOf",
+        "AtomicInlineParticipation",
+        "InlineFragmentOutputOf",
+        "InlineFragmentOutput",
+        "InlineFragmentOutputEntryOf",
+        "InlineFragmentOutputEntry",
+        "FloatExclusion",
+        "FloatExclusionQueryOf",
+        "FloatExclusionQuery",
+        "FloatExclusionIntervalOf",
+        "FloatExclusionInterval",
+        "FloatExclusionIntervalErrorOf",
+        "FloatExclusionIntervalError",
+        "LayoutBatchSink",
+        "compute_layout_invalidated",
+    ] {
+        assert!(
+            public_front_door.contains(public_name),
+            "{public_name} is present at the crate front door"
+        );
+    }
+
+    for required_source in [
+        "InlineText(InlineTextInputOf<S>)",
+        "pub atomic_inline_participation: Option<AtomicInlineParticipationOf<S>>",
+        "pub float_exclusion: FloatExclusion",
+        "pub fn non_box() -> Self",
+        "Bottom",
+    ] {
+        assert!(
+            node_input.contains(required_source),
+            "missing {required_source}"
+        );
+    }
+    for required_source in [
+        "pub fn unrounded_inline_fragments(&self)",
+        "pub fn final_inline_fragments(&self)",
+        "pub fn invalidated_nodes(&self)",
+        "pub fn apply_to<Sink>(&self",
+    ] {
+        assert!(
+            output.contains(required_source),
+            "missing {required_source}"
+        );
+    }
+    for required_source in [
+        "fn float_exclusion_interval(",
+        "fn unrounded_inline_fragments(",
+        "pub trait LayoutBatchSink",
+    ] {
+        assert!(
+            traits.contains(required_source),
+            "missing {required_source}"
+        );
+    }
+    for required_source in [
+        "FloatExclusionProviderOutput",
+        "InvalidationNodeNotReachable",
+        "MissingCachedInlineFragmentState",
+        "FloatExclusionProvider",
+        "FloatExclusionQuery",
+        "CacheInvalidation",
+    ] {
+        assert!(
+            compute.contains(required_source),
+            "missing {required_source}"
+        );
+    }
+
+    for forbidden_compatibility_name in [
+        concat!("ShapeExclusion", "Query"),
+        concat!("ShapeExclusion", "Interval"),
+        concat!("InlineText", "Run"),
+        concat!("DirtyLayout", "Request"),
+    ] {
+        assert!(!node_input.contains(forbidden_compatibility_name));
+        assert!(!output.contains(forbidden_compatibility_name));
+        assert!(!public_front_door.contains(forbidden_compatibility_name));
+    }
+}
 
 #[test]
 fn fri05_c01_node_input_removed_phase_unsafe_surfaces_are_absent_from_public_sources() {

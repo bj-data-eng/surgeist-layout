@@ -1,9 +1,12 @@
 use super::{
-    CacheKeyContext, CompletedLayoutBatchOf, ComputeInputOf, ComputeOutputOf, LayoutInputOf,
-    LayoutScalar, NodeInputOf, NodeOutputOf, RunMode, Size,
+    CacheKeyContext, CompletedLayoutBatchOf, ComputeInputOf, ComputeOutputOf,
+    FloatExclusionIntervalOf, FloatExclusionQueryOf, LayoutInputOf, LayoutScalar, NodeInputOf,
+    NodeOutputOf, RunMode, Size,
 };
 use crate::InlineFragmentOutputOf;
 use crate::compute::{LayoutResultOf, LeafMeasureInputOf};
+
+type FloatExclusionProviderResultOf<S, M> = Result<Option<FloatExclusionIntervalOf<S>>, M>;
 
 pub trait Traverse {
     type Node: Copy + Eq;
@@ -45,6 +48,19 @@ pub trait LayoutTree: Traverse {
         _input: &ComputeInputOf<Self::Scalar>,
         _context: CacheKeyContext,
     ) -> Option<ComputeOutputOf<Self::Scalar>> {
+        None
+    }
+
+    /// Queries one shape-backed float exclusion interval for a physical band.
+    ///
+    /// Outer `None` means the requested provider is absent. `Ok(None)` means
+    /// the shape has no exclusion intersection with this band. Layout does not
+    /// invoke this C05 provider during the FRI-06 C01 substrate cycle.
+    fn float_exclusion_interval(
+        &self,
+        _node: Self::Node,
+        _query: FloatExclusionQueryOf<Self::Scalar>,
+    ) -> Option<FloatExclusionProviderResultOf<Self::Scalar, Self::MeasureError>> {
         None
     }
 

@@ -57,6 +57,20 @@
 //! not enter this crate. [`NodeInputOf::non_box`] is the canonical tree
 //! companion for text and inline controls.
 //!
+//! Completed batches keep unrounded and final [`InlineFragmentOutputEntryOf`]
+//! phases alongside node and cache state. [`compute_layout_invalidated`] stages
+//! the exact invalidation closure, and [`CompletedLayoutBatchOf::apply_to`]
+//! uses [`LayoutBatchSink`] to prepare an owned replacement immutably before an
+//! infallible exclusive commit.
+//!
+//! Floating boxes select the closed [`FloatExclusion`] contract. `MarginBox` is
+//! the default; `Shape` promises a tree provider that accepts a validated
+//! physical [`FloatExclusionQueryOf`] and returns a clipped
+//! [`FloatExclusionIntervalOf`]. Provider invocation and float-band refinement
+//! are later FRI-06 behavior: this public substrate neither queries the provider
+//! nor falls back from `Shape` to rectangular exclusion. Provider facts change
+//! through explicit tree invalidation rather than a cache-key revision.
+//!
 //! `compute_leaf` is the direct fallible measurement boundary: providers receive
 //! non-negative content-space constraints and provider failures or invalid output
 //! become typed layout errors. `DefaultScalar` and `Scalar` use `f32`; generic
@@ -229,7 +243,9 @@ pub use node_input::{
     AlignContent, AlignItems, AtomicInlineParticipation, AtomicInlineParticipationError,
     AtomicInlineParticipationErrorOf, AtomicInlineParticipationOf, BidiLevel, BidiLevelError,
     BoxSizing, Clear, ComputedOverflow, ComputedOverflowError, Direction, Display, FlexDirection,
-    FlexGrow, FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float, FloatExclusion, GridAutoFlow,
+    FlexGrow, FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float, FloatExclusion,
+    FloatExclusionInterval, FloatExclusionIntervalError, FloatExclusionIntervalErrorOf,
+    FloatExclusionIntervalOf, FloatExclusionQuery, FloatExclusionQueryOf, GridAutoFlow,
     GridFlowTolerance, GridFlowToleranceOf, GridPlacement, InlineBoundaryInput,
     InlineBoundaryInputOf, InlineBoundaryKind, InlineBreakKind, InlineBreakOpportunity,
     InlineBreakOpportunityOf, InlineMetrics, InlineMetricsError, InlineMetricsOf, InlineSegmentId,
