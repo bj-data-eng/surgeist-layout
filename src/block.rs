@@ -3,22 +3,23 @@ use std::collections::BTreeMap;
 use super::inline::{
     AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
     InlineControlAlignment, InlineFlowOf, InlineParticipant, InlineRunInput, InlineRunReport,
-    ShapedTextParticipantOf, ShapedTextRunInputOf, layout_inline_run, layout_text_run,
+    MixedInlineParticipantOf, MixedInlineRunInputOf, ShapedTextParticipantOf, layout_inline_run,
+    layout_mixed_inline_run,
 };
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
     Float, InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf, LayoutErrorOf,
-    LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant, LayoutOperation, LayoutResultOf,
-    LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf, LengthResolutionStatus,
-    LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow, ParentFormattingContext,
-    PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis, RunMode, Size, SizingAlgorithm,
-    SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant, LayoutInvalidInputOf,
+    LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
+    LengthResolutionStatus, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
+    ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
+    RunMode, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{
-    EdgesResultExt, SizeResultExt, SizingResolutionError, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional,
+    AtomicInlineParticipationRoleError, EdgesResultExt, SizeResultExt, SizingResolutionError,
+    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_optional,
 };
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
@@ -1521,7 +1522,7 @@ where
     )
 }
 
-fn layout_shaped_text_children<Tree, S, M>(
+fn layout_mixed_inline_children<Tree, S, M>(
     tree: &mut Tree,
     container: <Tree as Traverse>::Node,
     run: &[<Tree as Traverse>::Node],
@@ -1550,25 +1551,126 @@ where
                 .logical_size(constants.available_content)
                 .inline,
         );
-    let participants = run
-        .iter()
-        .copied()
-        .enumerate()
-        .flat_map(|(offset, child)| {
-            let LayoutInputOf::InlineText(text) = tree.layout_input(child) else {
-                unreachable!("text-only run validation precedes shaped-text layout")
-            };
-            text.segments()
-                .iter()
-                .copied()
-                .map(move |segment| ShapedTextParticipantOf {
-                    source_index: source_index_start + offset,
-                    segment,
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
-    let report = layout_text_run(ShapedTextRunInputOf {
+    let containing_size = constants.containing_size(logical_node_inner_size);
+    let mut participants = Vec::new();
+    let mut atomic_children = Vec::new();
+    let mut published_text = Vec::new();
+    let mut static_positions = Vec::new();
+    for (offset, child) in run.iter().copied().enumerate() {
+        let source_index = source_index_start + offset;
+        let child_style = match tree.layout_input(child) {
+            LayoutInputOf::InlineText(text) => {
+                published_text.push((child, source_index, Vec::new(), None, None));
+                participants.extend(text.segments().iter().copied().map(|segment| {
+                    MixedInlineParticipantOf::ShapedText(ShapedTextParticipantOf {
+                        source_index,
+                        segment,
+                    })
+                }));
+                continue;
+            }
+            LayoutInputOf::Box(style) => *style,
+            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
+                unreachable!("mixed text/control gate precedes atomic lowering")
+            }
+        };
+        if child_style.display == super::Display::None {
+            if set_layout {
+                tree.set_unrounded(
+                    child,
+                    NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(source_index)),
+                );
+                tree.compute_child(
+                    child,
+                    ComputeInputOf::<S>::hidden_in_containing_pass(
+                        ContainingLayoutContext::new(
+                            constants.flow_axes,
+                            ParentFormattingContext::BlockFlow,
+                        ),
+                        input.settled_auto_scrollbars(),
+                    ),
+                )?;
+            }
+            continue;
+        }
+        if child_style.position == Position::Absolute {
+            static_positions.push((
+                child,
+                absolute_static_position(cursor_block, constants, containing_size),
+            ));
+            continue;
+        }
+
+        let participation = child_style.atomic_inline_participation.ok_or_else(|| {
+            LayoutErrorOf::new(
+                LayoutErrorSiteOf::Node(child),
+                LayoutOperation::ChildLayout,
+                LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::AtomicInlineParticipation {
+                    reason: AtomicInlineParticipationRoleError::MissingForAtomicInline,
+                }),
+            )
+        })?;
+        let child_padding = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.padding,
+                node_inner_size,
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
+            .transpose_with_node(tree, child)?;
+        let child_border = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.border,
+                node_inner_size,
+                |length, basis| resolve_length_or_zero(length, basis),
+            )
+            .transpose_with_node(tree, child)?;
+        let output = tree.compute_child(
+            child,
+            ComputeInputOf::<S>::for_child(
+                input.run_mode().for_child(),
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                constants
+                    .flow_axes
+                    .physical_size(LogicalSizeOf::new(logical_node_inner_size.inline, None)),
+                ContainingLayoutContext::new(
+                    constants.flow_axes,
+                    ParentFormattingContext::BlockFlow,
+                ),
+                constants.flow_axes.physical_size(LogicalSizeOf::new(
+                    available_inline_extent,
+                    AvailableOf::<S>::MAX_CONTENT,
+                )),
+            )
+            .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
+        )?;
+        let unresolved_margin = constants
+            .flow_axes
+            .zip_physical_edges_with_inline_extent(
+                child_style.margin,
+                node_inner_size,
+                |length, basis| resolve_auto_optional(length, basis),
+            )
+            .transpose_with_node(tree, child)?;
+        let child_margin = resolve_atomic_inline_margin(unresolved_margin);
+        let item = atomic_inline_box_participant(
+            source_index,
+            child_style.clone(),
+            output,
+            child_margin,
+            child_padding,
+            child_border,
+        );
+        participants.push(MixedInlineParticipantOf::Atomic {
+            item,
+            participation,
+        });
+        atomic_children.push((child, source_index, child_style, output));
+    }
+    let report = layout_mixed_inline_run(MixedInlineRunInputOf {
         available_inline_extent,
         flow_axes: constants.flow_axes,
         text_align: constants.text_align,
@@ -1577,7 +1679,6 @@ where
     let report_logical_size = LogicalSizeOf::new(report.inline_extent, report.block_extent);
     let report_size = constants.flow_axes.physical_size(report_logical_size);
     let logical_content_box_inset = constants.logical_content_box_inset();
-    let containing_size = constants.containing_size(logical_node_inner_size);
     let project_point = |inline: S, block: S, size: LogicalSizeOf<S>| {
         constants.flow_axes.physical_point(
             LogicalPointOf::new(
@@ -1589,12 +1690,6 @@ where
         )
     };
 
-    let mut published = run
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(offset, child)| (child, source_index_start + offset, Vec::new(), None, None))
-        .collect::<Vec<_>>();
     let mut text_content_size = Size::ZERO;
     for source in &report.fragments {
         let logical_size = LogicalSizeOf::new(source.inline_extent, source.block_extent);
@@ -1613,8 +1708,10 @@ where
             source.baseline,
             LogicalSizeOf::new(S::ZERO, S::ZERO),
         );
-        let (_, _, fragments, union_min, union_max) =
-            &mut published[source.source_index - source_index_start];
+        let (_, _, fragments, union_min, union_max) = published_text
+            .iter_mut()
+            .find(|(_, source_index, _, _, _)| *source_index == source.source_index)
+            .expect("every shaped source retains its text publication group");
         *union_min = Some(union_min.map_or(location, |current: Point<S>| {
             Point::new(current.x.min(location.x), current.y.min(location.y))
         }));
@@ -1649,7 +1746,7 @@ where
     }
 
     if set_layout {
-        for (child, source_index, fragments, union_min, union_max) in published {
+        for (child, source_index, fragments, union_min, union_max) in published_text {
             let anchor = report
                 .anchors
                 .iter()
@@ -1698,11 +1795,81 @@ where
         }
     }
 
+    let atomic_sources = report
+        .atomics
+        .iter()
+        .map(|source| (source.item.source_index, *source))
+        .collect::<BTreeMap<_, _>>();
+    let mut content_size = report_size;
+    let mut scroll_content_size = text_content_size;
+    for (child, source_index, child_style, output) in atomic_children {
+        let source = atomic_sources[&source_index];
+        let logical_size = constants.flow_axes.logical_size(source.item.size);
+        let projected_location =
+            project_point(source.inline_start, source.block_start, logical_size);
+        let inset_offset = relative_inset_offset(
+            constants
+                .flow_axes
+                .zip_physical_edges_with_inline_extent(
+                    child_style.inset,
+                    node_inner_size,
+                    |length, basis| resolve_auto_optional(length, basis),
+                )
+                .transpose_with_node(tree, child)?,
+            constants.flow_axes,
+        );
+        let location = Point::new(
+            projected_location.x + inset_offset.x,
+            projected_location.y + inset_offset.y,
+        );
+        let contribution = content_size_contribution(
+            Point::new(
+                location.x - constants.content_box_inset.left,
+                location.y - constants.content_box_inset.top,
+            ),
+            source.item.size,
+            output.content_size,
+            child_style.overflow,
+            child_style.item_is_replaced,
+        );
+        content_size = max_content_size(content_size, contribution);
+        scroll_content_size = max_content_size(scroll_content_size, contribution);
+
+        if set_layout {
+            let scroll_geometry = retained_child_scroll_geometry(
+                &child_style,
+                source.item.size,
+                source.item.content_size,
+                source.item.padding,
+                source.item.border,
+                output.scroll_geometry,
+            )
+            .map_err(|error| block_child_geometry_error(container, child, error))?;
+            contributions
+                .include_in_flow_geometry(location, source.item.margin, scroll_geometry)
+                .map_err(|error| block_child_geometry_error(container, child, error))?;
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::<S> {
+                    source_index: crate::SourceIndex::new(source_index),
+                    location,
+                    size: source.item.size,
+                    content_size: source.item.content_size,
+                    border: source.item.border,
+                    padding: source.item.padding,
+                    margin: source.item.margin,
+                    ..NodeOutputOf::new()
+                }
+                .with_scroll_geometry(Some(scroll_geometry)),
+            );
+        }
+    }
+
     Ok(InlineRunPlacement {
         size: report_size,
-        content_size: report_size,
-        scroll_content_size: text_content_size,
-        static_positions: Vec::new(),
+        content_size,
+        scroll_content_size,
+        static_positions,
         baselines: BaselinesOf::NONE,
         first_baseline: report.first_baseline,
         last_baseline: report.last_baseline,
@@ -1720,20 +1887,22 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    if run
-        .iter()
-        .copied()
-        .all(|child| matches!(tree.layout_input(child), LayoutInputOf::InlineText(_)))
-    {
-        return layout_shaped_text_children(tree, container, run, context, contributions);
-    }
-
-    if let Some(child) = run
+    if let Some(text_child) = run
         .iter()
         .copied()
         .find(|child| matches!(tree.layout_input(*child), LayoutInputOf::InlineText(_)))
     {
-        return Err(crate::compute::mixed_inline_later_capability_error(child));
+        if run.iter().copied().any(|child| {
+            matches!(
+                tree.layout_input(child),
+                LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_)
+            )
+        }) {
+            return Err(crate::compute::mixed_inline_later_capability_error(
+                text_child,
+            ));
+        }
+        return layout_mixed_inline_children(tree, container, run, context, contributions);
     }
 
     let InlineRunContext {
@@ -1763,7 +1932,7 @@ where
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
             LayoutInputOf::InlineText(_) => {
-                unreachable!("text-only and mixed runs return before legacy inline layout")
+                unreachable!("text runs return before legacy inline layout")
             }
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
@@ -1888,25 +2057,14 @@ where
             .transpose_with_node(tree, child)?;
         let child_margin = resolve_atomic_inline_margin(unresolved_margin);
 
-        let child_flow_axes =
-            crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
-        let item = InlineParticipant::Box(AtomicInlineBoxParticipant {
+        let item = InlineParticipant::Box(atomic_inline_box_participant(
             source_index,
-            size: output.size,
-            content_size: output.content_size,
-            margin: child_margin,
-            padding: child_padding,
-            border: child_border,
-            scrollbar_size: child_scrollbar_size(&child_style),
-            first_baseline: if child_style.vertical_align == VerticalAlign::Top {
-                Some(S::ZERO)
-            } else {
-                output
-                    .baselines()
-                    .last_block(child_flow_axes)
-                    .or_else(|| output.baselines().first_block(child_flow_axes))
-            },
-        });
+            child_style.clone(),
+            output,
+            child_margin,
+            child_padding,
+            child_border,
+        ));
         run_children.push(InlineRunChild::Box {
             child,
             source_index,
@@ -2482,6 +2640,35 @@ fn resolved_length_auto_or<S: LayoutScalar>(value: ResolvedLengthAutoOf<S>, auto
 
 fn resolved_length_auto_fallback_zero<S: LayoutScalar>(value: ResolvedLengthAutoOf<S>) -> S {
     resolved_length_auto_or(value, S::ZERO)
+}
+
+fn atomic_inline_box_participant<S: LayoutScalar>(
+    source_index: usize,
+    child_style: NodeInputOf<S>,
+    output: ComputeOutputOf<S>,
+    margin: Edges<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+) -> AtomicInlineBoxParticipant<S> {
+    let child_flow_axes =
+        crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
+    AtomicInlineBoxParticipant {
+        source_index,
+        size: output.size,
+        content_size: output.content_size,
+        margin,
+        padding,
+        border,
+        scrollbar_size: child_scrollbar_size(&child_style),
+        first_baseline: if child_style.vertical_align == VerticalAlign::Top {
+            Some(S::ZERO)
+        } else {
+            output
+                .baselines()
+                .last_block(child_flow_axes)
+                .or_else(|| output.baselines().first_block(child_flow_axes))
+        },
+    }
 }
 
 fn resolve_atomic_inline_margin<S: LayoutScalar>(margin: Edges<Option<S>>) -> Edges<S> {
