@@ -533,6 +533,7 @@ where
                     constants.direction,
                 );
             }
+            LayoutInputOf::InlineText(_) => {}
             LayoutInputOf::InlineBoundary(_) => {
                 visible_inline_boundary_in_flow(
                     tree,
@@ -714,6 +715,15 @@ where
         let child = children[index];
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
+            LayoutInputOf::InlineText(_) => {
+                return Err(crate::LayoutErrorOf::new(
+                    crate::LayoutErrorSiteOf::Node(child),
+                    crate::LayoutOperation::ChildLayout,
+                    crate::LayoutErrorKindOf::UnsupportedCapability(
+                        crate::LayoutUnsupportedCapability::LaterFriBehavior,
+                    ),
+                ));
+            }
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
                     if set_layout {
@@ -1459,6 +1469,15 @@ where
         let source_index = source_index_start + offset;
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
+            LayoutInputOf::InlineText(_) => {
+                return Err(crate::LayoutErrorOf::new(
+                    crate::LayoutErrorSiteOf::Node(child),
+                    crate::LayoutOperation::ChildLayout,
+                    crate::LayoutErrorKindOf::UnsupportedCapability(
+                        crate::LayoutUnsupportedCapability::LaterFriBehavior,
+                    ),
+                ));
+            }
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
                     if set_layout {

@@ -168,6 +168,430 @@ fn node_input_and_output_support_f64_scalar_lane() {
     assert_eq!(compute_output.size.width, precision_sentinel);
 }
 
+fn fri06_c01_segment<S: LayoutScalar>(
+    id: u64,
+    whitespace: InlineWhitespaceEdge,
+    following_break: InlineBreakOpportunityOf<S>,
+) -> ShapedInlineSegmentOf<S> {
+    ShapedInlineSegmentOf::try_new(
+        InlineSegmentId::new(id),
+        S::from_f64(12.0),
+        InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap(),
+        BidiLevel::try_new(1).unwrap(),
+        whitespace,
+        following_break,
+    )
+    .unwrap()
+}
+
+fn assert_fri06_c01_inline_model<S: LayoutScalar>() {
+    fn assert_copy<T: Clone + Copy + core::fmt::Debug + PartialEq>() {}
+    fn assert_owned<T: Clone + core::fmt::Debug + PartialEq>() {}
+
+    assert_copy::<InlineSegmentId>();
+    assert_copy::<BidiLevel>();
+    assert_copy::<InlineWhitespaceEdge>();
+    assert_copy::<InlineBreakKind>();
+    assert_copy::<InlineBreakOpportunityOf<S>>();
+    assert_copy::<ShapedInlineSegmentOf<S>>();
+    assert_copy::<AtomicInlineParticipationOf<S>>();
+    assert_owned::<InlineTextInputOf<S>>();
+
+    let id = InlineSegmentId::new(42);
+    assert_eq!(id.get(), 42);
+    assert!(!BidiLevel::try_new(0).unwrap().is_rtl());
+    assert!(BidiLevel::try_new(125).unwrap().is_rtl());
+    assert_eq!(
+        BidiLevel::try_new(126),
+        Err(BidiLevelError::OutOfRange { level: 126 })
+    );
+
+    let prohibited = InlineBreakOpportunityOf::<S>::prohibited();
+    let allowed = InlineBreakOpportunityOf::<S>::allowed();
+    let mandatory = InlineBreakOpportunityOf::<S>::mandatory();
+    let replacement =
+        InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(S::from_f64(3.0)).unwrap();
+    assert_eq!(prohibited.kind(), InlineBreakKind::Prohibited);
+    assert_eq!(allowed.kind(), InlineBreakKind::Allowed);
+    assert_eq!(mandatory.kind(), InlineBreakKind::Mandatory);
+    assert_eq!(replacement.kind(), InlineBreakKind::AllowedWithReplacement);
+    assert_eq!(
+        replacement.replacement_inline_extent(),
+        Some(S::from_f64(3.0))
+    );
+    assert_eq!(allowed.replacement_inline_extent(), None);
+    for rejected in [S::from_f64(-1.0), S::INFINITY, S::NAN] {
+        assert!(matches!(
+            InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(rejected),
+            Err(InlineTextInputErrorOf::InvalidReplacementInlineExtent { .. })
+        ));
+    }
+    let negative_zero =
+        InlineBreakOpportunityOf::<S>::try_allowed_with_replacement(-S::ZERO).unwrap();
+    assert_eq!(negative_zero.replacement_inline_extent(), Some(S::ZERO));
+
+    for whitespace in [
+        InlineWhitespaceEdge::Preserve,
+        InlineWhitespaceEdge::DiscardAtLineStart,
+        InlineWhitespaceEdge::DiscardAtLineEnd,
+        InlineWhitespaceEdge::DiscardAtBoth,
+    ] {
+        let segment = fri06_c01_segment(7, whitespace, allowed);
+        assert_eq!(segment.segment_id(), InlineSegmentId::new(7));
+        assert_eq!(segment.inline_extent(), S::from_f64(12.0));
+        assert_eq!(
+            segment.metrics(),
+            InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap()
+        );
+        assert_eq!(segment.bidi_level(), BidiLevel::try_new(1).unwrap());
+        assert_eq!(segment.whitespace_edge(), whitespace);
+        assert_eq!(segment.following_break(), allowed);
+    }
+
+    for whitespace_edge in [
+        InlineWhitespaceEdge::DiscardAtLineStart,
+        InlineWhitespaceEdge::DiscardAtLineEnd,
+        InlineWhitespaceEdge::DiscardAtBoth,
+    ] {
+        assert!(matches!(
+            ShapedInlineSegmentOf::try_new(
+                InlineSegmentId::new(8),
+                S::from_f64(1.0),
+                InlineMetricsOf::default(),
+                BidiLevel::try_new(0).unwrap(),
+                whitespace_edge,
+                replacement,
+            ),
+            Err(InlineTextInputErrorOf::ReplacementWithDiscardableWhitespace { .. })
+        ));
+    }
+    for inline_extent in [S::from_f64(-1.0), S::INFINITY, S::NAN] {
+        assert!(matches!(
+            ShapedInlineSegmentOf::try_new(
+                InlineSegmentId::new(8),
+                inline_extent,
+                InlineMetricsOf::default(),
+                BidiLevel::try_new(0).unwrap(),
+                InlineWhitespaceEdge::Preserve,
+                prohibited,
+            ),
+            Err(InlineTextInputErrorOf::InvalidInlineExtent { .. })
+        ));
+    }
+
+    assert_eq!(
+        InlineTextInputOf::<S>::try_new(Vec::new()),
+        Err(InlineTextInputErrorOf::Empty)
+    );
+    let first = fri06_c01_segment(1, InlineWhitespaceEdge::Preserve, prohibited);
+    assert_eq!(
+        InlineTextInputOf::try_new(vec![first, first]),
+        Err(InlineTextInputErrorOf::DuplicateSegmentId {
+            segment_id: InlineSegmentId::new(1),
+        })
+    );
+    let text = InlineTextInputOf::try_new(vec![first]).unwrap();
+    assert_eq!(text.segments(), &[first]);
+    assert_eq!(
+        LayoutInputOf::inline_text(text.clone()).as_inline_text(),
+        Some(&text)
+    );
+
+    let atomic =
+        AtomicInlineParticipationOf::try_new(BidiLevel::try_new(2).unwrap(), allowed).unwrap();
+    assert_eq!(atomic.bidi_level(), BidiLevel::try_new(2).unwrap());
+    assert_eq!(atomic.following_break(), allowed);
+    for following_break in [prohibited, allowed, mandatory] {
+        assert!(
+            AtomicInlineParticipationOf::try_new(BidiLevel::try_new(0).unwrap(), following_break,)
+                .is_ok()
+        );
+    }
+    assert!(matches!(
+        AtomicInlineParticipationOf::try_new(BidiLevel::try_new(0).unwrap(), replacement),
+        Err(AtomicInlineParticipationErrorOf::ReplacementNotAllowed { .. })
+    ));
+
+    let default = NodeInputOf::<S>::default();
+    assert_eq!(default.atomic_inline_participation, None);
+    assert_eq!(default.float_exclusion, FloatExclusion::MarginBox);
+    let non_box = NodeInputOf::<S>::non_box();
+    assert_eq!(
+        non_box,
+        NodeInputOf {
+            display: Display::None,
+            ..NodeInputOf::default()
+        }
+    );
+    assert_eq!(non_box.display, Display::None);
+    assert_eq!(non_box.atomic_inline_participation, None);
+    assert_eq!(non_box.float_exclusion, FloatExclusion::MarginBox);
+    let vertical_align_name = |value| match value {
+        VerticalAlign::Baseline => "baseline",
+        VerticalAlign::Top => "top",
+        VerticalAlign::Bottom => "bottom",
+    };
+    assert_eq!(vertical_align_name(VerticalAlign::Bottom), "bottom");
+}
+
+#[test]
+fn fri06_c01_inline_model_validates_and_exposes_both_scalar_lanes() {
+    assert_fri06_c01_inline_model::<f32>();
+    assert_fri06_c01_inline_model::<f64>();
+}
+
+#[derive(Clone)]
+struct Fri06C01Tree<S: LayoutScalar> {
+    inputs: Vec<LayoutInputOf<S>>,
+    nodes: Vec<NodeInputOf<S>>,
+    children: Vec<Vec<usize>>,
+    measured: Vec<bool>,
+    cache_reads: std::cell::Cell<usize>,
+}
+
+impl<S: LayoutScalar> Traverse for Fri06C01Tree<S> {
+    type Node = usize;
+    type Scalar = S;
+    type Children<'a>
+        = std::iter::Copied<std::slice::Iter<'a, usize>>
+    where
+        Self: 'a;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children[node].iter().copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children[node].len()
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri06C01Tree<S> {
+    type MeasureError = core::convert::Infallible;
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar> {
+        &self.nodes[node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar> {
+        self.inputs[node].clone()
+    }
+
+    fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        self.measured[node]
+    }
+
+    fn cache_get(
+        &self,
+        _node: Self::Node,
+        _input: &ComputeInputOf<Self::Scalar>,
+        _context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<Self::Scalar>> {
+        self.cache_reads.set(self.cache_reads.get() + 1);
+        None
+    }
+}
+
+fn fri06_c01_tree<S: LayoutScalar>(
+    input: LayoutInputOf<S>,
+    node: NodeInputOf<S>,
+) -> Fri06C01Tree<S> {
+    Fri06C01Tree {
+        inputs: vec![input],
+        nodes: vec![node],
+        children: vec![Vec::new()],
+        measured: vec![false],
+        cache_reads: std::cell::Cell::new(0),
+    }
+}
+
+fn fri06_c01_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
+    LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(100.0)))).unwrap()
+}
+
+fn assert_fri06_c01_non_box<S: LayoutScalar>() {
+    let segment: ShapedInlineSegmentOf<S> = fri06_c01_segment(
+        1,
+        InlineWhitespaceEdge::Preserve,
+        InlineBreakOpportunityOf::prohibited(),
+    );
+    let text = InlineTextInputOf::try_new(vec![segment]).unwrap();
+    let valid = fri06_c01_tree(
+        LayoutInputOf::inline_text(text.clone()),
+        NodeInputOf::non_box(),
+    );
+    let error = compute_layout(&valid, 0, fri06_c01_request()).unwrap_err();
+    assert_eq!(error.operation(), LayoutOperation::RootLayout);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
+    );
+    assert_eq!(valid.cache_reads.get(), 0);
+
+    let noncanonical = fri06_c01_tree(
+        LayoutInputOf::inline_text(text.clone()),
+        NodeInputOf::default(),
+    );
+    assert!(matches!(
+        compute_layout(&noncanonical, 0, fri06_c01_request())
+            .unwrap_err()
+            .kind(),
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::NonBoxNodeRole {
+            reason: NonBoxNodeRoleError::NonCanonicalNodeInput,
+        })
+    ));
+
+    let mut childful = fri06_c01_tree(
+        LayoutInputOf::inline_text(text.clone()),
+        NodeInputOf::non_box(),
+    );
+    childful
+        .inputs
+        .push(LayoutInputOf::box_input(NodeInputOf::default()));
+    childful.nodes.push(NodeInputOf::default());
+    childful.children[0].push(1);
+    childful.children.push(Vec::new());
+    childful.measured.push(false);
+    assert!(matches!(
+        compute_layout(&childful, 0, fri06_c01_request())
+            .unwrap_err()
+            .kind(),
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::NonBoxNodeRole {
+            reason: NonBoxNodeRoleError::HasChildren,
+        })
+    ));
+
+    let mut measured = fri06_c01_tree(LayoutInputOf::inline_text(text), NodeInputOf::non_box());
+    measured.measured[0] = true;
+    assert!(matches!(
+        compute_layout(&measured, 0, fri06_c01_request())
+            .unwrap_err()
+            .kind(),
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::NonBoxNodeRole {
+            reason: NonBoxNodeRoleError::HasLeafMeasurement,
+        })
+    ));
+}
+
+#[test]
+fn fri06_c01_non_box_pairing_and_text_handoff_are_typed_and_cache_neutral() {
+    assert_fri06_c01_non_box::<f32>();
+    assert_fri06_c01_non_box::<f64>();
+}
+
+fn assert_fri06_c01_box_roles<S: LayoutScalar>() {
+    let child_tree = |style: NodeInputOf<S>| Fri06C01Tree {
+        inputs: vec![
+            LayoutInputOf::box_input(NodeInputOf::default()),
+            LayoutInputOf::box_input(style.clone()),
+        ],
+        nodes: vec![NodeInputOf::default(), style],
+        children: vec![vec![1], Vec::new()],
+        measured: vec![false, false],
+        cache_reads: std::cell::Cell::new(0),
+    };
+    for display in [
+        Display::InlineBlock,
+        Display::InlineGrid,
+        Display::InlineGridLanes,
+    ] {
+        let missing_atomic = NodeInputOf::<S> {
+            display,
+            ..NodeInputOf::default()
+        };
+        let tree = child_tree(missing_atomic);
+        assert!(matches!(
+            compute_layout(&tree, 0, fri06_c01_request())
+                .unwrap_err()
+                .kind(),
+            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::AtomicInlineParticipation {
+                reason: AtomicInlineParticipationRoleError::MissingForAtomicInline,
+            })
+        ));
+        assert_eq!(tree.cache_reads.get(), 0);
+    }
+
+    let atomic = AtomicInlineParticipationOf::try_new(
+        BidiLevel::try_new(0).unwrap(),
+        InlineBreakOpportunityOf::mandatory(),
+    )
+    .unwrap();
+    let extraneous_atomic = NodeInputOf::<S> {
+        atomic_inline_participation: Some(atomic),
+        ..NodeInputOf::default()
+    };
+    let tree = child_tree(extraneous_atomic);
+    assert!(matches!(
+        compute_layout(&tree, 0, fri06_c01_request())
+            .unwrap_err()
+            .kind(),
+        LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::AtomicInlineParticipation {
+            reason: AtomicInlineParticipationRoleError::UnexpectedForNonAtomic,
+        })
+    ));
+    assert_eq!(tree.cache_reads.get(), 0);
+
+    for (style, expected) in [
+        (
+            NodeInputOf::<S> {
+                float_exclusion: FloatExclusion::Shape,
+                ..NodeInputOf::default()
+            },
+            FloatExclusionRoleError::NonFloating,
+        ),
+        (
+            NodeInputOf::<S> {
+                display: Display::None,
+                float_exclusion: FloatExclusion::Shape,
+                ..NodeInputOf::default()
+            },
+            FloatExclusionRoleError::Hidden,
+        ),
+        (
+            NodeInputOf::<S> {
+                position: Position::Absolute,
+                float: Float::Left,
+                float_exclusion: FloatExclusion::Shape,
+                ..NodeInputOf::default()
+            },
+            FloatExclusionRoleError::Absolute,
+        ),
+    ] {
+        let tree = fri06_c01_tree(LayoutInputOf::box_input(style.clone()), style);
+        assert!(matches!(
+            compute_layout(&tree, 0, fri06_c01_request()).unwrap_err().kind(),
+            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::FloatExclusionRole {
+                reason,
+            }) if *reason == expected
+        ));
+        assert_eq!(tree.cache_reads.get(), 0);
+    }
+
+    let shape = NodeInputOf::<S> {
+        float: Float::Right,
+        float_exclusion: FloatExclusion::Shape,
+        ..NodeInputOf::default()
+    };
+    let tree = fri06_c01_tree(LayoutInputOf::box_input(shape.clone()), shape);
+    assert_eq!(
+        compute_layout(&tree, 0, fri06_c01_request())
+            .unwrap_err()
+            .kind(),
+        &LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
+    );
+    assert_eq!(tree.cache_reads.get(), 0);
+}
+
+#[test]
+fn fri06_c01_non_box_atomic_and_shape_roles_reject_before_cache_activity() {
+    assert_fri06_c01_box_roles::<f32>();
+    assert_fri06_c01_box_roles::<f64>();
+}
+
 #[test]
 fn public_order_source_types_and_defaults_are_exact() {
     use crate::{ItemOrder, SourceIndex};

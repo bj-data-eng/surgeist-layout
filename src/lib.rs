@@ -51,6 +51,12 @@
 //! [`LayoutErrorOf`] with no partial public result. Recursive compute modes are
 //! internal.
 //!
+//! Shaped text crosses this crate boundary only as validated
+//! [`InlineTextInputOf`] segments. Layout owns line geometry, while root owns
+//! source association and shaping; authored text, glyph data, and rendering do
+//! not enter this crate. [`NodeInputOf::non_box`] is the canonical tree
+//! companion for text and inline controls.
+//!
 //! `compute_leaf` is the direct fallible measurement boundary: providers receive
 //! non-negative content-space constraints and provider failures or invalid output
 //! become typed layout errors. `DefaultScalar` and `Scalar` use `f32`; generic
@@ -192,12 +198,13 @@ pub type Scalar = DefaultScalar;
 pub(crate) use block::compute_block;
 pub use cache::{Cache, CacheKeyContext, CacheOf, ClearState};
 pub use compute::{
-    CalcSizeBehaviorBasis, InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError,
-    LayoutErrorKind, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSite, LayoutErrorSiteOf,
-    LayoutInternalInvariant, LayoutInvalidInput, LayoutInvalidInputOf, LayoutMissingContext,
-    LayoutOperation, LayoutResult, LayoutResultOf, LayoutUnsupportedCapability, LeafMeasureError,
-    LeafMeasureErrorOf, LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable,
-    MeasurementAvailableOf, SizingAlgorithm, SizingBehavior, SizingProperty,
+    AtomicInlineParticipationRoleError, CalcSizeBehaviorBasis, FloatExclusionRoleError,
+    InvalidMeasurementOutput, InvalidMeasurementOutputOf, LayoutError, LayoutErrorKind,
+    LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSite, LayoutErrorSiteOf, LayoutInternalInvariant,
+    LayoutInvalidInput, LayoutInvalidInputOf, LayoutMissingContext, LayoutOperation, LayoutResult,
+    LayoutResultOf, LayoutUnsupportedCapability, LeafMeasureError, LeafMeasureErrorOf,
+    LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable, MeasurementAvailableOf,
+    NonBoxNodeRoleError, SizingAlgorithm, SizingBehavior, SizingProperty,
     UnsupportedSizingBehavior, compute_layout, compute_leaf,
 };
 #[cfg(test)]
@@ -219,17 +226,21 @@ pub use grid::{
 #[cfg(test)]
 pub(crate) use grid::{compute_grid, compute_grid_with_report};
 pub use node_input::{
-    AlignContent, AlignItems, BoxSizing, Clear, ComputedOverflow, ComputedOverflowError, Direction,
-    Display, FlexDirection, FlexGrow, FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float,
-    GridAutoFlow, GridFlowTolerance, GridFlowToleranceOf, GridPlacement, InlineBoundaryInput,
-    InlineBoundaryInputOf, InlineBoundaryKind, InlineMetrics, InlineMetricsError, InlineMetricsOf,
-    ItemOrder, LayoutInput, LayoutInputOf, LineBreakDisplay, LineBreakInput, LineBreakInputOf,
-    NodeInput, NodeInputOf, Overflow, OverflowClipBox, OverflowClipMargin, OverflowClipMarginOf,
-    Position, RawGridLine, RawGridPlacement, ScrollMargin, ScrollMarginError, ScrollMarginErrorOf,
-    ScrollMarginOf, ScrollPadding, ScrollPaddingOf, ScrollPaddingValue, ScrollPaddingValueOf,
-    ScrollSnapAlign, ScrollSnapAlignValue, ScrollSnapAxis, ScrollSnapStop, ScrollSnapStrictness,
-    ScrollSnapType, ScrollbarGutter, ScrollbarWidth, ScrollbarWidthOf, TextAlign, VerticalAlign,
-    WritingMode,
+    AlignContent, AlignItems, AtomicInlineParticipation, AtomicInlineParticipationError,
+    AtomicInlineParticipationErrorOf, AtomicInlineParticipationOf, BidiLevel, BidiLevelError,
+    BoxSizing, Clear, ComputedOverflow, ComputedOverflowError, Direction, Display, FlexDirection,
+    FlexGrow, FlexGrowOf, FlexShrink, FlexShrinkOf, FlexWrap, Float, FloatExclusion, GridAutoFlow,
+    GridFlowTolerance, GridFlowToleranceOf, GridPlacement, InlineBoundaryInput,
+    InlineBoundaryInputOf, InlineBoundaryKind, InlineBreakKind, InlineBreakOpportunity,
+    InlineBreakOpportunityOf, InlineMetrics, InlineMetricsError, InlineMetricsOf, InlineSegmentId,
+    InlineTextInput, InlineTextInputError, InlineTextInputErrorOf, InlineTextInputOf,
+    InlineWhitespaceEdge, ItemOrder, LayoutInput, LayoutInputOf, LineBreakDisplay, LineBreakInput,
+    LineBreakInputOf, NodeInput, NodeInputOf, Overflow, OverflowClipBox, OverflowClipMargin,
+    OverflowClipMarginOf, Position, RawGridLine, RawGridPlacement, ScrollMargin, ScrollMarginError,
+    ScrollMarginErrorOf, ScrollMarginOf, ScrollPadding, ScrollPaddingOf, ScrollPaddingValue,
+    ScrollPaddingValueOf, ScrollSnapAlign, ScrollSnapAlignValue, ScrollSnapAxis, ScrollSnapStop,
+    ScrollSnapStrictness, ScrollSnapType, ScrollbarGutter, ScrollbarWidth, ScrollbarWidthOf,
+    ShapedInlineSegment, ShapedInlineSegmentOf, TextAlign, VerticalAlign, WritingMode,
 };
 pub use output::{
     Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, CompletedLayoutBatch,

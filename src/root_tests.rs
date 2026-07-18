@@ -8,6 +8,14 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+fn fri06_atomic_participation<S: LayoutScalar>() -> AtomicInlineParticipationOf<S> {
+    AtomicInlineParticipationOf::try_new(
+        BidiLevel::try_new(0).unwrap(),
+        InlineBreakOpportunityOf::prohibited(),
+    )
+    .unwrap()
+}
+
 struct RootTestScrollGeometryFacts<S: LayoutScalar> {
     flow_axes: FlowAxes,
     overflow: ComputedOverflow,
@@ -5087,6 +5095,7 @@ fn scroll_geometry_error_maps_block_inline_float_and_absolute_overflow_to_the_su
         },
         NodeInput {
             display: Display::InlineBlock,
+            atomic_inline_participation: Some(fri06_atomic_participation()),
             size: Size::new(PreferredSize::px(f32::MAX), PreferredSize::px(1.0)),
             margin: Edges {
                 left: LengthAuto::px(f32::MAX),
@@ -5804,6 +5813,7 @@ fn compute_layout_rejects_measured_child_invalid_affine_width_without_batch() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::value(overflowing), PreferredSize::AUTO),
                 ..NodeInput::default()
             },
@@ -5842,6 +5852,7 @@ fn compute_layout_rejects_measured_child_invalid_affine_padding_without_batch() 
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 padding: Edges::all(Length::value(overflowing)),
                 ..NodeInput::default()
             },
@@ -9714,6 +9725,7 @@ fn fri05_c03_block_nested_partial_axes_and_trapped_values_preserve_independent_i
                 2,
                 NodeInput {
                     display: Display::InlineBlock,
+                    atomic_inline_participation: Some(fri06_atomic_participation()),
                     ..NodeInput::default()
                 },
             )

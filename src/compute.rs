@@ -163,9 +163,39 @@ pub enum LayoutInvalidInputOf<S: LayoutScalar = DefaultScalar> {
     InvalidNumeric {
         value: S,
     },
+    InlineText(super::InlineTextInputErrorOf<S>),
+    AtomicInlineParticipation {
+        reason: AtomicInlineParticipationRoleError,
+    },
+    NonBoxNodeRole {
+        reason: NonBoxNodeRoleError,
+    },
+    FloatExclusionRole {
+        reason: FloatExclusionRoleError,
+    },
 }
 
 pub type LayoutInvalidInput = LayoutInvalidInputOf<DefaultScalar>;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum AtomicInlineParticipationRoleError {
+    MissingForAtomicInline,
+    UnexpectedForNonAtomic,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NonBoxNodeRoleError {
+    NonCanonicalNodeInput,
+    HasChildren,
+    HasLeafMeasurement,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum FloatExclusionRoleError {
+    Hidden,
+    NonFloating,
+    Absolute,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -330,6 +360,14 @@ pub fn compute_layout<Tree>(
 where
     Tree: LayoutTree,
 {
+    if validate_layout_tree(tree, root)? {
+        return Err(LayoutErrorOf::new(
+            LayoutErrorSiteOf::Node(root),
+            LayoutOperation::RootLayout,
+            LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior),
+        ));
+    }
+
     let mut session = ComputeSession::new(tree);
     match request.context() {
         LayoutRootContextOf::Viewport => {
@@ -345,6 +383,118 @@ where
     }
 
     Ok(session.complete())
+}
+
+fn validate_layout_tree<Tree>(
+    tree: &Tree,
+    root: Tree::Node,
+) -> LayoutResultOf<Tree::Node, bool, Tree::Scalar, Tree::MeasureError>
+where
+    Tree: LayoutTree,
+{
+    fn visit<Tree>(
+        tree: &Tree,
+        node: Tree::Node,
+        is_root: bool,
+        later_behavior: &mut bool,
+    ) -> LayoutResultOf<Tree::Node, (), Tree::Scalar, Tree::MeasureError>
+    where
+        Tree: LayoutTree,
+    {
+        let layout_input = tree.layout_input(node);
+        match layout_input {
+            LayoutInputOf::Box(_) => {
+                let input = tree.node_input(node);
+                match (
+                    !is_root && input.display.is_inline_level(),
+                    input.atomic_inline_participation.is_some(),
+                ) {
+                    (true, false) => {
+                        return Err(root_input_error(
+                            node,
+                            LayoutInvalidInputOf::AtomicInlineParticipation {
+                                reason: AtomicInlineParticipationRoleError::MissingForAtomicInline,
+                            },
+                        ));
+                    }
+                    (false, true) => {
+                        return Err(root_input_error(
+                            node,
+                            LayoutInvalidInputOf::AtomicInlineParticipation {
+                                reason: AtomicInlineParticipationRoleError::UnexpectedForNonAtomic,
+                            },
+                        ));
+                    }
+                    (true, true) | (false, false) => {}
+                }
+
+                if input.float_exclusion == super::FloatExclusion::Shape {
+                    let reason = if input.display == super::Display::None {
+                        Some(FloatExclusionRoleError::Hidden)
+                    } else if input.position == Position::Absolute {
+                        Some(FloatExclusionRoleError::Absolute)
+                    } else if input.float == super::Float::None {
+                        Some(FloatExclusionRoleError::NonFloating)
+                    } else {
+                        None
+                    };
+                    if let Some(reason) = reason {
+                        return Err(root_input_error(
+                            node,
+                            LayoutInvalidInputOf::FloatExclusionRole { reason },
+                        ));
+                    }
+                    *later_behavior = true;
+                }
+            }
+            LayoutInputOf::InlineText(_)
+            | LayoutInputOf::LineBreak(_)
+            | LayoutInputOf::InlineBoundary(_) => {
+                let reason = if tree.node_input(node) != &NodeInputOf::non_box() {
+                    Some(NonBoxNodeRoleError::NonCanonicalNodeInput)
+                } else if tree.child_count(node) != 0 {
+                    Some(NonBoxNodeRoleError::HasChildren)
+                } else if tree.has_leaf_measurement(node) {
+                    Some(NonBoxNodeRoleError::HasLeafMeasurement)
+                } else {
+                    None
+                };
+                if let Some(reason) = reason {
+                    return Err(root_input_error(
+                        node,
+                        LayoutInvalidInputOf::NonBoxNodeRole { reason },
+                    ));
+                }
+                if matches!(layout_input, LayoutInputOf::InlineText(_)) {
+                    *later_behavior = true;
+                }
+                return Ok(());
+            }
+        }
+
+        for child in tree.children(node) {
+            visit(tree, child, false, later_behavior)?;
+        }
+        Ok(())
+    }
+
+    let mut later_behavior = false;
+    visit(tree, root, true, &mut later_behavior)?;
+    Ok(later_behavior)
+}
+
+fn root_input_error<Node, S, M>(
+    node: Node,
+    invalid: LayoutInvalidInputOf<S>,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        LayoutOperation::RootLayout,
+        LayoutErrorKindOf::InvalidInput(invalid),
+    )
 }
 
 struct ComputeSession<'a, Tree>
@@ -883,7 +1033,9 @@ where
                     ),
                 )?;
             }
-            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
+            LayoutInputOf::InlineText(_)
+            | LayoutInputOf::LineBreak(_)
+            | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
                 tree.set_unrounded(
                     child,

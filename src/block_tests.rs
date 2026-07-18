@@ -8,6 +8,14 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+fn fri06_atomic_participation<S: LayoutScalar>() -> AtomicInlineParticipationOf<S> {
+    AtomicInlineParticipationOf::try_new(
+        BidiLevel::try_new(0).unwrap(),
+        InlineBreakOpportunityOf::prohibited(),
+    )
+    .unwrap()
+}
+
 #[test]
 fn block_child_context_is_complete_for_layout_sizing_and_absolute_paths() {
     assert_block_child_context_is_complete::<f32>();
@@ -1424,6 +1432,7 @@ fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
                 2,
                 NodeInputOf {
                     display: Display::InlineBlock,
+                    atomic_inline_participation: Some(fri06_atomic_participation()),
                     writing_mode,
                     direction,
                     size: child_size.map(PreferredSizeOf::px),
@@ -1560,6 +1569,7 @@ where
                 2,
                 NodeInputOf {
                     display: Display::InlineBlock,
+                    atomic_inline_participation: Some(fri06_atomic_participation()),
                     writing_mode,
                     direction,
                     size: child_size.map(PreferredSizeOf::px),
@@ -1654,6 +1664,7 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
                 1,
                 NodeInputOf {
                     display: Display::InlineBlock,
+                    atomic_inline_participation: Some(fri06_atomic_participation()),
                     writing_mode,
                     direction,
                     size: Size::splat_clone(PreferredSizeOf::px(scalar(20.0))),
@@ -1727,6 +1738,7 @@ fn assert_ordinary_block_boundaries_keep_inline_content_coordinates<S: LayoutSca
                 1,
                 NodeInputOf {
                     display: Display::InlineBlock,
+                    atomic_inline_participation: Some(fri06_atomic_participation()),
                     writing_mode,
                     direction,
                     size: expected_content_size.map(PreferredSizeOf::px),
@@ -11386,6 +11398,9 @@ fn fri05_c03_block_contribution_current_sources_retain_targets_and_union_content
                 1,
                 NodeInput {
                     display,
+                    atomic_inline_participation: display
+                        .is_inline_level()
+                        .then_some(fri06_atomic_participation()),
                     float,
                     position,
                     inset,

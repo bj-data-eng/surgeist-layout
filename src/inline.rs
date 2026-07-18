@@ -66,6 +66,7 @@ impl<S: LayoutScalar> InlineFlowOf<S> {
 pub(super) enum InlineControlAlignment {
     Baseline,
     Top,
+    Bottom,
 }
 
 impl From<VerticalAlign> for InlineControlAlignment {
@@ -73,6 +74,7 @@ impl From<VerticalAlign> for InlineControlAlignment {
         match value {
             VerticalAlign::Baseline => Self::Baseline,
             VerticalAlign::Top => Self::Top,
+            VerticalAlign::Bottom => Self::Bottom,
         }
     }
 }
