@@ -1,6 +1,6 @@
 # FRI-06-C03 Mixed Atomic And Control Line Completion
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-06-C03`
 
