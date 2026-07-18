@@ -1,5 +1,5 @@
 # FRI-05-C06 Bounded Fixtures Comparator And Final Regeneration
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-05-C06`
 Owning repository: `surgeist-layout`
 Cycle base: `2a3c96ac9b4ab65511ec15b1e59288a588d473c1`
