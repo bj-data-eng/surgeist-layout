@@ -205,7 +205,7 @@ pub use compute::{
     LayoutResultOf, LayoutUnsupportedCapability, LeafMeasureError, LeafMeasureErrorOf,
     LeafMeasureInput, LeafMeasureInputOf, MeasurementAvailable, MeasurementAvailableOf,
     NonBoxNodeRoleError, SizingAlgorithm, SizingBehavior, SizingProperty,
-    UnsupportedSizingBehavior, compute_layout, compute_leaf,
+    UnsupportedSizingBehavior, compute_layout, compute_layout_invalidated, compute_leaf,
 };
 #[cfg(test)]
 pub(crate) use compute::{compute_hidden, compute_root, round_layout};
@@ -275,7 +275,7 @@ pub use sizing::{
 #[cfg(test)]
 pub(crate) use traits::compute_cached;
 pub(crate) use traits::{CacheAccess, Compute, Round};
-pub use traits::{LayoutTree, Traverse};
+pub use traits::{LayoutBatchSink, LayoutTree, Traverse};
 pub use value::{
     AspectRatio, AspectRatioOf, Available, AvailableOf, FiniteScalarErrorOf, Length, LengthAuto,
     LengthAutoOf, LengthOf, LengthPercentageErrorOf, LengthPercentageOf, LengthResolution,
@@ -304,6 +304,8 @@ mod contract_tests;
 mod flex_tests;
 #[cfg(test)]
 mod inline_tests;
+#[cfg(test)]
+mod invalidation_transaction_tests;
 #[cfg(test)]
 mod leaf_tests;
 #[cfg(test)]

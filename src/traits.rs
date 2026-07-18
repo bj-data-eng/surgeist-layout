@@ -1,6 +1,6 @@
 use super::{
-    CacheKeyContext, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar, NodeInputOf,
-    NodeOutputOf, RunMode, Size,
+    CacheKeyContext, CompletedLayoutBatchOf, ComputeInputOf, ComputeOutputOf, LayoutInputOf,
+    LayoutScalar, NodeInputOf, NodeOutputOf, RunMode, Size,
 };
 use crate::InlineFragmentOutputOf;
 use crate::compute::{LayoutResultOf, LeafMeasureInputOf};
@@ -59,6 +59,22 @@ pub trait LayoutTree: Traverse {
     ) -> Option<&[InlineFragmentOutputOf<Self::Scalar>]> {
         None
     }
+}
+
+/// Atomically prepares and commits every state class in a completed layout batch.
+///
+/// Preparation is immutable and may fail. Commit receives an owned prepared
+/// replacement under exclusive access and is infallible.
+pub trait LayoutBatchSink<Node, S: LayoutScalar> {
+    type Error;
+    type Prepared;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<Node, S>,
+    ) -> Result<Self::Prepared, Self::Error>;
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared);
 }
 
 pub(crate) trait Compute<M = core::convert::Infallible>: Traverse {

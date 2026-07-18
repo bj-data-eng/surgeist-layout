@@ -138,6 +138,7 @@ pub enum LayoutOperation {
     LeafMeasurement,
     ValueResolution,
     CacheAccess,
+    CacheInvalidation,
     RoundingFinalization,
     GridLanePlacement,
 }
@@ -175,9 +176,13 @@ pub enum LayoutInvalidInputOf<S: LayoutScalar = DefaultScalar> {
     FloatExclusionRole {
         reason: FloatExclusionRoleError,
     },
+    InvalidationNodeNotReachable,
 }
 
 pub type LayoutInvalidInput = LayoutInvalidInputOf<DefaultScalar>;
+
+type CompletedTreeBatch<Tree> =
+    CompletedLayoutBatchOf<<Tree as super::Traverse>::Node, <Tree as super::Traverse>::Scalar>;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AtomicInlineParticipationRoleError {
@@ -364,6 +369,19 @@ pub fn compute_layout<Tree>(
 where
     Tree: LayoutTree,
 {
+    compute_layout_invalidated(tree, root, request, &[])
+}
+
+pub fn compute_layout_invalidated<Tree>(
+    tree: &Tree,
+    root: Tree::Node,
+    request: LayoutRootRequestOf<Tree::Scalar>,
+    changed_nodes: &[Tree::Node],
+) -> LayoutResultOf<Tree::Node, CompletedTreeBatch<Tree>, Tree::Scalar, Tree::MeasureError>
+where
+    Tree: LayoutTree,
+{
+    let invalidated_nodes = invalidation_closure(tree, root, changed_nodes)?;
     if validate_layout_tree(tree, root)? {
         return Err(LayoutErrorOf::new(
             LayoutErrorSiteOf::Node(root),
@@ -372,7 +390,7 @@ where
         ));
     }
 
-    let mut session = ComputeSession::new(tree);
+    let mut session = ComputeSession::new(tree, invalidated_nodes);
     match request.context() {
         LayoutRootContextOf::Viewport => {
             compute_root(&mut session, root, request.available())?;
@@ -387,6 +405,66 @@ where
     }
 
     Ok(session.complete())
+}
+
+fn invalidation_closure<Tree>(
+    tree: &Tree,
+    root: Tree::Node,
+    changed_nodes: &[Tree::Node],
+) -> LayoutResultOf<Tree::Node, Vec<Tree::Node>, Tree::Scalar, Tree::MeasureError>
+where
+    Tree: LayoutTree,
+{
+    fn visit<Tree>(
+        tree: &Tree,
+        node: Tree::Node,
+        changed_nodes: &[Tree::Node],
+        path: &mut Vec<Tree::Node>,
+        reachable: &mut Vec<Tree::Node>,
+        closure: &mut Vec<Tree::Node>,
+    ) where
+        Tree: LayoutTree,
+    {
+        reachable.push(node);
+        path.push(node);
+        if changed_nodes.contains(&node) {
+            for ancestor in path.iter().copied() {
+                if !closure.contains(&ancestor) {
+                    closure.push(ancestor);
+                }
+            }
+        }
+        for child in tree.children(node) {
+            visit(tree, child, changed_nodes, path, reachable, closure);
+        }
+        path.pop();
+    }
+
+    let mut path = Vec::new();
+    let mut reachable = Vec::new();
+    let mut closure = Vec::new();
+    visit(
+        tree,
+        root,
+        changed_nodes,
+        &mut path,
+        &mut reachable,
+        &mut closure,
+    );
+
+    if let Some(subject) = changed_nodes
+        .iter()
+        .copied()
+        .find(|subject| !reachable.contains(subject))
+    {
+        return Err(LayoutErrorOf::new(
+            LayoutErrorSiteOf::Node(subject),
+            LayoutOperation::CacheInvalidation,
+            LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidationNodeNotReachable),
+        ));
+    }
+
+    Ok(closure)
 }
 
 fn validate_layout_tree<Tree>(
@@ -512,6 +590,7 @@ where
     final_inline_fragment_groups: Vec<StagedInlineFragmentGroup<Tree::Node, Tree::Scalar>>,
     cache_store_entries: Vec<LayoutCacheStoreEntryOf<Tree::Node, Tree::Scalar>>,
     cache_clear_entries: Vec<LayoutCacheClearEntry<Tree::Node>>,
+    invalidated_nodes: Vec<Tree::Node>,
 }
 
 struct StagedInlineFragmentGroup<Node, S: LayoutScalar> {
@@ -523,7 +602,12 @@ impl<'a, Tree> ComputeSession<'a, Tree>
 where
     Tree: LayoutTree,
 {
-    fn new(tree: &'a Tree) -> Self {
+    fn new(tree: &'a Tree, invalidated_nodes: Vec<Tree::Node>) -> Self {
+        let cache_clear_entries = invalidated_nodes
+            .iter()
+            .copied()
+            .map(LayoutCacheClearEntry::new)
+            .collect();
         Self {
             tree,
             unrounded_entries: Vec::new(),
@@ -531,7 +615,8 @@ where
             unrounded_inline_fragment_groups: Vec::new(),
             final_inline_fragment_groups: Vec::new(),
             cache_store_entries: Vec::new(),
-            cache_clear_entries: Vec::new(),
+            cache_clear_entries,
+            invalidated_nodes,
         }
     }
 
@@ -570,6 +655,7 @@ where
             final_inline_fragments,
             self.cache_store_entries,
             self.cache_clear_entries,
+            self.invalidated_nodes,
         )
     }
 
@@ -1070,6 +1156,9 @@ where
         input: &ComputeInputOf<Self::Scalar>,
         context: super::CacheKeyContext,
     ) -> Option<ComputeOutputOf<Self::Scalar>> {
+        if self.invalidated_nodes.contains(&node) {
+            return None;
+        }
         self.tree.cache_get(node, input, context)
     }
 
@@ -1090,12 +1179,12 @@ where
     }
 
     fn cache_clear(&mut self, node: Self::Node) {
-        if let Some(index) = self
+        if self
             .cache_clear_entries
             .iter()
-            .position(|entry| entry.node() == node)
+            .any(|entry| entry.node() == node)
         {
-            self.cache_clear_entries.remove(index);
+            return;
         }
         self.cache_clear_entries
             .push(LayoutCacheClearEntry::new(node));
@@ -2712,7 +2801,7 @@ mod tests {
         let tree = EmptyTree {
             input: NodeInput::default(),
         };
-        let session = ComputeSession::new(&tree);
+        let session = ComputeSession::new(&tree, Vec::new());
 
         let error = Round::unrounded(&session, 0).unwrap_err();
 
@@ -2808,7 +2897,7 @@ mod tests {
             committed: None,
             readback_calls: std::cell::Cell::new(0),
         };
-        let mut staged = ComputeSession::new(&staged_tree);
+        let mut staged = ComputeSession::new(&staged_tree, Vec::new());
         Compute::set_unrounded(&mut staged, 0, NodeOutputOf::new());
         Compute::set_unrounded_inline_fragment_state(
             &mut staged,
@@ -2842,7 +2931,7 @@ mod tests {
             committed: Some(vec![fri06_c01_fragment(1)]),
             readback_calls: std::cell::Cell::new(0),
         };
-        let mut warm = ComputeSession::new(&warm_tree);
+        let mut warm = ComputeSession::new(&warm_tree, Vec::new());
         Compute::set_unrounded(&mut warm, 0, NodeOutputOf::new());
         round_layout(&mut warm, 0).unwrap();
         assert_eq!(warm_tree.readback_calls.get(), 1);
@@ -2862,7 +2951,7 @@ mod tests {
             committed: Some(Vec::new()),
             readback_calls: std::cell::Cell::new(0),
         };
-        let mut empty = ComputeSession::new(&empty_tree);
+        let mut empty = ComputeSession::new(&empty_tree, Vec::new());
         Compute::set_unrounded(&mut empty, 0, NodeOutputOf::new());
         round_layout(&mut empty, 0).unwrap();
         assert_eq!(empty_tree.readback_calls.get(), 1);
@@ -2885,7 +2974,7 @@ mod tests {
             committed: None,
             readback_calls: std::cell::Cell::new(0),
         };
-        let mut session = ComputeSession::new(&tree);
+        let mut session = ComputeSession::new(&tree, Vec::new());
         Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
 
         let error = round_layout(&mut session, 0).unwrap_err();
@@ -2911,7 +3000,7 @@ mod tests {
             committed: None,
             readback_calls: std::cell::Cell::new(0),
         };
-        let mut session = ComputeSession::new(&tree);
+        let mut session = ComputeSession::new(&tree, Vec::new());
         Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
         Compute::set_unrounded_inline_fragment_state(&mut session, 0, None);
 

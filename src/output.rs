@@ -1336,6 +1336,7 @@ pub struct CompletedLayoutBatchOf<Node, S: LayoutScalar = DefaultScalar> {
     final_inline_fragments: Vec<InlineFragmentOutputEntryOf<Node, S>>,
     cache_store_entries: Vec<LayoutCacheStoreEntryOf<Node, S>>,
     cache_clear_entries: Vec<LayoutCacheClearEntry<Node>>,
+    invalidated_nodes: Vec<Node>,
 }
 
 pub type CompletedLayoutBatch<Node> = CompletedLayoutBatchOf<Node, DefaultScalar>;
@@ -1351,6 +1352,7 @@ where
         final_inline_fragments: Vec<InlineFragmentOutputEntryOf<Node, S>>,
         cache_store_entries: Vec<LayoutCacheStoreEntryOf<Node, S>>,
         cache_clear_entries: Vec<LayoutCacheClearEntry<Node>>,
+        invalidated_nodes: Vec<Node>,
     ) -> Self {
         Self {
             unrounded_entries,
@@ -1359,6 +1361,7 @@ where
             final_inline_fragments,
             cache_store_entries,
             cache_clear_entries,
+            invalidated_nodes,
         }
     }
 
@@ -1402,5 +1405,21 @@ where
     #[must_use]
     pub fn cache_clear_entries(&self) -> &[LayoutCacheClearEntry<Node>] {
         &self.cache_clear_entries
+    }
+
+    /// Returns the inclusive invalidation closure in source-tree order.
+    #[must_use]
+    pub fn invalidated_nodes(&self) -> &[Node] {
+        &self.invalidated_nodes
+    }
+
+    /// Immutably prepares and then infallibly commits this complete batch.
+    pub fn apply_to<Sink>(&self, sink: &mut Sink) -> Result<(), Sink::Error>
+    where
+        Sink: crate::traits::LayoutBatchSink<Node, S>,
+    {
+        let prepared = sink.prepare_layout_batch(self)?;
+        sink.commit_layout_batch(prepared);
+        Ok(())
     }
 }

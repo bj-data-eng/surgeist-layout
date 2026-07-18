@@ -58,6 +58,7 @@ fn completed_batch_exposes_read_only_layout_and_cache_entries() {
             cache_output,
         )],
         vec![LayoutCacheClearEntry::new(11)],
+        Vec::new(),
     );
 
     assert_eq!(batch.unrounded_entries()[0].node(), 7);
@@ -183,6 +184,7 @@ fn assert_fri06_c01_fragment_batch_phases<S: LayoutScalar>() {
             InlineFragmentOutputEntryOf::new(10_u32, first_final),
             InlineFragmentOutputEntryOf::new(10_u32, second_final),
         ],
+        Vec::new(),
         Vec::new(),
         Vec::new(),
     );
