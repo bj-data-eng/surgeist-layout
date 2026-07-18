@@ -3705,11 +3705,11 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
     let geometry = output.scroll_geometry.unwrap();
     assert_eq!(
         geometry.scrollable_overflow().origin(),
-        Point::new(-20.0, 0.0)
+        Point::new(-7.0, 0.0)
     );
     assert_eq!(
         geometry.scrollable_overflow().size(),
-        Size::new(120.0, 80.0)
+        Size::new(107.0, 80.0)
     );
 }
 
@@ -5450,10 +5450,13 @@ fn line_break_clear_left_moves_following_inline_segment_below_left_float() {
     .unwrap();
     round_layout(&mut tree, 0).unwrap();
 
-    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(80.0, 0.0)
+    );
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(20.0, 10.0)
+        Point::new(100.0, 10.0)
     );
     assert_eq!(tree.final_layout(3).unwrap().size, Size::ZERO);
     assert_eq!(
@@ -5551,10 +5554,13 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
     .unwrap();
     round_layout(&mut tree, 0).unwrap();
 
-    assert_eq!(tree.final_layout(3).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(3).unwrap().location,
+        Point::new(60.0, 0.0)
+    );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(20.0, 10.0)
+        Point::new(80.0, 10.0)
     );
     assert_eq!(
         tree.final_layout(5).unwrap().location,
@@ -5617,16 +5623,19 @@ fn line_break_clear_at_run_end_moves_following_block_below_float() {
     .unwrap();
     round_layout(&mut tree, 0).unwrap();
 
-    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(80.0, 0.0)
+    );
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(20.0, 10.0)
+        Point::new(100.0, 10.0)
     );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(0.0, 50.0)
+        Point::new(0.0, 60.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 60.0));
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 70.0));
 }
 
 #[test]
@@ -5651,15 +5660,15 @@ fn line_break_clear_left_ignores_right_float_and_preserves_alignment() {
 
     assert_eq!(
         tree.final_layout(2).unwrap().location,
-        Point::new(180.0, 0.0)
+        Point::new(100.0, 0.0)
     );
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(200.0, 10.0)
+        Point::new(120.0, 10.0)
     );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(185.0, 10.0)
+        Point::new(105.0, 10.0)
     );
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
 }
@@ -5686,15 +5695,15 @@ fn line_break_clear_right_ignores_left_float_and_preserves_alignment() {
 
     assert_eq!(
         tree.final_layout(2).unwrap().location,
-        Point::new(90.0, 0.0)
+        Point::new(130.0, 0.0)
     );
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(110.0, 10.0)
+        Point::new(150.0, 10.0)
     );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(93.0, 10.0)
+        Point::new(133.0, 10.0)
     );
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
 }
@@ -5782,14 +5791,17 @@ fn line_break_clear_none_preserves_existing_single_run_layout_near_float() {
     .unwrap();
     round_layout(&mut tree, 0).unwrap();
 
-    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(
+        tree.final_layout(2).unwrap().location,
+        Point::new(80.0, 0.0)
+    );
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(20.0, 10.0)
+        Point::new(100.0, 10.0)
     );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(0.0, 10.0)
+        Point::new(80.0, 10.0)
     );
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
 }

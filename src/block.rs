@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use super::inline::{
     AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
-    InlineControlAlignment, InlineFlowOf, MixedInlineParticipantOf, MixedInlineRunInputOf,
-    ShapedTextParticipantOf, layout_mixed_inline_run,
+    InlineControlAlignment, InlineFlowOf, LogicalLineBandQueryResultOf, MixedInlineParticipantOf,
+    MixedInlineRunInputOf, PostLineClearIntent, ShapedTextParticipantOf,
+    layout_mixed_inline_run_with_band_source,
 };
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
@@ -397,7 +398,6 @@ pub(super) struct FloatBand<S: LayoutScalar> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum FloatBandQueryPurpose {
     PhysicalMarginBoxCollision,
-    #[cfg(test)]
     RectangularLineBand,
 }
 
@@ -406,7 +406,6 @@ impl FloatBandQueryPurpose {
         let _ = exclusion;
         match self {
             Self::PhysicalMarginBoxCollision => true,
-            #[cfg(test)]
             Self::RectangularLineBand => exclusion == FloatExclusion::MarginBox,
         }
     }
@@ -556,6 +555,18 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         self.clearance_block(block, clear)
     }
 
+    fn clearance_for_line_intent(&self, block: S, clear: PostLineClearIntent) -> S {
+        self.clearance_block(
+            block,
+            match clear {
+                PostLineClearIntent::None => Clear::None,
+                PostLineClearIntent::LineStart => Clear::Left,
+                PostLineClearIntent::LineEnd => Clear::Right,
+                PostLineClearIntent::Both => Clear::Both,
+            },
+        )
+    }
+
     fn query_physical_margin_box_collisions(&self, block_start: S, block_end: S) -> FloatBand<S> {
         self.query_band_for(
             block_start,
@@ -564,7 +575,6 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         )
     }
 
-    #[cfg(test)]
     pub(super) fn query_rectangular_line_band(&self, block_start: S, block_end: S) -> FloatBand<S> {
         self.query_band_for(
             block_start,
@@ -786,71 +796,6 @@ where
     Some(boundary)
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct InlineClearCandidate {
-    end: usize,
-    clear: Clear,
-}
-
-fn next_inline_clear_candidate<Tree, M>(
-    tree: &Tree,
-    children: &[<Tree as Traverse>::Node],
-    start: usize,
-    run_end: usize,
-    flow_writing_mode: WritingMode,
-    flow_direction: Direction,
-) -> Option<InlineClearCandidate>
-where
-    Tree: Compute<M>,
-{
-    for (index, child) in children
-        .iter()
-        .copied()
-        .enumerate()
-        .take(run_end)
-        .skip(start)
-    {
-        if let Some(line_break) =
-            visible_line_break_in_flow(tree, child, flow_writing_mode, flow_direction)
-        {
-            if crate::geometry::FlowAxes::new(flow_writing_mode, flow_direction).inline_axis()
-                == PhysicalAxis::Vertical
-            {
-                continue;
-            }
-            let clear = line_break.clear();
-            if clear != Clear::None {
-                return Some(InlineClearCandidate {
-                    end: index + 1,
-                    clear,
-                });
-            }
-        }
-    }
-    None
-}
-
-fn inline_run_contains_clear<Tree, M>(
-    tree: &Tree,
-    children: &[<Tree as Traverse>::Node],
-    run_start: usize,
-    run_end: usize,
-    constants: &Constants<<Tree as Traverse>::Scalar>,
-) -> bool
-where
-    Tree: Compute<M>,
-{
-    next_inline_clear_candidate(
-        tree,
-        children,
-        run_start,
-        run_end,
-        constants.writing_mode,
-        constants.direction,
-    )
-    .is_some()
-}
-
 fn layout_in_flow_children<Tree, S, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
@@ -930,11 +875,10 @@ where
                     is_collapsing_first_margin = false;
                 }
 
-                let placement = layout_inline_run_with_clear(
+                let placement = layout_inline_run_children(
                     tree,
                     node,
-                    children,
-                    run_start..index,
+                    &children[run_start..index],
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
@@ -999,11 +943,10 @@ where
                     is_collapsing_first_margin = false;
                 }
 
-                let placement = layout_inline_run_with_clear(
+                let placement = layout_inline_run_children(
                     tree,
                     node,
-                    children,
-                    run_start..index,
+                    &children[run_start..index],
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
@@ -1056,11 +999,10 @@ where
                     is_collapsing_first_margin = false;
                 }
 
-                let placement = layout_inline_run_with_clear(
+                let placement = layout_inline_run_children(
                     tree,
                     node,
-                    children,
-                    run_start..index,
+                    &children[run_start..index],
                     InlineRunContext {
                         source_index_start: run_start,
                         cursor_block,
@@ -1140,11 +1082,10 @@ where
                 is_collapsing_first_margin = false;
             }
 
-            let placement = layout_inline_run_with_clear(
+            let placement = layout_inline_run_children(
                 tree,
                 node,
-                children,
-                run_start..index,
+                &children[run_start..index],
                 InlineRunContext {
                     source_index_start: run_start,
                     cursor_block,
@@ -1499,15 +1440,6 @@ struct InlineRunContext<'a, S: LayoutScalar> {
     set_layout: bool,
 }
 
-struct InlineSegmentsContext<'a, S: LayoutScalar> {
-    source_index_start: usize,
-    cursor_block: S,
-    constants: &'a Constants<S>,
-    input: ComputeInputOf<S>,
-    node_inner_size: Size<Option<S>>,
-    set_layout: bool,
-}
-
 fn forced_line_break_control<S: LayoutScalar>(
     source_index: usize,
     input: LineBreakInputOf<S>,
@@ -1544,170 +1476,12 @@ fn inline_boundary_control<S: LayoutScalar>(
     )
 }
 
-fn layout_inline_segments<Tree, S, M>(
-    tree: &mut Tree,
-    container: <Tree as Traverse>::Node,
-    run: &[<Tree as Traverse>::Node],
-    context: InlineSegmentsContext<'_, S>,
-    float_exclusions: &FloatExclusions<S>,
-    contributions: &mut ScrollContributionAccumulatorOf<S>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
-where
-    Tree: Compute<M, Scalar = S>,
-    S: LayoutScalar,
-{
-    let InlineSegmentsContext {
-        source_index_start,
-        mut cursor_block,
-        constants,
-        input,
-        node_inner_size,
-        set_layout,
-    } = context;
-    let mut offset = 0;
-    let mut content_size: Size<S> = Size::ZERO;
-    let mut scroll_content_size: Size<S> = Size::ZERO;
-    let mut static_positions = Vec::new();
-    let mut first_baseline = None;
-    let mut last_baseline = None;
-    let start_y = cursor_block;
-
-    while offset < run.len() {
-        let mut segment_end = run.len();
-        let mut segment_clear = Clear::None;
-        let mut scan_start = offset;
-        while let Some(candidate) = next_inline_clear_candidate(
-            tree,
-            run,
-            scan_start,
-            run.len(),
-            constants.writing_mode,
-            constants.direction,
-        ) {
-            let probe = layout_inline_run_children(
-                tree,
-                container,
-                &run[offset..candidate.end],
-                InlineRunContext {
-                    source_index_start: source_index_start + offset,
-                    cursor_block,
-                    constants,
-                    input,
-                    node_inner_size,
-                    set_layout: false,
-                },
-                contributions,
-            )?;
-            let segment_bottom = cursor_block + probe.size.height;
-            if float_exclusions.clearance_y(segment_bottom, candidate.clear) > segment_bottom {
-                segment_end = candidate.end;
-                segment_clear = candidate.clear;
-                break;
-            }
-            scan_start = candidate.end;
-        }
-
-        let placement = layout_inline_run_children(
-            tree,
-            container,
-            &run[offset..segment_end],
-            InlineRunContext {
-                source_index_start: source_index_start + offset,
-                cursor_block,
-                constants,
-                input,
-                node_inner_size,
-                set_layout,
-            },
-            contributions,
-        )?;
-
-        content_size.width = content_size.width.max(placement.content_size.width);
-        content_size.height = content_size.height.max(placement.content_size.height);
-        scroll_content_size.width = scroll_content_size
-            .width
-            .max(placement.scroll_content_size.width);
-        scroll_content_size.height = scroll_content_size
-            .height
-            .max(placement.scroll_content_size.height);
-        static_positions.extend(placement.static_positions);
-        if let Some(baseline) = placement.first_baseline {
-            first_baseline.get_or_insert(cursor_block - start_y + baseline);
-        }
-        if let Some(baseline) = placement.last_baseline {
-            last_baseline = Some(cursor_block - start_y + baseline);
-        }
-
-        cursor_block = cursor_block + placement.size.height;
-        if segment_clear != Clear::None {
-            cursor_block = float_exclusions.clearance_y(cursor_block, segment_clear);
-            content_size.height = content_size
-                .height
-                .max(cursor_block - constants.content_box_inset.top);
-        }
-        offset = segment_end;
-    }
-
-    Ok(InlineRunPlacement {
-        size: Size::new(content_size.width, cursor_block - start_y),
-        content_size,
-        scroll_content_size,
-        static_positions,
-        baselines: BaselinesOf::NONE,
-        first_baseline,
-        last_baseline,
-    })
-}
-
-fn layout_inline_run_with_clear<Tree, S, M>(
-    tree: &mut Tree,
-    container: <Tree as Traverse>::Node,
-    children: &[<Tree as Traverse>::Node],
-    run: core::ops::Range<usize>,
-    context: InlineRunContext<'_, S>,
-    float_exclusions: &FloatExclusions<S>,
-    contributions: &mut ScrollContributionAccumulatorOf<S>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
-where
-    Tree: Compute<M, Scalar = S>,
-    S: LayoutScalar,
-{
-    let run_start = run.start;
-    let run_end = run.end;
-    if !inline_run_contains_clear(tree, children, run_start, run_end, context.constants) {
-        return layout_inline_run_children(
-            tree,
-            container,
-            &children[run_start..run_end],
-            context,
-            contributions,
-        );
-    }
-
-    // C04 replaces this no-text, pre-normalized atomic bridge with logical
-    // exclusion bands. It remains only to preserve existing rectangular clear.
-    layout_inline_segments(
-        tree,
-        container,
-        &children[run_start..run_end],
-        InlineSegmentsContext {
-            source_index_start: context.source_index_start,
-            cursor_block: context.cursor_block,
-            constants: context.constants,
-            input: context.input,
-            node_inner_size: context.node_inner_size,
-            set_layout: context.set_layout,
-        },
-        float_exclusions,
-        contributions,
-    )
-}
-
 fn layout_inline_run_children<Tree, S, M>(
     tree: &mut Tree,
     container: <Tree as Traverse>::Node,
     run: &[<Tree as Traverse>::Node],
     context: InlineRunContext<'_, S>,
+    float_exclusions: &FloatExclusions<S>,
     contributions: &mut ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
 where
@@ -1889,15 +1663,31 @@ where
         });
         atomic_children.push((child, source_index, child_style, output));
     }
-    let report = layout_mixed_inline_run(MixedInlineRunInputOf {
-        available_inline_extent,
-        flow_axes: constants.flow_axes,
-        text_align: constants.text_align,
-        participants,
-    });
+    let logical_content_box_inset = constants.logical_content_box_inset();
+    let report = layout_mixed_inline_run_with_band_source(
+        MixedInlineRunInputOf {
+            available_inline_extent,
+            flow_axes: constants.flow_axes,
+            text_align: constants.text_align,
+            participants,
+        },
+        |block_start, block_end| {
+            let band = float_exclusions
+                .query_rectangular_line_band(cursor_block + block_start, cursor_block + block_end);
+            LogicalLineBandQueryResultOf {
+                inline_start: band.inline_start - logical_content_box_inset.inline_start,
+                inline_end: band.inline_end - logical_content_box_inset.inline_start,
+                next_transition: band
+                    .next_transition
+                    .map(|transition| transition - cursor_block),
+            }
+        },
+        |block, clear| {
+            float_exclusions.clearance_for_line_intent(cursor_block + block, clear) - cursor_block
+        },
+    );
     let report_logical_size = LogicalSizeOf::new(report.inline_extent, report.block_extent);
     let report_size = constants.flow_axes.physical_size(report_logical_size);
-    let logical_content_box_inset = constants.logical_content_box_inset();
     let project_point = |inline: S, block: S, size: LogicalSizeOf<S>| {
         constants.flow_axes.physical_point(
             LogicalPointOf::new(

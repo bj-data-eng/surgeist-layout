@@ -1,8 +1,10 @@
 use crate::Available;
 use crate::inline::{
-    InlineParticipant, InlineParticipantLayoutKind, InlineRunInput, MixedInlineParticipantOf,
-    MixedInlineRunInputOf, PostLineClearIntent, inline_run_max_content_width,
-    inline_run_min_content_width, layout_inline_run, layout_mixed_inline_run,
+    AtomicInlineBoxParticipant, InlineControlAlignment, InlineParticipant,
+    InlineParticipantLayoutKind, InlineRunInput, LogicalLineBandQueryResultOf,
+    MixedInlineParticipantOf, MixedInlineRunInputOf, PostLineClearIntent,
+    inline_run_max_content_width, inline_run_min_content_width, layout_inline_run,
+    layout_mixed_inline_run, layout_mixed_inline_run_with_band_source,
     mapped_post_line_clear_intent,
 };
 use crate::*;
@@ -163,6 +165,93 @@ fn fri06_c03_strut_private_builder_retains_control_baselines_and_post_line_inten
         );
         assert_eq!(report.controls[0].visual_index, Some(0));
         assert_eq!(report.controls[1].visual_index, None);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_line_band_private_callback_retries_transition_and_reselects_same_cursor_both_scalars()
+{
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let participant = |source_index, following_break| MixedInlineParticipantOf::Atomic {
+            item: AtomicInlineBoxParticipant {
+                source_index,
+                size: Size::new(S::from_f64(30.0), S::from_f64(10.0)),
+                content_size: Size::new(S::from_f64(30.0), S::from_f64(10.0)),
+                margin: Edges::ZERO,
+                padding: Edges::ZERO,
+                border: Edges::ZERO,
+                scrollbar_size: Size::ZERO,
+                first_baseline: Some(S::from_f64(8.0)),
+                alignment: InlineControlAlignment::Baseline,
+            },
+            participation: AtomicInlineParticipationOf::try_new(
+                BidiLevel::try_new(0).unwrap(),
+                following_break,
+            )
+            .unwrap(),
+        };
+        let mut queries = Vec::new();
+        let report = layout_mixed_inline_run_with_band_source(
+            MixedInlineRunInputOf {
+                available_inline_extent: AvailableOf::definite(S::from_f64(100.0)),
+                flow_axes,
+                text_align: TextAlign::Auto,
+                participants: vec![
+                    participant(0, InlineBreakOpportunityOf::allowed()),
+                    participant(1, InlineBreakOpportunityOf::allowed()),
+                    participant(2, InlineBreakOpportunityOf::prohibited()),
+                ],
+            },
+            |block_start, block_end| {
+                queries.push((block_start, block_end));
+                if block_start == S::ZERO {
+                    LogicalLineBandQueryResultOf {
+                        inline_start: S::from_f64(50.0),
+                        inline_end: S::from_f64(50.0),
+                        next_transition: Some(S::from_f64(10.0)),
+                    }
+                } else if block_start == S::from_f64(10.0) {
+                    LogicalLineBandQueryResultOf {
+                        inline_start: S::from_f64(20.0),
+                        inline_end: S::from_f64(60.0),
+                        next_transition: None,
+                    }
+                } else {
+                    LogicalLineBandQueryResultOf {
+                        inline_start: S::ZERO,
+                        inline_end: S::from_f64(100.0),
+                        next_transition: None,
+                    }
+                }
+            },
+            |block, _| block,
+        );
+
+        assert_eq!(
+            queries,
+            [
+                (S::ZERO, S::from_f64(10.0)),
+                (S::from_f64(10.0), S::from_f64(20.0)),
+                (S::from_f64(20.0), S::from_f64(30.0)),
+            ]
+        );
+        assert_eq!(report.atomics.len(), 3);
+        assert_eq!(report.atomics[0].item.source_index, 0);
+        assert_eq!(report.atomics[0].line_index, 0);
+        assert_eq!(report.atomics[0].inline_start, S::from_f64(20.0));
+        assert_eq!(report.atomics[0].block_start, S::from_f64(10.0));
+        assert_eq!(report.atomics[1].item.source_index, 1);
+        assert_eq!(report.atomics[1].line_index, 1);
+        assert_eq!(report.atomics[2].item.source_index, 2);
+        assert_eq!(report.atomics[2].line_index, 1);
+        assert_eq!(report.line_bands.len(), 2);
+        assert_eq!(report.line_bands[0].block_start, S::from_f64(10.0));
+        assert_eq!(report.line_bands[0].inline_start, S::from_f64(20.0));
+        assert_eq!(report.line_bands[0].inline_end, S::from_f64(60.0));
     }
 
     assert_lane::<f32>();
