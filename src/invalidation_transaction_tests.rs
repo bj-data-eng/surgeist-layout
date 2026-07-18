@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 
 use crate::*;
@@ -12,6 +12,7 @@ struct InvalidationTree {
     measurement_calls: RefCell<Vec<u32>>,
     cache_queries: RefCell<Vec<(u32, bool)>>,
     caches: RefCell<HashMap<u32, Cache>>,
+    traversal_budget: Cell<Option<usize>>,
 }
 
 impl InvalidationTree {
@@ -39,6 +40,24 @@ impl InvalidationTree {
         self
     }
 
+    fn with_topology(children: &[(u32, &[u32])]) -> Self {
+        let mut tree = Self::default();
+        for (node, children) in children {
+            tree.children.insert(*node, children.to_vec());
+            tree.styles.insert(*node, NodeInput::default());
+            for child in *children {
+                tree.children.entry(*child).or_default();
+                tree.styles.insert(*child, NodeInput::default());
+            }
+        }
+        tree
+    }
+
+    fn with_traversal_budget(self, budget: usize) -> Self {
+        self.traversal_budget.set(Some(budget));
+        self
+    }
+
     fn apply_cache_entries(&self, entries: &[LayoutCacheStoreEntry<u32>]) {
         let mut caches = self.caches.borrow_mut();
         for entry in entries {
@@ -60,6 +79,13 @@ impl Traverse for InvalidationTree {
         Self: 'a;
 
     fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        if let Some(remaining) = self.traversal_budget.get() {
+            assert!(
+                remaining > 0,
+                "cycle traversal exceeded its bounded test budget"
+            );
+            self.traversal_budget.set(Some(remaining - 1));
+        }
         self.children[&node].iter().copied()
     }
 
@@ -148,6 +174,69 @@ fn fri06_c01_invalidation_exact_source_order_inclusive_closures() {
             "closure clears remain source ordered and deduplicated"
         );
     }
+}
+
+#[test]
+fn fri06_c01_invalidation_self_cycle_returns_typed_topology_error() {
+    let tree = InvalidationTree::with_topology(&[(0, &[0])]).with_traversal_budget(8);
+
+    let error = compute_layout_invalidated(&tree, 0, invalidation_request(), &[0])
+        .expect_err("self-cycle must fail before layout");
+
+    assert_eq!(
+        error.site(),
+        LayoutErrorSite::ContainerSubject {
+            container: 0,
+            subject: 0,
+        }
+    );
+    assert_eq!(error.operation(), LayoutOperation::CacheInvalidation);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::TreeTopologyCycle)
+    );
+}
+
+#[test]
+fn fri06_c01_invalidation_multi_node_cycle_returns_typed_topology_error() {
+    let tree = InvalidationTree::with_topology(&[(0, &[1]), (1, &[2]), (2, &[0])])
+        .with_traversal_budget(12);
+
+    let error = compute_layout_invalidated(&tree, 0, invalidation_request(), &[2])
+        .expect_err("multi-node cycle must fail before layout");
+
+    assert_eq!(
+        error.site(),
+        LayoutErrorSite::ContainerSubject {
+            container: 2,
+            subject: 0,
+        }
+    );
+    assert_eq!(error.operation(), LayoutOperation::CacheInvalidation);
+    assert_eq!(
+        error.kind(),
+        &LayoutErrorKind::InvalidInput(LayoutInvalidInput::TreeTopologyCycle)
+    );
+}
+
+#[test]
+fn fri06_c01_invalidation_repeated_child_preserves_source_order_and_each_path() {
+    let tree = InvalidationTree::with_topology(&[(0, &[1, 1]), (1, &[2]), (2, &[])]);
+
+    let batch = compute_layout_invalidated(&tree, 0, invalidation_request(), &[2])
+        .expect("a repeated child identity is not a topology cycle");
+
+    assert_eq!(batch.invalidated_nodes(), &[0, 1, 2]);
+}
+
+#[test]
+fn fri06_c01_invalidation_dag_unions_every_inclusive_path_in_source_order() {
+    let tree = InvalidationTree::with_topology(&[(0, &[1, 2]), (1, &[3]), (2, &[3]), (3, &[])]);
+
+    let batch = compute_layout_invalidated(&tree, 0, invalidation_request(), &[3])
+        .expect("a shared DAG descendant is not a topology cycle");
+
+    assert_eq!(batch.invalidated_nodes(), &[0, 1, 3, 2]);
 }
 
 #[test]
@@ -278,7 +367,7 @@ struct TransactionSink {
     final_fragments: Vec<InlineFragmentOutputEntry<u32>>,
     clears: Vec<LayoutCacheClearEntry<u32>>,
     stores: Vec<LayoutCacheStoreEntry<u32>>,
-    mutations: Vec<Mutation>,
+    mutations: RefCell<Vec<Mutation>>,
 }
 
 impl LayoutBatchSink<u32, Scalar> for TransactionSink {
@@ -303,43 +392,50 @@ impl LayoutBatchSink<u32, Scalar> for TransactionSink {
     }
 
     fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
-        self.unrounded = prepared.unrounded;
-        self.final_layout = prepared.final_layout;
-        self.unrounded_fragments = prepared.unrounded_fragments;
-        self.final_fragments = prepared.final_fragments;
-        self.clears = prepared.clears;
-        self.stores = prepared.stores;
-
-        self.mutations = self
-            .unrounded
-            .iter()
-            .map(|entry| Mutation::ReplaceUnrounded(entry.node()))
-            .chain(
-                self.final_layout
-                    .iter()
-                    .map(|entry| Mutation::ReplaceFinal(entry.node())),
-            )
-            .chain(
-                self.unrounded_fragments
-                    .iter()
-                    .map(|entry| Mutation::ReplaceUnroundedFragments(entry.node())),
-            )
-            .chain(
-                self.final_fragments
-                    .iter()
-                    .map(|entry| Mutation::ReplaceFinalFragments(entry.node())),
-            )
-            .chain(
-                self.clears
-                    .iter()
-                    .map(|entry| Mutation::Clear(entry.node())),
-            )
-            .chain(
-                self.stores
-                    .iter()
-                    .map(|entry| Mutation::Store(entry.node())),
-            )
-            .collect();
+        self.unrounded.clear();
+        for entry in prepared.unrounded {
+            let node = entry.node();
+            self.unrounded.push(entry);
+            self.mutations
+                .borrow_mut()
+                .push(Mutation::ReplaceUnrounded(node));
+        }
+        self.final_layout.clear();
+        for entry in prepared.final_layout {
+            let node = entry.node();
+            self.final_layout.push(entry);
+            self.mutations
+                .borrow_mut()
+                .push(Mutation::ReplaceFinal(node));
+        }
+        self.unrounded_fragments.clear();
+        for entry in prepared.unrounded_fragments {
+            let node = entry.node();
+            self.unrounded_fragments.push(entry);
+            self.mutations
+                .borrow_mut()
+                .push(Mutation::ReplaceUnroundedFragments(node));
+        }
+        self.final_fragments.clear();
+        for entry in prepared.final_fragments {
+            let node = entry.node();
+            self.final_fragments.push(entry);
+            self.mutations
+                .borrow_mut()
+                .push(Mutation::ReplaceFinalFragments(node));
+        }
+        self.clears.clear();
+        for entry in prepared.clears {
+            let node = entry.node();
+            self.clears.push(entry);
+            self.mutations.borrow_mut().push(Mutation::Clear(node));
+        }
+        self.stores.clear();
+        for entry in prepared.stores {
+            let node = entry.node();
+            self.stores.push(entry);
+            self.mutations.borrow_mut().push(Mutation::Store(node));
+        }
     }
 }
 
@@ -404,13 +500,41 @@ fn fri06_c01_batch_transaction_preparation_failure_mutates_nothing_and_keeps_dir
         ..TransactionSink::default()
     };
     let before = sink.clone();
+    assert!(sink.mutations.borrow().is_empty());
     let mut dirty = vec![1];
 
     let error = apply_and_release_dirty(&batch, &mut sink, &mut dirty).unwrap_err();
 
     assert_eq!(error, "immutable preparation failed");
     assert_eq!(sink, before);
+    assert!(sink.mutations.borrow().is_empty());
     assert_eq!(dirty, vec![1]);
+}
+
+#[test]
+fn fri06_c01_batch_transaction_successful_preparation_uses_no_interior_mutation() {
+    let batch = transaction_batch();
+    let sink = TransactionSink {
+        unrounded: vec![LayoutOutputEntry::new(90, NodeOutput::new())],
+        ..TransactionSink::default()
+    };
+    let before = sink.clone();
+
+    let prepared = sink
+        .prepare_layout_batch(&batch)
+        .expect("immutable preparation succeeds");
+
+    assert_eq!(sink, before);
+    assert!(sink.mutations.borrow().is_empty());
+    assert_eq!(prepared.unrounded, batch.unrounded_entries());
+    assert_eq!(prepared.final_layout, batch.final_entries());
+    assert_eq!(
+        prepared.unrounded_fragments,
+        batch.unrounded_inline_fragments()
+    );
+    assert_eq!(prepared.final_fragments, batch.final_inline_fragments());
+    assert_eq!(prepared.clears, batch.cache_clear_entries());
+    assert_eq!(prepared.stores, batch.cache_store_entries());
 }
 
 #[test]
@@ -428,7 +552,7 @@ fn fri06_c01_batch_transaction_owned_commit_replaces_every_class_in_order() {
     assert_eq!(sink.clears, batch.cache_clear_entries());
     assert_eq!(sink.stores, batch.cache_store_entries());
     assert_eq!(
-        sink.mutations,
+        *sink.mutations.borrow(),
         [
             Mutation::ReplaceUnrounded(1),
             Mutation::ReplaceFinal(1),

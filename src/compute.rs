@@ -177,6 +177,7 @@ pub enum LayoutInvalidInputOf<S: LayoutScalar = DefaultScalar> {
         reason: FloatExclusionRoleError,
     },
     InvalidationNodeNotReachable,
+    TreeTopologyCycle,
 }
 
 pub type LayoutInvalidInput = LayoutInvalidInputOf<DefaultScalar>;
@@ -415,42 +416,57 @@ fn invalidation_closure<Tree>(
 where
     Tree: LayoutTree,
 {
-    fn visit<Tree>(
-        tree: &Tree,
-        node: Tree::Node,
-        changed_nodes: &[Tree::Node],
-        path: &mut Vec<Tree::Node>,
-        reachable: &mut Vec<Tree::Node>,
-        closure: &mut Vec<Tree::Node>,
-    ) where
-        Tree: LayoutTree,
-    {
-        reachable.push(node);
-        path.push(node);
-        if changed_nodes.contains(&node) {
-            for ancestor in path.iter().copied() {
+    struct Frame<Node> {
+        node: Node,
+        children: Vec<Node>,
+        next_child: usize,
+    }
+
+    let mut reachable = Vec::new();
+    let mut closure = Vec::new();
+    let mut path = vec![Frame {
+        node: root,
+        children: tree.children(root).collect(),
+        next_child: 0,
+    }];
+    reachable.push(root);
+
+    while !path.is_empty() {
+        let current = path.len() - 1;
+        let node = path[current].node;
+        if path[current].next_child == 0 && changed_nodes.contains(&node) {
+            for ancestor in path.iter().map(|frame| frame.node) {
                 if !closure.contains(&ancestor) {
                     closure.push(ancestor);
                 }
             }
         }
-        for child in tree.children(node) {
-            visit(tree, child, changed_nodes, path, reachable, closure);
-        }
-        path.pop();
-    }
 
-    let mut path = Vec::new();
-    let mut reachable = Vec::new();
-    let mut closure = Vec::new();
-    visit(
-        tree,
-        root,
-        changed_nodes,
-        &mut path,
-        &mut reachable,
-        &mut closure,
-    );
+        if path[current].next_child == path[current].children.len() {
+            path.pop();
+            continue;
+        }
+
+        let child = path[current].children[path[current].next_child];
+        path[current].next_child += 1;
+        if path.iter().any(|frame| frame.node == child) {
+            return Err(LayoutErrorOf::new(
+                LayoutErrorSiteOf::ContainerSubject {
+                    container: node,
+                    subject: child,
+                },
+                LayoutOperation::CacheInvalidation,
+                LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::TreeTopologyCycle),
+            ));
+        }
+
+        reachable.push(child);
+        path.push(Frame {
+            node: child,
+            children: tree.children(child).collect(),
+            next_child: 0,
+        });
+    }
 
     if let Some(subject) = changed_nodes
         .iter()
