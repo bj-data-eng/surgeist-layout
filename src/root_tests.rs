@@ -7150,7 +7150,7 @@ fn root_layout_stores_child_output_as_root_layout() {
     assert_eq!(layout.location, crate::Point::new(120.0, 0.0));
     assert_eq!(layout.size, Size::new(80.0, 20.0));
     assert_eq!(layout.content_size, Size::new(80.0, 20.0));
-    assert_eq!(layout.scrollbar_size, Size::new(13.0, 13.0));
+    assert_eq!(layout.scrollbar_size(), Size::new(13.0, 13.0));
 }
 
 #[test]
@@ -7466,7 +7466,6 @@ fn round_layout_uses_cumulative_viewport_edges() {
             content_size: Size::new(10.0, 10.0),
             border: Edges::all(0.6),
             padding: Edges::all(0.4),
-            scrollbar_size: Size::new(0.6, 1.4),
             ..NodeOutput::new()
         },
     );
@@ -7484,7 +7483,7 @@ fn round_layout_uses_cumulative_viewport_edges() {
     assert_eq!(tree.final_layouts[&2].location, Point::new(0.0, 0.0));
     assert_eq!(tree.final_layouts[&2].size.width, 10.0);
     assert_eq!(tree.final_layouts[&2].content_size.width, 10.0);
-    assert_eq!(tree.final_layouts[&2].scrollbar_size, Size::new(1.0, 1.0));
+    assert_eq!(tree.final_layouts[&2].scrollbar_size(), Size::ZERO);
     assert_eq!(tree.final_layouts[&2].border.left, 0.0);
     assert_eq!(tree.final_layouts[&2].border.right, 1.0);
 }
@@ -8033,7 +8032,6 @@ fn fri05_c03_root_geometry_fallback_roots_seed_their_own_padding_box() {
                 "{root_kind}/{phase}"
             );
             assert_eq!(output.scrollbar_size(), Size::ZERO, "{root_kind}/{phase}");
-            assert_eq!(output.scrollbar_size, Size::ZERO, "{root_kind}/{phase}");
             assert_eq!(
                 geometry.target().border_box(),
                 geometry.border_box(),
@@ -8116,7 +8114,6 @@ fn fri05_c03_root_geometry_viewport_flex_rebuilds_complete_source_and_target() {
         assert_eq!(target.snap_align(), snap_align);
         assert_eq!(target.snap_stop(), ScrollSnapStop::Always);
         assert_eq!(output.content_box_size(), geometry.content_box().size());
-        assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
         assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
     }
 }
@@ -8172,7 +8169,6 @@ fn fri05_c03_round_cache_flex_item_root_keeps_cached_geometry_through_rounded_pu
         .scroll_geometry
         .expect("flex-item root publication preserves cached geometry");
     assert_eq!(unrounded_geometry, cached);
-    assert_eq!(unrounded.scrollbar_size, cached.scrollbar_size());
     assert_eq!(unrounded.scrollbar_size(), cached.scrollbar_size());
 
     let rounded = batch.final_entries()[0].output();
@@ -8197,7 +8193,6 @@ fn fri05_c03_round_cache_flex_item_root_keeps_cached_geometry_through_rounded_pu
         rounded.content_box_size(),
         rounded_geometry.content_box().size()
     );
-    assert_eq!(rounded.scrollbar_size, rounded_geometry.scrollbar_size());
     assert_eq!(rounded.scrollbar_size(), rounded_geometry.scrollbar_size());
 }
 
@@ -8293,7 +8288,6 @@ fn fri05_c03_tree_leaf_auto_case(
         .expect("tree-backed leaf publishes stable geometry");
     assert_eq!(geometry.content_box().size(), expected_content_box);
     assert_eq!(geometry.scrollbar_size(), expected_scrollbar_size);
-    assert_eq!(output.scrollbar_size, expected_scrollbar_size);
     assert_eq!(output.scrollbar_size(), expected_scrollbar_size);
 }
 
@@ -8583,10 +8577,6 @@ fn fri05_c04_flex_geometry_rounded_publication_excludes_reserved_gutters_all_flo
                 "{case}/{flow_axes:?}"
             );
             assert_eq!(
-                output.scrollbar_size, expected_scrollbar_size,
-                "{case}/{flow_axes:?}"
-            );
-            assert_eq!(
                 output.scrollbar_size(),
                 expected_scrollbar_size,
                 "{case}/{flow_axes:?}"
@@ -8799,7 +8789,6 @@ fn fri05_c04_flex_child_geometry_tree_retains_in_flow_and_absolute_targets() {
                 ScrollSnapStop::Always,
                 "{phase}/{node}"
             );
-            assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
             assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
         }
     }
@@ -9821,7 +9810,6 @@ fn fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_ar
             );
             assert_eq!(output.content_box_size(), geometry.content_box().size());
             assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
-            assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
             assert_eq!(geometry.target().border_box(), geometry.border_box());
         }
 
@@ -9920,7 +9908,6 @@ fn fri05_c04_flex_round_cache_root_preserves_source_geometry_in_both_scalar_lane
             );
             assert!(range.y().minimum() <= range.y().maximum(), "{phase}");
             assert_eq!(output.content_box_size(), geometry.content_box().size());
-            assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
             assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
             assert_eq!(geometry.target().border_box(), geometry.border_box());
             assert_eq!(geometry.target().scroll_margin(), scroll_margin);

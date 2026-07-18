@@ -453,7 +453,6 @@ fn fri05_c03_output_helper_no_geometry_fallback_saturates_each_scalar_lane() {
                 S::from_f64(2.0),
             ),
             border: crate::Edges::all(S::from_f64(1.0)),
-            scrollbar_size: crate::Size::splat(S::from_f64(99.0)),
             ..crate::NodeOutputOf::<S>::new()
         };
 
@@ -494,7 +493,6 @@ fn fri05_c03_output_helper_no_geometry_fallback_saturates_each_scalar_lane() {
             let output = crate::NodeOutputOf::<S> {
                 size: crate::Size::splat(S::from_f64(999.0)),
                 scroll_geometry: Some(geometry),
-                scrollbar_size: crate::Size::splat(S::from_f64(99.0)),
                 ..crate::NodeOutputOf::<S>::new()
             };
 

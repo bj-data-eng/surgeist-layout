@@ -3810,7 +3810,7 @@ fn flex_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(7.0, 7.0));
+    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(7.0, 7.0));
 }
 
 #[test]
@@ -4873,7 +4873,7 @@ fn flex_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(8.0, 8.0));
+    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(8.0, 8.0));
 }
 
 #[test]
@@ -10113,7 +10113,6 @@ fn fri05_c04_flex_child_geometry_direct_retains_in_flow_and_rebuilds_absolute_ta
         in_flow_geometry.target().snap_stop(),
         ScrollSnapStop::Always
     );
-    assert_eq!(in_flow.scrollbar_size, in_flow_geometry.scrollbar_size());
     assert_eq!(in_flow.scrollbar_size(), in_flow_geometry.scrollbar_size());
 
     let absolute = tree.layout(2).expect("absolute child is staged");
@@ -10143,7 +10142,6 @@ fn fri05_c04_flex_child_geometry_direct_retains_in_flow_and_rebuilds_absolute_ta
         absolute_geometry.target().snap_stop(),
         ScrollSnapStop::Always
     );
-    assert_eq!(absolute.scrollbar_size, absolute_geometry.scrollbar_size());
     assert_eq!(
         absolute.scrollbar_size(),
         absolute_geometry.scrollbar_size()

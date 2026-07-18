@@ -1679,7 +1679,6 @@ fn fri05_c03_integration_padding_seed_direct_measured_leaf_retains_gutter_area_i
                     geometry.content_box().size()
                 );
                 assert_eq!(node_output.scrollbar_size(), geometry.scrollbar_size());
-                assert_eq!(node_output.scrollbar_size, geometry.scrollbar_size());
                 assert_eq!(geometry.target().border_box(), geometry.border_box());
             }
         }

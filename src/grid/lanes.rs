@@ -4,7 +4,7 @@ use crate::compute::{
     resolve_minimum_optional, resolve_preferred_sizing, sizing_resolution_error,
 };
 use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
-use crate::scroll::{UsedOverflow, scrollbar_size_from_overflow};
+use crate::scroll::UsedOverflow;
 use crate::{
     GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
     MinTrackSizingOf, PercentageBasisOf,
@@ -1625,11 +1625,6 @@ where
             block_auto_margins,
             baseline_participation,
             margin,
-            scrollbar_size: scrollbar_size_from_overflow(
-                child_style.overflow,
-                child_style.item_is_replaced,
-                child_style.scrollbar_width.get(),
-            ),
             border,
             padding,
             overflow: UsedOverflow::from_computed(
@@ -1729,7 +1724,6 @@ where
                 size: item.output.size,
                 content_size: item.output.content_size,
                 scroll_geometry: Some(scroll_geometry),
-                scrollbar_size: item.scrollbar_size,
                 border: item.border,
                 padding: item.padding,
                 margin: item.margin,

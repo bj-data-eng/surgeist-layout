@@ -13,7 +13,7 @@ use crate::scroll::{
     CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafScrollGeometrySourceOf,
     OptimalRegionInsetOf, OptimalRegionInsetsOf, OptionalPhysicalContributionIntervalsOf,
     ScrollContributionAccumulatorOf, UsedOverflow, canonical_measured_leaf_scroll_geometry,
-    rebuild_canonical_scroll_geometry_for_border_box, scrollbar_size_from_overflow,
+    rebuild_canonical_scroll_geometry_for_border_box,
 };
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
@@ -509,11 +509,6 @@ where
         )
         .map_err(|error| grid_child_geometry_error(node, child, error))?;
         output.scroll_geometry = Some(scroll_geometry);
-        let scrollbar_size = scrollbar_size_from_overflow(
-            child_style.overflow,
-            child_style.item_is_replaced,
-            child_style.scrollbar_width.get(),
-        );
         let logical_output_size = constants.flow_axes.logical_size(output.size);
         let logical_unresolved_margin = constants.flow_axes.logical_edges(item.unresolved_margin);
         let inline_axis = logical_grid_item_axis(
@@ -588,7 +583,6 @@ where
             block_auto_margins,
             baseline_participation,
             margin,
-            scrollbar_size,
             border,
             padding,
             overflow: UsedOverflow::from_computed(
@@ -695,7 +689,6 @@ where
                 size: item.output.size,
                 content_size: item.output.content_size,
                 scroll_geometry: Some(scroll_geometry),
-                scrollbar_size: item.scrollbar_size,
                 border: item.border,
                 padding: item.padding,
                 margin: item.margin,
@@ -1156,7 +1149,6 @@ pub(super) struct PendingGridItem<Node, S: LayoutScalar = Scalar> {
     pub(super) block_auto_margins: bool,
     pub(super) baseline_participation: BaselineParticipation,
     pub(super) margin: Edges<S>,
-    pub(super) scrollbar_size: Size<S>,
     pub(super) border: Edges<S>,
     pub(super) padding: Edges<S>,
     pub(super) overflow: UsedOverflow,
@@ -2760,11 +2752,6 @@ where
     let final_size = known
         .unwrap_or(output.size)
         .clamp_optional(min_size, max_size);
-    let scrollbar_size = scrollbar_size_from_overflow(
-        child_style.overflow,
-        child_style.item_is_replaced,
-        child_style.scrollbar_width.get(),
-    );
     let justify = child_style
         .justify_self
         .unwrap_or(container_style.justify_items.unwrap_or(AlignItems::Start));
@@ -2833,7 +2820,6 @@ where
             size: final_size,
             content_size: output.content_size,
             scroll_geometry: Some(scroll_geometry),
-            scrollbar_size,
             border,
             padding,
             margin,

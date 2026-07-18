@@ -1278,8 +1278,6 @@ where
         round(cumulative_x + unrounded.content_size.width) - round(cumulative_x);
     layout.content_size.height =
         round(cumulative_y + unrounded.content_size.height) - round(cumulative_y);
-    layout.scrollbar_size.width = round(unrounded.scrollbar_size.width);
-    layout.scrollbar_size.height = round(unrounded.scrollbar_size.height);
     layout.border.left = round(cumulative_x + unrounded.border.left) - round(cumulative_x);
     layout.border.right = round(cumulative_x + unrounded.size.width)
         - round(cumulative_x + unrounded.size.width - unrounded.border.right);

@@ -508,24 +508,24 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
         grid_child
             .matches("scrollbar_size: item.scrollbar_size")
             .count(),
-        1
+        0
     );
     assert_eq!(
         grid_child
             .matches("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,\n")
             .count(),
-        1
+        0
     );
     assert_eq!(
         grid_lanes
             .matches("scrollbar_size: item.scrollbar_size")
             .count(),
-        1
+        0
     );
 }
 
 #[test]
-fn fri05_c04_flex_bridge_accounting_leaves_exactly_three_grid_family_writers() {
+fn fri05_c04_flex_bridge_accounting_accepts_grid_family_closure() {
     let flex = include_str!("flex.rs");
     let grid_child = include_str!("grid/child.rs");
     let grid_lanes = include_str!("grid/lanes.rs");
@@ -544,10 +544,10 @@ fn fri05_c04_flex_bridge_accounting_leaves_exactly_three_grid_family_writers() {
     let lanes_bridges = grid_lanes
         .matches("scrollbar_size: item.scrollbar_size")
         .count();
-    assert_eq!(grid_item_bridges, 1);
-    assert_eq!(grid_local_bridges, 1);
-    assert_eq!(lanes_bridges, 1);
-    assert_eq!(grid_item_bridges + grid_local_bridges + lanes_bridges, 3);
+    assert_eq!(grid_item_bridges, 0);
+    assert_eq!(grid_local_bridges, 0);
+    assert_eq!(lanes_bridges, 0);
+    assert_eq!(grid_item_bridges + grid_local_bridges + lanes_bridges, 0);
 }
 
 #[test]
@@ -571,7 +571,7 @@ fn fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path() {
 }
 
 #[test]
-fn fri05_c04_flex_legacy_absence_leaves_only_three_downstream_grid_bridges() {
+fn fri05_c04_flex_legacy_absence_accepts_downstream_grid_closure() {
     let flex = include_str!("flex.rs");
     let forbidden = [
         "ScrollbarReservationOf",
@@ -618,9 +618,9 @@ fn fri05_c04_flex_legacy_absence_leaves_only_three_downstream_grid_bridges() {
     assert_eq!(
         downstream_bridges,
         [
-            ("ordinary-grid retained item bridge", 1),
-            ("ordinary-grid absolute scrollbar bridge", 1),
-            ("grid-lanes retained item bridge", 1),
+            ("ordinary-grid retained item bridge", 0),
+            ("ordinary-grid absolute scrollbar bridge", 0),
+            ("grid-lanes retained item bridge", 0),
         ]
     );
     assert_eq!(
@@ -628,7 +628,62 @@ fn fri05_c04_flex_legacy_absence_leaves_only_three_downstream_grid_bridges() {
             .into_iter()
             .map(|(_, count)| count)
             .sum::<usize>(),
-        3
+        0
+    );
+}
+
+#[test]
+fn fri05_c05_grid_round_cache_has_no_independent_scrollbar_projection() {
+    let output = include_str!("output.rs");
+    let compute = include_str!("compute.rs");
+    let cache = include_str!("cache.rs");
+
+    assert!(
+        !output.contains("pub scrollbar_size: Size<S>"),
+        "rounded and cached output must not retain mutable scrollbar state outside canonical geometry"
+    );
+    assert!(
+        !output.contains("self.scrollbar_size = geometry.scrollbar_size()"),
+        "geometry publication must not synchronize an independent scrollbar projection"
+    );
+    assert!(
+        !compute.contains("layout.scrollbar_size.width = round("),
+        "rounding must rebuild scrollbar reservation only from canonical geometry sources"
+    );
+    assert!(
+        !compute.contains("layout.scrollbar_size.height = round("),
+        "rounding must rebuild scrollbar reservation only from canonical geometry sources"
+    );
+    assert!(
+        !cache.contains("scrollbar_size"),
+        "ordinary cache identity must carry only the canonical output value"
+    );
+}
+
+#[test]
+fn fri05_c05_grid_legacy_absence_removes_public_field_and_three_writers() {
+    let output = include_str!("output.rs");
+    let grid_child = include_str!("grid/child.rs");
+    let grid_lanes = include_str!("grid/lanes.rs");
+
+    assert!(!output.contains("pub scrollbar_size: Size<S>"));
+    assert_eq!(
+        grid_child
+            .matches("scrollbar_size: item.scrollbar_size")
+            .count(),
+        0
+    );
+    assert_eq!(
+        grid_child
+            .matches("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,\n")
+            .count(),
+        0
+    );
+    assert_eq!(
+        grid_lanes
+            .matches("scrollbar_size: item.scrollbar_size")
+            .count(),
+        0
     );
 }
 

@@ -559,7 +559,7 @@ fn fri05_c05_grid_lanes_geometry_reserves_forced_stable_both_zero_tiny_and_auto(
     }));
 }
 
-fn assert_fri05_c05_grid_lanes_geometry_round_and_cache<S: LayoutScalar>()
+fn assert_fri05_c05_grid_round_cache_for_display<S: LayoutScalar>(display: Display)
 where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
 {
@@ -567,7 +567,7 @@ where
     let mut tree = OracleTreeOf::<S>::new().children(0, []).style(
         0,
         NodeInputOf {
-            display: Display::GridLanes,
+            display,
             size: Size::new(
                 PreferredSizeOf::px(scalar(100.4)),
                 PreferredSizeOf::px(scalar(80.4)),
@@ -601,13 +601,13 @@ where
             AvailableOf::Definite(scalar(80.4)),
         ),
     );
-    let cold = compute_grid(&mut tree, 0, input).expect("scalar lanes geometry computes");
+    let cold = compute_grid(&mut tree, 0, input).expect("scalar grid geometry computes");
     let geometry = cold.scroll_geometry.expect("cold geometry is present");
     let mut cache = CacheOf::<S>::new();
     cache.store_with_context(&input, CacheKeyContext::new(), cold);
     let warm = cache
         .get_with_context(&input, CacheKeyContext::new())
-        .expect("warm cache returns lanes output");
+        .expect("warm cache returns grid output");
     assert_eq!(warm, cold);
     assert_eq!(warm.scroll_geometry, Some(geometry));
 
@@ -620,17 +620,16 @@ where
             size: cold.size,
             content_size: cold.content_size,
             scroll_geometry: Some(geometry),
-            scrollbar_size: geometry.scrollbar_size(),
             border: Edges::ZERO,
             padding: Edges::ZERO,
             margin: Edges::ZERO,
         },
     );
-    round_layout(&mut tree, 0).expect("lanes geometry rounds from canonical source");
+    round_layout(&mut tree, 0).expect("grid geometry rounds from canonical source");
     let rounded = tree.final_layout(0).expect("rounded output is staged");
     let rounded_geometry = rounded
         .scroll_geometry
-        .expect("rounding retains canonical lanes geometry");
+        .expect("rounding retains canonical grid geometry");
     assert_eq!(
         rounded_geometry.target().scroll_margin(),
         geometry.target().scroll_margin()
@@ -647,9 +646,122 @@ where
 }
 
 #[test]
-fn fri05_c05_grid_lanes_geometry_round_and_cache_match_in_both_scalar_lanes() {
-    assert_fri05_c05_grid_lanes_geometry_round_and_cache::<f32>();
-    assert_fri05_c05_grid_lanes_geometry_round_and_cache::<f64>();
+fn fri05_c05_grid_round_cache_ordinary_and_lanes_match_in_both_scalar_lanes() {
+    for display in [Display::Grid, Display::GridLanes] {
+        assert_fri05_c05_grid_round_cache_for_display::<f32>(display);
+        assert_fri05_c05_grid_round_cache_for_display::<f64>(display);
+    }
+}
+
+fn assert_fri05_c05_grid_round_cache_subgrid<S: LayoutScalar>()
+where
+    OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
+{
+    let scalar = S::from_f64;
+    let subgrid_track = || {
+        TrackComponentOf::Subgrid(SubgridTrack {
+            name_components: Vec::new(),
+        })
+    };
+    let mut tree = OracleTreeOf::<S>::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInputOf {
+                display: Display::Grid,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(100.4)),
+                    PreferredSizeOf::px(scalar(80.4)),
+                ),
+                grid_template_columns: vec![TrackComponentOf::px(scalar(100.4))],
+                grid_template_rows: vec![TrackComponentOf::px(scalar(80.4))],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(
+            1,
+            NodeInputOf {
+                display: Display::Grid,
+                overflow: computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.4)).unwrap(),
+                grid_template_columns: vec![subgrid_track()],
+                grid_template_rows: vec![subgrid_track()],
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                scroll_margin: ScrollMarginOf::try_new(
+                    scalar(1.25),
+                    scalar(2.25),
+                    scalar(3.25),
+                    scalar(4.25),
+                )
+                .unwrap(),
+                ..NodeInputOf::default()
+            },
+        );
+    let input = ComputeInputOf::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::new(
+            AvailableOf::Definite(scalar(100.4)),
+            AvailableOf::Definite(scalar(80.4)),
+        ),
+    );
+
+    let cold = compute_grid(&mut tree, 0, input).expect("cold subgrid computes");
+    let cold_subgrid = tree.layout(1).expect("cold subgrid output is staged");
+    let warm = compute_grid(&mut tree, 0, input).expect("warm subgrid computes");
+    let warm_subgrid = tree.layout(1).expect("warm subgrid output is staged");
+    assert_eq!(warm, cold);
+    assert_eq!(warm_subgrid, cold_subgrid);
+
+    Compute::set_unrounded(
+        &mut tree,
+        0,
+        NodeOutputOf {
+            source_index: SourceIndex::ZERO,
+            location: Point::ZERO,
+            size: cold.size,
+            content_size: cold.content_size,
+            scroll_geometry: cold.scroll_geometry,
+            border: Edges::ZERO,
+            padding: Edges::ZERO,
+            margin: Edges::ZERO,
+        },
+    );
+    round_layout(&mut tree, 0).expect("subgrid geometry rounds from canonical source");
+    let rounded = tree
+        .final_layout(1)
+        .expect("rounded subgrid output is staged");
+    let rounded_geometry = rounded
+        .scroll_geometry
+        .expect("rounded subgrid retains canonical geometry");
+    assert_eq!(
+        rounded.content_box_size(),
+        rounded_geometry.content_box().size()
+    );
+    assert_eq!(rounded.scrollbar_size(), rounded_geometry.scrollbar_size());
+    assert_eq!(
+        rounded_geometry.target().scroll_margin(),
+        cold_subgrid
+            .scroll_geometry
+            .unwrap()
+            .target()
+            .scroll_margin()
+    );
+}
+
+#[test]
+fn fri05_c05_grid_round_cache_subgrid_matches_in_both_scalar_lanes() {
+    assert_fri05_c05_grid_round_cache_subgrid::<f32>();
+    assert_fri05_c05_grid_round_cache_subgrid::<f64>();
 }
 
 #[test]
@@ -3474,7 +3586,7 @@ fn grid_lanes_display_uses_separate_placement_path_before_child_layout() {
 
     assert_eq!(output.content_size, Size::new(20.0, 10.0));
     assert_eq!(tree.layouts[&2].size, Size::new(20.0, 10.0));
-    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(10.0, 10.0));
+    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(10.0, 10.0));
 }
 
 #[test]
@@ -9059,7 +9171,7 @@ fn grid_absolute_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(12.0, 12.0));
+    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(12.0, 10.0));
 }
 
 #[test]
@@ -9982,7 +10094,7 @@ fn grid_child_layout_records_scrollbar_size_for_scroll_overflow() {
     )
     .unwrap();
 
-    assert_eq!(tree.layouts[&2].scrollbar_size, Size::new(11.0, 11.0));
+    assert_eq!(tree.layouts[&2].scrollbar_size(), Size::new(11.0, 10.0));
 }
 
 #[test]
@@ -19814,7 +19926,6 @@ fn grid_child_pending_and_subgrid_inheritance_helpers_accept_non_default_scalar(
             fallback_alignment: None,
         },
         margin: Edges::new(3.0, 0.0, 5.0, 0.0),
-        scrollbar_size: Size::ZERO,
         border: Edges::ZERO,
         padding: Edges::ZERO,
         overflow: used_overflow(Overflow::Visible, Overflow::Visible),
@@ -21294,7 +21405,6 @@ fn baseline_test_item(
             fallback_alignment: None,
         },
         margin: Edges::ZERO,
-        scrollbar_size: Size::ZERO,
         border: Edges::ZERO,
         padding: Edges::ZERO,
         overflow: used_overflow(Overflow::Visible, Overflow::Visible),
@@ -21967,7 +22077,6 @@ fn axis_baseline_item<S: LayoutScalar>() -> PendingGridItem<(), S> {
             fallback_alignment: Some(AlignItems::Start),
         },
         margin: Edges::ZERO,
-        scrollbar_size: Size::ZERO,
         border: Edges::ZERO,
         padding: Edges::ZERO,
         overflow: used_overflow(Overflow::Visible, Overflow::Visible),

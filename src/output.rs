@@ -1033,7 +1033,6 @@ pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {
     pub size: Size<S>,
     pub content_size: Size<S>,
     pub scroll_geometry: Option<ScrollGeometryOf<S>>,
-    pub scrollbar_size: Size<S>,
     pub border: Edges<S>,
     pub padding: Edges<S>,
     pub margin: Edges<S>,
@@ -1055,7 +1054,6 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
             size: Size::<S>::ZERO,
             content_size: Size::<S>::ZERO,
             scroll_geometry: None,
-            scrollbar_size: Size::<S>::ZERO,
             border: Edges::<S>::ZERO,
             padding: Edges::<S>::ZERO,
             margin: Edges::<S>::ZERO,
@@ -1068,9 +1066,6 @@ impl<S: LayoutScalar> NodeOutputOf<S> {
         scroll_geometry: Option<ScrollGeometryOf<S>>,
     ) -> Self {
         self.scroll_geometry = scroll_geometry;
-        if let Some(geometry) = scroll_geometry {
-            self.scrollbar_size = geometry.scrollbar_size();
-        }
         self
     }
 

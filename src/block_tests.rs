@@ -11692,7 +11692,7 @@ fn fri05_c03_block_contribution_flex_and_grid_fallback_seed_padding_with_stable_
             "{display:?}"
         );
         assert_eq!(
-            child.scrollbar_size,
+            child.scrollbar_size(),
             geometry.scrollbar_size(),
             "{display:?}"
         );
@@ -12038,7 +12038,6 @@ fn fri05_c03_integration_padding_seed_direct_block_retains_gutter_area_in_both_s
                     geometry.content_box().size()
                 );
                 assert_eq!(node_output.scrollbar_size(), geometry.scrollbar_size());
-                assert_eq!(node_output.scrollbar_size, geometry.scrollbar_size());
                 assert_eq!(geometry.target().border_box(), geometry.border_box());
             }
         }

@@ -5491,12 +5491,10 @@ mod fri05_c02_factory_rounding_tests {
             for geometry in [unrounded, actual] {
                 let output = crate::NodeOutputOf::<S> {
                     size: geometry.border_box().size(),
-                    scrollbar_size: Size::splat(scalar(99.0)),
                     ..crate::NodeOutputOf::new()
                 }
                 .with_scroll_geometry(Some(geometry));
                 assert_eq!(output.content_box_size(), geometry.content_box().size());
-                assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
                 assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
             }
 
