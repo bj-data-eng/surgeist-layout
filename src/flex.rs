@@ -257,7 +257,7 @@ where
             .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?;
         final_geometry_and_content_size = Some((scroll_geometry, content_size));
     }
-    let mut output = container_output(
+    let output = container_output(
         input,
         &layout_constants,
         &resolved_items,
@@ -266,10 +266,21 @@ where
         final_geometry_and_content_size.map(|(_, content_size)| content_size),
         container_sizes,
     );
-    if let Some((scroll_geometry, _)) = final_geometry_and_content_size {
-        output.scroll_geometry = Some(scroll_geometry);
+    Ok(
+        final_geometry_and_content_size.map_or(output, |(scroll_geometry, _)| {
+            retain_flex_scroll_geometry(output, scroll_geometry)
+        }),
+    )
+}
+
+fn retain_flex_scroll_geometry<S: LayoutScalar>(
+    output: ComputeOutputOf<S>,
+    scroll_geometry: super::ScrollGeometryOf<S>,
+) -> ComputeOutputOf<S> {
+    ComputeOutputOf {
+        scroll_geometry: Some(scroll_geometry),
+        ..output
     }
-    Ok(output)
 }
 
 #[derive(Clone, Copy)]
@@ -283,9 +294,9 @@ struct Constants<S: LayoutScalar> {
     max_inner_size: Size<Option<S>>,
     border: Edges<S>,
     padding: Edges<S>,
-    effective_border: Edges<S>,
     padding_border_size: Size<S>,
-    scrollbar_gutter: Edges<S>,
+    scrollport_inset: Edges<S>,
+    non_gutter_box_inset: Edges<S>,
     content_box_inset: Edges<S>,
     settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState,
     gap: Size<S>,
@@ -389,10 +400,9 @@ impl<S: LayoutScalar> Constants<S> {
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
         })
         .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?;
-        let effective_border = scroll_box.effective_border();
-        let scrollbar_gutter = scroll_box.effective_gutter();
-        let content_box_inset =
-            effective_border + scrollbar_gutter + scroll_box.effective_padding();
+        let scrollport_inset = scroll_box.effective_border() + scroll_box.effective_gutter();
+        let non_gutter_box_inset = scroll_box.effective_border() + scroll_box.effective_padding();
+        let content_box_inset = scroll_box.content_box_inset();
         let content_box_inset_size = content_box_inset.sum_axes();
         let node_inner_size = node_outer_size
             .sub_optional(content_box_inset_size)
@@ -417,9 +427,9 @@ impl<S: LayoutScalar> Constants<S> {
             max_inner_size,
             border,
             padding,
-            effective_border,
             padding_border_size: padding_border,
-            scrollbar_gutter,
+            scrollport_inset,
+            non_gutter_box_inset,
             content_box_inset,
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
             gap,
@@ -440,8 +450,8 @@ impl<S: LayoutScalar> Constants<S> {
     fn with_final_scroll_box(mut self, scroll_box: CanonicalScrollBoxOf<S>) -> Self {
         self.node_outer_size = scroll_box.border_box().size().map(Some);
         self.node_inner_size = scroll_box.content_box().size().map(Some);
-        self.effective_border = scroll_box.effective_border();
-        self.scrollbar_gutter = scroll_box.effective_gutter();
+        self.scrollport_inset = scroll_box.effective_border() + scroll_box.effective_gutter();
+        self.non_gutter_box_inset = scroll_box.effective_border() + scroll_box.effective_padding();
         self.content_box_inset = scroll_box.content_box_inset();
         self
     }
@@ -577,6 +587,7 @@ impl FlexAxes {
         self.main_logical_axis
     }
 
+    #[cfg(test)]
     #[must_use]
     pub(crate) const fn cross_logical_axis(self) -> LogicalAxis {
         self.cross_logical_axis
@@ -3371,10 +3382,7 @@ where
         .max(
             constants
                 .axes
-                .main_size(constants.content_box_inset.sum_axes())
-                - constants
-                    .axes
-                    .main_size(constants.scrollbar_gutter.sum_axes()),
+                .main_size(constants.non_gutter_box_inset.sum_axes()),
         );
     let inner_main_size = (outer_main_size
         - constants
@@ -3614,10 +3622,9 @@ fn resolved_cross_layout_constants<S: LayoutScalar>(
             constants.axes.cross_size(constants.max_outer_size),
         )
         .max(
-            cross_inset
-                - constants
-                    .axes
-                    .cross_size(constants.scrollbar_gutter.sum_axes()),
+            constants
+                .axes
+                .cross_size(constants.non_gutter_box_inset.sum_axes()),
         )
         .max(constants.axes.cross_size(constants.padding_border_size));
     let inner_cross_size = (outer_cross_size - cross_inset).max(S::ZERO);
@@ -3720,7 +3727,7 @@ where
             output.scroll_geometry,
         )
         .map_err(|error| flex_child_geometry_error(container_node, item.node, error))?;
-        output.scroll_geometry = Some(scroll_geometry);
+        output = retain_flex_scroll_geometry(output, scroll_geometry);
         tree.set_unrounded(
             item.node,
             NodeOutputOf::<Tree::Scalar> {
@@ -3980,6 +3987,7 @@ where
             output.scroll_geometry,
         )
         .map_err(|error| flex_child_geometry_error(node, child, error))?;
+        let output = retain_flex_scroll_geometry(output, scroll_geometry);
 
         tree.set_unrounded(
             child,
@@ -4085,31 +4093,17 @@ fn absolute_location<S: LayoutScalar>(
         .unwrap_or(constants.node_inner_size.unwrap_or(Size::<S>::ZERO));
     let main_start = constants.axes.normal_main_start_edge(inset);
     let main_end = constants.axes.normal_main_end_edge(inset);
-    let main_start_scrollbar = scrollbar_gutter_at_side(
-        constants
-            .axes
-            .normal_axis_start_side(constants.axes.main_logical_axis()),
-        constants.scrollbar_gutter,
-    );
-    let main_end_scrollbar = scrollbar_gutter_at_side(
-        constants
-            .axes
-            .normal_axis_end_side(constants.axes.main_logical_axis()),
-        constants.scrollbar_gutter,
-    );
     let main = if let Some(start) = main_start {
         constants
             .axes
-            .normal_main_start_edge(constants.effective_border)
-            + main_start_scrollbar
+            .normal_main_start_edge(constants.scrollport_inset)
             + start
             + constants.axes.normal_main_start_edge(margin)
     } else if let Some(end) = main_end {
         constants.axes.main_size(container)
             - constants
                 .axes
-                .normal_main_end_edge(constants.effective_border)
-            - main_end_scrollbar
+                .normal_main_end_edge(constants.scrollport_inset)
             - constants.axes.main_size(size)
             - end
             - constants.axes.normal_main_end_edge(margin)
@@ -4133,31 +4127,17 @@ fn absolute_location<S: LayoutScalar>(
     };
     let cross_start = constants.axes.normal_cross_start_edge(inset);
     let cross_end = constants.axes.normal_cross_end_edge(inset);
-    let cross_start_scrollbar = scrollbar_gutter_at_side(
-        constants
-            .axes
-            .normal_axis_start_side(constants.axes.cross_logical_axis()),
-        constants.scrollbar_gutter,
-    );
-    let cross_end_scrollbar = scrollbar_gutter_at_side(
-        constants
-            .axes
-            .normal_axis_end_side(constants.axes.cross_logical_axis()),
-        constants.scrollbar_gutter,
-    );
     let cross = if let Some(start) = cross_start {
         constants
             .axes
-            .normal_cross_start_edge(constants.effective_border)
-            + cross_start_scrollbar
+            .normal_cross_start_edge(constants.scrollport_inset)
             + start
             + constants.axes.normal_cross_start_edge(margin)
     } else if let Some(end) = cross_end {
         constants.axes.cross_size(container)
             - constants
                 .axes
-                .normal_cross_end_edge(constants.effective_border)
-            - cross_end_scrollbar
+                .normal_cross_end_edge(constants.scrollport_inset)
             - constants.axes.cross_size(size)
             - end
             - constants.axes.normal_cross_end_edge(margin)
@@ -4181,15 +4161,6 @@ fn absolute_location<S: LayoutScalar>(
     };
 
     constants.axes.point_from_main_cross(main, cross)
-}
-
-fn scrollbar_gutter_at_side<S: LayoutScalar>(side: PhysicalSide, gutter: Edges<S>) -> S {
-    match side {
-        PhysicalSide::Top => gutter.top,
-        PhysicalSide::Right => gutter.right,
-        PhysicalSide::Bottom => gutter.bottom,
-        PhysicalSide::Left => gutter.left,
-    }
 }
 
 fn absolute_main_alignment<S: LayoutScalar>(
@@ -4497,9 +4468,9 @@ mod final_baseline_selection_tests {
             max_inner_size: Size::NONE,
             border: Edges::ZERO,
             padding: Edges::ZERO,
-            effective_border: Edges::ZERO,
             padding_border_size: Size::ZERO,
-            scrollbar_gutter: Edges::ZERO,
+            scrollport_inset: Edges::ZERO,
+            non_gutter_box_inset: Edges::ZERO,
             content_box_inset: Edges::ZERO,
             settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
             gap: Size::ZERO,

@@ -9809,6 +9809,188 @@ fn fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_ar
 }
 
 #[test]
+fn fri05_c04_flex_round_cache_root_preserves_source_geometry_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let scalar = scalar::<S>;
+        let flow_axes = FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl);
+        let size = Size::new(scalar(100.4), scalar(80.4));
+        let scroll_margin =
+            ScrollMarginOf::try_new(scalar(-1.2), scalar(2.3), scalar(3.4), scalar(-4.5))
+                .expect("finite flex target margin");
+        let snap_align =
+            ScrollSnapAlign::new(ScrollSnapAlignValue::Center, ScrollSnapAlignValue::End);
+        let style = NodeInputOf::<S> {
+            display: Display::Flex,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow: match flow_axes.inline_axis() {
+                PhysicalAxis::Horizontal => computed_overflow(Overflow::Hidden, Overflow::Scroll),
+                PhysicalAxis::Vertical => computed_overflow(Overflow::Scroll, Overflow::Hidden),
+            },
+            scrollbar_width: ScrollbarWidthOf::try_new(scalar(6.6)).unwrap(),
+            size: Size::new(
+                PreferredSizeOf::px(size.width),
+                PreferredSizeOf::px(size.height),
+            ),
+            padding: Edges::all(LengthOf::px(scalar(0.4))),
+            border: Edges::all(LengthOf::px(scalar(0.3))),
+            scroll_margin,
+            scroll_snap_align: snap_align,
+            scroll_snap_stop: ScrollSnapStop::Always,
+            ..NodeInputOf::default()
+        };
+        let tree = PublicFlowTree::default()
+            .with_children(0, [])
+            .with_style(0, style.clone());
+        let request = LayoutRootRequestOf::viewport(size.map(AvailableOf::definite))
+            .expect("fractional flex viewport request is valid");
+        let cold = compute_layout(&tree, 0, request).expect("cold guttered flex root lays out");
+
+        let cached = cold
+            .cache_store_entries()
+            .iter()
+            .find(|entry| entry.node() == 0)
+            .expect("ordinary flex root output is cached")
+            .output();
+        let unrounded = public_flow_output(cold.unrounded_entries(), 0);
+        assert_eq!(cached.scroll_geometry, unrounded.scroll_geometry);
+        assert_eq!(cached.content_size, unrounded.content_size);
+
+        for (phase, output) in [
+            ("unrounded", unrounded),
+            ("rounded", public_flow_output(cold.final_entries(), 0)),
+        ] {
+            let geometry = output
+                .scroll_geometry
+                .expect("performed flex root emits geometry");
+            assert_eq!(geometry.flow_axes(), flow_axes, "{phase}");
+            assert_eq!(geometry.used_overflow_x(), style.overflow.x(), "{phase}");
+            assert_eq!(geometry.used_overflow_y(), style.overflow.y(), "{phase}");
+            assert_ne!(geometry.padding_box(), geometry.scrollport(), "{phase}");
+            assert_eq!(
+                geometry.scrollable_overflow(),
+                geometry.padding_box(),
+                "canonical source retains the flex padding seed after {phase} publication"
+            );
+            let range = geometry.physical_range();
+            assert_eq!(
+                (range.x().minimum(), range.x().maximum()),
+                (S::ZERO, S::ZERO),
+                "{phase}"
+            );
+            assert!(range.y().minimum() <= range.y().maximum(), "{phase}");
+            assert_eq!(output.content_box_size(), geometry.content_box().size());
+            assert_eq!(output.scrollbar_size, geometry.scrollbar_size());
+            assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());
+            assert_eq!(geometry.target().border_box(), geometry.border_box());
+            assert_eq!(geometry.target().scroll_margin(), scroll_margin);
+            assert_eq!(geometry.target().flow_axes(), flow_axes);
+            assert_eq!(geometry.target().snap_align(), snap_align);
+            assert_eq!(geometry.target().snap_stop(), ScrollSnapStop::Always);
+        }
+
+        tree.apply_cache_entries(cold.cache_store_entries());
+        tree.clear_cache_inputs();
+        let warm = compute_layout(&tree, 0, request).expect("warm guttered flex root lays out");
+        assert_eq!(
+            public_flow_output(warm.unrounded_entries(), 0),
+            public_flow_output(cold.unrounded_entries(), 0)
+        );
+        assert_eq!(
+            public_flow_output(warm.final_entries(), 0),
+            public_flow_output(cold.final_entries(), 0)
+        );
+        assert!(
+            warm.cache_store_entries()
+                .iter()
+                .all(|entry| entry.node() != 0),
+            "the stable ordinary flex root request reuses its cached canonical geometry"
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri05_c04_flex_round_cache_nested_flex_reuses_identical_canonical_output() {
+    fn assert_lane<S: LayoutScalar>() {
+        let scalar = scalar::<S>;
+        let flow_axes = FlowAxes::new(WritingMode::VerticalLr, Direction::Rtl);
+        let root_size = Size::new(scalar(100.4), scalar(80.6));
+        let child_size = Size::new(scalar(120.25), scalar(90.75));
+        let overflow = computed_overflow(Overflow::Hidden, Overflow::Scroll);
+        let root = NodeInputOf::<S> {
+            display: Display::Flex,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow,
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidthOf::try_new(scalar(3.6)).unwrap(),
+            size: root_size.map(PreferredSizeOf::px),
+            align_items: Some(AlignItems::FlexStart),
+            ..NodeInputOf::default()
+        };
+        let child = NodeInputOf::<S> {
+            display: Display::Flex,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            overflow,
+            scrollbar_gutter: ScrollbarGutter::Stable,
+            scrollbar_width: ScrollbarWidthOf::try_new(scalar(2.6)).unwrap(),
+            size: child_size.map(PreferredSizeOf::px),
+            min_size: Size::new(MinSizeOf::ZERO, MinSizeOf::ZERO),
+            flex_shrink: FlexShrinkOf::try_new(S::ZERO).unwrap(),
+            ..NodeInputOf::default()
+        };
+        let tree = PublicFlowTree::default()
+            .with_children(0, [1])
+            .with_children(1, [])
+            .with_style(0, root)
+            .with_style(1, child);
+        let request = LayoutRootRequestOf::viewport(root_size.map(AvailableOf::definite)).unwrap();
+        let cold = compute_layout(&tree, 0, request).expect("cold nested flex layout");
+        let nested_unrounded = public_flow_output(cold.unrounded_entries(), 1);
+        let nested_cached = cold
+            .cache_store_entries()
+            .iter()
+            .find(|entry| entry.node() == 1 && entry.input().run_mode() == RunMode::PerformLayout)
+            .expect("nested performed flex output is cached")
+            .output();
+        assert_eq!(
+            nested_cached.scroll_geometry,
+            nested_unrounded.scroll_geometry
+        );
+        assert_eq!(nested_cached.content_size, nested_unrounded.content_size);
+
+        tree.apply_cache_entries(cold.cache_store_entries());
+        tree.clear_cache_inputs();
+        let warm = compute_layout(&tree, 0, request).expect("warm nested flex layout");
+        for node in [0, 1] {
+            assert_eq!(
+                public_flow_output(warm.unrounded_entries(), node),
+                public_flow_output(cold.unrounded_entries(), node),
+                "unrounded node {node}"
+            );
+            assert_eq!(
+                public_flow_output(warm.final_entries(), node),
+                public_flow_output(cold.final_entries(), node),
+                "rounded node {node}"
+            );
+        }
+        assert!(
+            warm.cache_store_entries().iter().all(|entry| {
+                entry.node() != 1 || entry.input().run_mode() != RunMode::PerformLayout
+            }),
+            "the nested ordinary flex request must hit its warm cache entry"
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn fri05_c03_integration_padding_seed_fractional_terminal_auto_probe_survives_rounding_and_cache_in_both_scalar_lanes()
  {
     fn assert_lane<S: LayoutScalar>() {

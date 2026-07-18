@@ -551,6 +551,88 @@ fn fri05_c04_flex_bridge_accounting_leaves_exactly_three_grid_family_writers() {
 }
 
 #[test]
+fn fri05_c04_flex_round_cache_publication_has_one_canonical_geometry_path() {
+    let flex = include_str!("flex.rs");
+
+    assert!(
+        !flex.contains("output.scroll_geometry = Some(scroll_geometry)"),
+        "flex output must retain canonical geometry through one publication helper"
+    );
+    assert_eq!(
+        flex.matches("retain_flex_scroll_geometry(").count(),
+        3,
+        "three aggregate/child publication sites must use the retention helper"
+    );
+    assert_eq!(
+        flex.matches("fn retain_flex_scroll_geometry<").count(),
+        1,
+        "one flex geometry-retention helper must own publication"
+    );
+}
+
+#[test]
+fn fri05_c04_flex_legacy_absence_leaves_only_three_downstream_grid_bridges() {
+    let flex = include_str!("flex.rs");
+    let forbidden = [
+        "ScrollbarReservationOf",
+        "content_box_inset_with_scrollbar",
+        "scrollbar_size_from_overflow",
+        "item_scrollbar_size",
+        "visible_content_size",
+        "content_size_contribution",
+        "scrollbar_gutter_at_side",
+        "scrollbar_gutter: Edges<S>",
+        "effective_border: Edges<S>",
+        "scroll_geometry: None,\n                scrollbar_size:",
+    ]
+    .into_iter()
+    .filter(|symbol| flex.contains(symbol))
+    .collect::<Vec<_>>();
+    assert!(
+        forbidden.is_empty(),
+        "flex retains legacy reservation/projection/discard paths: {forbidden:?}"
+    );
+
+    let grid_child = include_str!("grid/child.rs");
+    let grid_lanes = include_str!("grid/lanes.rs");
+    let downstream_bridges = [
+        (
+            "ordinary-grid retained item bridge",
+            grid_child
+                .matches("scrollbar_size: item.scrollbar_size")
+                .count(),
+        ),
+        (
+            "ordinary-grid local output bridge",
+            grid_child
+                .matches("scroll_geometry: None,\n            scrollbar_size,\n")
+                .count(),
+        ),
+        (
+            "grid-lanes retained item bridge",
+            grid_lanes
+                .matches("scrollbar_size: item.scrollbar_size")
+                .count(),
+        ),
+    ];
+    assert_eq!(
+        downstream_bridges,
+        [
+            ("ordinary-grid retained item bridge", 1),
+            ("ordinary-grid local output bridge", 1),
+            ("grid-lanes retained item bridge", 1),
+        ]
+    );
+    assert_eq!(
+        downstream_bridges
+            .into_iter()
+            .map(|(_, count)| count)
+            .sum::<usize>(),
+        3
+    );
+}
+
+#[test]
 fn fri04_c04_dispatch_public_descriptor_front_door_has_closed_copy_hash_contract() {
     fn assert_closed<T: Clone + Copy + core::fmt::Debug + Eq + core::hash::Hash + PartialEq>() {}
 
