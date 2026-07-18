@@ -2677,7 +2677,7 @@ mod tests {
                 <viewport width="max-content" height="max-content" />
                 <input>
                     <div display="flex" overflow-x="scroll" overflow-y="scroll"
-                         scrollbar-width="15" align-items="start" justify-content="start"
+                         scrollbar-width="15" align-items="start" justify-content="end"
                          width="50px" height="50px">
                         <div display="flex" flex-shrink="0" width="100px" height="100px" />
                     </div>
@@ -2685,7 +2685,7 @@ mod tests {
                 <expectations>
                     <node x="0" y="0" width="50" height="50"
                           scroll_width="65" scroll_height="65">
-                        <node x="0" y="0" width="100" height="100" />
+                        <node x="-65" y="0" width="100" height="100" />
                     </node>
                 </expectations>
             </test>
@@ -2697,9 +2697,9 @@ mod tests {
     }
 
     #[test]
-    fn fri05_c06_comparator_correct_nonzero_range_spans_pass() {
+    fn fri05_c06_comparator_signed_range_uses_span_instead_of_maximum_endpoint() {
         assert_surgeist_matches(&fri05_c06_scroll_expectation(65.0, 65.0))
-            .expect("canonical nonzero range spans should match");
+            .expect("canonical signed range span should match");
     }
 
     #[test]
@@ -2742,6 +2742,20 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "fri05-c06-nonzero: scroll height mismatch, expected 64, got 65"
+        );
+    }
+
+    #[test]
+    fn fri05_c06_comparator_wrong_scroll_span_precedes_invalid_child_mismatch() {
+        let mut golden = fri05_c06_scroll_expectation(64.0, 65.0);
+        golden.expectations.children[0].x = Some(-64.0);
+
+        let error = assert_surgeist_matches(&golden)
+            .expect_err("wrong root scroll span should fail before the invalid child");
+
+        assert_eq!(
+            error.to_string(),
+            "fri05-c06-nonzero: scroll width mismatch, expected 64, got 65"
         );
     }
 
