@@ -224,6 +224,7 @@ where
         .map_err(|error| block_own_geometry_error(node, input.run_mode(), error))?;
         let mut contributions = final_pass.contributions;
         contributions.replace_container_seed(final_scroll_box.padding_box());
+        contributions.exclude_reserved_gutter_from_range();
         for (axis, extent) in [
             (crate::LogicalAxis::Inline, final_pass.content_size.inline),
             (crate::LogicalAxis::Block, final_pass.content_size.block),
@@ -2447,6 +2448,7 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
     )
     .map_err(CanonicalScrollGeometryErrorOf::ScrollableOverflow)?;
     let mut contributions = ScrollContributionAccumulatorOf::new(scroll_box.padding_box());
+    contributions.exclude_reserved_gutter_from_range();
     contributions.include_direct_line(direct_content);
 
     canonical_scroll_geometry_from_source(CanonicalScrollGeometrySourceOf {

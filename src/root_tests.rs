@@ -9795,10 +9795,6 @@ fn fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_ar
                 geometry.padding_box(),
                 "root publication must retain the canonical own padding seed after {phase} publication"
             );
-            let top_gutter = geometry
-                .gutters()
-                .top()
-                .expect("the representative sideways flow has a top gutter");
             let range = geometry.physical_range();
             assert_eq!(
                 (range.x().minimum(), range.x().maximum()),
@@ -9806,7 +9802,7 @@ fn fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_ar
             );
             assert_eq!(
                 (range.y().minimum(), range.y().maximum()),
-                (S::ZERO - top_gutter.size().height, S::ZERO)
+                (S::ZERO, S::ZERO)
             );
             assert_eq!(output.content_box_size(), geometry.content_box().size());
             assert_eq!(output.scrollbar_size(), geometry.scrollbar_size());

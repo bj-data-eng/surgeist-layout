@@ -11588,6 +11588,121 @@ fn fri05_c03_assert_block_contribution_fallback_common(root: NodeOutput, child: 
     assert_eq!(root.content_size, fri05_c03_block_union_content_size(root));
 }
 
+fn fri05_c06_assert_block_reserved_gutter_geometry(geometry: ScrollGeometry) {
+    assert_eq!(geometry.border_box().size(), Size::new(100.0, 100.0));
+    assert_eq!(geometry.padding_box().size(), Size::new(100.0, 100.0));
+    assert_eq!(geometry.scrollport().origin(), Point::new(15.0, 0.0));
+    assert_eq!(geometry.scrollport().size(), Size::new(70.0, 100.0));
+    assert_eq!(
+        geometry.scrollable_overflow(),
+        ScrollRect::try_new(Point::ZERO, Size::new(100.0, 150.0)).unwrap(),
+        "reserved gutters remain part of complete scrollable overflow"
+    );
+
+    let range = geometry.physical_range();
+    assert_eq!(
+        range.x().maximum() - range.x().minimum(),
+        0.0,
+        "reserved gutters do not create horizontal scroll range"
+    );
+    assert_eq!(
+        range.y().maximum() - range.y().minimum(),
+        50.0,
+        "vertical child overflow remains reachable"
+    );
+}
+
+#[test]
+fn fri05_c06_block_reserved_gutter_stable_both_edges_excludes_horizontal_range() {
+    let tree = PublicBlockTree::default()
+        .with_children(0, [1])
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Block,
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+                scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+                scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+                size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(70.0), PreferredSize::px(150.0)),
+                ..NodeInput::default()
+            },
+        );
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequest::viewport(Size::splat(Available::definite(200.0))).unwrap(),
+    )
+    .expect("stable both-edge block layout succeeds");
+
+    fri05_c06_assert_block_reserved_gutter_geometry(
+        public_final_output(&batch, 0)
+            .scroll_geometry
+            .expect("the block front door emits canonical geometry"),
+    );
+}
+
+#[test]
+fn fri05_c06_block_reserved_gutter_retained_child_fallback_excludes_horizontal_range() {
+    let mut tree = Fri05C03BlockPassTree::default();
+    tree.children.insert(0, vec![1]);
+    tree.children.insert(1, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(PreferredSize::px(200.0), PreferredSize::px(200.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Flex,
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Scroll),
+            scrollbar_gutter: ScrollbarGutter::StableBothEdges,
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::new(PreferredSize::px(100.0), PreferredSize::px(100.0)),
+            ..NodeInput::default()
+        },
+    );
+    tree.child_output = Some(ComputeOutput::from_sizes_and_baselines(
+        Size::new(100.0, 100.0),
+        Size::new(70.0, 150.0),
+        Baselines::NONE,
+    ));
+
+    crate::compute_block(
+        &mut tree,
+        0,
+        fri05_c03_block_input(
+            Size::new(200.0, 200.0),
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ),
+    )
+    .expect("the block front door stages retained-child fallback geometry");
+    let child = tree
+        .layouts
+        .iter()
+        .rev()
+        .find_map(|(node, output)| (*node == 1).then_some(*output))
+        .expect("the retained child is staged");
+
+    fri05_c06_assert_block_reserved_gutter_geometry(
+        child
+            .scroll_geometry
+            .expect("the retained-child fallback emits canonical geometry"),
+    );
+}
+
 #[test]
 fn fri05_c03_block_contribution_flex_fallback_retains_target_and_box_sources() {
     let (root, child) = fri05_c03_block_contribution_fallback_child(
@@ -11901,23 +12016,6 @@ fn fri05_c03_integration_padding_seed_direct_block_retains_gutter_area_in_both_s
             }
         }
 
-        fn expected_axis_range<S: LayoutScalar>(
-            geometry: ScrollGeometryOf<S>,
-            origin_end: PhysicalSide,
-        ) -> (S, S) {
-            let Some(gutter) = gutter_at(geometry.gutters(), origin_end) else {
-                return (S::ZERO, S::ZERO);
-            };
-            let thickness = match origin_end.axis() {
-                PhysicalAxis::Horizontal => gutter.size().width,
-                PhysicalAxis::Vertical => gutter.size().height,
-            };
-            match origin_end {
-                PhysicalSide::Top | PhysicalSide::Left => (S::ZERO - thickness, S::ZERO),
-                PhysicalSide::Right | PhysicalSide::Bottom => (S::ZERO, thickness),
-            }
-        }
-
         let scalar = scalar_value::<S>;
         let size = Size::new(scalar(100.0), scalar(80.0));
         for flow_axes in fri05_c03_block_all_flow_axes() {
@@ -12010,26 +12108,16 @@ fn fri05_c03_integration_padding_seed_direct_block_retains_gutter_area_in_both_s
                     );
                 }
 
-                let x_end = if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
-                    flow_axes.inline_end()
-                } else {
-                    flow_axes.block_end()
-                };
-                let y_end = if flow_axes.inline_axis() == PhysicalAxis::Vertical {
-                    flow_axes.inline_end()
-                } else {
-                    flow_axes.block_end()
-                };
                 let range = geometry.physical_range();
                 assert_eq!(
                     (range.x().minimum(), range.x().maximum()),
-                    expected_axis_range(geometry, x_end),
-                    "x range must derive from the retained padding seed for {case}/{flow_axes:?}"
+                    (S::ZERO, S::ZERO),
+                    "x range must exclude static gutter reservation for {case}/{flow_axes:?}"
                 );
                 assert_eq!(
                     (range.y().minimum(), range.y().maximum()),
-                    expected_axis_range(geometry, y_end),
-                    "y range must derive from the retained padding seed for {case}/{flow_axes:?}"
+                    (S::ZERO, S::ZERO),
+                    "y range must exclude static gutter reservation for {case}/{flow_axes:?}"
                 );
 
                 let node_output = NodeOutputOf::<S>::new().with_scroll_geometry(Some(geometry));
