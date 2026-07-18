@@ -661,29 +661,280 @@ fn fri05_c05_grid_round_cache_has_no_independent_scrollbar_projection() {
 }
 
 #[test]
-fn fri05_c05_grid_legacy_absence_removes_public_field_and_three_writers() {
-    let output = include_str!("output.rs");
-    let grid_child = include_str!("grid/child.rs");
-    let grid_lanes = include_str!("grid/lanes.rs");
+fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
+    let sources = [
+        (
+            "src/block.rs",
+            include_str!("block.rs"),
+            "private inline carrier writer",
+            1,
+        ),
+        (
+            "src/cache.rs",
+            include_str!("cache.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/compute.rs",
+            include_str!("compute.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/flex.rs",
+            include_str!("flex.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/geometry.rs",
+            include_str!("geometry.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/alignment.rs",
+            include_str!("grid/alignment.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/axis.rs",
+            include_str!("grid/axis.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/child.rs",
+            include_str!("grid/child.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/lanes.rs",
+            include_str!("grid/lanes.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/mod.rs",
+            include_str!("grid/mod.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/named.rs",
+            include_str!("grid/named.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/placement.rs",
+            include_str!("grid/placement.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/subgrid.rs",
+            include_str!("grid/subgrid.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/grid/tracks.rs",
+            include_str!("grid/tracks.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/inline.rs",
+            include_str!("inline.rs"),
+            "private inline reservation carriers",
+            11,
+        ),
+        (
+            "src/lib.rs",
+            include_str!("lib.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/node_input.rs",
+            include_str!("node_input.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/output.rs",
+            include_str!("output.rs"),
+            "canonical geometry accessor",
+            2,
+        ),
+        (
+            "src/scalar.rs",
+            include_str!("scalar.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/scroll.rs",
+            include_str!("scroll.rs"),
+            "canonical geometry owner and owner-local tests",
+            5,
+        ),
+        (
+            "src/sizing.rs",
+            include_str!("sizing.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/traits.rs",
+            include_str!("traits.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+        (
+            "src/value.rs",
+            include_str!("value.rs"),
+            "no scrollbar projection",
+            0,
+        ),
+    ];
 
-    assert!(!output.contains("pub scrollbar_size: Size<S>"));
+    fn production_rust_sources(directory: &std::path::Path, paths: &mut Vec<String>) {
+        for entry in std::fs::read_dir(directory).expect("production source directory is readable")
+        {
+            let path = entry.expect("production source entry is readable").path();
+            if path.is_dir() {
+                if path.file_name().and_then(|name| name.to_str()) != Some("test_support") {
+                    production_rust_sources(&path, paths);
+                }
+            } else if path.extension().and_then(|extension| extension.to_str()) == Some("rs")
+                && !path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with("_tests.rs"))
+            {
+                paths.push(
+                    path.strip_prefix(env!("CARGO_MANIFEST_DIR"))
+                        .expect("production source is inside the repository")
+                        .to_string_lossy()
+                        .replace('\\', "/"),
+                );
+            }
+        }
+    }
+
+    let mut inventoried = Vec::new();
+    production_rust_sources(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+        &mut inventoried,
+    );
+    inventoried.sort();
+    let declared = sources.iter().map(|(path, ..)| *path).collect::<Vec<_>>();
     assert_eq!(
-        grid_child
-            .matches("scrollbar_size: item.scrollbar_size")
+        inventoried, declared,
+        "every non-test production Rust source must have an exact scrollbar classification"
+    );
+
+    for (path, source, classification, expected_mentions) in sources {
+        let mentions = source
+            .split(|character: char| !character.is_ascii_alphanumeric() && character != '_')
+            .filter(|identifier| *identifier == "scrollbar_size")
+            .count();
+        assert_eq!(
+            mentions, expected_mentions,
+            "{path} classification {classification} changed"
+        );
+        if path != "src/inline.rs" {
+            assert!(
+                !source.contains("scrollbar_size: item.scrollbar_size"),
+                "{path} relocated an item projection"
+            );
+        }
+        assert!(
+            !source
+                .contains("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,"),
+            "{path} relocated a local geometry projection"
+        );
+        assert!(
+            !source.contains("self.scrollbar_size = geometry.scrollbar_size()"),
+            "{path} relocated a synchronized projection writer"
+        );
+        if path != "src/output.rs" {
+            assert!(
+                !source.contains("impl<S: LayoutScalar> NodeOutputOf<S>"),
+                "{path} adds a NodeOutput compatibility implementation outside its owner"
+            );
+            assert!(
+                !source.contains("struct NodeOutputOf"),
+                "{path} adds a shadow NodeOutput carrier"
+            );
+        }
+    }
+
+    let output = include_str!("output.rs");
+    let node_output = output
+        .split_once("pub struct NodeOutputOf<S: LayoutScalar = DefaultScalar> {")
+        .expect("NodeOutput declaration")
+        .1
+        .split_once("\n}")
+        .expect("NodeOutput declaration end")
+        .0;
+    assert_eq!(
+        node_output.matches("scroll_").count(),
+        1,
+        "NodeOutput owns only canonical scroll_geometry storage"
+    );
+    assert!(node_output.contains("pub scroll_geometry: Option<ScrollGeometryOf<S>>"));
+    assert!(!node_output.contains("scrollbar"));
+    assert_eq!(
+        output
+            .matches("pub const fn scrollbar_size(self) -> Size<S>")
             .count(),
-        0
+        1
     );
     assert_eq!(
-        grid_child
-            .matches("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,\n")
+        output
+            .matches("Some(geometry) => geometry.scrollbar_size()")
             .count(),
-        0
+        1
     );
+
+    let inline = include_str!("inline.rs");
+    for carrier in ["AtomicInlineBoxParticipant", "InlineParticipantLayoutItem"] {
+        let declaration = inline
+            .split_once(&format!(
+                "pub(super) struct {carrier}<S: LayoutScalar = DefaultScalar> {{"
+            ))
+            .unwrap_or_else(|| panic!("private {carrier} declaration"))
+            .1
+            .split_once("\n}")
+            .expect("private inline carrier declaration end")
+            .0;
+        assert_eq!(
+            declaration.matches("pub scrollbar_size: Size<S>").count(),
+            1,
+            "{carrier} is the exact private reservation carrier"
+        );
+    }
+    assert_eq!(inline.matches("pub scrollbar_size: Size<S>").count(), 2);
     assert_eq!(
-        grid_lanes
+        inline
             .matches("scrollbar_size: item.scrollbar_size")
             .count(),
-        0
+        2,
+        "inline has exactly two private carrier-to-report projections"
+    );
+    let block = include_str!("block.rs");
+    assert_eq!(
+        block
+            .matches("scrollbar_size: child_scrollbar_size(&child_style)")
+            .count(),
+        1,
+        "block has one exact private inline-carrier writer"
     );
 }
 

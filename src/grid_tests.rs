@@ -564,6 +564,10 @@ where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
 {
     let scalar = S::from_f64;
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let scroll_margin =
+        ScrollMarginOf::try_new(scalar(1.25), scalar(2.25), scalar(3.25), scalar(4.25)).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::End, ScrollSnapAlignValue::Center);
     let mut tree = OracleTreeOf::<S>::new().children(0, []).style(
         0,
         NodeInputOf {
@@ -576,13 +580,11 @@ where
             scrollbar_width: ScrollbarWidthOf::try_new(scalar(7.4)).unwrap(),
             grid_template_columns: vec![TrackComponentOf::px(scalar(130.6))],
             grid_template_rows: vec![TrackComponentOf::px(scalar(110.6))],
-            scroll_margin: ScrollMarginOf::try_new(
-                scalar(1.25),
-                scalar(2.25),
-                scalar(3.25),
-                scalar(4.25),
-            )
-            .unwrap(),
+            justify_content: Some(AlignContent::End),
+            align_content: Some(AlignContent::Center),
+            scroll_margin,
+            scroll_snap_align: snap_align,
+            scroll_snap_stop: ScrollSnapStop::Always,
             ..NodeInputOf::default()
         },
     );
@@ -592,10 +594,7 @@ where
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
-        ContainingLayoutContext::new(
-            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            ParentFormattingContext::NoParent,
-        ),
+        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
         Size::new(
             AvailableOf::Definite(scalar(100.4)),
             AvailableOf::Definite(scalar(80.4)),
@@ -603,6 +602,158 @@ where
     );
     let cold = compute_grid(&mut tree, 0, input).expect("scalar grid geometry computes");
     let geometry = cold.scroll_geometry.expect("cold geometry is present");
+    let format = match display {
+        Display::Grid => "ordinary grid",
+        Display::GridLanes => "grid lanes",
+        _ => unreachable!("focused round/cache evidence accepts only grid-family displays"),
+    };
+
+    let assert_geometry = |phase: &str,
+                           output: ComputeOutputOf<S>,
+                           expected_border: Size<S>,
+                           expected_bar: S,
+                           expected_content_size: Size<S>,
+                           expected_range: (S, S, S, S)| {
+        let geometry = output
+            .scroll_geometry
+            .unwrap_or_else(|| panic!("{format} {phase} geometry is present"));
+        let expected_scrollport = Size::new(
+            expected_border.width - expected_bar,
+            expected_border.height - expected_bar,
+        );
+        let expected_right = ScrollRectOf::try_new(
+            Point::new(expected_scrollport.width, S::ZERO),
+            Size::new(expected_bar, expected_scrollport.height),
+        )
+        .unwrap();
+        let expected_bottom = ScrollRectOf::try_new(
+            Point::new(S::ZERO, expected_scrollport.height),
+            Size::new(expected_scrollport.width, expected_bar),
+        )
+        .unwrap();
+        let expected_overflow = ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap();
+        let range = geometry.physical_range();
+
+        assert_eq!(geometry.flow_axes(), flow_axes, "{format} {phase} axes");
+        assert_eq!(
+            geometry.used_overflow_x(),
+            Overflow::Scroll,
+            "{format} {phase} x"
+        );
+        assert_eq!(
+            geometry.used_overflow_y(),
+            Overflow::Scroll,
+            "{format} {phase} y"
+        );
+        assert_eq!(
+            geometry.border_box(),
+            ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap(),
+            "{format} {phase} border"
+        );
+        assert_eq!(
+            geometry.padding_box(),
+            geometry.border_box(),
+            "{format} {phase} padding box"
+        );
+        assert_eq!(
+            geometry.content_box(),
+            ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap(),
+            "{format} {phase} content box"
+        );
+        assert_eq!(
+            geometry.scrollport(),
+            ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap(),
+            "{format} {phase} scrollport"
+        );
+        assert_eq!(
+            geometry.gutters().top(),
+            None,
+            "{format} {phase} top gutter"
+        );
+        assert_eq!(
+            geometry.gutters().right(),
+            Some(expected_right),
+            "{format} {phase} right gutter"
+        );
+        assert_eq!(
+            geometry.gutters().bottom(),
+            Some(expected_bottom),
+            "{format} {phase} bottom gutter"
+        );
+        assert_eq!(
+            geometry.gutters().left(),
+            None,
+            "{format} {phase} left gutter"
+        );
+        assert_eq!(
+            geometry.scrollbar_size(),
+            Size::splat(expected_bar),
+            "{format} {phase} scrollbar size"
+        );
+        assert_eq!(
+            (
+                range.x().minimum(),
+                range.x().maximum(),
+                range.y().minimum(),
+                range.y().maximum()
+            ),
+            expected_range,
+            "{format} {phase} alignment-bounded physical range"
+        );
+        assert_eq!(
+            geometry.scrollable_overflow(),
+            expected_overflow,
+            "{format} {phase} complete overflow"
+        );
+        assert_eq!(
+            geometry.canonical_content_size().unwrap(),
+            expected_overflow.size(),
+            "{format} {phase} canonical content extent"
+        );
+        assert_eq!(
+            output.content_size, expected_content_size,
+            "{format} {phase} output content size"
+        );
+        assert_eq!(
+            geometry.target().border_box(),
+            ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap(),
+            "{format} {phase} target border"
+        );
+        assert_eq!(
+            geometry.target().flow_axes(),
+            flow_axes,
+            "{format} {phase} target axes"
+        );
+        assert_eq!(
+            geometry.target().scroll_margin(),
+            scroll_margin,
+            "{format} {phase} target margin"
+        );
+        assert_eq!(
+            geometry.target().snap_align(),
+            snap_align,
+            "{format} {phase} target alignment"
+        );
+        assert_eq!(
+            geometry.target().snap_stop(),
+            ScrollSnapStop::Always,
+            "{format} {phase} target stop"
+        );
+    };
+
+    assert_geometry(
+        "cold",
+        cold,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(130.6), scalar(110.6)),
+        (
+            S::ZERO - (scalar(130.6) - (scalar(100.4) - scalar(7.4))),
+            S::ZERO,
+            S::ZERO - (scalar(110.6) - (scalar(80.4) - scalar(7.4))) / scalar(2.0),
+            S::ZERO,
+        ),
+    );
     let mut cache = CacheOf::<S>::new();
     cache.store_with_context(&input, CacheKeyContext::new(), cold);
     let warm = cache
@@ -610,6 +761,19 @@ where
         .expect("warm cache returns grid output");
     assert_eq!(warm, cold);
     assert_eq!(warm.scroll_geometry, Some(geometry));
+    assert_geometry(
+        "warm",
+        warm,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(130.6), scalar(110.6)),
+        (
+            S::ZERO - (scalar(130.6) - (scalar(100.4) - scalar(7.4))),
+            S::ZERO,
+            S::ZERO - (scalar(110.6) - (scalar(80.4) - scalar(7.4))) / scalar(2.0),
+            S::ZERO,
+        ),
+    );
 
     Compute::set_unrounded(
         &mut tree,
@@ -630,19 +794,48 @@ where
     let rounded_geometry = rounded
         .scroll_geometry
         .expect("rounding retains canonical grid geometry");
-    assert_eq!(
-        rounded_geometry.target().scroll_margin(),
-        geometry.target().scroll_margin()
+    assert_geometry(
+        "rounded",
+        ComputeOutputOf {
+            size: rounded.size,
+            content_size: rounded.content_size,
+            scroll_geometry: Some(rounded_geometry),
+            ..cold
+        },
+        Size::new(scalar(100.0), scalar(80.0)),
+        scalar(7.0),
+        Size::new(scalar(131.0), scalar(111.0)),
+        (scalar(-38.0), S::ZERO, scalar(-19.0), S::ZERO),
     );
     assert_eq!(
-        rounded_geometry.target().snap_align(),
-        geometry.target().snap_align()
+        rounded.content_box_size(),
+        Size::new(scalar(93.0), scalar(73.0)),
+        "{format} rounded output content box accessor"
     );
     assert_eq!(
-        rounded_geometry.target().snap_stop(),
-        geometry.target().snap_stop()
+        rounded.scrollbar_size(),
+        Size::splat(scalar(7.0)),
+        "{format} rounded output scrollbar accessor"
     );
-    assert_eq!(rounded_geometry.scrollbar_size(), rounded.scrollbar_size());
+
+    let measurement_input = ComputeInputOf::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
+        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+        Size::new(
+            AvailableOf::Definite(scalar(100.4)),
+            AvailableOf::Definite(scalar(80.4)),
+        ),
+    );
+    let measurement = compute_grid(&mut tree, 0, measurement_input)
+        .expect("grid-family measurement control computes");
+    assert!(
+        measurement.scroll_geometry.is_none(),
+        "{format} measurement must not publish geometry"
+    );
 }
 
 #[test]
@@ -658,6 +851,10 @@ where
     OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S> + Round,
 {
     let scalar = S::from_f64;
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let scroll_margin =
+        ScrollMarginOf::try_new(scalar(1.25), scalar(2.25), scalar(3.25), scalar(4.25)).unwrap();
+    let snap_align = ScrollSnapAlign::new(ScrollSnapAlignValue::Start, ScrollSnapAlignValue::End);
     let subgrid_track = || {
         TrackComponentOf::Subgrid(SubgridTrack {
             name_components: Vec::new(),
@@ -689,13 +886,9 @@ where
                 grid_template_rows: vec![subgrid_track()],
                 justify_self: Some(AlignItems::Start),
                 align_self: Some(AlignItems::Start),
-                scroll_margin: ScrollMarginOf::try_new(
-                    scalar(1.25),
-                    scalar(2.25),
-                    scalar(3.25),
-                    scalar(4.25),
-                )
-                .unwrap(),
+                scroll_margin,
+                scroll_snap_align: snap_align,
+                scroll_snap_stop: ScrollSnapStop::Always,
                 ..NodeInputOf::default()
             },
         );
@@ -705,22 +898,183 @@ where
         RequestedAxis::Both,
         Size::NONE,
         Size::new(Some(scalar(100.4)), Some(scalar(80.4))),
-        ContainingLayoutContext::new(
-            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
-            ParentFormattingContext::NoParent,
-        ),
+        ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
         Size::new(
             AvailableOf::Definite(scalar(100.4)),
             AvailableOf::Definite(scalar(80.4)),
         ),
     );
 
+    let assert_subgrid = |phase: &str,
+                          output: NodeOutputOf<S>,
+                          expected_border: Size<S>,
+                          expected_bar: S,
+                          expected_content_size: Size<S>,
+                          expected_range: (S, S, S, S)| {
+        let geometry = output
+            .scroll_geometry
+            .unwrap_or_else(|| panic!("nested subgrid {phase} geometry is present"));
+        let expected_scrollport = Size::new(
+            expected_border.width - expected_bar,
+            expected_border.height - expected_bar,
+        );
+        let border_rect = ScrollRectOf::try_new(Point::ZERO, expected_border).unwrap();
+        let scrollport_rect = ScrollRectOf::try_new(Point::ZERO, expected_scrollport).unwrap();
+        let right_gutter = ScrollRectOf::try_new(
+            Point::new(expected_scrollport.width, S::ZERO),
+            Size::new(expected_bar, expected_scrollport.height),
+        )
+        .unwrap();
+        let bottom_gutter = ScrollRectOf::try_new(
+            Point::new(S::ZERO, expected_scrollport.height),
+            Size::new(expected_scrollport.width, expected_bar),
+        )
+        .unwrap();
+        let range = geometry.physical_range();
+
+        assert_eq!(
+            geometry.flow_axes(),
+            flow_axes,
+            "nested subgrid {phase} axes"
+        );
+        assert_eq!(
+            geometry.used_overflow_x(),
+            Overflow::Scroll,
+            "nested subgrid {phase} x"
+        );
+        assert_eq!(
+            geometry.used_overflow_y(),
+            Overflow::Scroll,
+            "nested subgrid {phase} y"
+        );
+        assert_eq!(
+            geometry.border_box(),
+            border_rect,
+            "nested subgrid {phase} border"
+        );
+        assert_eq!(
+            geometry.padding_box(),
+            border_rect,
+            "nested subgrid {phase} padding box"
+        );
+        assert_eq!(
+            geometry.content_box(),
+            scrollport_rect,
+            "nested subgrid {phase} content box"
+        );
+        assert_eq!(
+            geometry.scrollport(),
+            scrollport_rect,
+            "nested subgrid {phase} scrollport"
+        );
+        assert_eq!(
+            geometry.gutters().top(),
+            None,
+            "nested subgrid {phase} top gutter"
+        );
+        assert_eq!(
+            geometry.gutters().right(),
+            Some(right_gutter),
+            "nested subgrid {phase} right gutter"
+        );
+        assert_eq!(
+            geometry.gutters().bottom(),
+            Some(bottom_gutter),
+            "nested subgrid {phase} bottom gutter"
+        );
+        assert_eq!(
+            geometry.gutters().left(),
+            None,
+            "nested subgrid {phase} left gutter"
+        );
+        assert_eq!(
+            geometry.scrollbar_size(),
+            Size::splat(expected_bar),
+            "nested subgrid {phase} scrollbar size"
+        );
+        assert_eq!(
+            (
+                range.x().minimum(),
+                range.x().maximum(),
+                range.y().minimum(),
+                range.y().maximum()
+            ),
+            expected_range,
+            "nested subgrid {phase} active-subject physical range"
+        );
+        assert_eq!(
+            geometry.scrollable_overflow(),
+            border_rect,
+            "nested subgrid {phase} complete overflow"
+        );
+        assert_eq!(
+            geometry.canonical_content_size().unwrap(),
+            expected_border,
+            "nested subgrid {phase} canonical content extent"
+        );
+        assert_eq!(
+            output.content_size, expected_content_size,
+            "nested subgrid {phase} output content size"
+        );
+        assert_eq!(
+            output.content_box_size(),
+            expected_scrollport,
+            "nested subgrid {phase} output content box accessor"
+        );
+        assert_eq!(
+            output.scrollbar_size(),
+            Size::splat(expected_bar),
+            "nested subgrid {phase} output scrollbar accessor"
+        );
+        assert_eq!(
+            geometry.target().border_box(),
+            border_rect,
+            "nested subgrid {phase} target border"
+        );
+        assert_eq!(
+            geometry.target().flow_axes(),
+            flow_axes,
+            "nested subgrid {phase} target axes"
+        );
+        assert_eq!(
+            geometry.target().scroll_margin(),
+            scroll_margin,
+            "nested subgrid {phase} target margin"
+        );
+        assert_eq!(
+            geometry.target().snap_align(),
+            snap_align,
+            "nested subgrid {phase} target alignment"
+        );
+        assert_eq!(
+            geometry.target().snap_stop(),
+            ScrollSnapStop::Always,
+            "nested subgrid {phase} target stop"
+        );
+    };
+
     let cold = compute_grid(&mut tree, 0, input).expect("cold subgrid computes");
     let cold_subgrid = tree.layout(1).expect("cold subgrid output is staged");
+    assert_subgrid(
+        "cold",
+        cold_subgrid,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(100.4), scalar(80.4)),
+        (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
+    );
     let warm = compute_grid(&mut tree, 0, input).expect("warm subgrid computes");
     let warm_subgrid = tree.layout(1).expect("warm subgrid output is staged");
     assert_eq!(warm, cold);
     assert_eq!(warm_subgrid, cold_subgrid);
+    assert_subgrid(
+        "warm",
+        warm_subgrid,
+        Size::new(scalar(100.4), scalar(80.4)),
+        scalar(7.4),
+        Size::new(scalar(100.4), scalar(80.4)),
+        (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
+    );
 
     Compute::set_unrounded(
         &mut tree,
@@ -743,18 +1097,16 @@ where
     let rounded_geometry = rounded
         .scroll_geometry
         .expect("rounded subgrid retains canonical geometry");
-    assert_eq!(
-        rounded.content_box_size(),
-        rounded_geometry.content_box().size()
-    );
-    assert_eq!(rounded.scrollbar_size(), rounded_geometry.scrollbar_size());
-    assert_eq!(
-        rounded_geometry.target().scroll_margin(),
-        cold_subgrid
-            .scroll_geometry
-            .unwrap()
-            .target()
-            .scroll_margin()
+    assert_subgrid(
+        "rounded",
+        NodeOutputOf {
+            scroll_geometry: Some(rounded_geometry),
+            ..rounded
+        },
+        Size::new(scalar(100.0), scalar(80.0)),
+        scalar(7.0),
+        Size::new(scalar(100.0), scalar(80.0)),
+        (S::ZERO, S::ZERO, S::ZERO, S::ZERO),
     );
 }
 
