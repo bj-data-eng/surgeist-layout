@@ -1,5 +1,5 @@
 # FRI-05-C07 Public Evidence And Leaf Candidate Closure
-Status: reviewed
+Status: in_progress
 Cycle ID: `FRI-05-C07`
 Owning repository: `surgeist-layout`
 Cycle base: `91866fd0c68796a71bf739c0e5155cbc420beefe`
