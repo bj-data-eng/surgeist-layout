@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use crate::block::resolve_logical_in_flow_margin;
+use crate::block::{FloatExclusions, FloatLedgerSide, resolve_logical_in_flow_margin};
 use crate::*;
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
@@ -1548,6 +1548,445 @@ fn all_writing_mode_directions() -> [(WritingMode, Direction); 10] {
     ]
 }
 
+fn fri06_c04_float_style<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    logical_size: crate::geometry::LogicalSizeOf<S>,
+    side: Float,
+    clear: Clear,
+    logical_margin: crate::geometry::LogicalEdgesOf<S>,
+) -> NodeInputOf<S> {
+    NodeInputOf {
+        display: Display::Block,
+        writing_mode: flow_axes.writing_mode(),
+        direction: flow_axes.direction(),
+        float: side,
+        clear,
+        size: flow_axes
+            .physical_size(logical_size)
+            .map(PreferredSizeOf::px),
+        margin: flow_axes
+            .physical_edges(logical_margin)
+            .map(LengthAutoOf::px),
+        ..NodeInputOf::default()
+    }
+}
+
+fn fri06_c04_float_batch<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    children: impl IntoIterator<Item = (u32, NodeInputOf<S>)>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let logical_root_size =
+        crate::geometry::LogicalSizeOf::new(scalar_value(100.0), scalar_value(160.0));
+    let root_size = flow_axes.physical_size(logical_root_size);
+    let children = children.into_iter().collect::<Vec<_>>();
+    let child_ids = children.iter().map(|(node, _)| *node).collect::<Vec<_>>();
+    let mut tree = PublicBlockTree::default()
+        .with_children(0, child_ids)
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                size: root_size.map(PreferredSizeOf::px),
+                ..NodeInputOf::default()
+            },
+        );
+    for (node, style) in children {
+        tree = tree.with_children(node, []).with_style(node, style);
+    }
+
+    compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(root_size.map(AvailableOf::definite))
+            .expect("finite float viewport is valid"),
+    )
+    .expect("rectangular float layout succeeds")
+}
+
+fn fri06_c04_expected_float_location<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    logical_origin: crate::geometry::LogicalPointOf<S>,
+    logical_size: crate::geometry::LogicalSizeOf<S>,
+) -> Point<S> {
+    flow_axes.physical_point(
+        logical_origin,
+        logical_size,
+        flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+            scalar_value(100.0),
+            scalar_value(160.0),
+        )),
+    )
+}
+
+#[test]
+fn fri06_c04_float_place_mapped_sides_and_clear_values_all_flows_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        for (writing_mode, direction) in all_writing_mode_directions() {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let batch = fri06_c04_float_batch(
+                flow_axes,
+                [
+                    (
+                        1,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(30.0),
+                                scalar_value(20.0),
+                            ),
+                            Float::Left,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                    (
+                        2,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(25.0),
+                                scalar_value(30.0),
+                            ),
+                            Float::Right,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                    (
+                        3,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(20.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Left,
+                            Clear::Left,
+                            zero,
+                        ),
+                    ),
+                    (
+                        4,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(15.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Right,
+                            Clear::Right,
+                            zero,
+                        ),
+                    ),
+                    (
+                        5,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(10.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Left,
+                            Clear::Both,
+                            zero,
+                        ),
+                    ),
+                ],
+            );
+
+            for (node, inline, block, inline_size, block_size) in [
+                (1, 0.0, 0.0, 30.0, 20.0),
+                (2, 75.0, 0.0, 25.0, 30.0),
+                (3, 0.0, 20.0, 20.0, 10.0),
+                (4, 85.0, 30.0, 15.0, 10.0),
+                (5, 0.0, 40.0, 10.0, 10.0),
+            ] {
+                assert_eq!(
+                    public_final_output(&batch, node).location,
+                    fri06_c04_expected_float_location(
+                        flow_axes,
+                        crate::geometry::LogicalPointOf::new(
+                            scalar_value(inline),
+                            scalar_value(block),
+                        ),
+                        crate::geometry::LogicalSizeOf::new(
+                            scalar_value(inline_size),
+                            scalar_value(block_size),
+                        ),
+                    ),
+                    "mapped float placement diverged for {writing_mode:?} {direction:?} node {node}",
+                );
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_ledger_full_span_asymmetric_opposing_and_source_order_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        for (writing_mode, direction) in all_writing_mode_directions() {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let candidate_margin = crate::geometry::LogicalEdgesOf::new(
+                scalar_value(3.0),
+                scalar_value(7.0),
+                scalar_value(5.0),
+                scalar_value(5.0),
+            );
+            let batch = fri06_c04_float_batch(
+                flow_axes,
+                [
+                    (
+                        1,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(40.0),
+                                scalar_value(20.0),
+                            ),
+                            Float::Left,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                    (
+                        2,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(30.0),
+                                scalar_value(60.0),
+                            ),
+                            Float::Right,
+                            Clear::Left,
+                            zero,
+                        ),
+                    ),
+                    (
+                        3,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(40.0),
+                                scalar_value(30.0),
+                            ),
+                            Float::Left,
+                            Clear::None,
+                            candidate_margin,
+                        ),
+                    ),
+                    (
+                        4,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(20.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Left,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                ],
+            );
+
+            assert_eq!(
+                public_final_output(&batch, 3).location,
+                fri06_c04_expected_float_location(
+                    flow_axes,
+                    crate::geometry::LogicalPointOf::new(scalar_value(3.0), scalar_value(25.0),),
+                    crate::geometry::LogicalSizeOf::new(scalar_value(40.0), scalar_value(30.0),),
+                ),
+                "full-span collision was missed for {writing_mode:?} {direction:?}",
+            );
+            assert_eq!(
+                public_final_output(&batch, 4).location,
+                fri06_c04_expected_float_location(
+                    flow_axes,
+                    crate::geometry::LogicalPointOf::new(scalar_value(40.0), S::ZERO,),
+                    crate::geometry::LogicalSizeOf::new(scalar_value(20.0), scalar_value(10.0),),
+                ),
+                "same-side source order diverged for {writing_mode:?} {direction:?}",
+            );
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_ledger_evaluates_each_float_span_pair_once_per_candidate_pass() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+        let logical_container =
+            crate::geometry::LogicalSizeOf::new(scalar_value(100.0), scalar_value(120.0));
+        let mut exclusions = FloatExclusions::new(
+            flow_axes,
+            flow_axes.physical_size(logical_container),
+            scalar_value(100.0),
+            crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO),
+        );
+        exclusions.record_test_float(
+            FloatLedgerSide::LineStart,
+            FloatExclusion::MarginBox,
+            crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
+            crate::geometry::LogicalSizeOf::new(scalar_value(40.0), scalar_value(20.0)),
+            1,
+        );
+        exclusions.record_test_float(
+            FloatLedgerSide::LineEnd,
+            FloatExclusion::MarginBox,
+            crate::geometry::LogicalPointOf::new(scalar_value(70.0), scalar_value(20.0)),
+            crate::geometry::LogicalSizeOf::new(scalar_value(30.0), scalar_value(60.0)),
+            2,
+        );
+        exclusions.record_test_float(
+            FloatLedgerSide::LineStart,
+            FloatExclusion::MarginBox,
+            crate::geometry::LogicalPointOf::new(scalar_value(10.0), scalar_value(90.0)),
+            crate::geometry::LogicalSizeOf::new(scalar_value(10.0), scalar_value(10.0)),
+            3,
+        );
+        exclusions.record_test_float(
+            FloatLedgerSide::LineStart,
+            FloatExclusion::MarginBox,
+            crate::geometry::LogicalPointOf::new(scalar_value(20.0), S::ZERO),
+            crate::geometry::LogicalSizeOf::new(scalar_value(30.0), scalar_value(40.0)),
+            4,
+        );
+
+        let band = exclusions.query_band(S::ZERO, scalar_value(40.0));
+        assert_eq!(band.inline_start, scalar_value(50.0));
+        assert_eq!(band.inline_end, scalar_value(70.0));
+        assert_eq!(band.next_transition, Some(scalar_value(20.0)));
+        assert_eq!(band.evaluated, 4);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_ledger_shape_is_neither_queried_nor_approximated_as_margin_box() {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let mut exclusions = FloatExclusions::new(
+        flow_axes,
+        Size::new(100.0, 100.0),
+        100.0,
+        crate::geometry::LogicalEdgesOf::new(0.0, 0.0, 0.0, 0.0),
+    );
+    exclusions.record_test_float(
+        FloatLedgerSide::LineStart,
+        FloatExclusion::Shape,
+        crate::geometry::LogicalPointOf::new(0.0, 0.0),
+        crate::geometry::LogicalSizeOf::new(80.0, 50.0),
+        1,
+    );
+
+    let band = exclusions.query_band(0.0, 20.0);
+    assert_eq!(band.inline_start, 0.0);
+    assert_eq!(band.inline_end, 100.0);
+    assert_eq!(band.next_transition, None);
+    assert_eq!(band.evaluated, 1);
+}
+
+#[test]
+fn fri06_c04_float_progress_zero_band_exact_transition_and_overwide_side_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
+        for (writing_mode, direction) in all_writing_mode_directions() {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let batch = fri06_c04_float_batch(
+                flow_axes,
+                [
+                    (
+                        1,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(50.0),
+                                scalar_value(20.0),
+                            ),
+                            Float::Left,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                    (
+                        2,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(50.0),
+                                scalar_value(30.0),
+                            ),
+                            Float::Right,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                    (
+                        3,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(10.0),
+                                scalar_value(15.0),
+                            ),
+                            Float::Left,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                    (
+                        4,
+                        fri06_c04_float_style(
+                            flow_axes,
+                            crate::geometry::LogicalSizeOf::new(
+                                scalar_value(120.0),
+                                scalar_value(10.0),
+                            ),
+                            Float::Right,
+                            Clear::None,
+                            zero,
+                        ),
+                    ),
+                ],
+            );
+
+            assert_eq!(
+                public_final_output(&batch, 3).location,
+                fri06_c04_expected_float_location(
+                    flow_axes,
+                    crate::geometry::LogicalPointOf::new(S::ZERO, scalar_value(20.0)),
+                    crate::geometry::LogicalSizeOf::new(scalar_value(10.0), scalar_value(15.0),),
+                ),
+                "zero band did not advance to the exact transition for {writing_mode:?} {direction:?}",
+            );
+            assert_eq!(
+                public_final_output(&batch, 4).location,
+                fri06_c04_expected_float_location(
+                    flow_axes,
+                    crate::geometry::LogicalPointOf::new(scalar_value(-20.0), scalar_value(35.0),),
+                    crate::geometry::LogicalSizeOf::new(scalar_value(120.0), scalar_value(10.0),),
+                ),
+                "overwide float did not terminate on line-end for {writing_mode:?} {direction:?}",
+            );
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn assert_ordinary_block_boundaries<S: LayoutScalar>() {
     let scalar = scalar_value::<S>;
     let container_size = Size::new(scalar(100.0), scalar(100.0));
@@ -1983,7 +2422,7 @@ fn ordinary_block_boundaries_keep_padded_inline_content_coordinates_for_f64() {
     assert_ordinary_block_boundaries_keep_inline_content_coordinates::<f64>();
 }
 
-fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: LayoutScalar>() {
+fn assert_ordinary_block_boundaries_use_logical_float_bfc_cursor<S: LayoutScalar>() {
     let scalar = scalar_value::<S>;
 
     for writing_mode in [WritingMode::VerticalRl, WritingMode::VerticalLr] {
@@ -2051,19 +2490,28 @@ fn assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor<S: Layout
         )
         .expect("vertical float and BFC layout succeeds");
 
-        assert_eq!(public_final_output(&batch, 2).location.y, scalar(20.0));
-        assert_eq!(public_final_output(&batch, 3).location.y, scalar(40.0));
+        let flow_axes = FlowAxes::new(writing_mode, Direction::Ltr);
+        let containing_size = Size::splat(scalar(100.0));
+        for (node, expected_block) in [(2, 10.0), (3, 20.0)] {
+            let output = public_final_output(&batch, node);
+            assert_eq!(
+                flow_axes
+                    .logical_point(output.location, output.size, containing_size)
+                    .block,
+                scalar(expected_block),
+            );
+        }
     }
 }
 
 #[test]
-fn ordinary_block_boundaries_preserve_vertical_physical_float_bfc_cursor_for_f32() {
-    assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor::<f32>();
+fn ordinary_block_boundaries_use_vertical_logical_float_bfc_cursor_for_f32() {
+    assert_ordinary_block_boundaries_use_logical_float_bfc_cursor::<f32>();
 }
 
 #[test]
-fn ordinary_block_boundaries_preserve_vertical_physical_float_bfc_cursor_for_f64() {
-    assert_ordinary_block_boundaries_preserve_physical_float_bfc_cursor::<f64>();
+fn ordinary_block_boundaries_use_vertical_logical_float_bfc_cursor_for_f64() {
+    assert_ordinary_block_boundaries_use_logical_float_bfc_cursor::<f64>();
 }
 
 fn assert_ordinary_block_logical_sizing<S: LayoutScalar>(writing_mode: WritingMode) {

@@ -9,8 +9,8 @@ use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
-    Float, InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf, LayoutErrorOf,
-    LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant, LayoutInvalidInputOf,
+    Float, FloatExclusion, InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf,
+    LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant, LayoutInvalidInputOf,
     LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
     LengthResolutionStatus, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
     ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
@@ -327,7 +327,7 @@ struct PendingFloat<Node, S: LayoutScalar> {
     source_index: usize,
     side: Float,
     clear: Clear,
-    y: S,
+    block_start: S,
     size: Size<S>,
     content_size: Size<S>,
     border: Edges<S>,
@@ -337,138 +337,276 @@ struct PendingFloat<Node, S: LayoutScalar> {
     child_compute_geometry: Option<super::ScrollGeometryOf<S>>,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct ActiveFloat<S: LayoutScalar> {
-    side: Float,
-    x: S,
-    y: S,
-    width: S,
-    height: S,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum FloatLedgerSide {
+    LineStart,
+    LineEnd,
 }
 
-impl<S: LayoutScalar> ActiveFloat<S> {
-    fn bottom(self) -> S {
-        self.y + self.height
-    }
-
-    fn overlaps_y(self, y: S) -> bool {
-        y >= self.y && y < self.bottom()
-    }
-}
-
-#[derive(Clone, Debug)]
-struct FloatExclusions<S: LayoutScalar> {
-    content_width: S,
-    inset: Edges<S>,
-    active: Vec<ActiveFloat<S>>,
-}
-
-impl<S: LayoutScalar> FloatExclusions<S> {
-    fn new(content_width: S, inset: Edges<S>) -> Self {
-        Self {
-            content_width,
-            inset,
-            active: Vec::new(),
+impl FloatLedgerSide {
+    fn from_float(side: Float) -> Self {
+        match side {
+            Float::Left | Float::None => Self::LineStart,
+            Float::Right => Self::LineEnd,
         }
     }
 
-    fn place_float<Node>(&mut self, float: &PendingFloat<Node, S>, y: S) -> Point<S> {
-        let margin_box = float.size + float.margin.sum_axes();
-        let mut candidate_y = self.clearance_y(y, float.clear);
+    fn is_cleared_by(self, clear: Clear) -> bool {
+        match clear {
+            Clear::None => false,
+            Clear::Left => self == Self::LineStart,
+            Clear::Right => self == Self::LineEnd,
+            Clear::Both => true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PhysicalMarginBox<S: LayoutScalar> {
+    origin: Point<S>,
+    size: Size<S>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FloatLedgerEntry<S: LayoutScalar> {
+    side: FloatLedgerSide,
+    exclusion: FloatExclusion,
+    physical_margin_box: PhysicalMarginBox<S>,
+    inline_start: S,
+    inline_end: S,
+    block_start: S,
+    block_end: S,
+    source_order: usize,
+}
+
+impl<S: LayoutScalar> FloatLedgerEntry<S> {
+    fn overlaps_block_span(self, block_start: S, block_end: S) -> bool {
+        self.block_start < block_end && block_start < self.block_end
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FloatBand<S: LayoutScalar> {
+    pub(super) inline_start: S,
+    pub(super) inline_end: S,
+    pub(super) next_transition: Option<S>,
+    #[cfg(test)]
+    pub(super) evaluated: usize,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct FloatExclusions<S: LayoutScalar> {
+    flow_axes: crate::geometry::FlowAxes,
+    containing_size: Size<S>,
+    containing_inline_start: S,
+    containing_inline_end: S,
+    ledger: Vec<FloatLedgerEntry<S>>,
+}
+
+impl<S: LayoutScalar> FloatExclusions<S> {
+    pub(super) fn new(
+        flow_axes: crate::geometry::FlowAxes,
+        containing_size: Size<S>,
+        content_inline_size: S,
+        inset: LogicalEdgesOf<S>,
+    ) -> Self {
+        Self {
+            flow_axes,
+            containing_size,
+            containing_inline_start: inset.inline_start,
+            containing_inline_end: inset.inline_start + content_inline_size,
+            ledger: Vec::new(),
+        }
+    }
+
+    fn place_float<Node>(&mut self, float: &PendingFloat<Node, S>) -> Point<S> {
+        let side = FloatLedgerSide::from_float(float.side);
+        let logical_size = self.flow_axes.logical_size(float.size);
+        let logical_margin = self.flow_axes.logical_edges(float.margin);
+        let margin_box_size = LogicalSizeOf::new(
+            logical_size.inline + logical_margin.inline_sum(),
+            logical_size.block + logical_margin.block_sum(),
+        );
+        let mut candidate_block = self.clearance_block(float.block_start, float.clear);
 
         loop {
-            let (left_edge, right_edge, next_y) = self.available_band(candidate_y);
-            let available_width = (right_edge - left_edge).max(S::ZERO);
-            if margin_box.width <= available_width || next_y.is_none() {
-                let location = match float.side {
-                    Float::Left | Float::None => Point::new(
-                        left_edge + float.margin.left,
-                        candidate_y + float.margin.top,
-                    ),
-                    Float::Right => Point::new(
-                        right_edge - float.margin.right - float.size.width,
-                        candidate_y + float.margin.top,
-                    ),
+            let band = self.query_band(candidate_block, candidate_block + margin_box_size.block);
+            let available_inline = (band.inline_end - band.inline_start).max(S::ZERO);
+            if margin_box_size.inline <= available_inline || band.next_transition.is_none() {
+                let margin_box_inline = match side {
+                    FloatLedgerSide::LineStart => band.inline_start,
+                    FloatLedgerSide::LineEnd => band.inline_end - margin_box_size.inline,
                 };
-                self.active.push(ActiveFloat {
-                    side: float.side,
-                    x: location.x - float.margin.left,
-                    y: location.y - float.margin.top,
-                    width: margin_box.width,
-                    height: margin_box.height,
+                let margin_box_origin = LogicalPointOf::new(margin_box_inline, candidate_block);
+                let content_origin = LogicalPointOf::new(
+                    margin_box_inline + logical_margin.inline_start,
+                    candidate_block + logical_margin.block_start,
+                );
+                let physical_margin_origin = self.flow_axes.physical_point(
+                    margin_box_origin,
+                    margin_box_size,
+                    self.containing_size,
+                );
+                let physical_margin_size = self.flow_axes.physical_size(margin_box_size);
+                self.ledger.push(FloatLedgerEntry {
+                    side,
+                    exclusion: float.style.float_exclusion,
+                    physical_margin_box: PhysicalMarginBox {
+                        origin: physical_margin_origin,
+                        size: physical_margin_size,
+                    },
+                    inline_start: margin_box_inline,
+                    inline_end: margin_box_inline + margin_box_size.inline,
+                    block_start: candidate_block,
+                    block_end: candidate_block + margin_box_size.block,
+                    source_order: float.source_index,
                 });
-                return location;
+                return self.flow_axes.physical_point(
+                    content_origin,
+                    logical_size,
+                    self.containing_size,
+                );
             }
-            candidate_y = next_y.unwrap();
+            candidate_block = band
+                .next_transition
+                .expect("a retry is entered only with a finite later transition");
         }
     }
 
     fn place_bfc_block(
         &self,
-        y: S,
+        block_start: S,
         size: Size<S>,
         margin: Edges<S>,
         clear: Clear,
-        fallback_x: S,
+        fallback: Point<S>,
     ) -> Point<S> {
-        let mut candidate_y = self.clearance_y(y, clear);
+        let logical_size = self.flow_axes.logical_size(size);
+        let logical_margin = self.flow_axes.logical_edges(margin);
+        let margin_box_inline = logical_size.inline + logical_margin.inline_sum();
+        let margin_box_block = logical_size.block + logical_margin.block_sum();
+        let fallback_logical = self
+            .flow_axes
+            .logical_point(fallback, size, self.containing_size);
+        let mut candidate_block = self.clearance_block(block_start, clear);
         loop {
-            let (left_edge, right_edge, next_y) = self.available_band(candidate_y);
-            let margin_box_width = size.width + margin.horizontal_sum();
-            let fallback_left = fallback_x - margin.left;
-            let fallback_right = fallback_x + size.width + margin.right;
-            if margin_box_width <= (right_edge - left_edge).max(S::ZERO) {
-                if fallback_left >= left_edge && fallback_right <= right_edge {
-                    return Point::new(fallback_x, candidate_y);
-                }
-                return Point::new(left_edge + margin.left, candidate_y);
+            let band = self.query_band(candidate_block, candidate_block + margin_box_block);
+            let fallback_start = fallback_logical.inline - logical_margin.inline_start;
+            let fallback_end =
+                fallback_logical.inline + logical_size.inline + logical_margin.inline_end;
+            if margin_box_inline <= (band.inline_end - band.inline_start).max(S::ZERO) {
+                let inline =
+                    if fallback_start >= band.inline_start && fallback_end <= band.inline_end {
+                        fallback_logical.inline
+                    } else {
+                        band.inline_start + logical_margin.inline_start
+                    };
+                return self.flow_axes.physical_point(
+                    LogicalPointOf::new(inline, candidate_block),
+                    logical_size,
+                    self.containing_size,
+                );
             }
-            if let Some(next_y) = next_y {
-                candidate_y = next_y;
+            if let Some(next_transition) = band.next_transition {
+                candidate_block = next_transition;
             } else {
-                return Point::new(fallback_x, candidate_y);
+                return self.flow_axes.physical_point(
+                    LogicalPointOf::new(fallback_logical.inline, candidate_block),
+                    logical_size,
+                    self.containing_size,
+                );
             }
         }
     }
 
-    fn clearance_y(&self, y: S, clear: Clear) -> S {
-        let clears_left = matches!(clear, Clear::Left | Clear::Both);
-        let clears_right = matches!(clear, Clear::Right | Clear::Both);
-        if !clears_left && !clears_right {
-            return y;
-        }
-
-        self.active
+    fn clearance_block(&self, block: S, clear: Clear) -> S {
+        self.ledger
             .iter()
             .copied()
-            .filter(|float| {
-                (clears_left && float.side == Float::Left)
-                    || (clears_right && float.side == Float::Right)
-            })
-            .map(ActiveFloat::bottom)
-            .fold(y, S::max)
+            .filter(|entry| entry.side.is_cleared_by(clear))
+            .map(|entry| entry.block_end)
+            .fold(block, S::max)
     }
 
-    fn available_band(&self, y: S) -> (S, S, Option<S>) {
-        let mut left_edge = self.inset.left;
-        let mut right_edge = self.inset.left + self.content_width;
-        let mut next_y = None;
+    fn clearance_y(&self, block: S, clear: Clear) -> S {
+        self.clearance_block(block, clear)
+    }
 
-        for float in self
-            .active
-            .iter()
-            .copied()
-            .filter(|float| float.overlaps_y(y))
-        {
-            match float.side {
-                Float::Left => left_edge = left_edge.max(float.x + float.width),
-                Float::Right => right_edge = right_edge.min(float.x),
-                Float::None => {}
+    pub(super) fn query_band(&self, block_start: S, block_end: S) -> FloatBand<S> {
+        debug_assert!(
+            self.ledger
+                .windows(2)
+                .all(|pair| pair[0].source_order <= pair[1].source_order),
+            "float ledger remains in source order"
+        );
+        let mut inline_start = self.containing_inline_start;
+        let mut inline_end = self.containing_inline_end;
+        let mut next_transition = None;
+        #[cfg(test)]
+        let mut evaluated = 0;
+
+        for entry in self.ledger.iter().copied() {
+            #[cfg(test)]
+            {
+                evaluated += 1;
             }
-            next_y = Some(next_y.map_or(float.bottom(), |current: S| current.min(float.bottom())));
+            debug_assert!(
+                entry.physical_margin_box.origin.x.is_finite()
+                    && entry.physical_margin_box.origin.y.is_finite()
+                    && entry.physical_margin_box.size.width.is_finite()
+                    && entry.physical_margin_box.size.height.is_finite(),
+                "placed float margin boxes remain finite"
+            );
+            if entry.exclusion != FloatExclusion::MarginBox {
+                continue;
+            }
+            if !entry.overlaps_block_span(block_start, block_end) {
+                continue;
+            }
+            match entry.side {
+                FloatLedgerSide::LineStart => inline_start = inline_start.max(entry.inline_end),
+                FloatLedgerSide::LineEnd => inline_end = inline_end.min(entry.inline_start),
+            }
+            if entry.block_end > block_start {
+                next_transition = Some(
+                    next_transition
+                        .map_or(entry.block_end, |current: S| current.min(entry.block_end)),
+                );
+            }
         }
 
-        (left_edge, right_edge, next_y)
+        FloatBand {
+            inline_start,
+            inline_end,
+            next_transition,
+            #[cfg(test)]
+            evaluated,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn record_test_float(
+        &mut self,
+        side: FloatLedgerSide,
+        exclusion: FloatExclusion,
+        logical_origin: LogicalPointOf<S>,
+        logical_size: LogicalSizeOf<S>,
+        source_order: usize,
+    ) {
+        let origin =
+            self.flow_axes
+                .physical_point(logical_origin, logical_size, self.containing_size);
+        let size = self.flow_axes.physical_size(logical_size);
+        self.ledger.push(FloatLedgerEntry {
+            side,
+            exclusion,
+            physical_margin_box: PhysicalMarginBox { origin, size },
+            inline_start: logical_origin.inline,
+            inline_end: logical_origin.inline + logical_size.inline,
+            block_start: logical_origin.block,
+            block_end: logical_origin.block + logical_size.block,
+            source_order,
+        });
     }
 }
 
@@ -700,10 +838,20 @@ where
             .map(AvailableOf::<S>::definite)
             .unwrap_or(constants.available_content.width),
     );
-    let content_width = inner_inline
-        .or(constants.available_content.width.into_option())
+    let content_inline_size = inner_inline
+        .or(constants
+            .flow_axes
+            .logical_size(constants.available_content)
+            .inline
+            .into_option())
         .unwrap_or(S::ZERO);
-    let mut float_exclusions = FloatExclusions::new(content_width, constants.content_box_inset);
+    let containing_size = constants.containing_size(logical_node_inner_size);
+    let mut float_exclusions = FloatExclusions::new(
+        constants.flow_axes,
+        containing_size,
+        content_inline_size,
+        constants.logical_content_box_inset(),
+    );
     let content_box_size = Size::new(
         inner_inline
             .or(constants.node_inner_size.width)
@@ -1072,7 +1220,7 @@ where
                 source_index,
                 side: child_style.float,
                 clear: child_style.clear,
-                y: float_bfc_cursor_y,
+                block_start: cursor_block,
                 size: output.size,
                 content_size: output.content_size,
                 border: child_border,
@@ -1081,7 +1229,7 @@ where
                 style: Box::new(child_style),
                 child_compute_geometry: output.scroll_geometry,
             };
-            let float_location = float_exclusions.place_float(&pending_float, float_bfc_cursor_y);
+            let float_location = float_exclusions.place_float(&pending_float);
             if set_layout {
                 pending_floats.push(pending_float);
             }
@@ -1159,11 +1307,14 @@ where
                 .establishes_independent_formatting_context();
         let location = if establishes_bfc {
             let placement = float_exclusions.place_bfc_block(
-                float_bfc_cursor_y,
+                cursor_block,
                 output.size,
                 child_margin,
                 child_style.clear,
-                fallback_location.x - inset_offset.x,
+                Point::new(
+                    fallback_location.x - inset_offset.x,
+                    fallback_location.y - inset_offset.y,
+                ),
             );
             Point::new(placement.x + inset_offset.x, placement.y + inset_offset.y)
         } else if child_style.clear != Clear::None {
@@ -1980,13 +2131,17 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
+    let logical_container_size = constants.flow_axes.logical_size(container_size);
+    let logical_inset = constants.logical_content_box_inset();
     let mut float_exclusions = FloatExclusions::new(
-        (container_size.width - constants.content_box_inset.horizontal_sum()).max(S::ZERO),
-        constants.content_box_inset,
+        constants.flow_axes,
+        container_size,
+        (logical_container_size.inline - logical_inset.inline_sum()).max(S::ZERO),
+        logical_inset,
     );
 
     for float in floats {
-        let location = float_exclusions.place_float(float, float.y);
+        let location = float_exclusions.place_float(float);
         let scroll_geometry = retained_child_scroll_geometry(
             &float.style,
             float.size,
