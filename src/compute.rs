@@ -536,13 +536,14 @@ where
         tree: &Tree,
         node: Tree::Node,
         is_root: bool,
+        parent_accepts_inline_text: bool,
         later_behavior: &mut bool,
     ) -> LayoutResultOf<Tree::Node, (), Tree::Scalar, Tree::MeasureError>
     where
         Tree: LayoutTree,
     {
         let layout_input = tree.layout_input(node);
-        match layout_input {
+        let accepts_inline_text = match layout_input {
             LayoutInputOf::Box(_) => {
                 let input = tree.node_input(node);
                 match (
@@ -586,10 +587,9 @@ where
                     }
                     *later_behavior = true;
                 }
+                input.display.inner_display() == super::Display::Block
             }
-            LayoutInputOf::InlineText(_)
-            | LayoutInputOf::LineBreak(_)
-            | LayoutInputOf::InlineBoundary(_) => {
+            LayoutInputOf::InlineText(_) => {
                 let reason = if tree.node_input(node) != &NodeInputOf::non_box() {
                     Some(NonBoxNodeRoleError::NonCanonicalNodeInput)
                 } else if tree.child_count(node) != 0 {
@@ -605,21 +605,39 @@ where
                         LayoutInvalidInputOf::NonBoxNodeRole { reason },
                     ));
                 }
-                if matches!(layout_input, LayoutInputOf::InlineText(_)) {
+                if !parent_accepts_inline_text {
                     *later_behavior = true;
                 }
                 return Ok(());
             }
-        }
+            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
+                let reason = if tree.node_input(node) != &NodeInputOf::non_box() {
+                    Some(NonBoxNodeRoleError::NonCanonicalNodeInput)
+                } else if tree.child_count(node) != 0 {
+                    Some(NonBoxNodeRoleError::HasChildren)
+                } else if tree.has_leaf_measurement(node) {
+                    Some(NonBoxNodeRoleError::HasLeafMeasurement)
+                } else {
+                    None
+                };
+                if let Some(reason) = reason {
+                    return Err(root_input_error(
+                        node,
+                        LayoutInvalidInputOf::NonBoxNodeRole { reason },
+                    ));
+                }
+                return Ok(());
+            }
+        };
 
         for child in tree.children(node) {
-            visit(tree, child, false, later_behavior)?;
+            visit(tree, child, false, accepts_inline_text, later_behavior)?;
         }
         Ok(())
     }
 
     let mut later_behavior = false;
-    visit(tree, root, true, &mut later_behavior)?;
+    visit(tree, root, true, false, &mut later_behavior)?;
     Ok(later_behavior)
 }
 

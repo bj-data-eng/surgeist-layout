@@ -77,6 +77,345 @@ fn root_and_hidden_contexts_are_explicit_in_both_scalar_lanes() {
     assert_logical_flex_public_contexts_hidden_layout_recurses_with_containing_flow::<f64>();
 }
 
+#[derive(Clone)]
+struct Fri06C02TextTree<S: LayoutScalar> {
+    inputs: HashMap<u32, LayoutInputOf<S>>,
+    node_inputs: HashMap<u32, NodeInputOf<S>>,
+    children: HashMap<u32, Vec<u32>>,
+}
+
+impl<S: LayoutScalar> Traverse for Fri06C02TextTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri06C02TextTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.node_inputs[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.inputs[&node].clone()
+    }
+}
+
+fn fri06_c02_segment<S: LayoutScalar>(
+    id: u64,
+    extent: f64,
+    whitespace: InlineWhitespaceEdge,
+    following_break: InlineBreakOpportunityOf<S>,
+) -> ShapedInlineSegmentOf<S> {
+    ShapedInlineSegmentOf::try_new(
+        InlineSegmentId::new(id),
+        S::from_f64(extent),
+        InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap(),
+        BidiLevel::try_new(0).unwrap(),
+        whitespace,
+        following_break,
+    )
+    .unwrap()
+}
+
+fn fri06_c02_text_batch<S: LayoutScalar>(
+    segments: Vec<ShapedInlineSegmentOf<S>>,
+    available_inline: AvailableOf<S>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let root_input = NodeInputOf {
+        display: Display::Block,
+        ..NodeInputOf::default()
+    };
+    let mut inputs = HashMap::new();
+    inputs.insert(0, LayoutInputOf::box_input(root_input.clone()));
+    inputs.insert(
+        1,
+        LayoutInputOf::inline_text(InlineTextInputOf::try_new(segments).unwrap()),
+    );
+    let tree = Fri06C02TextTree {
+        inputs,
+        node_inputs: HashMap::from([(0, root_input), (1, NodeInputOf::non_box())]),
+        children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
+    };
+
+    compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(available_inline, AvailableOf::MAX_CONTENT))
+            .unwrap(),
+    )
+    .unwrap()
+}
+
+fn fri06_c02_final_node<S: LayoutScalar>(
+    batch: &CompletedLayoutBatchOf<u32, S>,
+    node: u32,
+) -> NodeOutputOf<S> {
+    batch
+        .final_entries()
+        .iter()
+        .find(|entry| entry.node() == node)
+        .unwrap()
+        .output()
+}
+
+#[test]
+fn fri06_c02_break_latest_replacement_mandatory_final_and_overwide_progress_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let replacement =
+            InlineBreakOpportunityOf::try_allowed_with_replacement(S::from_f64(5.0)).unwrap();
+        let selected = vec![
+            fri06_c02_segment(
+                1,
+                15.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::allowed(),
+            ),
+            fri06_c02_segment(2, 20.0, InlineWhitespaceEdge::Preserve, replacement),
+            fri06_c02_segment(
+                3,
+                20.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            ),
+        ];
+        let first =
+            fri06_c02_text_batch(selected.clone(), AvailableOf::definite(S::from_f64(40.0)));
+        let second = fri06_c02_text_batch(selected, AvailableOf::definite(S::from_f64(40.0)));
+        assert_eq!(first.final_entries(), second.final_entries());
+        assert_eq!(
+            first.final_inline_fragments(),
+            second.final_inline_fragments()
+        );
+        let fragments = first.final_inline_fragments();
+        assert_eq!(
+            fragments
+                .iter()
+                .map(|entry| entry.fragment().line_index())
+                .collect::<Vec<_>>(),
+            vec![0, 0, 1]
+        );
+        assert_eq!(fragments[0].fragment().replacement_inline_extent(), None);
+        assert_eq!(
+            fragments[1].fragment().replacement_inline_extent(),
+            Some(S::from_f64(5.0))
+        );
+
+        let unselected = fri06_c02_text_batch(
+            vec![
+                fri06_c02_segment(
+                    1,
+                    15.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                fri06_c02_segment(2, 20.0, InlineWhitespaceEdge::Preserve, replacement),
+                fri06_c02_segment(
+                    3,
+                    20.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ],
+            AvailableOf::definite(S::from_f64(100.0)),
+        );
+        assert!(
+            unselected
+                .final_inline_fragments()
+                .iter()
+                .all(|entry| entry.fragment().replacement_inline_extent().is_none())
+        );
+
+        let mandatory = fri06_c02_text_batch(
+            vec![
+                fri06_c02_segment(
+                    4,
+                    10.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::mandatory(),
+                ),
+                fri06_c02_segment(
+                    5,
+                    12.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::mandatory(),
+                ),
+            ],
+            AvailableOf::definite(S::from_f64(100.0)),
+        );
+        assert_eq!(
+            mandatory.final_inline_fragments()[0]
+                .fragment()
+                .line_index(),
+            0
+        );
+        assert_eq!(
+            mandatory.final_inline_fragments()[1]
+                .fragment()
+                .line_index(),
+            1
+        );
+        assert_eq!(
+            fri06_c02_final_node(&mandatory, 0).size.height,
+            S::from_f64(30.0)
+        );
+
+        let overwide = fri06_c02_text_batch(
+            vec![fri06_c02_segment(
+                6,
+                60.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )],
+            AvailableOf::definite(S::from_f64(40.0)),
+        );
+        assert_eq!(overwide.final_inline_fragments().len(), 1);
+        assert_eq!(
+            overwide.final_inline_fragments()[0]
+                .fragment()
+                .rect()
+                .size()
+                .width,
+            S::from_f64(60.0)
+        );
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c02_whitespace_discards_every_edge_mode_and_retains_empty_source_anchor_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let batch = fri06_c02_text_batch(
+            vec![
+                fri06_c02_segment(
+                    1,
+                    5.0,
+                    InlineWhitespaceEdge::DiscardAtLineStart,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+                fri06_c02_segment(
+                    2,
+                    10.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+                fri06_c02_segment(
+                    3,
+                    5.0,
+                    InlineWhitespaceEdge::DiscardAtLineEnd,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                fri06_c02_segment(
+                    4,
+                    5.0,
+                    InlineWhitespaceEdge::DiscardAtBoth,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                fri06_c02_segment(
+                    5,
+                    10.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ],
+            AvailableOf::definite(S::from_f64(20.0)),
+        );
+        let fragments = batch.final_inline_fragments();
+        assert_eq!(
+            fragments
+                .iter()
+                .map(|entry| entry.fragment().segment_id().get())
+                .collect::<Vec<_>>(),
+            vec![2, 5]
+        );
+        assert_eq!(fragments[0].fragment().line_index(), 0);
+        assert_eq!(fragments[1].fragment().line_index(), 1);
+
+        let empty = fri06_c02_text_batch(
+            vec![fri06_c02_segment(
+                7,
+                9.0,
+                InlineWhitespaceEdge::DiscardAtBoth,
+                InlineBreakOpportunityOf::mandatory(),
+            )],
+            AvailableOf::definite(S::from_f64(20.0)),
+        );
+        assert!(empty.final_inline_fragments().is_empty());
+        let text = fri06_c02_final_node(&empty, 1);
+        assert_eq!(text.source_index, SourceIndex::ZERO);
+        assert_eq!(text.location, Point::ZERO);
+        assert_eq!(text.size, Size::ZERO);
+        assert_eq!(text.content_size, Size::ZERO);
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c02_intrinsic_reports_exact_min_and_max_content_in_both_scalar_lanes() {
+    fn segments<S: LayoutScalar>() -> Vec<ShapedInlineSegmentOf<S>> {
+        vec![
+            fri06_c02_segment(
+                1,
+                12.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            ),
+            fri06_c02_segment(
+                2,
+                8.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::try_allowed_with_replacement(S::from_f64(4.0)).unwrap(),
+            ),
+            fri06_c02_segment(
+                3,
+                30.0,
+                InlineWhitespaceEdge::DiscardAtBoth,
+                InlineBreakOpportunityOf::allowed(),
+            ),
+            fri06_c02_segment(
+                4,
+                7.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::mandatory(),
+            ),
+            fri06_c02_segment(
+                5,
+                15.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            ),
+        ]
+    }
+    fn assert_lane<S: LayoutScalar>() {
+        let min = fri06_c02_text_batch(segments::<S>(), AvailableOf::MIN_CONTENT);
+        let max = fri06_c02_text_batch(segments::<S>(), AvailableOf::MAX_CONTENT);
+        assert_eq!(fri06_c02_final_node(&min, 0).size.width, S::from_f64(24.0));
+        assert_eq!(fri06_c02_final_node(&max, 0).size.width, S::from_f64(57.0));
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn assert_positive_physical_range<S: LayoutScalar>(
     range: PhysicalScrollRangeOf<S>,
     maximum: Size<S>,

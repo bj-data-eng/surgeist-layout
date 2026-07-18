@@ -3,18 +3,18 @@ use std::collections::BTreeMap;
 use super::inline::{
     AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
     InlineControlAlignment, InlineFlowOf, InlineParticipant, InlineRunInput, InlineRunReport,
-    layout_inline_run,
+    ShapedTextParticipantOf, ShapedTextRunInputOf, layout_inline_run, layout_shaped_text_run,
 };
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
-    Float, InlineBoundaryInputOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf,
-    LayoutInputOf, LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar,
-    LengthAutoOf, LengthOf, LengthResolutionOf, LengthResolutionStatus, LineBreakInputOf,
-    NodeInputOf, NodeOutputOf, Overflow, ParentFormattingContext, PhysicalBlockMarginCollapseOf,
-    Point, Position, RequestedAxis, RunMode, Size, SizingAlgorithm, SizingMode, TextAlign,
-    Traverse, VerticalAlign, WritingMode,
+    Float, InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf, LayoutErrorOf,
+    LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant, LayoutOperation, LayoutResultOf,
+    LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf, LengthResolutionStatus,
+    LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow, ParentFormattingContext,
+    PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis, RunMode, Size, SizingAlgorithm,
+    SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
 };
 use crate::compute::{
     EdgesResultExt, SizeResultExt, SizingResolutionError, resolve_maximum_optional,
@@ -292,8 +292,10 @@ where
     Tree: Compute<M>,
 {
     children.iter().copied().any(|child| {
-        let LayoutInputOf::Box(style) = tree.layout_input(child) else {
-            return false;
+        let style = match tree.layout_input(child) {
+            LayoutInputOf::InlineText(_) => return true,
+            LayoutInputOf::Box(style) => style,
+            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => return false,
         };
         if style.display == super::Display::None
             || style.position == Position::Absolute
@@ -716,13 +718,45 @@ where
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
             LayoutInputOf::InlineText(_) => {
-                return Err(crate::LayoutErrorOf::new(
-                    crate::LayoutErrorSiteOf::Node(child),
-                    crate::LayoutOperation::ChildLayout,
-                    crate::LayoutErrorKindOf::UnsupportedCapability(
-                        crate::LayoutUnsupportedCapability::LaterFriBehavior,
-                    ),
-                ));
+                let run_start = index;
+                index = inline_run_end(tree, children, constants, index + 1);
+
+                let collapsed_margin = active_margin.resolve();
+                cursor_block = cursor_block + collapsed_margin;
+                float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
+                if is_collapsing_first_margin {
+                    is_collapsing_first_margin = false;
+                }
+
+                let placement = layout_inline_run_with_clear(
+                    tree,
+                    node,
+                    children,
+                    run_start..index,
+                    InlineRunContext {
+                        source_index_start: run_start,
+                        cursor_block,
+                        constants,
+                        input,
+                        node_inner_size,
+                        set_layout,
+                    },
+                    &float_exclusions,
+                    &mut contributions,
+                )?;
+                let placement_content_size =
+                    constants.flow_axes.logical_size(placement.content_size);
+                content_size.inline = content_size.inline.max(placement_content_size.inline);
+                content_size.block = content_size.block.max(placement_content_size.block);
+                record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
+                static_positions.extend(placement.static_positions);
+                cursor_block =
+                    cursor_block + constants.flow_axes.logical_size(placement.size).block;
+                float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
+                active_margin = CollapsibleMarginOf::<S>::ZERO;
+                active_margin_can_collapse_with_parent = false;
+                all_in_flow_children_can_collapse_through = false;
+                continue;
             }
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {
@@ -1432,6 +1466,152 @@ where
     )
 }
 
+fn layout_shaped_text_child<Tree, S, M>(
+    tree: &mut Tree,
+    container: <Tree as Traverse>::Node,
+    child: <Tree as Traverse>::Node,
+    text: &super::InlineTextInputOf<S>,
+    context: InlineRunContext<'_, S>,
+    contributions: &mut ScrollContributionAccumulatorOf<S>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
+where
+    Tree: Compute<M, Scalar = S>,
+    S: LayoutScalar,
+{
+    let InlineRunContext {
+        source_index_start,
+        cursor_block,
+        constants,
+        input,
+        node_inner_size,
+        set_layout,
+    } = context;
+    let logical_node_inner_size = constants.flow_axes.logical_size(node_inner_size);
+    let available_inline_extent = logical_node_inner_size
+        .inline
+        .map(AvailableOf::<S>::definite)
+        .unwrap_or(
+            constants
+                .flow_axes
+                .logical_size(constants.available_content)
+                .inline,
+        );
+    let participants = text
+        .segments()
+        .iter()
+        .copied()
+        .map(|segment| ShapedTextParticipantOf {
+            source_index: source_index_start,
+            segment,
+        })
+        .collect();
+    let report = layout_shaped_text_run(ShapedTextRunInputOf {
+        available_inline_extent,
+        participants,
+    });
+    let report_logical_size = LogicalSizeOf::new(report.inline_extent, report.block_extent);
+    let report_size = constants.flow_axes.physical_size(report_logical_size);
+    let run_offset = inline_run_offset(
+        report.inline_extent,
+        constants,
+        logical_node_inner_size.inline,
+    );
+    let logical_content_box_inset = constants.logical_content_box_inset();
+    let containing_size = constants.containing_size(logical_node_inner_size);
+    let project_point = |inline: S, block: S, size: LogicalSizeOf<S>| {
+        constants.flow_axes.physical_point(
+            LogicalPointOf::new(
+                logical_content_box_inset.inline_start + run_offset + inline,
+                cursor_block + block,
+            ),
+            size,
+            containing_size,
+        )
+    };
+
+    let mut fragments = Vec::with_capacity(report.fragments.len());
+    let mut union_min = None;
+    let mut union_max = None;
+    for source in &report.fragments {
+        let logical_size = LogicalSizeOf::new(source.inline_extent, source.block_extent);
+        let size = constants.flow_axes.physical_size(logical_size);
+        let location = project_point(source.inline_start, source.block_start, logical_size);
+        let rect = super::ScrollRectOf::try_new(location, size).map_err(|error| {
+            block_inline_geometry_error(container, Some(child), input.run_mode(), error)
+        })?;
+        let baseline = project_point(
+            source.inline_start,
+            source.baseline,
+            LogicalSizeOf::new(S::ZERO, S::ZERO),
+        );
+        union_min = Some(union_min.map_or(location, |current: Point<S>| {
+            Point::new(current.x.min(location.x), current.y.min(location.y))
+        }));
+        let maximum = Point::new(location.x + size.width, location.y + size.height);
+        union_max = Some(union_max.map_or(maximum, |current: Point<S>| {
+            Point::new(current.x.max(maximum.x), current.y.max(maximum.y))
+        }));
+        fragments.push(InlineFragmentOutputOf::new(
+            source.segment_id,
+            rect,
+            baseline,
+            source.line_index,
+            source.visual_index,
+            source.replacement_inline_extent,
+        ));
+    }
+
+    let anchor = report
+        .anchors
+        .iter()
+        .find(|anchor| anchor.source_index == source_index_start)
+        .map_or(Point::ZERO, |anchor| {
+            project_point(
+                anchor.inline_start,
+                anchor.block_start,
+                LogicalSizeOf::new(S::ZERO, S::ZERO),
+            )
+        });
+    let (text_location, text_size) = match (union_min, union_max) {
+        (Some(minimum), Some(maximum)) => (
+            minimum,
+            Size::new(maximum.x - minimum.x, maximum.y - minimum.y),
+        ),
+        _ => (anchor, Size::ZERO),
+    };
+
+    if set_layout {
+        tree.set_unrounded(
+            child,
+            NodeOutputOf::<S> {
+                source_index: crate::SourceIndex::new(source_index_start),
+                location: text_location,
+                size: text_size,
+                content_size: text_size,
+                ..NodeOutputOf::new()
+            },
+        );
+        tree.set_unrounded_inline_fragment_state(child, Some(fragments));
+        let direct_line = super::ScrollRectOf::try_new(
+            project_point(S::ZERO, S::ZERO, report_logical_size),
+            report_size,
+        )
+        .map_err(|error| {
+            block_inline_geometry_error(container, Some(child), input.run_mode(), error)
+        })?;
+        contributions.include_direct_line(direct_line);
+    }
+
+    Ok(InlineRunPlacement {
+        size: report_size,
+        content_size: report_size,
+        static_positions: Vec::new(),
+        baselines: BaselinesOf::NONE,
+        first_baseline: report.first_baseline,
+        last_baseline: report.last_baseline,
+    })
+}
+
 fn layout_inline_run_children<Tree, S, M>(
     tree: &mut Tree,
     container: <Tree as Traverse>::Node,
@@ -1443,6 +1623,37 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
+    if let Some((text_offset, child, text)) =
+        run.iter()
+            .copied()
+            .enumerate()
+            .find_map(|(offset, child)| match tree.layout_input(child) {
+                LayoutInputOf::InlineText(text) => Some((offset, child, text)),
+                _ => None,
+            })
+    {
+        if run.len() != 1 {
+            return Err(crate::LayoutErrorOf::new(
+                crate::LayoutErrorSiteOf::Node(child),
+                crate::LayoutOperation::ChildLayout,
+                crate::LayoutErrorKindOf::UnsupportedCapability(
+                    crate::LayoutUnsupportedCapability::LaterFriBehavior,
+                ),
+            ));
+        }
+        return layout_shaped_text_child(
+            tree,
+            container,
+            child,
+            &text,
+            InlineRunContext {
+                source_index_start: context.source_index_start + text_offset,
+                ..context
+            },
+            contributions,
+        );
+    }
+
     let InlineRunContext {
         source_index_start,
         cursor_block,

@@ -1,6 +1,7 @@
 use super::{
-    AvailableOf, Clear, DefaultScalar, Direction, Edges, InlineBoundaryKind, InlineMetricsOf,
-    LayoutScalar, Point, Size, VerticalAlign, WritingMode,
+    AvailableOf, Clear, DefaultScalar, Direction, Edges, InlineBoundaryKind, InlineBreakKind,
+    InlineMetricsOf, InlineSegmentId, InlineWhitespaceEdge, LayoutScalar, Point,
+    ShapedInlineSegmentOf, Size, VerticalAlign, WritingMode,
 };
 use crate::geometry::{FlowAxes, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 
@@ -10,6 +11,309 @@ pub(super) struct InlineRunInput<S: LayoutScalar = DefaultScalar> {
     pub writing_mode: WritingMode,
     pub direction: Direction,
     pub items: Vec<InlineParticipant<S>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ShapedTextParticipantOf<S: LayoutScalar = DefaultScalar> {
+    pub source_index: usize,
+    pub segment: ShapedInlineSegmentOf<S>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ShapedTextRunInputOf<S: LayoutScalar = DefaultScalar> {
+    pub available_inline_extent: AvailableOf<S>,
+    pub participants: Vec<ShapedTextParticipantOf<S>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ShapedTextFragmentSourceOf<S: LayoutScalar = DefaultScalar> {
+    pub source_index: usize,
+    pub segment_id: InlineSegmentId,
+    pub inline_start: S,
+    pub block_start: S,
+    pub inline_extent: S,
+    pub block_extent: S,
+    pub baseline: S,
+    pub line_index: usize,
+    pub visual_index: usize,
+    pub replacement_inline_extent: Option<S>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct ShapedTextAnchorOf<S: LayoutScalar = DefaultScalar> {
+    pub source_index: usize,
+    pub inline_start: S,
+    pub block_start: S,
+    pub baseline: S,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct ShapedTextRunReportOf<S: LayoutScalar = DefaultScalar> {
+    pub inline_extent: S,
+    pub block_extent: S,
+    pub first_baseline: Option<S>,
+    pub last_baseline: Option<S>,
+    pub fragments: Vec<ShapedTextFragmentSourceOf<S>>,
+    pub anchors: Vec<ShapedTextAnchorOf<S>>,
+}
+
+#[derive(Clone, Copy)]
+struct SelectedTextSegmentOf<S: LayoutScalar> {
+    participant: ShapedTextParticipantOf<S>,
+    discarded: bool,
+    replacement_inline_extent: Option<S>,
+}
+
+#[derive(Clone)]
+struct SelectedTextLineOf<S: LayoutScalar> {
+    segments: Vec<SelectedTextSegmentOf<S>>,
+    baseline: S,
+    after_baseline: S,
+    used_inline_extent: S,
+}
+
+fn discards_at_start(edge: InlineWhitespaceEdge) -> bool {
+    matches!(
+        edge,
+        InlineWhitespaceEdge::DiscardAtLineStart | InlineWhitespaceEdge::DiscardAtBoth
+    )
+}
+
+fn discards_at_end(edge: InlineWhitespaceEdge) -> bool {
+    matches!(
+        edge,
+        InlineWhitespaceEdge::DiscardAtLineEnd | InlineWhitespaceEdge::DiscardAtBoth
+    )
+}
+
+fn select_text_line<S: LayoutScalar>(
+    participants: &[ShapedTextParticipantOf<S>],
+    selected_break: bool,
+    strut: Option<InlineMetricsOf<S>>,
+) -> SelectedTextLineOf<S> {
+    let mut discarded = vec![false; participants.len()];
+    for (index, participant) in participants.iter().enumerate() {
+        if discards_at_start(participant.segment.whitespace_edge()) {
+            discarded[index] = true;
+        } else {
+            break;
+        }
+    }
+    for (index, participant) in participants.iter().enumerate().rev() {
+        if discards_at_end(participant.segment.whitespace_edge()) {
+            discarded[index] = true;
+        } else {
+            break;
+        }
+    }
+
+    let mut baseline = strut.map_or(S::ZERO, InlineMetricsOf::baseline);
+    let mut after_baseline = strut.map_or(S::ZERO, InlineMetricsOf::after_baseline);
+    let mut used_inline_extent = S::ZERO;
+    let selected_replacement = selected_break
+        .then(|| {
+            participants.last().and_then(|participant| {
+                participant
+                    .segment
+                    .following_break()
+                    .replacement_inline_extent()
+            })
+        })
+        .flatten();
+    let segments = participants
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, participant)| {
+            if !discarded[index] {
+                let metrics = participant.segment.metrics();
+                baseline = baseline.max(metrics.baseline());
+                after_baseline = after_baseline.max(metrics.after_baseline());
+                used_inline_extent = used_inline_extent + participant.segment.inline_extent();
+            }
+            let replacement_inline_extent = (index + 1 == participants.len())
+                .then_some(selected_replacement)
+                .flatten();
+            if let Some(replacement) = replacement_inline_extent {
+                used_inline_extent = used_inline_extent + replacement;
+            }
+            SelectedTextSegmentOf {
+                participant,
+                discarded: discarded[index],
+                replacement_inline_extent,
+            }
+        })
+        .collect();
+
+    SelectedTextLineOf {
+        segments,
+        baseline,
+        after_baseline,
+        used_inline_extent,
+    }
+}
+
+fn shaped_text_min_content<S: LayoutScalar>(participants: &[ShapedTextParticipantOf<S>]) -> S {
+    let mut maximum = S::ZERO;
+    let mut group_start = 0;
+    for (index, participant) in participants.iter().enumerate() {
+        if participant.segment.following_break().kind() == InlineBreakKind::Prohibited {
+            continue;
+        }
+        let line = select_text_line(&participants[group_start..=index], true, None);
+        maximum = maximum.max(line.used_inline_extent);
+        group_start = index + 1;
+    }
+    if group_start < participants.len() {
+        maximum = maximum
+            .max(select_text_line(&participants[group_start..], false, None).used_inline_extent);
+    }
+    maximum
+}
+
+fn shaped_text_max_content<S: LayoutScalar>(participants: &[ShapedTextParticipantOf<S>]) -> S {
+    let mut maximum = S::ZERO;
+    let mut group_start = 0;
+    for (index, participant) in participants.iter().enumerate() {
+        if participant.segment.following_break().kind() != InlineBreakKind::Mandatory {
+            continue;
+        }
+        maximum = maximum.max(
+            select_text_line(&participants[group_start..=index], false, None).used_inline_extent,
+        );
+        group_start = index + 1;
+    }
+    if group_start < participants.len() {
+        maximum = maximum
+            .max(select_text_line(&participants[group_start..], false, None).used_inline_extent);
+    }
+    maximum
+}
+
+fn pending_text_inline_extent<S: LayoutScalar>(participants: &[ShapedTextParticipantOf<S>]) -> S {
+    let mut at_line_start = true;
+    participants.iter().fold(S::ZERO, |extent, participant| {
+        if at_line_start && discards_at_start(participant.segment.whitespace_edge()) {
+            return extent;
+        }
+        at_line_start = false;
+        extent + participant.segment.inline_extent()
+    })
+}
+
+#[must_use]
+pub(super) fn layout_shaped_text_run<S: LayoutScalar>(
+    input: ShapedTextRunInputOf<S>,
+) -> ShapedTextRunReportOf<S> {
+    let available = match input.available_inline_extent {
+        AvailableOf::Definite(value) => value,
+        AvailableOf::MinContent => shaped_text_min_content(&input.participants),
+        AvailableOf::MaxContent => shaped_text_max_content(&input.participants),
+    };
+    let wraps = !matches!(input.available_inline_extent, AvailableOf::MaxContent);
+    let mut selected_lines = Vec::new();
+    let mut line_start = 0;
+    let mut scan = 0;
+    let mut latest_allowed = None;
+    let mut pending_strut = None;
+
+    while scan < input.participants.len() {
+        let participant = input.participants[scan];
+        let candidate_inline_extent =
+            pending_text_inline_extent(&input.participants[line_start..=scan]);
+        if wraps && candidate_inline_extent > available {
+            if let Some(break_end) = latest_allowed {
+                selected_lines.push(select_text_line(
+                    &input.participants[line_start..break_end],
+                    true,
+                    pending_strut.take(),
+                ));
+                line_start = break_end;
+                scan = line_start;
+                latest_allowed = None;
+                continue;
+            }
+        }
+
+        scan += 1;
+        match participant.segment.following_break().kind() {
+            InlineBreakKind::Allowed | InlineBreakKind::AllowedWithReplacement => {
+                latest_allowed = Some(scan);
+            }
+            InlineBreakKind::Mandatory => {
+                selected_lines.push(select_text_line(
+                    &input.participants[line_start..scan],
+                    true,
+                    pending_strut.take(),
+                ));
+                pending_strut = Some(participant.segment.metrics());
+                line_start = scan;
+                latest_allowed = None;
+            }
+            InlineBreakKind::Prohibited => {}
+        }
+    }
+
+    if line_start < input.participants.len() {
+        selected_lines.push(select_text_line(
+            &input.participants[line_start..],
+            false,
+            pending_strut.take(),
+        ));
+    } else if let Some(strut) = pending_strut {
+        selected_lines.push(select_text_line(&[], false, Some(strut)));
+    }
+
+    let mut block_start = S::ZERO;
+    let mut inline_extent = S::ZERO;
+    let mut first_baseline = None;
+    let mut last_baseline = None;
+    let mut fragments = Vec::new();
+    let mut anchors = Vec::new();
+    for (line_index, line) in selected_lines.into_iter().enumerate() {
+        let line_baseline = block_start + line.baseline;
+        first_baseline.get_or_insert(line_baseline);
+        last_baseline = Some(line_baseline);
+        inline_extent = inline_extent.max(line.used_inline_extent);
+        let mut inline_start = S::ZERO;
+        for (visual_index, selected) in line.segments.into_iter().enumerate() {
+            anchors.push(ShapedTextAnchorOf {
+                source_index: selected.participant.source_index,
+                inline_start,
+                block_start,
+                baseline: line_baseline,
+            });
+            if selected.discarded {
+                continue;
+            }
+            let metrics = selected.participant.segment.metrics();
+            fragments.push(ShapedTextFragmentSourceOf {
+                source_index: selected.participant.source_index,
+                segment_id: selected.participant.segment.segment_id(),
+                inline_start,
+                block_start: line_baseline - metrics.baseline(),
+                inline_extent: selected.participant.segment.inline_extent(),
+                block_extent: metrics.line_extent(),
+                baseline: line_baseline,
+                line_index,
+                visual_index,
+                replacement_inline_extent: selected.replacement_inline_extent,
+            });
+            inline_start = inline_start
+                + selected.participant.segment.inline_extent()
+                + selected.replacement_inline_extent.unwrap_or(S::ZERO);
+        }
+        block_start = block_start + line.baseline + line.after_baseline;
+    }
+
+    ShapedTextRunReportOf {
+        inline_extent,
+        block_extent: block_start,
+        first_baseline,
+        last_baseline,
+        fragments,
+        anchors,
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
