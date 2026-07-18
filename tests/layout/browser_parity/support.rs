@@ -1020,6 +1020,13 @@ fn to_layout_input_in_flow(
 }
 
 fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
+    for name in ["overflow", "scroll-padding", "scroll-margin", "transform"] {
+        if attrs.get(name).is_some() {
+            return Err(Error::new(format!(
+                "unsupported authored fixture attribute `{name}`"
+            )));
+        }
+    }
     let mut input = layout::NodeInput {
         overflow: parse_computed_overflow(attrs)?,
         ..layout::NodeInput::default()
@@ -1054,6 +1061,34 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
     if let Some(value) = attrs.get("scrollbar-width") {
         input.scrollbar_width = layout::ScrollbarWidth::try_new(parse_number(value)?)
             .map_err(|source| Error::new(source.to_string()))?;
+    }
+    if let Some(value) = attrs.get("overflow-clip-margin") {
+        input.overflow_clip_margin = parse_overflow_clip_margin(value)?;
+    }
+    if let Some(value) = attrs.get("scrollbar-gutter") {
+        input.scrollbar_gutter = parse_scrollbar_gutter(value)?;
+    }
+    input.scroll_padding = layout::ScrollPadding::new(
+        parse_scroll_padding(attrs.get("scroll-padding-top"))?,
+        parse_scroll_padding(attrs.get("scroll-padding-right"))?,
+        parse_scroll_padding(attrs.get("scroll-padding-bottom"))?,
+        parse_scroll_padding(attrs.get("scroll-padding-left"))?,
+    );
+    input.scroll_margin = layout::ScrollMargin::try_new(
+        parse_scroll_margin(attrs.get("scroll-margin-top"))?,
+        parse_scroll_margin(attrs.get("scroll-margin-right"))?,
+        parse_scroll_margin(attrs.get("scroll-margin-bottom"))?,
+        parse_scroll_margin(attrs.get("scroll-margin-left"))?,
+    )
+    .map_err(|source| Error::new(source.to_string()))?;
+    if let Some(value) = attrs.get("scroll-snap-type") {
+        input.scroll_snap_type = parse_scroll_snap_type(value)?;
+    }
+    if let Some(value) = attrs.get("scroll-snap-align") {
+        input.scroll_snap_align = parse_scroll_snap_align(value)?;
+    }
+    if let Some(value) = attrs.get("scroll-snap-stop") {
+        input.scroll_snap_stop = parse_scroll_snap_stop(value)?;
     }
     if let Some(value) = attrs.get("text-align") {
         input.text_align = parse_text_align(value)?;
@@ -1535,6 +1570,128 @@ fn parse_computed_overflow(attrs: &StyleAttrs) -> Result<layout::ComputedOverflo
 
     layout::ComputedOverflow::try_new(x, y)
         .map_err(|error| Error::new(format!("invalid computed overflow pair: {error}")))
+}
+
+fn parse_overflow_clip_margin(raw: &str) -> Result<layout::OverflowClipMargin, Error> {
+    let parts = raw.split_whitespace().collect::<Vec<_>>();
+    let (clip_box, length) = match parts.as_slice() {
+        [length] => (layout::OverflowClipBox::PaddingBox, *length),
+        [clip_box, length] => {
+            let clip_box = match *clip_box {
+                "content-box" => layout::OverflowClipBox::ContentBox,
+                "padding-box" => layout::OverflowClipBox::PaddingBox,
+                "border-box" => layout::OverflowClipBox::BorderBox,
+                _ => {
+                    return Err(Error::new(format!(
+                        "unsupported overflow clip box `{clip_box}`"
+                    )));
+                }
+            };
+            (clip_box, *length)
+        }
+        _ => {
+            return Err(Error::new(format!(
+                "unsupported overflow clip margin `{raw}`"
+            )));
+        }
+    };
+    let margin = parse_px(length, "overflow clip margin")?;
+    layout::OverflowClipMargin::try_new(clip_box, margin)
+        .map_err(|source| Error::new(source.to_string()))
+}
+
+fn parse_scrollbar_gutter(raw: &str) -> Result<layout::ScrollbarGutter, Error> {
+    match raw {
+        "auto" => Ok(layout::ScrollbarGutter::Auto),
+        "stable" => Ok(layout::ScrollbarGutter::Stable),
+        "stable both-edges" => Ok(layout::ScrollbarGutter::StableBothEdges),
+        _ => Err(Error::new(format!("unsupported scrollbar gutter `{raw}`"))),
+    }
+}
+
+fn parse_scroll_padding(raw: Option<&str>) -> Result<layout::ScrollPaddingValue, Error> {
+    let Some(raw) = raw else {
+        return Ok(layout::ScrollPaddingValue::AUTO);
+    };
+    if raw == "auto" {
+        return Ok(layout::ScrollPaddingValue::AUTO);
+    }
+    let value = if raw.starts_with("calc(") {
+        parse_calc_expression(raw)?
+    } else if let Some(px) = raw.strip_suffix("px") {
+        length_percentage_px(parse_number(px)?, raw)?
+    } else if let Some(percent) = raw.strip_suffix('%') {
+        length_percentage_percent(parse_number(percent)? / 100.0, raw)?
+    } else {
+        return Err(Error::new(format!("unsupported scroll padding `{raw}`")));
+    };
+    Ok(layout::ScrollPaddingValue::value(value))
+}
+
+fn parse_scroll_margin(raw: Option<&str>) -> Result<Scalar, Error> {
+    raw.map_or(Ok(0.0), |raw| parse_px(raw, "scroll margin"))
+}
+
+fn parse_px(raw: &str, property: &str) -> Result<Scalar, Error> {
+    raw.strip_suffix("px")
+        .ok_or_else(|| Error::new(format!("unsupported {property} `{raw}`")))
+        .and_then(parse_number)
+}
+
+fn parse_scroll_snap_type(raw: &str) -> Result<layout::ScrollSnapType, Error> {
+    if raw == "none" {
+        return Ok(layout::ScrollSnapType::None);
+    }
+    let parts = raw.split_whitespace().collect::<Vec<_>>();
+    let [axis, strictness] = parts.as_slice() else {
+        return Err(Error::new(format!("unsupported scroll snap type `{raw}`")));
+    };
+    let axis = match *axis {
+        "x" => layout::ScrollSnapAxis::X,
+        "y" => layout::ScrollSnapAxis::Y,
+        "block" => layout::ScrollSnapAxis::Block,
+        "inline" => layout::ScrollSnapAxis::Inline,
+        "both" => layout::ScrollSnapAxis::Both,
+        _ => return Err(Error::new(format!("unsupported scroll snap axis `{axis}`"))),
+    };
+    let strictness = match *strictness {
+        "proximity" => layout::ScrollSnapStrictness::Proximity,
+        "mandatory" => layout::ScrollSnapStrictness::Mandatory,
+        _ => {
+            return Err(Error::new(format!(
+                "unsupported scroll snap strictness `{strictness}`"
+            )));
+        }
+    };
+    Ok(layout::ScrollSnapType::Enabled { axis, strictness })
+}
+
+fn parse_scroll_snap_align(raw: &str) -> Result<layout::ScrollSnapAlign, Error> {
+    let parts = raw.split_whitespace().collect::<Vec<_>>();
+    let [block, inline] = parts.as_slice() else {
+        return Err(Error::new(format!("unsupported scroll snap align `{raw}`")));
+    };
+    let parse_value = |value| match value {
+        "none" => Ok(layout::ScrollSnapAlignValue::None),
+        "start" => Ok(layout::ScrollSnapAlignValue::Start),
+        "end" => Ok(layout::ScrollSnapAlignValue::End),
+        "center" => Ok(layout::ScrollSnapAlignValue::Center),
+        _ => Err(Error::new(format!(
+            "unsupported scroll snap alignment `{value}`"
+        ))),
+    };
+    Ok(layout::ScrollSnapAlign::new(
+        parse_value(block)?,
+        parse_value(inline)?,
+    ))
+}
+
+fn parse_scroll_snap_stop(raw: &str) -> Result<layout::ScrollSnapStop, Error> {
+    match raw {
+        "normal" => Ok(layout::ScrollSnapStop::Normal),
+        "always" => Ok(layout::ScrollSnapStop::Always),
+        _ => Err(Error::new(format!("unsupported scroll snap stop `{raw}`"))),
+    }
 }
 
 fn parse_text_align(raw: &str) -> Result<layout::TextAlign, Error> {
@@ -2668,6 +2825,152 @@ mod tests {
 
     fn observed_overflow_axes(input: &layout::NodeInput) -> (layout::Overflow, layout::Overflow) {
         (input.overflow.x(), input.overflow.y())
+    }
+
+    fn fri05_c06_attrs(values: &[(&str, &str)]) -> StyleAttrs {
+        StyleAttrs {
+            attrs: values
+                .iter()
+                .map(|(name, value)| ((*name).to_string(), (*value).to_string()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn fri05_c06_parser_lowers_finite_scroll_fields_through_production_types() {
+        let input = test_node_input(fri05_c06_attrs(&[
+            ("overflow-x", "hidden"),
+            ("overflow-y", "auto"),
+            ("overflow-clip-margin", "content-box 3.5px"),
+            ("scrollbar-gutter", "stable both-edges"),
+            ("scroll-padding-top", "auto"),
+            ("scroll-padding-right", "12px"),
+            ("scroll-padding-bottom", "25%"),
+            ("scroll-padding-left", "calc(4px + 10%)"),
+            ("scroll-margin-top", "-1px"),
+            ("scroll-margin-right", "2px"),
+            ("scroll-margin-bottom", "3.5px"),
+            ("scroll-margin-left", "-4px"),
+            ("scroll-snap-type", "inline mandatory"),
+            ("scroll-snap-align", "start center"),
+            ("scroll-snap-stop", "always"),
+        ]))
+        .expect("finite computed scroll fixture fields should lower");
+
+        assert_eq!(
+            observed_overflow_axes(&input),
+            (layout::Overflow::Hidden, layout::Overflow::Auto)
+        );
+        assert_eq!(
+            input.overflow_clip_margin.clip_box(),
+            layout::OverflowClipBox::ContentBox
+        );
+        assert_eq!(input.overflow_clip_margin.margin(), 3.5);
+        assert_eq!(
+            input.scrollbar_gutter,
+            layout::ScrollbarGutter::StableBothEdges
+        );
+        assert!(input.scroll_padding.top().is_auto());
+        for (actual, px, percent) in [
+            (input.scroll_padding.right(), 12.0, 0.0),
+            (input.scroll_padding.bottom(), 0.0, 0.25),
+            (input.scroll_padding.left(), 4.0, 0.1),
+        ] {
+            let layout::ScrollPaddingValue::Value(actual) = actual else {
+                panic!("expected numeric scroll padding, got {actual:?}");
+            };
+            assert_eq!(
+                (actual.absolute_px(), actual.percent_fraction()),
+                (px, percent)
+            );
+        }
+        assert_eq!(
+            (
+                input.scroll_margin.top(),
+                input.scroll_margin.right(),
+                input.scroll_margin.bottom(),
+                input.scroll_margin.left(),
+            ),
+            (-1.0, 2.0, 3.5, -4.0)
+        );
+        assert_eq!(
+            input.scroll_snap_type,
+            layout::ScrollSnapType::Enabled {
+                axis: layout::ScrollSnapAxis::Inline,
+                strictness: layout::ScrollSnapStrictness::Mandatory,
+            }
+        );
+        assert_eq!(
+            input.scroll_snap_align,
+            layout::ScrollSnapAlign::new(
+                layout::ScrollSnapAlignValue::Start,
+                layout::ScrollSnapAlignValue::Center,
+            )
+        );
+        assert_eq!(input.scroll_snap_stop, layout::ScrollSnapStop::Always);
+    }
+
+    #[test]
+    fn fri05_c06_parser_accepts_exact_keyword_domains_and_initials() {
+        for overflow in ["visible", "clip", "hidden", "scroll", "auto"] {
+            assert!(
+                parse_overflow(overflow).is_ok(),
+                "rejected overflow {overflow}"
+            );
+        }
+        for (name, value) in [
+            ("overflow-clip-margin", "border-box 0px"),
+            ("scrollbar-gutter", "stable"),
+            ("scroll-snap-type", "both proximity"),
+            ("scroll-snap-align", "none end"),
+            ("scroll-snap-stop", "normal"),
+        ] {
+            test_node_input(fri05_c06_attrs(&[(name, value)]))
+                .unwrap_or_else(|error| panic!("rejected {name}={value:?}: {error}"));
+        }
+    }
+
+    #[test]
+    fn fri05_c06_parser_rejects_ambiguous_or_non_computed_scroll_syntax() {
+        for (name, value) in [
+            ("overflow", "hidden"),
+            ("scroll-padding", "1px 2px"),
+            ("scroll-margin", "1px"),
+            ("transform", "translateX(1px)"),
+            ("overflow-clip-margin", "inherit"),
+            ("overflow-clip-margin", "padding-box -1px"),
+            ("overflow-clip-margin", "padding-box 1em"),
+            ("overflow-clip-margin", "padding-box var(--clip)"),
+            ("scrollbar-gutter", "stable force"),
+            ("scroll-padding-top", "initial"),
+            ("scroll-padding-top", "1em"),
+            ("scroll-padding-top", "var(--padding)"),
+            ("scroll-padding-top", "NaNpx"),
+            ("scroll-margin-left", "10%"),
+            ("scroll-margin-left", "infpx"),
+            ("scroll-snap-type", "x"),
+            ("scroll-snap-type", "x mandatory extra"),
+            ("scroll-snap-align", "start"),
+            ("scroll-snap-align", "start center end"),
+            ("scroll-snap-stop", "inherit"),
+        ] {
+            assert!(
+                test_node_input(fri05_c06_attrs(&[(name, value)])).is_err(),
+                "accepted {name}={value:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn fri05_c06_parser_rejects_noncanonical_computed_overflow_constructor_pairs() {
+        assert!(
+            layout::ComputedOverflow::try_new(layout::Overflow::Visible, layout::Overflow::Auto)
+                .is_err()
+        );
+        assert!(
+            layout::ComputedOverflow::try_new(layout::Overflow::Clip, layout::Overflow::Scroll)
+                .is_err()
+        );
     }
 
     fn fri05_c06_scroll_expectation(width: Scalar, height: Scalar) -> Golden {

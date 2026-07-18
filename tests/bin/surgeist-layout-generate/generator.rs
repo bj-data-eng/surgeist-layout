@@ -4082,19 +4082,17 @@ fn input_attrs_with_parent_writing_mode(
         string(style, "flexWrap"),
         Some("nowrap"),
     );
-    maybe(
-        &mut attrs,
-        "overflow-x",
-        string(style, "overflowX"),
-        Some("visible"),
-    );
-    maybe(
-        &mut attrs,
-        "overflow-y",
-        string(style, "overflowY"),
-        Some("visible"),
-    );
-    if non_default_overflow(style, "overflowX") || non_default_overflow(style, "overflowY") {
+    let non_default_overflow =
+        non_default_overflow(style, "overflowX") || non_default_overflow(style, "overflowY");
+    if non_default_overflow {
+        attrs.push((
+            "overflow-x",
+            string(style, "overflowX").unwrap_or_else(|| "visible".to_string()),
+        ));
+        attrs.push((
+            "overflow-y",
+            string(style, "overflowY").unwrap_or_else(|| "visible".to_string()),
+        ));
         maybe(
             &mut attrs,
             "scrollbar-width",
@@ -4102,6 +4100,48 @@ fn input_attrs_with_parent_writing_mode(
             None,
         );
     }
+    maybe(
+        &mut attrs,
+        "overflow-clip-margin",
+        string(style, "overflowClipMargin"),
+        Some("0px"),
+    );
+    maybe(
+        &mut attrs,
+        "scrollbar-gutter",
+        string(style, "scrollbarGutter"),
+        Some("auto"),
+    );
+    for (attr, field, initial) in [
+        ("scroll-padding-top", "scrollPaddingTop", "auto"),
+        ("scroll-padding-right", "scrollPaddingRight", "auto"),
+        ("scroll-padding-bottom", "scrollPaddingBottom", "auto"),
+        ("scroll-padding-left", "scrollPaddingLeft", "auto"),
+        ("scroll-margin-top", "scrollMarginTop", "0px"),
+        ("scroll-margin-right", "scrollMarginRight", "0px"),
+        ("scroll-margin-bottom", "scrollMarginBottom", "0px"),
+        ("scroll-margin-left", "scrollMarginLeft", "0px"),
+    ] {
+        maybe(&mut attrs, attr, string(style, field), Some(initial));
+    }
+    maybe(
+        &mut attrs,
+        "scroll-snap-type",
+        string(style, "scrollSnapType"),
+        Some("none"),
+    );
+    maybe(
+        &mut attrs,
+        "scroll-snap-align",
+        string(style, "scrollSnapAlign"),
+        Some("none"),
+    );
+    maybe(
+        &mut attrs,
+        "scroll-snap-stop",
+        string(style, "scrollSnapStop"),
+        Some("normal"),
+    );
     maybe(&mut attrs, "text-align", string(style, "textAlign"), None);
     maybe(
         &mut attrs,
@@ -7902,6 +7942,99 @@ for (const [writingMode, direction, start, end, width, height] of [
         }));
 
         assert!(!attrs.iter().any(|(key, _)| *key == "scrollbar-width"));
+    }
+
+    #[test]
+    fn fri05_c06_serializer_emits_atomic_overflow_and_all_non_default_scroll_fields() {
+        let attrs = input_attrs(&json!({
+            "style": {
+                "overflowX": "hidden",
+                "overflowY": "auto",
+                "overflowClipMargin": "content-box 3.5px",
+                "scrollbarGutter": "stable both-edges",
+                "scrollPaddingTop": "auto",
+                "scrollPaddingRight": "12px",
+                "scrollPaddingBottom": "25%",
+                "scrollPaddingLeft": "calc(4px + 10%)",
+                "scrollMarginTop": "-1px",
+                "scrollMarginRight": "2px",
+                "scrollMarginBottom": "3.5px",
+                "scrollMarginLeft": "-4px",
+                "scrollSnapType": "inline mandatory",
+                "scrollSnapAlign": "start center",
+                "scrollSnapStop": "always"
+            }
+        }));
+
+        for expected in [
+            ("overflow-x", "hidden"),
+            ("overflow-y", "auto"),
+            ("overflow-clip-margin", "content-box 3.5px"),
+            ("scrollbar-gutter", "stable both-edges"),
+            ("scroll-padding-right", "12px"),
+            ("scroll-padding-bottom", "25%"),
+            ("scroll-padding-left", "calc(4px + 10%)"),
+            ("scroll-margin-top", "-1px"),
+            ("scroll-margin-right", "2px"),
+            ("scroll-margin-bottom", "3.5px"),
+            ("scroll-margin-left", "-4px"),
+            ("scroll-snap-type", "inline mandatory"),
+            ("scroll-snap-align", "start center"),
+            ("scroll-snap-stop", "always"),
+        ] {
+            assert!(
+                attrs.contains(&(expected.0, expected.1.to_string())),
+                "missing {expected:?} from {attrs:?}"
+            );
+        }
+        assert!(!attrs.iter().any(|(key, _)| *key == "scroll-padding-top"));
+    }
+
+    #[test]
+    fn fri05_c06_serializer_one_non_default_overflow_axis_emits_both_axes() {
+        let attrs = input_attrs(&json!({
+            "style": {
+                "overflowX": "visible",
+                "overflowY": "clip"
+            }
+        }));
+
+        assert!(attrs.contains(&("overflow-x", "visible".to_string())));
+        assert!(attrs.contains(&("overflow-y", "clip".to_string())));
+    }
+
+    #[test]
+    fn fri05_c06_serializer_omits_exact_scroll_defaults() {
+        let attrs = input_attrs(&json!({
+            "style": {
+                "overflowX": "visible",
+                "overflowY": "visible",
+                "overflowClipMargin": "0px",
+                "scrollbarGutter": "auto",
+                "scrollPaddingTop": "auto",
+                "scrollPaddingRight": "auto",
+                "scrollPaddingBottom": "auto",
+                "scrollPaddingLeft": "auto",
+                "scrollMarginTop": "0px",
+                "scrollMarginRight": "0px",
+                "scrollMarginBottom": "0px",
+                "scrollMarginLeft": "0px",
+                "scrollSnapType": "none",
+                "scrollSnapAlign": "none",
+                "scrollSnapStop": "normal"
+            }
+        }));
+
+        for (key, _) in attrs {
+            assert!(
+                !key.starts_with("overflow-")
+                    && !key.starts_with("scroll-padding-")
+                    && !key.starts_with("scroll-margin-")
+                    && !key.starts_with("scroll-snap-")
+                    && key != "scrollbar-gutter",
+                "default scroll field {key} was serialized"
+            );
+        }
     }
 
     #[test]
