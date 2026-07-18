@@ -119,22 +119,21 @@ CARGO_NET_OFFLINE=true just corpus-check
 
 **Intended commit:** `test(parity): compare canonical scroll range spans`.
 
-### `C06-T2` Lower The Finite Computed Scroll Fixture Contract
-**Files:** `tests/layout/browser_parity/scripts/gentest/test_helper.js`,
-`tests/bin/surgeist-layout-generate/generator.rs`,
-`tests/layout/browser_parity/support.rs`, and focused helper, serializer, and
-parser tests.
+### `C06-T2` Serialize And Parse The Finite Scroll Fixture Contract
+**Files:** `tests/bin/surgeist-layout-generate/generator.rs`,
+`tests/layout/browser_parity/support.rs`, and focused serializer and parser
+tests. The browser helper remains byte-identical in this task.
 
-**Outcome:** Capture the exact D-13 computed-style fields, serialize only
-non-default kebab-case attributes while emitting both computed overflow axes
-atomically, and parse those attributes through existing checked production
-constructors without widening the fixture adapter.
+**Outcome:** Serialize the exact D-13 computed-style values as only non-default
+kebab-case attributes while emitting both computed overflow axes atomically,
+and parse those attributes through existing checked production constructors
+without widening the fixture adapter.
 
-**RED:** Add `fri05_c06_helper_serializer_` and
-`fri05_c06_parser_` tests first. They fail because the helper and serializer
-drop the named fields and the fixture parser lacks their finite forms.
+**RED:** Add `fri05_c06_serializer_` and `fri05_c06_parser_` tests first.
+They fail because the serializer drops the named fields and the fixture parser
+lacks their finite forms.
 
-**Acceptance:** Helper and serializer tests cover computed overflow,
+**Acceptance:** Serializer tests cover computed overflow,
 `overflowClipMargin`, `scrollbarGutter`, four physical scroll-padding and
 scroll-margin edges, `scrollSnapType`, `scrollSnapAlign`, and
 `scrollSnapStop`. Defaults are omitted except that either non-default
@@ -143,11 +142,12 @@ keywords, finite values, affine length-percentage forms, and canonical snap
 states and reject shorthand ambiguity, CSS-wide keywords, relative units,
 `var()`, transforms, non-finite/out-of-domain values, wrong snap arity, and
 invalid computed overflow pairs. Existing XML remains accepted through the
-bounded transition until T4.
+bounded transition until T4. The unchanged helper keeps old-corpus provenance
+valid.
 
 **Commands:**
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_helper_serializer_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_serializer_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_parser_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
@@ -192,29 +192,37 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just corpus-check
 ```
 
-**Dependency:** C06-T2 settles every helper, serializer, and parser field used by
-the sources.
+**Dependency:** C06-T2 settles every serializer and parser field used by the
+sources.
 
 **Intended commit:** `test(parity): add FRI-05 browser sources`.
 
 ### `C06-T4` Freeze Inputs And Derive The Final Corpus Once
-**Files:** `tests/layout/browser_parity/corpus.toml`,
+**Files:** `tests/layout/browser_parity/scripts/gentest/test_helper.js`,
+`tests/bin/surgeist-layout-generate/generator.rs` for focused helper tests,
+`tests/layout/browser_parity/corpus.toml`,
 `tests/layout/browser_parity/support.rs` and its transition tests,
 generator-derived `tests/layout/browser_parity/xml/`, and
 `tests/layout/browser_parity/xml/generation-reports/all.json`.
 
-**Outcome:** Add eleven active records and frozen report counts, remove authored
-overflow coupling and its legacy evidence, record the settled manifest hash,
-then perform the sole unfiltered full ExistingPinned regeneration and switch to
+**Outcome:** Capture the exact computed-style fields in the browser helper, add
+eleven active records and frozen report counts, remove authored overflow
+coupling and its legacy evidence, record the settled manifest hash, then
+perform the sole unfiltered full ExistingPinned regeneration and switch to
 read-only verification.
 
-**RED:** Add `fri05_c06_computed_overflow_corpus_` tests first. They fail
-because authored cross-group pairs still couple inside the parser and the
-manifest and derived corpus do not yet express the eleven computed-style
-sources.
+**RED:** Add `fri05_c06_helper_`,
+`fri05_c06_computed_overflow_transition_`,
+`fri05_c06_manifest_freeze_`, and
+`fri05_c06_computed_overflow_corpus_` tests first. They fail because the
+helper drops the named fields, authored cross-group pairs still couple inside
+the parser, and the manifest and derived corpus do not yet express the eleven
+computed-style sources.
 
-**Acceptance before regeneration:** `corpus.toml` has one matching active
-record per source, `source_root = "surgeist"`,
+**Acceptance before regeneration:** The helper captures all D-13 computed
+fields without reading authored shorthand and its focused smoke tests pass.
+`corpus.toml` has one matching active record per source,
+`source_root = "surgeist"`,
 `generator = "constrained-html"`, no scoped report, sole full report
 `all.json`, and exact buckets 5,324 generated, 356 unsupported, and zero
 expected-fail, quarantined, and failed-to-generate. The parser consumes the
@@ -222,9 +230,17 @@ computed pair directly through `ComputedOverflow::try_new`; authored coupling
 and the 96-pair transition evidence are absent. Record the byte-exact manifest
 SHA-256 and require the file to remain identical after generation.
 
+**Commands before regeneration:**
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_helper_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_transition_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_manifest_freeze_
+shasum -a 256 tests/layout/browser_parity/corpus.toml
+test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
+```
+
 **One final regeneration:**
 ```sh
-test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER= SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
@@ -239,6 +255,9 @@ body delta remains.
 
 **Read-only commands after regeneration:**
 ```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_helper_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_transition_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_manifest_freeze_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_corpus_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_
 CARGO_NET_OFFLINE=true just verify
@@ -277,8 +296,11 @@ git diff --check
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_comparator_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_parser_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_helper_serializer_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_serializer_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_fixture_sources_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_helper_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_transition_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_manifest_freeze_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_corpus_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_
 CARGO_NET_OFFLINE=true just verify
