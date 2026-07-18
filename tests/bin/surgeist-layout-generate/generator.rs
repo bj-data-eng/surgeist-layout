@@ -5982,6 +5982,179 @@ if (expectedReason === undefined) {{
     }
 
     #[test]
+    fn fri05_c06_fixture_sources_have_exact_owned_inventory_and_behavior_contract() {
+        let html_root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let expected = [
+            (
+                "block/fri05_overflow_auto_cross_axis.html",
+                [
+                    "display: block",
+                    "overflow: auto",
+                    "width: 100px; height: 50px",
+                ],
+            ),
+            (
+                "flex/fri05_overflow_auto_cross_axis.html",
+                [
+                    "display: flex",
+                    "overflow: auto",
+                    "width: 100px; height: 50px",
+                ],
+            ),
+            (
+                "grid/fri05_overflow_auto_cross_axis.html",
+                [
+                    "display: grid",
+                    "overflow: auto",
+                    "width: 100px; height: 50px",
+                ],
+            ),
+            (
+                "grid/fri05_hidden_auto_minimum.html",
+                [
+                    "display: grid",
+                    "grid-template-columns: 1fr",
+                    "overflow: hidden",
+                ],
+            ),
+            (
+                "grid-lanes/fri05_hidden_auto_minimum.html",
+                [
+                    "display: grid-lanes",
+                    "grid-template-columns: 1fr",
+                    "overflow: hidden",
+                ],
+            ),
+            (
+                "block/fri05_mixed_axis_clip_margin.html",
+                [
+                    "overflow-x: clip",
+                    "overflow-y: visible",
+                    "overflow-clip-margin: content-box 10px",
+                ],
+            ),
+            (
+                "block/fri05_scrollbar_gutter_stable_both_edges.html",
+                [
+                    "overflow: auto",
+                    "scrollbar-gutter: stable both-edges",
+                    "height: 200px",
+                ],
+            ),
+            (
+                "flex/fri05_nested_zero_axis_overflow.html",
+                [
+                    "display: flex",
+                    "width: 0px; height: 0px",
+                    "width: 0px; height: 200px",
+                ],
+            ),
+            (
+                "grid/fri05_nested_zero_axis_overflow.html",
+                [
+                    "display: grid",
+                    "width: 0px; height: 0px",
+                    "width: 0px; height: 200px",
+                ],
+            ),
+            (
+                "grid/fri05_scroll_extent_area_origin.html",
+                [
+                    "grid-template-columns: 50px 50px",
+                    "grid-column: 2",
+                    "width: 80px",
+                ],
+            ),
+            (
+                "block/fri05_scroll_target_geometry.html",
+                [
+                    "scroll-padding: 1px 2px 3px 4px",
+                    "scroll-margin: -5px 6px 7px -8px",
+                    "scroll-snap-align: start center",
+                ],
+            ),
+        ];
+
+        let discovered = collect_html(&html_root, None)
+            .expect("HTML fixture inventory should be readable")
+            .into_iter()
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("fri05_"))
+            })
+            .map(|path| {
+                path.strip_prefix(&html_root)
+                    .expect("fixture should remain under HTML root")
+                    .to_path_buf()
+            })
+            .collect::<BTreeSet<_>>();
+        let expected_paths = expected
+            .iter()
+            .map(|(path, _)| PathBuf::from(path))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(discovered, expected_paths);
+
+        for (relative, required_fragments) in expected {
+            let source = html_root.join(relative);
+            let raw = fs::read_to_string(&source)
+                .unwrap_or_else(|error| panic!("{} should read: {error}", source.display()));
+            assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
+            assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
+            assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
+            for fragment in required_fragments {
+                assert!(
+                    raw.contains(fragment),
+                    "{relative} must contain behavior fragment {fragment:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn fri05_c06_fixture_sources_map_to_exact_standard_four_variant_matrix() {
+        let html_root = Path::new("html");
+        let xml_root = Path::new("xml");
+        let sources = [
+            "block/fri05_overflow_auto_cross_axis.html",
+            "flex/fri05_overflow_auto_cross_axis.html",
+            "grid/fri05_overflow_auto_cross_axis.html",
+            "grid/fri05_hidden_auto_minimum.html",
+            "grid-lanes/fri05_hidden_auto_minimum.html",
+            "block/fri05_mixed_axis_clip_margin.html",
+            "block/fri05_scrollbar_gutter_stable_both_edges.html",
+            "flex/fri05_nested_zero_axis_overflow.html",
+            "grid/fri05_nested_zero_axis_overflow.html",
+            "grid/fri05_scroll_extent_area_origin.html",
+            "block/fri05_scroll_target_geometry.html",
+        ];
+
+        let matrix = sources
+            .into_iter()
+            .map(|source| {
+                let source = html_root.join(source);
+                let outputs = output_paths_for_fixture(html_root, xml_root, &source)
+                    .expect("standard output paths should resolve");
+                (source, outputs)
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(matrix.len(), 11);
+        for (source, outputs) in matrix {
+            assert_eq!(outputs.len(), 4, "{}", source.display());
+            let group = source.parent().expect("source should have suite directory");
+            let stem = source.file_stem().expect("source should have a stem");
+            assert_eq!(
+                outputs,
+                fixture_cases().map(|(variant, _)| xml_root
+                    .join(group.strip_prefix(html_root).unwrap())
+                    .join(format!("{}__{variant}.xml", stem.to_string_lossy())))
+            );
+        }
+    }
+
+    #[test]
     fn xml_generation_preserves_browser_parity_fixture_shape() {
         let node = json!({
             "useRounding": true,

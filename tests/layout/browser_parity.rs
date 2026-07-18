@@ -349,7 +349,7 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
         "grid/fri04_track_math_functions.html",
     ];
 
-    assert_eq!(html.len(), 1409);
+    assert_eq!(html.len(), 1420);
     for source in sources {
         assert!(
             html.contains(&html_root.join(source)),
@@ -2589,10 +2589,10 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .filter(|fixture| is_under_suite(fixture, "grid-lanes"))
         .count();
 
-    assert_eq!(taffy_plus_local_count, 1164);
+    assert_eq!(taffy_plus_local_count, 1174);
     assert_eq!(subgrid_count, 219);
-    assert_eq!(grid_lanes_count, 26);
-    assert_eq!(fixtures.len(), 1409);
+    assert_eq!(grid_lanes_count, 27);
+    assert_eq!(fixtures.len(), 1420);
 
     for source in [
         "flex/fri03_order_modified_flex.html",
