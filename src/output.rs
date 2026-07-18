@@ -113,7 +113,10 @@ pub struct ComputeInputOf<S: LayoutScalar = DefaultScalar> {
     parent: Size<Option<S>>,
     containing_layout_context: ContainingLayoutContext,
     available: Size<AvailableOf<S>>,
+    // Settlement owned by the node being computed.
     settled_auto_scrollbars: SettledAutoScrollbarState,
+    // Settlement of the immediate containing formatting pass that produced this request.
+    containing_auto_scrollbar_pass: SettledAutoScrollbarState,
 }
 
 pub type ComputeInput = ComputeInputOf<DefaultScalar>;
@@ -138,6 +141,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             containing_layout_context,
             available: validate_root_available_size(available)?,
             settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
+            containing_auto_scrollbar_pass: SettledAutoScrollbarState::INITIAL,
         })
     }
 
@@ -160,6 +164,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             containing_layout_context,
             available: validate_root_available_size(available)?,
             settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
+            containing_auto_scrollbar_pass: SettledAutoScrollbarState::INITIAL,
         })
     }
 
@@ -228,6 +233,7 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
             containing_layout_context,
             available,
             settled_auto_scrollbars: SettledAutoScrollbarState::INITIAL,
+            containing_auto_scrollbar_pass: SettledAutoScrollbarState::INITIAL,
         }
     }
 
@@ -285,6 +291,20 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
         settled_auto_scrollbars: SettledAutoScrollbarState,
     ) -> Self {
         self.settled_auto_scrollbars = settled_auto_scrollbars;
+        self
+    }
+
+    #[must_use]
+    pub(crate) const fn containing_auto_scrollbar_pass(&self) -> SettledAutoScrollbarState {
+        self.containing_auto_scrollbar_pass
+    }
+
+    #[must_use]
+    pub(crate) const fn with_containing_auto_scrollbar_pass(
+        mut self,
+        containing_auto_scrollbar_pass: SettledAutoScrollbarState,
+    ) -> Self {
+        self.containing_auto_scrollbar_pass = containing_auto_scrollbar_pass;
         self
     }
 }

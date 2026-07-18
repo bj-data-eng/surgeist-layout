@@ -834,7 +834,7 @@ where
                         constants.flow_axes,
                         ParentFormattingContext::BlockFlow,
                     ))
-                    .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
+                    .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
                 )?;
             }
             index += 1;
@@ -961,7 +961,7 @@ where
                     AvailableOf::<S>::MAX_CONTENT,
                 )),
             )
-            .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
+            .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
         )?;
 
         let logical_child_size = constants.flow_axes.logical_size(output.size);
@@ -1518,7 +1518,7 @@ where
                         constants.flow_axes,
                         ParentFormattingContext::BlockFlow,
                     ))
-                    .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
+                    .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
                 )?;
             }
             continue;
@@ -1565,7 +1565,7 @@ where
                     AvailableOf::<S>::MAX_CONTENT,
                 )),
             )
-            .with_settled_auto_scrollbars(input.settled_auto_scrollbars()),
+            .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
         )?;
         let unresolved_margin = constants
             .flow_axes
@@ -2642,7 +2642,7 @@ where
                 ),
                 available,
             )
-            .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+            .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
         )?;
         let final_size = known_size
             .unwrap_or(output.size)

@@ -8852,6 +8852,14 @@ fn fri05_c03_block_root_output(batch: &CompletedLayoutBatch<u32>, node: u32) -> 
 }
 
 fn fri05_c03_block_root_state(input: &ComputeInput) -> (bool, bool) {
+    let state = input.containing_auto_scrollbar_pass();
+    (
+        state.at(PhysicalAxis::Horizontal),
+        state.at(PhysicalAxis::Vertical),
+    )
+}
+
+fn fri05_c04_local_auto_state(input: &ComputeInput) -> (bool, bool) {
     let state = input.settled_auto_scrollbars();
     (
         state.at(PhysicalAxis::Horizontal),
@@ -8905,6 +8913,184 @@ fn fri05_c04_flex_auto_public_tree(nested: bool, child_size: Size<f32>) -> Publi
     }
 }
 
+fn fri05_c04_nested_flex_auto_tree(inner_overflows: bool) -> PublicFlowTree<f32> {
+    let outer_children = if inner_overflows { vec![1] } else { vec![1, 3] };
+    let inner_child = if inner_overflows {
+        NodeInput {
+            display: Display::Block,
+            position: Position::Absolute,
+            size: Size::new(PreferredSize::px(60.0), PreferredSize::px(20.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            inset: Edges::new(
+                LengthAuto::px(0.0),
+                LengthAuto::AUTO,
+                LengthAuto::AUTO,
+                LengthAuto::px(0.0),
+            ),
+            ..NodeInput::default()
+        }
+    } else {
+        NodeInput {
+            display: Display::Block,
+            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            ..NodeInput::default()
+        }
+    };
+
+    let mut tree = PublicFlowTree::default()
+        .with_children(0, outer_children)
+        .with_children(1, [2])
+        .with_children(2, [])
+        .with_style(
+            0,
+            NodeInput {
+                display: Display::Flex,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+                size: Size::splat_clone(PreferredSize::px(100.0)),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInput {
+                display: Display::Flex,
+                overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+                size: Size::new(PreferredSize::px(40.0), PreferredSize::AUTO),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+                align_items: Some(AlignItems::FlexStart),
+                ..NodeInput::default()
+            },
+        )
+        .with_style(2, inner_child);
+
+    if !inner_overflows {
+        tree = tree.with_children(3, []).with_style(
+            3,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Absolute,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                inset: Edges::new(
+                    LengthAuto::px(0.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(0.0),
+                ),
+                ..NodeInput::default()
+            },
+        );
+    }
+    tree
+}
+
+fn fri05_c04_assert_initial_local_auto_state(inputs: &[ComputeInput]) {
+    assert!(
+        inputs
+            .iter()
+            .all(|input| fri05_c04_local_auto_state(input) == (false, false)),
+        "every recursively dispatched node starts local auto settlement at INITIAL: {inputs:#?}"
+    );
+}
+
+#[test]
+fn fri05_c04_flex_auto_nested_nonoverflow_keeps_local_initial_and_outer_cache_passes() {
+    let tree = fri05_c04_nested_flex_auto_tree(false);
+    let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap();
+    let cold = compute_layout(&tree, 0, request).expect("cold nested flex layout succeeds");
+    let outer = public_flow_output(cold.unrounded_entries(), 0);
+    let inner = public_flow_output(cold.unrounded_entries(), 1);
+    assert_eq!(
+        outer.scroll_geometry.unwrap().scrollbar_size(),
+        Size::new(0.0, 15.0)
+    );
+    assert_eq!(inner.scroll_geometry.unwrap().scrollbar_size(), Size::ZERO);
+
+    let grandchild_requests = tree.cache_inputs(2);
+    fri05_c04_assert_initial_local_auto_state(&grandchild_requests);
+    assert!(
+        grandchild_requests
+            .iter()
+            .all(|input| fri05_c03_block_root_state(input) == (false, false))
+    );
+    for node in [0, 1, 2, 3] {
+        assert_eq!(
+            cold.unrounded_entries()
+                .iter()
+                .filter(|entry| entry.node() == node)
+                .count(),
+            1,
+            "only stable cold output is published for node {node}"
+        );
+    }
+
+    tree.apply_cache_entries(cold.cache_store_entries());
+    tree.clear_cache_inputs();
+    let warm = compute_layout(&tree, 0, request).expect("warm nested flex layout succeeds");
+    for node in [0, 1, 2, 3] {
+        assert_eq!(
+            public_flow_output(warm.unrounded_entries(), node),
+            public_flow_output(cold.unrounded_entries(), node),
+            "warm output remains the stable cold output for node {node}"
+        );
+        assert_eq!(
+            warm.unrounded_entries()
+                .iter()
+                .filter(|entry| entry.node() == node)
+                .count(),
+            1,
+            "only stable warm output is published for node {node}"
+        );
+    }
+}
+
+#[test]
+fn fri05_c04_flex_auto_independent_inner_settlement_keys_grandchildren_by_inner_pass() {
+    let tree = fri05_c04_nested_flex_auto_tree(true);
+    let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap();
+    let batch = compute_layout(&tree, 0, request).expect("independent inner auto layout succeeds");
+    assert_eq!(
+        public_flow_output(batch.unrounded_entries(), 0)
+            .scroll_geometry
+            .unwrap()
+            .scrollbar_size(),
+        Size::ZERO
+    );
+    assert_eq!(
+        public_flow_output(batch.unrounded_entries(), 1)
+            .scroll_geometry
+            .unwrap()
+            .scrollbar_size(),
+        Size::new(15.0, 0.0)
+    );
+
+    let grandchild_requests = tree.cache_inputs(2);
+    fri05_c04_assert_initial_local_auto_state(&grandchild_requests);
+    assert_eq!(
+        grandchild_requests
+            .iter()
+            .map(fri05_c03_block_root_state)
+            .collect::<HashSet<_>>(),
+        HashSet::from([(false, false), (true, true)])
+    );
+    for node in [0, 1, 2] {
+        assert_eq!(
+            batch
+                .unrounded_entries()
+                .iter()
+                .filter(|entry| entry.node() == node)
+                .count(),
+            1,
+            "only stable independently settled output is published for node {node}"
+        );
+    }
+}
+
 #[test]
 fn fri05_c04_flex_auto_root_and_nested_publish_stable_output_with_exact_pass_cache_bits() {
     let request = LayoutRootRequest::viewport(Size::splat(Available::definite(100.0))).unwrap();
@@ -8954,6 +9140,12 @@ fn fri05_c04_flex_auto_root_and_nested_publish_stable_output_with_exact_pass_cac
             }
 
             let cache_inputs = tree.cache_inputs(absolute);
+            assert!(
+                cache_inputs
+                    .iter()
+                    .all(|input| fri05_c04_local_auto_state(input) == (false, false)),
+                "nested={nested}, child={child_size:?}: child-local state must start at INITIAL"
+            );
             assert_eq!(
                 cache_inputs
                     .iter()
@@ -8977,6 +9169,27 @@ fn fri05_c04_flex_auto_root_and_nested_publish_stable_output_with_exact_pass_cac
             assert!(
                 cold.cache_store_entries()
                     .iter()
+                    .filter(|entry| entry.node() == absolute)
+                    .all(|entry| fri05_c04_local_auto_state(entry.input()) == (false, false)),
+                "nested={nested}, child={child_size:?}: cached child-local state stays INITIAL"
+            );
+            let child_cache_inputs = cold
+                .cache_store_entries()
+                .iter()
+                .filter(|entry| {
+                    entry.node() == absolute && entry.input().run_mode() == RunMode::PerformLayout
+                })
+                .map(LayoutCacheStoreEntryOf::input)
+                .collect::<Vec<_>>();
+            assert!(
+                child_cache_inputs
+                    .iter()
+                    .all(|input| input.known() == child_cache_inputs[0].known()),
+                "distinct containing passes stage separate entries for identical known child geometry"
+            );
+            assert!(
+                cold.cache_store_entries()
+                    .iter()
                     .filter(|entry| entry.node() == container)
                     .all(|entry| fri05_c03_block_root_state(entry.input()) == (false, false)),
                 "no speculative container pass is cached under an ordinary request"
@@ -8995,6 +9208,16 @@ fn fri05_c04_flex_auto_root_and_nested_publish_stable_output_with_exact_pass_cac
                 public_flow_output(cold.final_entries(), container),
                 "nested={nested}, child={child_size:?}"
             );
+            for node in [container, absolute] {
+                assert_eq!(
+                    warm.unrounded_entries()
+                        .iter()
+                        .filter(|entry| entry.node() == node)
+                        .count(),
+                    1,
+                    "only stable warm output is published for node {node}"
+                );
+            }
         }
     }
 }
@@ -9058,6 +9281,7 @@ fn fri05_c03_block_auto_root_keys_each_pass_and_publishes_only_stable_nodes() {
 
     let expected_states = [(false, false), (true, false), (true, true)];
     let cache_inputs = tree.cache_inputs(1);
+    fri05_c04_assert_initial_local_auto_state(&cache_inputs);
     assert_eq!(
         cache_inputs
             .iter()
@@ -9074,6 +9298,13 @@ fn fri05_c03_block_auto_root_keys_each_pass_and_publishes_only_stable_nodes() {
             .map(|entry| fri05_c03_block_root_state(entry.input()))
             .collect::<Vec<_>>(),
         expected_states
+    );
+    assert!(
+        batch
+            .cache_store_entries()
+            .iter()
+            .filter(|entry| entry.node() == 1)
+            .all(|entry| fri05_c04_local_auto_state(entry.input()) == (false, false))
     );
 
     for node in [0, 1] {
@@ -9157,6 +9388,7 @@ fn fri05_c03_block_auto_root_stable_reservations_stage_only_geometry_changes() {
         let batch = compute_layout(&tree, 0, request).expect("stable auto block root succeeds");
 
         let cache_inputs = tree.cache_inputs(1);
+        fri05_c04_assert_initial_local_auto_state(&cache_inputs);
         assert_eq!(
             cache_inputs
                 .iter()
@@ -9261,6 +9493,7 @@ fn fri05_c03_block_tiny_root_available_below_raw_edges_avoids_false_auto_settlem
         .expect("root availability below raw edges remains supported");
 
     let cache_inputs = tree.cache_inputs(1);
+    fri05_c04_assert_initial_local_auto_state(&cache_inputs);
     assert_eq!(cache_inputs.len(), 1);
     assert_eq!(fri05_c03_block_root_state(&cache_inputs[0]), (false, false));
     assert_eq!(

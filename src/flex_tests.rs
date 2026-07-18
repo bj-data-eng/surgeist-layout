@@ -11110,7 +11110,9 @@ struct Fri05C04FlexAutoPassTree {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInput>,
     child_output: Option<ComputeOutput>,
+    child_outputs: HashMap<u32, ComputeOutput>,
     child_inputs: Vec<ComputeInput>,
+    child_requests: Vec<(u32, ComputeInput)>,
     layouts: Vec<(u32, NodeOutput)>,
 }
 
@@ -11152,21 +11154,38 @@ impl Compute for Fri05C04FlexAutoPassTree {
 
     fn compute_child(
         &mut self,
-        _node: Self::Node,
+        node: Self::Node,
         input: ComputeInput,
     ) -> crate::LayoutResultOf<Self::Node, ComputeOutput, Self::Scalar> {
         self.child_inputs.push(input);
-        Ok(self
-            .child_output
-            .expect("FRI-05 flex auto child output is configured"))
+        self.child_requests.push((node, input));
+        if self.styles[&node].display == Display::Flex && self.child_count(node) != 0 {
+            return compute_flex(
+                self,
+                node,
+                input.with_settled_auto_scrollbars(
+                    crate::scroll::SettledAutoScrollbarState::INITIAL,
+                ),
+            );
+        }
+        Ok(self.child_outputs.get(&node).copied().unwrap_or_else(|| {
+            self.child_output
+                .expect("FRI-05 flex auto child output is configured")
+        }))
     }
 }
 
 fn fri05_c04_flex_auto_states(inputs: &[ComputeInput]) -> Vec<(bool, bool)> {
+    assert!(
+        inputs.iter().all(|input| {
+            input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
+        }),
+        "each direct child request must begin node-local auto settlement at INITIAL: {inputs:#?}"
+    );
     let mut states = inputs
         .iter()
         .map(|input| {
-            let state = input.settled_auto_scrollbars();
+            let state = input.containing_auto_scrollbar_pass();
             (
                 state.at(PhysicalAxis::Horizontal),
                 state.at(PhysicalAxis::Vertical),
@@ -11230,6 +11249,215 @@ fn fri05_c04_flex_auto_absolute_case(
     )
     .expect("monotone flex auto layout succeeds");
     (output, tree)
+}
+
+type Fri05C04AutoStateBits = (bool, bool);
+type Fri05C04AutoRequestStates = (Vec<Fri05C04AutoStateBits>, Vec<Fri05C04AutoStateBits>);
+
+fn fri05_c04_flex_auto_request_states(
+    requests: &[(u32, ComputeInput)],
+    node: u32,
+) -> Fri05C04AutoRequestStates {
+    let matching = requests
+        .iter()
+        .filter_map(|(requested, input)| (*requested == node).then_some(*input))
+        .collect::<Vec<_>>();
+    let local = matching
+        .iter()
+        .map(|input| {
+            let state = input.settled_auto_scrollbars();
+            (
+                state.at(PhysicalAxis::Horizontal),
+                state.at(PhysicalAxis::Vertical),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut containing = Vec::new();
+    for state in matching.iter().map(|input| {
+        let state = input.containing_auto_scrollbar_pass();
+        (
+            state.at(PhysicalAxis::Horizontal),
+            state.at(PhysicalAxis::Vertical),
+        )
+    }) {
+        if !containing.contains(&state) {
+            containing.push(state);
+        }
+    }
+    (local, containing)
+}
+
+fn fri05_c04_flex_under_flex_case(
+    inner_overflows: bool,
+) -> (ComputeOutput, Fri05C04FlexAutoPassTree) {
+    let mut tree = Fri05C04FlexAutoPassTree::default();
+    tree.children
+        .insert(0, if inner_overflows { vec![1] } else { vec![1, 3] });
+    tree.children.insert(1, vec![2]);
+    tree.children.insert(2, vec![]);
+    tree.styles.insert(
+        0,
+        NodeInput {
+            display: Display::Flex,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::splat_clone(PreferredSize::px(100.0)),
+            align_items: Some(AlignItems::FlexStart),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        1,
+        NodeInput {
+            display: Display::Flex,
+            overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+            scrollbar_width: ScrollbarWidth::try_new(15.0).unwrap(),
+            size: Size::splat_clone(PreferredSize::px(40.0)),
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            flex_shrink: FlexShrink::try_new(0.0).unwrap(),
+            align_items: Some(AlignItems::FlexStart),
+            ..NodeInput::default()
+        },
+    );
+    tree.styles.insert(
+        2,
+        NodeInput {
+            display: Display::Block,
+            position: if inner_overflows {
+                Position::Absolute
+            } else {
+                Position::Relative
+            },
+            size: if inner_overflows {
+                Size::new(PreferredSize::px(60.0), PreferredSize::px(20.0))
+            } else {
+                Size::splat_clone(PreferredSize::px(20.0))
+            },
+            min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+            inset: Edges::new(
+                LengthAuto::px(0.0),
+                LengthAuto::AUTO,
+                LengthAuto::AUTO,
+                LengthAuto::px(0.0),
+            ),
+            ..NodeInput::default()
+        },
+    );
+    tree.child_outputs.insert(
+        2,
+        ComputeOutput::from_sizes(
+            if inner_overflows {
+                Size::new(60.0, 20.0)
+            } else {
+                Size::splat(20.0)
+            },
+            if inner_overflows {
+                Size::new(60.0, 20.0)
+            } else {
+                Size::splat(20.0)
+            },
+        ),
+    );
+    if !inner_overflows {
+        tree.children.insert(3, vec![]);
+        tree.styles.insert(
+            3,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Absolute,
+                size: Size::new(PreferredSize::px(120.0), PreferredSize::px(80.0)),
+                min_size: Size::new(MinSize::ZERO, MinSize::ZERO),
+                inset: Edges::new(
+                    LengthAuto::px(0.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(0.0),
+                ),
+                ..NodeInput::default()
+            },
+        );
+        tree.child_outputs.insert(
+            3,
+            ComputeOutput::from_sizes(Size::new(120.0, 80.0), Size::new(120.0, 80.0)),
+        );
+    }
+
+    let output = compute_flex(
+        &mut tree,
+        0,
+        fri05_c04_flex_input(
+            Size::splat(100.0),
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        ),
+    )
+    .expect("real flex-under-flex auto layout succeeds");
+    (output, tree)
+}
+
+#[test]
+fn fri05_c04_flex_auto_direct_nested_passes_separate_local_and_containing_state() {
+    let (outer, tree) = fri05_c04_flex_under_flex_case(false);
+    assert_eq!(
+        outer.scroll_geometry.unwrap().scrollbar_size(),
+        Size::new(0.0, 15.0)
+    );
+    let inner = tree
+        .layouts
+        .iter()
+        .rev()
+        .find_map(|(node, output)| (*node == 1).then_some(*output))
+        .expect("outer retains the stable inner flex output");
+    assert_eq!(inner.scroll_geometry.unwrap().scrollbar_size(), Size::ZERO);
+
+    let (inner_local, inner_containing) =
+        fri05_c04_flex_auto_request_states(&tree.child_requests, 1);
+    assert!(inner_local.iter().all(|state| *state == (false, false)));
+    assert_eq!(inner_containing, [(false, false), (true, false)]);
+    let (grandchild_local, grandchild_containing) =
+        fri05_c04_flex_auto_request_states(&tree.child_requests, 2);
+    assert!(
+        grandchild_local
+            .iter()
+            .all(|state| *state == (false, false))
+    );
+    assert!(
+        grandchild_containing
+            .iter()
+            .all(|state| *state == (false, false))
+    );
+}
+
+#[test]
+fn fri05_c04_flex_auto_direct_inner_settlement_becomes_grandchild_containing_pass() {
+    let (outer, tree) = fri05_c04_flex_under_flex_case(true);
+    assert_eq!(outer.scroll_geometry.unwrap().scrollbar_size(), Size::ZERO);
+    let inner = tree
+        .layouts
+        .iter()
+        .rev()
+        .find_map(|(node, output)| (*node == 1).then_some(*output))
+        .expect("outer retains the independently settled inner flex output");
+    assert_eq!(
+        inner.scroll_geometry.unwrap().scrollbar_size(),
+        Size::new(0.0, 15.0)
+    );
+
+    let (inner_local, inner_containing) =
+        fri05_c04_flex_auto_request_states(&tree.child_requests, 1);
+    assert!(inner_local.iter().all(|state| *state == (false, false)));
+    assert!(
+        inner_containing
+            .iter()
+            .all(|state| *state == (false, false))
+    );
+    let (grandchild_local, grandchild_containing) =
+        fri05_c04_flex_auto_request_states(&tree.child_requests, 2);
+    assert!(
+        grandchild_local
+            .iter()
+            .all(|state| *state == (false, false))
+    );
+    assert_eq!(grandchild_containing, [(false, false), (true, false)]);
 }
 
 #[test]

@@ -1329,7 +1329,7 @@ where
             ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
             child_available,
         )
-        .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+        .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
     )?;
     let automatic_min_main_size = automatic_min_main_size(
         tree,
@@ -1365,7 +1365,7 @@ where
                         .axes
                         .with_main_size(child_available, AvailableOf::MAX_CONTENT),
                 )
-                .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+                .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
             )?
             .size,
         )
@@ -1542,7 +1542,7 @@ where
             ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
             available,
         )
-        .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+        .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
     )?;
 
     let mut min_content = constants
@@ -1898,7 +1898,7 @@ where
                         available_cross,
                     ),
                 )
-                .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+                .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
             )?;
             item.baseline.refresh(measured);
             constants
@@ -3528,7 +3528,7 @@ where
                         ),
                         child_available,
                     )
-                    .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+                    .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
                 )?
                 .size,
             );
@@ -3686,7 +3686,7 @@ where
                         .unwrap_or(AvailableOf::MAX_CONTENT),
                 ),
             )
-            .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+            .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
         )?;
         let resolved_flex_basis = match resolve_flex_basis(
             &style.flex_basis,
@@ -3957,7 +3957,7 @@ where
                 ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::Flex),
                 available,
             )
-            .with_settled_auto_scrollbars(constants.settled_auto_scrollbars),
+            .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
         )?;
         let final_size = known_size
             .unwrap_or(output.size)
@@ -4031,7 +4031,7 @@ where
                 containing_flow_axes,
                 ParentFormattingContext::Flex,
             ))
-            .with_settled_auto_scrollbars(settled_auto_scrollbars),
+            .with_containing_auto_scrollbar_pass(settled_auto_scrollbars),
         )?;
     }
     Ok(())

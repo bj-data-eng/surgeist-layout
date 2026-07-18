@@ -726,3 +726,98 @@ fn fri05_c03_leaf_cache_key_construction_and_matching_use_exact_state_bits() {
         }
     }
 }
+
+#[test]
+fn fri05_c04_flex_auto_cache_partitions_known_geometry_by_containing_pass_bits() {
+    let axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let known = Size::new(Some(40.0), Some(20.0));
+    let initial = crate::scroll::SettledAutoScrollbarState::INITIAL;
+    let horizontal = crate::scroll::SettledAutoScrollbarState::new(true, false);
+    let first = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        known,
+        Size::splat(Some(100.0)),
+        ContainingLayoutContext::new(axes, ParentFormattingContext::Flex),
+        Size::splat(Available::definite(100.0)),
+    )
+    .with_containing_auto_scrollbar_pass(initial);
+    let second = ComputeInput::for_child(
+        RunMode::ComputeSize,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        known,
+        Size::new(Some(100.0), Some(85.0)),
+        ContainingLayoutContext::new(axes, ParentFormattingContext::Flex),
+        Size::new(Available::definite(100.0), Available::definite(85.0)),
+    )
+    .with_containing_auto_scrollbar_pass(horizontal);
+
+    assert_eq!(first.settled_auto_scrollbars(), initial);
+    assert_eq!(second.settled_auto_scrollbars(), initial);
+    assert_eq!(first.known(), second.known());
+    assert_ne!(
+        first.containing_auto_scrollbar_pass(),
+        second.containing_auto_scrollbar_pass()
+    );
+
+    let output = ComputeOutput::from_outer_size(Size::new(40.0, 20.0));
+    let mut cache = Cache::new();
+    cache.store_with_context(&first, static_cache_context(), output);
+    assert_eq!(
+        cache.get_with_context(&first, static_cache_context()),
+        Some(output)
+    );
+    assert_eq!(
+        cache.get_with_context(&second, static_cache_context()),
+        None,
+        "known-size matching must not erase the containing-pass discriminator"
+    );
+
+    cache.store_with_context(&second, static_cache_context(), output);
+    assert_eq!(
+        cache.get_with_context(&second, static_cache_context()),
+        Some(output)
+    );
+    assert_eq!(
+        cache.get_with_context(&first, static_cache_context()),
+        None,
+        "the warm entry belongs only to the pass that produced it"
+    );
+}
+
+#[test]
+fn fri05_c04_flex_auto_input_constructors_default_both_private_states_to_initial() {
+    let axes = FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl);
+    let context = ContainingLayoutContext::new(axes, ParentFormattingContext::Flex);
+    let available = Size::splat(Available::definite(100.0));
+    let inputs = [
+        ComputeInput::leaf_layout(Size::NONE, Size::splat(Some(100.0)), context, available)
+            .unwrap(),
+        ComputeInput::leaf_content_size(Size::NONE, Size::splat(Some(100.0)), context, available)
+            .unwrap(),
+        ComputeInput::root_layout(Size::NONE, Size::splat(Some(100.0)), context, available),
+        ComputeInput::flex_item_root(Size::NONE, Size::splat(Some(100.0)), context, available),
+        ComputeInput::for_child(
+            RunMode::ComputeSize,
+            SizingMode::ContentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::splat(Some(100.0)),
+            context,
+            available,
+        ),
+        ComputeInput::hidden(context),
+    ];
+    for input in inputs {
+        assert_eq!(
+            input.settled_auto_scrollbars(),
+            crate::scroll::SettledAutoScrollbarState::INITIAL
+        );
+        assert_eq!(
+            input.containing_auto_scrollbar_pass(),
+            crate::scroll::SettledAutoScrollbarState::INITIAL
+        );
+    }
+}

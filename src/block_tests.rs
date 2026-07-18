@@ -10970,11 +10970,18 @@ fn fri05_c03_block_auto_case(
 
     let output = crate::compute_block(&mut tree, 0, fri05_c03_block_input(size, flow_axes))
         .expect("FRI-05 auto block layout succeeds");
+    assert!(
+        tree.child_inputs.iter().all(|input| {
+            input.settled_auto_scrollbars() == crate::scroll::SettledAutoScrollbarState::INITIAL
+        }),
+        "each block child starts node-local auto settlement at INITIAL: {:#?}",
+        tree.child_inputs
+    );
     let states = tree
         .child_inputs
         .iter()
         .map(|input| {
-            let state = input.settled_auto_scrollbars();
+            let state = input.containing_auto_scrollbar_pass();
             (
                 state.at(PhysicalAxis::Horizontal),
                 state.at(PhysicalAxis::Vertical),
@@ -11154,6 +11161,10 @@ fn fri05_c03_block_tiny_max_size_below_raw_edges_keeps_layout_geometry_coherent(
         crate::scroll::SettledAutoScrollbarState::INITIAL
     );
     assert_eq!(
+        tree.child_inputs[0].containing_auto_scrollbar_pass(),
+        crate::scroll::SettledAutoScrollbarState::INITIAL
+    );
+    assert_eq!(
         tree.child_inputs[0].available().width,
         Available::definite(100.0)
     );
@@ -11236,6 +11247,19 @@ fn fri05_c03_block_tiny_max_inline_size_below_raw_edges_keeps_child_space_zero()
             .iter()
             .map(|input| {
                 let state = input.settled_auto_scrollbars();
+                (
+                    state.at(PhysicalAxis::Horizontal),
+                    state.at(PhysicalAxis::Vertical),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [(false, false), (false, false)]
+    );
+    assert_eq!(
+        tree.child_inputs
+            .iter()
+            .map(|input| {
+                let state = input.containing_auto_scrollbar_pass();
                 (
                     state.at(PhysicalAxis::Horizontal),
                     state.at(PhysicalAxis::Vertical),

@@ -27,6 +27,7 @@ struct CacheKeyOf<S: LayoutScalar = DefaultScalar> {
     containing_layout_context: ContainingLayoutContext,
     available: Size<AvailableOf<S>>,
     settled_auto_scrollbars: SettledAutoScrollbarState,
+    containing_auto_scrollbar_pass: SettledAutoScrollbarState,
     context: CacheKeyContext,
 }
 
@@ -41,6 +42,7 @@ impl<S: LayoutScalar> CacheKeyOf<S> {
             containing_layout_context: input.containing_layout_context(),
             available: input.available(),
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
+            containing_auto_scrollbar_pass: input.containing_auto_scrollbar_pass(),
             context,
         }
     }
@@ -189,6 +191,7 @@ fn matches_output<S: LayoutScalar, T>(
         && input.parent() == entry.key.parent
         && input.containing_layout_context() == entry.key.containing_layout_context
         && key.settled_auto_scrollbars == entry.key.settled_auto_scrollbars
+        && key.containing_auto_scrollbar_pass == entry.key.containing_auto_scrollbar_pass
         && context == entry.key.context
         && (input.known().width == entry.key.known.width
             || input.known().width == Some(cached_size.width))
