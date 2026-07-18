@@ -189,8 +189,12 @@ outputs each. No pre-existing source, manifest record, XML, or report changes.
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_fixture_sources_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just corpus-check
 ```
+
+Corpus validation is intentionally deferred: before T4 adds the matching
+manifest records, the corpus checker must reject these new Surgeist sources as
+unmanifested. T4 runs `just corpus-check` only after the records are frozen
+and the sole full regeneration completes.
 
 **Dependency:** C06-T2 settles every serializer and parser field used by the
 sources.
