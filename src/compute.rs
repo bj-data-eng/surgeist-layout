@@ -1,10 +1,11 @@
 use super::{
     AspectRatioOf, AvailableOf, BoxSizing, CacheAccess, CollapsibleMarginOf, Compute,
-    ComputeInputOf, ComputeOutputOf, DefaultScalar, Edges, LayoutCacheClearEntry,
-    LayoutCacheStoreEntryOf, LayoutInputOf, LayoutOutputEntryOf, LayoutRootContextOf,
-    LayoutRootRequestOf, LayoutScalar, LengthResolutionOf, LengthResolutionStatus, NodeInputOf,
-    NodeOutputOf, NonNegativeFiniteOf, NonNegativeFiniteScalarErrorOf,
-    PhysicalBlockMarginCollapseOf, Point, Position, Round, RunMode, Size, SizingMode, Traverse,
+    ComputeInputOf, ComputeOutputOf, DefaultScalar, Edges, InlineFragmentOutputEntryOf,
+    InlineFragmentOutputOf, LayoutCacheClearEntry, LayoutCacheStoreEntryOf, LayoutInputOf,
+    LayoutOutputEntryOf, LayoutRootContextOf, LayoutRootRequestOf, LayoutScalar,
+    LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, NonNegativeFiniteOf,
+    NonNegativeFiniteScalarErrorOf, PhysicalBlockMarginCollapseOf, Point, Position, Round, RunMode,
+    Size, SizingMode, Traverse,
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
@@ -20,6 +21,7 @@ use crate::sizing::{
     DispatchedSizingRequest, SizingDispatch, dispatch_flex_basis, dispatch_maximum_size,
     dispatch_minimum_size, dispatch_preferred_size,
 };
+use crate::traits::UnroundedInlineFragmentState;
 use crate::{CompletedLayoutBatchOf, LayoutTree};
 use crate::{FlexBasisOf, MaxSizeOf, MinSizeOf, PercentageBasisOf, PreferredSizeOf};
 
@@ -337,8 +339,10 @@ pub enum LayoutInternalInvariant {
     InvalidRootScrollGeometry,
     InvalidBlockScrollGeometry,
     InvalidRoundedScrollGeometry,
+    InvalidRoundedInlineFragmentGeometry,
     MissingLeafMeasurementProvider,
     MissingStagedUnroundedOutput,
+    MissingCachedInlineFragmentState,
     SubgridTrackInheritance,
     SubgridBaselineInheritance,
 }
@@ -504,8 +508,15 @@ where
     tree: &'a Tree,
     unrounded_entries: Vec<LayoutOutputEntryOf<Tree::Node, Tree::Scalar>>,
     final_entries: Vec<LayoutOutputEntryOf<Tree::Node, Tree::Scalar>>,
+    unrounded_inline_fragment_groups: Vec<StagedInlineFragmentGroup<Tree::Node, Tree::Scalar>>,
+    final_inline_fragment_groups: Vec<StagedInlineFragmentGroup<Tree::Node, Tree::Scalar>>,
     cache_store_entries: Vec<LayoutCacheStoreEntryOf<Tree::Node, Tree::Scalar>>,
     cache_clear_entries: Vec<LayoutCacheClearEntry<Tree::Node>>,
+}
+
+struct StagedInlineFragmentGroup<Node, S: LayoutScalar> {
+    node: Node,
+    fragments: Option<Vec<InlineFragmentOutputOf<S>>>,
 }
 
 impl<'a, Tree> ComputeSession<'a, Tree>
@@ -517,15 +528,46 @@ where
             tree,
             unrounded_entries: Vec::new(),
             final_entries: Vec::new(),
+            unrounded_inline_fragment_groups: Vec::new(),
+            final_inline_fragment_groups: Vec::new(),
             cache_store_entries: Vec::new(),
             cache_clear_entries: Vec::new(),
         }
     }
 
     fn complete(self) -> CompletedLayoutBatchOf<Tree::Node, Tree::Scalar> {
+        let unrounded_inline_fragments = self
+            .final_inline_fragment_groups
+            .iter()
+            .flat_map(|final_group| {
+                self.unrounded_inline_fragment_groups
+                    .iter()
+                    .find(|group| group.node == final_group.node)
+                    .and_then(|group| group.fragments.as_deref())
+                    .unwrap_or(&[])
+                    .iter()
+                    .copied()
+                    .map(|fragment| InlineFragmentOutputEntryOf::new(final_group.node, fragment))
+            })
+            .collect();
+        let final_inline_fragments = self
+            .final_inline_fragment_groups
+            .iter()
+            .flat_map(|group| {
+                group
+                    .fragments
+                    .as_deref()
+                    .unwrap_or(&[])
+                    .iter()
+                    .copied()
+                    .map(|fragment| InlineFragmentOutputEntryOf::new(group.node, fragment))
+            })
+            .collect();
         CompletedLayoutBatchOf::from_entries(
             self.unrounded_entries,
             self.final_entries,
+            unrounded_inline_fragments,
+            final_inline_fragments,
             self.cache_store_entries,
             self.cache_clear_entries,
         )
@@ -866,6 +908,14 @@ where
             .push(LayoutOutputEntryOf::new(node, layout));
     }
 
+    fn set_unrounded_inline_fragment_state(
+        &mut self,
+        node: Self::Node,
+        fragments: Option<Vec<InlineFragmentOutputOf<Self::Scalar>>>,
+    ) {
+        set_inline_fragment_group(&mut self.unrounded_inline_fragment_groups, node, fragments);
+    }
+
     fn compute_child(
         &mut self,
         node: Self::Node,
@@ -943,6 +993,64 @@ where
         self.final_entries
             .push(LayoutOutputEntryOf::new(node, layout));
     }
+
+    fn unrounded_inline_fragment_state(
+        &self,
+        node: Self::Node,
+    ) -> UnroundedInlineFragmentState<'_, Self::Scalar> {
+        if let Some(group) = self
+            .unrounded_inline_fragment_groups
+            .iter()
+            .find(|group| group.node == node)
+        {
+            return match &group.fragments {
+                Some(fragments) => UnroundedInlineFragmentState::Present(fragments),
+                None => UnroundedInlineFragmentState::Absent,
+            };
+        }
+
+        if matches!(self.tree.layout_input(node), LayoutInputOf::InlineText(_)) {
+            return self.tree.unrounded_inline_fragments(node).map_or(
+                UnroundedInlineFragmentState::Missing,
+                UnroundedInlineFragmentState::Present,
+            );
+        }
+
+        UnroundedInlineFragmentState::Absent
+    }
+
+    fn set_final_inline_fragments(
+        &mut self,
+        node: Self::Node,
+        unrounded: Vec<InlineFragmentOutputOf<Self::Scalar>>,
+        final_fragments: Vec<InlineFragmentOutputOf<Self::Scalar>>,
+    ) {
+        set_inline_fragment_group(
+            &mut self.unrounded_inline_fragment_groups,
+            node,
+            Some(unrounded),
+        );
+        set_inline_fragment_group(
+            &mut self.final_inline_fragment_groups,
+            node,
+            Some(final_fragments),
+        );
+    }
+}
+
+fn set_inline_fragment_group<Node, S>(
+    groups: &mut Vec<StagedInlineFragmentGroup<Node, S>>,
+    node: Node,
+    fragments: Option<Vec<InlineFragmentOutputOf<S>>>,
+) where
+    Node: Copy + Eq,
+    S: LayoutScalar,
+{
+    if let Some(group) = groups.iter_mut().find(|group| group.node == node) {
+        group.fragments = fragments;
+    } else {
+        groups.push(StagedInlineFragmentGroup { node, fragments });
+    }
 }
 
 impl<Tree> CacheAccess<Tree::MeasureError> for ComputeSession<'_, Tree>
@@ -1011,6 +1119,7 @@ where
         + CacheAccess<M, Node = <Tree as Traverse>::Node, Scalar = <Tree as Traverse>::Scalar>,
 {
     tree.cache_clear(node);
+    tree.set_unrounded_inline_fragment_state(node, None);
     tree.set_unrounded(node, NodeOutputOf::with_source_index(source_index));
 
     for index in 0..tree.child_count(node) {
@@ -1037,6 +1146,7 @@ where
             | LayoutInputOf::LineBreak(_)
             | LayoutInputOf::InlineBoundary(_) => {
                 tree.cache_clear(child);
+                tree.set_unrounded_inline_fragment_state(child, None);
                 tree.set_unrounded(
                     child,
                     NodeOutputOf::with_source_index(crate::SourceIndex::new(index)),
@@ -1419,6 +1529,8 @@ where
 {
     let unrounded = tree.unrounded(node)?;
     let mut layout = unrounded;
+    let parent_cumulative_x = cumulative_x;
+    let parent_cumulative_y = cumulative_y;
     let cumulative_x = cumulative_x + unrounded.location.x;
     let cumulative_y = cumulative_y + unrounded.location.y;
 
@@ -1462,13 +1574,103 @@ where
         })?;
     layout = layout.with_scroll_geometry(scroll_geometry);
 
+    let fragment_phases = match tree.unrounded_inline_fragment_state(node) {
+        UnroundedInlineFragmentState::Absent => None,
+        UnroundedInlineFragmentState::Missing => {
+            return Err(LayoutErrorOf::new(
+                LayoutErrorSiteOf::Node(node),
+                LayoutOperation::RoundingFinalization,
+                LayoutErrorKindOf::InternalInvariant(
+                    LayoutInternalInvariant::MissingCachedInlineFragmentState,
+                ),
+            ));
+        }
+        UnroundedInlineFragmentState::Present(fragments) => {
+            let unrounded_fragments = fragments.to_vec();
+            let final_fragments = fragments
+                .iter()
+                .copied()
+                .map(|fragment| {
+                    round_inline_fragment(
+                        node,
+                        fragment,
+                        Point::new(parent_cumulative_x, parent_cumulative_y),
+                    )
+                })
+                .collect::<LayoutResultOf<_, Vec<_>, _, _>>()?;
+            Some((unrounded_fragments, final_fragments))
+        }
+    };
+
     tree.set_final(node, layout);
+    if let Some((unrounded_fragments, final_fragments)) = fragment_phases {
+        tree.set_final_inline_fragments(node, unrounded_fragments, final_fragments);
+    }
 
     for index in 0..tree.child_count(node) {
         let child = tree.child(node, index);
         round_layout_inner(tree, child, cumulative_x, cumulative_y)?;
     }
     Ok(())
+}
+
+fn round_inline_fragment<Node, S, M>(
+    node: Node,
+    fragment: InlineFragmentOutputOf<S>,
+    cumulative_origin: Point<S>,
+) -> LayoutResultOf<Node, InlineFragmentOutputOf<S>, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    let rect = fragment.rect();
+    let origin = rect.origin();
+    let size = rect.size();
+    let rounded_origin = Point::new(
+        round(cumulative_origin.x + origin.x) - round(cumulative_origin.x),
+        round(cumulative_origin.y + origin.y) - round(cumulative_origin.y),
+    );
+    let rounded_end = Point::new(
+        round(cumulative_origin.x + origin.x + size.width) - round(cumulative_origin.x),
+        round(cumulative_origin.y + origin.y + size.height) - round(cumulative_origin.y),
+    );
+    let rounded_rect = super::ScrollRectOf::try_new(
+        rounded_origin,
+        Size::new(
+            (rounded_end.x - rounded_origin.x).max(S::ZERO),
+            (rounded_end.y - rounded_origin.y).max(S::ZERO),
+        ),
+    )
+    .map_err(|_| invalid_rounded_inline_fragment_error(node))?;
+    let baseline = fragment.baseline();
+    let rounded_baseline = Point::new(
+        round(cumulative_origin.x + baseline.x) - round(cumulative_origin.x),
+        round(cumulative_origin.y + baseline.y) - round(cumulative_origin.y),
+    );
+    if !rounded_baseline.x.is_finite() || !rounded_baseline.y.is_finite() {
+        return Err(invalid_rounded_inline_fragment_error(node));
+    }
+    Ok(InlineFragmentOutputOf::new(
+        fragment.segment_id(),
+        rounded_rect,
+        rounded_baseline,
+        fragment.line_index(),
+        fragment.visual_index(),
+        fragment.replacement_inline_extent(),
+    ))
+}
+
+fn invalid_rounded_inline_fragment_error<Node, S, M>(node: Node) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        LayoutOperation::RoundingFinalization,
+        LayoutErrorKindOf::InternalInvariant(
+            LayoutInternalInvariant::InvalidRoundedInlineFragmentGeometry,
+        ),
+    )
 }
 
 #[inline]
@@ -2465,7 +2667,11 @@ impl<S: LayoutScalar> AvailableExt for AvailableOf<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LayoutInputOf, LayoutTree, NodeInput, Traverse};
+    use crate::{
+        BidiLevel, InlineBreakOpportunityOf, InlineFragmentOutputOf, InlineMetricsOf,
+        InlineSegmentId, InlineTextInputOf, InlineWhitespaceEdge, LayoutInputOf, LayoutTree,
+        NodeInput, ScrollRectOf, ShapedInlineSegmentOf, Traverse,
+    };
 
     struct EmptyTree {
         input: NodeInput,
@@ -2518,5 +2724,231 @@ mod tests {
                 LayoutInternalInvariant::MissingStagedUnroundedOutput,
             )
         );
+    }
+
+    fn fri06_c01_fragment<S: LayoutScalar>(segment: u64) -> InlineFragmentOutputOf<S> {
+        InlineFragmentOutputOf::new(
+            InlineSegmentId::new(segment),
+            ScrollRectOf::try_new(
+                Point::new(S::from_f64(0.25), S::from_f64(0.5)),
+                Size::new(S::from_f64(4.5), S::from_f64(2.25)),
+            )
+            .unwrap(),
+            Point::new(S::from_f64(0.25), S::from_f64(2.0)),
+            0,
+            segment as usize,
+            None,
+        )
+    }
+
+    fn fri06_c01_text_input<S: LayoutScalar>() -> InlineTextInputOf<S> {
+        InlineTextInputOf::try_new(vec![
+            ShapedInlineSegmentOf::try_new(
+                InlineSegmentId::new(1),
+                S::from_f64(4.5),
+                InlineMetricsOf::from_ascent_descent(S::from_f64(1.5), S::from_f64(0.75)).unwrap(),
+                BidiLevel::try_new(0).unwrap(),
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )
+            .unwrap(),
+        ])
+        .unwrap()
+    }
+
+    struct FragmentTree<S: LayoutScalar> {
+        input: NodeInputOf<S>,
+        layout_input: LayoutInputOf<S>,
+        committed: Option<Vec<InlineFragmentOutputOf<S>>>,
+        readback_calls: std::cell::Cell<usize>,
+    }
+
+    impl<S: LayoutScalar> Traverse for FragmentTree<S> {
+        type Node = u32;
+        type Scalar = S;
+        type Children<'a> = std::iter::Empty<u32>;
+
+        fn children(&self, _node: Self::Node) -> Self::Children<'_> {
+            std::iter::empty()
+        }
+
+        fn child_count(&self, _node: Self::Node) -> usize {
+            0
+        }
+
+        fn child(&self, _node: Self::Node, _index: usize) -> Self::Node {
+            unreachable!("fragment test tree has no children")
+        }
+    }
+
+    impl<S: LayoutScalar> LayoutTree for FragmentTree<S> {
+        type MeasureError = ();
+
+        fn node_input(&self, _node: Self::Node) -> &NodeInputOf<S> {
+            &self.input
+        }
+
+        fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<S> {
+            self.layout_input.clone()
+        }
+
+        fn unrounded_inline_fragments(
+            &self,
+            _node: Self::Node,
+        ) -> Option<&[InlineFragmentOutputOf<S>]> {
+            self.readback_calls.set(self.readback_calls.get() + 1);
+            self.committed.as_deref()
+        }
+    }
+
+    fn assert_fri06_c01_fragment_rounding_and_readback<S: LayoutScalar>() {
+        let staged_tree = FragmentTree::<S> {
+            input: NodeInputOf::non_box(),
+            layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
+            committed: None,
+            readback_calls: std::cell::Cell::new(0),
+        };
+        let mut staged = ComputeSession::new(&staged_tree);
+        Compute::set_unrounded(&mut staged, 0, NodeOutputOf::new());
+        Compute::set_unrounded_inline_fragment_state(
+            &mut staged,
+            0,
+            Some(vec![fri06_c01_fragment(1)]),
+        );
+        round_layout(&mut staged, 0).unwrap();
+        assert_eq!(staged_tree.readback_calls.get(), 0);
+        let staged_batch = staged.complete();
+
+        assert_eq!(staged_batch.unrounded_inline_fragments().len(), 1);
+        assert_eq!(staged_batch.final_inline_fragments().len(), 1);
+        assert_eq!(
+            staged_batch.unrounded_inline_fragments()[0]
+                .fragment()
+                .rect()
+                .origin(),
+            Point::new(S::from_f64(0.25), S::from_f64(0.5))
+        );
+        assert_eq!(
+            staged_batch.final_inline_fragments()[0]
+                .fragment()
+                .rect()
+                .origin(),
+            Point::new(S::ZERO, S::from_f64(1.0))
+        );
+
+        let warm_tree = FragmentTree::<S> {
+            input: NodeInputOf::non_box(),
+            layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
+            committed: Some(vec![fri06_c01_fragment(1)]),
+            readback_calls: std::cell::Cell::new(0),
+        };
+        let mut warm = ComputeSession::new(&warm_tree);
+        Compute::set_unrounded(&mut warm, 0, NodeOutputOf::new());
+        round_layout(&mut warm, 0).unwrap();
+        assert_eq!(warm_tree.readback_calls.get(), 1);
+        let warm_batch = warm.complete();
+        assert_eq!(
+            warm_batch.unrounded_inline_fragments(),
+            staged_batch.unrounded_inline_fragments()
+        );
+        assert_eq!(
+            warm_batch.final_inline_fragments(),
+            staged_batch.final_inline_fragments()
+        );
+
+        let empty_tree = FragmentTree::<S> {
+            input: NodeInputOf::non_box(),
+            layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
+            committed: Some(Vec::new()),
+            readback_calls: std::cell::Cell::new(0),
+        };
+        let mut empty = ComputeSession::new(&empty_tree);
+        Compute::set_unrounded(&mut empty, 0, NodeOutputOf::new());
+        round_layout(&mut empty, 0).unwrap();
+        assert_eq!(empty_tree.readback_calls.get(), 1);
+        let empty_batch = empty.complete();
+        assert!(empty_batch.unrounded_inline_fragments().is_empty());
+        assert!(empty_batch.final_inline_fragments().is_empty());
+    }
+
+    #[test]
+    fn fri06_c01_fragment_staged_and_committed_readback_round_once_in_both_scalar_lanes() {
+        assert_fri06_c01_fragment_rounding_and_readback::<f32>();
+        assert_fri06_c01_fragment_rounding_and_readback::<f64>();
+    }
+
+    #[test]
+    fn fri06_c01_fragment_missing_warm_text_state_fails_without_substitute_output() {
+        let tree = FragmentTree::<f32> {
+            input: NodeInputOf::non_box(),
+            layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
+            committed: None,
+            readback_calls: std::cell::Cell::new(0),
+        };
+        let mut session = ComputeSession::new(&tree);
+        Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
+
+        let error = round_layout(&mut session, 0).unwrap_err();
+        assert_eq!(tree.readback_calls.get(), 1);
+
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
+        assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InternalInvariant(
+                LayoutInternalInvariant::MissingCachedInlineFragmentState,
+            )
+        );
+        assert!(session.final_entries.is_empty());
+        assert!(session.final_inline_fragment_groups.is_empty());
+    }
+
+    #[test]
+    fn fri06_c01_fragment_hidden_state_publishes_no_fragment_and_needs_no_readback() {
+        let tree = FragmentTree::<f32> {
+            input: NodeInputOf::non_box(),
+            layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
+            committed: None,
+            readback_calls: std::cell::Cell::new(0),
+        };
+        let mut session = ComputeSession::new(&tree);
+        Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
+        Compute::set_unrounded_inline_fragment_state(&mut session, 0, None);
+
+        round_layout(&mut session, 0).unwrap();
+        assert_eq!(tree.readback_calls.get(), 0);
+
+        let batch = session.complete();
+        assert!(batch.unrounded_inline_fragments().is_empty());
+        assert!(batch.final_inline_fragments().is_empty());
+    }
+
+    fn assert_fri06_c01_fragment_rounding_overflow<S: LayoutScalar>(largest: S) {
+        let fragment = InlineFragmentOutputOf::new(
+            InlineSegmentId::new(1),
+            ScrollRectOf::try_new(Point::new(largest, S::ZERO), Size::ZERO).unwrap(),
+            Point::new(largest, S::ZERO),
+            0,
+            0,
+            None,
+        );
+
+        let error = round_inline_fragment::<u32, S, ()>(7, fragment, Point::new(largest, S::ZERO))
+            .unwrap_err();
+
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(7));
+        assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InternalInvariant(
+                LayoutInternalInvariant::InvalidRoundedInlineFragmentGeometry,
+            )
+        );
+    }
+
+    #[test]
+    fn fri06_c01_fragment_rounding_overflow_returns_typed_error_without_panic() {
+        assert_fri06_c01_fragment_rounding_overflow(f32::MAX);
+        assert_fri06_c01_fragment_rounding_overflow(f64::MAX);
     }
 }

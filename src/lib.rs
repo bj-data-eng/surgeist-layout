@@ -245,10 +245,11 @@ pub use node_input::{
 pub use output::{
     Baselines, BaselinesOf, CollapsibleMargin, CollapsibleMarginOf, CompletedLayoutBatch,
     CompletedLayoutBatchOf, ComputeInput, ComputeInputOf, ComputeOutput, ComputeOutputOf,
-    ContainingLayoutContext, FlexItemRootContext, FlexItemRootContextOf, LayoutCacheClearEntry,
-    LayoutCacheStoreEntry, LayoutCacheStoreEntryOf, LayoutOutputEntry, LayoutOutputEntryOf,
-    LayoutRootContext, LayoutRootContextOf, LayoutRootRequest, LayoutRootRequestOf,
-    LayoutRoundingMode, NodeOutput, NodeOutputOf, ParentFormattingContext,
+    ContainingLayoutContext, FlexItemRootContext, FlexItemRootContextOf, InlineFragmentOutput,
+    InlineFragmentOutputEntry, InlineFragmentOutputEntryOf, InlineFragmentOutputOf,
+    LayoutCacheClearEntry, LayoutCacheStoreEntry, LayoutCacheStoreEntryOf, LayoutOutputEntry,
+    LayoutOutputEntryOf, LayoutRootContext, LayoutRootContextOf, LayoutRootRequest,
+    LayoutRootRequestOf, LayoutRoundingMode, NodeOutput, NodeOutputOf, ParentFormattingContext,
     PhysicalBlockMarginCollapse, PhysicalBlockMarginCollapseOf, RootAvailabilityError,
     RootAvailabilityErrorOf, SourceIndex,
 };

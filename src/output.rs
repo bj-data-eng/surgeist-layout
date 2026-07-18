@@ -1,7 +1,8 @@
 use super::{
     AvailableOf, CacheKeyContext, DefaultScalar, Edges, LayoutScalar, NonNegativeFiniteOf,
-    NonNegativeFiniteScalarErrorOf, PhysicalAxis, Point, ScrollGeometryOf, Size,
+    NonNegativeFiniteScalarErrorOf, PhysicalAxis, Point, ScrollGeometryOf, ScrollRectOf, Size,
 };
+use crate::InlineSegmentId;
 use crate::geometry::{FlowAxes, PhysicalSide};
 use crate::scroll::SettledAutoScrollbarState;
 
@@ -1118,6 +1119,118 @@ impl<S: LayoutScalar> Default for NodeOutputOf<S> {
     }
 }
 
+/// Immutable geometry for one indivisible shaped inline segment on one line.
+///
+/// Layout constructs this output after line selection. Callers can inspect but
+/// cannot construct or mutate it, so source identity and phase geometry remain
+/// associated.
+///
+/// ```compile_fail
+/// use surgeist_layout::{InlineFragmentOutput, InlineSegmentId, Point, ScrollRect, Size};
+/// let _ = InlineFragmentOutput::new(
+///     InlineSegmentId::new(1),
+///     ScrollRect::try_new(Point::ZERO, Size::ZERO).unwrap(),
+///     Point::ZERO,
+///     0,
+///     0,
+///     None,
+/// );
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InlineFragmentOutputOf<S: LayoutScalar = DefaultScalar> {
+    segment_id: InlineSegmentId,
+    rect: ScrollRectOf<S>,
+    baseline: Point<S>,
+    line_index: usize,
+    visual_index: usize,
+    replacement_inline_extent: Option<S>,
+}
+
+pub type InlineFragmentOutput = InlineFragmentOutputOf<DefaultScalar>;
+
+impl<S: LayoutScalar> InlineFragmentOutputOf<S> {
+    pub(crate) const fn new(
+        segment_id: InlineSegmentId,
+        rect: ScrollRectOf<S>,
+        baseline: Point<S>,
+        line_index: usize,
+        visual_index: usize,
+        replacement_inline_extent: Option<S>,
+    ) -> Self {
+        Self {
+            segment_id,
+            rect,
+            baseline,
+            line_index,
+            visual_index,
+            replacement_inline_extent,
+        }
+    }
+
+    #[must_use]
+    pub const fn segment_id(&self) -> InlineSegmentId {
+        self.segment_id
+    }
+
+    #[must_use]
+    pub const fn rect(&self) -> ScrollRectOf<S> {
+        self.rect
+    }
+
+    #[must_use]
+    pub const fn baseline(&self) -> Point<S> {
+        self.baseline
+    }
+
+    #[must_use]
+    pub const fn line_index(&self) -> usize {
+        self.line_index
+    }
+
+    #[must_use]
+    pub const fn visual_index(&self) -> usize {
+        self.visual_index
+    }
+
+    #[must_use]
+    pub const fn replacement_inline_extent(&self) -> Option<S> {
+        self.replacement_inline_extent
+    }
+}
+
+/// Associates one immutable inline fragment with its source layout node.
+///
+/// Completed batches order entries by source-tree order and then segment source
+/// order. [`InlineFragmentOutputOf::visual_index`] records visual order without
+/// changing that public identity order.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InlineFragmentOutputEntryOf<Node, S: LayoutScalar = DefaultScalar> {
+    node: Node,
+    fragment: InlineFragmentOutputOf<S>,
+}
+
+pub type InlineFragmentOutputEntry<Node> = InlineFragmentOutputEntryOf<Node, DefaultScalar>;
+
+impl<Node, S> InlineFragmentOutputEntryOf<Node, S>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    pub(crate) const fn new(node: Node, fragment: InlineFragmentOutputOf<S>) -> Self {
+        Self { node, fragment }
+    }
+
+    #[must_use]
+    pub const fn node(&self) -> Node {
+        self.node
+    }
+
+    #[must_use]
+    pub const fn fragment(&self) -> InlineFragmentOutputOf<S> {
+        self.fragment
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LayoutOutputEntryOf<Node, S: LayoutScalar = DefaultScalar> {
     node: Node,
@@ -1219,6 +1332,8 @@ where
 pub struct CompletedLayoutBatchOf<Node, S: LayoutScalar = DefaultScalar> {
     unrounded_entries: Vec<LayoutOutputEntryOf<Node, S>>,
     final_entries: Vec<LayoutOutputEntryOf<Node, S>>,
+    unrounded_inline_fragments: Vec<InlineFragmentOutputEntryOf<Node, S>>,
+    final_inline_fragments: Vec<InlineFragmentOutputEntryOf<Node, S>>,
     cache_store_entries: Vec<LayoutCacheStoreEntryOf<Node, S>>,
     cache_clear_entries: Vec<LayoutCacheClearEntry<Node>>,
 }
@@ -1232,12 +1347,16 @@ where
     pub(crate) fn from_entries(
         unrounded_entries: Vec<LayoutOutputEntryOf<Node, S>>,
         final_entries: Vec<LayoutOutputEntryOf<Node, S>>,
+        unrounded_inline_fragments: Vec<InlineFragmentOutputEntryOf<Node, S>>,
+        final_inline_fragments: Vec<InlineFragmentOutputEntryOf<Node, S>>,
         cache_store_entries: Vec<LayoutCacheStoreEntryOf<Node, S>>,
         cache_clear_entries: Vec<LayoutCacheClearEntry<Node>>,
     ) -> Self {
         Self {
             unrounded_entries,
             final_entries,
+            unrounded_inline_fragments,
+            final_inline_fragments,
             cache_store_entries,
             cache_clear_entries,
         }
@@ -1261,6 +1380,18 @@ where
     #[must_use]
     pub fn final_entries(&self) -> &[LayoutOutputEntryOf<Node, S>] {
         &self.final_entries
+    }
+
+    /// Returns unrounded fragments in source-tree then segment source order.
+    #[must_use]
+    pub fn unrounded_inline_fragments(&self) -> &[InlineFragmentOutputEntryOf<Node, S>] {
+        &self.unrounded_inline_fragments
+    }
+
+    /// Returns final fragments in source-tree then segment source order.
+    #[must_use]
+    pub fn final_inline_fragments(&self) -> &[InlineFragmentOutputEntryOf<Node, S>] {
+        &self.final_inline_fragments
     }
 
     #[must_use]

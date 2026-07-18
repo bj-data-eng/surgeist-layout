@@ -2,6 +2,7 @@ use super::{
     CacheKeyContext, ComputeInputOf, ComputeOutputOf, LayoutInputOf, LayoutScalar, NodeInputOf,
     NodeOutputOf, RunMode, Size,
 };
+use crate::InlineFragmentOutputOf;
 use crate::compute::{LayoutResultOf, LeafMeasureInputOf};
 
 pub trait Traverse {
@@ -46,12 +47,30 @@ pub trait LayoutTree: Traverse {
     ) -> Option<ComputeOutputOf<Self::Scalar>> {
         None
     }
+
+    /// Returns the committed unrounded fragments for an inline-text node.
+    ///
+    /// `Some(&[])` is a committed empty fragment state. `None` is absence of
+    /// committed state and becomes an invariant error when a warm inline-text
+    /// node reaches rounding.
+    fn unrounded_inline_fragments(
+        &self,
+        _node: Self::Node,
+    ) -> Option<&[InlineFragmentOutputOf<Self::Scalar>]> {
+        None
+    }
 }
 
 pub(crate) trait Compute<M = core::convert::Infallible>: Traverse {
     fn node_input(&self, node: Self::Node) -> &NodeInputOf<Self::Scalar>;
     fn layout_input(&self, node: Self::Node) -> LayoutInputOf<Self::Scalar>;
     fn set_unrounded(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>);
+    fn set_unrounded_inline_fragment_state(
+        &mut self,
+        _node: Self::Node,
+        _fragments: Option<Vec<InlineFragmentOutputOf<Self::Scalar>>>,
+    ) {
+    }
     fn compute_child(
         &mut self,
         node: Self::Node,
@@ -65,6 +84,27 @@ pub(crate) trait Round<M = core::convert::Infallible>: Traverse {
         node: Self::Node,
     ) -> LayoutResultOf<Self::Node, NodeOutputOf<Self::Scalar>, Self::Scalar, M>;
     fn set_final(&mut self, node: Self::Node, layout: NodeOutputOf<Self::Scalar>);
+
+    fn unrounded_inline_fragment_state(
+        &self,
+        _node: Self::Node,
+    ) -> UnroundedInlineFragmentState<'_, Self::Scalar> {
+        UnroundedInlineFragmentState::Absent
+    }
+
+    fn set_final_inline_fragments(
+        &mut self,
+        _node: Self::Node,
+        _unrounded: Vec<InlineFragmentOutputOf<Self::Scalar>>,
+        _final_fragments: Vec<InlineFragmentOutputOf<Self::Scalar>>,
+    ) {
+    }
+}
+
+pub(crate) enum UnroundedInlineFragmentState<'a, S: LayoutScalar> {
+    Absent,
+    Missing,
+    Present(&'a [InlineFragmentOutputOf<S>]),
 }
 
 pub(crate) trait CacheAccess<M = core::convert::Infallible> {

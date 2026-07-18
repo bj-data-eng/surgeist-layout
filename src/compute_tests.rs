@@ -49,6 +49,8 @@ fn completed_batch_exposes_read_only_layout_and_cache_entries() {
     let batch = CompletedLayoutBatch::from_entries(
         vec![LayoutOutputEntry::new(7, unrounded)],
         vec![LayoutOutputEntry::new(7, final_layout)],
+        Vec::new(),
+        Vec::new(),
         vec![LayoutCacheStoreEntry::new(
             7,
             cache_input,
@@ -67,6 +69,151 @@ fn completed_batch_exposes_read_only_layout_and_cache_entries() {
     assert_eq!(batch.cache_store_entries()[0].context(), cache_context);
     assert_eq!(batch.cache_store_entries()[0].output(), cache_output);
     assert_eq!(batch.cache_clear_entries()[0].node(), 11);
+}
+
+fn fri06_c01_fragment_value<S: LayoutScalar>(
+    segment: u64,
+    origin: Point<S>,
+    size: Size<S>,
+    baseline: Point<S>,
+    line_index: usize,
+    visual_index: usize,
+    replacement_inline_extent: Option<S>,
+) -> InlineFragmentOutputOf<S> {
+    InlineFragmentOutputOf::new(
+        InlineSegmentId::new(segment),
+        ScrollRectOf::try_new(origin, size).unwrap(),
+        baseline,
+        line_index,
+        visual_index,
+        replacement_inline_extent,
+    )
+}
+
+fn assert_fri06_c01_fragment_output_contract<S: LayoutScalar>() {
+    fn assert_immutable_carrier<T: Clone + Copy + core::fmt::Debug + PartialEq>() {}
+    assert_immutable_carrier::<InlineFragmentOutputOf<S>>();
+    assert_immutable_carrier::<InlineFragmentOutputEntryOf<u32, S>>();
+
+    let fragment = fri06_c01_fragment_value(
+        41,
+        Point::new(S::from_f64(1.25), S::from_f64(2.5)),
+        Size::new(S::from_f64(3.75), S::from_f64(4.5)),
+        Point::new(S::from_f64(1.25), S::from_f64(5.5)),
+        2,
+        3,
+        Some(S::from_f64(0.75)),
+    );
+    assert_eq!(fragment.segment_id(), InlineSegmentId::new(41));
+    assert_eq!(
+        fragment.rect(),
+        ScrollRectOf::try_new(
+            Point::new(S::from_f64(1.25), S::from_f64(2.5)),
+            Size::new(S::from_f64(3.75), S::from_f64(4.5)),
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        fragment.baseline(),
+        Point::new(S::from_f64(1.25), S::from_f64(5.5))
+    );
+    assert_eq!(fragment.line_index(), 2);
+    assert_eq!(fragment.visual_index(), 3);
+    assert_eq!(
+        fragment.replacement_inline_extent(),
+        Some(S::from_f64(0.75))
+    );
+
+    let entry = InlineFragmentOutputEntryOf::new(7_u32, fragment);
+    assert_eq!(entry.node(), 7);
+    assert_eq!(entry.fragment(), fragment);
+}
+
+#[test]
+fn fri06_c01_fragment_carriers_expose_immutable_phase_output_in_both_scalar_lanes() {
+    assert_fri06_c01_fragment_output_contract::<f32>();
+    assert_fri06_c01_fragment_output_contract::<f64>();
+}
+
+fn assert_fri06_c01_fragment_batch_phases<S: LayoutScalar>() {
+    let first_unrounded = fri06_c01_fragment_value(
+        1,
+        Point::new(S::from_f64(0.25), S::from_f64(0.5)),
+        Size::new(S::from_f64(4.5), S::from_f64(2.25)),
+        Point::new(S::from_f64(0.25), S::from_f64(2.0)),
+        0,
+        1,
+        None,
+    );
+    let second_unrounded = fri06_c01_fragment_value(
+        2,
+        Point::new(S::from_f64(5.25), S::from_f64(0.5)),
+        Size::new(S::from_f64(3.5), S::from_f64(2.25)),
+        Point::new(S::from_f64(5.25), S::from_f64(2.0)),
+        0,
+        0,
+        None,
+    );
+    let first_final = fri06_c01_fragment_value(
+        1,
+        Point::new(S::ZERO, S::from_f64(1.0)),
+        Size::new(S::from_f64(5.0), S::from_f64(2.0)),
+        Point::new(S::ZERO, S::from_f64(2.0)),
+        0,
+        1,
+        None,
+    );
+    let second_final = fri06_c01_fragment_value(
+        2,
+        Point::new(S::from_f64(5.0), S::from_f64(1.0)),
+        Size::new(S::from_f64(4.0), S::from_f64(2.0)),
+        Point::new(S::from_f64(5.0), S::from_f64(2.0)),
+        0,
+        0,
+        None,
+    );
+    let batch = CompletedLayoutBatchOf::from_entries(
+        Vec::new(),
+        Vec::new(),
+        vec![
+            InlineFragmentOutputEntryOf::new(10_u32, first_unrounded),
+            InlineFragmentOutputEntryOf::new(10_u32, second_unrounded),
+        ],
+        vec![
+            InlineFragmentOutputEntryOf::new(10_u32, first_final),
+            InlineFragmentOutputEntryOf::new(10_u32, second_final),
+        ],
+        Vec::new(),
+        Vec::new(),
+    );
+
+    assert_eq!(
+        batch
+            .unrounded_inline_fragments()
+            .iter()
+            .map(|entry| (entry.node(), entry.fragment().segment_id()))
+            .collect::<Vec<_>>(),
+        vec![(10, InlineSegmentId::new(1)), (10, InlineSegmentId::new(2))]
+    );
+    assert_eq!(
+        batch
+            .final_inline_fragments()
+            .iter()
+            .map(InlineFragmentOutputEntryOf::fragment)
+            .collect::<Vec<_>>(),
+        vec![first_final, second_final]
+    );
+    assert_ne!(first_unrounded.rect(), first_final.rect());
+    assert!(batch.unrounded_entries().is_empty());
+    assert!(batch.final_entries().is_empty());
+    assert!(batch.cache_store_entries().is_empty());
+    assert!(batch.cache_clear_entries().is_empty());
+}
+
+#[test]
+fn fri06_c01_fragment_batch_keeps_source_order_and_separate_geometry_in_both_scalar_lanes() {
+    assert_fri06_c01_fragment_batch_phases::<f32>();
+    assert_fri06_c01_fragment_batch_phases::<f64>();
 }
 
 #[test]
