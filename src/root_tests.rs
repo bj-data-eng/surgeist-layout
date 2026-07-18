@@ -2048,6 +2048,112 @@ fn fri06_c04_line_band_ordinary_block_keeps_outer_edge_and_inherits_parent_float
 }
 
 #[test]
+fn fri06_c04_line_band_nested_local_float_keeps_combined_ledger_order_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(100.0)),
+                PreferredSizeOf::px(S::from_f64(80.0)),
+            ),
+            ..NodeInputOf::default()
+        };
+        let preceding_style = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(PreferredSizeOf::px(S::ZERO), PreferredSizeOf::px(S::ZERO)),
+            ..NodeInputOf::default()
+        };
+        let parent_float_style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(30.0)),
+            Float::Left,
+            None,
+        );
+        let ordinary_style = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        };
+        let local_float_style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::from_f64(20.0), S::from_f64(20.0)),
+            Float::Right,
+            None,
+        );
+        let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+            704,
+            40.0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )])
+        .unwrap();
+        let tree = Fri06C02TextTree {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_style.clone())),
+                (1, LayoutInputOf::box_input(preceding_style.clone())),
+                (2, LayoutInputOf::box_input(parent_float_style.clone())),
+                (3, LayoutInputOf::box_input(ordinary_style.clone())),
+                (4, LayoutInputOf::box_input(local_float_style.clone())),
+                (5, LayoutInputOf::inline_text(text)),
+            ]),
+            node_inputs: HashMap::from([
+                (0, root_style),
+                (1, preceding_style),
+                (2, parent_float_style),
+                (3, ordinary_style),
+                (4, local_float_style),
+                (5, NodeInputOf::non_box()),
+            ]),
+            children: HashMap::from([
+                (0, vec![1, 2, 3]),
+                (1, Vec::new()),
+                (2, Vec::new()),
+                (3, vec![4, 5]),
+                (4, Vec::new()),
+                (5, Vec::new()),
+            ]),
+        };
+
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::new(
+                AvailableOf::definite(S::from_f64(100.0)),
+                AvailableOf::definite(S::from_f64(80.0)),
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            fri06_c02_final_node(&batch, 2).source_index,
+            SourceIndex::new(1)
+        );
+        let ordinary = fri06_c02_final_node(&batch, 3);
+        assert_eq!(ordinary.source_index, SourceIndex::new(2));
+        assert_eq!(ordinary.location, Point::ZERO);
+        assert_eq!(ordinary.size.width, S::from_f64(100.0));
+
+        let local_float = fri06_c02_final_node(&batch, 4);
+        assert_eq!(local_float.source_index, SourceIndex::ZERO);
+        assert_eq!(local_float.location, Point::new(S::from_f64(80.0), S::ZERO));
+        assert_eq!(
+            fri06_c02_final_node(&batch, 5).source_index,
+            SourceIndex::new(1)
+        );
+        let fragment = fri06_c03_fragment(&batch, 5);
+        assert_eq!(fragment.line_index(), 0);
+        assert_eq!(
+            fragment.rect().origin(),
+            Point::new(S::from_f64(30.0), S::ZERO)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn fri06_c04_line_clear_all_flows_values_and_matching_sides_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
         for (writing_mode, direction) in [

@@ -1847,6 +1847,111 @@ fn fri06_c04_bfc_shape_margin_box_remains_physical_without_provider_both_scalars
 }
 
 #[test]
+fn fri06_c04_line_band_direct_compute_inherits_float_into_internal_line_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let root_size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+        let fixed_size = |width, height| {
+            Size::new(
+                PreferredSizeOf::px(S::from_f64(width)),
+                PreferredSizeOf::px(S::from_f64(height)),
+            )
+        };
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [1, 2, 3])
+            .children(1, [])
+            .children(2, [])
+            .children(3, [4, 5])
+            .children(4, [])
+            .children(5, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    size: root_size.map(PreferredSizeOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    size: fixed_size(0.0, 0.0),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                2,
+                NodeInputOf {
+                    display: Display::Block,
+                    float: Float::Left,
+                    size: fixed_size(30.0, 30.0),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                3,
+                NodeInputOf {
+                    display: Display::Block,
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                4,
+                NodeInputOf {
+                    display: Display::Block,
+                    float: Float::Right,
+                    size: fixed_size(20.0, 20.0),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                5,
+                NodeInputOf {
+                    display: Display::InlineBlock,
+                    size: fixed_size(40.0, 10.0),
+                    atomic_inline_participation: Some(fri06_atomic_participation()),
+                    ..NodeInputOf::default()
+                },
+            );
+
+        crate::compute_block(
+            &mut tree,
+            0,
+            ComputeInputOf::root_layout(
+                Size::NONE,
+                root_size.map(Some),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                root_size.map(AvailableOf::definite),
+            ),
+        )
+        .expect("direct block compute succeeds");
+
+        let parent_float = tree.layout(2).expect("parent float is laid out");
+        assert_eq!(parent_float.source_index, SourceIndex::new(1));
+        let ordinary = tree.layout(3).expect("ordinary child is laid out");
+        assert_eq!(ordinary.source_index, SourceIndex::new(2));
+        assert_eq!(ordinary.location, Point::ZERO);
+        assert_eq!(ordinary.size.width, S::from_f64(100.0));
+
+        let local_float = tree.layout(4).expect("child-local float is laid out");
+        assert_eq!(local_float.source_index, SourceIndex::ZERO);
+        assert_eq!(local_float.location, Point::new(S::from_f64(80.0), S::ZERO));
+        let internal_line = tree.layout(5).expect("internal atomic line is laid out");
+        assert_eq!(internal_line.source_index, SourceIndex::new(1));
+        assert_eq!(
+            internal_line.location,
+            Point::new(S::from_f64(30.0), S::ZERO)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn fri06_c04_float_ledger_full_span_asymmetric_opposing_and_source_order_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
         let zero = crate::geometry::LogicalEdgesOf::new(S::ZERO, S::ZERO, S::ZERO, S::ZERO);
@@ -1958,28 +2063,24 @@ fn fri06_c04_float_ledger_evaluates_each_float_span_pair_once_per_candidate_pass
             FloatExclusion::MarginBox,
             crate::geometry::LogicalPointOf::new(S::ZERO, S::ZERO),
             crate::geometry::LogicalSizeOf::new(scalar_value(40.0), scalar_value(20.0)),
-            1,
         );
         exclusions.record_test_float(
             FloatLedgerSide::LineEnd,
             FloatExclusion::MarginBox,
             crate::geometry::LogicalPointOf::new(scalar_value(70.0), scalar_value(20.0)),
             crate::geometry::LogicalSizeOf::new(scalar_value(30.0), scalar_value(60.0)),
-            2,
         );
         exclusions.record_test_float(
             FloatLedgerSide::LineStart,
             FloatExclusion::MarginBox,
             crate::geometry::LogicalPointOf::new(scalar_value(10.0), scalar_value(90.0)),
             crate::geometry::LogicalSizeOf::new(scalar_value(10.0), scalar_value(10.0)),
-            3,
         );
         exclusions.record_test_float(
             FloatLedgerSide::LineStart,
             FloatExclusion::MarginBox,
             crate::geometry::LogicalPointOf::new(scalar_value(20.0), S::ZERO),
             crate::geometry::LogicalSizeOf::new(scalar_value(30.0), scalar_value(40.0)),
-            4,
         );
 
         let band = exclusions.query_rectangular_line_band(S::ZERO, scalar_value(40.0));
@@ -2007,7 +2108,6 @@ fn fri06_c04_float_ledger_shape_is_not_approximated_by_rectangular_line_band() {
         FloatExclusion::Shape,
         crate::geometry::LogicalPointOf::new(0.0, 0.0),
         crate::geometry::LogicalSizeOf::new(80.0, 50.0),
-        1,
     );
 
     let band = exclusions.query_rectangular_line_band(0.0, 20.0);

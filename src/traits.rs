@@ -113,9 +113,12 @@ pub(crate) trait Compute<M = core::convert::Infallible>: Traverse {
         &mut self,
         node: Self::Node,
         input: ComputeInputOf<Self::Scalar>,
-        _inherited: crate::block::InheritedFloatExclusions<Self::Scalar>,
-    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, M> {
-        self.compute_child(node, input)
+        inherited: crate::block::InheritedFloatExclusions<Self::Scalar>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, M>
+    where
+        Self: Sized,
+    {
+        crate::block::compute_block_with_inherited_float_exclusions(self, node, input, inherited)
     }
 }
 

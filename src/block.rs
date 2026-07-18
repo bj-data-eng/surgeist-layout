@@ -404,6 +404,9 @@ struct PhysicalMarginBox<S: LayoutScalar> {
     size: Size<S>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct FloatLedgerOrder(usize);
+
 #[derive(Clone, Copy, Debug)]
 struct FloatLedgerEntry<S: LayoutScalar> {
     side: FloatLedgerSide,
@@ -413,7 +416,7 @@ struct FloatLedgerEntry<S: LayoutScalar> {
     inline_end: S,
     block_start: S,
     block_end: S,
-    source_order: usize,
+    ledger_order: FloatLedgerOrder,
 }
 
 impl<S: LayoutScalar> FloatLedgerEntry<S> {
@@ -504,6 +507,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
             child_logical_size,
             inherited.parent_containing_size,
         );
+        let mut inherited_order = self.ledger.len();
         self.ledger
             .extend(inherited.ledger.iter().copied().map(|entry| {
                 let physical_origin = Point::new(
@@ -535,6 +539,8 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                         FloatLedgerSide::LineEnd
                     }
                 };
+                let ledger_order = FloatLedgerOrder(inherited_order);
+                inherited_order += 1;
                 FloatLedgerEntry {
                     side,
                     physical_margin_box: PhysicalMarginBox {
@@ -545,6 +551,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                     inline_end: logical_origin.inline + logical_size.inline,
                     block_start: logical_origin.block,
                     block_end: logical_origin.block + logical_size.block,
+                    ledger_order,
                     ..entry
                 }
             }));
@@ -582,6 +589,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                     self.containing_size,
                 );
                 let physical_margin_size = self.flow_axes.physical_size(margin_box_size);
+                let ledger_order = FloatLedgerOrder(self.ledger.len());
                 self.ledger.push(FloatLedgerEntry {
                     side,
                     exclusion: float.style.float_exclusion,
@@ -593,7 +601,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                     inline_end: margin_box_inline + margin_box_size.inline,
                     block_start: candidate_block,
                     block_end: candidate_block + margin_box_size.block,
-                    source_order: float.source_index,
+                    ledger_order,
                 });
                 return self.flow_axes.physical_point(
                     content_origin,
@@ -706,7 +714,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         debug_assert!(
             self.ledger
                 .windows(2)
-                .all(|pair| pair[0].source_order <= pair[1].source_order),
+                .all(|pair| pair[0].ledger_order <= pair[1].ledger_order),
             "float ledger remains in source order"
         );
         let mut inline_start = self.containing_inline_start;
@@ -761,12 +769,12 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         exclusion: FloatExclusion,
         logical_origin: LogicalPointOf<S>,
         logical_size: LogicalSizeOf<S>,
-        source_order: usize,
     ) {
         let origin =
             self.flow_axes
                 .physical_point(logical_origin, logical_size, self.containing_size);
         let size = self.flow_axes.physical_size(logical_size);
+        let ledger_order = FloatLedgerOrder(self.ledger.len());
         self.ledger.push(FloatLedgerEntry {
             side,
             exclusion,
@@ -775,7 +783,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
             inline_end: logical_origin.inline + logical_size.inline,
             block_start: logical_origin.block,
             block_end: logical_origin.block + logical_size.block,
-            source_order,
+            ledger_order,
         });
     }
 }
