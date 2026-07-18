@@ -229,7 +229,7 @@ where
             .get(column_start..column_end)
             .is_some_and(|tracks| tracks.iter().any(track_accepts_min_content_span_priority));
         let output = if logical_available.inline == AvailableOf::MIN_CONTENT
-            && grid_axis_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Column)
+            && grid_axis_used_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Column)
                 .clips_contents()
             && !spans_min_content_column
         {
@@ -273,17 +273,30 @@ where
             constants.node_inner_size,
         )
         .map_err(|status| crate::compute::value_resolution_error(child, status))?;
-        let logical_output_size = grid.sizing_flow_axes.logical_size(output.size);
         let logical_margin = grid.sizing_flow_axes.logical_edges(margin);
+        let column_contribution_size = grid_axis_intrinsic_contribution_size(
+            &child_style,
+            grid.sizing_flow_axes,
+            output.size,
+            output.content_size,
+            GridAxisKind::Column,
+        );
+        let row_contribution_size = grid_axis_intrinsic_contribution_size(
+            &child_style,
+            grid.sizing_flow_axes,
+            output.size,
+            output.content_size,
+            GridAxisKind::Row,
+        );
 
         if contributes_column {
             let contribution_kind = IntrinsicSpanContribution::for_axis(
                 logical_available.inline,
-                grid_axis_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Column),
+                grid_axis_used_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Column),
             );
             if column_end == column_start + 1 {
                 columns[column_start] = columns[column_start]
-                    .max(logical_output_size.inline + logical_margin.inline_sum());
+                    .max(column_contribution_size + logical_margin.inline_sum());
             } else if logical_available.inline == AvailableOf::MIN_CONTENT
                 && column_span_tracks.is_some_and(|tracks| {
                     tracks.iter().any(track_has_percent_sizing)
@@ -295,9 +308,13 @@ where
                 distribute_min_content_span_with_percent(
                     &mut columns[column_start..column_end],
                     &column_tracks[column_start..column_end],
-                    grid_axis_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Column),
+                    grid_axis_used_overflow(
+                        &child_style,
+                        grid.sizing_flow_axes,
+                        GridAxisKind::Column,
+                    ),
                     grid.percent_basis.inline,
-                    logical_output_size.inline + logical_margin.inline_sum(),
+                    column_contribution_size + logical_margin.inline_sum(),
                 );
             } else {
                 distribute_intrinsic_span(
@@ -306,7 +323,7 @@ where
                     contribution_kind,
                     grid.percent_basis.inline,
                     span_contribution(
-                        logical_output_size.inline + logical_margin.inline_sum(),
+                        column_contribution_size + logical_margin.inline_sum(),
                         column_end - column_start,
                         grid.gap.inline,
                     ),
@@ -316,7 +333,7 @@ where
         if contributes_row || row_baseline_candidate {
             let contribution_kind = IntrinsicSpanContribution::for_axis(
                 logical_available.block,
-                grid_axis_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Row),
+                grid_axis_used_overflow(&child_style, grid.sizing_flow_axes, GridAxisKind::Row),
             );
             let baselines = output.baselines();
             let child_flow_axes = FlowAxes::new(child_style.writing_mode, child_style.direction);
@@ -341,7 +358,7 @@ where
                 end: row_end,
                 contributes_to_row_size: contributes_row,
                 contribution_kind,
-                contribution: logical_output_size.block + logical_margin.block_sum(),
+                contribution: row_contribution_size + logical_margin.block_sum(),
                 participation,
                 geometry: baseline_geometry_for_intrinsic_contribution(
                     output,
@@ -883,10 +900,14 @@ where
         if !is_in_flow_grid_child(&child_style) {
             continue;
         }
-        if subgrid_leaf_size_depends_on_queried_axis(&child_style, input.axis) {
+        if subgrid_leaf_size_depends_on_queried_axis(
+            &child_style,
+            input.constants.flow_axes,
+            input.axis,
+        ) {
             continue;
         }
-        if scroll_container_auto_minimum_zero(&child_style, input.axis) {
+        if scroll_container_auto_minimum_zero(&child_style, input.constants.flow_axes, input.axis) {
             continue;
         }
         let start = leaf.ancestor_span.start - 1;
@@ -940,13 +961,18 @@ where
             input.constants.node_inner_size,
         )
         .map_err(|status| crate::compute::value_resolution_error(leaf.node, status))?;
-        let contribution = axis_size(output.size, input.axis)
-            + axis_margin_sum(margin, input.axis)
+        let contribution = grid_axis_intrinsic_contribution_size(
+            &child_style,
+            input.constants.flow_axes,
+            output.size,
+            output.content_size,
+            input.axis,
+        ) + axis_margin_sum(margin, input.axis)
             + adjustment_sum(&leaf.accumulated_edge_adjustment, start, end)
             + adjustment_sum(&leaf.accumulated_gap_adjustment, start, end);
         let contribution_kind = IntrinsicSpanContribution::for_axis(
             axis_available(input.available, input.axis),
-            axis_overflow(&child_style, input.axis),
+            grid_axis_used_overflow(&child_style, input.constants.flow_axes, input.axis),
         );
         if let Some(root) = leaf.root_node
             && leaf.root_axis_fully_inherited
@@ -966,7 +992,7 @@ where
             distribute_min_content_span_with_percent(
                 &mut input.sizes[start..end],
                 span_tracks,
-                axis_overflow(&child_style, input.axis),
+                grid_axis_used_overflow(&child_style, input.constants.flow_axes, input.axis),
                 input.percent_basis,
                 contribution,
             );
@@ -985,22 +1011,18 @@ where
 
 fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
     style: &NodeInputOf<S>,
+    flow_axes: FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
-    match axis {
-        GridAxisKind::Column => scroll_container_auto_minimum_zero_inline(style),
-        GridAxisKind::Row => scroll_container_auto_minimum_zero_block(style),
-    }
+    scroll_container_auto_minimum_zero_for_grid_axis(style, flow_axes, axis)
 }
 
 fn subgrid_leaf_size_depends_on_queried_axis<S: LayoutScalar>(
     style: &NodeInputOf<S>,
+    flow_axes: FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
-    match axis {
-        GridAxisKind::Column => style.size.width.depends_on_basis(),
-        GridAxisKind::Row => style.size.height.depends_on_basis(),
-    }
+    grid_axis_size(flow_axes, style.size.clone(), axis).depends_on_basis()
 }
 
 fn item_inherits_parent_axis<Node, S: LayoutScalar>(
@@ -1041,13 +1063,6 @@ fn track_components_request_subgrid<S: LayoutScalar>(
         .any(|component| matches!(component, TrackComponentOf::Subgrid(_)))
 }
 
-fn axis_size<S: LayoutScalar>(size: Size<S>, axis: GridAxisKind) -> S {
-    match axis {
-        GridAxisKind::Column => size.width,
-        GridAxisKind::Row => size.height,
-    }
-}
-
 fn axis_margin_sum<S: LayoutScalar>(margin: Edges<S>, axis: GridAxisKind) -> S {
     match axis {
         GridAxisKind::Column => margin.horizontal_sum(),
@@ -1065,15 +1080,7 @@ fn axis_available<S: LayoutScalar>(
     }
 }
 
-fn axis_overflow<S: LayoutScalar>(style: &NodeInputOf<S>, axis: GridAxisKind) -> UsedOverflowAxis {
-    let overflow = UsedOverflow::from_computed(style.overflow, style.item_is_replaced);
-    match axis {
-        GridAxisKind::Column => overflow.x(),
-        GridAxisKind::Row => overflow.y(),
-    }
-}
-
-fn grid_axis_overflow<S: LayoutScalar>(
+pub(super) fn grid_axis_used_overflow<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     flow_axes: FlowAxes,
     axis: GridAxisKind,
@@ -1085,7 +1092,7 @@ fn grid_axis_overflow<S: LayoutScalar>(
     }
 }
 
-fn grid_axis_computed_overflow<S: LayoutScalar>(
+pub(super) fn grid_axis_computed_overflow<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     flow_axes: FlowAxes,
     axis: GridAxisKind,
@@ -1106,10 +1113,25 @@ fn grid_axis_physical_axis(
     }
 }
 
-fn grid_axis_size<T>(flow_axes: FlowAxes, size: Size<T>, axis: GridAxisKind) -> T {
+pub(super) fn grid_axis_size<T>(flow_axes: FlowAxes, size: Size<T>, axis: GridAxisKind) -> T {
     match grid_axis_physical_axis(flow_axes, axis) {
         crate::geometry::PhysicalAxis::Horizontal => size.width,
         crate::geometry::PhysicalAxis::Vertical => size.height,
+    }
+}
+
+fn grid_axis_intrinsic_contribution_size<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    flow_axes: FlowAxes,
+    size: Size<S>,
+    content_size: Size<S>,
+    axis: GridAxisKind,
+) -> S {
+    let item_size = grid_axis_size(flow_axes, size, axis);
+    if grid_axis_used_overflow(style, flow_axes, axis).value() == Overflow::Visible {
+        item_size.max(grid_axis_size(flow_axes, content_size, axis))
+    } else {
+        item_size
     }
 }
 
@@ -1303,8 +1325,13 @@ where
             end: area.row_end,
             contributes_to_row_size: true,
             contribution_kind: IntrinsicSpanContribution::MaxContent,
-            contribution: grid.sizing_flow_axes.logical_size(output.size).block
-                + grid.sizing_flow_axes.logical_edges(margin).block_sum(),
+            contribution: grid_axis_intrinsic_contribution_size(
+                &child_style,
+                grid.sizing_flow_axes,
+                output.size,
+                output.content_size,
+                GridAxisKind::Row,
+            ) + grid.sizing_flow_axes.logical_edges(margin).block_sum(),
             participation,
             geometry: baseline_geometry_for_intrinsic_contribution(output, margin, child_flow_axes),
         });
@@ -1440,8 +1467,15 @@ where
                 )),
             ),
         )?;
-        column_sizes[area.column] = column_sizes[area.column]
-            .max(grid.sizing_flow_axes.logical_size(output.size).inline + margin.inline_sum());
+        column_sizes[area.column] = column_sizes[area.column].max(
+            grid_axis_intrinsic_contribution_size(
+                &child_style,
+                grid.sizing_flow_axes,
+                output.size,
+                output.content_size,
+                GridAxisKind::Column,
+            ) + margin.inline_sum(),
+        );
     }
 
     Ok(column_sizes)
@@ -1557,7 +1591,7 @@ where
                 column_offsets[area.column],
                 output_size.inline,
                 output_content_size.inline,
-                grid_axis_overflow(&child_style, sizing_flow_axes, GridAxisKind::Column),
+                grid_axis_used_overflow(&child_style, sizing_flow_axes, GridAxisKind::Column),
             );
             content_size.inline = content_size.inline.max(contribution);
             if accumulate_standalone_percent_columns
@@ -1572,7 +1606,7 @@ where
                 row_offsets[area.row],
                 output_size.block,
                 output_content_size.block,
-                grid_axis_overflow(&child_style, sizing_flow_axes, GridAxisKind::Row),
+                grid_axis_used_overflow(&child_style, sizing_flow_axes, GridAxisKind::Row),
             );
             content_size.block = content_size.block.max(contribution);
             if accumulate_standalone_percent_rows
@@ -1629,18 +1663,6 @@ fn axis_content_contribution<S: LayoutScalar>(
 
 pub(super) fn track_has_percent_sizing<S: LayoutScalar>(track: &TrackSizingOf<S>) -> bool {
     track.depends_on_basis()
-}
-
-pub(super) fn scroll_container_auto_minimum_zero_inline<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-) -> bool {
-    style.overflow.x().is_scrollable() && style.size.width.is_auto()
-}
-
-pub(super) fn scroll_container_auto_minimum_zero_block<S: LayoutScalar>(
-    style: &NodeInputOf<S>,
-) -> bool {
-    style.overflow.y().is_scrollable() && style.size.height.is_auto()
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

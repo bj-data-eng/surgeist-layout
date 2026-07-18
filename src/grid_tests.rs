@@ -18,6 +18,375 @@ fn used_overflow(x: Overflow, y: Overflow) -> crate::scroll::UsedOverflow {
     crate::scroll::UsedOverflow::from_computed(computed_overflow(x, y), false)
 }
 
+fn fri05_c05_grid_sizing_input(size: Size<Option<Scalar>>) -> ComputeInput {
+    ComputeInput::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        size,
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        size.map(|value| value.map_or(Available::MAX_CONTENT, Available::Definite)),
+    )
+}
+
+fn fri05_c05_grid_sizing_tree(
+    display: Display,
+    writing_mode: WritingMode,
+    direction: Direction,
+    overflow: ComputedOverflow,
+    item_is_replaced: bool,
+    item_size: Size<PreferredSize>,
+    grid_auto_flow: GridAutoFlow,
+) -> OracleTree {
+    OracleTree::new()
+        .children(0, [1])
+        .children(1, [])
+        .style(
+            0,
+            NodeInput {
+                display,
+                writing_mode,
+                direction,
+                grid_auto_flow,
+                grid_template_columns: vec![TrackComponent::AUTO],
+                grid_template_rows: vec![TrackComponent::AUTO],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                overflow,
+                item_is_replaced,
+                size: item_size,
+                ..NodeInput::default()
+            },
+        )
+        .measure(
+            1,
+            ComputeOutput::from_sizes(Size::new(20.0, 30.0), Size::new(80.0, 90.0)),
+        )
+}
+
+#[test]
+fn fri05_c05_grid_auto_minimum_computed_scrollability_reaches_grid_and_lanes_front_doors() {
+    for display in [Display::Grid, Display::GridLanes] {
+        for writing_mode in [
+            WritingMode::HorizontalTb,
+            WritingMode::VerticalRl,
+            WritingMode::VerticalLr,
+            WritingMode::SidewaysRl,
+            WritingMode::SidewaysLr,
+        ] {
+            for direction in [Direction::Ltr, Direction::Rtl] {
+                let auto_flows: &[GridAutoFlow] = if display == Display::GridLanes {
+                    &[GridAutoFlow::Row, GridAutoFlow::Column]
+                } else {
+                    &[GridAutoFlow::Row]
+                };
+                for &grid_auto_flow in auto_flows {
+                    for overflow in [
+                        Overflow::Visible,
+                        Overflow::Clip,
+                        Overflow::Hidden,
+                        Overflow::Scroll,
+                        Overflow::Auto,
+                    ] {
+                        let mut tree = fri05_c05_grid_sizing_tree(
+                            display,
+                            writing_mode,
+                            direction,
+                            computed_overflow(overflow, overflow),
+                            false,
+                            Size::new(PreferredSize::AUTO, PreferredSize::AUTO),
+                            grid_auto_flow,
+                        );
+
+                        compute_grid(
+                            &mut tree,
+                            0,
+                            fri05_c05_grid_sizing_input(Size::splat(Some(40.0))),
+                        )
+                        .expect("grid automatic-minimum case computes");
+
+                        let layout_input = tree
+                            .inputs(1)
+                            .iter()
+                            .find(|input| input.run_mode() == RunMode::PerformLayout)
+                            .expect("grid item receives final layout input");
+                        let item_size = Size::new(Some(20.0), Some(30.0));
+                        let content_size = Size::new(Some(80.0), Some(90.0));
+                        let zero = Size::new(Some(0.0), Some(0.0));
+                        let expected_known = if display == Display::Grid {
+                            match overflow {
+                                Overflow::Visible => content_size,
+                                Overflow::Clip => item_size,
+                                Overflow::Hidden | Overflow::Scroll | Overflow::Auto => zero,
+                            }
+                        } else {
+                            let flow_axes = FlowAxes::new(writing_mode, direction);
+                            let grid_axis = grid_axis_for_lanes(grid_auto_flow);
+                            let physical_axis = match grid_axis.logical_axis() {
+                                LogicalAxis::Inline => flow_axes.inline_axis(),
+                                LogicalAxis::Block => flow_axes.block_axis(),
+                            };
+                            let selected = match (physical_axis, overflow) {
+                                (PhysicalAxis::Horizontal, Overflow::Visible) => content_size.width,
+                                (PhysicalAxis::Vertical, Overflow::Visible) => content_size.height,
+                                (PhysicalAxis::Horizontal, Overflow::Clip) => item_size.width,
+                                (PhysicalAxis::Vertical, Overflow::Clip) => item_size.height,
+                                (_, Overflow::Hidden | Overflow::Scroll | Overflow::Auto) => {
+                                    Some(0.0)
+                                }
+                            };
+                            match physical_axis {
+                                PhysicalAxis::Horizontal => Size::new(selected, item_size.height),
+                                PhysicalAxis::Vertical => Size::new(item_size.width, selected),
+                            }
+                        };
+                        assert_eq!(
+                            layout_input.known(),
+                            expected_known,
+                            "{display:?} {writing_mode:?} {direction:?} {grid_auto_flow:?} {overflow:?} automatic minimum"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fri05_c05_grid_intrinsic_overflow_projects_used_axes_and_traps_descendants() {
+    let writing_modes = [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ];
+    for display in [Display::Grid, Display::GridLanes] {
+        for writing_mode in writing_modes {
+            for direction in [Direction::Ltr, Direction::Rtl] {
+                for (overflow, replaced, expected) in [
+                    (
+                        computed_overflow(Overflow::Visible, Overflow::Visible),
+                        false,
+                        Size::new(80.0, 90.0),
+                    ),
+                    (
+                        computed_overflow(Overflow::Clip, Overflow::Clip),
+                        false,
+                        Size::new(20.0, 30.0),
+                    ),
+                    (
+                        computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                        false,
+                        Size::new(20.0, 30.0),
+                    ),
+                    (
+                        computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                        true,
+                        Size::new(20.0, 30.0),
+                    ),
+                    (
+                        computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                        false,
+                        Size::new(20.0, 30.0),
+                    ),
+                    (
+                        computed_overflow(Overflow::Auto, Overflow::Auto),
+                        false,
+                        Size::new(20.0, 30.0),
+                    ),
+                    (
+                        computed_overflow(Overflow::Visible, Overflow::Clip),
+                        false,
+                        Size::new(80.0, 30.0),
+                    ),
+                    (
+                        computed_overflow(Overflow::Clip, Overflow::Visible),
+                        false,
+                        Size::new(20.0, 90.0),
+                    ),
+                ] {
+                    let mut tree = fri05_c05_grid_sizing_tree(
+                        display,
+                        writing_mode,
+                        direction,
+                        overflow,
+                        replaced,
+                        Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)),
+                        GridAutoFlow::Row,
+                    );
+
+                    let output =
+                        compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(Size::NONE))
+                            .expect("grid intrinsic overflow case computes");
+
+                    assert_eq!(
+                        output.size, expected,
+                        "{display:?} {writing_mode:?} {direction:?} {overflow:?} replaced={replaced}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn fri05_c05_grid_intrinsic_overflow_subgrid_uses_the_parent_flow_projection() {
+    for writing_mode in [
+        WritingMode::HorizontalTb,
+        WritingMode::VerticalRl,
+        WritingMode::VerticalLr,
+        WritingMode::SidewaysRl,
+        WritingMode::SidewaysLr,
+    ] {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for (overflow, replaced, expected) in [
+                (
+                    computed_overflow(Overflow::Visible, Overflow::Visible),
+                    false,
+                    Size::new(80.0, 90.0),
+                ),
+                (
+                    computed_overflow(Overflow::Clip, Overflow::Clip),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                    true,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Scroll, Overflow::Scroll),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Auto, Overflow::Auto),
+                    false,
+                    Size::new(20.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Visible, Overflow::Clip),
+                    false,
+                    Size::new(80.0, 30.0),
+                ),
+                (
+                    computed_overflow(Overflow::Clip, Overflow::Visible),
+                    false,
+                    Size::new(20.0, 90.0),
+                ),
+            ] {
+                let mut tree = OracleTree::new()
+                    .children(0, [1])
+                    .children(1, [2])
+                    .children(2, [])
+                    .style(
+                        0,
+                        NodeInput {
+                            display: Display::Grid,
+                            writing_mode,
+                            direction,
+                            grid_template_columns: vec![TrackComponent::AUTO],
+                            grid_template_rows: vec![TrackComponent::AUTO],
+                            ..NodeInput::default()
+                        },
+                    )
+                    .style(
+                        1,
+                        NodeInput {
+                            display: Display::Grid,
+                            writing_mode,
+                            direction,
+                            grid_template_columns: vec![empty_subgrid_track()],
+                            grid_template_rows: vec![empty_subgrid_track()],
+                            grid_column: GridPlacement::try_lines(1, -1)
+                                .expect("valid subgrid column span"),
+                            grid_row: GridPlacement::try_lines(1, -1)
+                                .expect("valid subgrid row span"),
+                            ..NodeInput::default()
+                        },
+                    )
+                    .style(
+                        2,
+                        NodeInput {
+                            size: Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)),
+                            overflow,
+                            item_is_replaced: replaced,
+                            ..NodeInput::default()
+                        },
+                    )
+                    .measure(
+                        2,
+                        ComputeOutput::from_sizes(Size::new(20.0, 30.0), Size::new(80.0, 90.0)),
+                    );
+
+                let output = compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(Size::NONE))
+                    .expect("intrinsic subgrid overflow case computes");
+
+                assert_eq!(
+                    output.size, expected,
+                    "{writing_mode:?} {direction:?} {overflow:?} replaced={replaced}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fri05_c05_grid_intrinsic_overflow_percentage_tracks_keep_item_priority_when_trapped() {
+    for (overflow, expected) in [
+        (Overflow::Visible, Size::new(80.0, 90.0)),
+        (Overflow::Clip, Size::new(20.0, 30.0)),
+        (Overflow::Hidden, Size::new(20.0, 30.0)),
+        (Overflow::Scroll, Size::new(20.0, 30.0)),
+        (Overflow::Auto, Size::new(20.0, 30.0)),
+    ] {
+        let mut tree = OracleTree::new()
+            .children(0, [1])
+            .children(1, [])
+            .style(
+                0,
+                NodeInput {
+                    display: Display::Grid,
+                    grid_template_columns: vec![TrackComponent::percent(1.0)],
+                    grid_template_rows: vec![TrackComponent::percent(1.0)],
+                    ..NodeInput::default()
+                },
+            )
+            .style(
+                1,
+                NodeInput {
+                    size: Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)),
+                    overflow: computed_overflow(overflow, overflow),
+                    ..NodeInput::default()
+                },
+            )
+            .measure(
+                1,
+                ComputeOutput::from_sizes(Size::new(20.0, 30.0), Size::new(80.0, 90.0)),
+            );
+
+        let output = compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(Size::NONE))
+            .expect("percentage-track intrinsic overflow case computes");
+
+        assert_eq!(output.size, expected, "{overflow:?}");
+    }
+}
+
 fn track_flex<S: LayoutScalar>(value: S) -> TrackSizingOf<S> {
     TrackSizingOf::flex(TrackFlexFactorOf::try_new(value).expect("valid test track flex factor"))
 }

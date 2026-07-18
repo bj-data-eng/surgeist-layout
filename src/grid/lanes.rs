@@ -1189,16 +1189,34 @@ where
     let margin =
         intrinsic_contribution_margin(child_style, constants.flow_axes, constants.node_inner_size)
             .map_err(|status| crate::compute::value_resolution_error(child, status))?;
-    let min_output_size = constants.flow_axes.logical_size(min_output.size);
-    let max_output_size = constants.flow_axes.logical_size(max_output.size);
+    let used_overflow = grid_axis_used_overflow(child_style, constants.flow_axes, axis);
+    let min_output_size = lane_axis_size(constants.flow_axes.logical_size(min_output.size), axis);
+    let min_content_size = lane_axis_size(
+        constants.flow_axes.logical_size(min_output.content_size),
+        axis,
+    );
+    let max_output_size = lane_axis_size(constants.flow_axes.logical_size(max_output.size), axis);
+    let max_content_size = lane_axis_size(
+        constants.flow_axes.logical_size(max_output.content_size),
+        axis,
+    );
+    let min_contribution = if used_overflow.value() == Overflow::Visible {
+        min_output_size.max(min_content_size)
+    } else {
+        min_output_size
+    };
+    let max_contribution = if used_overflow.value() == Overflow::Visible {
+        max_output_size.max(max_content_size)
+    } else {
+        max_output_size
+    };
     let logical_margin = constants.flow_axes.logical_edges(margin);
+    let margin = lane_axis_margin_sum(logical_margin, axis);
     Ok(LaneContributionFactsOf {
-        min_content: lane_axis_size(min_output_size, axis)
-            + lane_axis_margin_sum(logical_margin, axis),
-        max_content: lane_axis_size(max_output_size, axis)
-            + lane_axis_margin_sum(logical_margin, axis),
+        min_content: min_contribution + margin,
+        max_content: max_contribution + margin,
         min_size: if automatic_minimum_applies(child_style, constants.flow_axes, axis) {
-            lane_axis_size(min_output_size, axis) + lane_axis_margin_sum(logical_margin, axis)
+            min_contribution + margin
         } else {
             Tree::Scalar::ZERO
         },
@@ -1223,16 +1241,8 @@ fn scroll_container_auto_minimum_zero<S: LayoutScalar>(
     flow_axes: crate::geometry::FlowAxes,
     axis: GridAxisKind,
 ) -> bool {
-    let physical_axis = match axis.logical_axis() {
-        LogicalAxis::Inline => flow_axes.inline_axis(),
-        LogicalAxis::Block => flow_axes.block_axis(),
-    };
-    match physical_axis {
-        PhysicalAxis::Horizontal => {
-            style.overflow.x().is_scrollable() && style.size.width.is_auto()
-        }
-        PhysicalAxis::Vertical => style.overflow.y().is_scrollable() && style.size.height.is_auto(),
-    }
+    grid_axis_computed_overflow(style, flow_axes, axis).is_scrollable()
+        && grid_axis_size(flow_axes, style.size.clone(), axis).is_auto()
 }
 
 fn lane_axis_size<S: LayoutScalar>(size: LogicalSizeOf<S>, axis: GridAxisKind) -> S {
