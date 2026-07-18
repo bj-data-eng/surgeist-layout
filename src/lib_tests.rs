@@ -667,44 +667,147 @@ struct LegacySourceToken {
 }
 
 fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken>, String> {
-    fn quoted_end(bytes: &[u8], start: usize, quote: u8) -> Result<usize, String> {
+    fn quoted_end(bytes: &[u8], start: usize) -> Result<usize, String> {
         let mut index = start + 1;
         while index < bytes.len() {
             match bytes[index] {
                 b'\\' => index += 2,
-                byte if byte == quote => return Ok(index + 1),
-                b'\n' | b'\r' if quote == b'\'' => break,
+                b'"' => return Ok(index + 1),
                 _ => index += 1,
             }
         }
         Err(format!("unterminated quoted literal at byte {start}"))
     }
 
-    fn char_end(source: &str, bytes: &[u8], start: usize) -> Option<usize> {
+    fn identifier_start(character: char) -> bool {
+        character == '_' || character.is_alphabetic()
+    }
+
+    fn identifier_continue(character: char) -> bool {
+        identifier_start(character)
+            || character.is_numeric()
+            || matches!(
+                character,
+                '\u{0300}'..='\u{036f}'
+                    | '\u{1ab0}'..='\u{1aff}'
+                    | '\u{1dc0}'..='\u{1dff}'
+                    | '\u{20d0}'..='\u{20ff}'
+                    | '\u{fe20}'..='\u{fe2f}'
+            )
+    }
+
+    fn malformed_character(start: usize, byte: bool, unterminated: bool) -> String {
+        let state = if unterminated {
+            "unterminated"
+        } else {
+            "malformed"
+        };
+        let kind = if byte {
+            "byte character literal"
+        } else {
+            "character literal"
+        };
+        format!("{state} {kind} at byte {start}")
+    }
+
+    fn has_closing_quote(bytes: &[u8], start: usize) -> bool {
+        bytes[start..]
+            .iter()
+            .take_while(|byte| !matches!(byte, b'\n' | b'\r'))
+            .any(|byte| *byte == b'\'')
+    }
+
+    fn char_end(
+        source: &str,
+        bytes: &[u8],
+        start: usize,
+        byte: bool,
+    ) -> Result<Option<usize>, String> {
         let value = start + 1;
-        if value >= bytes.len() || matches!(bytes[value], b'\n' | b'\r' | b'\'') {
-            return None;
+        if value >= bytes.len() || matches!(bytes[value], b'\n' | b'\r') {
+            return Err(malformed_character(start, byte, true));
         }
+
+        if bytes[value] == b'\'' {
+            return Err(malformed_character(start, byte, false));
+        }
+
         let after_value = if bytes[value] == b'\\' {
-            let mut index = value + 1;
-            if index >= bytes.len() {
-                return None;
-            }
-            if bytes[index] == b'u' && bytes.get(index + 1) == Some(&b'{') {
-                index += 2;
-                while index < bytes.len() && bytes[index] != b'}' {
-                    index += 1;
+            let escape = value + 1;
+            let Some(kind) = bytes.get(escape).copied() else {
+                return Err(malformed_character(start, byte, true));
+            };
+            match kind {
+                b'n' | b'r' | b't' | b'\\' | b'0' | b'\'' | b'"' => escape + 1,
+                b'x' if bytes
+                    .get(escape + 1..escape + 3)
+                    .is_some_and(|digits| digits.iter().all(u8::is_ascii_hexdigit)) =>
+                {
+                    escape + 3
                 }
-                index + 1
-            } else if bytes[index] == b'x' {
-                index + 3
-            } else {
-                index + 1
+                b'u' if !byte && bytes.get(escape + 1) == Some(&b'{') => {
+                    let mut index = escape + 2;
+                    let mut digits = 0usize;
+                    while let Some(character) = bytes.get(index).copied() {
+                        match character {
+                            b'}' => break,
+                            b'_' => index += 1,
+                            character if character.is_ascii_hexdigit() && digits < 6 => {
+                                digits += 1;
+                                index += 1;
+                            }
+                            _ => return Err(malformed_character(start, byte, false)),
+                        }
+                    }
+                    if digits == 0 || bytes.get(index) != Some(&b'}') {
+                        return Err(malformed_character(
+                            start,
+                            byte,
+                            !has_closing_quote(bytes, value),
+                        ));
+                    }
+                    index + 1
+                }
+                _ => return Err(malformed_character(start, byte, false)),
             }
         } else {
-            value + source[value..].chars().next()?.len_utf8()
+            let character = source[value..]
+                .chars()
+                .next()
+                .expect("character literal value starts inside source");
+            if byte && !character.is_ascii() {
+                return Err(malformed_character(start, byte, false));
+            }
+            value + character.len_utf8()
         };
-        (bytes.get(after_value) == Some(&b'\'')).then_some(after_value + 1)
+
+        if bytes.get(after_value) == Some(&b'\'') {
+            return Ok(Some(after_value + 1));
+        }
+
+        if !byte && bytes[value] != b'\\' {
+            let first = source[value..]
+                .chars()
+                .next()
+                .expect("character literal value starts inside source");
+            if identifier_start(first) {
+                let mut lifetime_end = after_value;
+                while let Some(character) = source[lifetime_end..].chars().next()
+                    && identifier_continue(character)
+                {
+                    lifetime_end += character.len_utf8();
+                }
+                if bytes.get(lifetime_end) != Some(&b'\'') {
+                    return Ok(None);
+                }
+            }
+        }
+
+        Err(malformed_character(
+            start,
+            byte,
+            !has_closing_quote(bytes, after_value),
+        ))
     }
 
     fn raw_end(bytes: &[u8], r_index: usize) -> Result<Option<usize>, String> {
@@ -726,14 +829,6 @@ fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken
             index += 1;
         }
         Err(format!("unterminated raw string at byte {r_index}"))
-    }
-
-    fn identifier_start(byte: u8) -> bool {
-        byte.is_ascii_alphabetic() || byte == b'_'
-    }
-
-    fn identifier_continue(byte: u8) -> bool {
-        byte.is_ascii_alphanumeric() || byte == b'_'
     }
 
     let bytes = source.as_bytes();
@@ -787,35 +882,38 @@ fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken
         }
 
         if bytes[index] == b'"' {
-            index = quoted_end(bytes, index, b'"')?;
+            index = quoted_end(bytes, index)?;
             continue;
         }
         if matches!(bytes[index], b'b' | b'c') && bytes.get(index + 1) == Some(&b'"') {
-            index = quoted_end(bytes, index + 1, b'"')?;
+            index = quoted_end(bytes, index + 1)?;
             continue;
         }
         if bytes[index] == b'\''
-            && let Some(end) = char_end(source, bytes, index)
+            && let Some(end) = char_end(source, bytes, index, false)?
         {
             index = end;
             continue;
         }
-        if bytes[index] == b'b'
-            && bytes.get(index + 1) == Some(&b'\'')
-            && let Some(end) = char_end(source, bytes, index + 1)
-        {
-            index = end;
+        if bytes[index] == b'b' && bytes.get(index + 1) == Some(&b'\'') {
+            index = char_end(source, bytes, index + 1, true)?
+                .expect("byte character prefix cannot be a lifetime");
             continue;
         }
 
         if bytes[index] == b'r'
             && bytes.get(index + 1) == Some(&b'#')
-            && bytes.get(index + 2).copied().is_some_and(identifier_start)
+            && source
+                .get(index + 2..)
+                .and_then(|rest| rest.chars().next())
+                .is_some_and(identifier_start)
         {
             let start = index + 2;
-            index = start + 1;
-            while bytes.get(index).copied().is_some_and(identifier_continue) {
-                index += 1;
+            index = start;
+            while let Some(character) = source[index..].chars().next()
+                && identifier_continue(character)
+            {
+                index += character.len_utf8();
             }
             tokens.push(LegacySourceToken {
                 text: source[start..index].to_owned(),
@@ -823,11 +921,17 @@ fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken
             });
             continue;
         }
-        if identifier_start(bytes[index]) {
+        let character = source[index..]
+            .chars()
+            .next()
+            .expect("index is inside source");
+        if identifier_start(character) {
             let start = index;
-            index += 1;
-            while bytes.get(index).copied().is_some_and(identifier_continue) {
-                index += 1;
+            index += character.len_utf8();
+            while let Some(character) = source[index..].chars().next()
+                && identifier_continue(character)
+            {
+                index += character.len_utf8();
             }
             tokens.push(LegacySourceToken {
                 text: source[start..index].to_owned(),
@@ -837,10 +941,6 @@ fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken
         }
 
         let start = index;
-        let character = source[index..]
-            .chars()
-            .next()
-            .expect("index is inside source");
         index += character.len_utf8();
         tokens.push(LegacySourceToken {
             text: character.to_string(),
@@ -848,49 +948,304 @@ fn fri05_c05_lex_production_tokens(source: &str) -> Result<Vec<LegacySourceToken
         });
     }
 
-    let text = |index: usize| tokens.get(index).map(|token| token.text.as_str());
-    let mut omitted = vec![false; tokens.len()];
-    let mut index = 0;
-    while index + 6 < tokens.len() {
-        if ["#", "[", "cfg", "(", "test", ")", "]"]
-            .into_iter()
-            .enumerate()
-            .all(|(offset, expected)| text(index + offset) == Some(expected))
-        {
-            let mut body = index + 7;
-            while body < tokens.len() && !matches!(text(body), Some("{") | Some(";")) {
-                body += 1;
-            }
-            let end = if text(body) == Some("{") {
-                let mut depth = 1usize;
-                let mut cursor = body + 1;
-                while cursor < tokens.len() && depth != 0 {
-                    match text(cursor) {
-                        Some("{") => depth += 1,
-                        Some("}") => depth -= 1,
-                        _ => {}
-                    }
-                    cursor += 1;
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    enum CfgTruth {
+        False,
+        True,
+        Unknown,
+    }
+
+    fn matching_token(
+        tokens: &[LegacySourceToken],
+        start: usize,
+        open: &str,
+        close: &str,
+        context: &str,
+    ) -> Result<usize, String> {
+        let mut depth = 0usize;
+        for (index, token) in tokens.iter().enumerate().skip(start) {
+            if token.text == open {
+                depth += 1;
+            } else if token.text == close {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Ok(index);
                 }
-                if depth != 0 {
+            }
+        }
+        Err(format!(
+            "unclosed {context} at byte {}",
+            tokens[start].offset
+        ))
+    }
+
+    fn meta_arguments(
+        tokens: &[LegacySourceToken],
+        start: usize,
+        end: usize,
+        context: &str,
+    ) -> Result<Vec<(usize, usize)>, String> {
+        let mut arguments = Vec::new();
+        let mut argument = start;
+        let mut delimiters = Vec::new();
+        for (index, token) in tokens.iter().enumerate().take(end).skip(start) {
+            match token.text.as_str() {
+                "(" => delimiters.push(")"),
+                "[" => delimiters.push("]"),
+                "{" => delimiters.push("}"),
+                ")" | "]" | "}" => {
+                    if delimiters.pop() != Some(token.text.as_str()) {
+                        return Err(format!(
+                            "malformed {context} at byte {}",
+                            tokens[index].offset
+                        ));
+                    }
+                }
+                "," if delimiters.is_empty() => {
+                    arguments.push((argument, index));
+                    argument = index + 1;
+                }
+                _ => {}
+            }
+        }
+        if !delimiters.is_empty() {
+            return Err(format!(
+                "malformed {context} at byte {}",
+                tokens[start.saturating_sub(1)].offset
+            ));
+        }
+        arguments.push((argument, end));
+        Ok(arguments)
+    }
+
+    fn cfg_truth(
+        tokens: &[LegacySourceToken],
+        start: usize,
+        end: usize,
+    ) -> Result<CfgTruth, String> {
+        if start >= end {
+            return Err("empty cfg predicate".to_owned());
+        }
+        if end == start + 1 {
+            return Ok(if tokens[start].text == "test" {
+                CfgTruth::False
+            } else {
+                CfgTruth::Unknown
+            });
+        }
+        if tokens.get(start + 1).map(|token| token.text.as_str()) != Some("(") {
+            return Ok(CfgTruth::Unknown);
+        }
+        let close = matching_token(tokens, start + 1, "(", ")", "cfg predicate")?;
+        if close + 1 != end {
+            return Err(format!(
+                "malformed cfg predicate at byte {}",
+                tokens[start].offset
+            ));
+        }
+        let arguments = meta_arguments(tokens, start + 2, close, "cfg predicate")?;
+        match tokens[start].text.as_str() {
+            "not" => {
+                if arguments.len() != 1 || arguments[0].0 == arguments[0].1 {
                     return Err(format!(
-                        "unclosed cfg(test) item at byte {}",
-                        tokens[index].offset
+                        "malformed cfg not predicate at byte {}",
+                        tokens[start].offset
                     ));
                 }
-                cursor
-            } else if text(body) == Some(";") {
-                body + 1
-            } else {
+                Ok(match cfg_truth(tokens, arguments[0].0, arguments[0].1)? {
+                    CfgTruth::False => CfgTruth::True,
+                    CfgTruth::True => CfgTruth::False,
+                    CfgTruth::Unknown => CfgTruth::Unknown,
+                })
+            }
+            "all" => {
+                let mut result = CfgTruth::True;
+                for (argument_start, argument_end) in arguments {
+                    if argument_start == argument_end {
+                        continue;
+                    }
+                    match cfg_truth(tokens, argument_start, argument_end)? {
+                        CfgTruth::False => return Ok(CfgTruth::False),
+                        CfgTruth::Unknown => result = CfgTruth::Unknown,
+                        CfgTruth::True => {}
+                    }
+                }
+                Ok(result)
+            }
+            "any" => {
+                let mut result = CfgTruth::False;
+                for (argument_start, argument_end) in arguments {
+                    if argument_start == argument_end {
+                        continue;
+                    }
+                    match cfg_truth(tokens, argument_start, argument_end)? {
+                        CfgTruth::True => return Ok(CfgTruth::True),
+                        CfgTruth::Unknown => result = CfgTruth::Unknown,
+                        CfgTruth::False => {}
+                    }
+                }
+                Ok(result)
+            }
+            _ => Ok(CfgTruth::Unknown),
+        }
+    }
+
+    fn cfg_attribute_excludes(
+        tokens: &[LegacySourceToken],
+        start: usize,
+        end: usize,
+    ) -> Result<bool, String> {
+        let Some(name) = tokens.get(start).map(|token| token.text.as_str()) else {
+            return Err("empty outer attribute".to_owned());
+        };
+        if !matches!(name, "cfg" | "cfg_attr") {
+            return Ok(false);
+        }
+        if tokens.get(start + 1).map(|token| token.text.as_str()) != Some("(") {
+            return Err(format!(
+                "malformed {name} attribute at byte {}",
+                tokens[start].offset
+            ));
+        }
+        let close = matching_token(tokens, start + 1, "(", ")", "cfg attribute")?;
+        if close + 1 != end {
+            return Err(format!(
+                "malformed {name} attribute at byte {}",
+                tokens[start].offset
+            ));
+        }
+        let arguments = meta_arguments(tokens, start + 2, close, name)?;
+        if name == "cfg" {
+            if arguments.len() != 1 || arguments[0].0 == arguments[0].1 {
                 return Err(format!(
-                    "cfg(test) attribute has no item at byte {}",
-                    tokens[index].offset
+                    "malformed cfg attribute at byte {}",
+                    tokens[start].offset
                 ));
-            };
-            omitted[index..end].fill(true);
+            }
+            return Ok(cfg_truth(tokens, arguments[0].0, arguments[0].1)? == CfgTruth::False);
+        }
+        if arguments.len() < 2 || arguments[0].0 == arguments[0].1 {
+            return Err(format!(
+                "malformed cfg_attr attribute at byte {}",
+                tokens[start].offset
+            ));
+        }
+        if cfg_truth(tokens, arguments[0].0, arguments[0].1)? != CfgTruth::True {
+            return Ok(false);
+        }
+        for (argument_start, argument_end) in arguments.into_iter().skip(1) {
+            if argument_start == argument_end {
+                return Err(format!(
+                    "malformed cfg_attr attribute at byte {}",
+                    tokens[start].offset
+                ));
+            }
+            if cfg_attribute_excludes(tokens, argument_start, argument_end)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn item_end(tokens: &[LegacySourceToken], start: usize) -> Result<usize, String> {
+        let mut keyword = start;
+        loop {
+            match tokens.get(keyword).map(|token| token.text.as_str()) {
+                Some("pub") => {
+                    keyword += 1;
+                    if tokens.get(keyword).map(|token| token.text.as_str()) == Some("(") {
+                        keyword = matching_token(tokens, keyword, "(", ")", "visibility")? + 1;
+                    }
+                }
+                Some("async" | "unsafe" | "default" | "extern") => keyword += 1,
+                Some("const")
+                    if tokens.get(keyword + 1).map(|token| token.text.as_str()) == Some("fn") =>
+                {
+                    keyword += 1;
+                }
+                _ => break,
+            }
+        }
+        let kind = tokens.get(keyword).map(|token| token.text.as_str());
+        let semicolon_item = matches!(kind, Some("const" | "static" | "type"));
+        let recognized = matches!(
+            kind,
+            Some(
+                "const"
+                    | "enum"
+                    | "fn"
+                    | "impl"
+                    | "mod"
+                    | "static"
+                    | "struct"
+                    | "trait"
+                    | "type"
+                    | "union"
+            )
+        );
+        let mut delimiters = Vec::new();
+        for index in start..tokens.len() {
+            match tokens[index].text.as_str() {
+                "(" => delimiters.push(")"),
+                "[" => delimiters.push("]"),
+                "{" if semicolon_item => delimiters.push("}"),
+                "{" if delimiters.is_empty() => {
+                    return Ok(matching_token(tokens, index, "{", "}", "attributed item")? + 1);
+                }
+                "{" => delimiters.push("}"),
+                ")" | "]" | "}" => {
+                    if delimiters.pop() != Some(tokens[index].text.as_str()) {
+                        return Err(format!(
+                            "malformed attributed item at byte {}",
+                            tokens[start].offset
+                        ));
+                    }
+                }
+                ";" if delimiters.is_empty() => return Ok(index + 1),
+                "," if delimiters.is_empty() && !recognized => return Ok(index + 1),
+                _ => {}
+            }
+        }
+        Err(format!(
+            "outer attribute has no complete item at byte {}",
+            tokens[start].offset
+        ))
+    }
+
+    let mut omitted = vec![false; tokens.len()];
+    let mut index = 0;
+    while index < tokens.len() {
+        if tokens[index].text != "#"
+            || tokens.get(index + 1).map(|token| token.text.as_str()) != Some("[")
+        {
+            index += 1;
+            continue;
+        }
+        let attributes_start = index;
+        let mut attributes_end = index;
+        let mut excludes = false;
+        while tokens.get(attributes_end).map(|token| token.text.as_str()) == Some("#")
+            && tokens
+                .get(attributes_end + 1)
+                .map(|token| token.text.as_str())
+                == Some("[")
+        {
+            let close = matching_token(&tokens, attributes_end + 1, "[", "]", "outer attribute")
+                .map_err(|_| {
+                    format!(
+                        "unclosed outer attribute at byte {}",
+                        tokens[attributes_end].offset
+                    )
+                })?;
+            excludes |= cfg_attribute_excludes(&tokens, attributes_end + 2, close)?;
+            attributes_end = close + 1;
+        }
+        if excludes {
+            let end = item_end(&tokens, attributes_end)?;
+            omitted[attributes_start..end].fill(true);
             index = end;
         } else {
-            index += 1;
+            index = attributes_end;
         }
     }
 
@@ -1000,7 +1355,8 @@ fn fri05_c05_audit_legacy_source(
         tokens.len()
     }
 
-    let tokens = fri05_c05_lex_production_tokens(source)?;
+    let tokens = fri05_c05_lex_production_tokens(source)
+        .map_err(|error| format!("{path}: lexical error: {error}"))?;
     let mut accounting = LegacyScrollbarAccounting::default();
 
     for index in 0..tokens.len() {
@@ -1202,6 +1558,130 @@ fn fri05_c05_audit_legacy_source(
     }
 
     Ok(accounting)
+}
+
+#[test]
+fn fri05_c05_grid_legacy_absence_lexer_fails_closed_at_rust_token_boundaries() {
+    for (source, expected) in [
+        (
+            "const BAD: char = 'ab'; scrollbar_size",
+            "src/cache.rs: lexical error: malformed character literal at byte 18",
+        ),
+        (
+            "const BAD: char = '\\\\",
+            "src/cache.rs: lexical error: unterminated character literal at byte 18",
+        ),
+        (
+            "const BAD: u8 = b'ab'; scrollbar_size",
+            "src/cache.rs: lexical error: malformed byte character literal at byte 17",
+        ),
+        (
+            "const BAD: u8 = b'\\\\",
+            "src/cache.rs: lexical error: unterminated byte character literal at byte 17",
+        ),
+        (
+            "const BAD: &str = \"scrollbar_size",
+            "src/cache.rs: lexical error: unterminated quoted literal at byte 18",
+        ),
+        (
+            "const BAD: &str = r##\"scrollbar_size\"#;",
+            "src/cache.rs: lexical error: unterminated raw string at byte 18",
+        ),
+        (
+            "fn clean() {} /* scrollbar_size",
+            "src/cache.rs: lexical error: unterminated block comment at byte 14",
+        ),
+    ] {
+        assert_eq!(
+            fri05_c05_audit_legacy_source("src/cache.rs", source),
+            Err(expected.to_owned()),
+            "malformed literals and comments fail closed without exposing their contents"
+        );
+    }
+
+    let literal_tokens =
+        fri05_c05_lex_production_tokens("'\\n' '\\u{1f980}' '\u{00e9}' b'\\n' b'\\x7f'")
+            .expect("valid escaped, Unicode, and byte character literals lex");
+    assert!(
+        literal_tokens.is_empty(),
+        "valid character literal contents stay ignored"
+    );
+
+    let lifetime_tokens = fri05_c05_lex_production_tokens(
+        "fn borrow<'a>(value: &'a str) -> &'_ str { 'retry: loop { break 'retry value; } }",
+    )
+    .expect("lifetimes and labels lex");
+    assert_eq!(
+        lifetime_tokens
+            .iter()
+            .filter(|token| matches!(token.text.as_str(), "a" | "_" | "retry"))
+            .map(|token| token.text.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "a", "_", "retry", "retry"],
+        "lifetimes and labels remain identifiers rather than character literals"
+    );
+
+    let unicode_tokens = fri05_c05_lex_production_tokens(
+        "let scrollbar_size\u{03bb} = 0; let \u{03bb}scrollbar_size = 0; let cafe\u{0301} = 0;",
+    )
+    .expect("valid Unicode identifier boundaries lex");
+    assert!(
+        unicode_tokens
+            .iter()
+            .all(|token| token.text != "scrollbar_size"),
+        "a forbidden spelling embedded in a valid Unicode identifier is not a standalone token"
+    );
+}
+
+#[test]
+fn fri05_c05_grid_legacy_absence_cfg_attr_omits_exactly_one_test_only_item() {
+    for hidden in [
+        "#[cfg_attr(not(test), cfg(test))] mod hidden { fn f() { scrollbar_size; } }",
+        "#[cfg_attr(any(not(test), test), cfg(all(test)))] fn hidden() { scrollbar_size; }",
+        "#[cfg_attr(all(not(test), any(not(test), test)), cfg(not(not(test))))] impl Hidden { fn f() { scrollbar_size; } }",
+        "#[cfg_attr(not(test), cfg(test))] const HIDDEN: () = { scrollbar_size; };",
+        "#[cfg_attr(not(test), cfg(test))] static HIDDEN: usize = scrollbar_size;",
+        "#[cfg_attr(not(test), cfg(test))] type Hidden = scrollbar_size;",
+        "#[allow(dead_code)] /* between attributes */ #[cfg_attr(not(test), cfg(test))] pub(crate) fn hidden() { scrollbar_size; }",
+        "#[cfg_attr(not(test), cfg_attr(not(test), cfg(test)))] fn hidden() { scrollbar_size; }",
+    ] {
+        assert_eq!(
+            fri05_c05_audit_legacy_source("src/cache.rs", hidden),
+            Ok(LegacyScrollbarAccounting::default()),
+            "cfg_attr forms that deterministically exclude an item from production are omitted"
+        );
+    }
+
+    for production in [
+        "#[cfg_attr(test, cfg(test))] fn production() { scrollbar_size; }",
+        "#[cfg_attr(all(not(test), any()), cfg(test))] mod production { fn f() { scrollbar_size; } }",
+        "#[cfg_attr(unix, cfg(test))] const PRODUCTION_SOMEWHERE: usize = scrollbar_size;",
+    ] {
+        assert!(
+            fri05_c05_audit_legacy_source("src/cache.rs", production).is_err(),
+            "cfg_attr that can leave an item in production must not hide it"
+        );
+    }
+
+    assert_eq!(
+        fri05_c05_audit_legacy_source(
+            "src/cache.rs",
+            "#[cfg_attr(not(test), cfg(test))] const HIDDEN: () = { scrollbar_size; }; fn production() { scrollbar_size; }",
+        ),
+        Err(
+            "src/cache.rs: forbidden scrollbar_size token at byte 92 in owner Some(\")\")"
+                .to_owned()
+        ),
+        "only the attributed item is omitted and the following production item is audited"
+    );
+    assert_eq!(
+        fri05_c05_audit_legacy_source(
+            "src/cache.rs",
+            "#[cfg_attr(not(test), cfg(test)) fn hidden() { scrollbar_size; }",
+        ),
+        Err("src/cache.rs: lexical error: unclosed outer attribute at byte 0".to_owned()),
+        "malformed outer attributes fail closed"
+    );
 }
 
 #[test]
