@@ -226,8 +226,14 @@ where
         contributions.replace_container_seed(final_scroll_box.padding_box());
         contributions.exclude_reserved_gutter_from_range();
         for (axis, extent) in [
-            (crate::LogicalAxis::Inline, final_pass.content_size.inline),
-            (crate::LogicalAxis::Block, final_pass.content_size.block),
+            (
+                crate::LogicalAxis::Inline,
+                final_pass.scroll_content_size.inline,
+            ),
+            (
+                crate::LogicalAxis::Block,
+                final_pass.scroll_content_size.block,
+            ),
         ] {
             contributions
                 .record_final_in_flow_end(
@@ -462,6 +468,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
 
 struct InFlowResult<Node, S: LayoutScalar> {
     content_size: LogicalSizeOf<S>,
+    scroll_content_size: LogicalSizeOf<S>,
     contributions: ScrollContributionAccumulatorOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
@@ -679,6 +686,7 @@ where
     let mut cursor_block = constants.logical_content_box_inset().block_start;
     let mut float_bfc_cursor_y = constants.content_box_inset.top;
     let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
+    let mut scroll_content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
     let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -748,6 +756,15 @@ where
                     constants.flow_axes.logical_size(placement.content_size);
                 content_size.inline = content_size.inline.max(placement_content_size.inline);
                 content_size.block = content_size.block.max(placement_content_size.block);
+                let placement_scroll_content_size = constants
+                    .flow_axes
+                    .logical_size(placement.scroll_content_size);
+                scroll_content_size.inline = scroll_content_size
+                    .inline
+                    .max(placement_scroll_content_size.inline);
+                scroll_content_size.block = scroll_content_size
+                    .block
+                    .max(placement_scroll_content_size.block);
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
                 static_positions.extend(placement.static_positions);
                 cursor_block =
@@ -808,6 +825,15 @@ where
                     constants.flow_axes.logical_size(placement.content_size);
                 content_size.inline = content_size.inline.max(placement_content_size.inline);
                 content_size.block = content_size.block.max(placement_content_size.block);
+                let placement_scroll_content_size = constants
+                    .flow_axes
+                    .logical_size(placement.scroll_content_size);
+                scroll_content_size.inline = scroll_content_size
+                    .inline
+                    .max(placement_scroll_content_size.inline);
+                scroll_content_size.block = scroll_content_size
+                    .block
+                    .max(placement_scroll_content_size.block);
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
                 static_positions.extend(placement.static_positions);
                 cursor_block =
@@ -856,6 +882,15 @@ where
                     constants.flow_axes.logical_size(placement.content_size);
                 content_size.inline = content_size.inline.max(placement_content_size.inline);
                 content_size.block = content_size.block.max(placement_content_size.block);
+                let placement_scroll_content_size = constants
+                    .flow_axes
+                    .logical_size(placement.scroll_content_size);
+                scroll_content_size.inline = scroll_content_size
+                    .inline
+                    .max(placement_scroll_content_size.inline);
+                scroll_content_size.block = scroll_content_size
+                    .block
+                    .max(placement_scroll_content_size.block);
                 record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
                 static_positions.extend(placement.static_positions);
                 cursor_block =
@@ -930,6 +965,15 @@ where
             let placement_content_size = constants.flow_axes.logical_size(placement.content_size);
             content_size.inline = content_size.inline.max(placement_content_size.inline);
             content_size.block = content_size.block.max(placement_content_size.block);
+            let placement_scroll_content_size = constants
+                .flow_axes
+                .logical_size(placement.scroll_content_size);
+            scroll_content_size.inline = scroll_content_size
+                .inline
+                .max(placement_scroll_content_size.inline);
+            scroll_content_size.block = scroll_content_size
+                .block
+                .max(placement_scroll_content_size.block);
             record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
             static_positions.extend(placement.static_positions);
             cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
@@ -1181,14 +1225,15 @@ where
             child_style.item_is_replaced,
         );
         let logical_contribution = constants.flow_axes.logical_size(contribution);
-        content_size.inline = content_size
-            .inline
-            .max(logical_child_margin.inline_sum() + logical_child_size.inline)
+        let child_inline_content = (logical_child_margin.inline_sum() + logical_child_size.inline)
             .max(logical_contribution.inline + logical_child_margin.inline_end);
-        content_size.block = content_size
+        let child_block_content = logical_contribution
             .block
-            .max(logical_contribution.block)
             .max(child_block_end - constants.logical_content_box_inset().block_start);
+        content_size.inline = content_size.inline.max(child_inline_content);
+        content_size.block = content_size.block.max(child_block_content);
+        scroll_content_size.inline = scroll_content_size.inline.max(child_inline_content);
+        scroll_content_size.block = scroll_content_size.block.max(child_block_content);
         if let Some(baseline) = output.baselines().first_block_baseline(child_flow_axes) {
             baselines.record_first(baseline.translated(location));
         }
@@ -1225,6 +1270,7 @@ where
 
     Ok(InFlowResult {
         content_size,
+        scroll_content_size,
         contributions,
         baselines,
         static_positions,
@@ -1240,6 +1286,7 @@ where
 struct InlineRunPlacement<Node, S: LayoutScalar> {
     size: Size<S>,
     content_size: Size<S>,
+    scroll_content_size: Size<S>,
     static_positions: Vec<(Node, Point<S>)>,
     baselines: BaselinesOf<S>,
     first_baseline: Option<S>,
@@ -1339,6 +1386,7 @@ where
     } = context;
     let mut offset = 0;
     let mut content_size: Size<S> = Size::ZERO;
+    let mut scroll_content_size: Size<S> = Size::ZERO;
     let mut static_positions = Vec::new();
     let mut first_baseline = None;
     let mut last_baseline = None;
@@ -1396,6 +1444,12 @@ where
 
         content_size.width = content_size.width.max(placement.content_size.width);
         content_size.height = content_size.height.max(placement.content_size.height);
+        scroll_content_size.width = scroll_content_size
+            .width
+            .max(placement.scroll_content_size.width);
+        scroll_content_size.height = scroll_content_size
+            .height
+            .max(placement.scroll_content_size.height);
         static_positions.extend(placement.static_positions);
         if let Some(baseline) = placement.first_baseline {
             first_baseline.get_or_insert(cursor_block - start_y + baseline);
@@ -1417,6 +1471,7 @@ where
     Ok(InlineRunPlacement {
         size: Size::new(content_size.width, cursor_block - start_y),
         content_size,
+        scroll_content_size,
         static_positions,
         baselines: BaselinesOf::NONE,
         first_baseline,
@@ -1466,11 +1521,10 @@ where
     )
 }
 
-fn layout_shaped_text_child<Tree, S, M>(
+fn layout_shaped_text_children<Tree, S, M>(
     tree: &mut Tree,
     container: <Tree as Traverse>::Node,
-    child: <Tree as Traverse>::Node,
-    text: &super::InlineTextInputOf<S>,
+    run: &[<Tree as Traverse>::Node],
     context: InlineRunContext<'_, S>,
     contributions: &mut ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
@@ -1496,13 +1550,22 @@ where
                 .logical_size(constants.available_content)
                 .inline,
         );
-    let participants = text
-        .segments()
+    let participants = run
         .iter()
         .copied()
-        .map(|segment| ShapedTextParticipantOf {
-            source_index: source_index_start,
-            segment,
+        .enumerate()
+        .flat_map(|(offset, child)| {
+            let LayoutInputOf::InlineText(text) = tree.layout_input(child) else {
+                unreachable!("text-only run validation precedes shaped-text layout")
+            };
+            text.segments()
+                .iter()
+                .copied()
+                .map(move |segment| ShapedTextParticipantOf {
+                    source_index: source_index_start + offset,
+                    segment,
+                })
+                .collect::<Vec<_>>()
         })
         .collect();
     let report = layout_shaped_text_run(ShapedTextRunInputOf {
@@ -1526,26 +1589,37 @@ where
         )
     };
 
-    let mut fragments = Vec::with_capacity(report.fragments.len());
-    let mut union_min = None;
-    let mut union_max = None;
+    let mut published = run
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(offset, child)| (child, source_index_start + offset, Vec::new(), None, None))
+        .collect::<Vec<_>>();
+    let mut text_content_size = Size::ZERO;
     for source in &report.fragments {
         let logical_size = LogicalSizeOf::new(source.inline_extent, source.block_extent);
         let size = constants.flow_axes.physical_size(logical_size);
         let location = project_point(source.inline_start, source.block_start, logical_size);
         let rect = super::ScrollRectOf::try_new(location, size).map_err(|error| {
-            block_inline_geometry_error(container, Some(child), input.run_mode(), error)
+            block_inline_geometry_error(
+                container,
+                run.get(source.source_index - source_index_start).copied(),
+                input.run_mode(),
+                error,
+            )
         })?;
         let baseline = project_point(
             source.inline_start,
             source.baseline,
             LogicalSizeOf::new(S::ZERO, S::ZERO),
         );
-        union_min = Some(union_min.map_or(location, |current: Point<S>| {
+        let (_, _, fragments, union_min, union_max) =
+            &mut published[source.source_index - source_index_start];
+        *union_min = Some(union_min.map_or(location, |current: Point<S>| {
             Point::new(current.x.min(location.x), current.y.min(location.y))
         }));
         let maximum = Point::new(location.x + size.width, location.y + size.height);
-        union_max = Some(union_max.map_or(maximum, |current: Point<S>| {
+        *union_max = Some(union_max.map_or(maximum, |current: Point<S>| {
             Point::new(current.x.max(maximum.x), current.y.max(maximum.y))
         }));
         fragments.push(InlineFragmentOutputOf::new(
@@ -1556,52 +1630,62 @@ where
             source.visual_index,
             source.replacement_inline_extent,
         ));
+        text_content_size = max_content_size(
+            text_content_size,
+            content_size_contribution(
+                Point::new(
+                    location.x - constants.content_box_inset.left,
+                    location.y - constants.content_box_inset.top,
+                ),
+                size,
+                size,
+                ComputedOverflow::VISIBLE,
+                false,
+            ),
+        );
+        if set_layout {
+            contributions.include_direct_line(rect);
+        }
     }
 
-    let anchor = report
-        .anchors
-        .iter()
-        .find(|anchor| anchor.source_index == source_index_start)
-        .map_or(Point::ZERO, |anchor| {
-            project_point(
-                anchor.inline_start,
-                anchor.block_start,
-                LogicalSizeOf::new(S::ZERO, S::ZERO),
-            )
-        });
-    let (text_location, text_size) = match (union_min, union_max) {
-        (Some(minimum), Some(maximum)) => (
-            minimum,
-            Size::new(maximum.x - minimum.x, maximum.y - minimum.y),
-        ),
-        _ => (anchor, Size::ZERO),
-    };
-
     if set_layout {
-        tree.set_unrounded(
-            child,
-            NodeOutputOf::<S> {
-                source_index: crate::SourceIndex::new(source_index_start),
-                location: text_location,
-                size: text_size,
-                content_size: text_size,
-                ..NodeOutputOf::new()
-            },
-        );
-        tree.set_unrounded_inline_fragment_state(child, Some(fragments));
-        let direct_line = super::ScrollRectOf::try_new(
-            project_point(S::ZERO, S::ZERO, report_logical_size),
-            report_size,
-        )
-        .map_err(|error| {
-            block_inline_geometry_error(container, Some(child), input.run_mode(), error)
-        })?;
-        contributions.include_direct_line(direct_line);
+        for (child, source_index, fragments, union_min, union_max) in published {
+            let anchor = report
+                .anchors
+                .iter()
+                .find(|anchor| anchor.source_index == source_index)
+                .map_or(Point::ZERO, |anchor| {
+                    project_point(
+                        anchor.inline_start,
+                        anchor.block_start,
+                        LogicalSizeOf::new(S::ZERO, S::ZERO),
+                    )
+                });
+            let (text_location, text_size) = match (union_min, union_max) {
+                (Some(minimum), Some(maximum)) => (
+                    minimum,
+                    Size::new(maximum.x - minimum.x, maximum.y - minimum.y),
+                ),
+                _ => (anchor, Size::ZERO),
+            };
+            tree.set_unrounded(
+                child,
+                NodeOutputOf::<S> {
+                    source_index: crate::SourceIndex::new(source_index),
+                    location: text_location,
+                    size: text_size,
+                    content_size: text_size,
+                    ..NodeOutputOf::new()
+                },
+            );
+            tree.set_unrounded_inline_fragment_state(child, Some(fragments));
+        }
     }
 
     Ok(InlineRunPlacement {
         size: report_size,
         content_size: report_size,
+        scroll_content_size: text_content_size,
         static_positions: Vec::new(),
         baselines: BaselinesOf::NONE,
         first_baseline: report.first_baseline,
@@ -1620,35 +1704,26 @@ where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
-    if let Some((text_offset, child, text)) =
-        run.iter()
-            .copied()
-            .enumerate()
-            .find_map(|(offset, child)| match tree.layout_input(child) {
-                LayoutInputOf::InlineText(text) => Some((offset, child, text)),
-                _ => None,
-            })
+    if run
+        .iter()
+        .copied()
+        .all(|child| matches!(tree.layout_input(child), LayoutInputOf::InlineText(_)))
     {
-        if run.len() != 1 {
-            return Err(crate::LayoutErrorOf::new(
-                crate::LayoutErrorSiteOf::Node(child),
-                crate::LayoutOperation::ChildLayout,
-                crate::LayoutErrorKindOf::UnsupportedCapability(
-                    crate::LayoutUnsupportedCapability::LaterFriBehavior,
-                ),
-            ));
-        }
-        return layout_shaped_text_child(
-            tree,
-            container,
-            child,
-            &text,
-            InlineRunContext {
-                source_index_start: context.source_index_start + text_offset,
-                ..context
-            },
-            contributions,
-        );
+        return layout_shaped_text_children(tree, container, run, context, contributions);
+    }
+
+    if let Some(child) = run
+        .iter()
+        .copied()
+        .find(|child| matches!(tree.layout_input(*child), LayoutInputOf::InlineText(_)))
+    {
+        return Err(crate::LayoutErrorOf::new(
+            crate::LayoutErrorSiteOf::Node(child),
+            crate::LayoutOperation::ChildLayout,
+            crate::LayoutErrorKindOf::UnsupportedCapability(
+                crate::LayoutUnsupportedCapability::LaterFriBehavior,
+            ),
+        ));
     }
 
     let InlineRunContext {
@@ -2015,6 +2090,7 @@ where
     Ok(InlineRunPlacement {
         size: report.size,
         content_size,
+        scroll_content_size: content_size,
         static_positions,
         baselines: inline_report_baselines(
             &report,

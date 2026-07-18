@@ -292,18 +292,19 @@ pub(super) fn layout_shaped_text_run<S: LayoutScalar>(
         let participant = input.participants[scan];
         let candidate_inline_extent =
             pending_text_inline_extent(&input.participants[line_start..=scan]);
-        if wraps && candidate_inline_extent > available {
-            if let Some(break_end) = latest_allowed {
-                selected_lines.push(select_text_line(
-                    &input.participants[line_start..break_end],
-                    true,
-                    pending_strut.take(),
-                ));
-                line_start = break_end;
-                scan = line_start;
-                latest_allowed = None;
-                continue;
-            }
+        if wraps
+            && candidate_inline_extent > available
+            && let Some(break_end) = latest_allowed
+        {
+            selected_lines.push(select_text_line(
+                &input.participants[line_start..break_end],
+                true,
+                pending_strut.take(),
+            ));
+            line_start = break_end;
+            scan = line_start;
+            latest_allowed = None;
+            continue;
         }
 
         scan += 1;

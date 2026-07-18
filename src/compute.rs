@@ -587,7 +587,8 @@ where
                     }
                     *later_behavior = true;
                 }
-                input.display.inner_display() == super::Display::Block
+                input.display == super::Display::None
+                    || input.display.inner_display() == super::Display::Block
             }
             LayoutInputOf::InlineText(_) => {
                 let reason = if tree.node_input(node) != &NodeInputOf::non_box() {
