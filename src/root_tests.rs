@@ -358,6 +358,190 @@ fn fri06_c03_fragment<S: LayoutScalar>(
         .fragment()
 }
 
+fn fri06_c03_projection_batch<S: LayoutScalar>(
+    flow: FlowAxes,
+    text_align: TextAlign,
+    logical_atomics: &[(f64, f64, InlineBreakKind)],
+    available_inline: f64,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let root_input = NodeInputOf {
+        display: Display::Block,
+        writing_mode: flow.writing_mode(),
+        direction: flow.direction(),
+        text_align,
+        ..NodeInputOf::default()
+    };
+    let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
+    let mut node_inputs = HashMap::from([(0, root_input)]);
+    let mut children = HashMap::new();
+    let mut root_children = Vec::new();
+    for (offset, (inline, block, following_break)) in logical_atomics.iter().copied().enumerate() {
+        let node = u32::try_from(offset + 1).unwrap();
+        let following_break = match following_break {
+            InlineBreakKind::Prohibited => InlineBreakOpportunityOf::prohibited(),
+            InlineBreakKind::Allowed => InlineBreakOpportunityOf::allowed(),
+            InlineBreakKind::Mandatory => InlineBreakOpportunityOf::mandatory(),
+            InlineBreakKind::AllowedWithReplacement => {
+                panic!("atomic projection fixtures never carry replacement breaks")
+            }
+        };
+        let physical_size =
+            flow.physical_size(LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)));
+        let style = NodeInputOf {
+            display: Display::InlineBlock,
+            writing_mode: flow.writing_mode(),
+            direction: flow.direction(),
+            size: physical_size.map(PreferredSizeOf::px),
+            atomic_inline_participation: Some(fri06_c03_atomic_participation(0, following_break)),
+            ..NodeInputOf::default()
+        };
+        inputs.insert(node, LayoutInputOf::box_input(style.clone()));
+        node_inputs.insert(node, style);
+        children.insert(node, Vec::new());
+        root_children.push(node);
+    }
+    children.insert(0, root_children);
+    let tree = Fri06C02TextTree {
+        inputs,
+        node_inputs,
+        children,
+    };
+    let available = flow.physical_size(LogicalSizeOf::new(
+        AvailableOf::definite(S::from_f64(available_inline)),
+        AvailableOf::MAX_CONTENT,
+    ));
+    compute_layout(&tree, 0, LayoutRootRequestOf::viewport(available).unwrap()).unwrap()
+}
+
+#[test]
+fn fri06_c03_projection_soft_and_forced_unequal_atomic_lines_align_per_line_in_all_flows_both_scalars()
+ {
+    fn expected_offset(
+        align: TextAlign,
+        decreases: bool,
+        containing_inline: f64,
+        used_inline: f64,
+    ) -> f64 {
+        let free = containing_inline - used_inline;
+        match align {
+            TextAlign::LegacyLeft if decreases => free,
+            TextAlign::LegacyRight if !decreases => free,
+            TextAlign::LegacyCenter => free / 2.0,
+            TextAlign::Auto | TextAlign::LegacyLeft | TextAlign::LegacyRight => 0.0,
+        }
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        for (writing_mode, direction) in fri06_c02_flow_mappings() {
+            let flow = FlowAxes::new(writing_mode, direction);
+            let decreases = fri06_c02_inline_decreases(writing_mode, direction);
+            for align in [
+                TextAlign::LegacyLeft,
+                TextAlign::LegacyRight,
+                TextAlign::LegacyCenter,
+            ] {
+                let soft = fri06_c03_projection_batch::<S>(
+                    flow,
+                    align,
+                    &[
+                        (30.0, 10.0, InlineBreakKind::Allowed),
+                        (30.0, 10.0, InlineBreakKind::Allowed),
+                        (10.0, 10.0, InlineBreakKind::Prohibited),
+                    ],
+                    40.0,
+                );
+                let soft_root = fri06_c02_final_node(&soft, 0);
+                for (node, logical_rect) in [
+                    (
+                        1,
+                        (
+                            expected_offset(align, decreases, 40.0, 30.0),
+                            0.0,
+                            30.0,
+                            10.0,
+                        ),
+                    ),
+                    (
+                        2,
+                        (
+                            expected_offset(align, decreases, 40.0, 40.0),
+                            10.0,
+                            30.0,
+                            10.0,
+                        ),
+                    ),
+                    (
+                        3,
+                        (
+                            expected_offset(align, decreases, 40.0, 40.0) + 30.0,
+                            10.0,
+                            10.0,
+                            10.0,
+                        ),
+                    ),
+                ] {
+                    let expected = fri06_c02_expected_physical_rect(
+                        (writing_mode, direction),
+                        logical_rect,
+                        (40.0, 20.0),
+                    );
+                    let output = fri06_c02_final_node(&soft, node);
+                    assert_eq!(
+                        (output.location, output.size),
+                        expected,
+                        "soft {writing_mode:?} {direction:?} {align:?} node {node}; root={soft_root:?}"
+                    );
+                }
+
+                let forced = fri06_c03_projection_batch::<S>(
+                    flow,
+                    align,
+                    &[
+                        (30.0, 10.0, InlineBreakKind::Mandatory),
+                        (10.0, 10.0, InlineBreakKind::Prohibited),
+                    ],
+                    100.0,
+                );
+                for (node, logical_rect) in [
+                    (
+                        1,
+                        (
+                            expected_offset(align, decreases, 100.0, 30.0),
+                            0.0,
+                            30.0,
+                            10.0,
+                        ),
+                    ),
+                    (
+                        2,
+                        (
+                            expected_offset(align, decreases, 100.0, 10.0),
+                            10.0,
+                            10.0,
+                            10.0,
+                        ),
+                    ),
+                ] {
+                    let expected = fri06_c02_expected_physical_rect(
+                        (writing_mode, direction),
+                        logical_rect,
+                        (100.0, 20.0),
+                    );
+                    let output = fri06_c02_final_node(&forced, node);
+                    assert_eq!(
+                        (output.location, output.size),
+                        expected,
+                        "forced {writing_mode:?} {direction:?} {align:?} node {node}"
+                    );
+                }
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn fri06_c03_nested_atomic_baseline_batch<S: LayoutScalar>(
     parent_flow: FlowAxes,
     child_flow: FlowAxes,
@@ -2918,6 +3102,80 @@ impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
         }
     }
 
+    fn new_mixed() -> Self {
+        let root_input = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(20.0)),
+                PreferredSizeOf::px(S::from_f64(20.0)),
+            ),
+            overflow: ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto).unwrap(),
+            ..NodeInputOf::default()
+        };
+        let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+            91,
+            9.25,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::allowed(),
+        )])
+        .unwrap();
+        let atomic = fri06_c03_atomic_style(
+            25.25,
+            10.5,
+            0.0,
+            0.0,
+            0,
+            InlineBreakOpportunityOf::prohibited(),
+        );
+        let boundary = InlineBoundaryInputOf::new(
+            InlineBoundaryKind::Start,
+            InlineMetricsOf::from_ascent_descent(S::from_f64(6.25), S::from_f64(3.75)).unwrap(),
+        );
+        let line_break = LineBreakInputOf::new().with_metrics(
+            InlineMetricsOf::from_ascent_descent(S::from_f64(8.25), S::from_f64(1.75)).unwrap(),
+        );
+        Self {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_input.clone())),
+                (1, LayoutInputOf::inline_text(text)),
+                (2, LayoutInputOf::box_input(atomic.clone())),
+                (3, LayoutInputOf::inline_boundary(boundary)),
+                (4, LayoutInputOf::line_break(line_break)),
+            ]),
+            node_inputs: HashMap::from([
+                (0, root_input),
+                (1, NodeInputOf::non_box()),
+                (2, atomic),
+                (3, NodeInputOf::non_box()),
+                (4, NodeInputOf::non_box()),
+            ]),
+            children: HashMap::from([
+                (0, vec![1, 2, 3, 4]),
+                (1, Vec::new()),
+                (2, Vec::new()),
+                (3, Vec::new()),
+                (4, Vec::new()),
+            ]),
+            retained: Fri06C02RetainedTextState::default(),
+            fragment_readbacks: Cell::new(0),
+            reject_preparation: false,
+        }
+    }
+
+    fn replace_atomic_inline_extent(&mut self, extent: f64) {
+        let style = fri06_c03_atomic_style(
+            extent,
+            10.5,
+            0.0,
+            0.0,
+            0,
+            InlineBreakOpportunityOf::prohibited(),
+        );
+        self.inputs
+            .insert(2, LayoutInputOf::box_input(style.clone()));
+        self.node_inputs.insert(2, style);
+    }
+
     fn replace_text(&mut self, segments: Vec<ShapedInlineSegmentOf<S>>) {
         self.inputs.insert(
             1,
@@ -3070,6 +3328,121 @@ fn fri06_c02_stateful_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
         AvailableOf::MAX_CONTENT,
     ))
     .unwrap()
+}
+
+type Fri06C03FragmentIdentity<S> = (u32, InlineSegmentId, usize, usize, Option<S>, Point<S>);
+
+#[test]
+fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_failure_are_atomic_both_scalars()
+ {
+    fn fragment_identity<S: LayoutScalar>(
+        entries: &[InlineFragmentOutputEntryOf<u32, S>],
+    ) -> Vec<Fri06C03FragmentIdentity<S>> {
+        entries
+            .iter()
+            .map(|entry| {
+                let fragment = entry.fragment();
+                (
+                    entry.node(),
+                    fragment.segment_id(),
+                    fragment.line_index(),
+                    fragment.visual_index(),
+                    fragment.replacement_inline_extent(),
+                    fragment.baseline(),
+                )
+            })
+            .collect()
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        let request = fri06_c02_stateful_request::<S>();
+        let mut tree = Fri06C02StatefulTextTree::new_mixed();
+        let cold = compute_layout(&tree, 0, request).expect("cold mixed layout succeeds");
+        assert_eq!(
+            fragment_identity(cold.unrounded_inline_fragments())
+                .into_iter()
+                .map(|identity| (identity.0, identity.1, identity.2, identity.3, identity.4))
+                .collect::<Vec<_>>(),
+            fragment_identity(cold.final_inline_fragments())
+                .into_iter()
+                .map(|identity| (identity.0, identity.1, identity.2, identity.3, identity.4))
+                .collect::<Vec<_>>()
+        );
+        let cold_unrounded = cold.unrounded_entries().to_vec();
+        let cold_final = cold.final_entries().to_vec();
+        let cold_unrounded_fragments = cold.unrounded_inline_fragments().to_vec();
+        let cold_final_fragments = cold.final_inline_fragments().to_vec();
+        let unrounded_root = cold_unrounded
+            .iter()
+            .find(|entry| entry.node() == 0)
+            .unwrap()
+            .output();
+        let unrounded_range = unrounded_root.scroll_geometry.unwrap().physical_range();
+        assert_eq!(unrounded_range.x().maximum(), S::from_f64(5.25));
+        assert_eq!(unrounded_range.y().maximum(), S::from_f64(0.5));
+        let source_indices = |entries: &[LayoutOutputEntryOf<u32, S>]| {
+            entries
+                .iter()
+                .filter(|entry| (1..=4).contains(&entry.node()))
+                .map(|entry| (entry.node(), entry.output().source_index))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            source_indices(&cold_unrounded),
+            vec![
+                (1, SourceIndex::new(0)),
+                (2, SourceIndex::new(1)),
+                (3, SourceIndex::new(2)),
+                (4, SourceIndex::new(3)),
+            ]
+        );
+        assert_eq!(source_indices(&cold_final), source_indices(&cold_unrounded));
+        cold.apply_to(&mut tree).expect("cold mixed batch commits");
+
+        let warm = compute_layout(&tree, 0, request).expect("warm mixed layout succeeds");
+        assert_eq!(warm.unrounded_entries(), cold_unrounded);
+        assert_eq!(warm.final_entries(), cold_final);
+        assert_eq!(warm.unrounded_inline_fragments(), cold_unrounded_fragments);
+        assert_eq!(warm.final_inline_fragments(), cold_final_fragments);
+        warm.apply_to(&mut tree)
+            .expect("warm mixed batch recommits");
+
+        let stale_atomic = tree.retained.unrounded_nodes[&2];
+        tree.replace_atomic_inline_extent(27.75);
+        tree.retained.dirty = vec![2, 2];
+        let replacement = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("dirty atomic replacement stages");
+        assert_eq!(replacement.invalidated_nodes(), &[0, 2]);
+        assert_eq!(
+            replacement.unrounded_inline_fragments(),
+            cold_unrounded_fragments,
+            "unaffected warm text fragments republish during exact atomic-path replacement"
+        );
+        replacement
+            .apply_to(&mut tree)
+            .expect("dirty atomic replacement commits");
+        assert_ne!(tree.retained.unrounded_nodes[&2], stale_atomic);
+        assert_eq!(
+            tree.retained.unrounded_nodes[&2].size.width,
+            S::from_f64(27.75)
+        );
+
+        tree.replace_atomic_inline_extent(29.25);
+        tree.retained.dirty = vec![2];
+        let rejected = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("second dirty atomic replacement stages");
+        tree.reject_preparation = true;
+        let retained_before_rejection = tree.retained.clone();
+        assert_eq!(
+            rejected.apply_to(&mut tree),
+            Err("C02 retained-state preparation rejected")
+        );
+        assert_eq!(tree.retained, retained_before_rejection);
+        assert_eq!(tree.retained.dirty, [2]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]

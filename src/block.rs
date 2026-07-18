@@ -2,9 +2,8 @@ use std::collections::BTreeMap;
 
 use super::inline::{
     AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
-    InlineControlAlignment, InlineFlowOf, InlineParticipant, InlineRunInput, InlineRunReport,
-    MixedInlineParticipantOf, MixedInlineRunInputOf, ShapedTextParticipantOf, layout_inline_run,
-    layout_mixed_inline_run,
+    InlineControlAlignment, InlineFlowOf, MixedInlineParticipantOf, MixedInlineRunInputOf,
+    ShapedTextParticipantOf, layout_mixed_inline_run,
 };
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
@@ -302,7 +301,13 @@ where
         let style = match tree.layout_input(child) {
             LayoutInputOf::InlineText(_) => return true,
             LayoutInputOf::Box(style) => style,
-            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => return false,
+            LayoutInputOf::LineBreak(input) => {
+                return !input.display().is_none()
+                    && input.metrics().line_extent() > Tree::Scalar::ZERO;
+            }
+            LayoutInputOf::InlineBoundary(input) => {
+                return input.metrics().line_extent() > Tree::Scalar::ZERO;
+            }
         };
         if style.display == super::Display::None
             || style.position == Position::Absolute
@@ -556,40 +561,6 @@ where
         index += 1;
     }
     index
-}
-
-fn run_uses_mixed_inline_builder<Tree, M>(
-    tree: &Tree,
-    children: &[<Tree as Traverse>::Node],
-) -> bool
-where
-    Tree: Compute<M>,
-{
-    let mut contains_text = false;
-    let mut contains_control = false;
-    let mut contains_visible_box = false;
-    let mut visible_boxes_are_normalized_atomics = true;
-
-    for child in children.iter().copied() {
-        match tree.layout_input(child) {
-            LayoutInputOf::Box(style) => {
-                if style.display != super::Display::None && style.position != Position::Absolute {
-                    contains_visible_box = true;
-                    visible_boxes_are_normalized_atomics &=
-                        style.atomic_inline_participation.is_some();
-                }
-            }
-            LayoutInputOf::InlineText(_) => {
-                contains_text = true;
-            }
-            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
-                contains_control = true;
-            }
-        }
-    }
-
-    contains_text
-        || (contains_control && (!contains_visible_box || visible_boxes_are_normalized_atomics))
 }
 
 fn visible_line_break_in_flow<Tree, M>(
@@ -1376,23 +1347,6 @@ fn inline_boundary_control<S: LayoutScalar>(
     )
 }
 
-enum InlineRunChild<Node, S: LayoutScalar> {
-    Box {
-        child: Node,
-        source_index: usize,
-        style: Box<NodeInputOf<S>>,
-        output: ComputeOutputOf<S>,
-    },
-    LineBreak {
-        child: Node,
-        source_index: usize,
-    },
-    Boundary {
-        child: Node,
-        source_index: usize,
-    },
-}
-
 fn layout_inline_segments<Tree, S, M>(
     tree: &mut Tree,
     container: <Tree as Traverse>::Node,
@@ -1523,9 +1477,7 @@ where
 {
     let run_start = run.start;
     let run_end = run.end;
-    if run_uses_mixed_inline_builder(tree, &children[run_start..run_end])
-        || !inline_run_contains_clear(tree, children, run_start, run_end, context.constants)
-    {
+    if !inline_run_contains_clear(tree, children, run_start, run_end, context.constants) {
         return layout_inline_run_children(
             tree,
             container,
@@ -1554,7 +1506,7 @@ where
     )
 }
 
-fn layout_mixed_inline_children<Tree, S, M>(
+fn layout_inline_run_children<Tree, S, M>(
     tree: &mut Tree,
     container: <Tree as Traverse>::Node,
     run: &[<Tree as Traverse>::Node],
@@ -1982,444 +1934,6 @@ where
     })
 }
 
-fn layout_inline_run_children<Tree, S, M>(
-    tree: &mut Tree,
-    container: <Tree as Traverse>::Node,
-    run: &[<Tree as Traverse>::Node],
-    context: InlineRunContext<'_, S>,
-    contributions: &mut ScrollContributionAccumulatorOf<S>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
-where
-    Tree: Compute<M, Scalar = S>,
-    S: LayoutScalar,
-{
-    if run_uses_mixed_inline_builder(tree, run) {
-        return layout_mixed_inline_children(tree, container, run, context, contributions);
-    }
-
-    let InlineRunContext {
-        source_index_start,
-        cursor_block,
-        constants,
-        input,
-        node_inner_size,
-        set_layout,
-    } = context;
-    let logical_node_inner_size = constants.flow_axes.logical_size(node_inner_size);
-    let available_inline_extent = logical_node_inner_size
-        .inline
-        .map(AvailableOf::<S>::definite)
-        .unwrap_or(
-            constants
-                .flow_axes
-                .logical_size(constants.available_content)
-                .inline,
-        );
-    let containing_size = constants.containing_size(logical_node_inner_size);
-    let mut items = Vec::with_capacity(run.len());
-    let mut run_children = Vec::with_capacity(run.len());
-    let mut static_positions = Vec::new();
-    for (offset, child) in run.iter().copied().enumerate() {
-        let source_index = source_index_start + offset;
-        let child_style = match tree.layout_input(child) {
-            LayoutInputOf::Box(style) => *style,
-            LayoutInputOf::InlineText(_) => {
-                unreachable!("text runs return before legacy inline layout")
-            }
-            LayoutInputOf::LineBreak(line_break) => {
-                if line_break.display().is_none() {
-                    if set_layout {
-                        tree.set_unrounded(
-                            child,
-                            NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(
-                                source_index,
-                            )),
-                        );
-                    }
-                    continue;
-                }
-                let line_break = visible_line_break_in_flow(
-                    tree,
-                    child,
-                    constants.writing_mode,
-                    constants.direction,
-                )
-                .unwrap();
-
-                run_children.push(InlineRunChild::LineBreak {
-                    child,
-                    source_index,
-                });
-                items.push(InlineParticipant::forced_line_break(
-                    forced_line_break_control(source_index, line_break, available_inline_extent),
-                ));
-                continue;
-            }
-            LayoutInputOf::InlineBoundary(_) => {
-                let boundary = visible_inline_boundary_in_flow(
-                    tree,
-                    child,
-                    constants.writing_mode,
-                    constants.direction,
-                )
-                .unwrap();
-
-                run_children.push(InlineRunChild::Boundary {
-                    child,
-                    source_index,
-                });
-                items.push(InlineParticipant::inline_boundary(inline_boundary_control(
-                    source_index,
-                    boundary,
-                    available_inline_extent,
-                )));
-                continue;
-            }
-        };
-        if child_style.display == super::Display::None {
-            if set_layout {
-                tree.set_unrounded(
-                    child,
-                    NodeOutputOf::<S>::with_source_index(crate::SourceIndex::new(source_index)),
-                );
-                tree.compute_child(
-                    child,
-                    ComputeInputOf::<S>::hidden_in_containing_pass(
-                        ContainingLayoutContext::new(
-                            constants.flow_axes,
-                            ParentFormattingContext::BlockFlow,
-                        ),
-                        input.settled_auto_scrollbars(),
-                    ),
-                )?;
-            }
-            continue;
-        }
-        if child_style.position == Position::Absolute {
-            static_positions.push((
-                child,
-                absolute_static_position(cursor_block, constants, containing_size),
-            ));
-            continue;
-        }
-        let child_padding = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                child_style.padding,
-                node_inner_size,
-                |length, basis| resolve_length_or_zero(length, basis),
-            )
-            .transpose_with_node(tree, child)?;
-        let child_border = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                child_style.border,
-                node_inner_size,
-                |length, basis| resolve_length_or_zero(length, basis),
-            )
-            .transpose_with_node(tree, child)?;
-        let output = tree.compute_child(
-            child,
-            ComputeInputOf::<S>::for_child(
-                input.run_mode().for_child(),
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                Size::NONE,
-                constants.definite_child_containing_block_size(),
-                ContainingLayoutContext::new(
-                    constants.flow_axes,
-                    ParentFormattingContext::BlockFlow,
-                ),
-                constants.flow_axes.physical_size(LogicalSizeOf::new(
-                    available_inline_extent,
-                    AvailableOf::<S>::MAX_CONTENT,
-                )),
-            )
-            .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
-        )?;
-        let unresolved_margin = constants
-            .flow_axes
-            .zip_physical_edges_with_inline_extent(
-                child_style.margin,
-                node_inner_size,
-                |length, basis| resolve_auto_optional(length, basis),
-            )
-            .transpose_with_node(tree, child)?;
-        let child_margin = resolve_atomic_inline_margin(unresolved_margin);
-
-        let item = InlineParticipant::Box(atomic_inline_box_participant(
-            source_index,
-            child_style.clone(),
-            output,
-            child_margin,
-            child_padding,
-            child_border,
-            constants.flow_axes,
-        ));
-        run_children.push(InlineRunChild::Box {
-            child,
-            source_index,
-            style: Box::new(child_style),
-            output,
-        });
-        items.push(item);
-    }
-
-    let report = layout_inline_run(InlineRunInput {
-        available_width: available_inline_extent,
-        writing_mode: constants.writing_mode,
-        direction: constants.direction,
-        items,
-    });
-    let run_offset = inline_run_offset(
-        constants.flow_axes.logical_size(report.size).inline,
-        constants,
-        logical_node_inner_size.inline,
-    );
-    let logical_content_box_inset = constants.logical_content_box_inset();
-    let report_location = project_inline_report_item(
-        Point::ZERO,
-        report.size,
-        report.size,
-        cursor_block,
-        logical_content_box_inset.inline_start + run_offset,
-        constants,
-        containing_size,
-    );
-    if set_layout {
-        let direct_line =
-            super::ScrollRectOf::try_new(report_location, report.size).map_err(|error| {
-                block_inline_geometry_error(
-                    container,
-                    run.first().copied(),
-                    input.run_mode(),
-                    error,
-                )
-            })?;
-        contributions.include_direct_line(direct_line);
-    }
-    let mut content_size = content_size_contribution(
-        Point::new(
-            report_location.x - constants.content_box_inset.left,
-            report_location.y - constants.content_box_inset.top,
-        ),
-        report.size,
-        report.content_size,
-        ComputedOverflow::VISIBLE,
-        false,
-    );
-
-    let report_items_by_source_index = report
-        .items
-        .iter()
-        .copied()
-        .map(|item| (item.source_index, item))
-        .collect::<BTreeMap<_, _>>();
-    for run_child in &run_children {
-        match run_child {
-            InlineRunChild::Box {
-                child,
-                source_index,
-                style: child_style,
-                output,
-            } => {
-                let item = report_items_by_source_index[source_index];
-                let inset_offset = relative_inset_offset(
-                    constants
-                        .flow_axes
-                        .zip_physical_edges_with_inline_extent(
-                            child_style.inset,
-                            node_inner_size,
-                            |length, basis| resolve_auto_optional(length, basis),
-                        )
-                        .transpose_with_node(tree, *child)?,
-                    constants.flow_axes,
-                );
-                let projected_location = project_inline_report_item(
-                    item.location,
-                    item.size,
-                    report.size,
-                    cursor_block,
-                    logical_content_box_inset.inline_start + run_offset,
-                    constants,
-                    containing_size,
-                );
-                let location = Point::new(
-                    projected_location.x + inset_offset.x,
-                    projected_location.y + inset_offset.y,
-                );
-                let contribution = content_size_contribution(
-                    Point::new(
-                        location.x - constants.content_box_inset.left,
-                        location.y - constants.content_box_inset.top,
-                    ),
-                    item.size,
-                    output.content_size,
-                    child_style.overflow,
-                    child_style.item_is_replaced,
-                );
-                content_size = max_content_size(content_size, contribution);
-
-                if set_layout {
-                    let scroll_geometry = retained_child_scroll_geometry(
-                        child_style,
-                        item.size,
-                        item.content_size,
-                        item.padding,
-                        item.border,
-                        output.scroll_geometry,
-                    )
-                    .map_err(|error| block_child_geometry_error(container, *child, error))?;
-                    contributions
-                        .include_in_flow_geometry(location, item.margin, scroll_geometry)
-                        .map_err(|error| block_child_geometry_error(container, *child, error))?;
-                    tree.set_unrounded(
-                        *child,
-                        NodeOutputOf::<S> {
-                            source_index: crate::SourceIndex::new(item.source_index),
-                            location,
-                            size: item.size,
-                            content_size: item.content_size,
-                            border: item.border,
-                            padding: item.padding,
-                            margin: item.margin,
-                            ..NodeOutputOf::new()
-                        }
-                        .with_scroll_geometry(Some(scroll_geometry)),
-                    );
-                }
-            }
-            InlineRunChild::LineBreak {
-                child,
-                source_index,
-            } => {
-                if set_layout {
-                    let item = report_items_by_source_index[source_index];
-                    tree.set_unrounded(
-                        *child,
-                        NodeOutputOf::<S> {
-                            source_index: crate::SourceIndex::new(item.source_index),
-                            location: project_inline_report_item(
-                                item.location,
-                                Size::ZERO,
-                                report.size,
-                                cursor_block,
-                                logical_content_box_inset.inline_start + run_offset,
-                                constants,
-                                containing_size,
-                            ),
-                            ..NodeOutputOf::new()
-                        },
-                    );
-                }
-            }
-            InlineRunChild::Boundary {
-                child,
-                source_index,
-            } => {
-                if set_layout {
-                    let item = report_items_by_source_index[source_index];
-                    tree.set_unrounded(
-                        *child,
-                        NodeOutputOf::<S> {
-                            source_index: crate::SourceIndex::new(item.source_index),
-                            location: project_inline_report_item(
-                                item.location,
-                                Size::ZERO,
-                                report.size,
-                                cursor_block,
-                                logical_content_box_inset.inline_start + run_offset,
-                                constants,
-                                containing_size,
-                            ),
-                            ..NodeOutputOf::new()
-                        },
-                    );
-                }
-            }
-        }
-    }
-
-    Ok(InlineRunPlacement {
-        size: report.size,
-        content_size,
-        scroll_content_size: content_size,
-        static_positions,
-        baselines: inline_report_baselines(
-            &report,
-            cursor_block,
-            logical_content_box_inset.inline_start + run_offset,
-            constants,
-            containing_size,
-        ),
-        first_baseline: report.first_baseline,
-        last_baseline: report.last_baseline,
-    })
-}
-
-fn project_inline_report_item<S: LayoutScalar>(
-    report_location: Point<S>,
-    item_size: Size<S>,
-    report_size: Size<S>,
-    cursor_block: S,
-    inline_start: S,
-    constants: &Constants<S>,
-    containing_size: Size<S>,
-) -> Point<S> {
-    let flow_axes = constants.flow_axes;
-    let local = flow_axes.logical_point(report_location, item_size, report_size);
-    flow_axes.physical_point(
-        LogicalPointOf::new(inline_start + local.inline, cursor_block + local.block),
-        flow_axes.logical_size(item_size),
-        containing_size,
-    )
-}
-
-fn inline_report_baselines<S: LayoutScalar>(
-    report: &InlineRunReport<S>,
-    cursor_block: S,
-    inline_start: S,
-    constants: &Constants<S>,
-    containing_size: Size<S>,
-) -> BaselinesOf<S> {
-    let flow_axes = constants.flow_axes;
-    if flow_axes.inline_axis() == PhysicalAxis::Horizontal {
-        return BaselinesOf::NONE;
-    }
-
-    let mut block_start = None;
-    let mut block_end = None;
-    for item in &report.items {
-        let origin = flow_axes.logical_point(item.location, item.size, report.size);
-        let end = origin.block + flow_axes.logical_size(item.size).block;
-        block_start =
-            Some(block_start.map_or(origin.block, |current: S| current.min(origin.block)));
-        block_end = Some(block_end.map_or(end, |current: S| current.max(end)));
-    }
-    let (Some(block_start), Some(block_end)) = (block_start, block_end) else {
-        return BaselinesOf::NONE;
-    };
-
-    let block_coordinate = |side| {
-        let logical_block = if side == flow_axes.block_start() {
-            cursor_block + block_start
-        } else {
-            cursor_block + block_end
-        };
-        flow_axes.block_axis_coordinate(flow_axes.physical_point(
-            LogicalPointOf::new(inline_start, logical_block),
-            LogicalSizeOf::new(S::ZERO, S::ZERO),
-            containing_size,
-        ))
-    };
-
-    BaselinesOf::from_block_coordinates(
-        flow_axes,
-        Some(block_coordinate(flow_axes.line_under())),
-        Some(block_coordinate(flow_axes.line_over())),
-    )
-}
-
 fn record_inline_run_baselines<S: LayoutScalar>(
     baselines: &mut BaselinesOf<S>,
     placement: &InlineRunPlacement<impl Copy, S>,
@@ -2451,47 +1965,6 @@ fn record_inline_run_baselines<S: LayoutScalar>(
             )
             .last,
         );
-    }
-}
-
-fn inline_run_offset<S: LayoutScalar>(
-    run_inline: S,
-    constants: &Constants<S>,
-    resolved_inner_inline: Option<S>,
-) -> S {
-    let logical_content_box_inset = constants.logical_content_box_inset();
-    let container_inner_inline = constants
-        .logical_node_inner_size()
-        .inline
-        .or(resolved_inner_inline)
-        .or_else(|| {
-            constants
-                .logical_node_outer_size()
-                .inline
-                .map(|inline| inline - logical_content_box_inset.inline_sum())
-        })
-        .unwrap_or(run_inline);
-    let free_space = (container_inner_inline - run_inline).max(S::ZERO);
-    match constants.text_align {
-        TextAlign::Auto => S::ZERO,
-        TextAlign::LegacyLeft
-            if constants
-                .flow_axes
-                .logical_axis_progression(crate::LogicalAxis::Inline)
-                .is_decreasing() =>
-        {
-            free_space
-        }
-        TextAlign::LegacyRight
-            if !constants
-                .flow_axes
-                .logical_axis_progression(crate::LogicalAxis::Inline)
-                .is_decreasing() =>
-        {
-            free_space
-        }
-        TextAlign::LegacyCenter => free_space / S::from_f64(2.0),
-        TextAlign::LegacyLeft | TextAlign::LegacyRight => S::ZERO,
     }
 }
 

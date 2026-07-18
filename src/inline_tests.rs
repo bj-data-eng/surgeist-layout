@@ -302,24 +302,6 @@ fn atomic_inline_items_wrap_between_items_for_definite_width() {
 }
 
 #[test]
-fn atomic_inline_line_geometry_clamps_item_baseline_to_its_box() {
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::MAX_CONTENT,
-        writing_mode: WritingMode::HorizontalTb,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(124.0, 64.0), Edges::ZERO, Some(94.0)),
-            InlineParticipant::new(1, Size::new(10.0, 0.0), Edges::ZERO, Some(0.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(134.0, 64.0));
-    assert_eq!(report.first_baseline, Some(64.0));
-    assert_eq!(report.items[0].location, Point::new(0.0, 0.0));
-    assert_eq!(report.items[1].location, Point::new(124.0, 64.0));
-}
-
-#[test]
 fn atomic_inline_min_content_available_wraps_to_max_item_advance() {
     let report = layout_inline_run(InlineRunInput {
         available_width: Available::MIN_CONTENT,
@@ -359,43 +341,6 @@ fn atomic_inline_intrinsic_widths_use_max_item_and_sum() {
 
     assert_eq!(inline_run_min_content_width(&items), 110.0);
     assert_eq!(inline_run_max_content_width(&items), 195.0);
-}
-
-#[test]
-fn atomic_inline_forced_line_break_starts_next_line() {
-    let first_line_metrics = InlineMetrics::from_line_height_and_baseline(10.0, 10.0).unwrap();
-    let second_line_metrics = InlineMetrics::from_line_height_and_baseline(12.0, 8.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::MAX_CONTENT,
-        writing_mode: WritingMode::HorizontalTb,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(10.0)),
-            forced_line_break(1, first_line_metrics),
-            InlineParticipant::new(2, Size::new(15.0, 12.0), Edges::ZERO, Some(8.0)),
-            forced_line_break(3, second_line_metrics),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(20.0, 22.0));
-    assert_eq!(report.first_baseline, Some(10.0));
-    assert_eq!(report.last_baseline, Some(18.0));
-    assert_eq!(report.items.len(), 4);
-    assert_eq!(report.items[0].kind, InlineParticipantLayoutKind::Box);
-    assert_eq!(report.items[0].location, Point::new(0.0, 0.0));
-    assert_eq!(
-        report.items[1].kind,
-        InlineParticipantLayoutKind::ForcedLineBreak
-    );
-    assert_eq!(report.items[1].location, Point::new(20.0, 10.0));
-    assert_eq!(report.items[1].size, Size::ZERO);
-    assert_eq!(report.items[2].kind, InlineParticipantLayoutKind::Box);
-    assert_eq!(report.items[2].location, Point::new(0.0, 10.0));
-    assert_eq!(
-        report.items[3].kind,
-        InlineParticipantLayoutKind::ForcedLineBreak
-    );
-    assert_eq!(report.items[3].location, Point::new(15.0, 18.0));
 }
 
 #[test]
@@ -526,45 +471,6 @@ fn inline_boundaries_expand_horizontal_line_metrics_without_advance() {
 }
 
 #[test]
-fn inline_boundaries_do_not_affect_intrinsic_widths_or_wrapping() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(80.0, 60.0).unwrap();
-    let items = vec![
-        InlineParticipant::new(0, Size::new(30.0, 10.0), Edges::ZERO, Some(8.0)),
-        inline_boundary_participant(
-            1,
-            InlineBoundaryKind::Start,
-            WritingMode::HorizontalTb,
-            Direction::Ltr,
-            metrics,
-        ),
-        InlineParticipant::new(2, Size::new(25.0, 10.0), Edges::ZERO, Some(8.0)),
-        inline_boundary_participant(
-            3,
-            InlineBoundaryKind::End,
-            WritingMode::HorizontalTb,
-            Direction::Ltr,
-            metrics,
-        ),
-    ];
-
-    assert_eq!(inline_run_min_content_width(&items), 30.0);
-    assert_eq!(inline_run_max_content_width(&items), 55.0);
-
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(40.0),
-        writing_mode: WritingMode::HorizontalTb,
-        direction: Direction::Ltr,
-        items,
-    });
-
-    assert_eq!(report.size, Size::new(30.0, 160.0));
-    assert_eq!(report.items[1].location, Point::new(30.0, 60.0));
-    assert_eq!(report.items[2].location.x, 0.0);
-    assert_eq!(report.items[2].location, Point::new(0.0, 132.0));
-    assert_eq!(report.items[3].location, Point::new(25.0, 140.0));
-}
-
-#[test]
 fn inline_boundaries_before_overwide_first_box_do_not_create_leading_line() {
     let boundary_metrics = InlineMetrics::from_line_height_and_baseline(50.0, 35.0).unwrap();
     let report = layout_inline_run(InlineRunInput {
@@ -593,47 +499,6 @@ fn inline_boundaries_before_overwide_first_box_do_not_create_leading_line() {
     assert_eq!(report.items[0].location, Point::new(0.0, 35.0));
     assert_eq!(report.items[1].kind, InlineParticipantLayoutKind::Box);
     assert_eq!(report.items[1].location, Point::new(0.0, 27.0));
-}
-
-#[test]
-fn inline_boundaries_expand_vertical_line_metrics_without_inline_advance() {
-    let start_metrics = InlineMetrics::from_line_height_and_baseline(12.0, 8.0).unwrap();
-    let end_metrics = InlineMetrics::from_line_height_and_baseline(26.0, 18.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::MAX_CONTENT,
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Ltr,
-        items: vec![
-            inline_boundary_participant(
-                0,
-                InlineBoundaryKind::Start,
-                WritingMode::VerticalRl,
-                Direction::Ltr,
-                start_metrics,
-            ),
-            InlineParticipant::new(1, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
-            inline_boundary_participant(
-                2,
-                InlineBoundaryKind::End,
-                WritingMode::VerticalRl,
-                Direction::Ltr,
-                end_metrics,
-            ),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(26.0, 30.0));
-    assert_eq!(
-        report.items[0].kind,
-        InlineParticipantLayoutKind::InlineBoundaryStart
-    );
-    assert_eq!(report.items[0].size, Size::ZERO);
-    assert_eq!(report.items[1].kind, InlineParticipantLayoutKind::Box);
-    assert_eq!(
-        report.items[2].kind,
-        InlineParticipantLayoutKind::InlineBoundaryEnd
-    );
-    assert_eq!(report.items[2].size, Size::ZERO);
 }
 
 #[test]
@@ -670,43 +535,6 @@ fn forced_line_break_control_can_be_used_as_atomic_inline_item() {
     assert_eq!(report.items[1].source_index, 1);
     assert_eq!(report.items[1].location, Point::new(20.0, 10.0));
     assert_eq!(report.items[1].size, Size::ZERO);
-}
-
-#[test]
-fn forced_line_break_metrics_give_empty_line_height() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 15.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::MAX_CONTENT,
-        writing_mode: WritingMode::HorizontalTb,
-        direction: Direction::Ltr,
-        items: vec![forced_line_break(0, metrics), forced_line_break(1, metrics)],
-    });
-
-    assert_eq!(report.size, Size::new(0.0, 40.0));
-    assert_eq!(report.first_baseline, Some(15.0));
-    assert_eq!(report.last_baseline, Some(35.0));
-    assert_eq!(report.items[0].location, Point::new(0.0, 15.0));
-    assert_eq!(report.items[1].location, Point::new(0.0, 35.0));
-}
-
-#[test]
-fn forced_line_break_metrics_expand_line_with_boxes() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(30.0, 22.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::MAX_CONTENT,
-        writing_mode: WritingMode::HorizontalTb,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(20.0, 10.0), Edges::ZERO, Some(8.0)),
-            forced_line_break(1, metrics),
-            InlineParticipant::new(2, Size::new(10.0, 10.0), Edges::ZERO, Some(8.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(20.0, 40.0));
-    assert_eq!(report.items[0].location.y, 14.0);
-    assert_eq!(report.items[1].location, Point::new(20.0, 22.0));
-    assert_eq!(report.items[2].location.y, 30.0);
 }
 
 #[test]
@@ -754,25 +582,6 @@ fn atomic_inline_vertical_margins_participate_in_line_metrics() {
 }
 
 #[test]
-fn atomic_inline_vertical_rl_places_line_against_right_edge() {
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(70.0),
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
-            InlineParticipant::new(1, Size::new(10.0, 0.0), Edges::ZERO, Some(0.0)),
-            InlineParticipant::new(2, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(70.0, 40.0));
-    assert_eq!(report.items[0].location, Point::new(50.0, 0.0));
-    assert_eq!(report.items[1].location, Point::new(65.0, 20.0));
-    assert_eq!(report.items[2].location, Point::new(50.0, 20.0));
-}
-
-#[test]
 fn atomic_inline_sideways_lr_ltr_maps_inline_progression_bottom_to_top() {
     let report = layout_inline_run(InlineRunInput {
         available_width: Available::definite(70.0),
@@ -786,222 +595,6 @@ fn atomic_inline_sideways_lr_ltr_maps_inline_progression_bottom_to_top() {
 
     assert_eq!(report.items[0].location, Point::new(0.0, 20.0));
     assert_eq!(report.items[1].location, Point::new(0.0, 0.0));
-}
-
-#[test]
-fn atomic_inline_vertical_rl_rtl_maps_inline_progression_bottom_to_top() {
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(70.0),
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Rtl,
-        items: vec![
-            InlineParticipant::new(0, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
-            InlineParticipant::new(1, Size::new(20.0, 20.0), Edges::ZERO, Some(20.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(70.0, 40.0));
-    assert_eq!(report.items[0].location, Point::new(50.0, 20.0));
-    assert_eq!(report.items[1].location, Point::new(50.0, 0.0));
-}
-
-#[test]
-fn atomic_inline_vertical_rl_forced_break_starts_next_line() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(80.0),
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
-            forced_line_break_for(1, WritingMode::VerticalRl, Direction::Ltr, metrics),
-            InlineParticipant::new(2, Size::new(12.0, 16.0), Edges::ZERO, Some(12.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(80.0, 30.0));
-    assert_eq!(report.items[0].location, Point::new(70.0, 0.0));
-    assert_eq!(report.items[1].location, Point::new(66.0, 30.0));
-    assert_eq!(
-        report.items[1].kind,
-        InlineParticipantLayoutKind::ForcedLineBreak
-    );
-    assert_eq!(report.items[1].size, Size::ZERO);
-    assert_eq!(report.items[2].location, Point::new(48.0, 0.0));
-    assert_eq!(report.first_baseline, Some(24.0));
-    assert_eq!(report.last_baseline, Some(12.0));
-}
-
-#[test]
-fn atomic_inline_vertical_lr_forced_break_starts_next_line() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(80.0),
-        writing_mode: WritingMode::VerticalLr,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
-            forced_line_break_for(1, WritingMode::VerticalLr, Direction::Ltr, metrics),
-            InlineParticipant::new(2, Size::new(12.0, 16.0), Edges::ZERO, Some(12.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(32.0, 30.0));
-    assert_eq!(report.items[0].location, Point::new(0.0, 0.0));
-    assert_eq!(report.items[1].location, Point::new(14.0, 30.0));
-    assert_eq!(
-        report.items[1].kind,
-        InlineParticipantLayoutKind::ForcedLineBreak
-    );
-    assert_eq!(report.items[1].size, Size::ZERO);
-    assert_eq!(report.items[2].location, Point::new(20.0, 0.0));
-    assert_eq!(report.first_baseline, Some(24.0));
-    assert_eq!(report.last_baseline, Some(12.0));
-}
-
-#[test]
-fn atomic_inline_sideways_lr_forced_break_projects_without_clearing() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(80.0),
-        writing_mode: WritingMode::SidewaysLr,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
-            forced_line_break_for(1, WritingMode::SidewaysLr, Direction::Ltr, metrics),
-            InlineParticipant::new(2, Size::new(12.0, 16.0), Edges::ZERO, Some(12.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(32.0, 30.0));
-    assert_eq!(report.items[0].location, Point::new(0.0, 0.0));
-    assert_eq!(
-        report.items[1].kind,
-        InlineParticipantLayoutKind::ForcedLineBreak
-    );
-    assert_eq!(report.items[1].location, Point::new(14.0, 0.0));
-    assert_eq!(report.items[1].size, Size::ZERO);
-    assert_eq!(report.items[2].location, Point::new(20.0, 14.0));
-}
-
-#[test]
-fn inline_boundaries_project_sideways_lr_without_clearing() {
-    let start_metrics = InlineMetrics::from_line_height_and_baseline(12.0, 8.0).unwrap();
-    let end_metrics = InlineMetrics::from_line_height_and_baseline(26.0, 18.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::MAX_CONTENT,
-        writing_mode: WritingMode::SidewaysLr,
-        direction: Direction::Ltr,
-        items: vec![
-            inline_boundary_participant(
-                0,
-                InlineBoundaryKind::Start,
-                WritingMode::SidewaysLr,
-                Direction::Ltr,
-                start_metrics,
-            ),
-            InlineParticipant::new(1, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
-            inline_boundary_participant(
-                2,
-                InlineBoundaryKind::End,
-                WritingMode::SidewaysLr,
-                Direction::Ltr,
-                end_metrics,
-            ),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(26.0, 30.0));
-    assert_eq!(
-        report.items[0].kind,
-        InlineParticipantLayoutKind::InlineBoundaryStart
-    );
-    assert_eq!(report.items[0].location, Point::new(8.0, 30.0));
-    assert_eq!(report.items[0].size, Size::ZERO);
-    assert_eq!(report.items[1].location, Point::new(0.0, 0.0));
-    assert_eq!(
-        report.items[2].kind,
-        InlineParticipantLayoutKind::InlineBoundaryEnd
-    );
-    assert_eq!(report.items[2].location, Point::new(18.0, 0.0));
-    assert_eq!(report.items[2].size, Size::ZERO);
-}
-
-#[test]
-fn atomic_inline_vertical_forced_breaks_create_empty_metric_bearing_lines() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(80.0),
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Ltr,
-        items: vec![
-            forced_line_break_for(0, WritingMode::VerticalRl, Direction::Ltr, metrics),
-            forced_line_break_for(1, WritingMode::VerticalRl, Direction::Ltr, metrics),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(80.0, 0.0));
-    assert_eq!(report.items[0].location, Point::new(66.0, 0.0));
-    assert_eq!(report.items[1].location, Point::new(46.0, 0.0));
-    assert_eq!(report.first_baseline, Some(0.0));
-    assert_eq!(report.last_baseline, Some(0.0));
-}
-
-#[test]
-fn atomic_inline_vertical_rl_rtl_forced_break_uses_bottom_to_top_inline_progression() {
-    let metrics = InlineMetrics::from_line_height_and_baseline(20.0, 14.0).unwrap();
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(80.0),
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Rtl,
-        items: vec![
-            InlineParticipant::new(0, Size::new(10.0, 30.0), Edges::ZERO, Some(24.0)),
-            forced_line_break_for(1, WritingMode::VerticalRl, Direction::Rtl, metrics),
-            InlineParticipant::new(2, Size::new(12.0, 16.0), Edges::ZERO, Some(12.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(80.0, 30.0));
-    assert_eq!(report.items[0].location, Point::new(70.0, 0.0));
-    assert_eq!(report.items[1].location, Point::new(66.0, 0.0));
-    assert_eq!(report.items[2].location, Point::new(48.0, 14.0));
-}
-
-#[test]
-fn atomic_inline_vertical_rl_tall_box_run_does_not_wrap_by_available_width() {
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(40.0),
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Ltr,
-        items: vec![
-            InlineParticipant::new(0, Size::new(10.0, 35.0), Edges::ZERO, Some(35.0)),
-            InlineParticipant::new(1, Size::new(10.0, 35.0), Edges::ZERO, Some(35.0)),
-        ],
-    });
-
-    assert_eq!(report.size, Size::new(40.0, 70.0));
-    assert_eq!(report.items[0].location, Point::new(30.0, 0.0));
-    assert_eq!(report.items[1].location, Point::new(30.0, 35.0));
-    assert_eq!(report.first_baseline, Some(35.0));
-    assert_eq!(report.last_baseline, Some(70.0));
-}
-
-#[test]
-fn atomic_inline_vertical_rl_preserves_zero_height_box_centering() {
-    let report = layout_inline_run(InlineRunInput {
-        available_width: Available::definite(70.0),
-        writing_mode: WritingMode::VerticalRl,
-        direction: Direction::Ltr,
-        items: vec![InlineParticipant::new(
-            0,
-            Size::new(10.0, 0.0),
-            Edges::ZERO,
-            Some(0.0),
-        )],
-    });
-
-    assert_eq!(report.size, Size::new(70.0, 0.0));
-    assert_eq!(report.items[0].location, Point::new(65.0, 0.0));
 }
 
 #[test]
@@ -1476,8 +1069,8 @@ mod root_layout_oracle {
     use crate::test_support::layout_tree::OracleTree;
     use crate::test_support::oracle::inline;
     use crate::{
-        Available, Display, NodeInput, PreferredSize, Size, TrackComponent, compute_root,
-        round_layout,
+        AtomicInlineParticipation, Available, BidiLevel, Display, InlineBreakOpportunity,
+        NodeInput, PreferredSize, Size, TrackComponent, compute_root, round_layout,
     };
 
     fn assert_atomic_inline_layout_matches_oracle(display: Display) {
@@ -1546,17 +1139,26 @@ mod root_layout_oracle {
     }
 
     fn atomic_inline_node_input(display: Display, size: Size<f32>) -> NodeInput {
+        let atomic_inline_participation = Some(
+            AtomicInlineParticipation::try_new(
+                BidiLevel::try_new(0).unwrap(),
+                InlineBreakOpportunity::allowed(),
+            )
+            .unwrap(),
+        );
         match display.inner_display() {
             Display::Grid => NodeInput {
                 display,
                 grid_template_columns: vec![TrackComponent::px(size.width)],
                 grid_template_rows: vec![TrackComponent::px(size.height)],
+                atomic_inline_participation,
                 ..NodeInput::DEFAULT
             },
             Display::GridLanes => NodeInput {
                 display,
                 grid_template_columns: vec![TrackComponent::px(size.width)],
                 grid_template_rows: vec![TrackComponent::px(size.height)],
+                atomic_inline_participation,
                 ..NodeInput::DEFAULT
             },
             _ => NodeInput {
@@ -1565,6 +1167,7 @@ mod root_layout_oracle {
                     PreferredSize::px(size.width),
                     PreferredSize::px(size.height),
                 ),
+                atomic_inline_participation,
                 ..NodeInput::DEFAULT
             },
         }

@@ -2028,9 +2028,7 @@ fn fri05_c05_grid_legacy_absence_inventories_every_production_source() {
             &(
                 "src/inline.rs",
                 LegacyScrollbarAccounting {
-                    inline_carrier_fields: 2,
-                    inline_carrier_writers: 6,
-                    inline_carrier_projections: 2,
+                    inline_carrier_fields: 1,
                     ..LegacyScrollbarAccounting::default()
                 }
             ),

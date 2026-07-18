@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -11,9 +12,218 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
 fn fri06_atomic_participation<S: LayoutScalar>() -> AtomicInlineParticipationOf<S> {
     AtomicInlineParticipationOf::try_new(
         BidiLevel::try_new(0).unwrap(),
-        InlineBreakOpportunityOf::prohibited(),
+        InlineBreakOpportunityOf::allowed(),
     )
     .unwrap()
+}
+
+#[derive(Clone)]
+struct Fri06C03FixedSizeTree<S: LayoutScalar> {
+    root: NodeInputOf<S>,
+    child_input: LayoutInputOf<S>,
+    child_node_input: NodeInputOf<S>,
+    child_layout_input_calls: Cell<usize>,
+    child_compute_calls: usize,
+}
+
+impl<S: LayoutScalar> Traverse for Fri06C03FixedSizeTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        const ROOT_CHILDREN: &[u32] = &[1];
+        const NO_CHILDREN: &[u32] = &[];
+        if node == 0 {
+            ROOT_CHILDREN.iter().copied()
+        } else {
+            NO_CHILDREN.iter().copied()
+        }
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        usize::from(node == 0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        assert_eq!((node, index), (0, 0));
+        1
+    }
+}
+
+impl<S: LayoutScalar> Compute<()> for Fri06C03FixedSizeTree<S> {
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        if node == 0 {
+            &self.root
+        } else {
+            &self.child_node_input
+        }
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        if node == 0 {
+            LayoutInputOf::box_input(self.root.clone())
+        } else {
+            self.child_layout_input_calls
+                .set(self.child_layout_input_calls.get() + 1);
+            self.child_input.clone()
+        }
+    }
+
+    fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutputOf<S>) {}
+
+    fn compute_child(
+        &mut self,
+        _node: Self::Node,
+        _input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S, ()> {
+        self.child_compute_calls += 1;
+        panic!("non-box inline participants must not be recursively measured")
+    }
+}
+
+fn fri06_c03_fixed_size_output<S: LayoutScalar>(
+    child_input: LayoutInputOf<S>,
+) -> (ComputeOutputOf<S>, usize, usize) {
+    let mut tree = Fri06C03FixedSizeTree {
+        root: NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(100.0)),
+                PreferredSizeOf::px(S::from_f64(50.0)),
+            ),
+            ..NodeInputOf::default()
+        },
+        child_input,
+        child_node_input: NodeInputOf::non_box(),
+        child_layout_input_calls: Cell::new(0),
+        child_compute_calls: 0,
+    };
+    let output = crate::compute_block(
+        &mut tree,
+        0,
+        ComputeInputOf::for_child(
+            RunMode::ComputeSize,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            Size::NONE,
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            Size::splat(AvailableOf::MAX_CONTENT),
+        ),
+    )
+    .expect("definite block ComputeSize succeeds");
+    (
+        output,
+        tree.child_layout_input_calls.get(),
+        tree.child_compute_calls,
+    )
+}
+
+fn assert_fri06_c03_fixed_metric_participant<S: LayoutScalar>(
+    input: LayoutInputOf<S>,
+    expected_first_baseline: S,
+    expected_last_baseline: S,
+) {
+    let (output, layout_input_calls, child_compute_calls) = fri06_c03_fixed_size_output(input);
+    assert_eq!(
+        output.size,
+        Size::new(S::from_f64(100.0), S::from_f64(50.0))
+    );
+    assert_eq!(output.first_baselines.y, Some(expected_first_baseline));
+    assert_eq!(output.last_baselines.y, Some(expected_last_baseline));
+    assert!(
+        layout_input_calls > 1,
+        "metric participant must retain line layout"
+    );
+    assert_eq!(child_compute_calls, 0);
+}
+
+#[test]
+fn fri06_c03_fixed_metric_text_retains_requested_baseline_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_fri06_c03_fixed_metric_participant(
+            LayoutInputOf::inline_text(
+                InlineTextInputOf::try_new(vec![
+                    ShapedInlineSegmentOf::try_new(
+                        InlineSegmentId::new(1),
+                        S::from_f64(9.0),
+                        InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0))
+                            .unwrap(),
+                        BidiLevel::try_new(0).unwrap(),
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )
+                    .unwrap(),
+                ])
+                .unwrap(),
+            ),
+            S::from_f64(8.0),
+            S::from_f64(8.0),
+        );
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c03_fixed_metric_break_retains_requested_baseline_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_fri06_c03_fixed_metric_participant(
+            LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(
+                InlineMetricsOf::from_ascent_descent(S::from_f64(7.0), S::from_f64(3.0)).unwrap(),
+            )),
+            S::from_f64(7.0),
+            S::from_f64(17.0),
+        );
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c03_fixed_metric_boundary_retains_requested_baseline_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_fri06_c03_fixed_metric_participant(
+            LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                InlineBoundaryKind::Start,
+                InlineMetricsOf::from_ascent_descent(S::from_f64(6.0), S::from_f64(4.0)).unwrap(),
+            )),
+            S::from_f64(6.0),
+            S::from_f64(6.0),
+        );
+    }
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c03_fixed_size_only_control_keeps_early_return_call_accounting_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let (size_only, layout_input_calls, child_compute_calls) = fri06_c03_fixed_size_output(
+            LayoutInputOf::inline_boundary(InlineBoundaryInputOf::new(
+                InlineBoundaryKind::Start,
+                InlineMetricsOf::from_ascent_descent(S::ZERO, S::ZERO).unwrap(),
+            )),
+        );
+        assert_eq!(
+            size_only.size,
+            Size::new(S::from_f64(100.0), S::from_f64(50.0))
+        );
+        assert_eq!(size_only.first_baselines, Point::NONE);
+        assert_eq!(size_only.last_baselines, Point::NONE);
+        assert_eq!(
+            layout_input_calls, 1,
+            "size-only control keeps the fixed-size fast path"
+        );
+        assert_eq!(child_compute_calls, 0);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]
@@ -1513,23 +1723,6 @@ fn ordinary_block_boundaries_project_through_containing_flow_for_f64() {
     assert_ordinary_block_boundaries::<f64>();
 }
 
-fn inline_run_baseline_point<S: LayoutScalar>(
-    flow_axes: crate::geometry::FlowAxes,
-    location: Point<S>,
-    size: Size<S>,
-    side: crate::PhysicalSide,
-) -> Point<Option<S>> {
-    let coordinate = match side {
-        crate::PhysicalSide::Top | crate::PhysicalSide::Left => S::ZERO,
-        crate::PhysicalSide::Right => size.width,
-        crate::PhysicalSide::Bottom => size.height,
-    };
-    match flow_axes.block_axis() {
-        crate::PhysicalAxis::Horizontal => Point::new(Some(location.x + coordinate), None),
-        crate::PhysicalAxis::Vertical => Point::new(None, Some(location.y + coordinate)),
-    }
-}
-
 fn assert_ordinary_block_boundary_baselines<S: LayoutScalar>()
 where
     crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
@@ -1594,22 +1787,19 @@ where
         )
         .expect("block layout succeeds");
 
-        let (expected_first, expected_last) = if flow_axes.block_axis()
-            == crate::PhysicalAxis::Horizontal
-        {
-            let location = flow_axes.physical_point(
-                crate::geometry::LogicalPointOf::new(S::ZERO, S::from_f64(10.0)),
-                logical_size,
-                container_size,
-            );
-            (
-                inline_run_baseline_point(flow_axes, location, child_size, flow_axes.line_under()),
-                inline_run_baseline_point(flow_axes, location, child_size, flow_axes.line_over()),
-            )
-        } else {
-            let baseline = Some(S::from_f64(20.0));
-            (Point::new(None, baseline), Point::new(None, baseline))
-        };
+        let (expected_first, expected_last) =
+            if flow_axes.block_axis() == crate::PhysicalAxis::Horizontal {
+                let location = flow_axes.physical_point(
+                    crate::geometry::LogicalPointOf::new(S::ZERO, S::from_f64(20.0)),
+                    crate::geometry::LogicalSizeOf::new(S::ZERO, S::ZERO),
+                    container_size,
+                );
+                let baseline = Point::new(Some(location.x), None);
+                (baseline, baseline)
+            } else {
+                let baseline = Some(S::from_f64(20.0));
+                (Point::new(None, baseline), Point::new(None, baseline))
+            };
         assert_eq!(output.first_baselines, expected_first);
         assert_eq!(output.last_baselines, expected_last);
     }
@@ -1633,18 +1823,9 @@ fn assert_ordinary_block_boundary_inline_report_overflow<S: LayoutScalar>() {
         .into_iter()
         .filter(|(writing_mode, _)| *writing_mode != WritingMode::HorizontalTb)
     {
-        let expected_scrollable_overflow = match writing_mode {
-            WritingMode::VerticalRl | WritingMode::SidewaysRl => ScrollRectOf::try_new(
-                Point::new(scalar(-60.0), S::ZERO),
-                Size::new(scalar(100.0), scalar(100.0)),
-            )
-            .expect("finite expected overflow rectangle"),
-            WritingMode::VerticalLr | WritingMode::SidewaysLr => {
-                ScrollRectOf::try_new(Point::ZERO, Size::new(scalar(40.0), scalar(100.0)))
-                    .expect("finite expected overflow rectangle")
-            }
-            WritingMode::HorizontalTb => unreachable!("horizontal flow is filtered above"),
-        };
+        let expected_scrollable_overflow =
+            ScrollRectOf::try_new(Point::ZERO, Size::new(scalar(40.0), scalar(100.0)))
+                .expect("finite expected overflow rectangle");
         let tree = PublicBlockTree::default()
             .with_children(0, [1])
             .with_children(1, [])
@@ -2748,6 +2929,7 @@ fn block_scroll_geometry_includes_inline_child_origin_bearing_overflow_rect() {
         2,
         NodeInput {
             display: Display::InlineBlock,
+            atomic_inline_participation: Some(fri06_atomic_participation()),
             overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
@@ -2789,6 +2971,7 @@ fn block_scroll_geometry_clips_hidden_inline_child_overflow_from_parent_range() 
         2,
         NodeInput {
             display: Display::InlineBlock,
+            atomic_inline_participation: Some(fri06_atomic_participation()),
             overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             ..NodeInput::default()
         },
@@ -2842,6 +3025,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         3,
         NodeInput {
             display: Display::InlineBlock,
+            atomic_inline_participation: Some(fri06_atomic_participation()),
             overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
@@ -2850,6 +3034,7 @@ fn block_scroll_geometry_includes_segmented_inline_overflow_rects() {
         5,
         NodeInput {
             display: Display::InlineBlock,
+            atomic_inline_participation: Some(fri06_atomic_participation()),
             overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
             ..NodeInput::default()
         },
@@ -3304,6 +3489,7 @@ fn block_inline_child_node_output_uses_final_inline_item_geometry() {
         2,
         NodeInput {
             display: Display::InlineBlock,
+            atomic_inline_participation: Some(fri06_atomic_participation()),
             overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
             ..NodeInput::default()
         },
@@ -3451,6 +3637,7 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3459,6 +3646,7 @@ fn block_lays_out_atomic_inline_children_on_one_line() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3614,6 +3802,7 @@ fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
             1,
             NodeInputOf::<f64> {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSizeOf::px(large), PreferredSizeOf::px(10.5)),
                 ..NodeInputOf::<f64>::default()
             },
@@ -3622,6 +3811,7 @@ fn f64_inline_layout_preserves_large_atomic_inline_offsets() {
             2,
             NodeInputOf::<f64> {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSizeOf::px(9.75), PreferredSizeOf::px(20.25)),
                 ..NodeInputOf::<f64>::default()
             },
@@ -3674,6 +3864,7 @@ fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(PreferredSize::px(80.0), PreferredSize::AUTO),
                 border: Edges::all(Length::px(5.0)),
@@ -3684,6 +3875,7 @@ fn vertical_rl_block_places_atomic_inline_run_at_inline_start_edge() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3713,6 +3905,7 @@ fn inline_grid_uses_grid_tracks_and_participates_as_atomic_inline() {
             1,
             NodeInput {
                 display: Display::InlineGrid,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 grid_template_columns: vec![TrackComponent::px(40.0)],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -3722,6 +3915,7 @@ fn inline_grid_uses_grid_tracks_and_participates_as_atomic_inline() {
             2,
             NodeInput {
                 display: Display::InlineGrid,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 grid_template_columns: vec![TrackComponent::px(10.0)],
                 grid_template_rows: vec![TrackComponent::px(30.0)],
                 ..NodeInput::DEFAULT
@@ -3752,6 +3946,7 @@ fn inline_grid_lanes_uses_lanes_tracks_and_participates_as_atomic_inline() {
             1,
             NodeInput {
                 display: Display::InlineGridLanes,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 grid_template_columns: vec![TrackComponent::px(40.0)],
                 grid_template_rows: vec![TrackComponent::px(20.0)],
                 ..NodeInput::DEFAULT
@@ -3761,6 +3956,7 @@ fn inline_grid_lanes_uses_lanes_tracks_and_participates_as_atomic_inline() {
             2,
             NodeInput {
                 display: Display::InlineGridLanes,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 grid_template_columns: vec![TrackComponent::px(10.0)],
                 grid_template_rows: vec![TrackComponent::px(30.0)],
                 ..NodeInput::DEFAULT
@@ -3791,6 +3987,7 @@ fn block_wraps_atomic_inline_children_between_items() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3799,6 +3996,7 @@ fn block_wraps_atomic_inline_children_between_items() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3807,6 +4005,7 @@ fn block_wraps_atomic_inline_children_between_items() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3847,6 +4046,7 @@ fn block_atomic_inline_run_honors_line_break_child() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3856,6 +4056,7 @@ fn block_atomic_inline_run_honors_line_break_child() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3879,7 +4080,7 @@ fn block_atomic_inline_run_honors_line_break_child() {
         tree.final_layout(3).unwrap().location,
         Point::new(0.0, 16.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 28.0));
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 32.0));
 }
 
 #[test]
@@ -3942,6 +4143,7 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3959,6 +4161,7 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
@@ -3978,7 +4181,7 @@ fn block_line_break_conversion_with_metadata_preserves_current_output() {
         tree.final_layout(2).unwrap().location,
         Point::new(80.0, 18.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 36.0));
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(100.0, 48.0));
 }
 
 #[test]
@@ -4045,6 +4248,7 @@ fn block_inline_boundaries_are_reported_as_zero_size_inline_controls() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4057,6 +4261,7 @@ fn block_inline_boundaries_are_reported_as_zero_size_inline_controls() {
             4,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4111,6 +4316,7 @@ fn block_inline_boundaries_before_overwide_first_inline_block_do_not_create_lead
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(40.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4159,6 +4365,7 @@ fn vertical_block_inline_boundaries_use_parent_flow() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
@@ -4185,7 +4392,7 @@ fn vertical_block_inline_boundaries_use_parent_flow() {
     assert_eq!(tree.final_layout(1).unwrap().size, Size::ZERO);
     assert_eq!(
         tree.final_layout(2).unwrap().location,
-        Point::new(70.0, 0.0)
+        Point::new(66.0, 0.0)
     );
     assert_eq!(
         tree.final_layout(3).unwrap().location,
@@ -4217,6 +4424,7 @@ fn vertical_lr_block_inline_boundaries_use_parent_flow() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
@@ -4241,7 +4449,7 @@ fn vertical_lr_block_inline_boundaries_use_parent_flow() {
         Point::new(14.0, 0.0)
     );
     assert_eq!(tree.final_layout(1).unwrap().size, Size::ZERO);
-    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(0.0, 0.0));
+    assert_eq!(tree.final_layout(2).unwrap().location, Point::new(4.0, 0.0));
     assert_eq!(
         tree.final_layout(3).unwrap().location,
         Point::new(14.0, 30.0)
@@ -4264,6 +4472,7 @@ fn hidden_line_break_does_not_split_atomic_inline_run() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4273,6 +4482,7 @@ fn hidden_line_break_does_not_split_atomic_inline_run() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4311,6 +4521,7 @@ fn block_atomic_inline_run_never_computes_line_break_as_box() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4320,6 +4531,7 @@ fn block_atomic_inline_run_never_computes_line_break_as_box() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(12.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4353,6 +4565,7 @@ fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
@@ -4368,6 +4581,7 @@ fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(PreferredSize::px(12.0), PreferredSize::px(16.0)),
                 ..NodeInput::DEFAULT
@@ -4387,7 +4601,7 @@ fn vertical_rl_line_break_is_laid_out_as_zero_size_inline_control() {
         tree.final_layout(2).unwrap().location,
         Point::new(66.0, 30.0)
     );
-    assert_eq!(tree.final_layout(3).unwrap().location.x, 48.0);
+    assert_eq!(tree.final_layout(3).unwrap().location.x, 46.0);
 }
 
 #[test]
@@ -4408,6 +4622,7 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
@@ -4423,6 +4638,7 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalLr,
                 size: Size::new(PreferredSize::px(12.0), PreferredSize::px(16.0)),
                 ..NodeInput::DEFAULT
@@ -4442,7 +4658,7 @@ fn vertical_lr_line_break_is_laid_out_as_zero_size_inline_control() {
         tree.final_layout(2).unwrap().location,
         Point::new(14.0, 30.0)
     );
-    assert_eq!(tree.final_layout(3).unwrap().location.x, 20.0);
+    assert_eq!(tree.final_layout(3).unwrap().location.x, 22.0);
 }
 
 #[test]
@@ -4567,6 +4783,7 @@ fn hidden_vertical_line_break_does_not_create_inline_control() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(30.0)),
                 ..NodeInput::DEFAULT
@@ -4582,6 +4799,7 @@ fn hidden_vertical_line_break_does_not_create_inline_control() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 writing_mode: WritingMode::VerticalRl,
                 size: Size::new(PreferredSize::px(12.0), PreferredSize::px(16.0)),
                 ..NodeInput::DEFAULT
@@ -4631,6 +4849,7 @@ fn inline_break_clear_tree(
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4645,6 +4864,7 @@ fn inline_break_clear_tree(
             4,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4735,6 +4955,7 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4749,6 +4970,7 @@ fn line_break_clear_both_uses_greater_left_or_right_float_bottom() {
             5,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4800,6 +5022,7 @@ fn line_break_clear_at_run_end_moves_following_block_below_float() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4869,7 +5092,7 @@ fn line_break_clear_left_ignores_right_float_and_preserves_alignment() {
     );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(180.0, 10.0)
+        Point::new(185.0, 10.0)
     );
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
 }
@@ -4904,7 +5127,7 @@ fn line_break_clear_right_ignores_left_float_and_preserves_alignment() {
     );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(90.0, 10.0)
+        Point::new(93.0, 10.0)
     );
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
 }
@@ -4936,6 +5159,7 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4950,6 +5174,7 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
             4,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(15.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -4973,7 +5198,7 @@ fn line_break_clear_that_is_noop_after_line_height_preserves_alignment() {
     );
     assert_eq!(
         tree.final_layout(4).unwrap().location,
-        Point::new(180.0, 10.0)
+        Point::new(185.0, 10.0)
     );
     assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
 }
@@ -5017,6 +5242,7 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(40.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5025,6 +5251,7 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(60.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5033,6 +5260,7 @@ fn block_min_content_atomic_inline_run_uses_max_item_advance() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5074,6 +5302,7 @@ fn atomic_inline_auto_margins_resolve_to_zero() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 margin: Edges {
                     left: LengthAuto::AUTO,
@@ -5109,6 +5338,7 @@ fn inline_block_intrinsic_width_shrink_wraps_children() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5143,6 +5373,7 @@ fn inline_block_uses_bottom_synthesized_baseline_when_child_has_no_baseline() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5151,6 +5382,7 @@ fn inline_block_uses_bottom_synthesized_baseline_when_child_has_no_baseline() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5186,6 +5418,7 @@ fn inline_block_uses_inner_first_baseline_for_atomic_alignment() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5193,6 +5426,7 @@ fn inline_block_uses_inner_first_baseline_for_atomic_alignment() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(25.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5223,6 +5457,7 @@ fn inline_block_keeps_child_margins_inside_atomic_wrapper() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 ..NodeInput::DEFAULT
             },
         )
@@ -5261,6 +5496,7 @@ fn inline_grid_can_host_subgrid_descendant() {
             0,
             NodeInput {
                 display: Display::InlineGrid,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 grid_template_columns: vec![TrackComponent::px(80.0)],
                 grid_template_rows: vec![TrackComponent::px(30.0)],
                 ..NodeInput::DEFAULT
@@ -5336,6 +5572,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(5.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5344,6 +5581,7 @@ fn block_positions_block_children_around_atomic_inline_run() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(15.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5401,6 +5639,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(10.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5417,6 +5656,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 position: Position::Absolute,
                 float: Float::Left,
                 size: Size::new(PreferredSize::px(5.0), PreferredSize::px(5.0)),
@@ -5427,6 +5667,7 @@ fn block_hidden_and_absolute_children_do_not_split_atomic_inline_run() {
             4,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5461,6 +5702,7 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5469,6 +5711,7 @@ fn block_rtl_atomic_inline_run_places_items_from_right_edge() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5504,6 +5747,7 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5513,6 +5757,7 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
             3,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5532,7 +5777,7 @@ fn block_rtl_atomic_inline_run_mirrors_line_break_output_x() {
     assert_eq!(tree.final_layout(2).unwrap().size, Size::ZERO);
     assert_eq!(
         tree.final_layout(3).unwrap().location,
-        Point::new(70.0, 16.0)
+        Point::new(70.0, 18.0)
     );
 }
 
@@ -5554,6 +5799,7 @@ fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5562,6 +5808,7 @@ fn block_legacy_right_rtl_aligns_atomic_inline_run_to_physical_right_edge() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5597,6 +5844,7 @@ fn block_atomic_inline_run_alignment_uses_resolved_inner_width() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(50.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5625,6 +5873,7 @@ fn block_legacy_center_aligns_atomic_inline_run() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5633,6 +5882,7 @@ fn block_legacy_center_aligns_atomic_inline_run() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5666,6 +5916,7 @@ fn block_inline_run_content_size_includes_visible_overflow_and_relative_inset() 
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
                 inset: Edges {
                     left: LengthAuto::px(15.0),
@@ -5727,6 +5978,7 @@ fn block_inline_run_content_size_accounts_for_negative_relative_inset_after_cont
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 overflow: computed_overflow(Overflow::Visible, Overflow::Visible),
                 inset: Edges {
                     top: LengthAuto::px(-5.0),
@@ -5779,6 +6031,7 @@ fn block_reports_inline_run_first_and_last_baselines() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(20.0), PreferredSize::px(10.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5787,6 +6040,7 @@ fn block_reports_inline_run_first_and_last_baselines() {
             2,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5836,6 +6090,7 @@ fn block_reports_inline_run_baseline_including_padding() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -5882,6 +6137,7 @@ fn block_definite_compute_size_keeps_inline_run_baselines() {
             1,
             NodeInput {
                 display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
                 size: Size::new(PreferredSize::px(30.0), PreferredSize::px(20.0)),
                 ..NodeInput::DEFAULT
             },
@@ -10676,6 +10932,7 @@ fn block_inline_affine_leaf_uses_public_leaf_path() {
         1,
         NodeInput {
             display: Display::InlineBlock,
+            atomic_inline_participation: Some(fri06_atomic_participation()),
             size: Size::new(PreferredSize::value(width), PreferredSize::AUTO),
             ..NodeInput::default()
         },
