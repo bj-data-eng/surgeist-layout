@@ -591,16 +591,7 @@ where
                     || input.display.inner_display() == super::Display::Block
             }
             LayoutInputOf::InlineText(_) => {
-                let reason = if tree.node_input(node) != &NodeInputOf::non_box() {
-                    Some(NonBoxNodeRoleError::NonCanonicalNodeInput)
-                } else if tree.child_count(node) != 0 {
-                    Some(NonBoxNodeRoleError::HasChildren)
-                } else if tree.has_leaf_measurement(node) {
-                    Some(NonBoxNodeRoleError::HasLeafMeasurement)
-                } else {
-                    None
-                };
-                if let Some(reason) = reason {
+                if let Some(reason) = non_box_node_role_error(tree, node) {
                     return Err(root_input_error(
                         node,
                         LayoutInvalidInputOf::NonBoxNodeRole { reason },
@@ -612,16 +603,7 @@ where
                 return Ok(());
             }
             LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
-                let reason = if tree.node_input(node) != &NodeInputOf::non_box() {
-                    Some(NonBoxNodeRoleError::NonCanonicalNodeInput)
-                } else if tree.child_count(node) != 0 {
-                    Some(NonBoxNodeRoleError::HasChildren)
-                } else if tree.has_leaf_measurement(node) {
-                    Some(NonBoxNodeRoleError::HasLeafMeasurement)
-                } else {
-                    None
-                };
-                if let Some(reason) = reason {
+                if let Some(reason) = non_box_node_role_error(tree, node) {
                     return Err(root_input_error(
                         node,
                         LayoutInvalidInputOf::NonBoxNodeRole { reason },
@@ -640,6 +622,21 @@ where
     let mut later_behavior = false;
     visit(tree, root, true, false, &mut later_behavior)?;
     Ok(later_behavior)
+}
+
+fn non_box_node_role_error<Tree>(tree: &Tree, node: Tree::Node) -> Option<NonBoxNodeRoleError>
+where
+    Tree: LayoutTree,
+{
+    if tree.node_input(node) != &NodeInputOf::non_box() {
+        Some(NonBoxNodeRoleError::NonCanonicalNodeInput)
+    } else if tree.child_count(node) != 0 {
+        Some(NonBoxNodeRoleError::HasChildren)
+    } else if tree.has_leaf_measurement(node) {
+        Some(NonBoxNodeRoleError::HasLeafMeasurement)
+    } else {
+        None
+    }
 }
 
 fn root_input_error<Node, S, M>(

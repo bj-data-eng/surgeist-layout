@@ -532,6 +532,101 @@ fn fri06_c01_non_box_pairing_and_text_handoff_are_typed_and_cache_neutral() {
     assert_fri06_c01_non_box::<f64>();
 }
 
+fn assert_fri06_mr01_non_box_precedence<S: LayoutScalar>(input: LayoutInputOf<S>) {
+    let cases = [
+        (
+            false,
+            false,
+            false,
+            NonBoxNodeRoleError::NonCanonicalNodeInput,
+        ),
+        (
+            false,
+            true,
+            false,
+            NonBoxNodeRoleError::NonCanonicalNodeInput,
+        ),
+        (
+            false,
+            false,
+            true,
+            NonBoxNodeRoleError::NonCanonicalNodeInput,
+        ),
+        (
+            false,
+            true,
+            true,
+            NonBoxNodeRoleError::NonCanonicalNodeInput,
+        ),
+        (true, true, false, NonBoxNodeRoleError::HasChildren),
+        (true, true, true, NonBoxNodeRoleError::HasChildren),
+        (true, false, true, NonBoxNodeRoleError::HasLeafMeasurement),
+    ];
+
+    for (canonical_input, has_children, has_leaf_measurement, expected_reason) in cases {
+        let node_input = if canonical_input {
+            NodeInputOf::non_box()
+        } else {
+            NodeInputOf::default()
+        };
+        let mut tree = fri06_c01_tree(input.clone(), node_input);
+        tree.measured[0] = has_leaf_measurement;
+        if has_children {
+            tree.inputs
+                .push(LayoutInputOf::box_input(NodeInputOf::default()));
+            tree.nodes.push(NodeInputOf::default());
+            tree.children[0].push(1);
+            tree.children.push(Vec::new());
+            tree.measured.push(false);
+        }
+
+        let error = compute_layout(&tree, 0, fri06_c01_request()).unwrap_err();
+
+        assert_eq!(error.operation(), LayoutOperation::RootLayout);
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::NonBoxNodeRole {
+                reason: expected_reason,
+            })
+        );
+    }
+}
+
+#[test]
+fn fri06_mr01_non_box_inline_text_precedence_is_exact_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let segment: ShapedInlineSegmentOf<S> = fri06_c01_segment(
+            1,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        );
+        let text = InlineTextInputOf::try_new(vec![segment]).unwrap();
+        assert_fri06_mr01_non_box_precedence(LayoutInputOf::inline_text(text));
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_mr01_non_box_line_break_precedence_is_exact_in_both_scalar_lanes() {
+    assert_fri06_mr01_non_box_precedence::<f32>(LayoutInputOf::line_break(LineBreakInputOf::new()));
+    assert_fri06_mr01_non_box_precedence::<f64>(LayoutInputOf::line_break(LineBreakInputOf::new()));
+}
+
+#[test]
+fn fri06_mr01_non_box_inline_boundary_precedence_is_exact_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_fri06_mr01_non_box_precedence(LayoutInputOf::inline_boundary(
+            InlineBoundaryInputOf::<S>::new(InlineBoundaryKind::Start, InlineMetricsOf::default()),
+        ));
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn assert_fri06_c01_box_roles<S: LayoutScalar>() {
     let child_tree = |style: NodeInputOf<S>| Fri06C01Tree {
         inputs: vec![
