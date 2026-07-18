@@ -1,6 +1,6 @@
 # FRI-06-C01 Public Inline Model And Transaction Substrate
 
-Status: reviewed
+Status: in_progress
 
 Cycle ID: `FRI-06-C01`
 
