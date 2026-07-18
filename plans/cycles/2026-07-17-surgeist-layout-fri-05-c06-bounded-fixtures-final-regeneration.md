@@ -14,16 +14,16 @@ acceptance items 9 through 11 and 13 in `FRI-05.15`.
 Reviewed sequence:
 `plans/sequences/2026-07-16-surgeist-layout-fri-05-overflow-scroll-geometry.md`
 at SHA-256
-`69ac95b20bfc8e4827a620487168e2f23c94bdd8046fe6765961acc75b8a4816`,
-commit `96b54aeae38059f2b65d8ebf0bfd4de952a70fde`, entry
+`6a4fc9a417ff78a0a2c0b9335be514449dcc8a6979aba4259691d2a454a80e57`,
+commit `a0aa010b185587cae56bbfc9b035783e4849c203`, entry
 `FRI-05-C06`.
 
 ## Outcome
 Activate browser scroll expectation comparison against canonical physical range
 spans, lower only the named computed-style scroll fields, add the exact eleven
 active FRI-05 sources, remove the legacy authored-overflow transition, and
-retain the complete frozen corpus derived by ExistingPinned. Close
-the block reserved-gutter range-basis omission exposed by that corpus.
+retain the complete frozen corpus derived by ExistingPinned. Close the block
+range-basis omission and remove the target source's runtime snap offset.
 
 ## Boundary
 ### Included
@@ -35,7 +35,7 @@ the block reserved-gutter range-basis omission exposed by that corpus.
 - exactly the eleven FRI-05 HTML sources and matching active manifest records;
 - removal of authored overflow coupling after generated inputs emit both
   computed axes atomically;
-- the completed frozen-manifest derivation, its 44 owned XML outputs, canonical
+- one final frozen-manifest replacement, its 44 owned XML outputs, canonical
   updates to existing XML provenance, and sole `all.json` report;
 - the narrow block range-basis correction required for reserved gutters to be
   excluded from range span while remaining in complete overflow;
@@ -83,8 +83,11 @@ the block reserved-gutter range-basis omission exposed by that corpus.
   both-edge block because its scroll and client widths are both 70px; Surgeist
   reported 15px because block contributions retain a padding-box range basis.
   Flex and grid already select the accumulator's scrollport range basis. This is
-  a confirmed block production omission, not a fixture-oracle defect. The frozen
-  artifacts remain authoritative and no further generation is permitted.
+  a confirmed block production omission, not a fixture-oracle defect.
+- After that correction, target parity fails because active mandatory snap moves
+  Chromium's live offset before `getBoundingClientRect`; current offsets and snap
+  selection are root/runtime-owned. Remove only that active snap declaration,
+  retain target metadata fields, then perform one final replacement full run.
 - The settled 1,420-source manifest SHA-256 is
   `bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`.
 
@@ -226,6 +229,7 @@ sources.
 `tests/layout/browser_parity/corpus.toml`,
 `tests/layout/browser_parity/support.rs` and its transition tests,
 `tests/layout/browser_parity.rs` for final XML, manifest, and report inventory,
+`tests/layout/browser_parity/html/block/fri05_scroll_target_geometry.html`,
 generator-derived `tests/layout/browser_parity/xml/`, and
 `tests/layout/browser_parity/xml/generation-reports/all.json`; plus
 `src/block.rs`, focused `src/block_tests.rs`, and the directly affected
@@ -234,9 +238,9 @@ reserved-gutter range-basis omission.
 
 **Outcome:** The exact computed-style helper fields, eleven active records,
 frozen report counts, removed authored-overflow coupling, settled manifest, and
-full ExistingPinned corpus are completed derivation evidence. The remaining
-work preserves that corpus while correcting block layout to exclude reserved
-gutters from physical range, then performs only read-only verification.
+block range correction are completed evidence. Remove the target source's active
+snap container, optionally diagnose that source once while it changes, then run
+one final full ExistingPinned replacement and switch to read-only verification.
 
 **Historical RED:** `fri05_c06_helper_`,
 `fri05_c06_computed_overflow_transition_`,
@@ -250,6 +254,8 @@ overflow `100x150` and y span `50` while failing with x span `15` where the
 frozen oracle requires zero.
 The existing root rounding/cache test is additional RED: its gutter-only vertical
 range expects `(-6.6, 0)` after production correctly returns `(0, 0)`.
+After both GREENs, target parity is RED at browser-selected child x/y `-4/-4`
+versus layout-owned `0/0` because the source activates mandatory snap.
 
 **Completed pre-derivation evidence:** The helper captures all D-13 computed
 fields without reading authored shorthand and its focused smoke tests pass.
@@ -272,14 +278,19 @@ shasum -a 256 tests/layout/browser_parity/corpus.toml
 test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 ```
 
-**Historical regeneration command:** This command completed once for the initial
-inputs and once more as the already-consumed replacement after two confirmed
-source-input defects. It is derivation evidence only and must not be run again.
+**Input correction and optional diagnostic:** Remove only the target source's
+active `scroll-snap-type`; retain scroll padding, margin, align, and stop fields.
+While that source changes, this one filtered run is optional and is not evidence:
+```sh
+CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER=block/fri05_scroll_target_geometry SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+```
+
+**One final replacement:** After the source settles, run exactly once:
 ```sh
 CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER= SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
-**Frozen derivation evidence:** The manifest hash remains exactly
+**Final replacement acceptance:** The manifest hash remains exactly
 `bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`. Final
 inventory is 1,420 HTML and 5,324 XML, each owned source has exactly four
 outputs, and only `all.json` exists. Its metadata names the frozen manifest,
@@ -290,6 +301,8 @@ unsupported 356. Every FRI-05 output parses and matches Surgeist layout;
 comparator negative controls remain effective. No pre-existing source changes,
 scoped report, stale XML, hand edit, expected failure, quarantine, or
 unexplained XML body delta remains.
+The target source retains every D-13 field except active snap type; its child is
+at `(0,0)` LTR and `(-50,0)` RTL with `150x150` size and `65x65` range spans.
 
 The frozen stable-both-edge browser expectations remain unchanged. Block layout
 selects the existing scrollport range basis before canonical geometry in every
@@ -301,9 +314,8 @@ span remains `50`, and only x changes from `15` RED to `0` GREEN. Root
 publication proves unrounded, rounded,
 and warm-cache block geometry retain the padding-box complete overflow while
 both range axes stay `(0, 0)`; cold unrounded and rounded outputs equal their
-warm-cache counterparts. No root production code may change. This correction
-and all subsequent checks are read-only with respect to generated artifacts; do
-not regenerate.
+warm-cache counterparts. No root production code may change. After correction,
+generated artifacts are read-only; do not regenerate.
 
 **Remaining read-only commands:**
 ```sh
@@ -321,8 +333,7 @@ CARGO_NET_OFFLINE=true just taffy-check
 git diff --check
 ```
 
-**Dependency:** C06-T3 is task-clean and every generation input is settled.
-
+**Dependency:** C06-T3 and the block correction are task-clean; the target source must settle before the final replacement.
 **Intended commit:** `test(parity): derive FRI-05 scroll corpus`.
 
 ## Cycle Acceptance
@@ -337,17 +348,17 @@ git diff --check
    unsupported, and zero in every failure class.
 5. The legacy authored-overflow transition and 96-pair evidence are absent.
    Every generated non-default pair is computed and atomic.
-6. Of the two historical full runs, only the consumed replacement used settled
-   inputs and owns all XML pruning and report output. The frozen manifest hash
-   remains byte-identical afterward, and all later checks are read-only.
+6. The final replacement runs once only after the corrected target source settles,
+   owns all XML/report output, preserves the manifest hash, and is followed only
+   by read-only checks.
 7. Focused FRI-05 parity, corpus and Taffy validation, normal and
    generator-feature gates, provenance, diff, unsafe, and scope review pass.
 8. The confirmed block omission has a block-front-door RED/GREEN test; the fix
    reuses the existing accumulator range basis, preserves `100x150` complete
    overflow and y span `50`, and changes only x span from `15` to `0`.
-9. No other production, public API, docs, dependency, feature, MSRV, browser policy,
-   base style, task runner, root, sibling, expected-failure, quarantine, or
-   unrelated source change enters the range.
+9. No other production or pre-existing source, public API, docs, dependency,
+   feature, MSRV, browser policy, base style, task runner, root, sibling,
+   expected-failure, quarantine, or unrelated change enters the range.
 
 ## Final Verification
 ```sh
@@ -384,9 +395,6 @@ The completed, reviewed, published, and remotely read-back cycle hands C07
 frozen read-only generator inputs and derived artifacts, active comparator
 evidence, and no legacy overflow transition.
 
-A genuine blocker is an unsupported/report bucket drift, an unexplained
-pre-existing XML body change, a newly confirmed input bug, a named source that
-requires later-format behavior, a parser form outside D-13, or any need to
-expand generator architecture. The replacement allocation is consumed; any new
-input defect requires a separately reviewed replan. Do not broaden grammar,
-weaken an oracle, edit XML/report data, or rerun the generator.
+A genuine blocker is bucket drift, unexplained XML body change, another input bug,
+later-format behavior, an out-of-D-13 parser form, or generator expansion. After
+the final replacement, do not weaken an oracle, hand-edit, or rerun generation.
