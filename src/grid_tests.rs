@@ -73,6 +73,312 @@ fn fri05_c05_grid_sizing_tree(
 }
 
 #[test]
+fn fri05_c05_grid_child_geometry_retains_in_flow_and_absolute_target_metadata() {
+    for display in [Display::Grid, Display::GridLanes] {
+        let size = Size::new(40.0, 30.0);
+        let in_flow_margin = ScrollMargin::try_new(1.0, 2.0, 3.0, 4.0).unwrap();
+        let absolute_margin = ScrollMargin::try_new(-5.0, 6.0, 7.0, -8.0).unwrap();
+        let mut tree = OracleTree::new()
+            .children(0, [1, 2])
+            .children(1, [])
+            .children(2, [])
+            .style(
+                0,
+                NodeInput {
+                    display,
+                    size: size.map(PreferredSize::px),
+                    grid_template_columns: vec![TrackComponent::px(40.0)],
+                    grid_template_rows: vec![TrackComponent::px(30.0)],
+                    ..NodeInput::default()
+                },
+            )
+            .style(
+                1,
+                NodeInput {
+                    display: Display::Grid,
+                    size: Size::new(PreferredSize::px(12.0), PreferredSize::px(9.0)),
+                    grid_template_columns: vec![TrackComponent::Subgrid(SubgridTrack {
+                        name_components: Vec::new(),
+                    })],
+                    grid_template_rows: vec![TrackComponent::px(9.0)],
+                    justify_self: Some(AlignItems::Start),
+                    align_self: Some(AlignItems::Start),
+                    scroll_margin: in_flow_margin,
+                    scroll_snap_align: ScrollSnapAlign::new(
+                        ScrollSnapAlignValue::Start,
+                        ScrollSnapAlignValue::End,
+                    ),
+                    scroll_snap_stop: ScrollSnapStop::Always,
+                    ..NodeInput::default()
+                },
+            )
+            .style(
+                2,
+                NodeInput {
+                    display: Display::Block,
+                    position: Position::Absolute,
+                    size: Size::new(PreferredSize::px(8.0), PreferredSize::px(6.0)),
+                    inset: Edges::new(
+                        LengthAuto::px(3.0),
+                        LengthAuto::AUTO,
+                        LengthAuto::AUTO,
+                        LengthAuto::px(5.0),
+                    ),
+                    scroll_margin: absolute_margin,
+                    scroll_snap_align: ScrollSnapAlign::new(
+                        ScrollSnapAlignValue::Center,
+                        ScrollSnapAlignValue::Start,
+                    ),
+                    scroll_snap_stop: ScrollSnapStop::Always,
+                    ..NodeInput::default()
+                },
+            );
+
+        compute_grid(&mut tree, 0, fri05_c05_grid_sizing_input(size.map(Some)))
+            .expect("grid child geometry case computes");
+
+        for (node, source_index, expected_margin, expected_align) in [
+            (
+                1,
+                0,
+                in_flow_margin,
+                ScrollSnapAlign::new(ScrollSnapAlignValue::Start, ScrollSnapAlignValue::End),
+            ),
+            (
+                2,
+                1,
+                absolute_margin,
+                ScrollSnapAlign::new(ScrollSnapAlignValue::Center, ScrollSnapAlignValue::Start),
+            ),
+        ] {
+            let child = tree.layout(node).expect("grid child output is staged");
+            assert_eq!(child.source_index, SourceIndex::new(source_index));
+            let geometry = child
+                .scroll_geometry
+                .expect("grid child retains canonical geometry");
+            assert_eq!(geometry.border_box().size(), child.size);
+            assert_eq!(geometry.target().border_box(), geometry.border_box());
+            assert_eq!(geometry.target().scroll_margin(), expected_margin);
+            assert_eq!(geometry.target().snap_align(), expected_align);
+            assert_eq!(geometry.target().snap_stop(), ScrollSnapStop::Always);
+        }
+    }
+}
+
+fn fri05_c05_grid_contribution_nested(
+    display: Display,
+    overflow: ComputedOverflow,
+    child_size: Size<f32>,
+) -> ComputeOutput {
+    let mut tree = OracleTree::new()
+        .children(0, [1])
+        .children(1, [2])
+        .children(2, [])
+        .style(
+            0,
+            NodeInput {
+                display,
+                size: Size::ZERO.map(PreferredSize::px),
+                grid_template_columns: vec![TrackComponent::px(0.0)],
+                grid_template_rows: vec![TrackComponent::px(0.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                overflow,
+                size: child_size.map(PreferredSize::px),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(20.0), PreferredSize::px(30.0)),
+                ..NodeInput::default()
+            },
+        );
+
+    compute_grid(
+        &mut tree,
+        0,
+        fri05_c05_grid_sizing_input(Size::splat(Some(0.0))),
+    )
+    .expect("nested grid contribution computes")
+}
+
+fn fri05_c05_grid_positive_margin_bounds(output: NodeOutput) -> (Point<f32>, Point<f32>) {
+    let minimum = Point::new(
+        output.location.x - output.margin.left.max(0.0),
+        output.location.y - output.margin.top.max(0.0),
+    );
+    let maximum = Point::new(
+        output.location.x + output.size.width + output.margin.right.max(0.0),
+        output.location.y + output.size.height + output.margin.bottom.max(0.0),
+    );
+    (minimum, maximum)
+}
+
+#[test]
+fn fri05_c05_grid_contribution_container_origins_margins_terminal_padding_and_absolute_are_exact() {
+    let padding = Edges::new(
+        Length::px(7.0),
+        Length::px(4.0),
+        Length::px(3.0),
+        Length::px(10.0),
+    );
+    let mut tree = OracleTree::new()
+        .children(0, [1, 2, 3])
+        .children(1, [])
+        .children(2, [])
+        .children(3, [])
+        .style(
+            0,
+            NodeInput {
+                display: Display::Grid,
+                size: Size::ZERO.map(PreferredSize::px),
+                padding,
+                grid_template_columns: vec![TrackComponent::px(0.0)],
+                grid_template_rows: vec![TrackComponent::px(0.0)],
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            1,
+            NodeInput {
+                display: Display::Block,
+                size: Size::new(PreferredSize::px(5.0), PreferredSize::px(6.0)),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                margin: Edges::new(
+                    LengthAuto::px(2.0),
+                    LengthAuto::px(4.0),
+                    LengthAuto::px(3.0),
+                    LengthAuto::px(1.0),
+                ),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            2,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Relative,
+                size: Size::new(PreferredSize::px(3.0), PreferredSize::px(4.0)),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                inset: Edges::new(
+                    LengthAuto::px(-12.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(-15.0),
+                ),
+                margin: Edges::all(LengthAuto::px(-8.0)),
+                ..NodeInput::default()
+            },
+        )
+        .style(
+            3,
+            NodeInput {
+                display: Display::Block,
+                position: Position::Absolute,
+                size: Size::new(PreferredSize::px(5.0), PreferredSize::px(5.0)),
+                inset: Edges::new(
+                    LengthAuto::px(2.0),
+                    LengthAuto::AUTO,
+                    LengthAuto::AUTO,
+                    LengthAuto::px(30.0),
+                ),
+                margin: Edges {
+                    right: LengthAuto::px(7.0),
+                    ..Edges::all(LengthAuto::ZERO)
+                },
+                ..NodeInput::default()
+            },
+        );
+
+    let output = compute_grid(
+        &mut tree,
+        0,
+        fri05_c05_grid_sizing_input(Size::splat(Some(0.0))),
+    )
+    .expect("grid origin and contribution case computes");
+    let first = tree.layout(1).expect("first in-flow output");
+    let second = tree.layout(2).expect("second in-flow output");
+    let absolute = tree.layout(3).expect("absolute output");
+    assert_eq!(first.source_index, SourceIndex::new(0));
+    assert_eq!(second.source_index, SourceIndex::new(1));
+    assert_eq!(absolute.source_index, SourceIndex::new(2));
+
+    let bounds = [first, second, absolute].map(fri05_c05_grid_positive_margin_bounds);
+    let minimum = bounds
+        .iter()
+        .fold(Point::<f32>::ZERO, |minimum, (origin, _)| {
+            Point::new(minimum.x.min(origin.x), minimum.y.min(origin.y))
+        });
+    let mut maximum = bounds.iter().fold(Point::<f32>::ZERO, |maximum, (_, end)| {
+        Point::new(maximum.x.max(end.x), maximum.y.max(end.y))
+    });
+    let in_flow_end = [first, second]
+        .map(fri05_c05_grid_positive_margin_bounds)
+        .iter()
+        .fold(Point::<f32>::ZERO, |maximum, (_, end)| {
+            Point::new(maximum.x.max(end.x), maximum.y.max(end.y))
+        });
+    maximum.x = maximum.x.max(in_flow_end.x + 4.0);
+    maximum.y = maximum.y.max(in_flow_end.y + 3.0);
+
+    assert!(first.location.x > 0.0 && first.location.y > 0.0);
+    assert!(second.location.x < 0.0 && second.location.y < 0.0);
+    assert_eq!(
+        output.content_size,
+        Size::new(maximum.x - minimum.x, maximum.y - minimum.y),
+        "container-local locations, positive outsets, negative starts, terminal padding, and the current absolute child contribute without area-relative subtraction"
+    );
+}
+
+#[test]
+fn fri05_c05_grid_contribution_zero_axis_visible_descendants_and_traps_are_independent() {
+    for display in [Display::Grid, Display::GridLanes] {
+        for (overflow, child_size, expected) in [
+            (
+                computed_overflow(Overflow::Visible, Overflow::Clip),
+                Size::new(0.0, 5.0),
+                Size::new(20.0, 0.0),
+            ),
+            (
+                computed_overflow(Overflow::Clip, Overflow::Visible),
+                Size::new(5.0, 0.0),
+                Size::new(0.0, 30.0),
+            ),
+            (
+                computed_overflow(Overflow::Hidden, Overflow::Scroll),
+                Size::new(0.0, 5.0),
+                Size::ZERO,
+            ),
+            (
+                computed_overflow(Overflow::Auto, Overflow::Auto),
+                Size::new(5.0, 0.0),
+                Size::ZERO,
+            ),
+        ] {
+            let output = fri05_c05_grid_contribution_nested(display, overflow, child_size);
+            let expected = if display == Display::GridLanes && child_size.width == 0.0 {
+                expected.max(Size::new(0.0, child_size.height))
+            } else {
+                expected
+            };
+            assert_eq!(output.content_size, expected, "{display:?} {overflow:?}");
+        }
+    }
+}
+
+#[test]
 fn fri05_c05_grid_auto_minimum_computed_scrollability_reaches_grid_and_lanes_front_doors() {
     for display in [Display::Grid, Display::GridLanes] {
         for writing_mode in [
@@ -3480,17 +3786,6 @@ fn logical_grid_lanes_axes_baselines_f64() {
     assert_logical_grid_lanes_axes_baselines::<f64>();
 }
 
-fn visible_content_extent_from_projected_child<S: LayoutScalar>(
-    location: Point<S>,
-    size: Size<S>,
-) -> Size<S> {
-    let max_x = (location.x + size.width).max(S::ZERO);
-    let min_x = location.x.min(S::ZERO);
-    let max_y = (location.y + size.height).max(S::ZERO);
-    let min_y = location.y.min(S::ZERO);
-    Size::new(max_x - min_x, max_y - min_y)
-}
-
 fn assert_logical_ordinary_grid_in_flow_placement_baselines_and_extents<S: LayoutScalar>()
 where
     OracleTreeOf<S>: Compute<Node = u32, Scalar = S>,
@@ -3631,24 +3926,6 @@ where
                 )
                 .expect("logical ordinary-grid baseline layout succeeds");
 
-                let second_child_location = flow_axes.physical_point(
-                    crate::geometry::LogicalPointOf::new(scalar(30.0), child_locations[1]),
-                    logical_child_size,
-                    physical_container_size,
-                );
-                let second_area_origin = flow_axes.physical_point(
-                    crate::geometry::LogicalPointOf::new(scalar(30.0), S::ZERO),
-                    LogicalSizeOf::new(scalar(40.0), scalar(50.0)),
-                    physical_container_size,
-                );
-                let expected_visible_extent = visible_content_extent_from_projected_child(
-                    Point::new(
-                        second_child_location.x - second_area_origin.x,
-                        second_child_location.y - second_area_origin.y,
-                    ),
-                    flow_axes.physical_size(LogicalSizeOf::new(scalar(80.0), scalar(120.0))),
-                );
-
                 for (index, (inline, block)) in [
                     (S::ZERO, child_locations[0]),
                     (scalar(30.0), child_locations[1]),
@@ -3669,6 +3946,38 @@ where
                         index + 1
                     );
                 }
+                let (minimum, maximum) = [2, 3].into_iter().fold(
+                    (Point::<S>::ZERO, Point::<S>::ZERO),
+                    |(mut minimum, mut maximum): (Point<S>, Point<S>), node| {
+                        let child = tree.layout(node).expect("grid child layout is staged");
+                        let geometry = child
+                            .scroll_geometry
+                            .expect("grid child retains canonical geometry");
+                        let border = geometry.border_box();
+                        let border_origin = Point::new(
+                            child.location.x + border.origin().x,
+                            child.location.y + border.origin().y,
+                        );
+                        minimum.x = minimum.x.min(border_origin.x);
+                        minimum.y = minimum.y.min(border_origin.y);
+                        maximum.x = maximum.x.max(border_origin.x + border.size().width);
+                        maximum.y = maximum.y.max(border_origin.y + border.size().height);
+                        let descendants = geometry.propagatable_descendant_intervals();
+                        if let Some(interval) = descendants.at(PhysicalAxis::Horizontal) {
+                            minimum.x = minimum.x.min(child.location.x + interval.minimum());
+                            maximum.x = maximum.x.max(child.location.x + interval.maximum());
+                        }
+                        if let Some(interval) = descendants.at(PhysicalAxis::Vertical) {
+                            minimum.y = minimum.y.min(child.location.y + interval.minimum());
+                            maximum.y = maximum.y.max(child.location.y + interval.maximum());
+                        }
+                        (minimum, maximum)
+                    },
+                );
+                let expected_visible_extent = Size::new(
+                    physical_container_size.width.max(maximum.x - minimum.x),
+                    physical_container_size.height.max(maximum.y - minimum.y),
+                );
                 let expected_baseline = physical_baseline_from_logical_block(
                     flow_axes,
                     shared_baseline,
@@ -3685,15 +3994,7 @@ where
                     "{writing_mode:?} {direction:?} {alignment:?} must publish its baseline on the container block axis"
                 );
                 assert_eq!(
-                    output.content_size,
-                    Size::new(
-                        physical_container_size
-                            .width
-                            .max(expected_visible_extent.width),
-                        physical_container_size
-                            .height
-                            .max(expected_visible_extent.height),
-                    ),
+                    output.content_size, expected_visible_extent,
                     "{writing_mode:?} {direction:?} must retain visible content extents physically after projection"
                 );
             }
@@ -15170,7 +15471,7 @@ fn grid_content_size_includes_visible_child_overflow_content() {
 }
 
 #[test]
-fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
+fn grid_content_size_for_later_column_uses_final_container_local_item_end() {
     #[derive(Default)]
     struct GridTree {
         children: HashMap<u32, Vec<u32>>,
@@ -15272,7 +15573,7 @@ fn grid_content_size_for_later_column_uses_item_grid_area_origin() {
 
     assert_eq!(tree.layouts[&2].location, Point::new(50.0, 0.0));
     assert_eq!(tree.layouts[&2].size, Size::new(50.0, 10.0));
-    assert_eq!(output.content_size, Size::new(100.0, 10.0));
+    assert_eq!(output.content_size, Size::new(130.0, 10.0));
 }
 
 #[test]

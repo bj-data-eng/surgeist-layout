@@ -512,7 +512,7 @@ fn fri05_c03_root_block_legacy_absence_production_paths_and_bridge_accounting() 
     );
     assert_eq!(
         grid_child
-            .matches("scroll_geometry: None,\n            scrollbar_size,\n")
+            .matches("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,\n")
             .count(),
         1
     );
@@ -539,7 +539,7 @@ fn fri05_c04_flex_bridge_accounting_leaves_exactly_three_grid_family_writers() {
         .matches("scrollbar_size: item.scrollbar_size")
         .count();
     let grid_local_bridges = grid_child
-        .matches("scroll_geometry: None,\n            scrollbar_size,\n")
+        .matches("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,\n")
         .count();
     let lanes_bridges = grid_lanes
         .matches("scrollbar_size: item.scrollbar_size")
@@ -603,9 +603,9 @@ fn fri05_c04_flex_legacy_absence_leaves_only_three_downstream_grid_bridges() {
                 .count(),
         ),
         (
-            "ordinary-grid local output bridge",
+            "ordinary-grid absolute scrollbar bridge",
             grid_child
-                .matches("scroll_geometry: None,\n            scrollbar_size,\n")
+                .matches("scroll_geometry: Some(scroll_geometry),\n            scrollbar_size,\n")
                 .count(),
         ),
         (
@@ -619,7 +619,7 @@ fn fri05_c04_flex_legacy_absence_leaves_only_three_downstream_grid_bridges() {
         downstream_bridges,
         [
             ("ordinary-grid retained item bridge", 1),
-            ("ordinary-grid local output bridge", 1),
+            ("ordinary-grid absolute scrollbar bridge", 1),
             ("grid-lanes retained item bridge", 1),
         ]
     );

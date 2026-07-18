@@ -1303,6 +1303,7 @@ where
         }
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
+            contributions: empty_grid_contributions(),
             baselines: BaselinesOf::NONE,
             baseline_groups: GridBaselineGroups {
                 rows: Vec::new(),
@@ -1349,6 +1350,7 @@ where
     else {
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
+            contributions: empty_grid_contributions(),
             baselines: BaselinesOf::NONE,
             baseline_groups: GridBaselineGroups {
                 rows: Vec::new(),
@@ -1384,7 +1386,7 @@ where
         columns: vec![TrackBaselineGroup::default(); columns.len()],
     };
     let mut pending_items = Vec::new();
-    let mut visible_content_size = Size::ZERO;
+    let mut child_contributions = Vec::new();
 
     for (source_index, (child, placement)) in
         placements.checked_child_placements(&children).enumerate()
@@ -1405,28 +1407,25 @@ where
             continue;
         }
         if child_style.position == Position::Absolute {
-            visible_content_size = max_size(
-                visible_content_size,
-                layout_absolute_grid_child(
-                    tree,
-                    child,
-                    source_index,
-                    &child_style,
-                    AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
-                        container_style: style,
-                        constants,
-                        containing_size,
-                        column: placement.absolute_column,
-                        row: placement.absolute_row,
-                        column_offsets: &column_offsets,
-                        row_offsets: &row_offsets,
-                        columns,
-                        rows,
-                        gap,
-                        lines: context.lines,
-                    }),
-                )?,
-            );
+            child_contributions.push(layout_absolute_grid_child(
+                tree,
+                child,
+                source_index,
+                &child_style,
+                AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
+                    container_style: style,
+                    constants,
+                    containing_size,
+                    column: placement.absolute_column,
+                    row: placement.absolute_row,
+                    column_offsets: &column_offsets,
+                    row_offsets: &row_offsets,
+                    columns,
+                    rows,
+                    gap,
+                    lines: context.lines,
+                }),
+            )?);
             continue;
         }
         if !is_in_flow_grid_child(&child_style) {
@@ -1538,11 +1537,21 @@ where
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         );
-        let output = if child_context.has_inherited_axis() {
+        let mut output = if child_context.has_inherited_axis() {
             compute_grid_with_context(tree, child, child_input, child_context)?
         } else {
             tree.compute_child(child, child_input)?
         };
+        let scroll_geometry = retained_grid_child_scroll_geometry(
+            &child_style,
+            output.size,
+            output.content_size,
+            padding,
+            border,
+            output.scroll_geometry,
+        )
+        .map_err(|error| grid_child_geometry_error(node, child, error))?;
+        output.scroll_geometry = Some(scroll_geometry);
         let logical_output_size = flow_axes.logical_size(output.size);
         let logical_unresolved_margin = flow_axes.logical_edges(item.unresolved_margin);
         let inline_axis = logical_grid_item_axis(
@@ -1681,22 +1690,30 @@ where
             grid_area_inline_offset(&column_offsets, item.area),
             grid_area_track_offset(&row_offsets, item.area.row, item.area.row_end),
         );
-        let physical_area_origin =
-            flow_axes.physical_point(area_origin, item.area.size, containing_size);
         item.block_offset = logical_location.block - area_origin.block;
         item.location = baseline_location;
-        visible_content_size = max_size(
-            visible_content_size,
-            content_size_contribution(
-                Point::new(
-                    location.x - physical_area_origin.x,
-                    location.y - physical_area_origin.y,
-                ),
-                item.output.size,
-                item.output.content_size,
-                item.overflow,
-            ),
-        );
+        let scroll_geometry = item
+            .output
+            .scroll_geometry
+            .expect("pending grid-lanes item retains canonical geometry");
+        let subgrid_item = subgrid_report
+            .items
+            .get(item.source_index)
+            .copied()
+            .expect("grid-lanes subgrid report preserves source identity");
+        let (horizontal, vertical) =
+            subgrid_parent_propagation_axes(subgrid_item, flow_axes, item.child_flow_axes);
+        child_contributions.push(GridChildContribution {
+            source_index: crate::SourceIndex::new(item.source_index),
+            location,
+            margin: item.margin,
+            geometry: scroll_geometry,
+            descendants: scroll_geometry
+                .propagatable_descendant_intervals()
+                .retain_physical_axes(horizontal, vertical),
+            overflow: item.overflow,
+            in_flow: true,
+        });
         tree.set_unrounded(
             item.node,
             NodeOutputOf {
@@ -1704,7 +1721,7 @@ where
                 location,
                 size: item.output.size,
                 content_size: item.output.content_size,
-                scroll_geometry: None,
+                scroll_geometry: Some(scroll_geometry),
                 scrollbar_size: item.scrollbar_size,
                 border: item.border,
                 padding: item.padding,
@@ -1724,9 +1741,16 @@ where
         flow_axes,
         containing_size,
     );
+    let contributions =
+        grid_scroll_contributions(child_contributions, flow_axes, constants.padding)
+            .map_err(|error| grid_child_geometry_error(node, node, error))?;
+    let visible_content_size = contributions
+        .content_size_from_anchor(Point::ZERO)
+        .map_err(|error| grid_child_geometry_error(node, node, error))?;
 
     Ok(GridChildrenLayout {
         visible_content_size,
+        contributions,
         baselines: baselines.baselines,
         baseline_groups,
     })

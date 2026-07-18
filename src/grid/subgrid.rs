@@ -43,35 +43,21 @@ pub(super) fn inherited_subgrid_physical_axis(
     Some(physical_axis)
 }
 
-pub(super) fn subgrid_parent_visible_content_size<S: LayoutScalar>(
+pub(super) fn subgrid_parent_propagation_axes(
     item: SubgridItemReport<impl Copy>,
     parent_flow_axes: crate::geometry::FlowAxes,
     child_flow_axes: crate::geometry::FlowAxes,
-    size: Size<S>,
-    content_size: Size<S>,
-) -> Size<S> {
+) -> (bool, bool) {
     let column_axis =
         inherited_subgrid_physical_axis(item.column, parent_flow_axes, child_flow_axes);
     let row_axis = inherited_subgrid_physical_axis(item.row, parent_flow_axes, child_flow_axes);
     if column_axis.is_none() && row_axis.is_none() {
-        return content_size;
+        return (true, true);
     }
 
-    // Local cross-flow tracks remain part of the subgrid's own content geometry,
-    // but cannot become visible parent content when that physical axis is not inherited.
-    Size::new(
-        if column_axis == Some(PhysicalAxis::Horizontal)
-            || row_axis == Some(PhysicalAxis::Horizontal)
-        {
-            content_size.width
-        } else {
-            size.width
-        },
-        if column_axis == Some(PhysicalAxis::Vertical) || row_axis == Some(PhysicalAxis::Vertical) {
-            content_size.height
-        } else {
-            size.height
-        },
+    (
+        column_axis == Some(PhysicalAxis::Horizontal) || row_axis == Some(PhysicalAxis::Horizontal),
+        column_axis == Some(PhysicalAxis::Vertical) || row_axis == Some(PhysicalAxis::Vertical),
     )
 }
 

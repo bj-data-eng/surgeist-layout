@@ -9,12 +9,36 @@ use crate::geometry::{
     PhysicalProgression,
 };
 use crate::output::PhysicalBaseline;
-use crate::scroll::{UsedOverflow, scrollbar_size_from_overflow};
+use crate::scroll::{
+    CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafScrollGeometrySourceOf,
+    OptimalRegionInsetOf, OptimalRegionInsetsOf, OptionalPhysicalContributionIntervalsOf,
+    ScrollContributionAccumulatorOf, UsedOverflow, canonical_measured_leaf_scroll_geometry,
+    rebuild_canonical_scroll_geometry_for_border_box, scrollbar_size_from_overflow,
+};
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
     pub(super) visible_content_size: Size<S>,
+    pub(super) contributions: ScrollContributionAccumulatorOf<S>,
     pub(super) baselines: BaselinesOf<S>,
     pub(super) baseline_groups: GridBaselineGroups<S>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct GridChildContribution<S: LayoutScalar = Scalar> {
+    pub(super) source_index: crate::SourceIndex,
+    pub(super) location: Point<S>,
+    pub(super) margin: Edges<S>,
+    pub(super) geometry: crate::ScrollGeometryOf<S>,
+    pub(super) descendants: OptionalPhysicalContributionIntervalsOf<S>,
+    pub(super) overflow: UsedOverflow,
+    pub(super) in_flow: bool,
+}
+
+pub(super) fn empty_grid_contributions<S: LayoutScalar>() -> ScrollContributionAccumulatorOf<S> {
+    ScrollContributionAccumulatorOf::new(
+        crate::ScrollRectOf::try_new(Point::ZERO, Size::ZERO)
+            .expect("zero grid contribution seed is valid"),
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -238,6 +262,7 @@ where
         }
         return Ok(GridChildrenLayout {
             visible_content_size: Size::ZERO,
+            contributions: empty_grid_contributions(),
             baselines: BaselinesOf::NONE,
             baseline_groups: GridBaselineGroups {
                 rows: Vec::new(),
@@ -316,7 +341,7 @@ where
         rows: vec![TrackBaselineGroup::default(); rows.len()],
         columns: vec![TrackBaselineGroup::default(); columns.len()],
     };
-    let mut visible_content_size = Size::ZERO;
+    let mut child_contributions = Vec::new();
     let mut pending_items = Vec::new();
     for (source_index, (((child, placement), area), subgrid_item)) in placements
         .checked_child_placements(&children)
@@ -340,28 +365,25 @@ where
             continue;
         }
         if child_style.position == Position::Absolute {
-            visible_content_size = max_size(
-                visible_content_size,
-                layout_absolute_grid_child(
-                    tree,
-                    child,
-                    source_index,
-                    &child_style,
-                    AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
-                        container_style: style,
-                        constants,
-                        containing_size,
-                        column: placement.absolute_column,
-                        row: placement.absolute_row,
-                        column_offsets: &logical_column_offsets,
-                        row_offsets: &logical_row_offsets,
-                        columns,
-                        rows,
-                        gap,
-                        lines,
-                    }),
-                )?,
-            );
+            child_contributions.push(layout_absolute_grid_child(
+                tree,
+                child,
+                source_index,
+                &child_style,
+                AbsoluteGridContext::ordinary(OrdinaryAbsoluteGridContextInput {
+                    container_style: style,
+                    constants,
+                    containing_size,
+                    column: placement.absolute_column,
+                    row: placement.absolute_row,
+                    column_offsets: &logical_column_offsets,
+                    row_offsets: &logical_row_offsets,
+                    columns,
+                    rows,
+                    gap,
+                    lines,
+                }),
+            )?);
             continue;
         }
 
@@ -457,7 +479,7 @@ where
             item.available
                 .map(|value| AvailableOf::Definite(value.max(Tree::Scalar::ZERO))),
         );
-        let output = if child_context.has_inherited_axis() {
+        let mut output = if child_context.has_inherited_axis() {
             // Subgrid layout depends on the parent grid's used tracks, so this
             // intentionally bypasses the generic child layout cache until that
             // cache can include context-sensitive grid keys.
@@ -465,6 +487,16 @@ where
         } else {
             tree.compute_child(child, child_input)?
         };
+        let scroll_geometry = retained_grid_child_scroll_geometry(
+            &child_style,
+            output.size,
+            output.content_size,
+            padding,
+            border,
+            output.scroll_geometry,
+        )
+        .map_err(|error| grid_child_geometry_error(node, child, error))?;
+        output.scroll_geometry = Some(scroll_geometry);
         let scrollbar_size = scrollbar_size_from_overflow(
             child_style.overflow,
             child_style.item_is_replaced,
@@ -618,30 +650,29 @@ where
             constants.flow_axes.logical_size(item.output.size),
             containing_size,
         );
-        let physical_area_origin =
-            constants
-                .flow_axes
-                .physical_point(area_origin, item.area.size, containing_size);
-        let subgrid_item = subgrid_report.items[item.source_index];
         item.location = location;
-        visible_content_size = max_size(
-            visible_content_size,
-            content_size_contribution(
-                Point::new(
-                    location.x - physical_area_origin.x,
-                    location.y - physical_area_origin.y,
-                ),
-                item.output.size,
-                subgrid_parent_visible_content_size(
-                    subgrid_item,
-                    constants.flow_axes,
-                    item.child_flow_axes,
-                    item.output.size,
-                    item.output.content_size,
-                ),
-                item.overflow,
-            ),
+        let scroll_geometry = item
+            .output
+            .scroll_geometry
+            .expect("pending grid item retains canonical geometry");
+        debug_assert_eq!(scroll_geometry.used_overflow_x(), item.overflow.x().value());
+        debug_assert_eq!(scroll_geometry.used_overflow_y(), item.overflow.y().value());
+        let (horizontal, vertical) = subgrid_parent_propagation_axes(
+            subgrid_report.items[item.source_index],
+            constants.flow_axes,
+            item.child_flow_axes,
         );
+        child_contributions.push(GridChildContribution {
+            source_index: crate::SourceIndex::new(item.source_index),
+            location,
+            margin: item.margin,
+            geometry: scroll_geometry,
+            descendants: scroll_geometry
+                .propagatable_descendant_intervals()
+                .retain_physical_axes(horizontal, vertical),
+            overflow: item.overflow,
+            in_flow: true,
+        });
 
         tree.set_unrounded(
             item.node,
@@ -650,7 +681,7 @@ where
                 location,
                 size: item.output.size,
                 content_size: item.output.content_size,
-                scroll_geometry: None,
+                scroll_geometry: Some(scroll_geometry),
                 scrollbar_size: item.scrollbar_size,
                 border: item.border,
                 padding: item.padding,
@@ -677,11 +708,27 @@ where
         )
     };
 
-    Ok(GridChildrenLayout {
+    let contributions =
+        grid_scroll_contributions(child_contributions, constants.flow_axes, constants.padding)
+            .map_err(|error| grid_child_geometry_error(node, node, error))?;
+    let visible_content_size = contributions
+        .content_size_from_anchor(Point::ZERO)
+        .map_err(|error| grid_child_geometry_error(node, node, error))?;
+
+    let layout = GridChildrenLayout {
         visible_content_size,
+        contributions,
         baselines: baselines.baselines,
         baseline_groups: published_group_set,
-    })
+    };
+    debug_assert_eq!(
+        layout
+            .contributions
+            .content_size_from_anchor(Point::ZERO)
+            .ok(),
+        Some(layout.visible_content_size)
+    );
+    Ok(layout)
 }
 
 struct SubgridBaselineRefreshInput<'a, Node, S: LayoutScalar = Scalar> {
@@ -813,7 +860,17 @@ where
         );
         let row_axis = child_context.rows.clone();
         let result = compute_grid_with_context_result(tree, item.node, child_input, child_context)?;
-        let output = result.output;
+        let mut output = result.output;
+        let scroll_geometry = retained_grid_child_scroll_geometry(
+            &child_style,
+            output.size,
+            output.content_size,
+            padding,
+            border,
+            output.scroll_geometry,
+        )
+        .map_err(|error| grid_child_geometry_error(input.node, item.node, error))?;
+        output.scroll_geometry = Some(scroll_geometry);
         let alignment = grid_item_physical_alignment(
             input.container_style.writing_mode,
             sizing.justify_self,
@@ -2389,13 +2446,87 @@ pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
     pub(super) explicit_count: usize,
 }
 
+fn grid_scroll_padding<S: LayoutScalar>(
+    scroll_padding: crate::ScrollPaddingOf<S>,
+) -> OptimalRegionInsetsOf<S> {
+    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
+        match value {
+            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
+            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
+        }
+    }
+
+    OptimalRegionInsetsOf::new(
+        inset(scroll_padding.top()),
+        inset(scroll_padding.right()),
+        inset(scroll_padding.bottom()),
+        inset(scroll_padding.left()),
+    )
+}
+
+pub(super) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    size: Size<S>,
+    content_size: Size<S>,
+    padding: Edges<S>,
+    border: Edges<S>,
+    child_compute_geometry: Option<crate::ScrollGeometryOf<S>>,
+) -> Result<crate::ScrollGeometryOf<S>, CanonicalScrollGeometryErrorOf<S>> {
+    if let Some(geometry) = child_compute_geometry {
+        if geometry.border_box().origin() == Point::ZERO && geometry.border_box().size() == size {
+            return Ok(geometry);
+        }
+        return rebuild_canonical_scroll_geometry_for_border_box(geometry, size, border, padding);
+    }
+
+    let flow_axes = FlowAxes::new(style.writing_mode, style.direction);
+    canonical_measured_leaf_scroll_geometry(MeasuredLeafScrollGeometrySourceOf {
+        flow_axes,
+        computed_overflow: style.overflow,
+        item_is_replaced: style.item_is_replaced,
+        border_box_size: size,
+        border,
+        padding,
+        scrollbar_gutter: style.scrollbar_gutter,
+        scrollbar_width: style.scrollbar_width,
+        settled_auto_scrollbars: crate::scroll::SettledAutoScrollbarState::INITIAL,
+        clip_margin: ClipMarginSourceOf::new(
+            style.overflow_clip_margin.clip_box(),
+            style.overflow_clip_margin.margin(),
+        ),
+        scroll_padding: grid_scroll_padding(style.scroll_padding),
+        measured_content_size: content_size,
+        scroll_snap_type: style.scroll_snap_type,
+        target_scroll_margin: style.scroll_margin,
+        target_snap_align: style.scroll_snap_align,
+        target_snap_stop: style.scroll_snap_stop,
+    })
+}
+
+pub(super) fn grid_child_geometry_error<Node, S, M, E>(
+    container: Node,
+    subject: Node,
+    error: E,
+) -> LayoutErrorOf<Node, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    let _ = error;
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::ContainerSubject { container, subject },
+        LayoutOperation::ChildLayout,
+        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidBlockScrollGeometry),
+    )
+}
+
 pub(super) fn layout_absolute_grid_child<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
     source_index: usize,
     child_style: &NodeInputOf<Tree::Scalar>,
     context: AbsoluteGridContext<'_, Tree::Scalar>,
-) -> LayoutResultOf<<Tree as Traverse>::Node, Size<Tree::Scalar>, Tree::Scalar, M>
+) -> LayoutResultOf<<Tree as Traverse>::Node, GridChildContribution<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
 {
@@ -2617,6 +2748,15 @@ where
         )
     };
 
+    let scroll_geometry = retained_grid_child_scroll_geometry(
+        child_style,
+        final_size,
+        output.content_size,
+        padding,
+        border,
+        output.scroll_geometry,
+    )
+    .map_err(|error| grid_child_geometry_error(child, child, error))?;
     tree.set_unrounded(
         child,
         NodeOutputOf {
@@ -2624,7 +2764,7 @@ where
             location,
             size: final_size,
             content_size: output.content_size,
-            scroll_geometry: None,
+            scroll_geometry: Some(scroll_geometry),
             scrollbar_size,
             border,
             padding,
@@ -2632,15 +2772,15 @@ where
         },
     );
 
-    Ok(content_size_contribution(
-        Point::new(
-            location.x - constants.content_box_inset.left,
-            location.y - constants.content_box_inset.top,
-        ),
-        final_size,
-        output.content_size,
-        UsedOverflow::from_computed(child_style.overflow, child_style.item_is_replaced),
-    ))
+    Ok(GridChildContribution {
+        source_index: crate::SourceIndex::new(source_index),
+        location,
+        margin,
+        geometry: scroll_geometry,
+        descendants: scroll_geometry.propagatable_descendant_intervals(),
+        overflow: UsedOverflow::from_computed(child_style.overflow, child_style.item_is_replaced),
+        in_flow: false,
+    })
 }
 
 #[derive(Clone, Copy)]
@@ -2777,35 +2917,91 @@ pub(super) fn logical_relative_inset_offset<S: LayoutScalar>(
     )
 }
 
-pub(super) fn max_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
-    Size::new(a.width.max(b.width), a.height.max(b.height))
-}
+pub(super) fn grid_scroll_contributions<S: LayoutScalar>(
+    mut children: Vec<GridChildContribution<S>>,
+    flow_axes: FlowAxes,
+    padding: Edges<S>,
+) -> Result<ScrollContributionAccumulatorOf<S>, crate::scroll::ScrollContributionErrorOf<S>> {
+    children.sort_by_key(|child| child.source_index);
+    let mut contributions = empty_grid_contributions();
+    let mut inline_end = None;
+    let mut block_end = None;
 
-pub(super) fn content_size_contribution<S: LayoutScalar>(
-    location: Point<S>,
-    size: Size<S>,
-    content_size: Size<S>,
-    overflow: UsedOverflow,
-) -> Size<S> {
-    let contribution_size = Size::new(
-        if overflow.x().value() == Overflow::Visible {
-            size.width.max(content_size.width)
+    for child in children {
+        if child.in_flow {
+            contributions.include_in_flow_child(
+                child.location,
+                child.geometry.border_box(),
+                child.margin,
+                child.descendants,
+                child.overflow,
+            )?;
+            let border_size = child.geometry.border_box().size();
+            if border_size.width > S::ZERO && border_size.height > S::ZERO {
+                include_farthest_grid_flow_end(
+                    &mut inline_end,
+                    flow_axes.inline_end(),
+                    grid_child_flow_end(child, flow_axes.inline_end()),
+                );
+                include_farthest_grid_flow_end(
+                    &mut block_end,
+                    flow_axes.block_end(),
+                    grid_child_flow_end(child, flow_axes.block_end()),
+                );
+            }
         } else {
-            size.width
-        },
-        if overflow.y().value() == Overflow::Visible {
-            size.height.max(content_size.height)
-        } else {
-            size.height
-        },
-    );
-    if contribution_size.width <= S::ZERO || contribution_size.height <= S::ZERO {
-        return Size::ZERO;
+            contributions.include_current_out_of_flow(
+                child.location,
+                child.geometry.border_box(),
+                child.margin,
+                child.descendants,
+                child.overflow,
+            )?;
+        }
     }
 
-    let max_x = (location.x + contribution_size.width).max(S::ZERO);
-    let min_x = location.x.min(S::ZERO);
-    let max_y = (location.y + contribution_size.height).max(S::ZERO);
-    let min_y = location.y.min(S::ZERO);
-    Size::new(max_x - min_x, max_y - min_y)
+    for (axis, coordinate) in [
+        (LogicalAxis::Inline, inline_end),
+        (LogicalAxis::Block, block_end),
+    ] {
+        if let Some(coordinate) = coordinate {
+            contributions.record_final_in_flow_end(flow_axes, axis, coordinate)?;
+        }
+    }
+    contributions.include_terminal_padding(padding)?;
+    Ok(contributions)
+}
+
+fn grid_child_flow_end<S: LayoutScalar>(
+    child: GridChildContribution<S>,
+    side: crate::PhysicalSide,
+) -> S {
+    let border_box = child.geometry.border_box();
+    let origin = border_box.origin();
+    let size = border_box.size();
+    match side {
+        crate::PhysicalSide::Top => child.location.y + origin.y - child.margin.top.max(S::ZERO),
+        crate::PhysicalSide::Right => {
+            child.location.x + origin.x + size.width + child.margin.right.max(S::ZERO)
+        }
+        crate::PhysicalSide::Bottom => {
+            child.location.y + origin.y + size.height + child.margin.bottom.max(S::ZERO)
+        }
+        crate::PhysicalSide::Left => child.location.x + origin.x - child.margin.left.max(S::ZERO),
+    }
+}
+
+fn include_farthest_grid_flow_end<S: LayoutScalar>(
+    end: &mut Option<S>,
+    side: crate::PhysicalSide,
+    candidate: S,
+) {
+    *end = Some(end.map_or(candidate, |current| match side {
+        crate::PhysicalSide::Top | crate::PhysicalSide::Left => current.min(candidate),
+        crate::PhysicalSide::Right | crate::PhysicalSide::Bottom => current.max(candidate),
+    }));
+}
+
+pub(super) fn max_size<S: LayoutScalar>(a: Size<S>, b: Size<S>) -> Size<S> {
+    Size::new(a.width.max(b.width), a.height.max(b.height))
 }

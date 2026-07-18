@@ -1202,6 +1202,14 @@ impl<S: LayoutScalar> OptionalPhysicalContributionIntervalsOf<S> {
     }
 
     #[must_use]
+    pub(crate) const fn retain_physical_axes(self, horizontal: bool, vertical: bool) -> Self {
+        Self {
+            x: if horizontal { self.x } else { None },
+            y: if vertical { self.y } else { None },
+        }
+    }
+
+    #[must_use]
     const fn x(self) -> Option<PhysicalContributionIntervalOf<S>> {
         self.x
     }
@@ -2403,6 +2411,15 @@ impl<S: LayoutScalar> ScrollGeometryOf<S> {
     #[must_use]
     pub const fn target(self) -> ScrollTargetGeometryOf<S> {
         self.target
+    }
+
+    #[must_use]
+    pub(crate) const fn propagatable_descendant_intervals(
+        self,
+    ) -> OptionalPhysicalContributionIntervalsOf<S> {
+        self.source
+            .contributions
+            .propagatable_descendant_intervals()
     }
 
     pub(crate) fn canonical_content_size(
