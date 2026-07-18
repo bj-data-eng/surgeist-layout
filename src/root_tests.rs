@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 
+use crate::geometry::LogicalSizeOf;
 use crate::test_support::layout_tree::OracleTreeOf;
 use crate::*;
 
@@ -125,11 +126,21 @@ fn fri06_c02_segment<S: LayoutScalar>(
     whitespace: InlineWhitespaceEdge,
     following_break: InlineBreakOpportunityOf<S>,
 ) -> ShapedInlineSegmentOf<S> {
+    fri06_c02_segment_with_level(id, extent, 0, whitespace, following_break)
+}
+
+fn fri06_c02_segment_with_level<S: LayoutScalar>(
+    id: u64,
+    extent: f64,
+    bidi_level: u8,
+    whitespace: InlineWhitespaceEdge,
+    following_break: InlineBreakOpportunityOf<S>,
+) -> ShapedInlineSegmentOf<S> {
     ShapedInlineSegmentOf::try_new(
         InlineSegmentId::new(id),
         S::from_f64(extent),
         InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap(),
-        BidiLevel::try_new(0).unwrap(),
+        BidiLevel::try_new(bidi_level).unwrap(),
         whitespace,
         following_break,
     )
@@ -140,8 +151,27 @@ fn fri06_c02_text_batch<S: LayoutScalar>(
     segments: Vec<ShapedInlineSegmentOf<S>>,
     available_inline: AvailableOf<S>,
 ) -> CompletedLayoutBatchOf<u32, S> {
+    fri06_c02_text_batch_with_flow(
+        segments,
+        available_inline,
+        WritingMode::HorizontalTb,
+        Direction::Ltr,
+        TextAlign::Auto,
+    )
+}
+
+fn fri06_c02_text_batch_with_flow<S: LayoutScalar>(
+    segments: Vec<ShapedInlineSegmentOf<S>>,
+    available_inline: AvailableOf<S>,
+    writing_mode: WritingMode,
+    direction: Direction,
+    text_align: TextAlign,
+) -> CompletedLayoutBatchOf<u32, S> {
     let root_input = NodeInputOf {
         display: Display::Block,
+        writing_mode,
+        direction,
+        text_align,
         ..NodeInputOf::default()
     };
     let mut inputs = HashMap::new();
@@ -156,13 +186,11 @@ fn fri06_c02_text_batch<S: LayoutScalar>(
         children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
     };
 
-    compute_layout(
-        &tree,
-        0,
-        LayoutRootRequestOf::viewport(Size::new(available_inline, AvailableOf::MAX_CONTENT))
-            .unwrap(),
-    )
-    .unwrap()
+    let viewport = FlowAxes::new(writing_mode, direction).physical_size(LogicalSizeOf::new(
+        available_inline,
+        AvailableOf::MAX_CONTENT,
+    ));
+    compute_layout(&tree, 0, LayoutRootRequestOf::viewport(viewport).unwrap()).unwrap()
 }
 
 fn fri06_c02_final_node<S: LayoutScalar>(
@@ -175,6 +203,495 @@ fn fri06_c02_final_node<S: LayoutScalar>(
         .find(|entry| entry.node() == node)
         .unwrap()
         .output()
+}
+
+fn fri06_c02_flow_mappings() -> [(WritingMode, Direction); 10] {
+    [
+        (WritingMode::HorizontalTb, Direction::Ltr),
+        (WritingMode::HorizontalTb, Direction::Rtl),
+        (WritingMode::VerticalRl, Direction::Ltr),
+        (WritingMode::VerticalRl, Direction::Rtl),
+        (WritingMode::VerticalLr, Direction::Ltr),
+        (WritingMode::VerticalLr, Direction::Rtl),
+        (WritingMode::SidewaysRl, Direction::Ltr),
+        (WritingMode::SidewaysRl, Direction::Rtl),
+        (WritingMode::SidewaysLr, Direction::Ltr),
+        (WritingMode::SidewaysLr, Direction::Rtl),
+    ]
+}
+
+fn fri06_c02_inline_decreases(writing_mode: WritingMode, direction: Direction) -> bool {
+    match writing_mode {
+        WritingMode::HorizontalTb
+        | WritingMode::VerticalRl
+        | WritingMode::VerticalLr
+        | WritingMode::SidewaysRl => direction == Direction::Rtl,
+        WritingMode::SidewaysLr => direction == Direction::Ltr,
+    }
+}
+
+fn fri06_c02_expected_physical_rect<S: LayoutScalar>(
+    writing_mode: WritingMode,
+    direction: Direction,
+    inline_start: f64,
+    block_start: f64,
+    inline_extent: f64,
+    block_extent: f64,
+    containing_inline: f64,
+    containing_block: f64,
+) -> (Point<S>, Size<S>) {
+    let (x, y, width, height) = match writing_mode {
+        WritingMode::HorizontalTb => {
+            let x = if direction == Direction::Rtl {
+                containing_inline - inline_start - inline_extent
+            } else {
+                inline_start
+            };
+            (x, block_start, inline_extent, block_extent)
+        }
+        WritingMode::VerticalRl | WritingMode::SidewaysRl => {
+            let y = if direction == Direction::Rtl {
+                containing_inline - inline_start - inline_extent
+            } else {
+                inline_start
+            };
+            (
+                containing_block - block_start - block_extent,
+                y,
+                block_extent,
+                inline_extent,
+            )
+        }
+        WritingMode::VerticalLr => {
+            let y = if direction == Direction::Rtl {
+                containing_inline - inline_start - inline_extent
+            } else {
+                inline_start
+            };
+            (block_start, y, block_extent, inline_extent)
+        }
+        WritingMode::SidewaysLr => {
+            let y = if direction == Direction::Ltr {
+                containing_inline - inline_start - inline_extent
+            } else {
+                inline_start
+            };
+            (block_start, y, block_extent, inline_extent)
+        }
+    };
+    (
+        Point::new(S::from_f64(x), S::from_f64(y)),
+        Size::new(S::from_f64(width), S::from_f64(height)),
+    )
+}
+
+#[test]
+fn fri06_c02_bidi_nested_equal_levels_reset_per_line_and_keep_discarded_slot_gaps_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let nested = fri06_c02_text_batch(
+            [0, 1, 2, 2, 1, 0]
+                .into_iter()
+                .enumerate()
+                .map(|(index, level)| {
+                    fri06_c02_segment_with_level(
+                        u64::try_from(index + 1).unwrap(),
+                        10.0,
+                        level,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    )
+                })
+                .collect(),
+            AvailableOf::definite(S::from_f64(100.0)),
+        );
+        let nested_fragments = nested.final_inline_fragments();
+        assert_eq!(
+            nested_fragments
+                .iter()
+                .map(|entry| entry.fragment().segment_id().get())
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3, 4, 5, 6],
+            "public fragment identity stays in source segment order"
+        );
+        assert_eq!(
+            nested_fragments
+                .iter()
+                .map(|entry| entry.fragment().visual_index())
+                .collect::<Vec<_>>(),
+            vec![0, 4, 2, 3, 1, 5]
+        );
+        assert_eq!(
+            nested_fragments
+                .iter()
+                .map(|entry| entry.fragment().rect().origin().x)
+                .collect::<Vec<_>>(),
+            [0.0, 40.0, 20.0, 30.0, 10.0, 50.0]
+                .map(S::from_f64)
+                .to_vec()
+        );
+
+        let wrapped = fri06_c02_text_batch(
+            (0..4)
+                .map(|index| {
+                    fri06_c02_segment_with_level(
+                        10 + index,
+                        10.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        if index == 1 {
+                            InlineBreakOpportunityOf::mandatory()
+                        } else {
+                            InlineBreakOpportunityOf::prohibited()
+                        },
+                    )
+                })
+                .collect(),
+            AvailableOf::definite(S::from_f64(100.0)),
+        );
+        assert_eq!(
+            wrapped
+                .final_inline_fragments()
+                .iter()
+                .map(|entry| (
+                    entry.fragment().line_index(),
+                    entry.fragment().visual_index(),
+                    entry.fragment().rect().origin(),
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                (0, 1, Point::new(S::from_f64(10.0), S::ZERO)),
+                (0, 0, Point::new(S::ZERO, S::ZERO)),
+                (1, 1, Point::new(S::from_f64(10.0), S::from_f64(10.0))),
+                (1, 0, Point::new(S::ZERO, S::from_f64(10.0))),
+            ]
+        );
+
+        let discarded = fri06_c02_text_batch(
+            vec![
+                fri06_c02_segment_with_level(
+                    20,
+                    5.0,
+                    0,
+                    InlineWhitespaceEdge::DiscardAtLineStart,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+                fri06_c02_segment_with_level(
+                    21,
+                    10.0,
+                    0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+                fri06_c02_segment_with_level(
+                    22,
+                    5.0,
+                    0,
+                    InlineWhitespaceEdge::DiscardAtLineEnd,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ],
+            AvailableOf::definite(S::from_f64(100.0)),
+        );
+        let fragments = discarded.final_inline_fragments();
+        assert_eq!(fragments.len(), 1);
+        assert_eq!(
+            fragments[0].fragment().segment_id(),
+            InlineSegmentId::new(21)
+        );
+        assert_eq!(fragments[0].fragment().visual_index(), 1);
+        assert_eq!(fragments[0].fragment().rect().origin(), Point::ZERO);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c02_alignment_uses_each_unequal_line_extent_and_clamps_overflow_in_all_flows_both_scalars()
+{
+    fn expected_offset(
+        align: TextAlign,
+        decreases: bool,
+        containing_inline: f64,
+        used_inline: f64,
+    ) -> f64 {
+        let free = (containing_inline - used_inline).max(0.0);
+        match align {
+            TextAlign::Auto => 0.0,
+            TextAlign::LegacyLeft if decreases => free,
+            TextAlign::LegacyRight if !decreases => free,
+            TextAlign::LegacyCenter => free / 2.0,
+            TextAlign::LegacyLeft | TextAlign::LegacyRight => 0.0,
+        }
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        for (writing_mode, direction) in fri06_c02_flow_mappings() {
+            let decreases = fri06_c02_inline_decreases(writing_mode, direction);
+            for align in [
+                TextAlign::Auto,
+                TextAlign::LegacyLeft,
+                TextAlign::LegacyRight,
+                TextAlign::LegacyCenter,
+            ] {
+                let batch = fri06_c02_text_batch_with_flow(
+                    vec![
+                        fri06_c02_segment_with_level(
+                            1,
+                            30.0,
+                            0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::mandatory(),
+                        ),
+                        fri06_c02_segment_with_level(
+                            2,
+                            10.0,
+                            0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::prohibited(),
+                        ),
+                    ],
+                    AvailableOf::definite(S::from_f64(100.0)),
+                    writing_mode,
+                    direction,
+                    align,
+                );
+                let fragments = batch.final_inline_fragments();
+                for (fragment, (used_inline, block_start)) in
+                    fragments.iter().zip([(30.0, 0.0), (10.0, 10.0)])
+                {
+                    let expected = fri06_c02_expected_physical_rect(
+                        writing_mode,
+                        direction,
+                        expected_offset(align, decreases, 100.0, used_inline),
+                        block_start,
+                        used_inline,
+                        10.0,
+                        100.0,
+                        20.0,
+                    );
+                    assert_eq!(
+                        (
+                            fragment.fragment().rect().origin(),
+                            fragment.fragment().rect().size()
+                        ),
+                        expected,
+                        "{writing_mode:?} {direction:?} {align:?}"
+                    );
+                }
+            }
+
+            let overflow = fri06_c02_text_batch_with_flow(
+                vec![
+                    fri06_c02_segment_with_level(
+                        3,
+                        120.0,
+                        0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::mandatory(),
+                    ),
+                    fri06_c02_segment_with_level(
+                        4,
+                        10.0,
+                        0,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ),
+                ],
+                AvailableOf::definite(S::from_f64(100.0)),
+                writing_mode,
+                direction,
+                TextAlign::LegacyCenter,
+            );
+            for (fragment, (inline_start, inline_extent, block_start)) in overflow
+                .final_inline_fragments()
+                .iter()
+                .zip([(0.0, 120.0, 0.0), (45.0, 10.0, 10.0)])
+            {
+                let expected = fri06_c02_expected_physical_rect(
+                    writing_mode,
+                    direction,
+                    inline_start,
+                    block_start,
+                    inline_extent,
+                    10.0,
+                    100.0,
+                    20.0,
+                );
+                assert_eq!(
+                    (
+                        fragment.fragment().rect().origin(),
+                        fragment.fragment().rect().size()
+                    ),
+                    expected,
+                    "overflow {writing_mode:?} {direction:?}"
+                );
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c02_flow_projects_rect_baseline_anchor_and_run_extents_in_all_mappings_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        for (writing_mode, direction) in fri06_c02_flow_mappings() {
+            let batch = fri06_c02_text_batch_with_flow(
+                vec![
+                    fri06_c02_segment_with_level(
+                        1,
+                        10.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ),
+                    fri06_c02_segment_with_level(
+                        2,
+                        10.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::mandatory(),
+                    ),
+                    fri06_c02_segment_with_level(
+                        3,
+                        4.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ),
+                    fri06_c02_segment_with_level(
+                        4,
+                        6.0,
+                        1,
+                        InlineWhitespaceEdge::Preserve,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ),
+                ],
+                AvailableOf::definite(S::from_f64(100.0)),
+                writing_mode,
+                direction,
+                TextAlign::LegacyCenter,
+            );
+            let fragments = batch.final_inline_fragments();
+            assert_eq!(
+                fragments
+                    .iter()
+                    .map(|entry| entry.fragment().visual_index())
+                    .collect::<Vec<_>>(),
+                vec![1, 0, 1, 0]
+            );
+            for (fragment, (inline_start, inline_extent, block_start, baseline_block)) in
+                fragments.iter().zip([
+                    (50.0, 10.0, 0.0, 8.0),
+                    (40.0, 10.0, 0.0, 8.0),
+                    (51.0, 4.0, 10.0, 18.0),
+                    (45.0, 6.0, 10.0, 18.0),
+                ])
+            {
+                let expected_rect = fri06_c02_expected_physical_rect(
+                    writing_mode,
+                    direction,
+                    inline_start,
+                    block_start,
+                    inline_extent,
+                    10.0,
+                    100.0,
+                    20.0,
+                );
+                let expected_baseline = fri06_c02_expected_physical_rect(
+                    writing_mode,
+                    direction,
+                    inline_start,
+                    baseline_block,
+                    0.0,
+                    0.0,
+                    100.0,
+                    20.0,
+                )
+                .0;
+                assert_eq!(
+                    (
+                        fragment.fragment().rect().origin(),
+                        fragment.fragment().rect().size()
+                    ),
+                    expected_rect,
+                    "rect {writing_mode:?} {direction:?}"
+                );
+                assert_eq!(
+                    fragment.fragment().baseline(),
+                    expected_baseline,
+                    "baseline {writing_mode:?} {direction:?}"
+                );
+            }
+
+            let minimum = fragments
+                .iter()
+                .fold(None, |minimum, entry| {
+                    let origin = entry.fragment().rect().origin();
+                    Some(minimum.map_or(origin, |current: Point<S>| {
+                        Point::new(current.x.min(origin.x), current.y.min(origin.y))
+                    }))
+                })
+                .unwrap();
+            let maximum = fragments
+                .iter()
+                .fold(None, |maximum, entry| {
+                    let rect = entry.fragment().rect();
+                    let point = Point::new(
+                        rect.origin().x + rect.size().width,
+                        rect.origin().y + rect.size().height,
+                    );
+                    Some(maximum.map_or(point, |current: Point<S>| {
+                        Point::new(current.x.max(point.x), current.y.max(point.y))
+                    }))
+                })
+                .unwrap();
+            let text = fri06_c02_final_node(&batch, 1);
+            assert_eq!(text.location, minimum);
+            assert_eq!(
+                text.size,
+                Size::new(maximum.x - minimum.x, maximum.y - minimum.y)
+            );
+            assert_eq!(
+                fri06_c02_final_node(&batch, 0).size,
+                FlowAxes::new(writing_mode, direction)
+                    .physical_size(LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(20.0)))
+            );
+
+            let anchor_batch = fri06_c02_text_batch_with_flow(
+                vec![fri06_c02_segment_with_level(
+                    9,
+                    5.0,
+                    0,
+                    InlineWhitespaceEdge::DiscardAtBoth,
+                    InlineBreakOpportunityOf::mandatory(),
+                )],
+                AvailableOf::definite(S::from_f64(100.0)),
+                writing_mode,
+                direction,
+                TextAlign::Auto,
+            );
+            let expected_anchor = fri06_c02_expected_physical_rect(
+                writing_mode,
+                direction,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                100.0,
+                10.0,
+            )
+            .0;
+            let anchor = fri06_c02_final_node(&anchor_batch, 1);
+            assert_eq!(anchor.location, expected_anchor);
+            assert_eq!(anchor.size, Size::ZERO);
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]

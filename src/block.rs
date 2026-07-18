@@ -1507,21 +1507,18 @@ where
         .collect();
     let report = layout_shaped_text_run(ShapedTextRunInputOf {
         available_inline_extent,
+        flow_axes: constants.flow_axes,
+        text_align: constants.text_align,
         participants,
     });
     let report_logical_size = LogicalSizeOf::new(report.inline_extent, report.block_extent);
     let report_size = constants.flow_axes.physical_size(report_logical_size);
-    let run_offset = inline_run_offset(
-        report.inline_extent,
-        constants,
-        logical_node_inner_size.inline,
-    );
     let logical_content_box_inset = constants.logical_content_box_inset();
     let containing_size = constants.containing_size(logical_node_inner_size);
     let project_point = |inline: S, block: S, size: LogicalSizeOf<S>| {
         constants.flow_axes.physical_point(
             LogicalPointOf::new(
-                logical_content_box_inset.inline_start + run_offset + inline,
+                logical_content_box_inset.inline_start + inline,
                 cursor_block + block,
             ),
             size,

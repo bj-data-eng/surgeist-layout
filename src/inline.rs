@@ -1,7 +1,7 @@
 use super::{
     AvailableOf, Clear, DefaultScalar, Direction, Edges, InlineBoundaryKind, InlineBreakKind,
     InlineMetricsOf, InlineSegmentId, InlineWhitespaceEdge, LayoutScalar, Point,
-    ShapedInlineSegmentOf, Size, VerticalAlign, WritingMode,
+    ShapedInlineSegmentOf, Size, TextAlign, VerticalAlign, WritingMode,
 };
 use crate::geometry::{FlowAxes, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 
@@ -22,6 +22,8 @@ pub(super) struct ShapedTextParticipantOf<S: LayoutScalar = DefaultScalar> {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ShapedTextRunInputOf<S: LayoutScalar = DefaultScalar> {
     pub available_inline_extent: AvailableOf<S>,
+    pub flow_axes: FlowAxes,
+    pub text_align: TextAlign,
     pub participants: Vec<ShapedTextParticipantOf<S>>,
 }
 
@@ -201,6 +203,75 @@ fn pending_text_inline_extent<S: LayoutScalar>(participants: &[ShapedTextPartici
     })
 }
 
+fn reordered_text_segment_indices<S: LayoutScalar>(
+    segments: &[SelectedTextSegmentOf<S>],
+) -> Vec<usize> {
+    let mut indices = (0..segments.len()).collect::<Vec<_>>();
+    let Some(minimum_odd_level) = segments
+        .iter()
+        .map(|selected| selected.participant.segment.bidi_level().get())
+        .filter(|level| level % 2 == 1)
+        .min()
+    else {
+        return indices;
+    };
+    let maximum_level = segments
+        .iter()
+        .map(|selected| selected.participant.segment.bidi_level().get())
+        .max()
+        .unwrap_or(minimum_odd_level);
+
+    for level in (minimum_odd_level..=maximum_level).rev() {
+        let mut start = 0;
+        while start < indices.len() {
+            while start < indices.len()
+                && segments[indices[start]]
+                    .participant
+                    .segment
+                    .bidi_level()
+                    .get()
+                    < level
+            {
+                start += 1;
+            }
+            let mut end = start;
+            while end < indices.len()
+                && segments[indices[end]]
+                    .participant
+                    .segment
+                    .bidi_level()
+                    .get()
+                    >= level
+            {
+                end += 1;
+            }
+            indices[start..end].reverse();
+            start = end;
+        }
+    }
+
+    indices
+}
+
+fn shaped_text_line_offset<S: LayoutScalar>(
+    used_inline_extent: S,
+    available_inline_extent: S,
+    flow_axes: FlowAxes,
+    text_align: TextAlign,
+) -> S {
+    let free_space = (available_inline_extent - used_inline_extent).max(S::ZERO);
+    let inline_decreases = flow_axes
+        .logical_axis_progression(crate::LogicalAxis::Inline)
+        .is_decreasing();
+    match text_align {
+        TextAlign::Auto => S::ZERO,
+        TextAlign::LegacyLeft if inline_decreases => free_space,
+        TextAlign::LegacyRight if !inline_decreases => free_space,
+        TextAlign::LegacyCenter => free_space / S::from_f64(2.0),
+        TextAlign::LegacyLeft | TextAlign::LegacyRight => S::ZERO,
+    }
+}
+
 #[must_use]
 pub(super) fn layout_shaped_text_run<S: LayoutScalar>(
     input: ShapedTextRunInputOf<S>,
@@ -274,9 +345,29 @@ pub(super) fn layout_shaped_text_run<S: LayoutScalar>(
         let line_baseline = block_start + line.baseline;
         first_baseline.get_or_insert(line_baseline);
         last_baseline = Some(line_baseline);
-        inline_extent = inline_extent.max(line.used_inline_extent);
-        let mut inline_start = S::ZERO;
-        for (visual_index, selected) in line.segments.into_iter().enumerate() {
+        let line_inline_start = shaped_text_line_offset(
+            line.used_inline_extent,
+            available,
+            input.flow_axes,
+            input.text_align,
+        );
+        inline_extent = inline_extent.max(line_inline_start + line.used_inline_extent);
+        let visual_order = reordered_text_segment_indices(&line.segments);
+        let mut visual_indices = vec![0; line.segments.len()];
+        let mut inline_starts = vec![S::ZERO; line.segments.len()];
+        let mut inline_start = line_inline_start;
+        for (visual_index, source_index) in visual_order.into_iter().enumerate() {
+            let selected = line.segments[source_index];
+            visual_indices[source_index] = visual_index;
+            inline_starts[source_index] = inline_start;
+            if !selected.discarded {
+                inline_start = inline_start
+                    + selected.participant.segment.inline_extent()
+                    + selected.replacement_inline_extent.unwrap_or(S::ZERO);
+            }
+        }
+        for (source_index, selected) in line.segments.into_iter().enumerate() {
+            let inline_start = inline_starts[source_index];
             anchors.push(ShapedTextAnchorOf {
                 source_index: selected.participant.source_index,
                 inline_start,
@@ -296,12 +387,9 @@ pub(super) fn layout_shaped_text_run<S: LayoutScalar>(
                 block_extent: metrics.line_extent(),
                 baseline: line_baseline,
                 line_index,
-                visual_index,
+                visual_index: visual_indices[source_index],
                 replacement_inline_extent: selected.replacement_inline_extent,
             });
-            inline_start = inline_start
-                + selected.participant.segment.inline_extent()
-                + selected.replacement_inline_extent.unwrap_or(S::ZERO);
         }
         block_start = block_start + line.baseline + line.after_baseline;
     }
