@@ -108,6 +108,15 @@ pub(crate) trait Compute<M = core::convert::Infallible>: Traverse {
         node: Self::Node,
         input: ComputeInputOf<Self::Scalar>,
     ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, M>;
+
+    fn compute_child_with_inherited_float_exclusions(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<Self::Scalar>,
+        _inherited: crate::block::InheritedFloatExclusions<Self::Scalar>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, M> {
+        self.compute_child(node, input)
+    }
 }
 
 pub(crate) trait Round<M = core::convert::Infallible>: Traverse {

@@ -38,10 +38,39 @@ pub(crate) fn compute_block<Tree, M>(
 where
     Tree: Compute<M>,
 {
+    compute_block_with_optional_inherited_float_exclusions(tree, node, input, None)
+}
+
+pub(crate) fn compute_block_with_inherited_float_exclusions<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    inherited: InheritedFloatExclusions<Tree::Scalar>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
+    compute_block_with_optional_inherited_float_exclusions(tree, node, input, Some(inherited))
+}
+
+fn compute_block_with_optional_inherited_float_exclusions<Tree, M>(
+    tree: &mut Tree,
+    node: <Tree as Traverse>::Node,
+    input: ComputeInputOf<Tree::Scalar>,
+    inherited: Option<InheritedFloatExclusions<Tree::Scalar>>,
+) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
+where
+    Tree: Compute<M>,
+{
     let scrollbar_width = tree.node_input(node).scrollbar_width.get();
     let mut pass_input = input;
     loop {
-        let output = compute_block_inner::<Tree, Tree::Scalar, M>(tree, node, pass_input)?;
+        let output = compute_block_inner::<Tree, Tree::Scalar, M>(
+            tree,
+            node,
+            pass_input,
+            inherited.as_ref(),
+        )?;
         if !input.run_mode().is_perform_layout() {
             return Ok(output);
         }
@@ -75,6 +104,7 @@ fn compute_block_inner<Tree, S, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<S>,
+    inherited: Option<&InheritedFloatExclusions<S>>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
@@ -121,8 +151,11 @@ where
         &children,
         &constants,
         input,
-        logical_inner_size.inline,
-        input.run_mode().is_perform_layout() && !needs_final_pass,
+        InFlowPassContext {
+            inner_inline: logical_inner_size.inline,
+            set_layout: input.run_mode().is_perform_layout() && !needs_final_pass,
+            inherited,
+        },
     )?;
     let logical_intrinsic_outer_size = LogicalSizeOf::new(
         intrinsic_pass.content_size.inline + constants.logical_content_box_inset().inline_sum(),
@@ -169,8 +202,11 @@ where
             &children,
             &final_constants,
             input,
-            logical_inner_size.inline,
-            true,
+            InFlowPassContext {
+                inner_inline: logical_inner_size.inline,
+                set_layout: true,
+                inherited,
+            },
         )?;
         (final_constants, final_pass)
     } else {
@@ -420,6 +456,14 @@ pub(super) struct FloatExclusions<S: LayoutScalar> {
     ledger: Vec<FloatLedgerEntry<S>>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct InheritedFloatExclusions<S: LayoutScalar> {
+    parent_flow_axes: crate::geometry::FlowAxes,
+    parent_containing_size: Size<S>,
+    child_logical_location: LogicalPointOf<S>,
+    ledger: Vec<FloatLedgerEntry<S>>,
+}
+
 impl<S: LayoutScalar> FloatExclusions<S> {
     pub(super) fn new(
         flow_axes: crate::geometry::FlowAxes,
@@ -434,6 +478,76 @@ impl<S: LayoutScalar> FloatExclusions<S> {
             containing_inline_end: inset.inline_start + content_inline_size,
             ledger: Vec::new(),
         }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.ledger.is_empty()
+    }
+
+    fn for_ordinary_child(
+        &self,
+        child_logical_location: LogicalPointOf<S>,
+    ) -> InheritedFloatExclusions<S> {
+        InheritedFloatExclusions {
+            parent_flow_axes: self.flow_axes,
+            parent_containing_size: self.containing_size,
+            child_logical_location,
+            ledger: self.ledger.clone(),
+        }
+    }
+
+    fn inherit_into_child(&mut self, inherited: &InheritedFloatExclusions<S>) {
+        let child_size = self.containing_size;
+        let child_logical_size = inherited.parent_flow_axes.logical_size(child_size);
+        let child_physical_origin = inherited.parent_flow_axes.physical_point(
+            inherited.child_logical_location,
+            child_logical_size,
+            inherited.parent_containing_size,
+        );
+        self.ledger
+            .extend(inherited.ledger.iter().copied().map(|entry| {
+                let physical_origin = Point::new(
+                    entry.physical_margin_box.origin.x - child_physical_origin.x,
+                    entry.physical_margin_box.origin.y - child_physical_origin.y,
+                );
+                let physical_size = entry.physical_margin_box.size;
+                let logical_origin =
+                    self.flow_axes
+                        .logical_point(physical_origin, physical_size, child_size);
+                let logical_size = self.flow_axes.logical_size(physical_size);
+                let parent_side = match entry.side {
+                    FloatLedgerSide::LineStart => inherited.parent_flow_axes.inline_start(),
+                    FloatLedgerSide::LineEnd => inherited.parent_flow_axes.inline_end(),
+                };
+                let side = if parent_side == self.flow_axes.inline_start() {
+                    FloatLedgerSide::LineStart
+                } else if parent_side == self.flow_axes.inline_end() {
+                    FloatLedgerSide::LineEnd
+                } else {
+                    let distance_from_start =
+                        (logical_origin.inline - self.containing_inline_start).abs();
+                    let distance_from_end = (self.containing_inline_end
+                        - (logical_origin.inline + logical_size.inline))
+                        .abs();
+                    if distance_from_start <= distance_from_end {
+                        FloatLedgerSide::LineStart
+                    } else {
+                        FloatLedgerSide::LineEnd
+                    }
+                };
+                FloatLedgerEntry {
+                    side,
+                    physical_margin_box: PhysicalMarginBox {
+                        origin: physical_origin,
+                        size: physical_size,
+                    },
+                    inline_start: logical_origin.inline,
+                    inline_end: logical_origin.inline + logical_size.inline,
+                    block_start: logical_origin.block,
+                    block_end: logical_origin.block + logical_size.block,
+                    ..entry
+                }
+            }));
     }
 
     fn place_float<Node>(&mut self, float: &PendingFloat<Node, S>) -> Point<S> {
@@ -796,19 +910,29 @@ where
     Some(boundary)
 }
 
+struct InFlowPassContext<'a, S: LayoutScalar> {
+    inner_inline: Option<S>,
+    set_layout: bool,
+    inherited: Option<&'a InheritedFloatExclusions<S>>,
+}
+
 fn layout_in_flow_children<Tree, S, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     children: &[<Tree as Traverse>::Node],
     constants: &Constants<S>,
     input: ComputeInputOf<S>,
-    inner_inline: Option<S>,
-    set_layout: bool,
+    pass: InFlowPassContext<'_, S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InFlowResult<<Tree as Traverse>::Node, S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
     S: LayoutScalar,
 {
+    let InFlowPassContext {
+        inner_inline,
+        set_layout,
+        inherited,
+    } = pass;
     let logical_node_inner_size =
         LogicalSizeOf::new(inner_inline, constants.logical_node_inner_size().block);
     let node_inner_size = constants.flow_axes.physical_size(logical_node_inner_size);
@@ -843,6 +967,9 @@ where
         content_inline_size,
         constants.logical_content_box_inset(),
     );
+    if set_layout && let Some(inherited) = inherited {
+        float_exclusions.inherit_into_child(inherited);
+    }
     let content_box_size = Size::new(
         inner_inline
             .or(constants.node_inner_size.width)
@@ -1165,40 +1292,107 @@ where
             child_logical_node_inner_size,
             available_child_inline,
         )?;
-        let output = tree.compute_child(
-            child,
-            ComputeInputOf::<S>::for_child(
-                input.run_mode().for_child(),
-                SizingMode::InherentSize,
-                RequestedAxis::Both,
-                child_known,
-                child_parent_size,
-                ContainingLayoutContext::new(
-                    constants.flow_axes,
-                    ParentFormattingContext::BlockFlow,
+        let child_input = ComputeInputOf::<S>::for_child(
+            input.run_mode().for_child(),
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            child_known,
+            child_parent_size,
+            ContainingLayoutContext::new(constants.flow_axes, ParentFormattingContext::BlockFlow),
+            child_flow_axes.physical_size(LogicalSizeOf::new(
+                in_flow_child_available_inline(
+                    &child_style,
+                    child_flow_axes,
+                    available_child_inline,
+                    child_logical_available.inline,
                 ),
-                child_flow_axes.physical_size(LogicalSizeOf::new(
-                    in_flow_child_available_inline(
-                        &child_style,
-                        child_flow_axes,
-                        available_child_inline,
-                        child_logical_available.inline,
-                    ),
-                    AvailableOf::<S>::MAX_CONTENT,
-                )),
-            )
-            .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars()),
+                AvailableOf::<S>::MAX_CONTENT,
+            )),
+        )
+        .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars());
+        let establishes_bfc = !child_style.item_is_replaced
+            && child_style
+                .overflow
+                .establishes_independent_formatting_context();
+        let inherits_float_exclusions = set_layout
+            && child_style.float.is_none()
+            && child_style.display.inner_display() == super::Display::Block
+            && !establishes_bfc
+            && !float_exclusions.is_empty();
+        let mut output = tree.compute_child(
+            child,
+            if inherits_float_exclusions {
+                child_input.with_run_mode(RunMode::ComputeSize)
+            } else {
+                child_input
+            },
         )?;
 
-        let logical_child_size = constants.flow_axes.logical_size(output.size);
-        let logical_child_margin = resolve_logical_in_flow_margin(
+        let mut logical_child_size = constants.flow_axes.logical_size(output.size);
+        let mut logical_child_margin = resolve_logical_in_flow_margin(
             parent_logical_unresolved_margin,
             logical_child_size,
             logical_node_inner_size
                 .inline
                 .or(parent_logical_available.inline.into_option()),
         );
-        let child_margin = constants.flow_axes.physical_edges(logical_child_margin);
+        let mut child_margin = constants.flow_axes.physical_edges(logical_child_margin);
+        if inherits_float_exclusions {
+            let preview_top_margin = output
+                .block_margin_collapse
+                .at(constants.flow_axes.block_start())
+                .collapse_with_margin(edge_at_physical_side(
+                    child_margin,
+                    constants.flow_axes.block_start(),
+                ));
+            let child_margin_can_collapse_with_parent =
+                child_margin_can_collapse_with_parent(&child_style);
+            let collapsed_margin = if is_collapsing_first_margin {
+                if constants.collapse_top_margin && child_margin_can_collapse_with_parent {
+                    active_margin.resolve()
+                } else {
+                    active_margin.collapse_with(preview_top_margin).resolve()
+                }
+            } else {
+                active_margin.collapse_with(preview_top_margin).resolve()
+            };
+            let preview_cursor_block = cursor_block + collapsed_margin;
+            let child_logical_location = LogicalPointOf::new(
+                in_flow_child_inline_offset(logical_child_size, logical_child_margin, constants),
+                preview_cursor_block,
+            );
+            let child_logical_location = if child_style.clear == Clear::None {
+                child_logical_location
+            } else {
+                let containing_size = constants.containing_size(logical_node_inner_size);
+                let fallback = constants.flow_axes.physical_point(
+                    child_logical_location,
+                    logical_child_size,
+                    containing_size,
+                );
+                constants.flow_axes.logical_point(
+                    Point::new(
+                        fallback.x,
+                        float_exclusions
+                            .clearance_y(float_bfc_cursor_y + collapsed_margin, child_style.clear),
+                    ),
+                    output.size,
+                    containing_size,
+                )
+            };
+            let inherited = float_exclusions.for_ordinary_child(child_logical_location);
+            output =
+                tree.compute_child_with_inherited_float_exclusions(child, child_input, inherited)?;
+            logical_child_size = constants.flow_axes.logical_size(output.size);
+            logical_child_margin = resolve_logical_in_flow_margin(
+                parent_logical_unresolved_margin,
+                logical_child_size,
+                logical_node_inner_size
+                    .inline
+                    .or(parent_logical_available.inline.into_option()),
+            );
+            child_margin = constants.flow_axes.physical_edges(logical_child_margin);
+        }
         if !child_style.float.is_none() {
             let margin_box = output.size + child_margin.sum_axes();
             float_intrinsics.add(margin_box.width, child_style.float, child_style.clear);
@@ -1288,10 +1482,6 @@ where
             logical_fallback_location.x + inset_offset.x,
             logical_fallback_location.y + inset_offset.y,
         );
-        let establishes_bfc = !child_style.item_is_replaced
-            && child_style
-                .overflow
-                .establishes_independent_formatting_context();
         let location = if establishes_bfc {
             let placement = float_exclusions.place_bfc_block(
                 cursor_block,

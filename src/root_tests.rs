@@ -1918,6 +1918,136 @@ fn fri06_c04_line_band_text_atomic_control_rewrap_transition_and_progress_both_s
 }
 
 #[test]
+fn fri06_c04_line_band_ordinary_block_keeps_outer_edge_and_inherits_parent_float_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        for child_direction in [Direction::Ltr, Direction::Rtl] {
+            let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+            let root_style = NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
+                ),
+                ..NodeInputOf::default()
+            };
+            let float_style = fri06_c04_line_box(
+                flow_axes,
+                LogicalSizeOf::new(S::from_f64(40.0), S::from_f64(20.0)),
+                Float::Left,
+                None,
+            );
+            let ordinary_style = NodeInputOf {
+                display: Display::Block,
+                direction: child_direction,
+                text_align: TextAlign::LegacyLeft,
+                margin: Edges {
+                    right: LengthAutoOf::px(S::from_f64(5.0)),
+                    left: LengthAutoOf::px(S::from_f64(5.0)),
+                    ..Edges::all(LengthAutoOf::ZERO)
+                },
+                border: Edges::all(LengthOf::px(S::from_f64(2.0))),
+                padding: Edges::all(LengthOf::px(S::from_f64(3.0))),
+                ..NodeInputOf::default()
+            };
+            let text = InlineTextInputOf::try_new(vec![
+                fri06_c02_segment(
+                    701,
+                    30.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                fri06_c02_segment(
+                    702,
+                    30.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                fri06_c02_segment(
+                    703,
+                    30.0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ])
+            .unwrap();
+            let tree = Fri06C02TextTree {
+                inputs: HashMap::from([
+                    (0, LayoutInputOf::box_input(root_style.clone())),
+                    (1, LayoutInputOf::box_input(float_style.clone())),
+                    (2, LayoutInputOf::box_input(ordinary_style.clone())),
+                    (3, LayoutInputOf::inline_text(text)),
+                ]),
+                node_inputs: HashMap::from([
+                    (0, root_style),
+                    (1, float_style),
+                    (2, ordinary_style),
+                    (3, NodeInputOf::non_box()),
+                ]),
+                children: HashMap::from([
+                    (0, vec![1, 2]),
+                    (1, Vec::new()),
+                    (2, vec![3]),
+                    (3, Vec::new()),
+                ]),
+            };
+
+            let batch = compute_layout(
+                &tree,
+                0,
+                LayoutRootRequestOf::viewport(Size::new(
+                    AvailableOf::definite(S::from_f64(100.0)),
+                    AvailableOf::definite(S::from_f64(80.0)),
+                ))
+                .unwrap(),
+            )
+            .unwrap();
+
+            let ordinary = fri06_c02_final_node(&batch, 2);
+            assert_eq!(ordinary.source_index, SourceIndex::new(1));
+            assert_eq!(ordinary.location, Point::new(S::from_f64(5.0), S::ZERO));
+            assert_eq!(ordinary.size.width, S::from_f64(90.0));
+            assert_eq!(
+                fri06_c02_final_node(&batch, 3).source_index,
+                SourceIndex::ZERO
+            );
+
+            let fragments = batch
+                .final_inline_fragments()
+                .iter()
+                .filter(|entry| entry.node() == 3)
+                .map(|entry| entry.fragment())
+                .collect::<Vec<_>>();
+            assert_eq!(fragments.len(), 3);
+            for (index, (segment, line, x, baseline_y)) in [
+                (701, 0, 35.0, 13.0),
+                (702, 1, 35.0, 23.0),
+                (703, 2, 5.0, 33.0),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                assert_eq!(fragments[index].segment_id(), InlineSegmentId::new(segment));
+                assert_eq!(fragments[index].line_index(), line);
+                assert_eq!(fragments[index].visual_index(), 0);
+                assert_eq!(fragments[index].rect().origin().x, S::from_f64(x));
+                let baseline_x = if child_direction == Direction::Rtl {
+                    x + 30.0
+                } else {
+                    x
+                };
+                assert_eq!(
+                    fragments[index].baseline(),
+                    Point::new(S::from_f64(baseline_x), S::from_f64(baseline_y))
+                );
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn fri06_c04_line_clear_all_flows_values_and_matching_sides_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
         for (writing_mode, direction) in [

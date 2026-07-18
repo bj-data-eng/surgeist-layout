@@ -1147,6 +1147,25 @@ where
             )
         })
     }
+
+    fn compute_child_with_inherited_float_exclusions(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<Self::Scalar>,
+        inherited: crate::block::InheritedFloatExclusions<Self::Scalar>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, Tree::MeasureError>
+    {
+        debug_assert_eq!(
+            self.node_input(node).display.inner_display(),
+            super::Display::Block,
+        );
+        crate::block::compute_block_with_inherited_float_exclusions(
+            self,
+            node,
+            input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL),
+            inherited,
+        )
+    }
 }
 
 impl<Tree> Round<Tree::MeasureError> for ComputeSession<'_, Tree>

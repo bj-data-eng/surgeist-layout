@@ -266,6 +266,12 @@ impl<S: LayoutScalar> ComputeInputOf<S> {
     }
 
     #[must_use]
+    pub(crate) const fn with_run_mode(mut self, run_mode: RunMode) -> Self {
+        self.run_mode = run_mode;
+        self
+    }
+
+    #[must_use]
     pub(crate) const fn sizing_mode(&self) -> SizingMode {
         self.sizing_mode
     }
