@@ -1668,6 +1668,22 @@ where
                 ),
                 _ => (anchor, Size::ZERO),
             };
+            tree.compute_child(
+                child,
+                ComputeInputOf::for_child(
+                    RunMode::PerformLayout,
+                    SizingMode::ContentSize,
+                    RequestedAxis::Both,
+                    text_size.map(Some),
+                    node_inner_size,
+                    ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        ParentFormattingContext::BlockFlow,
+                    ),
+                    constants.available_content,
+                )
+                .with_containing_auto_scrollbar_pass(constants.settled_auto_scrollbars),
+            )?;
             tree.set_unrounded(
                 child,
                 NodeOutputOf::<S> {

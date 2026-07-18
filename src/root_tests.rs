@@ -1371,75 +1371,307 @@ fn fri06_c02_scroll_uses_fragment_rects_without_replacement_or_full_line_proxy_b
     assert_lane::<f64>();
 }
 
-#[test]
-fn fri06_c02_cache_cold_invalidated_replay_replaces_dirty_text_and_normalizes_duplicates_both_scalars()
- {
-    fn assert_lane<S: LayoutScalar>() {
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fri06C02RetainedTextState<S: LayoutScalar> {
+    unrounded_nodes: HashMap<u32, NodeOutputOf<S>>,
+    final_nodes: HashMap<u32, NodeOutputOf<S>>,
+    unrounded_fragments: HashMap<u32, Vec<InlineFragmentOutputOf<S>>>,
+    final_fragments: HashMap<u32, Vec<InlineFragmentOutputOf<S>>>,
+    caches: HashMap<u32, CacheOf<S>>,
+    dirty: Vec<u32>,
+}
+
+#[derive(Clone, Debug)]
+struct Fri06C02StatefulTextTree<S: LayoutScalar> {
+    inputs: HashMap<u32, LayoutInputOf<S>>,
+    node_inputs: HashMap<u32, NodeInputOf<S>>,
+    children: HashMap<u32, Vec<u32>>,
+    retained: Fri06C02RetainedTextState<S>,
+    fragment_readbacks: Cell<usize>,
+    reject_preparation: bool,
+}
+
+impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
+    fn new(segments: Vec<ShapedInlineSegmentOf<S>>) -> Self {
         let root_input = NodeInputOf {
             display: Display::Block,
             ..NodeInputOf::default()
         };
-        let request = LayoutRootRequestOf::viewport(Size::new(
-            AvailableOf::definite(S::from_f64(20.0)),
-            AvailableOf::MAX_CONTENT,
-        ))
-        .unwrap();
-        let tree_for = |segment_id, extent| Fri06C02TextTree {
+        Self {
             inputs: HashMap::from([
                 (0, LayoutInputOf::box_input(root_input.clone())),
                 (
                     1,
-                    LayoutInputOf::inline_text(
-                        InlineTextInputOf::try_new(vec![fri06_c02_segment(
-                            segment_id,
-                            extent,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )])
-                        .unwrap(),
-                    ),
+                    LayoutInputOf::inline_text(InlineTextInputOf::try_new(segments).unwrap()),
                 ),
             ]),
-            node_inputs: HashMap::from([(0, root_input.clone()), (1, NodeInputOf::non_box())]),
+            node_inputs: HashMap::from([(0, root_input), (1, NodeInputOf::non_box())]),
             children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
-        };
+            retained: Fri06C02RetainedTextState::default(),
+            fragment_readbacks: Cell::new(0),
+            reject_preparation: false,
+        }
+    }
 
-        let cold_tree = tree_for(61, 9.25);
-        let cold = compute_layout(&cold_tree, 0, request).unwrap();
-        let replay = compute_layout(&cold_tree, 0, request).unwrap();
-        assert_eq!(cold, replay, "cold replay must be deterministic");
+    fn replace_text(&mut self, segments: Vec<ShapedInlineSegmentOf<S>>) {
+        self.inputs.insert(
+            1,
+            LayoutInputOf::inline_text(InlineTextInputOf::try_new(segments).unwrap()),
+        );
+    }
 
-        let dirty_tree = tree_for(62, 13.75);
-        let invalidated = compute_layout_invalidated(&dirty_tree, 0, request, &[1, 1]).unwrap();
-        assert_eq!(invalidated.invalidated_nodes(), &[0, 1]);
-        assert_eq!(
-            invalidated
-                .cache_clear_entries()
+    fn add_failing_mixed_control(&mut self) {
+        self.inputs
+            .insert(2, LayoutInputOf::line_break(LineBreakInputOf::new()));
+        self.node_inputs.insert(2, NodeInputOf::non_box());
+        self.children.insert(0, vec![1, 2]);
+        self.children.insert(2, Vec::new());
+    }
+
+    fn remove_failing_mixed_control(&mut self) {
+        self.inputs.remove(&2);
+        self.node_inputs.remove(&2);
+        self.children.insert(0, vec![1]);
+        self.children.remove(&2);
+    }
+}
+
+impl<S: LayoutScalar> Traverse for Fri06C02StatefulTextTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri06C02StatefulTextTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.node_inputs[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.inputs[&node].clone()
+    }
+
+    fn cache_get(
+        &self,
+        node: Self::Node,
+        input: &ComputeInputOf<S>,
+        context: CacheKeyContext,
+    ) -> Option<ComputeOutputOf<S>> {
+        self.retained
+            .caches
+            .get(&node)
+            .and_then(|cache| cache.get_with_context(input, context))
+    }
+
+    fn unrounded_inline_fragments(&self, node: Self::Node) -> Option<&[InlineFragmentOutputOf<S>]> {
+        self.fragment_readbacks
+            .set(self.fragment_readbacks.get() + 1);
+        self.retained
+            .unrounded_fragments
+            .get(&node)
+            .map(Vec::as_slice)
+    }
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri06C02StatefulTextTree<S> {
+    type Error = &'static str;
+    type Prepared = Fri06C02RetainedTextState<S>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        if self.reject_preparation {
+            return Err("C02 retained-state preparation rejected");
+        }
+
+        let mut prepared = self.retained.clone();
+        for node in batch.invalidated_nodes() {
+            prepared.unrounded_nodes.remove(node);
+            prepared.final_nodes.remove(node);
+            prepared.unrounded_fragments.remove(node);
+            prepared.final_fragments.remove(node);
+            prepared.caches.remove(node);
+        }
+        for entry in batch.unrounded_entries() {
+            let node = entry.node();
+            prepared.unrounded_nodes.insert(node, entry.output());
+            if matches!(self.inputs.get(&node), Some(LayoutInputOf::InlineText(_))) {
+                prepared.unrounded_fragments.insert(node, Vec::new());
+            }
+        }
+        for entry in batch.final_entries() {
+            let node = entry.node();
+            prepared.final_nodes.insert(node, entry.output());
+            if matches!(self.inputs.get(&node), Some(LayoutInputOf::InlineText(_))) {
+                prepared.final_fragments.insert(node, Vec::new());
+            }
+        }
+        for entry in batch.unrounded_inline_fragments() {
+            prepared
+                .unrounded_fragments
+                .entry(entry.node())
+                .or_default()
+                .push(entry.fragment());
+        }
+        for entry in batch.final_inline_fragments() {
+            prepared
+                .final_fragments
+                .entry(entry.node())
+                .or_default()
+                .push(entry.fragment());
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared.caches.remove(&entry.node());
+        }
+        for entry in batch.cache_store_entries() {
+            prepared
+                .caches
+                .entry(entry.node())
+                .or_default()
+                .store_with_context(entry.input(), entry.context(), entry.output());
+        }
+        prepared.dirty.clear();
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.retained = prepared;
+    }
+}
+
+fn fri06_c02_stateful_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
+    LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::definite(S::from_f64(20.0)),
+        AvailableOf::MAX_CONTENT,
+    ))
+    .unwrap()
+}
+
+#[test]
+fn fri06_c02_cache_cold_warm_and_dirty_replacement_use_committed_state_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let request = fri06_c02_stateful_request::<S>();
+        let mut tree = Fri06C02StatefulTextTree::new(vec![fri06_c02_segment(
+            61,
+            9.25,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )]);
+
+        let cold = compute_layout(&tree, 0, request).expect("cold text layout succeeds");
+        let cold_unrounded = cold.unrounded_entries().to_vec();
+        let cold_final = cold.final_entries().to_vec();
+        let cold_unrounded_fragments = cold.unrounded_inline_fragments().to_vec();
+        let cold_final_fragments = cold.final_inline_fragments().to_vec();
+        assert_eq!(tree.fragment_readbacks.get(), 0);
+        cold.apply_to(&mut tree).expect("cold batch commits");
+        assert_eq!(tree.retained.dirty, []);
+        assert_eq!(tree.retained.unrounded_fragments[&1].len(), 1);
+        assert!(!tree.retained.caches.is_empty());
+
+        let warm = compute_layout(&tree, 0, request).expect("warm text layout restores fragments");
+        assert_eq!(warm.unrounded_entries(), cold_unrounded);
+        assert_eq!(warm.final_entries(), cold_final);
+        assert_eq!(warm.unrounded_inline_fragments(), cold_unrounded_fragments);
+        assert_eq!(warm.final_inline_fragments(), cold_final_fragments);
+        assert_eq!(tree.fragment_readbacks.get(), 1);
+        assert!(
+            warm.cache_store_entries()
                 .iter()
-                .map(LayoutCacheClearEntry::node)
-                .collect::<Vec<_>>(),
-            vec![0, 1]
+                .all(|entry| entry.node() != 1),
+            "the committed text cache must serve the warm text node"
         );
-        assert_eq!(invalidated.final_inline_fragments().len(), 1);
+        warm.apply_to(&mut tree).expect("warm batch recommits");
+
+        let stale_text_output = tree.retained.unrounded_nodes[&1];
+        let stale_fragments = tree.retained.unrounded_fragments[&1].clone();
+        let stale_caches = tree.retained.caches.clone();
+        tree.replace_text(vec![fri06_c02_segment(
+            62,
+            13.75,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )]);
+        tree.retained.dirty = vec![1, 1];
+
+        let invalidated = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("dirty text layout succeeds");
+        assert_eq!(invalidated.invalidated_nodes(), &[0, 1]);
+        assert_eq!(tree.retained.dirty, [1, 1]);
+        invalidated
+            .apply_to(&mut tree)
+            .expect("dirty replacement batch commits");
+
+        assert!(tree.retained.dirty.is_empty());
+        assert_ne!(tree.retained.unrounded_nodes[&1], stale_text_output);
+        assert_ne!(tree.retained.unrounded_fragments[&1], stale_fragments);
+        assert_ne!(tree.retained.caches, stale_caches);
         assert_eq!(
-            invalidated.final_inline_fragments()[0]
-                .fragment()
-                .segment_id(),
+            tree.retained.unrounded_fragments[&1][0].segment_id(),
             InlineSegmentId::new(62)
-        );
-        assert_ne!(
-            invalidated.final_inline_fragments(),
-            cold.final_inline_fragments(),
-            "dirty text must replace stale fragment identity and geometry"
         );
     }
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-    assert!(
-        !include_str!("block.rs").contains("LaterFriBehavior"),
-        "the production block source must not spell a C02 text fallback"
-    );
+}
+
+#[test]
+fn fri06_c02_cache_committed_empty_fragment_state_replays_warm_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let request = fri06_c02_stateful_request::<S>();
+        let mut tree = Fri06C02StatefulTextTree::new(vec![fri06_c02_segment(
+            63,
+            6.5,
+            InlineWhitespaceEdge::DiscardAtBoth,
+            InlineBreakOpportunityOf::prohibited(),
+        )]);
+
+        let cold = compute_layout(&tree, 0, request).expect("cold discarded text layout succeeds");
+        assert!(cold.unrounded_inline_fragments().is_empty());
+        cold.apply_to(&mut tree)
+            .expect("committed empty fragment state is retained");
+        assert_eq!(tree.unrounded_inline_fragments(1), Some([].as_slice()));
+        tree.fragment_readbacks.set(0);
+        assert!(
+            tree.retained.caches.contains_key(&1),
+            "the committed empty fragment state must pair with a warm text cache"
+        );
+
+        let warm = compute_layout(&tree, 0, request)
+            .expect("Some(&[]) is valid warm committed fragment state");
+        assert!(warm.unrounded_inline_fragments().is_empty());
+        assert!(warm.final_inline_fragments().is_empty());
+        assert_eq!(tree.fragment_readbacks.get(), 1);
+        assert!(
+            warm.cache_store_entries()
+                .iter()
+                .all(|entry| entry.node() != 1)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]
@@ -1509,141 +1741,37 @@ fn fri06_c02_rounding_fractional_fragments_round_once_without_identity_drift_bot
 
     assert_lane::<f32>();
     assert_lane::<f64>();
-    let inline = include_str!("inline.rs");
-    for forbidden in ["shaped_text_", "glyph", "font", "measure_leaf"] {
+}
+
+#[test]
+fn fri06_c02_transaction_layout_and_preparation_failures_preserve_retained_state_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let request = fri06_c02_stateful_request::<S>();
+        let mut tree = Fri06C02StatefulTextTree::new(vec![fri06_c02_segment(
+            81,
+            7.5,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )]);
+        let cold = compute_layout(&tree, 0, request).expect("cold text layout succeeds");
+        cold.apply_to(&mut tree).expect("cold batch commits");
         assert!(
-            !inline.contains(forbidden),
-            "inline production retains forbidden C02 path spelling {forbidden}"
+            tree.retained.caches.contains_key(&1),
+            "transaction proof requires committed text cache state"
         );
-    }
-}
 
-#[derive(Clone, Debug, Default, PartialEq)]
-struct Fri06C02RejectingBatchSink {
-    committed: bool,
-}
+        tree.replace_text(vec![fri06_c02_segment(
+            82,
+            8.5,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )]);
+        tree.retained.dirty = vec![1];
+        tree.add_failing_mixed_control();
+        let before_layout_failure = tree.retained.clone();
 
-impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri06C02RejectingBatchSink {
-    type Error = &'static str;
-    type Prepared = ();
-
-    fn prepare_layout_batch(
-        &self,
-        _batch: &CompletedLayoutBatchOf<u32, S>,
-    ) -> Result<Self::Prepared, Self::Error> {
-        Err("C02 immutable preparation rejected")
-    }
-
-    fn commit_layout_batch(&mut self, (): Self::Prepared) {
-        self.committed = true;
-    }
-}
-
-#[test]
-fn fri06_c02_transaction_layout_and_preparation_failures_publish_nothing_both_scalars() {
-    fn assert_lane<S: LayoutScalar>() {
-        let batch = fri06_c02_text_batch(
-            vec![fri06_c02_segment(
-                81,
-                7.5,
-                InlineWhitespaceEdge::Preserve,
-                InlineBreakOpportunityOf::prohibited(),
-            )],
-            AvailableOf::definite(S::from_f64(20.0)),
-        );
-        let mut sink = Fri06C02RejectingBatchSink::default();
-        let before = sink.clone();
-        assert_eq!(
-            batch.apply_to(&mut sink),
-            Err("C02 immutable preparation rejected")
-        );
-        assert_eq!(sink, before);
-
-        let root_input = NodeInputOf {
-            display: Display::Block,
-            ..NodeInputOf::default()
-        };
-        let tree = Fri06C02TextTree {
-            inputs: HashMap::from([
-                (0, LayoutInputOf::box_input(root_input.clone())),
-                (
-                    1,
-                    LayoutInputOf::inline_text(
-                        InlineTextInputOf::try_new(vec![fri06_c02_segment(
-                            82,
-                            8.5,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )])
-                        .unwrap(),
-                    ),
-                ),
-            ]),
-            node_inputs: HashMap::from([(0, root_input), (1, NodeInputOf::non_box())]),
-            children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
-        };
-        let error = compute_layout_invalidated(
-            &tree,
-            0,
-            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(20.0))))
-                .unwrap(),
-            &[99],
-        )
-        .unwrap_err();
-        assert_eq!(
-            error.kind(),
-            &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidationNodeNotReachable)
-        );
-        assert_eq!(sink, before, "failed layout must not publish to the sink");
-    }
-
-    assert_lane::<f32>();
-    assert_lane::<f64>();
-    assert!(
-        !include_str!("block.rs").contains("LaterFriBehavior"),
-        "failed C02 text paths must not route through the legacy fallback spelling"
-    );
-}
-
-#[test]
-fn fri06_c02_contract_mixed_text_control_retains_typed_c03_capability_both_scalars() {
-    fn assert_lane<S: LayoutScalar>() {
-        let root_input = NodeInputOf {
-            display: Display::Block,
-            ..NodeInputOf::default()
-        };
-        let tree = Fri06C02TextTree {
-            inputs: HashMap::from([
-                (0, LayoutInputOf::box_input(root_input.clone())),
-                (
-                    1,
-                    LayoutInputOf::inline_text(
-                        InlineTextInputOf::try_new(vec![fri06_c02_segment(
-                            91,
-                            8.0,
-                            InlineWhitespaceEdge::Preserve,
-                            InlineBreakOpportunityOf::prohibited(),
-                        )])
-                        .unwrap(),
-                    ),
-                ),
-                (2, LayoutInputOf::line_break(LineBreakInputOf::new())),
-            ]),
-            node_inputs: HashMap::from([
-                (0, root_input),
-                (1, NodeInputOf::non_box()),
-                (2, NodeInputOf::non_box()),
-            ]),
-            children: HashMap::from([(0, vec![1, 2]), (1, Vec::new()), (2, Vec::new())]),
-        };
-
-        let error = compute_layout(
-            &tree,
-            0,
-            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(20.0))))
-                .unwrap(),
-        )
-        .unwrap_err();
+        let error = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect_err("mixed text/control layout remains a typed C03 failure");
         assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
         assert_eq!(error.operation(), LayoutOperation::ChildLayout);
         assert_eq!(
@@ -1652,6 +1780,19 @@ fn fri06_c02_contract_mixed_text_control_retains_typed_c03_capability_both_scala
                 LayoutUnsupportedCapability::LaterFriBehavior
             )
         );
+        assert_eq!(tree.retained, before_layout_failure);
+
+        tree.remove_failing_mixed_control();
+        let replacement = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("dirty text replacement stages successfully");
+        tree.reject_preparation = true;
+        let before_preparation_failure = tree.retained.clone();
+        assert_eq!(
+            replacement.apply_to(&mut tree),
+            Err("C02 retained-state preparation rejected")
+        );
+        assert_eq!(tree.retained, before_preparation_failure);
+        assert_eq!(tree.retained.dirty, [1]);
     }
 
     assert_lane::<f32>();

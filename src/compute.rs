@@ -679,6 +679,7 @@ where
     final_entries: Vec<LayoutOutputEntryOf<Tree::Node, Tree::Scalar>>,
     unrounded_inline_fragment_groups: Vec<StagedInlineFragmentGroup<Tree::Node, Tree::Scalar>>,
     final_inline_fragment_groups: Vec<StagedInlineFragmentGroup<Tree::Node, Tree::Scalar>>,
+    warm_inline_text_nodes: Vec<Tree::Node>,
     cache_store_entries: Vec<LayoutCacheStoreEntryOf<Tree::Node, Tree::Scalar>>,
     cache_clear_entries: Vec<LayoutCacheClearEntry<Tree::Node>>,
     invalidated_nodes: Vec<Tree::Node>,
@@ -705,6 +706,7 @@ where
             final_entries: Vec::new(),
             unrounded_inline_fragment_groups: Vec::new(),
             final_inline_fragment_groups: Vec::new(),
+            warm_inline_text_nodes: Vec::new(),
             cache_store_entries: Vec::new(),
             cache_clear_entries,
             invalidated_nodes,
@@ -1090,6 +1092,9 @@ where
         node: Self::Node,
         fragments: Option<Vec<InlineFragmentOutputOf<Self::Scalar>>>,
     ) {
+        if fragments.is_some() && self.warm_inline_text_nodes.contains(&node) {
+            return;
+        }
         set_inline_fragment_group(&mut self.unrounded_inline_fragment_groups, node, fragments);
     }
 
@@ -1099,6 +1104,33 @@ where
         input: ComputeInputOf<Self::Scalar>,
     ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, Tree::MeasureError>
     {
+        if input.run_mode().is_perform_layout()
+            && matches!(self.tree.layout_input(node), LayoutInputOf::InlineText(_))
+        {
+            let context = <Self as CacheAccess<Tree::MeasureError>>::cache_context(self);
+            if self.invalidated_nodes.is_empty()
+                && let Some(output) = <Self as CacheAccess<Tree::MeasureError>>::cache_get(
+                    self, node, &input, context,
+                )
+            {
+                if !self.warm_inline_text_nodes.contains(&node) {
+                    self.warm_inline_text_nodes.push(node);
+                }
+                return Ok(output);
+            }
+
+            let known = input.known();
+            let size = Size::new(
+                known.width.unwrap_or(Self::Scalar::ZERO),
+                known.height.unwrap_or(Self::Scalar::ZERO),
+            );
+            let output = ComputeOutputOf::from_sizes(size, size);
+            <Self as CacheAccess<Tree::MeasureError>>::cache_store(
+                self, node, &input, context, output,
+            );
+            return Ok(output);
+        }
+
         let style = self.node_input(node).clone();
         if input.run_mode() == RunMode::PerformHiddenLayout || style.display == super::Display::None
         {
