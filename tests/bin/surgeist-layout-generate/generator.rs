@@ -5377,13 +5377,88 @@ mod tests {
     }
 
     #[test]
-    fn generation_report_manifest_requires_full_only_fri_04_inventory() {
+    fn fri05_c06_manifest_freeze_requires_full_only_final_inventory() {
         let manifest = parse_corpus_manifest(&test_schema_two_manifest("")).expect("manifest");
         let reports = generation_report_manifest(&manifest).expect("report manifest");
         assert_eq!(reports.all_files().len(), 1);
         assert_eq!(reports.full.file, "all.json");
-        assert_eq!(reports.full.generated, 5280);
+        assert_eq!(reports.full.generated, 5324);
         assert!(reports.scoped.is_empty());
+    }
+
+    #[test]
+    fn fri05_c06_helper_captures_computed_overflow_axes() {
+        assert!(TEST_HELPER_SOURCE.contains("overflowX: parseEnum(computedStyle.overflowX)"));
+        assert!(TEST_HELPER_SOURCE.contains("overflowY: parseEnum(computedStyle.overflowY)"));
+        assert!(!TEST_HELPER_SOURCE.contains("overflowX: parseEnum(styleValue(\"overflowX\"))"));
+        assert!(!TEST_HELPER_SOURCE.contains("overflowY: parseEnum(styleValue(\"overflowY\"))"));
+    }
+
+    #[test]
+    fn fri05_c06_helper_captures_exact_computed_scroll_fields() {
+        for field in [
+            "overflowClipMargin",
+            "scrollbarGutter",
+            "scrollPaddingTop",
+            "scrollPaddingRight",
+            "scrollPaddingBottom",
+            "scrollPaddingLeft",
+            "scrollMarginTop",
+            "scrollMarginRight",
+            "scrollMarginBottom",
+            "scrollMarginLeft",
+            "scrollSnapType",
+            "scrollSnapAlign",
+            "scrollSnapStop",
+        ] {
+            assert!(
+                TEST_HELPER_SOURCE.contains(&format!("{field}: computedStyle.{field}")),
+                "helper does not capture computed {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn fri05_c06_manifest_freeze_has_exact_active_sources_and_final_buckets() {
+        let manifest =
+            parse_corpus_manifest(include_str!("../../layout/browser_parity/corpus.toml"))
+                .expect("frozen corpus manifest should parse");
+        let sources = [
+            "block/fri05_overflow_auto_cross_axis",
+            "flex/fri05_overflow_auto_cross_axis",
+            "grid/fri05_overflow_auto_cross_axis",
+            "grid/fri05_hidden_auto_minimum",
+            "grid-lanes/fri05_hidden_auto_minimum",
+            "block/fri05_mixed_axis_clip_margin",
+            "block/fri05_scrollbar_gutter_stable_both_edges",
+            "flex/fri05_nested_zero_axis_overflow",
+            "grid/fri05_nested_zero_axis_overflow",
+            "grid/fri05_scroll_extent_area_origin",
+            "block/fri05_scroll_target_geometry",
+        ];
+
+        for id in sources {
+            let matching = manifest
+                .cases
+                .iter()
+                .filter(|case| case.id == id)
+                .collect::<Vec<_>>();
+            assert_eq!(matching.len(), 1, "expected one frozen case for {id}");
+            let case = matching[0];
+            assert_eq!(case.source_root, CorpusSourceRoot::Surgeist);
+            assert_eq!(case.source, format!("{id}.html"));
+            assert_eq!(case.generator, CorpusGenerator::ConstrainedHtml);
+            assert_eq!(case.status, CorpusStatus::Active);
+        }
+
+        let reports = generation_report_manifest(&manifest).expect("report manifest");
+        assert_eq!(reports.all_files(), BTreeSet::from(["all.json"]));
+        assert!(reports.scoped.is_empty());
+        assert_eq!(reports.full.generated, 5324);
+        assert_eq!(reports.full.unsupported, 356);
+        assert_eq!(reports.full.expected_fail, 0);
+        assert_eq!(reports.full.quarantined, 0);
+        assert_eq!(reports.full.failed_to_generate, 0);
     }
 
     #[test]

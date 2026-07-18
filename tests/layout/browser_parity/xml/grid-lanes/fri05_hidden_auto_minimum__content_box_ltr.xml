@@ -1,0 +1,18 @@
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/grid-lanes/fri05_hidden_auto_minimum.html" source-sha256="9b63d874dc105adc0ca1f1c1398fddeb5373511e6a35c418d66a7f4b01ebcc94" helper-sha256="b7615b6783d3cf76ec0953533e409b9f1d5a348712fb2dd367cfc730e497584a" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<test name="fri05_hidden_auto_minimum__content_box_ltr" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="grid-lanes" box-sizing="content-box" direction="ltr" width="50px" height="20px" grid-template-columns="1fr">
+      <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" overflow-x="hidden" overflow-y="hidden" scrollbar-width="15">
+        <div source-tag="div" display="flex" box-sizing="content-box" direction="ltr" width="100px" height="20px"/>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="50" height="20">
+      <node x="0" y="0" width="50" height="20" scroll_width="0" scroll_height="0">
+        <node x="0" y="0" width="50" height="20"/>
+      </node>
+    </node>
+  </expectations>
+</test>

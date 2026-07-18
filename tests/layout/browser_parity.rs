@@ -359,12 +359,12 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
 
     let xml = support::fixture_files_in(&corpus_root.join("xml"), "xml")
         .expect("XML parity fixtures should be readable");
-    assert_eq!(xml.len(), 5280);
+    assert_eq!(xml.len(), 5324);
 
     let manifest_path = corpus_root.join("corpus.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("{} should read: {error}", manifest_path.display()));
-    assert!(manifest.contains("generated = 5280"));
+    assert!(manifest.contains("generated = 5324"));
     for source in sources {
         let case = format!(
             "id = \"{}\"\nsource_root = \"surgeist\"\nsource = \"{source}\"\ngenerator = \"constrained-html\"\nstatus = \"active\"",
@@ -393,10 +393,114 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
             .unwrap_or_else(|error| panic!("{} should read: {error}", report_path.display())),
     )
     .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
-    assert_eq!(report["summary"]["generated"], 5280);
+    assert_eq!(report["summary"]["generated"], 5324);
     assert_eq!(report["summary"]["unsupported"], 356);
     for bucket in ["expected_fail", "quarantined", "failed_to_generate"] {
         assert_eq!(report["summary"][bucket], 0, "nonzero {bucket} summary");
+    }
+}
+
+fn fri05_c06_computed_overflow_paths() -> Vec<PathBuf> {
+    let corpus_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/xml");
+    let mut paths = Vec::new();
+    for id in [
+        "block/fri05_overflow_auto_cross_axis",
+        "flex/fri05_overflow_auto_cross_axis",
+        "grid/fri05_overflow_auto_cross_axis",
+        "grid/fri05_hidden_auto_minimum",
+        "grid-lanes/fri05_hidden_auto_minimum",
+        "block/fri05_mixed_axis_clip_margin",
+        "block/fri05_scrollbar_gutter_stable_both_edges",
+        "flex/fri05_nested_zero_axis_overflow",
+        "grid/fri05_nested_zero_axis_overflow",
+        "grid/fri05_scroll_extent_area_origin",
+        "block/fri05_scroll_target_geometry",
+    ] {
+        for variant in [
+            "border_box_ltr",
+            "border_box_rtl",
+            "content_box_ltr",
+            "content_box_rtl",
+        ] {
+            paths.push(corpus_root.join(format!("{id}__{variant}.xml")));
+        }
+    }
+    paths
+}
+
+#[test]
+fn fri05_c06_computed_overflow_corpus_has_exact_44_output_inventory() {
+    let expected = fri05_c06_computed_overflow_paths();
+    assert_eq!(expected.len(), 44);
+    assert!(expected.iter().all(|path| path.is_file()));
+
+    let actual = support::fixture_files("xml")
+        .expect("XML corpus should be readable")
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("fri05_"))
+        })
+        .map(|path| {
+            path.canonicalize()
+                .unwrap_or_else(|error| panic!("{} should canonicalize: {error}", path.display()))
+        })
+        .collect::<BTreeSet<_>>();
+    let expected = expected
+        .into_iter()
+        .map(|path| {
+            path.canonicalize()
+                .unwrap_or_else(|error| panic!("{} should canonicalize: {error}", path.display()))
+        })
+        .collect();
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn fri05_c06_computed_overflow_corpus_outputs_parse() {
+    for path in fri05_c06_computed_overflow_paths() {
+        support::Golden::parse_file(&path)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", path.display()));
+    }
+}
+
+#[test]
+fn fri05_c06_computed_overflow_corpus_outputs_match_layout() {
+    for path in fri05_c06_computed_overflow_paths() {
+        let golden = support::Golden::parse_file(&path)
+            .unwrap_or_else(|error| panic!("{} failed to parse: {error}", path.display()));
+        support::assert_surgeist_matches(&golden)
+            .unwrap_or_else(|error| panic!("{} failed layout comparison: {error}", path.display()));
+    }
+}
+
+#[test]
+fn fri05_c06_computed_overflow_corpus_outputs_have_current_provenance() {
+    let report_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/layout/browser_parity/xml/generation-reports/all.json");
+    let report: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&report_path)
+            .unwrap_or_else(|error| panic!("{} should read: {error}", report_path.display())),
+    )
+    .unwrap_or_else(|error| panic!("{} should parse: {error}", report_path.display()));
+    let helper_sha = report["metadata"]["helper_sha256"]
+        .as_str()
+        .expect("report should name helper provenance");
+    for path in fri05_c06_computed_overflow_paths() {
+        let raw = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("{} should read: {error}", path.display()));
+        assert!(
+            raw.trim_start()
+                .starts_with("<!-- generated-by: surgeist-layout-generate "),
+            "{} lacks generator provenance",
+            path.display()
+        );
+        assert!(
+            raw.contains(&format!("helper-sha256=\"{helper_sha}\"")),
+            "{} has stale helper provenance",
+            path.display()
+        );
     }
 }
 
@@ -2642,7 +2746,7 @@ fn browser_parity_generation_report_counts_full_scope() {
         .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
 
     assert_eq!(report_json["filter"], serde_json::Value::Null);
-    assert_eq!(report_json["summary"]["generated"], 5280);
+    assert_eq!(report_json["summary"]["generated"], 5324);
     assert_eq!(report_json["summary"]["unsupported"], 356);
     assert_eq!(report_json["summary"]["expected_fail"], 0);
     assert_eq!(report_json["summary"]["quarantined"], 0);
@@ -2653,7 +2757,7 @@ fn browser_parity_generation_report_counts_full_scope() {
     );
     assert_eq!(
         report_bucket_len(&report_json, "generated"),
-        5280,
+        5324,
         "generated bucket length must match its summary"
     );
     assert_eq!(

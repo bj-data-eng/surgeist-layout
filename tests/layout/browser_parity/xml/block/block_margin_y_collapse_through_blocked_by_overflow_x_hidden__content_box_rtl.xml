@@ -1,10 +1,10 @@
-<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/block_margin_y_collapse_through_blocked_by_overflow_x_hidden.html" source-sha256="9e1f02990eb8e7a014548d3dd5b6a187dbe79e6d06a01bcbe56b507ce087b703" helper-sha256="45526f5b7678a935283a419eb095e23ab7c033129a0ce4343f74d7692adc4726" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/block/block_margin_y_collapse_through_blocked_by_overflow_x_hidden.html" source-sha256="9e1f02990eb8e7a014548d3dd5b6a187dbe79e6d06a01bcbe56b507ce087b703" helper-sha256="b7615b6783d3cf76ec0953533e409b9f1d5a348712fb2dd367cfc730e497584a" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
 <test name="block_margin_y_collapse_through_blocked_by_overflow_x_hidden__content_box_rtl" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
     <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" width="50px">
       <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" height="10px" margin-bottom="10px"/>
-      <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" overflow-x="hidden" scrollbar-width="15" margin-top="10px" margin-bottom="10px"/>
+      <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" overflow-x="hidden" overflow-y="auto" scrollbar-width="15" margin-top="10px" margin-bottom="10px"/>
       <div source-tag="div" display="block" box-sizing="content-box" direction="rtl" height="10px" margin-top="10px"/>
     </div>
   </input>

@@ -54,7 +54,7 @@ scoped = []
 
 [generation_reports.full]
 file = "all.json"
-generated = 5280
+generated = 5324
 unsupported = 356
 expected_fail = 0
 quarantined = 0
@@ -125,6 +125,83 @@ status = "active"
 id = "grid/fri04_track_math_functions"
 source_root = "surgeist"
 source = "grid/fri04_track_math_functions.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri05_overflow_auto_cross_axis"
+source_root = "surgeist"
+source = "block/fri05_overflow_auto_cross_axis.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/fri05_overflow_auto_cross_axis"
+source_root = "surgeist"
+source = "flex/fri05_overflow_auto_cross_axis.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri05_overflow_auto_cross_axis"
+source_root = "surgeist"
+source = "grid/fri05_overflow_auto_cross_axis.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri05_hidden_auto_minimum"
+source_root = "surgeist"
+source = "grid/fri05_hidden_auto_minimum.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid-lanes/fri05_hidden_auto_minimum"
+source_root = "surgeist"
+source = "grid-lanes/fri05_hidden_auto_minimum.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri05_mixed_axis_clip_margin"
+source_root = "surgeist"
+source = "block/fri05_mixed_axis_clip_margin.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri05_scrollbar_gutter_stable_both_edges"
+source_root = "surgeist"
+source = "block/fri05_scrollbar_gutter_stable_both_edges.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "flex/fri05_nested_zero_axis_overflow"
+source_root = "surgeist"
+source = "flex/fri05_nested_zero_axis_overflow.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri05_nested_zero_axis_overflow"
+source_root = "surgeist"
+source = "grid/fri05_nested_zero_axis_overflow.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "grid/fri05_scroll_extent_area_origin"
+source_root = "surgeist"
+source = "grid/fri05_scroll_extent_area_origin.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri05_scroll_target_geometry"
+source_root = "surgeist"
+source = "block/fri05_scroll_target_geometry.html"
 generator = "constrained-html"
 status = "active"
 

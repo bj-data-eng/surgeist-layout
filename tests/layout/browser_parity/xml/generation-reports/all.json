@@ -5,14 +5,14 @@
     "browser_source": "chrome-for-testing",
     "browser_version": "149.0.7827.115",
     "launch_profile_sha256": "9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb",
-    "helper_sha256": "45526f5b7678a935283a419eb095e23ab7c033129a0ce4343f74d7692adc4726",
+    "helper_sha256": "b7615b6783d3cf76ec0953533e409b9f1d5a348712fb2dd367cfc730e497584a",
     "base_style_sha256": "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
-    "corpus_manifest_sha256": "d7e205908915b5330159d995429339d50179286d357a96153f385abcf3bfa072",
+    "corpus_manifest_sha256": "bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1",
     "taffy_commit": "d1ff7e339b9ee35b33858779f8d7653197e93d92"
   },
   "filter": null,
   "summary": {
-    "generated": 5280,
+    "generated": 5324,
     "unsupported": 356,
     "expected_fail": 0,
     "quarantined": 0,
@@ -5489,6 +5489,102 @@
       "name": "fri04_sizing_math_functions__content_box_rtl",
       "source": "html/block/fri04_sizing_math_functions.html",
       "output": "xml/block/fri04_sizing_math_functions__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_mixed_axis_clip_margin__border_box_ltr",
+      "source": "html/block/fri05_mixed_axis_clip_margin.html",
+      "output": "xml/block/fri05_mixed_axis_clip_margin__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_mixed_axis_clip_margin__content_box_ltr",
+      "source": "html/block/fri05_mixed_axis_clip_margin.html",
+      "output": "xml/block/fri05_mixed_axis_clip_margin__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_mixed_axis_clip_margin__border_box_rtl",
+      "source": "html/block/fri05_mixed_axis_clip_margin.html",
+      "output": "xml/block/fri05_mixed_axis_clip_margin__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_mixed_axis_clip_margin__content_box_rtl",
+      "source": "html/block/fri05_mixed_axis_clip_margin.html",
+      "output": "xml/block/fri05_mixed_axis_clip_margin__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__border_box_ltr",
+      "source": "html/block/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/block/fri05_overflow_auto_cross_axis__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__content_box_ltr",
+      "source": "html/block/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/block/fri05_overflow_auto_cross_axis__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__border_box_rtl",
+      "source": "html/block/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/block/fri05_overflow_auto_cross_axis__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__content_box_rtl",
+      "source": "html/block/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/block/fri05_overflow_auto_cross_axis__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_scroll_target_geometry__border_box_ltr",
+      "source": "html/block/fri05_scroll_target_geometry.html",
+      "output": "xml/block/fri05_scroll_target_geometry__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_scroll_target_geometry__content_box_ltr",
+      "source": "html/block/fri05_scroll_target_geometry.html",
+      "output": "xml/block/fri05_scroll_target_geometry__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_scroll_target_geometry__border_box_rtl",
+      "source": "html/block/fri05_scroll_target_geometry.html",
+      "output": "xml/block/fri05_scroll_target_geometry__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_scroll_target_geometry__content_box_rtl",
+      "source": "html/block/fri05_scroll_target_geometry.html",
+      "output": "xml/block/fri05_scroll_target_geometry__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_scrollbar_gutter_stable_both_edges__border_box_ltr",
+      "source": "html/block/fri05_scrollbar_gutter_stable_both_edges.html",
+      "output": "xml/block/fri05_scrollbar_gutter_stable_both_edges__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_scrollbar_gutter_stable_both_edges__content_box_ltr",
+      "source": "html/block/fri05_scrollbar_gutter_stable_both_edges.html",
+      "output": "xml/block/fri05_scrollbar_gutter_stable_both_edges__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_scrollbar_gutter_stable_both_edges__border_box_rtl",
+      "source": "html/block/fri05_scrollbar_gutter_stable_both_edges.html",
+      "output": "xml/block/fri05_scrollbar_gutter_stable_both_edges__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_scrollbar_gutter_stable_both_edges__content_box_rtl",
+      "source": "html/block/fri05_scrollbar_gutter_stable_both_edges.html",
+      "output": "xml/block/fri05_scrollbar_gutter_stable_both_edges__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {
@@ -13388,6 +13484,54 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "fri05_nested_zero_axis_overflow__border_box_ltr",
+      "source": "html/flex/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/flex/fri05_nested_zero_axis_overflow__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_nested_zero_axis_overflow__content_box_ltr",
+      "source": "html/flex/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/flex/fri05_nested_zero_axis_overflow__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_nested_zero_axis_overflow__border_box_rtl",
+      "source": "html/flex/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/flex/fri05_nested_zero_axis_overflow__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_nested_zero_axis_overflow__content_box_rtl",
+      "source": "html/flex/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/flex/fri05_nested_zero_axis_overflow__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__border_box_ltr",
+      "source": "html/flex/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/flex/fri05_overflow_auto_cross_axis__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__content_box_ltr",
+      "source": "html/flex/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/flex/fri05_overflow_auto_cross_axis__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__border_box_rtl",
+      "source": "html/flex/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/flex/fri05_overflow_auto_cross_axis__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__content_box_rtl",
+      "source": "html/flex/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/flex/fri05_overflow_auto_cross_axis__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "gap_column_gap_child_margins__border_box_ltr",
       "source": "html/flex/gap_column_gap_child_margins.html",
       "output": "xml/flex/gap_column_gap_child_margins__border_box_ltr.xml",
@@ -20252,6 +20396,30 @@
       "variant": "content_box_rtl"
     },
     {
+      "name": "fri05_hidden_auto_minimum__border_box_ltr",
+      "source": "html/grid-lanes/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid-lanes/fri05_hidden_auto_minimum__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_hidden_auto_minimum__content_box_ltr",
+      "source": "html/grid-lanes/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid-lanes/fri05_hidden_auto_minimum__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_hidden_auto_minimum__border_box_rtl",
+      "source": "html/grid-lanes/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid-lanes/fri05_hidden_auto_minimum__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_hidden_auto_minimum__content_box_rtl",
+      "source": "html/grid-lanes/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid-lanes/fri05_hidden_auto_minimum__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
       "name": "grid_lanes_axes_horizontal_parent_orthogonal_child__border_box_ltr",
       "source": "html/grid-lanes/grid_lanes_axes_horizontal_parent_orthogonal_child.html",
       "output": "xml/grid-lanes/grid_lanes_axes_horizontal_parent_orthogonal_child__border_box_ltr.xml",
@@ -20897,6 +21065,102 @@
       "name": "fri04_track_math_functions__content_box_rtl",
       "source": "html/grid/fri04_track_math_functions.html",
       "output": "xml/grid/fri04_track_math_functions__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_hidden_auto_minimum__border_box_ltr",
+      "source": "html/grid/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid/fri05_hidden_auto_minimum__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_hidden_auto_minimum__content_box_ltr",
+      "source": "html/grid/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid/fri05_hidden_auto_minimum__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_hidden_auto_minimum__border_box_rtl",
+      "source": "html/grid/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid/fri05_hidden_auto_minimum__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_hidden_auto_minimum__content_box_rtl",
+      "source": "html/grid/fri05_hidden_auto_minimum.html",
+      "output": "xml/grid/fri05_hidden_auto_minimum__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_nested_zero_axis_overflow__border_box_ltr",
+      "source": "html/grid/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/grid/fri05_nested_zero_axis_overflow__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_nested_zero_axis_overflow__content_box_ltr",
+      "source": "html/grid/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/grid/fri05_nested_zero_axis_overflow__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_nested_zero_axis_overflow__border_box_rtl",
+      "source": "html/grid/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/grid/fri05_nested_zero_axis_overflow__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_nested_zero_axis_overflow__content_box_rtl",
+      "source": "html/grid/fri05_nested_zero_axis_overflow.html",
+      "output": "xml/grid/fri05_nested_zero_axis_overflow__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__border_box_ltr",
+      "source": "html/grid/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/grid/fri05_overflow_auto_cross_axis__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__content_box_ltr",
+      "source": "html/grid/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/grid/fri05_overflow_auto_cross_axis__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__border_box_rtl",
+      "source": "html/grid/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/grid/fri05_overflow_auto_cross_axis__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_overflow_auto_cross_axis__content_box_rtl",
+      "source": "html/grid/fri05_overflow_auto_cross_axis.html",
+      "output": "xml/grid/fri05_overflow_auto_cross_axis__content_box_rtl.xml",
+      "variant": "content_box_rtl"
+    },
+    {
+      "name": "fri05_scroll_extent_area_origin__border_box_ltr",
+      "source": "html/grid/fri05_scroll_extent_area_origin.html",
+      "output": "xml/grid/fri05_scroll_extent_area_origin__border_box_ltr.xml",
+      "variant": "border_box_ltr"
+    },
+    {
+      "name": "fri05_scroll_extent_area_origin__content_box_ltr",
+      "source": "html/grid/fri05_scroll_extent_area_origin.html",
+      "output": "xml/grid/fri05_scroll_extent_area_origin__content_box_ltr.xml",
+      "variant": "content_box_ltr"
+    },
+    {
+      "name": "fri05_scroll_extent_area_origin__border_box_rtl",
+      "source": "html/grid/fri05_scroll_extent_area_origin.html",
+      "output": "xml/grid/fri05_scroll_extent_area_origin__border_box_rtl.xml",
+      "variant": "border_box_rtl"
+    },
+    {
+      "name": "fri05_scroll_extent_area_origin__content_box_rtl",
+      "source": "html/grid/fri05_scroll_extent_area_origin.html",
+      "output": "xml/grid/fri05_scroll_extent_area_origin__content_box_rtl.xml",
       "variant": "content_box_rtl"
     },
     {

@@ -1,8 +1,8 @@
-<!-- generated-by: surgeist-layout-generate schema=2 source="html/leaf/leaf_overflow_scrollbars_affect_available_space_x_axis.html" source-sha256="1a6120b62b355e3051d9acc71d717e2e7f6e7c30bf5e4c7e6b0db9c499f2f8a1" helper-sha256="45526f5b7678a935283a419eb095e23ab7c033129a0ce4343f74d7692adc4726" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
+<!-- generated-by: surgeist-layout-generate schema=2 source="html/leaf/leaf_overflow_scrollbars_affect_available_space_x_axis.html" source-sha256="1a6120b62b355e3051d9acc71d717e2e7f6e7c30bf5e4c7e6b0db9c499f2f8a1" helper-sha256="b7615b6783d3cf76ec0953533e409b9f1d5a348712fb2dd367cfc730e497584a" base-style-sha256="5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6" browser="chrome-for-testing/149.0.7827.115 (target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing)" launch-profile-sha256="9e2b5a4850e8d5ae31cf133c30f7129f1e214705f7a848697ca42c7c1b7551cb" -->
 <test name="leaf_overflow_scrollbars_affect_available_space_x_axis__content_box_rtl" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
-    <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-x="scroll" scrollbar-width="15" width="45px" height="45px">
+    <text source-tag="div" display="flex" box-sizing="content-box" direction="rtl" overflow-x="scroll" overflow-y="auto" scrollbar-width="15" width="45px" height="45px">
       HHHHHHHHHHHHHHHHHHHHH
     </text>
   </input>
