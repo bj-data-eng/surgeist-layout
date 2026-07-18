@@ -1704,9 +1704,7 @@ where
                 SizingMode::InherentSize,
                 RequestedAxis::Both,
                 Size::NONE,
-                constants
-                    .flow_axes
-                    .physical_size(LogicalSizeOf::new(logical_node_inner_size.inline, None)),
+                constants.definite_child_containing_block_size(),
                 ContainingLayoutContext::new(
                     constants.flow_axes,
                     ParentFormattingContext::BlockFlow,
@@ -1734,6 +1732,7 @@ where
             child_margin,
             child_padding,
             child_border,
+            constants.flow_axes,
         );
         participants.push(MixedInlineParticipantOf::Atomic {
             item,
@@ -1959,12 +1958,25 @@ where
         }
     }
 
+    let projected_baseline = |baseline| {
+        constants.flow_axes.block_axis_coordinate(project_point(
+            S::ZERO,
+            baseline,
+            LogicalSizeOf::new(S::ZERO, S::ZERO),
+        ))
+    };
+    let baselines = BaselinesOf::from_block_coordinates(
+        constants.flow_axes,
+        report.first_baseline.map(projected_baseline),
+        report.last_baseline.map(projected_baseline),
+    );
+
     Ok(InlineRunPlacement {
         size: report_size,
         content_size,
         scroll_content_size,
         static_positions,
-        baselines: BaselinesOf::NONE,
+        baselines,
         first_baseline: report.first_baseline,
         last_baseline: report.last_baseline,
     })
@@ -2113,9 +2125,7 @@ where
                 SizingMode::InherentSize,
                 RequestedAxis::Both,
                 Size::NONE,
-                constants
-                    .flow_axes
-                    .physical_size(LogicalSizeOf::new(logical_node_inner_size.inline, None)),
+                constants.definite_child_containing_block_size(),
                 ContainingLayoutContext::new(
                     constants.flow_axes,
                     ParentFormattingContext::BlockFlow,
@@ -2144,6 +2154,7 @@ where
             child_margin,
             child_padding,
             child_border,
+            constants.flow_axes,
         ));
         run_children.push(InlineRunChild::Box {
             child,
@@ -2729,9 +2740,36 @@ fn atomic_inline_box_participant<S: LayoutScalar>(
     margin: Edges<S>,
     padding: Edges<S>,
     border: Edges<S>,
+    containing_flow_axes: crate::geometry::FlowAxes,
 ) -> AtomicInlineBoxParticipant<S> {
-    let child_flow_axes =
-        crate::geometry::FlowAxes::new(child_style.writing_mode, child_style.direction);
+    let logical_size = containing_flow_axes.logical_size(output.size);
+    let logical_margin = containing_flow_axes.logical_edges(margin);
+    let fallback_baseline = logical_size.block + logical_margin.block_end;
+    let used_overflow =
+        UsedOverflow::from_computed(child_style.overflow, child_style.item_is_replaced);
+    let block_overflow = match containing_flow_axes.block_axis() {
+        PhysicalAxis::Horizontal => used_overflow.x(),
+        PhysicalAxis::Vertical => used_overflow.y(),
+    };
+    let selected_inner_baseline = (child_style.vertical_align == VerticalAlign::Baseline
+        && block_overflow.value() == Overflow::Visible)
+        .then(|| {
+            let baselines = output.baselines();
+            containing_flow_axes
+                .block_axis_coordinate(baselines.first)
+                .or_else(|| containing_flow_axes.block_axis_coordinate(baselines.last))
+                .map(|physical| {
+                    if containing_flow_axes
+                        .logical_axis_progression(crate::LogicalAxis::Block)
+                        .is_decreasing()
+                    {
+                        logical_size.block - physical
+                    } else {
+                        physical
+                    }
+                })
+        })
+        .flatten();
     AtomicInlineBoxParticipant {
         source_index,
         size: output.size,
@@ -2740,14 +2778,8 @@ fn atomic_inline_box_participant<S: LayoutScalar>(
         padding,
         border,
         scrollbar_size: child_scrollbar_size(&child_style),
-        first_baseline: if child_style.vertical_align == VerticalAlign::Top {
-            Some(S::ZERO)
-        } else {
-            output
-                .baselines()
-                .last_block(child_flow_axes)
-                .or_else(|| output.baselines().first_block(child_flow_axes))
-        },
+        first_baseline: Some(selected_inner_baseline.unwrap_or(fallback_baseline)),
+        alignment: child_style.vertical_align.into(),
     }
 }
 
@@ -3536,6 +3568,14 @@ impl<S: LayoutScalar> Constants<S> {
             .block
             .map(ChildContainingBlockExtent::value);
         child_flow_axes.physical_size(LogicalSizeOf::new(child_inline_extent, child_block_extent))
+    }
+
+    fn definite_child_containing_block_size(&self) -> Size<Option<S>> {
+        self.child_containing_block_extent
+            .map(|extent| match extent {
+                Some(ChildContainingBlockExtent::Definite(value)) => Some(value),
+                Some(ChildContainingBlockExtent::FinalAutoDerived(_)) | None => None,
+            })
     }
 
     fn with_logical_node_inner_size(mut self, inner_size: LogicalSizeOf<Option<S>>) -> Self {

@@ -5164,7 +5164,7 @@ fn inline_block_uses_bottom_synthesized_baseline_when_child_has_no_baseline() {
 }
 
 #[test]
-fn inline_block_uses_inner_last_baseline_for_atomic_alignment() {
+fn inline_block_uses_inner_first_baseline_for_atomic_alignment() {
     let measured_inline_block = ComputeOutput::from_sizes_and_baselines(
         Size::new(10.0, 30.0),
         Size::new(10.0, 30.0),
@@ -5202,9 +5202,9 @@ fn inline_block_uses_inner_last_baseline_for_atomic_alignment() {
     compute_root(&mut tree, 0, Size::splat(Available::definite(100.0))).unwrap();
     round_layout(&mut tree, 0).unwrap();
 
-    assert_eq!(tree.final_layout(1).unwrap().location.y, 0.0);
+    assert_eq!(tree.final_layout(1).unwrap().location.y, 20.0);
     assert_eq!(tree.final_layout(2).unwrap().location.y, 0.0);
-    assert_eq!(tree.final_layout(0).unwrap().size.height, 30.0);
+    assert_eq!(tree.final_layout(0).unwrap().size.height, 50.0);
 }
 
 #[test]

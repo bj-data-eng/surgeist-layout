@@ -124,6 +124,57 @@ struct InlineMetricContributionOf<S: LayoutScalar> {
     after_baseline: S,
 }
 
+#[derive(Clone, Copy)]
+struct InlineLineMetricGroupsOf<S: LayoutScalar> {
+    baseline: S,
+    after_baseline: S,
+    line_over_extent: S,
+    line_under_extent: S,
+}
+
+impl<S: LayoutScalar> InlineLineMetricGroupsOf<S> {
+    fn from_strut(strut: Option<InlineMetricContributionOf<S>>) -> Self {
+        Self {
+            baseline: strut.map_or(S::ZERO, |metrics| metrics.baseline),
+            after_baseline: strut.map_or(S::ZERO, |metrics| metrics.after_baseline),
+            line_over_extent: S::ZERO,
+            line_under_extent: S::ZERO,
+        }
+    }
+
+    fn include(
+        &mut self,
+        alignment: InlineControlAlignment,
+        metrics: InlineMetricContributionOf<S>,
+    ) {
+        match alignment {
+            InlineControlAlignment::Baseline => {
+                self.baseline = self.baseline.max(metrics.baseline);
+                self.after_baseline = self.after_baseline.max(metrics.after_baseline);
+            }
+            InlineControlAlignment::Top => {
+                self.line_over_extent = self
+                    .line_over_extent
+                    .max(metrics.baseline + metrics.after_baseline);
+            }
+            InlineControlAlignment::Bottom => {
+                self.line_under_extent = self
+                    .line_under_extent
+                    .max(metrics.baseline + metrics.after_baseline);
+            }
+        }
+    }
+
+    fn resolve(self) -> InlineMetricContributionOf<S> {
+        let line_under = (self.baseline + self.after_baseline).max(self.line_over_extent);
+        let line_over = (line_under - self.line_under_extent).min(S::ZERO);
+        InlineMetricContributionOf {
+            baseline: self.baseline - line_over,
+            after_baseline: line_under - self.baseline,
+        }
+    }
+}
+
 fn discards_at_start(edge: InlineWhitespaceEdge) -> bool {
     matches!(
         edge,
@@ -189,10 +240,7 @@ impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
             Self::Atomic { item, .. } => {
                 let logical_size = flow_axes.logical_size(item.size);
                 let logical_margin = flow_axes.logical_edges(item.margin);
-                let baseline = item
-                    .first_baseline
-                    .unwrap_or(logical_size.block)
-                    .min(logical_size.block);
+                let baseline = item.first_baseline.unwrap_or(logical_size.block);
                 InlineMetricContributionOf {
                     baseline: logical_margin.block_start + baseline,
                     after_baseline: logical_size.block - baseline + logical_margin.block_end,
@@ -212,6 +260,15 @@ impl<S: LayoutScalar> MixedInlineParticipantOf<S> {
                     after_baseline: metrics.after_baseline(),
                 }
             }
+        }
+    }
+
+    fn alignment(self) -> InlineControlAlignment {
+        match self {
+            Self::ShapedText(_) => InlineControlAlignment::Baseline,
+            Self::Atomic { item, .. } => item.alignment,
+            Self::ForcedLineBreak(control) => control.alignment(),
+            Self::Boundary(control) => control.alignment(),
         }
     }
 }
@@ -253,12 +310,15 @@ fn select_inline_line<S: LayoutScalar>(
         }
     }
 
-    let mut baseline = strut.map_or(S::ZERO, |metrics| metrics.baseline);
-    let mut after_baseline = strut.map_or(S::ZERO, |metrics| metrics.after_baseline);
+    let mut metric_groups = InlineLineMetricGroupsOf::from_strut(strut);
     if let Some(control) = line_break {
-        let metrics = control.metrics();
-        baseline = baseline.max(metrics.baseline());
-        after_baseline = after_baseline.max(metrics.after_baseline());
+        metric_groups.include(
+            control.alignment(),
+            InlineMetricContributionOf {
+                baseline: control.metrics().baseline(),
+                after_baseline: control.metrics().after_baseline(),
+            },
+        );
     }
     let mut used_inline_extent = S::ZERO;
     let selected_replacement = selected_break
@@ -275,9 +335,7 @@ fn select_inline_line<S: LayoutScalar>(
         .enumerate()
         .map(|(index, participant)| {
             if !discarded[index] {
-                let metrics = participant.metrics(flow_axes);
-                baseline = baseline.max(metrics.baseline);
-                after_baseline = after_baseline.max(metrics.after_baseline);
+                metric_groups.include(participant.alignment(), participant.metrics(flow_axes));
                 used_inline_extent = used_inline_extent + participant.inline_advance(flow_axes);
             }
             let replacement_inline_extent = (index + 1 == participants.len())
@@ -293,6 +351,7 @@ fn select_inline_line<S: LayoutScalar>(
             }
         })
         .collect();
+    let metrics = metric_groups.resolve();
 
     SelectedInlineLineOf {
         units,
@@ -300,8 +359,8 @@ fn select_inline_line<S: LayoutScalar>(
         post_line_clear_intent: line_break.map_or(PostLineClearIntent::None, |control| {
             mapped_post_line_clear_intent(flow_axes, control.clear())
         }),
-        baseline,
-        after_baseline,
+        baseline: metrics.baseline,
+        after_baseline: metrics.after_baseline,
         used_inline_extent,
     }
 }
@@ -626,24 +685,38 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
                 MixedInlineParticipantOf::Atomic { item, .. } => {
                     let logical_margin = input.flow_axes.logical_edges(item.margin);
                     let logical_size = input.flow_axes.logical_size(item.size);
-                    let baseline = item
-                        .first_baseline
-                        .unwrap_or(logical_size.block)
-                        .min(logical_size.block);
+                    let line_block_extent = line.baseline + line.after_baseline;
+                    let baseline = item.first_baseline.unwrap_or(logical_size.block);
+                    let item_block_start = match item.alignment {
+                        InlineControlAlignment::Baseline => line_baseline - baseline,
+                        InlineControlAlignment::Top => block_start - logical_margin.block_start,
+                        InlineControlAlignment::Bottom => {
+                            block_start + line_block_extent
+                                - logical_margin.block_end
+                                - logical_size.block
+                        }
+                    };
                     atomics.push(AtomicInlineSourceOf {
                         item,
                         inline_start: inline_start + logical_margin.inline_start,
-                        block_start: line_baseline - baseline,
+                        block_start: item_block_start,
                         line_index,
                         visual_index: visual_indices[source_index],
                     });
                 }
                 MixedInlineParticipantOf::Boundary(control) => {
+                    let control_block = control_block_position(
+                        control.alignment(),
+                        control.metrics(),
+                        block_start,
+                        line_baseline,
+                        line.baseline + line.after_baseline,
+                    );
                     controls.push(InlineControlSourceOf {
                         kind: inline_boundary_layout_kind(control.kind()),
                         source_index: control.source_index(),
                         inline_start,
-                        block_start: line_baseline,
+                        block_start: control_block,
                         line_index,
                         visual_index: Some(visual_indices[source_index]),
                     });
@@ -654,11 +727,18 @@ pub(super) fn layout_mixed_inline_run<S: LayoutScalar>(
             }
         }
         if let Some(control) = line.line_break {
+            let control_block = control_block_position(
+                control.alignment(),
+                control.metrics(),
+                block_start,
+                line_baseline,
+                line.baseline + line.after_baseline,
+            );
             controls.push(InlineControlSourceOf {
                 kind: InlineParticipantLayoutKind::ForcedLineBreak,
                 source_index: control.source_index(),
                 inline_start: line_inline_start + line.used_inline_extent,
-                block_start: line_baseline,
+                block_start: control_block,
                 line_index,
                 visual_index: None,
             });
@@ -689,6 +769,23 @@ pub(super) struct AtomicInlineBoxParticipant<S: LayoutScalar = DefaultScalar> {
     pub border: Edges<S>,
     pub scrollbar_size: Size<S>,
     pub first_baseline: Option<S>,
+    pub alignment: InlineControlAlignment,
+}
+
+fn control_block_position<S: LayoutScalar>(
+    alignment: InlineControlAlignment,
+    metrics: InlineMetricsOf<S>,
+    line_block_start: S,
+    line_baseline: S,
+    line_block_extent: S,
+) -> S {
+    match alignment {
+        InlineControlAlignment::Baseline => line_baseline,
+        InlineControlAlignment::Top => line_block_start + metrics.baseline(),
+        InlineControlAlignment::Bottom => {
+            line_block_start + line_block_extent - metrics.after_baseline()
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -788,7 +885,6 @@ impl<S: LayoutScalar> ForcedLineBreakControlOf<S> {
         self.metrics
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub(super) const fn alignment(self) -> InlineControlAlignment {
         self.alignment
@@ -847,7 +943,6 @@ impl<S: LayoutScalar> InlineBoundaryControlOf<S> {
         self.metrics
     }
 
-    #[allow(dead_code)]
     #[must_use]
     pub(super) const fn alignment(self) -> InlineControlAlignment {
         self.alignment
@@ -878,6 +973,7 @@ impl<S: LayoutScalar> InlineParticipant<S> {
             border: Edges::ZERO,
             scrollbar_size: Size::ZERO,
             first_baseline,
+            alignment: InlineControlAlignment::Baseline,
         })
     }
 
