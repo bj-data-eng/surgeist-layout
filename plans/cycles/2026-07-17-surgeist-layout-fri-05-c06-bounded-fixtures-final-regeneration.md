@@ -228,7 +228,8 @@ sources.
 `tests/layout/browser_parity.rs` for final XML, manifest, and report inventory,
 generator-derived `tests/layout/browser_parity/xml/`, and
 `tests/layout/browser_parity/xml/generation-reports/all.json`; plus
-`src/block.rs` and focused `src/block_tests.rs` coverage for the confirmed
+`src/block.rs`, focused `src/block_tests.rs`, and the directly affected
+`src/root_tests.rs` publication/cache expectation for the confirmed
 reserved-gutter range-basis omission.
 
 **Outcome:** The exact computed-style helper fields, eleven active records,
@@ -244,9 +245,11 @@ gutters from physical range, then performs only read-only verification.
 helper drops the named fields, authored cross-group pairs still couple inside
 the parser, the manifest and derived corpus do not yet express the eleven
 computed-style sources, and final inventory assertions still expect 5,280 XML.
-The remaining smallest block front-door regression must fail
-with a 15px horizontal range where both-edge gutters and non-overflowing content
-require zero, matching the corpus failure.
+The remaining browser-shaped block front-door regression retains complete
+overflow `100x150` and y span `50` while failing with x span `15` where the
+frozen oracle requires zero.
+The existing root rounding/cache test is additional RED: its gutter-only vertical
+range expects `(-6.6, 0)` after production correctly returns `(0, 0)`.
 
 **Completed pre-derivation evidence:** The helper captures all D-13 computed
 fields without reading authored shorthand and its focused smoke tests pass.
@@ -293,8 +296,14 @@ selects the existing scrollport range basis before canonical geometry in every
 current block path that constructs such contributions, including retained-child
 fallback geometry, without changing complete overflow, public API, flex/grid
 behavior, or generator architecture. The focused block regression and original
-44-output corpus comparison pass. This correction and all subsequent checks are
-read-only with respect to generated artifacts; do not regenerate.
+44-output corpus comparison pass: its complete overflow remains `100x150`, y
+span remains `50`, and only x changes from `15` RED to `0` GREEN. Root
+publication proves unrounded, rounded,
+and warm-cache block geometry retain the padding-box complete overflow while
+both range axes stay `(0, 0)`; cold unrounded and rounded outputs equal their
+warm-cache counterparts. No root production code may change. This correction
+and all subsequent checks are read-only with respect to generated artifacts; do
+not regenerate.
 
 **Remaining read-only commands:**
 ```sh
@@ -303,6 +312,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri0
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_manifest_freeze_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_corpus_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c06_block_reserved_gutter_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_area_in_both_scalar_lanes
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
@@ -333,7 +343,8 @@ git diff --check
 7. Focused FRI-05 parity, corpus and Taffy validation, normal and
    generator-feature gates, provenance, diff, unsafe, and scope review pass.
 8. The confirmed block omission has a block-front-door RED/GREEN test; the fix
-   reuses the existing accumulator range basis and preserves complete overflow.
+   reuses the existing accumulator range basis, preserves `100x150` complete
+   overflow and y span `50`, and changes only x span from `15` to `0`.
 9. No other production, public API, docs, dependency, feature, MSRV, browser policy,
    base style, task runner, root, sibling, expected-failure, quarantine, or
    unrelated source change enters the range.
@@ -349,6 +360,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri0
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri05_c06_manifest_freeze_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_computed_overflow_corpus_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c06_block_reserved_gutter_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c03_integration_padding_seed_root_rounding_and_cache_preserve_gutter_area_in_both_scalar_lanes
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri05_c06_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
