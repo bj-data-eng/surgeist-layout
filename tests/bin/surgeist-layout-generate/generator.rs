@@ -6045,7 +6045,7 @@ if (expectedReason === undefined) {{
             (
                 "flex/fri05_nested_zero_axis_overflow.html",
                 [
-                    "display: flex",
+                    "display: flex; overflow: auto",
                     "width: 0px; height: 0px",
                     "width: 0px; height: 200px",
                 ],
@@ -6053,7 +6053,7 @@ if (expectedReason === undefined) {{
             (
                 "grid/fri05_nested_zero_axis_overflow.html",
                 [
-                    "display: grid",
+                    "display: grid; overflow: auto",
                     "width: 0px; height: 0px",
                     "width: 0px; height: 200px",
                 ],
