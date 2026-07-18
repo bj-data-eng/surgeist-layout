@@ -32,6 +32,55 @@ fn layout_scalar_supports_f32_and_f64() {
 }
 
 #[test]
+fn fri06_c02_contract_block_has_no_c02_text_fallback_spelling() {
+    let block = include_str!("block.rs");
+    assert!(
+        !block.contains("LaterFriBehavior"),
+        "C02 text paths must be closed while C03 mixed behavior remains typed indirectly"
+    );
+}
+
+#[test]
+fn fri06_c02_contract_inline_has_no_shaping_or_measurement_path() {
+    let inline = include_str!("inline.rs");
+    for forbidden in ["shape", "glyph", "font", "measure_leaf"] {
+        assert!(
+            !inline.contains(forbidden),
+            "inline production contains forbidden shaping or measurement spelling {forbidden}"
+        );
+    }
+}
+
+#[test]
+fn fri06_c02_contract_text_source_has_no_owned_dead_code_allowance() {
+    let inline = include_str!("inline.rs");
+    let text_source = inline
+        .split_once("pub(super) struct ShapedTextParticipantOf")
+        .unwrap()
+        .1
+        .split_once("pub(super) struct AtomicInlineBoxParticipant")
+        .unwrap()
+        .0;
+    assert!(
+        !text_source.contains("#[allow(dead_code)]"),
+        "the consumed C02 text source retains an obsolete dead-code allowance"
+    );
+}
+
+#[test]
+fn fri06_c02_contract_cache_key_context_remains_one_unit_declaration() {
+    let cache = include_str!("cache.rs");
+    assert_eq!(
+        cache
+            .lines()
+            .filter(|line| *line == "pub struct CacheKeyContext;")
+            .count(),
+        1
+    );
+    assert_eq!(core::mem::size_of::<CacheKeyContext>(), 0);
+}
+
+#[test]
 fn parent_formatting_context_is_closed_and_exact() {
     fn name(context: ParentFormattingContext) -> &'static str {
         match context {

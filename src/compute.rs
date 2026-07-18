@@ -656,6 +656,20 @@ where
     )
 }
 
+pub(crate) fn mixed_inline_later_capability_error<Node, S, M>(
+    node: Node,
+) -> LayoutErrorOf<Node, S, M>
+where
+    Node: Copy,
+    S: LayoutScalar,
+{
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        LayoutOperation::ChildLayout,
+        LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior),
+    )
+}
+
 struct ComputeSession<'a, Tree>
 where
     Tree: LayoutTree,
@@ -2967,7 +2981,7 @@ mod tests {
         }
     }
 
-    fn assert_fri06_c01_fragment_rounding_and_readback<S: LayoutScalar>() {
+    fn assert_fri06_c02_fragment_rounding_and_readback<S: LayoutScalar>() {
         let staged_tree = FragmentTree::<S> {
             input: NodeInputOf::non_box(),
             layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
@@ -3038,55 +3052,65 @@ mod tests {
     }
 
     #[test]
-    fn fri06_c01_fragment_staged_and_committed_readback_round_once_in_both_scalar_lanes() {
-        assert_fri06_c01_fragment_rounding_and_readback::<f32>();
-        assert_fri06_c01_fragment_rounding_and_readback::<f64>();
+    fn fri06_c02_cache_staged_and_committed_nonempty_and_empty_fragments_round_once_both_scalars() {
+        assert_fri06_c02_fragment_rounding_and_readback::<f32>();
+        assert_fri06_c02_fragment_rounding_and_readback::<f64>();
     }
 
     #[test]
-    fn fri06_c01_fragment_missing_warm_text_state_fails_without_substitute_output() {
-        let tree = FragmentTree::<f32> {
-            input: NodeInputOf::non_box(),
-            layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
-            committed: None,
-            readback_calls: std::cell::Cell::new(0),
-        };
-        let mut session = ComputeSession::new(&tree, Vec::new());
-        Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
+    fn fri06_c02_cache_missing_warm_fragment_state_fails_without_publication_both_scalars() {
+        fn assert_lane<S: LayoutScalar>() {
+            let tree = FragmentTree::<S> {
+                input: NodeInputOf::non_box(),
+                layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
+                committed: None,
+                readback_calls: std::cell::Cell::new(0),
+            };
+            let mut session = ComputeSession::new(&tree, Vec::new());
+            Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
 
-        let error = round_layout(&mut session, 0).unwrap_err();
-        assert_eq!(tree.readback_calls.get(), 1);
+            let error = round_layout(&mut session, 0).unwrap_err();
+            assert_eq!(tree.readback_calls.get(), 1);
 
-        assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
-        assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
-        assert_eq!(
-            error.kind(),
-            &LayoutErrorKindOf::InternalInvariant(
-                LayoutInternalInvariant::MissingCachedInlineFragmentState,
-            )
-        );
-        assert!(session.final_entries.is_empty());
-        assert!(session.final_inline_fragment_groups.is_empty());
+            assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
+            assert_eq!(error.operation(), LayoutOperation::RoundingFinalization);
+            assert_eq!(
+                error.kind(),
+                &LayoutErrorKindOf::InternalInvariant(
+                    LayoutInternalInvariant::MissingCachedInlineFragmentState,
+                )
+            );
+            assert!(session.final_entries.is_empty());
+            assert!(session.final_inline_fragment_groups.is_empty());
+        }
+
+        assert_lane::<f32>();
+        assert_lane::<f64>();
     }
 
     #[test]
-    fn fri06_c01_fragment_hidden_state_publishes_no_fragment_and_needs_no_readback() {
-        let tree = FragmentTree::<f32> {
-            input: NodeInputOf::non_box(),
-            layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
-            committed: None,
-            readback_calls: std::cell::Cell::new(0),
-        };
-        let mut session = ComputeSession::new(&tree, Vec::new());
-        Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
-        Compute::set_unrounded_inline_fragment_state(&mut session, 0, None);
+    fn fri06_c02_cache_hidden_text_needs_no_committed_fragment_state_both_scalars() {
+        fn assert_lane<S: LayoutScalar>() {
+            let tree = FragmentTree::<S> {
+                input: NodeInputOf::non_box(),
+                layout_input: LayoutInputOf::inline_text(fri06_c01_text_input()),
+                committed: None,
+                readback_calls: std::cell::Cell::new(0),
+            };
+            let mut session = ComputeSession::new(&tree, Vec::new());
+            Compute::set_unrounded(&mut session, 0, NodeOutputOf::new());
+            Compute::set_unrounded_inline_fragment_state(&mut session, 0, None);
 
-        round_layout(&mut session, 0).unwrap();
-        assert_eq!(tree.readback_calls.get(), 0);
+            round_layout(&mut session, 0).unwrap();
+            assert_eq!(tree.readback_calls.get(), 0);
 
-        let batch = session.complete();
-        assert!(batch.unrounded_inline_fragments().is_empty());
-        assert!(batch.final_inline_fragments().is_empty());
+            let batch = session.complete();
+            assert!(batch.unrounded_inline_fragments().is_empty());
+            assert!(batch.final_inline_fragments().is_empty());
+        }
+
+        assert_lane::<f32>();
+        assert_lane::<f64>();
     }
 
     fn assert_fri06_c01_fragment_rounding_overflow<S: LayoutScalar>(largest: S) {
@@ -3113,7 +3137,7 @@ mod tests {
     }
 
     #[test]
-    fn fri06_c01_fragment_rounding_overflow_returns_typed_error_without_panic() {
+    fn fri06_c02_rounding_overflow_returns_typed_error_without_panic() {
         assert_fri06_c01_fragment_rounding_overflow(f32::MAX);
         assert_fri06_c01_fragment_rounding_overflow(f64::MAX);
     }

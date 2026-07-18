@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use super::inline::{
     AtomicInlineBoxParticipant, ForcedLineBreakControlOf, InlineBoundaryControlOf,
     InlineControlAlignment, InlineFlowOf, InlineParticipant, InlineRunInput, InlineRunReport,
-    ShapedTextParticipantOf, ShapedTextRunInputOf, layout_inline_run, layout_shaped_text_run,
+    ShapedTextParticipantOf, ShapedTextRunInputOf, layout_inline_run, layout_text_run,
 };
 use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
@@ -1568,7 +1568,7 @@ where
                 .collect::<Vec<_>>()
         })
         .collect();
-    let report = layout_shaped_text_run(ShapedTextRunInputOf {
+    let report = layout_text_run(ShapedTextRunInputOf {
         available_inline_extent,
         flow_axes: constants.flow_axes,
         text_align: constants.text_align,
@@ -1717,13 +1717,7 @@ where
         .copied()
         .find(|child| matches!(tree.layout_input(*child), LayoutInputOf::InlineText(_)))
     {
-        return Err(crate::LayoutErrorOf::new(
-            crate::LayoutErrorSiteOf::Node(child),
-            crate::LayoutOperation::ChildLayout,
-            crate::LayoutErrorKindOf::UnsupportedCapability(
-                crate::LayoutUnsupportedCapability::LaterFriBehavior,
-            ),
-        ));
+        return Err(crate::compute::mixed_inline_later_capability_error(child));
     }
 
     let InlineRunContext {
@@ -1753,13 +1747,7 @@ where
         let child_style = match tree.layout_input(child) {
             LayoutInputOf::Box(style) => *style,
             LayoutInputOf::InlineText(_) => {
-                return Err(crate::LayoutErrorOf::new(
-                    crate::LayoutErrorSiteOf::Node(child),
-                    crate::LayoutOperation::ChildLayout,
-                    crate::LayoutErrorKindOf::UnsupportedCapability(
-                        crate::LayoutUnsupportedCapability::LaterFriBehavior,
-                    ),
-                ));
+                unreachable!("text-only and mixed runs return before legacy inline layout")
             }
             LayoutInputOf::LineBreak(line_break) => {
                 if line_break.display().is_none() {

@@ -155,7 +155,7 @@ fn select_text_line<S: LayoutScalar>(
     }
 }
 
-fn shaped_text_min_content<S: LayoutScalar>(participants: &[ShapedTextParticipantOf<S>]) -> S {
+fn text_min_content<S: LayoutScalar>(participants: &[ShapedTextParticipantOf<S>]) -> S {
     let mut maximum = S::ZERO;
     let mut group_start = 0;
     for (index, participant) in participants.iter().enumerate() {
@@ -173,7 +173,7 @@ fn shaped_text_min_content<S: LayoutScalar>(participants: &[ShapedTextParticipan
     maximum
 }
 
-fn shaped_text_max_content<S: LayoutScalar>(participants: &[ShapedTextParticipantOf<S>]) -> S {
+fn text_max_content<S: LayoutScalar>(participants: &[ShapedTextParticipantOf<S>]) -> S {
     let mut maximum = S::ZERO;
     let mut group_start = 0;
     for (index, participant) in participants.iter().enumerate() {
@@ -253,7 +253,7 @@ fn reordered_text_segment_indices<S: LayoutScalar>(
     indices
 }
 
-fn shaped_text_line_offset<S: LayoutScalar>(
+fn text_line_offset<S: LayoutScalar>(
     used_inline_extent: S,
     available_inline_extent: S,
     flow_axes: FlowAxes,
@@ -273,13 +273,13 @@ fn shaped_text_line_offset<S: LayoutScalar>(
 }
 
 #[must_use]
-pub(super) fn layout_shaped_text_run<S: LayoutScalar>(
+pub(super) fn layout_text_run<S: LayoutScalar>(
     input: ShapedTextRunInputOf<S>,
 ) -> ShapedTextRunReportOf<S> {
     let available = match input.available_inline_extent {
         AvailableOf::Definite(value) => value,
-        AvailableOf::MinContent => shaped_text_min_content(&input.participants),
-        AvailableOf::MaxContent => shaped_text_max_content(&input.participants),
+        AvailableOf::MinContent => text_min_content(&input.participants),
+        AvailableOf::MaxContent => text_max_content(&input.participants),
     };
     let wraps = !matches!(input.available_inline_extent, AvailableOf::MaxContent);
     let mut selected_lines = Vec::new();
@@ -346,7 +346,7 @@ pub(super) fn layout_shaped_text_run<S: LayoutScalar>(
         let line_baseline = block_start + line.baseline;
         first_baseline.get_or_insert(line_baseline);
         last_baseline = Some(line_baseline);
-        let line_inline_start = shaped_text_line_offset(
+        let line_inline_start = text_line_offset(
             line.used_inline_extent,
             available,
             input.flow_axes,

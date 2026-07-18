@@ -1371,6 +1371,293 @@ fn fri06_c02_scroll_uses_fragment_rects_without_replacement_or_full_line_proxy_b
     assert_lane::<f64>();
 }
 
+#[test]
+fn fri06_c02_cache_cold_invalidated_replay_replaces_dirty_text_and_normalizes_duplicates_both_scalars()
+ {
+    fn assert_lane<S: LayoutScalar>() {
+        let root_input = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        };
+        let request = LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(S::from_f64(20.0)),
+            AvailableOf::MAX_CONTENT,
+        ))
+        .unwrap();
+        let tree_for = |segment_id, extent| Fri06C02TextTree {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_input.clone())),
+                (
+                    1,
+                    LayoutInputOf::inline_text(
+                        InlineTextInputOf::try_new(vec![fri06_c02_segment(
+                            segment_id,
+                            extent,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::prohibited(),
+                        )])
+                        .unwrap(),
+                    ),
+                ),
+            ]),
+            node_inputs: HashMap::from([(0, root_input.clone()), (1, NodeInputOf::non_box())]),
+            children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
+        };
+
+        let cold_tree = tree_for(61, 9.25);
+        let cold = compute_layout(&cold_tree, 0, request).unwrap();
+        let replay = compute_layout(&cold_tree, 0, request).unwrap();
+        assert_eq!(cold, replay, "cold replay must be deterministic");
+
+        let dirty_tree = tree_for(62, 13.75);
+        let invalidated = compute_layout_invalidated(&dirty_tree, 0, request, &[1, 1]).unwrap();
+        assert_eq!(invalidated.invalidated_nodes(), &[0, 1]);
+        assert_eq!(
+            invalidated
+                .cache_clear_entries()
+                .iter()
+                .map(LayoutCacheClearEntry::node)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        assert_eq!(invalidated.final_inline_fragments().len(), 1);
+        assert_eq!(
+            invalidated.final_inline_fragments()[0]
+                .fragment()
+                .segment_id(),
+            InlineSegmentId::new(62)
+        );
+        assert_ne!(
+            invalidated.final_inline_fragments(),
+            cold.final_inline_fragments(),
+            "dirty text must replace stale fragment identity and geometry"
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+    assert!(
+        !include_str!("block.rs").contains("LaterFriBehavior"),
+        "the production block source must not spell a C02 text fallback"
+    );
+}
+
+#[test]
+fn fri06_c02_rounding_fractional_fragments_round_once_without_identity_drift_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let replacement =
+            InlineBreakOpportunityOf::try_allowed_with_replacement(S::from_f64(0.75)).unwrap();
+        let batch = fri06_c02_text_batch(
+            vec![
+                fri06_c02_segment(71, 8.25, InlineWhitespaceEdge::Preserve, replacement),
+                fri06_c02_segment(
+                    72,
+                    8.25,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ],
+            AvailableOf::definite(S::from_f64(10.5)),
+        );
+        let unrounded = batch.unrounded_inline_fragments();
+        let final_fragments = batch.final_inline_fragments();
+        assert_eq!(unrounded.len(), 2);
+        assert_eq!(final_fragments.len(), 2);
+        assert_eq!(
+            unrounded
+                .iter()
+                .map(|entry| {
+                    let fragment = entry.fragment();
+                    (
+                        entry.node(),
+                        fragment.segment_id(),
+                        fragment.line_index(),
+                        fragment.visual_index(),
+                        fragment.replacement_inline_extent(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            final_fragments
+                .iter()
+                .map(|entry| {
+                    let fragment = entry.fragment();
+                    (
+                        entry.node(),
+                        fragment.segment_id(),
+                        fragment.line_index(),
+                        fragment.visual_index(),
+                        fragment.replacement_inline_extent(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            unrounded[0].fragment().rect().size().width,
+            S::from_f64(8.25)
+        );
+        assert_eq!(
+            final_fragments[0].fragment().rect().size().width,
+            S::from_f64(8.0)
+        );
+        assert_eq!(unrounded[0].fragment().baseline().y, S::from_f64(8.0));
+        assert_eq!(final_fragments[0].fragment().baseline().y, S::from_f64(8.0));
+        assert_eq!(
+            unrounded[0].fragment().replacement_inline_extent(),
+            Some(S::from_f64(0.75))
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+    let inline = include_str!("inline.rs");
+    for forbidden in ["shaped_text_", "glyph", "font", "measure_leaf"] {
+        assert!(
+            !inline.contains(forbidden),
+            "inline production retains forbidden C02 path spelling {forbidden}"
+        );
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Fri06C02RejectingBatchSink {
+    committed: bool,
+}
+
+impl<S: LayoutScalar> LayoutBatchSink<u32, S> for Fri06C02RejectingBatchSink {
+    type Error = &'static str;
+    type Prepared = ();
+
+    fn prepare_layout_batch(
+        &self,
+        _batch: &CompletedLayoutBatchOf<u32, S>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        Err("C02 immutable preparation rejected")
+    }
+
+    fn commit_layout_batch(&mut self, (): Self::Prepared) {
+        self.committed = true;
+    }
+}
+
+#[test]
+fn fri06_c02_transaction_layout_and_preparation_failures_publish_nothing_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let batch = fri06_c02_text_batch(
+            vec![fri06_c02_segment(
+                81,
+                7.5,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )],
+            AvailableOf::definite(S::from_f64(20.0)),
+        );
+        let mut sink = Fri06C02RejectingBatchSink::default();
+        let before = sink.clone();
+        assert_eq!(
+            batch.apply_to(&mut sink),
+            Err("C02 immutable preparation rejected")
+        );
+        assert_eq!(sink, before);
+
+        let root_input = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        };
+        let tree = Fri06C02TextTree {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_input.clone())),
+                (
+                    1,
+                    LayoutInputOf::inline_text(
+                        InlineTextInputOf::try_new(vec![fri06_c02_segment(
+                            82,
+                            8.5,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::prohibited(),
+                        )])
+                        .unwrap(),
+                    ),
+                ),
+            ]),
+            node_inputs: HashMap::from([(0, root_input), (1, NodeInputOf::non_box())]),
+            children: HashMap::from([(0, vec![1]), (1, Vec::new())]),
+        };
+        let error = compute_layout_invalidated(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(20.0))))
+                .unwrap(),
+            &[99],
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::InvalidationNodeNotReachable)
+        );
+        assert_eq!(sink, before, "failed layout must not publish to the sink");
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+    assert!(
+        !include_str!("block.rs").contains("LaterFriBehavior"),
+        "failed C02 text paths must not route through the legacy fallback spelling"
+    );
+}
+
+#[test]
+fn fri06_c02_contract_mixed_text_control_retains_typed_c03_capability_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let root_input = NodeInputOf {
+            display: Display::Block,
+            ..NodeInputOf::default()
+        };
+        let tree = Fri06C02TextTree {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_input.clone())),
+                (
+                    1,
+                    LayoutInputOf::inline_text(
+                        InlineTextInputOf::try_new(vec![fri06_c02_segment(
+                            91,
+                            8.0,
+                            InlineWhitespaceEdge::Preserve,
+                            InlineBreakOpportunityOf::prohibited(),
+                        )])
+                        .unwrap(),
+                    ),
+                ),
+                (2, LayoutInputOf::line_break(LineBreakInputOf::new())),
+            ]),
+            node_inputs: HashMap::from([
+                (0, root_input),
+                (1, NodeInputOf::non_box()),
+                (2, NodeInputOf::non_box()),
+            ]),
+            children: HashMap::from([(0, vec![1, 2]), (1, Vec::new()), (2, Vec::new())]),
+        };
+
+        let error = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(20.0))))
+                .unwrap(),
+        )
+        .unwrap_err();
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(1));
+        assert_eq!(error.operation(), LayoutOperation::ChildLayout);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::UnsupportedCapability(
+                LayoutUnsupportedCapability::LaterFriBehavior
+            )
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn assert_positive_physical_range<S: LayoutScalar>(
     range: PhysicalScrollRangeOf<S>,
     maximum: Size<S>,
