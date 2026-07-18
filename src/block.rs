@@ -434,6 +434,12 @@ pub(super) struct FloatBand<S: LayoutScalar> {
     pub(super) evaluated: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct BfcBandPlacement<S: LayoutScalar> {
+    location: Point<S>,
+    available_inline: S,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum FloatBandQueryPurpose {
     PhysicalMarginBoxCollision,
@@ -622,7 +628,8 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         margin: Edges<S>,
         clear: Clear,
         fallback: Point<S>,
-    ) -> Point<S> {
+        inline_size_is_auto: bool,
+    ) -> BfcBandPlacement<S> {
         let logical_size = self.flow_axes.logical_size(size);
         let logical_margin = self.flow_axes.logical_edges(margin);
         let margin_box_inline = logical_size.inline + logical_margin.inline_sum();
@@ -639,27 +646,41 @@ impl<S: LayoutScalar> FloatExclusions<S> {
             let fallback_start = fallback_logical.inline - logical_margin.inline_start;
             let fallback_end =
                 fallback_logical.inline + logical_size.inline + logical_margin.inline_end;
-            if margin_box_inline <= (band.inline_end - band.inline_start).max(S::ZERO) {
-                let inline =
-                    if fallback_start >= band.inline_start && fallback_end <= band.inline_end {
-                        fallback_logical.inline
-                    } else {
-                        band.inline_start + logical_margin.inline_start
-                    };
-                return self.flow_axes.physical_point(
-                    LogicalPointOf::new(inline, candidate_block),
-                    logical_size,
-                    self.containing_size,
-                );
+            let available_inline = (band.inline_end - band.inline_start).max(S::ZERO);
+            let required_inline = if inline_size_is_auto {
+                logical_margin.inline_sum()
+            } else {
+                margin_box_inline
+            };
+            if required_inline <= available_inline {
+                let inline = if !inline_size_is_auto
+                    && fallback_start >= band.inline_start
+                    && fallback_end <= band.inline_end
+                {
+                    fallback_logical.inline
+                } else {
+                    band.inline_start + logical_margin.inline_start
+                };
+                return BfcBandPlacement {
+                    location: self.flow_axes.physical_point(
+                        LogicalPointOf::new(inline, candidate_block),
+                        logical_size,
+                        self.containing_size,
+                    ),
+                    available_inline,
+                };
             }
             if let Some(next_transition) = band.next_transition {
                 candidate_block = next_transition;
             } else {
-                return self.flow_axes.physical_point(
-                    LogicalPointOf::new(fallback_logical.inline, candidate_block),
-                    logical_size,
-                    self.containing_size,
-                );
+                return BfcBandPlacement {
+                    location: self.flow_axes.physical_point(
+                        LogicalPointOf::new(fallback_logical.inline, candidate_block),
+                        logical_size,
+                        self.containing_size,
+                    ),
+                    available_inline,
+                };
             }
         }
     }
@@ -1300,7 +1321,7 @@ where
             child_logical_node_inner_size,
             available_child_inline,
         )?;
-        let child_input = ComputeInputOf::<S>::for_child(
+        let mut child_input = ComputeInputOf::<S>::for_child(
             input.run_mode().for_child(),
             SizingMode::InherentSize,
             RequestedAxis::Both,
@@ -1318,18 +1339,17 @@ where
             )),
         )
         .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars());
-        let establishes_bfc = !child_style.item_is_replaced
-            && child_style
-                .overflow
-                .establishes_independent_formatting_context();
+        let avoids_float_exclusions = block_child_avoids_float_exclusions(&child_style);
         let inherits_float_exclusions = set_layout
             && child_style.float.is_none()
             && child_style.display.inner_display() == super::Display::Block
-            && !establishes_bfc
+            && !avoids_float_exclusions
             && !float_exclusions.is_empty();
+        let places_against_float_exclusions =
+            set_layout && avoids_float_exclusions && !float_exclusions.is_empty();
         let mut output = tree.compute_child(
             child,
-            if inherits_float_exclusions {
+            if inherits_float_exclusions || places_against_float_exclusions {
                 child_input.with_run_mode(RunMode::ComputeSize)
             } else {
                 child_input
@@ -1391,6 +1411,106 @@ where
             let inherited = float_exclusions.for_ordinary_child(child_logical_location);
             output =
                 tree.compute_child_with_inherited_float_exclusions(child, child_input, inherited)?;
+            logical_child_size = constants.flow_axes.logical_size(output.size);
+            logical_child_margin = resolve_logical_in_flow_margin(
+                parent_logical_unresolved_margin,
+                logical_child_size,
+                logical_node_inner_size
+                    .inline
+                    .or(parent_logical_available.inline.into_option()),
+            );
+            child_margin = constants.flow_axes.physical_edges(logical_child_margin);
+        } else if places_against_float_exclusions {
+            let preview_top_margin = output
+                .block_margin_collapse
+                .at(constants.flow_axes.block_start())
+                .collapse_with_margin(edge_at_physical_side(
+                    child_margin,
+                    constants.flow_axes.block_start(),
+                ));
+            let child_margin_can_collapse_with_parent =
+                child_margin_can_collapse_with_parent(&child_style);
+            let collapsed_margin = if is_collapsing_first_margin {
+                if constants.collapse_top_margin && child_margin_can_collapse_with_parent {
+                    active_margin.resolve()
+                } else {
+                    active_margin.collapse_with(preview_top_margin).resolve()
+                }
+            } else {
+                active_margin.collapse_with(preview_top_margin).resolve()
+            };
+            let preview_cursor_block = cursor_block + collapsed_margin;
+            let containing_size = constants.containing_size(logical_node_inner_size);
+            let preview_logical_location = LogicalPointOf::new(
+                in_flow_child_inline_offset(logical_child_size, logical_child_margin, constants),
+                preview_cursor_block,
+            );
+            let preview_fallback = constants.flow_axes.physical_point(
+                preview_logical_location,
+                logical_child_size,
+                containing_size,
+            );
+            let inline_size_is_auto =
+                parent_inline_preferred_size_is_auto(&child_style, constants.flow_axes);
+            let placement = float_exclusions.place_bfc_block(
+                preview_cursor_block,
+                output.size,
+                child_margin,
+                child_style.clear,
+                preview_fallback,
+                inline_size_is_auto,
+            );
+
+            if inline_size_is_auto {
+                let parent_non_auto_margin =
+                    parent_logical_unresolved_margin.map(resolved_length_auto_fallback_zero);
+                let band_child_inline =
+                    (placement.available_inline - parent_non_auto_margin.inline_sum()).max(S::ZERO);
+                let band_available_child_inline =
+                    if child_flow_axes.inline_axis() == constants.flow_axes.inline_axis() {
+                        Some(band_child_inline)
+                    } else {
+                        available_child_inline
+                    };
+                let band_child_known = in_flow_child_known_size::<Tree, M>(
+                    tree,
+                    child,
+                    &child_style,
+                    child_padding + child_border,
+                    child_flow_axes,
+                    child_logical_node_inner_size,
+                    band_available_child_inline,
+                )?;
+                let mut band_available = child_flow_axes.physical_size(LogicalSizeOf::new(
+                    in_flow_child_available_inline(
+                        &child_style,
+                        child_flow_axes,
+                        band_available_child_inline,
+                        child_logical_available.inline,
+                    ),
+                    AvailableOf::<S>::MAX_CONTENT,
+                ));
+                set_parent_inline_available(
+                    &mut band_available,
+                    constants.flow_axes,
+                    band_child_inline,
+                );
+                child_input = ComputeInputOf::<S>::for_child(
+                    input.run_mode().for_child(),
+                    SizingMode::InherentSize,
+                    RequestedAxis::Both,
+                    band_child_known,
+                    child_parent_size,
+                    ContainingLayoutContext::new(
+                        constants.flow_axes,
+                        ParentFormattingContext::BlockFlow,
+                    ),
+                    band_available,
+                )
+                .with_containing_auto_scrollbar_pass(input.settled_auto_scrollbars());
+            }
+
+            output = tree.compute_child(child, child_input)?;
             logical_child_size = constants.flow_axes.logical_size(output.size);
             logical_child_margin = resolve_logical_in_flow_margin(
                 parent_logical_unresolved_margin,
@@ -1490,7 +1610,7 @@ where
             logical_fallback_location.x + inset_offset.x,
             logical_fallback_location.y + inset_offset.y,
         );
-        let location = if establishes_bfc {
+        let location = if avoids_float_exclusions {
             let placement = float_exclusions.place_bfc_block(
                 cursor_block,
                 output.size,
@@ -1500,8 +1620,12 @@ where
                     fallback_location.x - inset_offset.x,
                     fallback_location.y - inset_offset.y,
                 ),
+                parent_inline_preferred_size_is_auto(&child_style, constants.flow_axes),
             );
-            Point::new(placement.x + inset_offset.x, placement.y + inset_offset.y)
+            Point::new(
+                placement.location.x + inset_offset.x,
+                placement.location.y + inset_offset.y,
+            )
         } else if child_style.clear != Clear::None {
             Point::new(
                 fallback_location.x,
@@ -1540,7 +1664,7 @@ where
             );
         }
 
-        let child_block_end = if establishes_bfc || child_style.clear != Clear::None {
+        let child_block_end = if avoids_float_exclusions || child_style.clear != Clear::None {
             constants
                 .flow_axes
                 .logical_point(location, output.size, containing_size)
@@ -2235,6 +2359,39 @@ impl<S: LayoutScalar> FloatIntrinsics<S> {
 
 fn child_margin_can_collapse_with_parent<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
     style.display == super::Display::Block && style.position == Position::Relative
+}
+
+fn block_child_avoids_float_exclusions<S: LayoutScalar>(style: &NodeInputOf<S>) -> bool {
+    style.display != super::Display::None
+        && !style.display.is_inline_level()
+        && style.position != Position::Absolute
+        && style.float.is_none()
+        && (matches!(
+            style.display,
+            super::Display::Flex | super::Display::Grid | super::Display::GridLanes
+        ) || (!style.item_is_replaced
+            && style.overflow.establishes_independent_formatting_context()))
+}
+
+fn parent_inline_preferred_size_is_auto<S: LayoutScalar>(
+    style: &NodeInputOf<S>,
+    parent_flow_axes: crate::geometry::FlowAxes,
+) -> bool {
+    match parent_flow_axes.inline_axis() {
+        PhysicalAxis::Horizontal => style.size.width.is_auto(),
+        PhysicalAxis::Vertical => style.size.height.is_auto(),
+    }
+}
+
+fn set_parent_inline_available<S: LayoutScalar>(
+    available: &mut Size<AvailableOf<S>>,
+    parent_flow_axes: crate::geometry::FlowAxes,
+    value: S,
+) {
+    match parent_flow_axes.inline_axis() {
+        PhysicalAxis::Horizontal => available.width = AvailableOf::definite(value),
+        PhysicalAxis::Vertical => available.height = AvailableOf::definite(value),
+    }
 }
 
 #[expect(

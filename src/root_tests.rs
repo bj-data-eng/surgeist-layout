@@ -400,6 +400,42 @@ fn fri06_c04_line_batch<S: LayoutScalar>(
     .unwrap()
 }
 
+fn fri06_c04_bfc_batch<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    root_children: Vec<u32>,
+    nodes: Vec<(u32, NodeInputOf<S>, Vec<u32>)>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let logical_root_size = LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0));
+    let root_size = flow_axes.physical_size(logical_root_size);
+    let root_style = NodeInputOf {
+        display: Display::Block,
+        writing_mode: flow_axes.writing_mode(),
+        direction: flow_axes.direction(),
+        size: root_size.map(PreferredSizeOf::px),
+        ..NodeInputOf::default()
+    };
+    let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_style.clone()))]);
+    let mut node_inputs = HashMap::from([(0, root_style)]);
+    let mut children = HashMap::from([(0, root_children)]);
+    for (node, style, node_children) in nodes {
+        inputs.insert(node, LayoutInputOf::box_input(style.clone()));
+        node_inputs.insert(node, style);
+        children.insert(node, node_children);
+    }
+    let tree = Fri06C02TextTree {
+        inputs,
+        node_inputs,
+        children,
+    };
+
+    compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(root_size.map(AvailableOf::definite)).unwrap(),
+    )
+    .unwrap()
+}
+
 fn fri06_c04_logical_origin<S: LayoutScalar>(
     flow_axes: FlowAxes,
     output: NodeOutputOf<S>,
@@ -2339,6 +2375,496 @@ fn fri06_c04_line_alignment_legacy_values_use_each_final_band_all_flows_both_sca
                 );
             }
         }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_bfc_role_exact_positive_and_negative_matrix_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        for flow_axes in [
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        ] {
+            let sized = |display, overflow, item_is_replaced, position, float| {
+                let mut style = NodeInputOf {
+                    display,
+                    writing_mode: flow_axes.writing_mode(),
+                    direction: flow_axes.direction(),
+                    overflow,
+                    item_is_replaced,
+                    position,
+                    float,
+                    size: flow_axes.physical_size(LogicalSizeOf::new(
+                        PreferredSizeOf::px(S::from_f64(20.0)),
+                        PreferredSizeOf::px(S::from_f64(10.0)),
+                    )),
+                    ..NodeInputOf::default()
+                };
+                if display.is_inline_level() {
+                    style.atomic_inline_participation = Some(fri06_c03_atomic_participation(
+                        0,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ));
+                }
+                style
+            };
+            let float_style = sized(
+                Display::Block,
+                ComputedOverflow::VISIBLE,
+                false,
+                Position::Relative,
+                Float::Left,
+            );
+            let float_style = NodeInputOf {
+                size: flow_axes.physical_size(LogicalSizeOf::new(
+                    PreferredSizeOf::px(S::from_f64(40.0)),
+                    PreferredSizeOf::px(S::from_f64(30.0)),
+                )),
+                ..float_style
+            };
+            let hidden = computed_overflow(Overflow::Hidden, Overflow::Hidden);
+            let scroll = computed_overflow(Overflow::Scroll, Overflow::Scroll);
+            let auto = computed_overflow(Overflow::Auto, Overflow::Auto);
+            let clip = computed_overflow(Overflow::Clip, Overflow::Clip);
+
+            let positive = [
+                ("flex", Display::Flex, ComputedOverflow::VISIBLE, false),
+                (
+                    "replaced-flex",
+                    Display::Flex,
+                    ComputedOverflow::VISIBLE,
+                    true,
+                ),
+                ("grid", Display::Grid, ComputedOverflow::VISIBLE, false),
+                (
+                    "replaced-grid",
+                    Display::Grid,
+                    ComputedOverflow::VISIBLE,
+                    true,
+                ),
+                (
+                    "grid-lanes",
+                    Display::GridLanes,
+                    ComputedOverflow::VISIBLE,
+                    false,
+                ),
+                (
+                    "replaced-grid-lanes",
+                    Display::GridLanes,
+                    ComputedOverflow::VISIBLE,
+                    true,
+                ),
+                ("block-hidden", Display::Block, hidden, false),
+                ("block-scroll", Display::Block, scroll, false),
+                ("block-auto", Display::Block, auto, false),
+            ];
+            for (label, display, overflow, item_is_replaced) in positive {
+                let subject = sized(
+                    display,
+                    overflow,
+                    item_is_replaced,
+                    Position::Relative,
+                    Float::None,
+                );
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
+                    vec![
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
+                    ],
+                );
+                let output = fri06_c02_final_node(&batch, 2);
+                let origin = fri06_c04_logical_origin(flow_axes, output);
+                assert_eq!(
+                    origin,
+                    LogicalPointOf::new(S::from_f64(40.0), S::ZERO),
+                    "positive BFC role {label} did not avoid the active float in {flow_axes:?}",
+                );
+                assert_eq!(
+                    flow_axes.logical_size(output.size).inline,
+                    S::from_f64(20.0),
+                    "positive BFC role {label} changed its definite size in {flow_axes:?}",
+                );
+            }
+
+            let ordinary_negative = [
+                ("block-visible", ComputedOverflow::VISIBLE, false),
+                ("block-clip", clip, false),
+                ("replaced-block-hidden", hidden, true),
+                ("replaced-block-scroll", scroll, true),
+                ("replaced-block-auto", auto, true),
+            ];
+            for (label, overflow, item_is_replaced) in ordinary_negative {
+                let subject = sized(
+                    Display::Block,
+                    overflow,
+                    item_is_replaced,
+                    Position::Relative,
+                    Float::None,
+                );
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
+                    vec![
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
+                    ],
+                );
+                assert_eq!(
+                    fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&batch, 2)),
+                    LogicalPointOf::new(S::ZERO, S::ZERO),
+                    "negative BFC role {label} moved its ordinary outer edge in {flow_axes:?}",
+                );
+            }
+
+            for display in [
+                Display::InlineBlock,
+                Display::InlineGrid,
+                Display::InlineGridLanes,
+            ] {
+                let subject = sized(display, hidden, false, Position::Relative, Float::None);
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
+                    vec![
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
+                    ],
+                );
+                let output = fri06_c02_final_node(&batch, 2);
+                assert_eq!(
+                    fri06_c04_logical_origin(flow_axes, output),
+                    LogicalPointOf::new(S::from_f64(40.0), S::ZERO),
+                    "{display:?} must participate in the float-adjusted inline line",
+                );
+                assert_eq!(
+                    flow_axes.logical_size(output.size).inline,
+                    S::from_f64(20.0)
+                );
+            }
+
+            let absolute = sized(
+                Display::Flex,
+                hidden,
+                false,
+                Position::Absolute,
+                Float::None,
+            );
+            let floating = sized(
+                Display::Flex,
+                hidden,
+                false,
+                Position::Relative,
+                Float::Left,
+            );
+            let none = sized(
+                Display::None,
+                hidden,
+                false,
+                Position::Relative,
+                Float::None,
+            );
+            for (label, subject, expected_origin, expected_inline_size) in [
+                ("absolute", absolute, S::ZERO, S::from_f64(20.0)),
+                ("floating", floating, S::from_f64(40.0), S::from_f64(20.0)),
+                ("display-none", none, S::ZERO, S::ZERO),
+            ] {
+                let batch = fri06_c04_bfc_batch(
+                    flow_axes,
+                    vec![1, 2],
+                    vec![
+                        (1, float_style.clone(), Vec::new()),
+                        (2, subject, Vec::new()),
+                    ],
+                );
+                let output = fri06_c02_final_node(&batch, 2);
+                if label == "display-none" {
+                    assert_eq!(output.location, Point::ZERO);
+                } else {
+                    assert_eq!(
+                        fri06_c04_logical_origin(flow_axes, output).inline,
+                        expected_origin,
+                        "{label} entered block-child BFC avoidance in {flow_axes:?}",
+                    );
+                }
+                assert_eq!(
+                    flow_axes.logical_size(output.size).inline,
+                    expected_inline_size,
+                    "{label} changed size in {flow_axes:?}",
+                );
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_bfc_size_auto_definite_zero_overwide_margin_boxes_and_clear_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        for flow_axes in [
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        ] {
+            let box_style = |inline: PreferredSizeOf<S>, block: f64| NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                size: flow_axes.physical_size(LogicalSizeOf::new(
+                    inline,
+                    PreferredSizeOf::px(S::from_f64(block)),
+                )),
+                ..NodeInputOf::default()
+            };
+            let floated = |side, inline, block| NodeInputOf {
+                float: side,
+                overflow: ComputedOverflow::VISIBLE,
+                ..box_style(PreferredSizeOf::px(S::from_f64(inline)), block)
+            };
+            let margin = |inline_start: f64, inline_end: f64| {
+                flow_axes.physical_edges(
+                    crate::geometry::LogicalEdgesOf::new(
+                        S::from_f64(inline_start),
+                        S::from_f64(inline_end),
+                        S::ZERO,
+                        S::ZERO,
+                    )
+                    .map(LengthAutoOf::px),
+                )
+            };
+            let run = |subject: NodeInputOf<S>, floats: Vec<NodeInputOf<S>>| {
+                let mut children = Vec::new();
+                let mut nodes = Vec::new();
+                for (index, float) in floats.into_iter().enumerate() {
+                    let node = u32::try_from(index + 1).unwrap();
+                    children.push(node);
+                    nodes.push((node, float, Vec::new()));
+                }
+                let subject_node = u32::try_from(children.len() + 1).unwrap();
+                children.push(subject_node);
+                nodes.push((subject_node, subject, Vec::new()));
+                let batch = fri06_c04_bfc_batch(flow_axes, children, nodes);
+                fri06_c02_final_node(&batch, subject_node)
+            };
+
+            for (display, overflow) in [
+                (
+                    Display::Block,
+                    computed_overflow(Overflow::Hidden, Overflow::Hidden),
+                ),
+                (Display::Flex, ComputedOverflow::VISIBLE),
+                (Display::Grid, ComputedOverflow::VISIBLE),
+                (Display::GridLanes, ComputedOverflow::VISIBLE),
+            ] {
+                let auto = run(
+                    NodeInputOf {
+                        display,
+                        overflow,
+                        margin: margin(10.0, 10.0),
+                        ..box_style(PreferredSizeOf::AUTO, 10.0)
+                    },
+                    vec![floated(Float::Left, 40.0, 20.0)],
+                );
+                assert_eq!(
+                    fri06_c04_logical_origin(flow_axes, auto),
+                    LogicalPointOf::new(S::from_f64(50.0), S::ZERO),
+                    "{display:?} auto inline placement did not use its selected band",
+                );
+                assert_eq!(
+                    flow_axes.logical_size(auto.size).inline,
+                    S::from_f64(40.0),
+                    "{display:?} auto inline size was not saturated to its selected band",
+                );
+            }
+
+            let definite = run(
+                NodeInputOf {
+                    margin: margin(5.0, 5.0),
+                    ..box_style(PreferredSizeOf::px(S::from_f64(50.0)), 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, definite),
+                LogicalPointOf::new(S::from_f64(45.0), S::ZERO),
+            );
+
+            let spanning = run(
+                box_style(PreferredSizeOf::px(S::from_f64(70.0)), 20.0),
+                vec![
+                    floated(Float::Left, 20.0, 10.0),
+                    floated(Float::Right, 90.0, 20.0),
+                ],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, spanning),
+                LogicalPointOf::new(S::ZERO, S::from_f64(30.0)),
+                "complete-span collision must observe the later-starting float",
+            );
+
+            let zero = run(
+                NodeInputOf {
+                    margin: margin(35.0, 35.0),
+                    ..box_style(PreferredSizeOf::px(S::ZERO), 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, zero),
+                LogicalPointOf::new(S::from_f64(35.0), S::from_f64(20.0)),
+            );
+            assert_eq!(flow_axes.logical_size(zero.size).inline, S::ZERO);
+
+            let overwide = run(
+                NodeInputOf {
+                    margin: margin(5.0, 5.0),
+                    ..box_style(PreferredSizeOf::px(S::from_f64(120.0)), 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, overwide),
+                LogicalPointOf::new(S::from_f64(5.0), S::from_f64(20.0)),
+            );
+
+            let cleared = run(
+                NodeInputOf {
+                    clear: Clear::Left,
+                    margin: margin(10.0, 10.0),
+                    ..box_style(PreferredSizeOf::AUTO, 10.0)
+                },
+                vec![
+                    floated(Float::Left, 40.0, 20.0),
+                    floated(Float::Right, 30.0, 40.0),
+                ],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, cleared),
+                LogicalPointOf::new(S::from_f64(10.0), S::from_f64(20.0)),
+            );
+            assert_eq!(
+                flow_axes.logical_size(cleared.size).inline,
+                S::from_f64(50.0),
+            );
+
+            let ordinary = run(
+                NodeInputOf {
+                    overflow: ComputedOverflow::VISIBLE,
+                    margin: margin(10.0, 10.0),
+                    ..box_style(PreferredSizeOf::AUTO, 10.0)
+                },
+                vec![floated(Float::Left, 40.0, 20.0)],
+            );
+            assert_eq!(
+                fri06_c04_logical_origin(flow_axes, ordinary),
+                LogicalPointOf::new(S::from_f64(10.0), S::ZERO),
+            );
+            assert_eq!(
+                flow_axes.logical_size(ordinary.size).inline,
+                S::from_f64(80.0),
+            );
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_bfc_nested_bfc_floating_and_atomic_contexts_trap_internal_floats_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let fixed = |display, inline, block| NodeInputOf {
+            display,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            size: flow_axes.physical_size(LogicalSizeOf::new(
+                PreferredSizeOf::px(S::from_f64(inline)),
+                PreferredSizeOf::px(S::from_f64(block)),
+            )),
+            ..NodeInputOf::default()
+        };
+        let floated = |inline, block| NodeInputOf {
+            float: Float::Left,
+            ..fixed(Display::Block, inline, block)
+        };
+        let bfc = |inline, block| NodeInputOf {
+            overflow: computed_overflow(Overflow::Hidden, Overflow::Hidden),
+            ..fixed(Display::Block, inline, block)
+        };
+
+        let nested_bfc = fri06_c04_bfc_batch(
+            flow_axes,
+            vec![1, 2, 4],
+            vec![
+                (1, floated(30.0, 20.0), Vec::new()),
+                (2, bfc(70.0, 20.0), vec![3]),
+                (3, floated(20.0, 50.0), Vec::new()),
+                (4, bfc(100.0, 10.0), Vec::new()),
+            ],
+        );
+        assert_eq!(
+            fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&nested_bfc, 2)),
+            LogicalPointOf::new(S::from_f64(30.0), S::ZERO),
+        );
+        assert_eq!(
+            fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&nested_bfc, 3)),
+            LogicalPointOf::new(S::ZERO, S::ZERO),
+        );
+        assert_eq!(
+            fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&nested_bfc, 4)),
+            LogicalPointOf::new(S::ZERO, S::from_f64(20.0)),
+        );
+
+        let floating_context = fri06_c04_bfc_batch(
+            flow_axes,
+            vec![1, 3],
+            vec![
+                (1, floated(30.0, 20.0), vec![2]),
+                (2, floated(10.0, 50.0), Vec::new()),
+                (3, bfc(70.0, 10.0), Vec::new()),
+            ],
+        );
+        assert_eq!(
+            fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&floating_context, 1)),
+            LogicalPointOf::new(S::ZERO, S::ZERO),
+        );
+        assert_eq!(
+            fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&floating_context, 3)),
+            LogicalPointOf::new(S::from_f64(30.0), S::ZERO),
+        );
+
+        let atomic = NodeInputOf {
+            atomic_inline_participation: Some(fri06_c03_atomic_participation(
+                0,
+                InlineBreakOpportunityOf::prohibited(),
+            )),
+            ..fixed(Display::InlineBlock, 30.0, 20.0)
+        };
+        let atomic_context = fri06_c04_bfc_batch(
+            flow_axes,
+            vec![1, 2, 4],
+            vec![
+                (1, floated(30.0, 20.0), Vec::new()),
+                (2, atomic, vec![3]),
+                (3, floated(10.0, 50.0), Vec::new()),
+                (4, bfc(100.0, 10.0), Vec::new()),
+            ],
+        );
+        assert_eq!(
+            fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&atomic_context, 2)),
+            LogicalPointOf::new(S::from_f64(30.0), S::ZERO),
+        );
+        assert_eq!(
+            fri06_c04_logical_origin(flow_axes, fri06_c02_final_node(&atomic_context, 4)),
+            LogicalPointOf::new(S::ZERO, S::from_f64(20.0)),
+        );
     }
 
     assert_lane::<f32>();
