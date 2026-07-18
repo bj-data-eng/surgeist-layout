@@ -166,8 +166,10 @@ inventory tests. `corpus.toml`, XML, and reports remain unchanged.
 **Outcome:** Add the bounded human-readable sources and an exact source/output
 contract without generating derived artifacts or changing the frozen manifest.
 
-**RED:** Add `fri05_c06_fixture_sources_` tests first. They fail because the
-eleven sources and their exact four-variant path matrix are absent.
+**RED:** Add `fri05_c06_fixture_sources_` tests first and update the staged
+HTML inventory assertions. They fail because the eleven sources and their exact
+four-variant path matrix are absent and the base HTML counts still describe
+1,409 sources.
 
 **Acceptance:** Exactly these extensionless IDs exist under their specified
 block, flex, grid, and grid-lanes directories:
@@ -182,7 +184,10 @@ block, flex, grid, and grid-lanes directories:
 `block/fri05_scroll_target_geometry`.
 They use only existing constrained vocabulary plus D-13 fields, exercise the
 named behavior rather than duplicate variants, and map to exactly four standard
-outputs each. No pre-existing source, manifest record, XML, or report changes.
+outputs each. HTML inventory is exactly 1,420 total: 1,174 outside the subgrid
+and grid-lanes suites, 219 subgrid, and 27 grid-lanes. XML, manifest, and report
+count assertions remain at the base values until T4. No pre-existing source,
+manifest record, XML, or report changes.
 
 **Commands:**
 ```sh
@@ -206,6 +211,7 @@ sources.
 `tests/bin/surgeist-layout-generate/generator.rs` for focused helper tests,
 `tests/layout/browser_parity/corpus.toml`,
 `tests/layout/browser_parity/support.rs` and its transition tests,
+`tests/layout/browser_parity.rs` for final XML, manifest, and report inventory,
 generator-derived `tests/layout/browser_parity/xml/`, and
 `tests/layout/browser_parity/xml/generation-reports/all.json`.
 
@@ -220,8 +226,8 @@ read-only verification.
 `fri05_c06_manifest_freeze_`, and
 `fri05_c06_computed_overflow_corpus_` tests first. They fail because the
 helper drops the named fields, authored cross-group pairs still couple inside
-the parser, and the manifest and derived corpus do not yet express the eleven
-computed-style sources.
+the parser, the manifest and derived corpus do not yet express the eleven
+computed-style sources, and final inventory assertions still expect 5,280 XML.
 
 **Acceptance before regeneration:** The helper captures all D-13 computed
 fields without reading authored shorthand and its focused smoke tests pass.
@@ -252,10 +258,12 @@ CARGO_NET_OFFLINE=true SURGEIST_LAYOUT_GENERATE_FILTER= SURGEIST_BROWSER_PATH='t
 inventory is 1,420 HTML and 5,324 XML, each owned source has exactly four
 outputs, and only `all.json` exists. Its metadata names the frozen manifest,
 current helper/base-style/launch-profile provenance, and the exact five frozen
-buckets. Every FRI-05 output parses and matches Surgeist layout; comparator
-negative controls remain effective. No pre-existing source changes, scoped
-report, stale XML, hand edit, expected failure, quarantine, or unexplained XML
-body delta remains.
+buckets. Only after derivation, update the staged XML, manifest, and report
+inventory assertions from 5,280 to 5,324 while retaining HTML 1,420 and
+unsupported 356. Every FRI-05 output parses and matches Surgeist layout;
+comparator negative controls remain effective. No pre-existing source changes,
+scoped report, stale XML, hand edit, expected failure, quarantine, or
+unexplained XML body delta remains.
 
 **Read-only commands after regeneration:**
 ```sh
