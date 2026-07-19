@@ -16,7 +16,7 @@ Contract:
 With overflow hidden creating an independent formatting context, grid-lanes
 layout still packs the second and third 30px items into the second 60px column.
 -->
-<div id="test-root" style="display: block;">
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="display: block;">
   <div style="vertical-align: top; display: inline grid-lanes; grid-template-columns: 60px 60px; border: 2px solid black;">
     <div style="width: 60px; height: 60px;"></div>
     <div style="width: 60px; height: 30px;"></div>

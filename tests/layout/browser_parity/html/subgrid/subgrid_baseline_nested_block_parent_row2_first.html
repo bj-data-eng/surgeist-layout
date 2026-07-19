@@ -16,7 +16,7 @@ Contract:
 In the parent grid that hosts the nested block-axis subgrid, the first baseline
 reference item in the second row is offset to y=168.
 -->
-<div id="test-root" style="position: relative; display: grid; grid-template-rows: 150px 150px 150px; grid-template-columns: 100px 100px 100px 100px;">
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="position: relative; display: grid; grid-template-rows: 150px 150px 150px; grid-template-columns: 100px 100px 100px 100px;">
   <div style="display: grid; gap: 10px; grid-column-start: 1; grid-column-end: span 2; grid-row-start: 1; grid-row-end: span 3; grid-template-rows: subgrid; grid-template-columns: subgrid; margin-top: 5px; margin-bottom: 10px; border: 5px solid black; padding-top: 10px; padding-bottom: 20px;">
     <div style="display: grid; gap: 20px; grid-column-start: 1; grid-column-end: span 2; grid-row-start: 1; grid-row-end: span 2; grid-template-rows: subgrid; grid-template-columns: subgrid; margin-top: 3px; margin-bottom: 7px; border: 5px solid black; padding-top: 5px; padding-bottom: 10px;">
       <div style="width: 40px; box-sizing: border-box; border: 5px solid hotpink; line-height: 0; margin-top: 3px; margin-bottom: 5px; align-self: baseline;">

@@ -16,7 +16,7 @@ Contract:
 The subgrid's max-width clamps its max-content standalone-axis width to 100px,
 wrapping two 100px inline-block children into a 100px by 100px contribution.
 -->
-<div id="test-root" style="display: grid; width: min-content;">
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="display: grid; width: min-content;">
   <div style="display: grid; max-width: 100px; width: max-content; grid-template-rows: subgrid;">
     <div style="font-size: 0;">
       <div style="display: inline-block; width: 100px; height: 50px;"></div>

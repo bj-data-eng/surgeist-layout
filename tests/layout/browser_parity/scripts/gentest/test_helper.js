@@ -744,7 +744,7 @@ function brInlineMetricsForElement(e, computedStyle) {
   if (e.tagName === 'BR') {
     const fontSize = parseCssPx(computedStyle.fontSize);
     const lineHeight = resolveLineHeightPx(computedStyle.lineHeight, fontSize);
-    const baseline = estimateInlineBaselinePx(fontSize, lineHeight);
+    const baseline = Math.min(lineHeight, estimateInlineBaselinePx(fontSize, lineHeight));
     return {
       baseline: `${baseline}px`,
       lineHeight: `${lineHeight}px`,
@@ -1200,24 +1200,148 @@ function inlineEndEdge(computedStyle) {
 function describeChildNodes(e, expectedElement = null) {
   let children = [];
   let childNodes = Array.from(e.childNodes);
+  const layoutReadyInlineRun = hasLayoutReadyInlineFixture(e) && childNodes.some((child, index) => {
+    return child.nodeType === Node.ELEMENT_NODE && child.tagName === 'BR' ||
+      child.nodeType === Node.TEXT_NODE && shouldSerializeLayoutReadyText(child, childNodes, index, e);
+  });
+  let visualIndex = 0;
   for (let i = 0; i < childNodes.length; i++) {
     let child = childNodes[i];
     if (child.nodeType === Node.ELEMENT_NODE) {
-      children.push(describeElement(child, expectedElement));
+      const described = describeElement(child, expectedElement);
+      if (layoutReadyInlineRun && child.tagName !== 'BR' && isInlineLevel(child)) {
+        described.atomicInlineParticipation = {
+          bidiLevel: getComputedStyle(child).direction === 'rtl' ? 1 : 0,
+          followingBreak: 'prohibited',
+        };
+      }
+      children.push(described);
+      if (layoutReadyInlineRun && (child.tagName === 'BR' || isInlineLevel(child))) visualIndex++;
+    } else if (
+      layoutReadyInlineRun &&
+      child.nodeType === Node.TEXT_NODE &&
+      shouldSerializeLayoutReadyText(child, childNodes, i, e)
+    ) {
+      const described = layoutReadyTextNodeData(child, e, i, visualIndex);
+      if (described) {
+        children.push(described);
+        visualIndex++;
+      }
     }
   }
   return children;
+}
+
+function shouldSerializeLayoutReadyText(node, siblings, index, parent) {
+  if (!/^\s*$/.test(node.textContent)) return true;
+  return isSignificantInlineWhitespace(node, siblings, index, parent);
+}
+
+function layoutReadyTextNodeData(node, parent, segmentId, visualIndex) {
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const rect = range.getBoundingClientRect();
+  const fragmentRects = Array.from(range.getClientRects());
+  range.detach();
+  if (fragmentRects.length === 0 && rect.width === 0 && rect.height === 0) {
+    return undefined;
+  }
+  if (fragmentRects.length !== 1) {
+    throw new Error(`layout-ready text segment ${segmentId} must have exactly one fragment`);
+  }
+
+  const parentRect = parent.getBoundingClientRect();
+  const root = document.getElementById?.('test-root');
+  const rootRect = root?.getBoundingClientRect?.() ?? parentRect;
+  const computedStyle = getComputedStyle(parent);
+  const fontSize = parseCssPx(computedStyle.fontSize);
+  const lineHeight = resolveLineHeightPx(computedStyle.lineHeight, fontSize);
+  const baseline = Math.min(lineHeight, estimateInlineBaselinePx(fontSize, lineHeight));
+  const vertical = isVerticalWritingMode(computedStyle.writingMode);
+  const inlineExtent = vertical ? rect.height : rect.width;
+  const whitespace = /^\s+$/.test(node.textContent);
+
+  const finite = [
+    rect.x, rect.y, rect.width, rect.height,
+    parentRect.x, parentRect.y, rootRect.x, rootRect.y,
+    inlineExtent, baseline, lineHeight,
+  ];
+  if (!finite.every(Number.isFinite) || inlineExtent < 0 || baseline < 0 || lineHeight < baseline) {
+    throw new Error(`layout-ready text segment ${segmentId} requires a complete finite tuple`);
+  }
+
+  const fragments = fragmentRects.map((fragment) => {
+    const x = fragment.x - rootRect.x;
+    const y = fragment.y - rootRect.y;
+    const width = fragment.width;
+    const height = fragment.height;
+    const baselineX = vertical ? x + baseline : x;
+    const baselineY = vertical ? y : y + baseline;
+    if (![x, y, width, height, baselineX, baselineY].every(Number.isFinite) || width < 0 || height < 0) {
+      throw new Error(`layout-ready text fragment ${segmentId} requires a complete finite tuple`);
+    }
+    return {
+      sourceSegmentId: segmentId,
+      lineIndex: 0,
+      visualIndex,
+      x,
+      y,
+      width,
+      height,
+      baselineX,
+      baselineY,
+    };
+  });
+
+  return {
+    layoutInput: 'inline-text',
+    inlineSegments: [{
+      id: segmentId,
+      inlineExtent,
+      inlineBaseline: baseline,
+      inlineLineHeight: lineHeight,
+      bidiLevel: computedStyle.direction === 'rtl' ? 1 : 0,
+      whitespaceEdge: whitespace ? 'discard-at-both' : 'preserve',
+      followingBreak: whitespace ? 'allowed' : 'prohibited',
+    }],
+    unroundedLayout: layoutReadyTextLayout(rect, parentRect, false),
+    smartRoundedLayout: layoutReadyTextLayout(rect, parentRect, true),
+    fragments,
+    children: [],
+  };
+}
+
+function layoutReadyTextLayout(rect, parentRect, rounded) {
+  if (rounded) {
+    return {
+      width: Math.round(rect.right) - Math.round(rect.left),
+      height: Math.round(rect.bottom) - Math.round(rect.top),
+      x: Math.round(rect.x - parentRect.x),
+      y: Math.round(rect.y - parentRect.y),
+    };
+  }
+  return {
+    width: rect.width,
+    height: rect.height,
+    x: rect.x - parentRect.x,
+    y: rect.y - parentRect.y,
+  };
 }
 
 function unsupportedElementReason(e, computedStyle) {
   if (
     e.tagName === 'BR' &&
     isVerticalWritingMode(computedStyle.writingMode) &&
-    !hasLayoutReadyVerticalBrFixture(e)
+    !hasLayoutReadyVerticalBrFixture(e) &&
+    !hasLayoutReadyInlineFixture(e)
   ) {
     return "Unsupported vertical <br> line-break semantics";
   }
-  if (e.tagName === 'BR' && !hasSupportedBrLineBreakParent(e)) {
+  if (
+    e.tagName === 'BR' &&
+    !hasSupportedBrLineBreakParent(e) &&
+    !hasLayoutReadyInlineFixture(e)
+  ) {
     return "Unsupported <br> outside block inline-run semantics";
   }
   return undefined;
@@ -1233,6 +1357,13 @@ function hasLayoutReadyVerticalBrFixture(e) {
   return e.parentElement?.getAttribute?.('data-surgeist-layout-ready-vertical-br') === 'true';
 }
 
+function hasLayoutReadyInlineFixture(e) {
+  for (let current = e; current; current = current.parentElement) {
+    if (current.getAttribute?.('data-surgeist-layout-ready-inline') === 'true') return true;
+  }
+  return false;
+}
+
 function unsupportedChildNodesReason(e) {
   let childNodes = Array.from(e.childNodes);
   let hasElementChild = childNodes.some(child => child.nodeType === Node.ELEMENT_NODE);
@@ -1241,15 +1372,26 @@ function unsupportedChildNodesReason(e) {
   for (let i = 0; i < childNodes.length; i++) {
     let child = childNodes[i];
     if (child.nodeType !== Node.TEXT_NODE) continue;
-    if (!/^\s*$/.test(child.textContent)) return "Unsupported mixed text/element content";
-    if (isSignificantInlineWhitespace(child, childNodes, i)) return "Unsupported mixed text/element content";
+    if (!/^\s*$/.test(child.textContent) && !hasLayoutReadyInlineFixture(e)) {
+      return "Unsupported mixed text/element content";
+    }
+    if (
+      isSignificantInlineWhitespace(child, childNodes, i, e) &&
+      !hasLayoutReadyInlineFixture(e)
+    ) {
+      return "Unsupported mixed text/element content";
+    }
   }
 
   return undefined;
 }
 
-function isSignificantInlineWhitespace(node, siblings, index) {
+function isSignificantInlineWhitespace(node, siblings, index, parent = node.parentElement) {
   if (!/^\s+$/.test(node.textContent)) return false;
+  const parentDisplay = parent ? getComputedStyle(parent).display : '';
+  if (['grid', 'inline-grid', 'grid-lanes', 'inline-grid-lanes'].includes(parentDisplay)) {
+    return false;
+  }
 
   let previous = nearestElementSibling(siblings, index, -1);
   let next = nearestElementSibling(siblings, index, 1);

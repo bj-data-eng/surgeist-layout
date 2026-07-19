@@ -16,7 +16,7 @@ Contract:
 In a subgrid spanning two auto-sized columns, the first 15px item is offset to
 y=12 when baseline-aligned with the second 30px item.
 -->
-<div id="test-root" style="display: inline-grid; align-items: baseline; grid-template-columns: repeat(2, auto); font: 15px/1 ahem;">
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="display: inline-grid; align-items: baseline; grid-template-columns: repeat(2, auto); font: 15px/1 ahem;">
   <div style="display: inline-grid; align-items: baseline; grid-column: 1 / -1; grid-template-columns: subgrid;">
     <div style="display: inline-grid; align-items: baseline;">X</div>
     <div style="display: inline-grid; align-items: baseline; font-size: 30px;">X</div>

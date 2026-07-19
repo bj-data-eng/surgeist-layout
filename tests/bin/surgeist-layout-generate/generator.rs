@@ -3903,6 +3903,11 @@ fn generate_xml_with_provenance(
 }
 
 fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writing_mode: &str) {
+    if node["layoutInput"].as_str() == Some("inline-text") {
+        write_inline_text_input(lines, node, indent);
+        return;
+    }
+
     let attrs = input_attrs_with_parent_writing_mode(node, parent_writing_mode);
     let writing_mode =
         string(&node["style"], "writingMode").unwrap_or_else(|| "horizontal-tb".to_string());
@@ -3916,8 +3921,11 @@ fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writ
         .as_array()
         .map(Vec::as_slice)
         .unwrap_or(&[]);
+    let has_atomic_placeholders = children
+        .iter()
+        .any(|child| !child["atomicInlineParticipation"].is_null());
 
-    if children.is_empty() && node.get("textContent").is_none() {
+    if children.is_empty() && node.get("textContent").is_none() && !has_atomic_placeholders {
         lines.push(format!("{pad}<{tag}{}/>", attr_text(&attrs)));
         return;
     }
@@ -3925,6 +3933,9 @@ fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writ
     lines.push(format!("{pad}<{tag}{}>", attr_text(&attrs)));
     for child in children {
         write_input(lines, child, indent + 2, &writing_mode);
+    }
+    for (child_index, child) in children.iter().enumerate() {
+        write_atomic_placeholder(lines, child, child_index, indent + 2);
     }
     if let Some(text) = node["textContent"].as_str() {
         lines.push(format!(
@@ -3934,6 +3945,111 @@ fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writ
         ));
     }
     lines.push(format!("{pad}</{tag}>"));
+}
+
+fn write_inline_text_input(lines: &mut Vec<String>, node: &Value, indent: usize) {
+    let segments = node["inlineSegments"]
+        .as_array()
+        .filter(|segments| !segments.is_empty())
+        .expect("layout-ready inline text requires at least one complete segment");
+    let pad = " ".repeat(indent);
+    lines.push(format!(r#"{pad}<text layout-input="inline-text">"#));
+    for segment in segments {
+        let mut attrs = vec![
+            ("id", required_integer_attr(segment, "id")),
+            (
+                "inline-extent",
+                required_nonnegative_number_attr(segment, "inlineExtent"),
+            ),
+            (
+                "inline-baseline",
+                required_nonnegative_number_attr(segment, "inlineBaseline"),
+            ),
+            (
+                "inline-line-height",
+                required_nonnegative_number_attr(segment, "inlineLineHeight"),
+            ),
+            ("bidi-level", required_integer_attr(segment, "bidiLevel")),
+            (
+                "whitespace-edge",
+                required_string_attr(segment, "whitespaceEdge"),
+            ),
+            (
+                "following-break",
+                required_string_attr(segment, "followingBreak"),
+            ),
+        ];
+        maybe_break_replacement_attr(&mut attrs, segment);
+        lines.push(format!(
+            "{}<segment{}/>",
+            " ".repeat(indent + 2),
+            attr_text(&attrs)
+        ));
+    }
+    lines.push(format!("{pad}</text>"));
+}
+
+fn write_atomic_placeholder(
+    lines: &mut Vec<String>,
+    child: &Value,
+    child_index: usize,
+    indent: usize,
+) {
+    let participation = &child["atomicInlineParticipation"];
+    if participation.is_null() {
+        return;
+    }
+    let mut attrs = vec![
+        ("child-index", child_index.to_string()),
+        (
+            "bidi-level",
+            required_integer_attr(participation, "bidiLevel"),
+        ),
+        (
+            "following-break",
+            required_string_attr(participation, "followingBreak"),
+        ),
+    ];
+    maybe_break_replacement_attr(&mut attrs, participation);
+    lines.push(format!(
+        "{}<atomic-placeholder{}/>",
+        " ".repeat(indent),
+        attr_text(&attrs)
+    ));
+}
+
+fn maybe_break_replacement_attr(attrs: &mut Vec<(&'static str, String)>, value: &Value) {
+    if !value["replacementInlineExtent"].is_null() {
+        attrs.push((
+            "replacement-inline-extent",
+            required_nonnegative_number_attr(value, "replacementInlineExtent"),
+        ));
+    }
+}
+
+fn required_string_attr(value: &Value, field: &str) -> String {
+    value[field]
+        .as_str()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| panic!("layout-ready fixture field `{field}` must be a nonempty string"))
+        .to_string()
+}
+
+fn required_integer_attr(value: &Value, field: &str) -> String {
+    value[field]
+        .as_u64()
+        .unwrap_or_else(|| panic!("layout-ready fixture field `{field}` must be an integer"))
+        .to_string()
+}
+
+fn required_nonnegative_number_attr(value: &Value, field: &str) -> String {
+    let number = value[field]
+        .as_f64()
+        .filter(|number| number.is_finite() && *number >= 0.0)
+        .unwrap_or_else(|| {
+            panic!("layout-ready fixture field `{field}` must be finite and non-negative")
+        });
+    number_attr_value(number)
 }
 
 fn direct_text_requires_container(node: &Value) -> bool {
@@ -4026,16 +4142,71 @@ fn write_expectation(lines: &mut Vec<String>, node: &Value, context: Expectation
         .as_array()
         .map(Vec::as_slice)
         .unwrap_or(&[]);
-    if children.is_empty() {
+    let fragments = node["fragments"].as_array();
+    if children.is_empty() && fragments.is_none() {
         lines.push(format!("{pad}<node{}/>", attr_text(&attrs)));
         return;
     }
 
     lines.push(format!("{pad}<node{}>", attr_text(&attrs)));
+    if let Some(fragments) = fragments {
+        write_fragment_expectations(lines, fragments, context.indent + 2);
+    }
     for child in children {
         write_expectation(lines, child, context.child(abs_x, abs_y));
     }
     lines.push(format!("{pad}</node>"));
+}
+
+fn write_fragment_expectations(lines: &mut Vec<String>, fragments: &[Value], indent: usize) {
+    let pad = " ".repeat(indent);
+    if fragments.is_empty() {
+        lines.push(format!("{pad}<fragments/>"));
+        return;
+    }
+    lines.push(format!("{pad}<fragments>"));
+    for fragment in fragments {
+        let attrs = [
+            (
+                "source_segment_id",
+                required_integer_attr(fragment, "sourceSegmentId"),
+            ),
+            ("line_index", required_integer_attr(fragment, "lineIndex")),
+            (
+                "visual_index",
+                required_integer_attr(fragment, "visualIndex"),
+            ),
+            ("x", required_finite_number_attr(fragment, "x")),
+            ("y", required_finite_number_attr(fragment, "y")),
+            ("width", required_nonnegative_number_attr(fragment, "width")),
+            (
+                "height",
+                required_nonnegative_number_attr(fragment, "height"),
+            ),
+            (
+                "baseline_x",
+                required_finite_number_attr(fragment, "baselineX"),
+            ),
+            (
+                "baseline_y",
+                required_finite_number_attr(fragment, "baselineY"),
+            ),
+        ];
+        lines.push(format!(
+            "{}<fragment{}/>",
+            " ".repeat(indent + 2),
+            attr_text(&attrs)
+        ));
+    }
+    lines.push(format!("{pad}</fragments>"));
+}
+
+fn required_finite_number_attr(value: &Value, field: &str) -> String {
+    let number = value[field]
+        .as_f64()
+        .filter(|number| number.is_finite())
+        .unwrap_or_else(|| panic!("layout-ready fixture field `{field}` must be finite"));
+    number_attr_value(number)
 }
 
 #[cfg(test)]
@@ -6056,6 +6227,354 @@ if (expectedReason === undefined) {{
                 ("content_box_rtl", "contentBoxRtlData"),
             ]
         );
+    }
+
+    const FRI06_C08_EXISTING_REASONS: [&str; 3] = [
+        "Unsupported mixed text/element content",
+        "Unsupported vertical <br> line-break semantics",
+        "Unsupported <br> outside block inline-run semantics",
+    ];
+
+    const FRI06_C08_BASELINE_SOURCES: [&str; 4] = [
+        "html/subgrid/subgrid_baseline_auto_columns_first_item.html",
+        "html/subgrid/subgrid_baseline_auto_columns_second_item.html",
+        "html/subgrid/subgrid_baseline_standalone_axis_first_item.html",
+        "html/subgrid/subgrid_baseline_standalone_axis_second_item.html",
+    ];
+
+    fn fri06_c08_matrix_digest(mut rows: Vec<String>) -> String {
+        rows.sort();
+        sha256_bytes(format!("{}\n", rows.join("\n")).as_bytes())
+    }
+
+    #[test]
+    fn fri06_c08_existing_entry_report_reconstructs_exact_activation_and_baseline_matrices() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let report: Value = serde_json::from_slice(
+            &fs::read(root.join("xml/generation-reports/all.json")).expect("entry report"),
+        )
+        .expect("entry report JSON");
+
+        let unsupported = report["unsupported"].as_array().expect("unsupported rows");
+        let activation = unsupported
+            .iter()
+            .filter(|row| {
+                row["reason"]
+                    .as_str()
+                    .is_some_and(|reason| FRI06_C08_EXISTING_REASONS.contains(&reason))
+            })
+            .collect::<Vec<_>>();
+        let activation_sources = activation
+            .iter()
+            .map(|row| row["source"].as_str().expect("source"))
+            .collect::<BTreeSet<_>>();
+        let activation_rows = activation
+            .iter()
+            .map(|row| {
+                format!(
+                    "{}\t{}",
+                    row["source"].as_str().expect("source"),
+                    row["variant"].as_str().expect("variant")
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(activation_sources.len(), 85);
+        assert_eq!(activation_rows.len(), 340);
+        assert_eq!(
+            fri06_c08_matrix_digest(activation_rows),
+            "2df58c8127c8567a93b21cec2713e1b7ebb7541d8dce19df6d401bf442ae4375"
+        );
+        for (reason, expected_rows) in [
+            (FRI06_C08_EXISTING_REASONS[0], 100),
+            (FRI06_C08_EXISTING_REASONS[1], 144),
+            (FRI06_C08_EXISTING_REASONS[2], 96),
+        ] {
+            assert_eq!(
+                activation
+                    .iter()
+                    .filter(|row| row["reason"].as_str() == Some(reason))
+                    .count(),
+                expected_rows,
+                "{reason}"
+            );
+        }
+
+        let baseline_rows = FRI06_C08_BASELINE_SOURCES
+            .iter()
+            .flat_map(|source| {
+                fixture_cases()
+                    .into_iter()
+                    .map(move |(variant, _)| format!("{source}\t{variant}"))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(baseline_rows.len(), 16);
+        assert_eq!(
+            fri06_c08_matrix_digest(baseline_rows),
+            "f9ac335e450b4ffd014ae91ef211e699b513676711f70e2c27414fb64f7455a3"
+        );
+
+        for source in activation_sources {
+            let raw = fs::read_to_string(root.join(source)).expect("activation source");
+            assert!(
+                raw.contains("data-surgeist-layout-ready-inline=\"true\""),
+                "{source} must explicitly opt in to layout-ready inline facts"
+            );
+        }
+
+        let opted_in_sources = collect_relative_html(&root.join("html"))
+            .expect("HTML inventory")
+            .into_iter()
+            .filter_map(|source| {
+                let raw = fs::read_to_string(root.join("html").join(&source)).ok()?;
+                raw.contains("data-surgeist-layout-ready-inline=\"true\"")
+                    .then(|| format!("html/{}", source.to_string_lossy()))
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            opted_in_sources,
+            activation
+                .iter()
+                .map(|row| row["source"].as_str().expect("source").to_string())
+                .collect::<BTreeSet<_>>()
+        );
+
+        let missing_root = unsupported
+            .iter()
+            .filter(|row| {
+                row["reason"].as_str() == Some("Unsupported missing #test-root fixture root")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(missing_root.len(), 16);
+        assert_eq!(
+            missing_root
+                .iter()
+                .map(|row| row["source"].as_str().expect("source"))
+                .collect::<BTreeSet<_>>()
+                .len(),
+            4
+        );
+        for row in missing_root {
+            let source = row["source"].as_str().expect("source");
+            let raw = fs::read_to_string(root.join(source)).expect("missing-root source");
+            assert!(
+                !raw.contains("data-surgeist-layout-ready-inline"),
+                "{source}"
+            );
+        }
+
+        let generated_rows = report["generated"]
+            .as_array()
+            .expect("generated rows")
+            .iter()
+            .map(|row| {
+                format!(
+                    "{}\t{}\t{}",
+                    row["source"].as_str().expect("source"),
+                    row["variant"].as_str().expect("variant"),
+                    row["output"].as_str().expect("output")
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(generated_rows.len(), 5_324);
+        assert_eq!(
+            fri06_c08_matrix_digest(generated_rows),
+            "3381162173bc2c09bbbae736391d9420c5e96c375083fb9fd0b337bcec12cffb"
+        );
+        assert_eq!(
+            sha256_file(&root.join("scripts/gentest/test_base_style.css")).expect("base style"),
+            "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_existing_grid_indentation_is_ignored_without_suppressing_unmarked_inline_space() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const document = { styleSheets: [] };
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const inline = {
+  nodeType: Node.ELEMENT_NODE,
+  style: { display: "inline-grid" },
+};
+const whitespace = { nodeType: Node.TEXT_NODE, textContent: "\n  " };
+const childNodes = [inline, whitespace, inline];
+function parent(display, marked) {
+  return {
+    childNodes,
+    getAttribute(name) {
+      return marked && name === "data-surgeist-layout-ready-inline" ? "true" : null;
+    },
+  };
+}
+function getComputedStyle(element) {
+  return { display: element.style?.display || element.display || "block" };
+}
+
+const grid = parent("grid", false);
+grid.display = "grid";
+if (unsupportedChildNodesReason(grid) !== undefined) {
+  throw new Error("grid-parent indentation must not be classified as mixed inline content");
+}
+const block = parent("block", false);
+block.display = "block";
+if (unsupportedChildNodesReason(block) !== "Unsupported mixed text/element content") {
+  throw new Error("unmarked significant inline whitespace must stay unsupported");
+}
+const marked = parent("block", true);
+marked.display = "block";
+if (unsupportedChildNodesReason(marked) !== undefined) {
+  throw new Error("explicit layout-ready inline fixtures must leave unsupported accounting");
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-grid-indentation", script);
+    }
+
+    #[test]
+    fn fri06_c08_existing_helper_emits_complete_finite_text_and_control_facts() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const rootRect = { x: 10, y: 20, left: 10, top: 20, right: 210, bottom: 60, width: 200, height: 40 };
+const textRect = { x: 30, y: 24, left: 30, top: 24, right: 34, bottom: 34, width: 4, height: 10 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return textRect; },
+  getClientRects() { return [textRect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const parent = {
+  getBoundingClientRect() { return rootRect; },
+};
+const text = { nodeType: Node.TEXT_NODE, textContent: " " };
+function getComputedStyle() {
+  return {
+    direction: "ltr",
+    writingMode: "horizontal-tb",
+    fontSize: "10px",
+    lineHeight: "10px",
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
+const segment = shaped.inlineSegments[0];
+for (const [name, value] of Object.entries({
+  inlineExtent: segment.inlineExtent,
+  inlineBaseline: segment.inlineBaseline,
+  inlineLineHeight: segment.inlineLineHeight,
+  x: shaped.fragments[0].x,
+  y: shaped.fragments[0].y,
+  width: shaped.fragments[0].width,
+  height: shaped.fragments[0].height,
+  baselineX: shaped.fragments[0].baselineX,
+  baselineY: shaped.fragments[0].baselineY,
+})) {
+  if (!Number.isFinite(value)) throw new Error(`${name} must be finite, got ${value}`);
+}
+if (segment.id !== 7 || shaped.fragments[0].sourceSegmentId !== 7) {
+  throw new Error("text source and fragment segment identity must remain stable");
+}
+if (shaped.fragments[0].lineIndex !== 0 || shaped.fragments[0].visualIndex !== 2) {
+  throw new Error("fragment line/visual identity must be explicit");
+}
+
+const metrics = brInlineMetricsForElement({ tagName: "BR" }, {
+  fontSize: "10px",
+  lineHeight: "0px",
+});
+if (metrics.baseline !== "0px" || metrics.lineHeight !== "0px") {
+  throw new Error(`zero-height control metrics must remain valid, got ${JSON.stringify(metrics)}`);
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-finite-inline-facts", script);
+    }
+
+    #[test]
+    fn fri06_c08_existing_serializer_emits_c06_shaped_atomic_control_and_fragment_schema() {
+        let node = json!({
+            "tagName": "div",
+            "useRounding": false,
+            "viewport": {
+                "width": {"unit": "px", "value": 100},
+                "height": {"unit": "max-content"},
+            },
+            "style": {"display": "block"},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+            "children": [
+                {
+                    "layoutInput": "inline-text",
+                    "inlineSegments": [{
+                        "id": 7,
+                        "inlineExtent": 4.5,
+                        "inlineBaseline": 8,
+                        "inlineLineHeight": 10,
+                        "bidiLevel": 0,
+                        "whitespaceEdge": "discard-at-both",
+                        "followingBreak": "allowed",
+                    }],
+                    "unroundedLayout": {"x": 20, "y": 4, "width": 4.5, "height": 10},
+                    "fragments": [{
+                        "sourceSegmentId": 7,
+                        "lineIndex": 0,
+                        "visualIndex": 1,
+                        "x": 20,
+                        "y": 4,
+                        "width": 4.5,
+                        "height": 10,
+                        "baselineX": 20,
+                        "baselineY": 12,
+                    }],
+                    "children": [],
+                },
+                {
+                    "tagName": "span",
+                    "style": {"display": "inline-block"},
+                    "atomicInlineParticipation": {
+                        "bidiLevel": 1,
+                        "followingBreak": "prohibited",
+                    },
+                    "unroundedLayout": {"x": 24.5, "y": 0, "width": 10, "height": 10},
+                    "children": [],
+                },
+                {
+                    "tagName": "br",
+                    "style": {
+                        "display": "inline",
+                        "inlineBaseline": "0px",
+                        "inlineLineHeight": "0px",
+                    },
+                    "unroundedLayout": {"x": 34.5, "y": 0, "width": 0, "height": 0},
+                    "children": [],
+                },
+            ],
+        });
+
+        let xml = generate_xml("fri06_c08_existing_schema", &node);
+        for expected in [
+            r#"<text layout-input="inline-text">"#,
+            r#"<segment id="7" inline-extent="4.5" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>"#,
+            r#"<atomic-placeholder child-index="1" bidi-level="1" following-break="prohibited"/>"#,
+            r#"<div source-tag="br" display="inline" inline-baseline="0px" inline-line-height="0px"/>"#,
+            r#"<fragment source_segment_id="7" line_index="0" visual_index="1" x="20" y="4" width="4.5" height="10" baseline_x="20" baseline_y="12"/>"#,
+        ] {
+            assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
+        }
     }
 
     #[test]

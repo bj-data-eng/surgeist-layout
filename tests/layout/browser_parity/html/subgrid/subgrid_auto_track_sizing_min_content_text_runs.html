@@ -14,7 +14,7 @@ The source uses Ahem text "X XXXX XX XXX". These inline runs model the same
 25px text units explicitly, making the longest unbreakable run 100px and the
 wrapped block contribution 100px tall.
 -->
-<div id="test-root" style="display: block; width: 100px; height: 100px; background: red;">
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="display: block; width: 100px; height: 100px; background: red;">
   <div style="display: grid; width: min-content; background: green; font-size: 25px; line-height: 1; color: transparent;">
     <div style="display: grid; grid-template-rows: subgrid; grid-template-columns: subgrid; grid-row: 1 / -1; grid-column: 1 / -1;">
       <span style="display: inline-block; width: 25px; height: 25px;"></span>

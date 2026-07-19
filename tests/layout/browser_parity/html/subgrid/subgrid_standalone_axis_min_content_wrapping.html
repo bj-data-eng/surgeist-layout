@@ -16,7 +16,7 @@ Contract:
 The subgrid's min-content inline size is 100px, causing two 100px inline-block
 children to wrap into a 100px by 100px contribution.
 -->
-<div id="test-root" style="display: grid; width: max-content; grid-template-columns: minmax(min-content, max-content);">
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="display: grid; width: max-content; grid-template-columns: minmax(min-content, max-content);">
   <div style="display: grid; width: min-content; grid-template-rows: subgrid;">
     <div style="font-size: 0;">
       <div style="display: inline-block; width: 100px; height: 50px;"></div>
