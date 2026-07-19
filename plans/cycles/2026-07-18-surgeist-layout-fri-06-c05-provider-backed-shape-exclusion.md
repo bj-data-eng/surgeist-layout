@@ -245,7 +245,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c04_
 CARGO_NET_OFFLINE=true just fmt-check
 git diff --check 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD
 git diff --name-only --no-renames 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD
-! git diff --name-only --no-renames 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD | rg -q -v '^(plans/(specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs|sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs|cycles/2026-07-18-surgeist-layout-fri-06-c05-provider-backed-shape-exclusion)\.md|src/(block|block_tests|cache_tests|compute|contract_tests|inline|inline_tests|lib|lib_tests|node_input|root_tests|traits)\.rs)$'
+! git diff --name-only --no-renames 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD | rg -q -v '^(plans/(specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs|sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs|cycles/2026-07-18-surgeist-layout-fri-06-c05-provider-backed-shape-exclusion)\.md|src/(block|block_tests|cache_tests|compute|contract_tests|inline|inline_tests|invalidation_transaction_tests|lib|lib_tests|node_input|root_tests|traits)\.rs)$'
 test -z "$(git ls-files --others --exclude-standard)"
 ! git diff --unified=0 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD -- '*.rs' | rg -q '^\+.*#\s*\[\s*(allow|expect)\s*\('
 ! rg -n 'layout_inline_segments|provider_revision|shape_revision|float_exclusion_revision' src
@@ -257,12 +257,12 @@ The changed-path allowlist is exactly the revised specification and sequence,
 this plan, plus `src/block.rs`,
 `src/block_tests.rs`, `src/cache_tests.rs`, `src/compute.rs`,
 `src/contract_tests.rs`, `src/inline.rs`, `src/inline_tests.rs`,
-`src/lib.rs`, `src/lib_tests.rs`, `src/node_input.rs`, `src/root_tests.rs`, and
-`src/traits.rs`; allowed paths need not all change. Any other path fails
-completion. The commands fail on a new `allow`/`expect`, legacy second band,
-provider/cache revision state, nonignored untracked file, executable unsafe in
-the complete tracked/nonignored owned Rust set, or dirty worktree. No temporary
-manifest is created.
+`src/invalidation_transaction_tests.rs`, `src/lib.rs`, `src/lib_tests.rs`,
+`src/node_input.rs`, `src/root_tests.rs`, and `src/traits.rs`; allowed paths need
+not all change. Any other path fails completion. The commands fail on a new
+`allow`/`expect`, legacy second band, provider/cache revision state, nonignored
+untracked file, executable unsafe in the complete tracked/nonignored owned Rust
+set, or dirty worktree. No temporary manifest is created.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `18032d13dd8bb204187ade7238505ca9210ffddd..cycle_head`. Prove local `main` is
