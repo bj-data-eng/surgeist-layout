@@ -139,8 +139,8 @@ No XML/report file changes and no full generation occurs.
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_existing_
-CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate
-CARGO_NET_OFFLINE=true ./scripts/run-cargo-task.sh generator-clippy
+CARGO_NET_OFFLINE=true just generator-check
+CARGO_NET_OFFLINE=true just generator-clippy
 cargo fmt --check
 ```
 
@@ -179,8 +179,8 @@ Record the replacement manifest SHA-256 in task evidence.
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_new_
-CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate
-CARGO_NET_OFFLINE=true ./scripts/run-cargo-task.sh generator-clippy
+CARGO_NET_OFFLINE=true just generator-check
+CARGO_NET_OFFLINE=true just generator-clippy
 cargo fmt --check
 ```
 
@@ -221,10 +221,10 @@ generator after successful derivation.
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_
-CARGO_NET_OFFLINE=true ./scripts/run-browser-parity-task.sh corpus-check
-CARGO_NET_OFFLINE=true ./scripts/run-browser-parity-task.sh taffy-check
-CARGO_NET_OFFLINE=true ./scripts/run-verification.sh default
-CARGO_NET_OFFLINE=true ./scripts/run-verification.sh generator
+CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true just taffy-check
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
 ```
 
@@ -245,7 +245,7 @@ Run the T3 command set, then:
 ```sh
 git diff --check bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD
 git diff --quiet -G'(^|[^.[:alnum:]_])(allow|expect)[[:space:]]*\(' bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- '*.rs'
-test -z "$(git diff --name-only bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- src Cargo.toml Cargo.lock justfile README.md scripts plans/specs plans/sequences)"
+test -z "$(git diff --name-only bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- src Cargo.toml Cargo.lock Justfile README.md scripts plans/specs plans/sequences)"
 test -z "$(git status --porcelain)"
 ```
 
