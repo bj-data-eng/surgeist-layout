@@ -1,6 +1,6 @@
 # FRI-06-C05 Provider-Backed Shape Exclusion
 
-Status: draft
+Status: reviewed
 
 Cycle ID: `FRI-06-C05`
 
