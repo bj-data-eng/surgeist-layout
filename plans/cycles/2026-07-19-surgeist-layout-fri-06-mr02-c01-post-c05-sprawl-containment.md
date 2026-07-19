@@ -11,8 +11,8 @@ Cycle base: `98b861133d873b387fb0b19891692a59ab7a6587`
 Reviewed specification:
 `plans/specs/2026-07-19-surgeist-layout-fri-06-mr02-post-c05-sprawl-containment.md`
 at established-v1 status-normalized SHA-256
-`b5ac1953bb49e0441432c5c1c523e8cc390056d922ef87917374007199b7e632`,
-commit `6870e9732`, sections `FRI-06-MR02.1` through `FRI-06-MR02.9`.
+`2c1a9a25173005b52890990991c2b859f8e75d4766408319088d37fbeca0ff95`,
+commit `c98598d2b`, sections `FRI-06-MR02.1` through `FRI-06-MR02.9`.
 
 Implementation sequence: none; this is a one-cycle, single-repository
 sub-initiative in the recorded post-C05 insertion window.
@@ -123,28 +123,38 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 ### `MR02-C01-T3` Use One Physical Scroll-Padding Conversion
 
-**Files:** `src/scroll.rs`, `src/compute.rs`, `src/block.rs`, `src/flex.rs`,
-`src/grid/mod.rs`, `src/grid/child.rs`, and focused leaf/block/flex/grid tests.
+**Files:** `src/compute.rs`, `src/block.rs`, `src/flex.rs`, `src/grid/mod.rs`,
+`src/grid/child.rs`, and focused leaf/block/flex/grid tests.
 
 **Outcome:** Add `fri06_mr02_scroll_padding_` characterization for Auto/Value
 sentinels on all four physical edges and all five consumers in both scalar
-lanes. Add crate-private `OptimalRegionInsetsOf::from_scroll_padding` and remove
-the five local conversion functions. Do not add public `From` or move layout
-dependencies into scroll.
+lanes. Define crate-private `OptimalRegionInsetsOf::from_scroll_padding` at the
+compute layout-input boundary and remove the five local conversion functions.
+Do not add public `From` or move layout dependencies into scroll.
+
+**Characterization audit:** The canonical test-only patch is the exact output of
+`git diff --binary 27db063289b7ebd52562c29b41ad3c7ed5a0e489 131f3bf7af379fb33a8e4fa88248f8917b005ace -- src/block_tests.rs src/flex_tests.rs src/grid_tests.rs src/leaf_tests.rs`.
+Its SHA-256 must equal
+`85a8c976e73f8a2d4ebb246de018c94061e031074e8a539d414a3f58dc397950`.
+A fresh worker must apply those exact bytes in a ledgered detached worktree at
+the task base, run the focused command there, and remove the clean worktree.
 
 **Acceptance:** Top/right/bottom/left and Auto/Value mapping are exact through
 leaf, block, flex, grid, and grid-child front doors. Scroll geometry, snap
 targets, errors, and outputs are unchanged. Only the owned conversion contains
-the value match and four-edge construction.
+the value match and four-edge construction. `src/scroll.rs` contains no
+`ScrollPaddingOf` dependency.
 
 **Commands:**
 
 ```sh
+git diff --binary 27db063289b7ebd52562c29b41ad3c7ed5a0e489 131f3bf7af379fb33a8e4fa88248f8917b005ace -- src/block_tests.rs src/flex_tests.rs src/grid_tests.rs src/leaf_tests.rs | shasum -a 256
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_scroll_padding_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c0
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout
 CARGO_NET_OFFLINE=true cargo clippy --locked -p surgeist-layout --all-targets -- -F unsafe-code -D warnings
 CARGO_NET_OFFLINE=true just fmt-check
+rg -n 'ScrollPaddingOf' src/scroll.rs; test $? -eq 1
 ```
 
 **Dependency:** T2 is task-clean.
