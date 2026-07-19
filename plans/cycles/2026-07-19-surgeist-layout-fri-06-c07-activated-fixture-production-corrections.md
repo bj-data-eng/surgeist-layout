@@ -12,11 +12,17 @@ Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized semantic-content SHA-256
 `7090ea13ba7d9e524ce432018c8b7c44c1b3b76428d2c666949d297656ce97c8`,
-commit `cc2a8486f9e4e7719c9a28cc68321b7e630d9ded`, sections
-`FRI-06.4 D-03`, `D-06`, `D-07`, and `D-09` through `D-13`; line,
-intrinsic, baseline, bidi, control, flow, and clear portions of `FRI-06.7`
-through `FRI-06.9`; module responsibilities in `FRI-06.10`; and behavioral
-acceptance in `FRI-06.14`.
+commit `cc2a8486f9e4e7719c9a28cc68321b7e630d9ded`: `FRI-06.4 D-01` through
+`D-03`, `D-06`, `D-07`, `D-09` through `D-13`, and `D-15`; `FRI-06.7`
+Participant Matrix rows Shaped segment, Visible line break, and Float, Break
+Selection Matrix rows Min-content query and Max-content query, Bidi And
+Whitespace Matrix row Visible line break, Float And BFC Matrix rows Floating
+child, Float-only container, and Nested BFC, the Atomic Baseline Matrix, and all
+seven Control And Clear Matrix requirements; `FRI-06.8` Logical Line Builder,
+Float Bands, and Size, Baseline, Scroll, Cache, And Rounding; `FRI-06.9` evidence
+families Text wrapping, Struts/controls, Vertical lines, Atomic baselines, and
+Rectangular floats; `FRI-06.10` rows `src/inline.rs`, `src/block.rs`, and Focused
+Rust tests; and `FRI-06.14` acceptance items 4 through 9 and 16 through 18.
 
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
@@ -60,6 +66,23 @@ constructs equivalent typed inputs through production constructors and
 production-visible test surface. The four tables must be disjoint and their
 union must equal the 72-row matrix above.
 
+The typed inputs and observable oracles are fixed before implementation:
+
+| Family | Typed input and exact observable oracle |
+| --- | --- |
+| Grid-lanes packing | A 120px logical-inline content box with two 60px lanes and 60px, 30px, 30px children. Used logical content size is 120x60; logical child origins are `(0,0)`, `(60,0)`, `(60,30)`. Horizontal LTR physical x origins are `0,60,60`; RTL origins relative to the content box are `60,0,0`. Normal and computed hidden overflow are identical. |
+| Subgrid min-content text runs | A 100px track with preserved 25px, 100px, 50px, and 75px indivisible participants. Used grid size is 100x100; logical origins are `(0,0)`, `(0,25)`, `(0,50)`, `(0,75)`. Horizontal RTL physical x origins are respectively `75,0,50,25`; LTR x origins are all zero. |
+| Subgrid baseline families | Two baseline-aligned items expose used heights 15px and 30px and baseline offsets 12px and 24px. The first physical y is 12, the second is 0, and both used baselines are physical y=24 in every standard variant. |
+| Forced-break strut | A 10px preserved segment followed by a visible break with a 20px strut and 15px baseline under max-content sizing. The used root is 10x40, first/last baselines are y=15/y=35, and the zero-size break is `(10,15)` in LTR and `(0,15)` in RTL; box sizing does not alter it. |
+| RTL subgrid alignment | A 400x400 horizontal root, 100px inherited tracks, 10px each margin/border/padding, and a 40x40 subject. Logical inline origins map `start=30,end=130,center=230,baseline=330`; block origins use the same mapping for the item alignment. Every RTL row has physical `x = 400 - logical_inline - 40`, unchanged physical y equal to the item mapping, and size 40x40. Thus RTL x maps `start=330,end=230,center=130,baseline=30` in both box-sizing variants. |
+| Vertical break and clear | `VerticalRl` with a 40x40 logical containing box, one 10px segment, the same 20px/15px break strut, and a matching line-start exclusion ending at logical block 20. The break's logical point is `(10,15)`, the following strut baseline is logical block 35, and root logical block extent is 40. Physical break origin is `(25,10)` for LTR and `(25,30)` for RTL; first/last physical block-axis baselines are x=25/x=5. |
+| Logical float clear | Independent `VerticalRl` 100x160 logical roots. A line-start float occupies logical `(0,0)` size 20x20 and its `Clear::Left` 50x10 block starts at logical `(0,20)`; a line-end float occupies `(70,0)` size 30x40 and its `Clear::Right` block starts at `(0,40)`. Their physical cleared-block origins are `(130,0)`/`(110,0)` in LTR and `(130,50)`/`(110,50)` in RTL. |
+
+Each row asserts these constants directly after `compute_layout`; using current
+production output to calculate the expectation is forbidden. Direction and box
+sizing select only the stated physical projection and never alter the logical
+oracle.
+
 The 256 fixture corrections remain C08-owned. The 408 failures from the broad
 diagnostic are not a recovery matrix; aggregate parity remains FRI-13-owned.
 No task may use those sets to add a case dynamically.
@@ -72,12 +95,16 @@ FRI-09 through FRI-13 behavior. Generator architecture and implementation remain
 unchanged. `just verify-generator` is read-only Cargo feature verification and
 does not execute corpus generation.
 
-The insertion decisions in
-`plans/2026-07-18-surgeist-layout-mechanical-refactoring-review-findings.md`
-remain authoritative: broad `MR-002` test-harness migration and `MR-003` shared
-layout-math extraction wait until the final leaf candidate handoff. C07 may make
-only a task-local extraction required for the confirmed correction and covered by
-the same focused RED; it does not begin those broad refactors.
+Broad `MR-002` test-harness migration and `MR-003` shared layout-math extraction
+wait until the final leaf candidate handoff. C07 may make only a task-local
+extraction required for the confirmed correction and covered by the same focused
+RED; it does not begin either broad refactor.
+
+Every worker starts with its task's listed production modules. A reconstructed
+RED may expand the write set only to a direct caller, provider, or public-front-
+door path on that exact failing call chain, and the worker must identify the
+concrete call edge in its evidence. Any broader production module or unrelated
+path requires a plan amendment, a new semantic revision, and fresh plan review.
 
 ## Impacts
 
@@ -95,7 +122,6 @@ the same focused RED; it does not begin those broad refactors.
 
 **Files/area:** `src/grid/lanes.rs`, `src/grid/tracks.rs`, direct grid sizing
 callers reached by the RED, and private regressions in `src/grid_tests.rs`.
-Any additional production module requires a plan amendment and re-review.
 
 **Outcome:** Preserve grid-lanes packing and subgrid descendant min-content
 contributions when shaped inline participants replace legacy box-only inputs.
@@ -129,8 +155,7 @@ CARGO_NET_OFFLINE=true just verify-generator
 
 **Files/area:** `src/grid/child.rs`, `src/grid/tracks.rs`, `src/inline.rs`,
 `src/block.rs`, and direct private regressions in `src/grid_tests.rs`,
-`src/inline_tests.rs`, or `src/root_tests.rs`. A worker changes only owners reached
-by its reconstructed RED.
+`src/inline_tests.rs`, or `src/root_tests.rs`.
 
 **Outcome:** Preserve baseline-group placement through subgridded and standalone
 axes and retain a forced break's control geometry, committed line, following
