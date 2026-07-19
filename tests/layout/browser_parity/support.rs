@@ -346,6 +346,7 @@ fn parse_fragment_expectations(
             attribute.name()
         )));
     }
+    validate_fragment_payload(xml, Some("fragment"))?;
     xml.children()
         .filter(roxmltree::Node::is_element)
         .map(parse_fragment_expectation)
@@ -387,7 +388,29 @@ fn parse_fragment_expectation(
             attribute.name()
         )));
     }
+    validate_fragment_payload(xml, None)?;
     Ok(expectation)
+}
+
+fn validate_fragment_payload(
+    xml: roxmltree::Node<'_, '_>,
+    allowed_child: Option<&str>,
+) -> Result<(), Error> {
+    let tag = xml.tag_name().name();
+    for child in xml.children() {
+        if child.is_text() && child.text().is_some_and(|text| !text.trim().is_empty()) {
+            return Err(Error::new(format!(
+                "unsupported non-whitespace text in `<{tag}>`"
+            )));
+        }
+        if child.is_element() && Some(child.tag_name().name()) != allowed_child {
+            return Err(Error::new(format!(
+                "unsupported `<{tag}>` child `<{}>`",
+                child.tag_name().name()
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn parse_fragment_integer<T>(xml: roxmltree::Node<'_, '_>, name: &str) -> Result<T, Error>
@@ -3563,6 +3586,54 @@ mod tests {
         }
     }
 
+    fn fri06_c06_complete_fragment(payload: &str) -> String {
+        format!(
+            r#"<fragment source_segment_id="11" line_index="0" visual_index="2" x="1.25" y="2.5" width="10.25" height="10" baseline_x="1.25" baseline_y="10.5">{payload}</fragment>"#
+        )
+    }
+
+    #[test]
+    fn fri06_c06_comparator_fragments_reject_non_whitespace_text() {
+        let xml = fri06_c06_fragment_xml("<fragments>payload</fragments>");
+        let error = Golden::parse(&xml).expect_err("non-whitespace text in fragments should fail");
+        assert_eq!(
+            error.to_string(),
+            "unsupported non-whitespace text in `<fragments>`"
+        );
+    }
+
+    #[test]
+    fn fri06_c06_comparator_fragments_reject_nested_element() {
+        let xml = fri06_c06_fragment_xml("<fragments><nested /></fragments>");
+        let error = Golden::parse(&xml).expect_err("unknown fragments child should fail");
+        assert_eq!(
+            error.to_string(),
+            "unsupported `<fragments>` child `<nested>`"
+        );
+    }
+
+    #[test]
+    fn fri06_c06_comparator_fragment_rejects_non_whitespace_text() {
+        let fragment = fri06_c06_complete_fragment("payload");
+        let xml = fri06_c06_fragment_xml(&format!("<fragments>{fragment}</fragments>"));
+        let error = Golden::parse(&xml).expect_err("non-whitespace text in fragment should fail");
+        assert_eq!(
+            error.to_string(),
+            "unsupported non-whitespace text in `<fragment>`"
+        );
+    }
+
+    #[test]
+    fn fri06_c06_comparator_fragment_rejects_nested_element() {
+        let fragment = fri06_c06_complete_fragment("<nested />");
+        let xml = fri06_c06_fragment_xml(&format!("<fragments>{fragment}</fragments>"));
+        let error = Golden::parse(&xml).expect_err("unknown fragment child should fail");
+        assert_eq!(
+            error.to_string(),
+            "unsupported `<fragment>` child `<nested>`"
+        );
+    }
+
     struct Fri06C06FragmentTree {
         layout_inputs: Vec<layout::LayoutInput>,
         node_inputs: Vec<layout::NodeInput>,
@@ -3872,6 +3943,34 @@ mod tests {
             error.to_string(),
             "fri06-c06-fragments/0: fragment count mismatch, expected 0, got 1"
         );
+    }
+
+    #[test]
+    fn fri06_c06_comparator_missing_fragment_output_is_named() {
+        let (_tree, _batch, expected) = fri06_c06_fragment_observation();
+        let expected_fragments = expected.children[0].fragments.as_ref().unwrap();
+        let error = compare_fragment_expectations("fri06-c06-fragments/0", &[], expected_fragments)
+            .expect_err("missing final fragment output should fail");
+        assert_eq!(
+            error.to_string(),
+            "fri06-c06-fragments/0: fragment count mismatch, expected 1, got 0"
+        );
+    }
+
+    #[test]
+    fn fri06_c06_comparator_old_xml_without_fragments_keeps_legacy_semantics() {
+        let golden = Golden::parse(
+            r#"
+            <test name="fri06-c06-old-xml" use-rounding="true">
+                <viewport width="100px" height="80px" />
+                <input><div width="10px" height="20px" /></input>
+                <expectations><node x="0" y="0" width="10" height="20" /></expectations>
+            </test>
+            "#,
+        )
+        .expect("legacy XML should parse");
+
+        assert_surgeist_matches(&golden).expect("legacy XML meaning should remain unchanged");
     }
 
     #[test]
