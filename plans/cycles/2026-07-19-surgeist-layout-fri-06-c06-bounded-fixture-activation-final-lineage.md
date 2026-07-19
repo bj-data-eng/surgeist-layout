@@ -259,10 +259,10 @@ CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just parity-all
 git diff --check
-test ! -e /tmp/surgeist-layout-fri06-c06-rust.diff
-git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' > /tmp/surgeist-layout-fri06-c06-rust.diff
-rg '^\+.*#\s*\[\s*(allow|expect)\s*\(' /tmp/surgeist-layout-fri06-c06-rust.diff; test $? -eq 1
-rm /tmp/surgeist-layout-fri06-c06-rust.diff
+test ! -e /tmp/surgeist-layout-fri06-c06-added.rs
+git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' | sed -n '/^+++ /d; /^+/s/^+//p' > /tmp/surgeist-layout-fri06-c06-added.rs
+rg -n -U --pcre2 '(?<![.\w])(?:allow|expect)\s*\(' /tmp/surgeist-layout-fri06-c06-added.rs; test $? -eq 1
+rm /tmp/surgeist-layout-fri06-c06-added.rs
 owned_rust=$(git ls-files --cached --others --exclude-standard '*.rs')
 test -n "$owned_rust"
 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $owned_rust; test $? -eq 1
@@ -289,10 +289,10 @@ CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just parity-all
 git diff --check 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
 git diff --name-only --no-renames 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
-test ! -e /tmp/surgeist-layout-fri06-c06-rust.diff
-git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' > /tmp/surgeist-layout-fri06-c06-rust.diff
-rg '^\+.*#\s*\[\s*(allow|expect)\s*\(' /tmp/surgeist-layout-fri06-c06-rust.diff; test $? -eq 1
-rm /tmp/surgeist-layout-fri06-c06-rust.diff
+test ! -e /tmp/surgeist-layout-fri06-c06-added.rs
+git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' | sed -n '/^+++ /d; /^+/s/^+//p' > /tmp/surgeist-layout-fri06-c06-added.rs
+rg -n -U --pcre2 '(?<![.\w])(?:allow|expect)\s*\(' /tmp/surgeist-layout-fri06-c06-added.rs; test $? -eq 1
+rm /tmp/surgeist-layout-fri06-c06-added.rs
 owned_rust=$(git ls-files --cached --others --exclude-standard '*.rs')
 test -n "$owned_rust"
 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $owned_rust; test $? -eq 1
