@@ -874,6 +874,10 @@ where
         };
         let visual_order_opposes_logical_progression = input.flow_axes.direction()
             == Direction::Rtl
+            && input
+                .flow_axes
+                .logical_axis_progression(crate::LogicalAxis::Inline)
+                .is_decreasing()
             && line.units.iter().all(|selected| {
                 matches!(
                     selected.participant,

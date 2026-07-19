@@ -3873,6 +3873,46 @@ fn fri06_c03_mixed_bidi_reorders_complete_units_per_line_both_scalars() {
     assert_lane::<f64>();
 }
 
+#[test]
+fn fri06_c07_sideways_lr_rtl_all_atomic_odd_bidi_keeps_visual_placement_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl);
+        let atomic = |node, inline_extent| {
+            let style = fri06_c04_line_box(
+                flow_axes,
+                LogicalSizeOf::new(S::from_f64(inline_extent), S::from_f64(20.0)),
+                Float::None,
+                Some(fri06_c03_atomic_participation(
+                    1,
+                    InlineBreakOpportunityOf::prohibited(),
+                )),
+            );
+            (node, LayoutInputOf::box_input(style.clone()), style)
+        };
+        let batch = fri06_c04_line_batch(
+            flow_axes,
+            TextAlign::Auto,
+            vec![atomic(1, 10.0), atomic(2, 20.0)],
+        );
+        let first_source = fri06_c02_final_node(&batch, 1);
+        let second_source = fri06_c02_final_node(&batch, 2);
+
+        assert_eq!(
+            first_source.size,
+            Size::new(S::from_f64(20.0), S::from_f64(10.0))
+        );
+        assert_eq!(
+            second_source.size,
+            Size::new(S::from_f64(20.0), S::from_f64(20.0))
+        );
+        assert_eq!(first_source.location.y, S::from_f64(20.0));
+        assert_eq!(second_source.location.y, S::ZERO);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn fri06_c02_flow_mappings() -> [(WritingMode, Direction); 10] {
     [
         (WritingMode::HorizontalTb, Direction::Ltr),
