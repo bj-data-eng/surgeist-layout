@@ -1,6 +1,6 @@
 # FRI-06-C06 Finite Fixture Adapter Preparation
 
-Status: complete
+Status: in_progress
 
 Cycle ID: `FRI-06-C06`
 
