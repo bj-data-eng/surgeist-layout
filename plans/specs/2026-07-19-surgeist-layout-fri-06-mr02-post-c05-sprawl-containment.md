@@ -37,7 +37,7 @@ In scope:
 - crate-private scroll-padding conversion in `src/scroll.rs` and its five
   existing consumers;
 - compute-owned own/child scroll-geometry error construction used by block,
-  flex, and grid;
+  flex, grid, and grid lanes;
 - crate-private scalar, rounding, and physical-edge primitives and only their
   proven-identical call sites; and
 - focused Rust characterization and deterministic scaling tests.
@@ -70,14 +70,14 @@ At published base `98b861133d873b387fb0b19891692a59ab7a6587`:
   candidate slice on every scan step;
 - leaf, block, flex, grid, and grid-child paths contain the same four-edge
   `ScrollPaddingOf<S>` to `OptimalRegionInsetsOf<S>` conversion;
-- block, flex, and grid own/child geometry helpers construct the same site,
-  operation, and invariant combinations;
+- block, flex, grid, and grid-lanes own/child geometry paths construct the same
+  site, operation, and invariant combinations;
 - `canonical_zero`, `canonical_calc_size_zero`,
   `canonical_exclusion_zero`, and `canonical_scroll_zero` have identical bodies;
 - compute and scroll both implement `(value + 0.5).floor()` as layout rounding;
   and
-- geometry, block, compute, and scroll contain identical `Edges<T>` selection
-  by `PhysicalSide`.
+- geometry, block, compute, flex, and scroll contain identical `Edges<T>`
+  selection by `PhysicalSide`.
 
 The existing focused inline, root, scroll, block, flex, grid, sizing, value, and
 contract tests are preservation evidence. New characterization must precede each
@@ -185,10 +185,10 @@ is added.
    `InvalidBlockScrollGeometry`.
 
 Block's optional inline subject continues to select between those two adapters
-without moving the decision. Block, flex, grid, and grid-child retain their
-current call-site node identities. The safe underlying geometry error remains
-intentionally consumed because the public error contract exposes the existing
-internal invariant, not a new source variant.
+without moving the decision. Block, flex, grid, grid-child, and grid-lanes retain
+their current call-site node identities. The safe underlying geometry error
+remains intentionally consumed because the public error contract exposes the
+existing internal invariant, not a new source variant.
 
 ### Geometry Preservation Matrix
 
@@ -198,7 +198,7 @@ internal invariant, not a new source variant.
 | Non-root block/flex/grid own geometry | Subject node, `ChildLayout` |
 | Block inline own geometry | Container node and current run-mode mapping |
 | Block/flex/grid child geometry | Exact container/subject pair, `ChildLayout` |
-| Grid track-subject geometry | Existing node-as-container/node-as-subject identities |
+| Grid and grid-lanes track-subject geometry | Existing node-as-container/node-as-subject identities |
 | Leaf/standalone geometry | Existing leaf adapter remains unchanged |
 
 Every mapping is characterized through existing public or algorithm front doors
@@ -231,8 +231,9 @@ order.
 ### D-08 Physical-Edge Selection
 
 `Edges<T>` exposes one crate-private typed accessor taking `PhysicalSide` and
-returning the matching copied edge. Geometry, block, compute, and scroll remove
-only identical four-way value-selection matches. Matches that construct rects,
+returning the matching copied edge. Geometry, block, compute, flex, and scroll
+remove only identical four-way value-selection matches. Flex retains its paired
+edge setter and every axis-policy method. Matches that construct rects,
 coordinates, progression, or other side-specific policy remain local.
 
 The accessor is physical, not flow-relative. It does not accept logical sides,
