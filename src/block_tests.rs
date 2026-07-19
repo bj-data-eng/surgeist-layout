@@ -1568,6 +1568,168 @@ fn parent_context_gates_only_block_boundary_collapse_in_both_scalar_lanes() {
     assert_lane::<f64>();
 }
 
+fn fri06_mr02_physical_edge_value<S: LayoutScalar>(edges: Edges<S>, side: PhysicalSide) -> S {
+    match side {
+        PhysicalSide::Top => edges.top,
+        PhysicalSide::Right => edges.right,
+        PhysicalSide::Bottom => edges.bottom,
+        PhysicalSide::Left => edges.left,
+    }
+}
+
+fn assert_fri06_mr02_physical_edge_block_margin_selection<S: LayoutScalar>()
+where
+    crate::test_support::layout_tree::OracleTreeOf<S>: Compute + Traverse<Node = u32, Scalar = S>,
+{
+    let sentinels = Edges::new(
+        S::from_f64(11.0),
+        S::from_f64(22.0),
+        S::from_f64(33.0),
+        S::from_f64(44.0),
+    );
+
+    for (writing_mode, direction) in [
+        (WritingMode::HorizontalTb, Direction::Ltr),
+        (WritingMode::VerticalRl, Direction::Ltr),
+        (WritingMode::SidewaysRl, Direction::Rtl),
+    ] {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        let mut child_output = ComputeOutputOf::from_outer_size(Size::ZERO);
+        child_output.block_margin_collapse = PhysicalBlockMarginCollapseOf::from_block_flow(
+            flow_axes,
+            CollapsibleMarginOf::ZERO,
+            CollapsibleMarginOf::ZERO,
+            true,
+        );
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [1])
+            .children(1, [])
+            .style(
+                0,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: flow_axes.physical_size(crate::geometry::LogicalSizeOf::new(
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::AUTO,
+                    )),
+                    ..NodeInputOf::default()
+                },
+            )
+            .style(
+                1,
+                NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    margin: sentinels.map(LengthAutoOf::px),
+                    ..NodeInputOf::default()
+                },
+            )
+            .measure(1, child_output);
+
+        let output = crate::compute_block(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                Size::NONE,
+                Size::splat(Some(S::from_f64(100.0))),
+                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::BlockFlow),
+                Size::splat(AvailableOf::definite(S::from_f64(100.0))),
+            ),
+        )
+        .expect("block layout with physical margin sentinels succeeds");
+
+        assert_eq!(
+            output
+                .block_margin_collapse
+                .at(flow_axes.block_start())
+                .resolve(),
+            fri06_mr02_physical_edge_value(sentinels, flow_axes.block_start()),
+            "block-start margin selection changed for {writing_mode:?} {direction:?}"
+        );
+        assert_eq!(
+            output
+                .block_margin_collapse
+                .at(flow_axes.block_end())
+                .resolve(),
+            fri06_mr02_physical_edge_value(sentinels, flow_axes.block_end()),
+            "block-end margin selection changed for {writing_mode:?} {direction:?}"
+        );
+    }
+}
+
+fn assert_fri06_mr02_physical_edge_leaf_collapse_selection<S: LayoutScalar>() {
+    let sentinels = [
+        (PhysicalSide::Top, S::from_f64(11.0)),
+        (PhysicalSide::Right, S::from_f64(22.0)),
+        (PhysicalSide::Bottom, S::from_f64(33.0)),
+        (PhysicalSide::Left, S::from_f64(44.0)),
+    ];
+
+    for (writing_mode, direction) in [
+        (WritingMode::HorizontalTb, Direction::Ltr),
+        (WritingMode::VerticalRl, Direction::Ltr),
+        (WritingMode::VerticalLr, Direction::Rtl),
+        (WritingMode::SidewaysRl, Direction::Rtl),
+        (WritingMode::SidewaysLr, Direction::Ltr),
+    ] {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        for (side, sentinel) in sentinels {
+            for use_border in [false, true] {
+                let mut edge = Edges::all(LengthOf::ZERO);
+                match side {
+                    PhysicalSide::Top => edge.top = LengthOf::px(sentinel),
+                    PhysicalSide::Right => edge.right = LengthOf::px(sentinel),
+                    PhysicalSide::Bottom => edge.bottom = LengthOf::px(sentinel),
+                    PhysicalSide::Left => edge.left = LengthOf::px(sentinel),
+                }
+                let mut style = NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    ..NodeInputOf::default()
+                };
+                if use_border {
+                    style.border = edge;
+                } else {
+                    style.padding = edge;
+                }
+                let input = ComputeInputOf::leaf_layout(
+                    Size::NONE,
+                    Size::splat(Some(S::from_f64(100.0))),
+                    ContainingLayoutContext::new(flow_axes, ParentFormattingContext::BlockFlow),
+                    Size::splat(AvailableOf::definite(S::from_f64(100.0))),
+                )
+                .expect("physical-edge leaf input is valid");
+                let output = compute_leaf(input, &style, |_| Ok::<_, ()>(Size::ZERO))
+                    .expect("physical-edge leaf layout succeeds");
+                let selected_for_block_axis =
+                    side == flow_axes.block_start() || side == flow_axes.block_end();
+
+                assert_eq!(
+                    output.block_margin_collapse.can_collapse_through(flow_axes),
+                    !selected_for_block_axis,
+                    "leaf {} selection changed for {side:?} in {writing_mode:?} {direction:?}",
+                    if use_border { "border" } else { "padding" }
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn fri06_mr02_physical_edge_block_and_leaf_callers_select_physical_sentinels_both_scalars() {
+    assert_fri06_mr02_physical_edge_block_margin_selection::<f32>();
+    assert_fri06_mr02_physical_edge_block_margin_selection::<f64>();
+    assert_fri06_mr02_physical_edge_leaf_collapse_selection::<f32>();
+    assert_fri06_mr02_physical_edge_leaf_collapse_selection::<f64>();
+}
+
 #[test]
 fn replaced_block_child_keeps_measured_auto_inline_size_in_both_scalar_lanes() {
     fn assert_lane<S: LayoutScalar>() {

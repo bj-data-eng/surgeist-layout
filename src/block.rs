@@ -94,15 +94,6 @@ where
     }
 }
 
-fn edge_at_physical_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
-    match side {
-        PhysicalSide::Top => edges.top,
-        PhysicalSide::Right => edges.right,
-        PhysicalSide::Bottom => edges.bottom,
-        PhysicalSide::Left => edges.left,
-    }
-}
-
 fn compute_block_inner<Tree, S, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
@@ -1555,10 +1546,9 @@ where
             let preview_top_margin = output
                 .block_margin_collapse
                 .at(constants.flow_axes.block_start())
-                .collapse_with_margin(edge_at_physical_side(
-                    child_margin,
-                    constants.flow_axes.block_start(),
-                ));
+                .collapse_with_margin(
+                    child_margin.at_physical_side(constants.flow_axes.block_start()),
+                );
             let child_margin_can_collapse_with_parent =
                 child_margin_can_collapse_with_parent(&child_style);
             let collapsed_margin = if is_collapsing_first_margin {
@@ -1610,10 +1600,9 @@ where
             let preview_top_margin = output
                 .block_margin_collapse
                 .at(constants.flow_axes.block_start())
-                .collapse_with_margin(edge_at_physical_side(
-                    child_margin,
-                    constants.flow_axes.block_start(),
-                ));
+                .collapse_with_margin(
+                    child_margin.at_physical_side(constants.flow_axes.block_start()),
+                );
             let child_margin_can_collapse_with_parent =
                 child_margin_can_collapse_with_parent(&child_style);
             let collapsed_margin = if is_collapsing_first_margin {
@@ -1781,17 +1770,11 @@ where
         let top_margin_set = output
             .block_margin_collapse
             .at(constants.flow_axes.block_start())
-            .collapse_with_margin(edge_at_physical_side(
-                child_margin,
-                constants.flow_axes.block_start(),
-            ));
+            .collapse_with_margin(child_margin.at_physical_side(constants.flow_axes.block_start()));
         let bottom_margin_set = output
             .block_margin_collapse
             .at(constants.flow_axes.block_end())
-            .collapse_with_margin(edge_at_physical_side(
-                child_margin,
-                constants.flow_axes.block_end(),
-            ));
+            .collapse_with_margin(child_margin.at_physical_side(constants.flow_axes.block_end()));
         let child_margin_can_collapse_with_parent =
             child_margin_can_collapse_with_parent(&child_style);
         let base_block = cursor_block;

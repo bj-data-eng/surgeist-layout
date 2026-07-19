@@ -715,43 +715,43 @@ impl FlexAxes {
     }
 
     #[must_use]
-    pub(crate) fn main_start_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.main_start_side)
+    pub(crate) fn main_start_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.main_start_side)
     }
 
     #[must_use]
-    pub(crate) fn main_end_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.main_end_side)
+    pub(crate) fn main_end_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.main_end_side)
     }
 
     #[must_use]
-    pub(crate) fn cross_start_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.cross_start_side)
+    pub(crate) fn cross_start_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.cross_start_side)
     }
 
     #[must_use]
-    pub(crate) fn cross_end_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.cross_end_side)
+    pub(crate) fn cross_end_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.cross_end_side)
     }
 
     #[must_use]
-    pub(crate) fn normal_main_start_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.normal_axis_start_side(self.main_logical_axis))
+    pub(crate) fn normal_main_start_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.normal_axis_start_side(self.main_logical_axis))
     }
 
     #[must_use]
-    pub(crate) fn normal_main_end_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.normal_axis_end_side(self.main_logical_axis))
+    pub(crate) fn normal_main_end_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.normal_axis_end_side(self.main_logical_axis))
     }
 
     #[must_use]
-    pub(crate) fn normal_cross_start_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.normal_axis_start_side(self.cross_logical_axis))
+    pub(crate) fn normal_cross_start_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.normal_axis_start_side(self.cross_logical_axis))
     }
 
     #[must_use]
-    pub(crate) fn normal_cross_end_edge<T>(self, edges: Edges<T>) -> T {
-        self.edge_at_side(edges, self.normal_axis_end_side(self.cross_logical_axis))
+    pub(crate) fn normal_cross_end_edge<T: Copy>(self, edges: Edges<T>) -> T {
+        edges.at_physical_side(self.normal_axis_end_side(self.cross_logical_axis))
     }
 
     #[must_use]
@@ -898,15 +898,6 @@ impl FlexAxes {
         match progression {
             PhysicalProgression::Increasing => PhysicalProgression::Decreasing,
             PhysicalProgression::Decreasing => PhysicalProgression::Increasing,
-        }
-    }
-
-    fn edge_at_side<T>(self, edges: Edges<T>, side: PhysicalSide) -> T {
-        match side {
-            PhysicalSide::Top => edges.top,
-            PhysicalSide::Right => edges.right,
-            PhysicalSide::Bottom => edges.bottom,
-            PhysicalSide::Left => edges.left,
         }
     }
 

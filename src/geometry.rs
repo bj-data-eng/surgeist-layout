@@ -182,12 +182,12 @@ impl FlowAxes {
 
     #[must_use]
     pub(crate) fn line_over_edge<T: Copy>(self, edges: Edges<T>) -> T {
-        edge_at_side(edges, self.line_over())
+        edges.at_physical_side(self.line_over())
     }
 
     #[must_use]
     pub(crate) fn line_under_edge<T: Copy>(self, edges: Edges<T>) -> T {
-        edge_at_side(edges, self.line_under())
+        edges.at_physical_side(self.line_under())
     }
 
     /// Returns the physical side at logical inline start.
@@ -496,15 +496,6 @@ fn physical_extent<S: LayoutScalar>(size: Size<S>, axis: PhysicalAxis) -> S {
     match axis {
         PhysicalAxis::Horizontal => size.width,
         PhysicalAxis::Vertical => size.height,
-    }
-}
-
-fn edge_at_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
-    match side {
-        PhysicalSide::Top => edges.top,
-        PhysicalSide::Right => edges.right,
-        PhysicalSide::Bottom => edges.bottom,
-        PhysicalSide::Left => edges.left,
     }
 }
 
@@ -964,6 +955,16 @@ impl<T: Copy> Edges<T> {
             left: value,
         }
     }
+
+    #[must_use]
+    pub(crate) const fn at_physical_side(self, side: PhysicalSide) -> T {
+        match side {
+            PhysicalSide::Top => self.top,
+            PhysicalSide::Right => self.right,
+            PhysicalSide::Bottom => self.bottom,
+            PhysicalSide::Left => self.left,
+        }
+    }
 }
 
 impl<T> Edges<T>
@@ -994,6 +995,46 @@ impl<S: LayoutScalar> Edges<S> {
 mod tests {
     use super::*;
     use crate::{Direction, WritingMode};
+
+    fn assert_fri06_mr02_physical_edge_geometry_carrier<T>(edges: Edges<T>)
+    where
+        T: Copy + core::fmt::Debug + PartialEq,
+    {
+        let selected = |side| match side {
+            PhysicalSide::Top => edges.top,
+            PhysicalSide::Right => edges.right,
+            PhysicalSide::Bottom => edges.bottom,
+            PhysicalSide::Left => edges.left,
+        };
+
+        for flow_axes in [
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+            FlowAxes::new(WritingMode::VerticalLr, Direction::Ltr),
+            FlowAxes::new(WritingMode::SidewaysRl, Direction::Rtl),
+            FlowAxes::new(WritingMode::SidewaysLr, Direction::Rtl),
+        ] {
+            assert_eq!(
+                flow_axes.line_over_edge(edges),
+                selected(flow_axes.line_over())
+            );
+            assert_eq!(
+                flow_axes.line_under_edge(edges),
+                selected(flow_axes.line_under())
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_mr02_physical_edge_geometry_flow_edges_select_four_distinct_typed_sentinels() {
+        assert_fri06_mr02_physical_edge_geometry_carrier(Edges::new(11_u8, 22, 33, 44));
+        assert_fri06_mr02_physical_edge_geometry_carrier(Edges::new(
+            Ok::<_, u8>(None),
+            Ok(Some(22_u8)),
+            Err(33_u8),
+            Ok(Some(44_u8)),
+        ));
+    }
 
     #[test]
     fn flow_axes_cover_the_normative_ten_row_mapping() {

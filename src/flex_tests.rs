@@ -2202,6 +2202,117 @@ fn flex_axes_selectors_and_mutators_follow_the_resolved_mapping() {
     );
 }
 
+fn fri06_mr02_physical_edge_flex_value<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
+    match side {
+        PhysicalSide::Top => edges.top,
+        PhysicalSide::Right => edges.right,
+        PhysicalSide::Bottom => edges.bottom,
+        PhysicalSide::Left => edges.left,
+    }
+}
+
+fn assert_fri06_mr02_physical_edge_flex_carrier<T>(edges: Edges<T>)
+where
+    T: Copy + core::fmt::Debug + PartialEq,
+{
+    for (writing_mode, direction) in [
+        (WritingMode::HorizontalTb, Direction::Ltr),
+        (WritingMode::HorizontalTb, Direction::Rtl),
+        (WritingMode::VerticalRl, Direction::Ltr),
+        (WritingMode::VerticalRl, Direction::Rtl),
+        (WritingMode::VerticalLr, Direction::Ltr),
+        (WritingMode::VerticalLr, Direction::Rtl),
+        (WritingMode::SidewaysRl, Direction::Ltr),
+        (WritingMode::SidewaysRl, Direction::Rtl),
+        (WritingMode::SidewaysLr, Direction::Ltr),
+        (WritingMode::SidewaysLr, Direction::Rtl),
+    ] {
+        let flow_axes = FlowAxes::new(writing_mode, direction);
+        for flex_direction in [
+            FlexDirection::Row,
+            FlexDirection::RowReverse,
+            FlexDirection::Column,
+            FlexDirection::ColumnReverse,
+        ] {
+            for wrap in [FlexWrap::Wrap, FlexWrap::WrapReverse] {
+                let axes = FlexAxes::new(flow_axes, flex_direction, wrap);
+                let normal_start = |axis| match axis {
+                    LogicalAxis::Inline => flow_axes.inline_start(),
+                    LogicalAxis::Block => flow_axes.block_start(),
+                };
+
+                assert_eq!(
+                    axes.main_start_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(edges, axes.main_start_side())
+                );
+                assert_eq!(
+                    axes.main_end_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(edges, axes.main_end_side())
+                );
+                assert_eq!(
+                    axes.cross_start_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(edges, axes.cross_start_side())
+                );
+                assert_eq!(
+                    axes.cross_end_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(edges, axes.cross_end_side())
+                );
+                assert_eq!(
+                    axes.normal_main_start_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(
+                        edges,
+                        normal_start(axes.main_logical_axis()),
+                    )
+                );
+                assert_eq!(
+                    axes.normal_main_end_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(
+                        edges,
+                        normal_start(axes.main_logical_axis()).opposite(),
+                    )
+                );
+                assert_eq!(
+                    axes.normal_cross_start_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(
+                        edges,
+                        normal_start(axes.cross_logical_axis()),
+                    )
+                );
+                assert_eq!(
+                    axes.normal_cross_end_edge(edges),
+                    fri06_mr02_physical_edge_flex_value(
+                        edges,
+                        normal_start(axes.cross_logical_axis()).opposite(),
+                    )
+                );
+            }
+        }
+    }
+}
+
+fn assert_fri06_mr02_physical_edge_flex_scalar_carriers<S: LayoutScalar>() {
+    assert_fri06_mr02_physical_edge_flex_carrier(Edges::new(
+        S::from_f64(11.0),
+        S::from_f64(22.0),
+        S::from_f64(33.0),
+        S::from_f64(44.0),
+    ));
+    assert_fri06_mr02_physical_edge_flex_carrier(Edges::new(
+        Some(S::from_f64(11.0)),
+        Some(S::from_f64(22.0)),
+        Some(S::from_f64(33.0)),
+        Some(S::from_f64(44.0)),
+    ));
+}
+
+#[test]
+fn fri06_mr02_physical_edge_flex_selectors_cover_scalar_optional_and_boolean_carriers() {
+    assert_fri06_mr02_physical_edge_flex_scalar_carriers::<f32>();
+    assert_fri06_mr02_physical_edge_flex_scalar_carriers::<f64>();
+    assert_fri06_mr02_physical_edge_flex_carrier(Edges::new(false, false, true, true));
+    assert_fri06_mr02_physical_edge_flex_carrier(Edges::new(false, true, false, true));
+}
+
 fn output_from_known_or(input: ComputeInput, fallback: Size) -> ComputeOutput {
     let size = Size::new(
         input.known().width.unwrap_or(fallback.width),

@@ -2324,15 +2324,6 @@ fn transpose_leaf_edges<S, E>(edges: Edges<Result<S, E>>) -> Result<Edges<S>, E>
     ))
 }
 
-fn edge_at_physical_side<T: Copy>(edges: Edges<T>, side: PhysicalSide) -> T {
-    match side {
-        PhysicalSide::Top => edges.top,
-        PhysicalSide::Right => edges.right,
-        PhysicalSide::Bottom => edges.bottom,
-        PhysicalSide::Left => edges.left,
-    }
-}
-
 pub fn compute_leaf<S, M>(
     input: ComputeInputOf<S>,
     style: &NodeInputOf<S>,
@@ -2394,10 +2385,10 @@ where
         || style.display != super::Display::Block
         || !style.item_is_replaced && style.overflow.establishes_independent_formatting_context()
         || style.position == Position::Absolute
-        || edge_at_physical_side(padding, block_start) > S::ZERO
-        || edge_at_physical_side(padding, block_end) > S::ZERO
-        || edge_at_physical_side(border, block_start) > S::ZERO
-        || edge_at_physical_side(border, block_end) > S::ZERO
+        || padding.at_physical_side(block_start) > S::ZERO
+        || padding.at_physical_side(block_end) > S::ZERO
+        || border.at_physical_side(block_start) > S::ZERO
+        || border.at_physical_side(block_end) > S::ZERO
         || matches!(node_block_size, Some(size) if size > S::ZERO)
         || matches!(node_min_block_size, Some(size) if size > S::ZERO);
 

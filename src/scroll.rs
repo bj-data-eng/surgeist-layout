@@ -1462,7 +1462,7 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
             .into_iter()
             .flatten()
         {
-            let padding = physical_edge_value(padding, end.side);
+            let padding = padding.at_physical_side(end.side);
             let coordinate = match end.side {
                 PhysicalSide::Top | PhysicalSide::Left => end.coordinate - padding,
                 PhysicalSide::Right | PhysicalSide::Bottom => end.coordinate + padding,
@@ -1588,15 +1588,6 @@ fn child_margin_contribution_rect<S: LayoutScalar>(
             border_size.height + top + bottom,
         ),
     )?)
-}
-
-fn physical_edge_value<S: LayoutScalar>(edges: Edges<S>, side: PhysicalSide) -> S {
-    match side {
-        PhysicalSide::Top => edges.top,
-        PhysicalSide::Right => edges.right,
-        PhysicalSide::Bottom => edges.bottom,
-        PhysicalSide::Left => edges.left,
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -4529,6 +4520,58 @@ mod fri05_c02_contribution_range_tests {
     fn fri05_c02_accumulator_terminal_padding_and_active_subject_remain_separate() {
         assert_scalar_terminal_padding_and_subject::<f32>();
         assert_scalar_terminal_padding_and_subject::<f64>();
+    }
+
+    fn assert_fri06_mr02_physical_edge_scroll_terminal_padding<S: LayoutScalar>() {
+        let padding = Edges::new(scalar(11.0), scalar(22.0), scalar(33.0), scalar(44.0));
+        let cases = [
+            (
+                FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+                LogicalAxis::Inline,
+                -100.0,
+                [0.0, 0.0, -111.0, 0.0],
+            ),
+            (
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                LogicalAxis::Inline,
+                100.0,
+                [0.0, 122.0, 0.0, 0.0],
+            ),
+            (
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                LogicalAxis::Block,
+                100.0,
+                [0.0, 0.0, 0.0, 133.0],
+            ),
+            (
+                FlowAxes::new(WritingMode::VerticalRl, Direction::Ltr),
+                LogicalAxis::Block,
+                -100.0,
+                [-144.0, 0.0, 0.0, 0.0],
+            ),
+        ];
+
+        for (flow_axes, logical_axis, coordinate, expected) in cases {
+            let mut accumulator =
+                ScrollContributionAccumulatorOf::<S>::new(rect(0.0, 0.0, 0.0, 0.0));
+            accumulator
+                .record_final_in_flow_end(flow_axes, logical_axis, scalar(coordinate))
+                .unwrap();
+            accumulator.include_terminal_padding(padding).unwrap();
+            assert_bounds(
+                accumulator.complete_overflow(),
+                expected[0],
+                expected[1],
+                expected[2],
+                expected[3],
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_mr02_physical_edge_scroll_terminal_padding_selects_four_distinct_sentinels() {
+        assert_fri06_mr02_physical_edge_scroll_terminal_padding::<f32>();
+        assert_fri06_mr02_physical_edge_scroll_terminal_padding::<f64>();
     }
 
     #[derive(Clone, Copy)]
