@@ -585,7 +585,6 @@ where
                             LayoutInvalidInputOf::FloatExclusionRole { reason },
                         ));
                     }
-                    *later_behavior = true;
                 }
                 input.display == super::Display::None
                     || input.display.inner_display() == super::Display::Block
@@ -1183,7 +1182,7 @@ where
         &mut self,
         node: Self::Node,
         input: ComputeInputOf<Self::Scalar>,
-        inherited: crate::block::InheritedFloatExclusions<Self::Scalar>,
+        inherited: crate::block::InheritedFloatExclusions<Self::Scalar, Self::Node>,
     ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, Tree::MeasureError>
     {
         debug_assert_eq!(
@@ -1196,6 +1195,15 @@ where
             input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL),
             inherited,
         )
+    }
+
+    fn float_exclusion_interval(
+        &self,
+        node: Self::Node,
+        query: super::FloatExclusionQueryOf<Self::Scalar>,
+    ) -> Option<Result<Option<super::FloatExclusionIntervalOf<Self::Scalar>>, Tree::MeasureError>>
+    {
+        self.tree.float_exclusion_interval(node, query)
     }
 }
 

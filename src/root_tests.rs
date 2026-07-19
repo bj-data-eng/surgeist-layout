@@ -3466,8 +3466,13 @@ fn fri06_c04_float_lifecycle_cold_warm_dirty_failures_baseline_and_content_are_a
 fn fri06_c04_float_lifecycle_static_one_ledger_query_and_single_publication_paths() {
     let block = include_str!("block.rs");
     assert_eq!(block.matches("struct FloatLedgerEntry<").count(), 1);
-    assert_eq!(block.matches("ledger: Vec<FloatLedgerEntry<S>>").count(), 2);
-    assert_eq!(block.matches("fn query_band_for(").count(), 1);
+    assert_eq!(
+        block
+            .matches("ledger: Vec<FloatLedgerEntry<S, Node>>")
+            .count(),
+        2
+    );
+    assert_eq!(block.matches("fn query_band_for<").count(), 1);
     assert_eq!(block.matches("struct FloatExclusions<").count(), 1);
     for legacy in [
         concat!("layout_inline_", "segments"),

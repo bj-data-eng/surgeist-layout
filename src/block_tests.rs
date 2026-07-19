@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::sync::Mutex;
 
 use crate::block::{FloatExclusions, FloatLedgerSide, resolve_logical_in_flow_margin};
 use crate::*;
@@ -355,12 +356,31 @@ fn lp64(absolute_px: f64, percent_fraction: f64) -> LengthPercentageOf<f64> {
         .expect("test coefficients are finite")
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+enum ShapeProviderBehavior<S: LayoutScalar> {
+    #[default]
+    Missing,
+    Failure,
+    Empty,
+    Interval {
+        minimum: S,
+        maximum: S,
+    },
+    Mismatch {
+        query: FloatExclusionQueryOf<S>,
+        minimum: S,
+        maximum: S,
+    },
+}
+
 #[derive(Default)]
 struct PublicBlockTree<S: LayoutScalar> {
     children: HashMap<u32, Vec<u32>>,
     styles: HashMap<u32, NodeInputOf<S>>,
     leaf_nodes: HashSet<u32>,
     leaf_measurements: HashMap<u32, Size<S>>,
+    shape_provider: ShapeProviderBehavior<S>,
+    shape_queries: Mutex<Vec<(u32, FloatExclusionQueryOf<S>)>>,
 }
 
 impl<S: LayoutScalar> PublicBlockTree<S> {
@@ -378,6 +398,15 @@ impl<S: LayoutScalar> PublicBlockTree<S> {
         self.leaf_nodes.insert(node);
         self.leaf_measurements.insert(node, size);
         self
+    }
+
+    fn with_shape_provider(mut self, behavior: ShapeProviderBehavior<S>) -> Self {
+        self.shape_provider = behavior;
+        self
+    }
+
+    fn shape_queries(&self) -> Vec<(u32, FloatExclusionQueryOf<S>)> {
+        self.shape_queries.lock().unwrap().clone()
     }
 }
 
@@ -428,6 +457,31 @@ impl<S: LayoutScalar> LayoutTree for PublicBlockTree<S> {
         _input: LeafMeasureInputOf<S>,
     ) -> Option<Result<Size<S>, Self::MeasureError>> {
         self.leaf_measurements.get(&node).copied().map(Ok)
+    }
+
+    fn float_exclusion_interval(
+        &self,
+        node: Self::Node,
+        query: FloatExclusionQueryOf<S>,
+    ) -> Option<Result<Option<FloatExclusionIntervalOf<S>>, Self::MeasureError>> {
+        self.shape_queries.lock().unwrap().push((node, query));
+        match self.shape_provider {
+            ShapeProviderBehavior::Missing => None,
+            ShapeProviderBehavior::Failure => Some(Err(())),
+            ShapeProviderBehavior::Empty => Some(Ok(None)),
+            ShapeProviderBehavior::Interval { minimum, maximum } => Some(Ok(
+                FloatExclusionIntervalOf::try_new(query, minimum, maximum)
+                    .expect("test provider endpoints are valid"),
+            )),
+            ShapeProviderBehavior::Mismatch {
+                query,
+                minimum,
+                maximum,
+            } => Some(Ok(FloatExclusionIntervalOf::try_new(
+                query, minimum, maximum,
+            )
+            .expect("mismatch provider endpoints are valid"))),
+        }
     }
 }
 
@@ -1655,6 +1709,255 @@ fn fri06_c04_expected_float_location<S: LayoutScalar>(
             scalar_value(160.0),
         )),
     )
+}
+
+fn fri06_c05_provider_tree<S: LayoutScalar>(
+    exclusion: FloatExclusion,
+    provider: ShapeProviderBehavior<S>,
+    spacer_block_extent: Option<S>,
+) -> PublicBlockTree<S> {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let root_size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    let mut children = vec![1];
+    let mut tree = PublicBlockTree::default()
+        .with_shape_provider(provider)
+        .with_children(1, [])
+        .with_style(
+            0,
+            NodeInputOf {
+                display: Display::Block,
+                size: root_size.map(PreferredSizeOf::px),
+                ..NodeInputOf::default()
+            },
+        )
+        .with_style(
+            1,
+            NodeInputOf {
+                display: Display::Block,
+                float: Float::Left,
+                float_exclusion: exclusion,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(30.0)),
+                    PreferredSizeOf::px(S::from_f64(30.0)),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    if let Some(block_extent) = spacer_block_extent {
+        children.push(2);
+        tree = tree.with_children(2, []).with_style(
+            2,
+            NodeInputOf {
+                display: Display::Block,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(100.0)),
+                    PreferredSizeOf::px(block_extent),
+                ),
+                ..NodeInputOf::default()
+            },
+        );
+    }
+    children.push(3);
+    tree.with_children(0, children)
+        .with_children(3, [])
+        .with_style(
+            3,
+            NodeInputOf {
+                display: Display::InlineBlock,
+                atomic_inline_participation: Some(fri06_atomic_participation()),
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(40.0)),
+                    PreferredSizeOf::px(S::from_f64(10.0)),
+                ),
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                ..NodeInputOf::default()
+            },
+        )
+}
+
+fn fri06_c05_provider_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
+    LayoutRootRequestOf::viewport(Size::new(
+        AvailableOf::definite(S::from_f64(100.0)),
+        AvailableOf::definite(S::from_f64(80.0)),
+    ))
+    .expect("finite provider test viewport is valid")
+}
+
+fn fri06_c05_expected_query<S: LayoutScalar>() -> FloatExclusionQueryOf<S> {
+    FloatExclusionQueryOf::try_new(
+        ScrollRectOf::try_new(Point::ZERO, Size::new(S::from_f64(30.0), S::from_f64(30.0)))
+            .unwrap(),
+        FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        S::ZERO,
+        S::from_f64(10.0),
+    )
+    .unwrap()
+}
+
+#[test]
+fn fri06_c05_provider_role_valid_shape_reaches_exact_overlapping_band_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let tree = fri06_c05_provider_tree::<S>(
+            FloatExclusion::Shape,
+            ShapeProviderBehavior::Interval {
+                minimum: S::ZERO,
+                maximum: S::from_f64(30.0),
+            },
+            None,
+        );
+        let batch = compute_layout(&tree, 0, fri06_c05_provider_request())
+            .expect("a valid shape interval reaches the typed provider front door");
+
+        assert_eq!(tree.shape_queries(), vec![(1, fri06_c05_expected_query())]);
+        assert_eq!(
+            public_final_output(&batch, 3).location,
+            Point::new(S::from_f64(30.0), S::ZERO),
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c05_provider_role_empty_shape_is_valid_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let tree =
+            fri06_c05_provider_tree::<S>(FloatExclusion::Shape, ShapeProviderBehavior::Empty, None);
+        let batch = compute_layout(&tree, 0, fri06_c05_provider_request())
+            .expect("an empty shape interval is a valid provider result");
+
+        assert_eq!(tree.shape_queries(), vec![(1, fri06_c05_expected_query())]);
+        assert_eq!(public_final_output(&batch, 3).location, Point::ZERO);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c05_provider_role_margin_box_and_nonoverlapping_shape_make_zero_calls_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let margin_box = fri06_c05_provider_tree::<S>(
+            FloatExclusion::MarginBox,
+            ShapeProviderBehavior::Failure,
+            None,
+        );
+        compute_layout(&margin_box, 0, fri06_c05_provider_request())
+            .expect("margin-box exclusion does not require the provider");
+        assert!(margin_box.shape_queries().is_empty());
+
+        let nonoverlapping = fri06_c05_provider_tree::<S>(
+            FloatExclusion::Shape,
+            ShapeProviderBehavior::Failure,
+            Some(S::from_f64(40.0)),
+        );
+        compute_layout(&nonoverlapping, 0, fri06_c05_provider_request())
+            .expect("a non-overlapping shape does not require the provider");
+        assert!(nonoverlapping.shape_queries().is_empty());
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c05_provider_error_missing_provider_has_exact_context_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let tree = fri06_c05_provider_tree::<S>(
+            FloatExclusion::Shape,
+            ShapeProviderBehavior::Missing,
+            None,
+        );
+        let error = compute_layout(&tree, 0, fri06_c05_provider_request()).unwrap_err();
+
+        assert_eq!(
+            error.site(),
+            LayoutErrorSiteOf::ContainerSubject {
+                container: 0,
+                subject: 1
+            }
+        );
+        assert_eq!(error.operation(), LayoutOperation::FloatExclusionQuery);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::MissingContext(LayoutMissingContext::FloatExclusionProvider),
+        );
+        assert_eq!(tree.shape_queries(), vec![(1, fri06_c05_expected_query())]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c05_provider_error_failure_preserves_measurement_and_context_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let tree = fri06_c05_provider_tree::<S>(
+            FloatExclusion::Shape,
+            ShapeProviderBehavior::Failure,
+            None,
+        );
+        let error = compute_layout(&tree, 0, fri06_c05_provider_request()).unwrap_err();
+
+        assert_eq!(
+            error.site(),
+            LayoutErrorSiteOf::ContainerSubject {
+                container: 0,
+                subject: 1
+            }
+        );
+        assert_eq!(error.operation(), LayoutOperation::FloatExclusionQuery);
+        assert_eq!(error.kind(), &LayoutErrorKindOf::Measurement(()));
+        assert_eq!(tree.shape_queries(), vec![(1, fri06_c05_expected_query())]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c05_provider_error_mismatched_query_preserves_expected_and_actual_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let expected = fri06_c05_expected_query();
+        let actual = FloatExclusionQueryOf::try_new(
+            expected.margin_box(),
+            expected.flow_axes(),
+            S::from_f64(12.0),
+            S::from_f64(22.0),
+        )
+        .unwrap();
+        let tree = fri06_c05_provider_tree::<S>(
+            FloatExclusion::Shape,
+            ShapeProviderBehavior::Mismatch {
+                query: actual,
+                minimum: S::ZERO,
+                maximum: S::from_f64(30.0),
+            },
+            None,
+        );
+        let error = compute_layout(&tree, 0, fri06_c05_provider_request()).unwrap_err();
+
+        assert_eq!(
+            error.site(),
+            LayoutErrorSiteOf::ContainerSubject {
+                container: 0,
+                subject: 1
+            }
+        );
+        assert_eq!(error.operation(), LayoutOperation::FloatExclusionQuery);
+        assert_eq!(
+            error.kind(),
+            &LayoutErrorKindOf::InvalidInput(LayoutInvalidInputOf::FloatExclusionProviderOutput {
+                error: FloatExclusionIntervalErrorOf::QueryMismatch { expected, actual },
+            }),
+        );
+        assert_eq!(tree.shape_queries(), vec![(1, expected)]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
 }
 
 #[test]

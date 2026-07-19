@@ -45,7 +45,7 @@ fn fri06_c01_contract_float_exclusion_public_aliases_and_operations_are_exact() 
 }
 
 #[test]
-fn fri06_c01_contract_float_exclusion_surface_is_opaque_cache_neutral_and_deferred() {
+fn fri06_c05_contract_float_exclusion_surface_is_opaque_cache_neutral_and_active() {
     let node_input = include_str!("node_input.rs");
     let traits = include_str!("traits.rs");
     let compute = include_str!("compute.rs");
@@ -104,20 +104,17 @@ fn fri06_c01_contract_float_exclusion_surface_is_opaque_cache_neutral_and_deferr
     assert!(!node_input.contains(concat!("ShapeExclusion", "Query")));
     assert!(!public_front_door.contains(concat!("ShapeExclusion", "Query")));
 
-    assert_eq!(traits.matches("fn float_exclusion_interval(").count(), 1);
+    assert_eq!(traits.matches("fn float_exclusion_interval(").count(), 2);
     assert!(traits.contains("Option<FloatExclusionProviderResultOf<Self::Scalar"));
     assert!(
         traits.contains("None\n    }"),
         "the provider defaults to no result"
     );
-    assert!(
-        !compute.contains(".float_exclusion_interval("),
-        "C01 does not invoke the provider"
-    );
-    assert!(
-        !block.contains("FloatExclusion::Shape"),
-        "Shape has no rectangular block fallback"
-    );
+    assert!(compute.contains(".float_exclusion_interval("));
+    assert!(block.contains("FloatExclusion::Shape"));
+    assert!(block.contains("FloatExclusionIntervalErrorOf::QueryMismatch"));
+    assert!(block.contains("LayoutMissingContext::FloatExclusionProvider"));
+    assert!(!public_front_door.contains("Provider invocation and float-band refinement"));
 }
 
 #[test]

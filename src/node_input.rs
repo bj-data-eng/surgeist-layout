@@ -623,12 +623,30 @@ pub enum FloatExclusion {
 /// axis. Interval endpoints are physical coordinates on its inline axis.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FloatExclusionIntervalErrorOf<S: LayoutScalar = DefaultScalar> {
-    NonFiniteBandMinimum { value: S },
-    NonFiniteBandMaximum { value: S },
-    InvertedBand { minimum: S, maximum: S },
-    NonFiniteIntervalMinimum { value: S },
-    NonFiniteIntervalMaximum { value: S },
-    InvertedInterval { minimum: S, maximum: S },
+    NonFiniteBandMinimum {
+        value: S,
+    },
+    NonFiniteBandMaximum {
+        value: S,
+    },
+    InvertedBand {
+        minimum: S,
+        maximum: S,
+    },
+    NonFiniteIntervalMinimum {
+        value: S,
+    },
+    NonFiniteIntervalMaximum {
+        value: S,
+    },
+    InvertedInterval {
+        minimum: S,
+        maximum: S,
+    },
+    QueryMismatch {
+        expected: FloatExclusionQueryOf<S>,
+        actual: FloatExclusionQueryOf<S>,
+    },
 }
 
 /// Default-scalar float exclusion interval construction error.
@@ -643,6 +661,7 @@ impl<S: LayoutScalar> core::fmt::Display for FloatExclusionIntervalErrorOf<S> {
             Self::NonFiniteIntervalMinimum { .. } => "interval minimum must be finite",
             Self::NonFiniteIntervalMaximum { .. } => "interval maximum must be finite",
             Self::InvertedInterval { .. } => "interval minimum must not exceed its maximum",
+            Self::QueryMismatch { .. } => "provider interval query must match the requested query",
         };
         formatter.write_str(message)
     }
@@ -736,6 +755,7 @@ impl<S: LayoutScalar> FloatExclusionQueryOf<S> {
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FloatExclusionIntervalOf<S: LayoutScalar = DefaultScalar> {
+    query: FloatExclusionQueryOf<S>,
     minimum: S,
     maximum: S,
 }
@@ -774,9 +794,15 @@ impl<S: LayoutScalar> FloatExclusionIntervalOf<S> {
         }
 
         Ok(Some(Self {
+            query,
             minimum: canonical_exclusion_zero(minimum),
             maximum: canonical_exclusion_zero(maximum),
         }))
+    }
+
+    #[must_use]
+    pub(crate) const fn originating_query(self) -> FloatExclusionQueryOf<S> {
+        self.query
     }
 
     #[must_use]

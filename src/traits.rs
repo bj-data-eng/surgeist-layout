@@ -54,8 +54,8 @@ pub trait LayoutTree: Traverse {
     /// Queries one shape-backed float exclusion interval for a physical band.
     ///
     /// Outer `None` means the requested provider is absent. `Ok(None)` means
-    /// the shape has no exclusion intersection with this band. Layout does not
-    /// invoke this C05 provider during the FRI-06 C01 substrate cycle.
+    /// the shape has no exclusion intersection with this band. Layout invokes
+    /// this provider only for a shape float overlapping a finite candidate band.
     fn float_exclusion_interval(
         &self,
         _node: Self::Node,
@@ -109,11 +109,19 @@ pub(crate) trait Compute<M = core::convert::Infallible>: Traverse {
         input: ComputeInputOf<Self::Scalar>,
     ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, M>;
 
+    fn float_exclusion_interval(
+        &self,
+        _node: Self::Node,
+        _query: FloatExclusionQueryOf<Self::Scalar>,
+    ) -> Option<Result<Option<FloatExclusionIntervalOf<Self::Scalar>>, M>> {
+        None
+    }
+
     fn compute_child_with_inherited_float_exclusions(
         &mut self,
         node: Self::Node,
         input: ComputeInputOf<Self::Scalar>,
-        inherited: crate::block::InheritedFloatExclusions<Self::Scalar>,
+        inherited: crate::block::InheritedFloatExclusions<Self::Scalar, Self::Node>,
     ) -> LayoutResultOf<Self::Node, ComputeOutputOf<Self::Scalar>, Self::Scalar, M>
     where
         Self: Sized,

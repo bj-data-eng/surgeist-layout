@@ -396,6 +396,7 @@ struct Fri06C01Tree<S: LayoutScalar> {
     children: Vec<Vec<usize>>,
     measured: Vec<bool>,
     cache_reads: std::cell::Cell<usize>,
+    provider_calls: std::cell::Cell<usize>,
 }
 
 impl<S: LayoutScalar> Traverse for Fri06C01Tree<S> {
@@ -443,6 +444,15 @@ impl<S: LayoutScalar> LayoutTree for Fri06C01Tree<S> {
         self.cache_reads.set(self.cache_reads.get() + 1);
         None
     }
+
+    fn float_exclusion_interval(
+        &self,
+        _node: Self::Node,
+        _query: FloatExclusionQueryOf<Self::Scalar>,
+    ) -> Option<Result<Option<FloatExclusionIntervalOf<Self::Scalar>>, Self::MeasureError>> {
+        self.provider_calls.set(self.provider_calls.get() + 1);
+        None
+    }
 }
 
 fn fri06_c01_tree<S: LayoutScalar>(
@@ -455,6 +465,7 @@ fn fri06_c01_tree<S: LayoutScalar>(
         children: vec![Vec::new()],
         measured: vec![false],
         cache_reads: std::cell::Cell::new(0),
+        provider_calls: std::cell::Cell::new(0),
     }
 }
 
@@ -637,6 +648,7 @@ fn assert_fri06_c01_box_roles<S: LayoutScalar>() {
         children: vec![vec![1], Vec::new()],
         measured: vec![false, false],
         cache_reads: std::cell::Cell::new(0),
+        provider_calls: std::cell::Cell::new(0),
     };
     for display in [
         Display::InlineBlock,
@@ -657,6 +669,7 @@ fn assert_fri06_c01_box_roles<S: LayoutScalar>() {
             })
         ));
         assert_eq!(tree.cache_reads.get(), 0);
+        assert_eq!(tree.provider_calls.get(), 0);
     }
 
     let atomic = AtomicInlineParticipationOf::try_new(
@@ -678,6 +691,7 @@ fn assert_fri06_c01_box_roles<S: LayoutScalar>() {
         })
     ));
     assert_eq!(tree.cache_reads.get(), 0);
+    assert_eq!(tree.provider_calls.get(), 0);
 
     for (style, expected) in [
         (
@@ -713,21 +727,14 @@ fn assert_fri06_c01_box_roles<S: LayoutScalar>() {
             }) if *reason == expected
         ));
         assert_eq!(tree.cache_reads.get(), 0);
+        assert_eq!(tree.provider_calls.get(), 0);
     }
+}
 
-    let shape = NodeInputOf::<S> {
-        float: Float::Right,
-        float_exclusion: FloatExclusion::Shape,
-        ..NodeInputOf::default()
-    };
-    let tree = fri06_c01_tree(LayoutInputOf::box_input(shape.clone()), shape);
-    assert_eq!(
-        compute_layout(&tree, 0, fri06_c01_request())
-            .unwrap_err()
-            .kind(),
-        &LayoutErrorKindOf::UnsupportedCapability(LayoutUnsupportedCapability::LaterFriBehavior)
-    );
-    assert_eq!(tree.cache_reads.get(), 0);
+#[test]
+fn fri06_c05_provider_role_invalid_shapes_reject_before_cache_and_provider_both_scalars() {
+    assert_fri06_c01_box_roles::<f32>();
+    assert_fri06_c01_box_roles::<f64>();
 }
 
 #[test]
@@ -814,6 +821,43 @@ fn assert_fri06_c01_float_exclusion_contract<S: LayoutScalar>() {
 fn fri06_c01_float_exclusion_query_and_interval_validate_both_scalar_lanes() {
     assert_fri06_c01_float_exclusion_contract::<f32>();
     assert_fri06_c01_float_exclusion_contract::<f64>();
+}
+
+fn assert_fri06_c05_query_mismatch_error_contract<S: LayoutScalar>() {
+    let margin_box =
+        ScrollRectOf::try_new(Point::ZERO, Size::new(S::from_f64(30.0), S::from_f64(40.0)))
+            .unwrap();
+    let axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let expected =
+        FloatExclusionQueryOf::try_new(margin_box, axes, S::from_f64(2.0), S::from_f64(8.0))
+            .unwrap();
+    let actual =
+        FloatExclusionQueryOf::try_new(margin_box, axes, S::from_f64(12.0), S::from_f64(18.0))
+            .unwrap();
+    let mismatch = FloatExclusionIntervalErrorOf::QueryMismatch { expected, actual };
+
+    assert_eq!(
+        mismatch.to_string(),
+        "provider interval query must match the requested query",
+    );
+    assert!(std::error::Error::source(&mismatch).is_none());
+
+    let variant_name = |error: FloatExclusionIntervalErrorOf<S>| match error {
+        FloatExclusionIntervalErrorOf::NonFiniteBandMinimum { .. } => "band-minimum",
+        FloatExclusionIntervalErrorOf::NonFiniteBandMaximum { .. } => "band-maximum",
+        FloatExclusionIntervalErrorOf::InvertedBand { .. } => "band-order",
+        FloatExclusionIntervalErrorOf::NonFiniteIntervalMinimum { .. } => "interval-minimum",
+        FloatExclusionIntervalErrorOf::NonFiniteIntervalMaximum { .. } => "interval-maximum",
+        FloatExclusionIntervalErrorOf::InvertedInterval { .. } => "interval-order",
+        FloatExclusionIntervalErrorOf::QueryMismatch { .. } => "query-mismatch",
+    };
+    assert_eq!(variant_name(mismatch), "query-mismatch");
+}
+
+#[test]
+fn fri06_c05_provider_error_query_mismatch_is_exhaustive_and_exact_both_scalars() {
+    assert_fri06_c05_query_mismatch_error_contract::<f32>();
+    assert_fri06_c05_query_mismatch_error_contract::<f64>();
 }
 
 #[test]

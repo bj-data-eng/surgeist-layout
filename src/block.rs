@@ -10,12 +10,14 @@ use super::value::{ResolvedLengthAutoOf, UnresolvedLengthReason};
 use super::{
     AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Clear, CollapsibleMarginOf, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
-    Float, FloatExclusion, InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf,
+    Float, FloatExclusion, FloatExclusionIntervalErrorOf, FloatExclusionIntervalOf,
+    FloatExclusionQueryOf, InlineBoundaryInputOf, InlineFragmentOutputOf, LayoutErrorKindOf,
     LayoutErrorOf, LayoutErrorSiteOf, LayoutInputOf, LayoutInternalInvariant, LayoutInvalidInputOf,
-    LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
-    LengthResolutionStatus, LineBreakInputOf, NodeInputOf, NodeOutputOf, Overflow,
-    ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position, RequestedAxis,
-    RunMode, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse, VerticalAlign, WritingMode,
+    LayoutMissingContext, LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
+    LengthResolutionOf, LengthResolutionStatus, LineBreakInputOf, NodeInputOf, NodeOutputOf,
+    Overflow, ParentFormattingContext, PhysicalBlockMarginCollapseOf, Point, Position,
+    RequestedAxis, RunMode, ScrollRectOf, Size, SizingAlgorithm, SizingMode, TextAlign, Traverse,
+    VerticalAlign, WritingMode,
 };
 use crate::compute::{
     AtomicInlineParticipationRoleError, EdgesResultExt, SizeResultExt, SizingResolutionError,
@@ -45,7 +47,7 @@ pub(crate) fn compute_block_with_inherited_float_exclusions<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    inherited: InheritedFloatExclusions<Tree::Scalar>,
+    inherited: InheritedFloatExclusions<Tree::Scalar, <Tree as Traverse>::Node>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -57,7 +59,7 @@ fn compute_block_with_optional_inherited_float_exclusions<Tree, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<Tree::Scalar>,
-    inherited: Option<InheritedFloatExclusions<Tree::Scalar>>,
+    inherited: Option<InheritedFloatExclusions<Tree::Scalar, <Tree as Traverse>::Node>>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<Tree::Scalar>, Tree::Scalar, M>
 where
     Tree: Compute<M>,
@@ -104,7 +106,7 @@ fn compute_block_inner<Tree, S, M>(
     tree: &mut Tree,
     node: <Tree as Traverse>::Node,
     input: ComputeInputOf<S>,
-    inherited: Option<&InheritedFloatExclusions<S>>,
+    inherited: Option<&InheritedFloatExclusions<S, <Tree as Traverse>::Node>>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, ComputeOutputOf<S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
@@ -408,7 +410,8 @@ struct PhysicalMarginBox<S: LayoutScalar> {
 struct FloatLedgerOrder(usize);
 
 #[derive(Clone, Copy, Debug)]
-struct FloatLedgerEntry<S: LayoutScalar> {
+struct FloatLedgerEntry<S: LayoutScalar, Node> {
+    node: Node,
     side: FloatLedgerSide,
     exclusion: FloatExclusion,
     physical_margin_box: PhysicalMarginBox<S>,
@@ -419,7 +422,7 @@ struct FloatLedgerEntry<S: LayoutScalar> {
     ledger_order: FloatLedgerOrder,
 }
 
-impl<S: LayoutScalar> FloatLedgerEntry<S> {
+impl<S: LayoutScalar, Node: Copy> FloatLedgerEntry<S, Node> {
     fn overlaps_block_span(self, block_start: S, block_end: S) -> bool {
         self.block_start < block_end && block_start < self.block_end
     }
@@ -444,36 +447,27 @@ struct BfcBandPlacement<S: LayoutScalar> {
 enum FloatBandQueryPurpose {
     PhysicalMarginBoxCollision,
     RectangularLineBand,
-}
-
-impl FloatBandQueryPurpose {
-    fn includes(self, exclusion: FloatExclusion) -> bool {
-        let _ = exclusion;
-        match self {
-            Self::PhysicalMarginBoxCollision => true,
-            Self::RectangularLineBand => exclusion == FloatExclusion::MarginBox,
-        }
-    }
+    ProviderLineBand,
 }
 
 #[derive(Clone, Debug)]
-pub(super) struct FloatExclusions<S: LayoutScalar> {
+pub(super) struct FloatExclusions<S: LayoutScalar, Node = ()> {
     flow_axes: crate::geometry::FlowAxes,
     containing_size: Size<S>,
     containing_inline_start: S,
     containing_inline_end: S,
-    ledger: Vec<FloatLedgerEntry<S>>,
+    ledger: Vec<FloatLedgerEntry<S, Node>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct InheritedFloatExclusions<S: LayoutScalar> {
+pub(crate) struct InheritedFloatExclusions<S: LayoutScalar, Node> {
     parent_flow_axes: crate::geometry::FlowAxes,
     parent_containing_size: Size<S>,
     child_logical_location: LogicalPointOf<S>,
-    ledger: Vec<FloatLedgerEntry<S>>,
+    ledger: Vec<FloatLedgerEntry<S, Node>>,
 }
 
-impl<S: LayoutScalar> FloatExclusions<S> {
+impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
     pub(super) fn new(
         flow_axes: crate::geometry::FlowAxes,
         containing_size: Size<S>,
@@ -496,7 +490,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
     fn for_ordinary_child(
         &self,
         child_logical_location: LogicalPointOf<S>,
-    ) -> InheritedFloatExclusions<S> {
+    ) -> InheritedFloatExclusions<S, Node> {
         InheritedFloatExclusions {
             parent_flow_axes: self.flow_axes,
             parent_containing_size: self.containing_size,
@@ -505,7 +499,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         }
     }
 
-    fn inherit_into_child(&mut self, inherited: &InheritedFloatExclusions<S>) {
+    fn inherit_into_child(&mut self, inherited: &InheritedFloatExclusions<S, Node>) {
         let child_size = self.containing_size;
         let child_logical_size = inherited.parent_flow_axes.logical_size(child_size);
         let child_physical_origin = inherited.parent_flow_axes.physical_point(
@@ -548,6 +542,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                 let ledger_order = FloatLedgerOrder(inherited_order);
                 inherited_order += 1;
                 FloatLedgerEntry {
+                    node: entry.node,
                     side,
                     physical_margin_box: PhysicalMarginBox {
                         origin: physical_origin,
@@ -563,7 +558,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
             }));
     }
 
-    fn place_float<Node>(&mut self, float: &PendingFloat<Node, S>) -> Point<S> {
+    fn place_float(&mut self, float: &PendingFloat<Node, S>) -> Point<S> {
         let side = FloatLedgerSide::from_float(float.side);
         let logical_size = self.flow_axes.logical_size(float.size);
         let logical_margin = self.flow_axes.logical_edges(float.margin);
@@ -597,6 +592,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                 let physical_margin_size = self.flow_axes.physical_size(margin_box_size);
                 let ledger_order = FloatLedgerOrder(self.ledger.len());
                 self.ledger.push(FloatLedgerEntry {
+                    node: float.node,
                     side,
                     exclusion: float.style.float_exclusion,
                     physical_margin_box: PhysicalMarginBox {
@@ -711,7 +707,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
     }
 
     fn query_physical_margin_box_collisions(&self, block_start: S, block_end: S) -> FloatBand<S> {
-        self.query_band_for(
+        self.query_band_without_provider(
             block_start,
             block_end,
             FloatBandQueryPurpose::PhysicalMarginBoxCollision,
@@ -719,19 +715,96 @@ impl<S: LayoutScalar> FloatExclusions<S> {
     }
 
     pub(super) fn query_rectangular_line_band(&self, block_start: S, block_end: S) -> FloatBand<S> {
-        self.query_band_for(
+        self.query_band_without_provider(
             block_start,
             block_end,
             FloatBandQueryPurpose::RectangularLineBand,
         )
     }
 
-    fn query_band_for(
+    fn query_provider_line_band<Tree, M>(
+        &self,
+        tree: &Tree,
+        container: Node,
+        block_start: S,
+        block_end: S,
+    ) -> LayoutResultOf<Node, FloatBand<S>, S, M>
+    where
+        Tree: Compute<M, Node = Node, Scalar = S>,
+    {
+        self.query_band_for(
+            block_start,
+            block_end,
+            FloatBandQueryPurpose::ProviderLineBand,
+            |subject, expected| {
+                let site = LayoutErrorSiteOf::ContainerSubject { container, subject };
+                match tree.float_exclusion_interval(subject, expected) {
+                    None => Err(LayoutErrorOf::new(
+                        site,
+                        LayoutOperation::FloatExclusionQuery,
+                        LayoutErrorKindOf::MissingContext(
+                            LayoutMissingContext::FloatExclusionProvider,
+                        ),
+                    )),
+                    Some(Err(error)) => Err(LayoutErrorOf::new(
+                        site,
+                        LayoutOperation::FloatExclusionQuery,
+                        LayoutErrorKindOf::Measurement(error),
+                    )),
+                    Some(Ok(None)) => Ok(None),
+                    Some(Ok(Some(interval))) => {
+                        let actual = interval.originating_query();
+                        if actual != expected {
+                            return Err(LayoutErrorOf::new(
+                                site,
+                                LayoutOperation::FloatExclusionQuery,
+                                LayoutErrorKindOf::InvalidInput(
+                                    LayoutInvalidInputOf::FloatExclusionProviderOutput {
+                                        error: FloatExclusionIntervalErrorOf::QueryMismatch {
+                                            expected,
+                                            actual,
+                                        },
+                                    },
+                                ),
+                            ));
+                        }
+                        Ok(Some(interval))
+                    }
+                }
+            },
+        )
+    }
+
+    fn query_band_without_provider(
         &self,
         block_start: S,
         block_end: S,
         purpose: FloatBandQueryPurpose,
     ) -> FloatBand<S> {
+        let result = self.query_band_for(
+            block_start,
+            block_end,
+            purpose,
+            |_, _| -> Result<Option<FloatExclusionIntervalOf<S>>, core::convert::Infallible> {
+                unreachable!("provider-free band purposes never request a shape interval")
+            },
+        );
+        match result {
+            Ok(band) => band,
+            Err(never) => match never {},
+        }
+    }
+
+    fn query_band_for<E>(
+        &self,
+        block_start: S,
+        block_end: S,
+        purpose: FloatBandQueryPurpose,
+        mut shape_provider: impl FnMut(
+            Node,
+            FloatExclusionQueryOf<S>,
+        ) -> Result<Option<FloatExclusionIntervalOf<S>>, E>,
+    ) -> Result<FloatBand<S>, E> {
         debug_assert!(
             self.ledger
                 .windows(2)
@@ -756,17 +829,33 @@ impl<S: LayoutScalar> FloatExclusions<S> {
                     && entry.physical_margin_box.size.height.is_finite(),
                 "placed float margin boxes remain finite"
             );
-            if !purpose.includes(entry.exclusion) {
-                continue;
-            }
             if !entry.overlaps_block_span(block_start, block_end) {
                 continue;
             }
-            match entry.side {
-                FloatLedgerSide::LineStart => inline_start = inline_start.max(entry.inline_end),
-                FloatLedgerSide::LineEnd => inline_end = inline_end.min(entry.inline_start),
-            }
-            if entry.block_end > block_start {
+            let logical_interval = match (purpose, entry.exclusion) {
+                (FloatBandQueryPurpose::PhysicalMarginBoxCollision, _) => {
+                    Some((entry.inline_start, entry.inline_end))
+                }
+                (FloatBandQueryPurpose::RectangularLineBand, FloatExclusion::MarginBox)
+                | (FloatBandQueryPurpose::ProviderLineBand, FloatExclusion::MarginBox) => {
+                    Some((entry.inline_start, entry.inline_end))
+                }
+                (FloatBandQueryPurpose::RectangularLineBand, FloatExclusion::Shape) => None,
+                (FloatBandQueryPurpose::ProviderLineBand, FloatExclusion::Shape) => {
+                    let query = self.provider_query(entry, block_start, block_end);
+                    shape_provider(entry.node, query)?
+                        .map(|interval| self.logical_inline_interval(interval))
+                }
+            };
+            if let Some((entry_inline_start, entry_inline_end)) = logical_interval {
+                match entry.side {
+                    FloatLedgerSide::LineStart => {
+                        inline_start = inline_start.max(entry_inline_end);
+                    }
+                    FloatLedgerSide::LineEnd => {
+                        inline_end = inline_end.min(entry_inline_start);
+                    }
+                }
                 next_transition = Some(
                     next_transition
                         .map_or(entry.block_end, |current: S| current.min(entry.block_end)),
@@ -774,16 +863,63 @@ impl<S: LayoutScalar> FloatExclusions<S> {
             }
         }
 
-        FloatBand {
+        Ok(FloatBand {
             inline_start,
             inline_end,
             next_transition,
             #[cfg(test)]
             evaluated,
-        }
+        })
     }
 
-    #[cfg(test)]
+    fn provider_query(
+        &self,
+        entry: FloatLedgerEntry<S, Node>,
+        block_start: S,
+        block_end: S,
+    ) -> FloatExclusionQueryOf<S> {
+        debug_assert!(block_start.is_finite() && block_end.is_finite());
+        debug_assert!(block_start <= block_end);
+        let logical_band_size = LogicalSizeOf::new(S::ZERO, block_end - block_start);
+        let physical_band_origin = self.flow_axes.physical_point(
+            LogicalPointOf::new(S::ZERO, block_start),
+            logical_band_size,
+            self.containing_size,
+        );
+        let physical_band_size = self.flow_axes.physical_size(logical_band_size);
+        let band_minimum = self.flow_axes.block_axis_coordinate(physical_band_origin);
+        let band_maximum = band_minimum + self.flow_axes.block_axis_extent(physical_band_size);
+        let margin_box = ScrollRectOf::try_new(
+            entry.physical_margin_box.origin,
+            entry.physical_margin_box.size,
+        )
+        .expect("placed float margin boxes satisfy scroll-rectangle invariants");
+        FloatExclusionQueryOf::try_new(margin_box, self.flow_axes, band_minimum, band_maximum)
+            .expect("canonical finite line bands satisfy provider-query invariants")
+    }
+
+    fn logical_inline_interval(&self, interval: FloatExclusionIntervalOf<S>) -> (S, S) {
+        let physical_extent = match self.flow_axes.inline_axis() {
+            PhysicalAxis::Horizontal => self.containing_size.width,
+            PhysicalAxis::Vertical => self.containing_size.height,
+        };
+        if self
+            .flow_axes
+            .logical_axis_progression(crate::LogicalAxis::Inline)
+            .is_decreasing()
+        {
+            (
+                physical_extent - interval.maximum(),
+                physical_extent - interval.minimum(),
+            )
+        } else {
+            (interval.minimum(), interval.maximum())
+        }
+    }
+}
+
+#[cfg(test)]
+impl<S: LayoutScalar> FloatExclusions<S> {
     pub(super) fn record_test_float(
         &mut self,
         side: FloatLedgerSide,
@@ -797,6 +933,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
         let size = self.flow_axes.physical_size(logical_size);
         let ledger_order = FloatLedgerOrder(self.ledger.len());
         self.ledger.push(FloatLedgerEntry {
+            node: (),
             side,
             exclusion,
             physical_margin_box: PhysicalMarginBox { origin, size },
@@ -941,10 +1078,10 @@ where
     Some(boundary)
 }
 
-struct InFlowPassContext<'a, S: LayoutScalar> {
+struct InFlowPassContext<'a, S: LayoutScalar, Node> {
     inner_inline: Option<S>,
     set_layout: bool,
-    inherited: Option<&'a InheritedFloatExclusions<S>>,
+    inherited: Option<&'a InheritedFloatExclusions<S, Node>>,
 }
 
 fn layout_in_flow_children<Tree, S, M>(
@@ -953,7 +1090,7 @@ fn layout_in_flow_children<Tree, S, M>(
     children: &[<Tree as Traverse>::Node],
     constants: &Constants<S>,
     input: ComputeInputOf<S>,
-    pass: InFlowPassContext<'_, S>,
+    pass: InFlowPassContext<'_, S, <Tree as Traverse>::Node>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InFlowResult<<Tree as Traverse>::Node, S>, S, M>
 where
     Tree: Compute<M, Scalar = S>,
@@ -1821,7 +1958,7 @@ fn layout_inline_run_children<Tree, S, M>(
     container: <Tree as Traverse>::Node,
     run: &[<Tree as Traverse>::Node],
     context: InlineRunContext<'_, S>,
-    float_exclusions: &FloatExclusions<S>,
+    float_exclusions: &FloatExclusions<S, <Tree as Traverse>::Node>,
     contributions: &mut ScrollContributionAccumulatorOf<S>,
 ) -> LayoutResultOf<<Tree as Traverse>::Node, InlineRunPlacement<<Tree as Traverse>::Node, S>, S, M>
 where
@@ -2004,6 +2141,7 @@ where
         atomic_children.push((child, source_index, child_style, output));
     }
     let logical_content_box_inset = constants.logical_content_box_inset();
+    let mut provider_error = None;
     let report = layout_mixed_inline_run_with_band_source(
         MixedInlineRunInputOf {
             available_inline_extent,
@@ -2012,8 +2150,30 @@ where
             participants,
         },
         |block_start, block_end| {
-            let band = float_exclusions
-                .query_rectangular_line_band(cursor_block + block_start, cursor_block + block_end);
+            let query_block_start = cursor_block + block_start;
+            let query_block_end = cursor_block + block_end;
+            let band = if !set_layout || provider_error.is_some() {
+                float_exclusions.query_rectangular_line_band(query_block_start, query_block_end)
+            } else {
+                match float_exclusions.query_provider_line_band(
+                    tree,
+                    container,
+                    query_block_start,
+                    query_block_end,
+                ) {
+                    Ok(band) => band,
+                    Err(error) => {
+                        provider_error = Some(error);
+                        FloatBand {
+                            inline_start: float_exclusions.containing_inline_start,
+                            inline_end: float_exclusions.containing_inline_end,
+                            next_transition: None,
+                            #[cfg(test)]
+                            evaluated: 0,
+                        }
+                    }
+                }
+            };
             LogicalLineBandQueryResultOf {
                 inline_start: band.inline_start - logical_content_box_inset.inline_start,
                 inline_end: band.inline_end - logical_content_box_inset.inline_start,
@@ -2026,6 +2186,9 @@ where
             float_exclusions.clearance_for_line_intent(cursor_block + block, clear) - cursor_block
         },
     );
+    if let Some(error) = provider_error {
+        return Err(error);
+    }
     let report_logical_size = LogicalSizeOf::new(report.inline_extent, report.block_extent);
     let report_size = constants.flow_axes.physical_size(report_logical_size);
     let project_point = |inline: S, block: S, size: LogicalSizeOf<S>| {
