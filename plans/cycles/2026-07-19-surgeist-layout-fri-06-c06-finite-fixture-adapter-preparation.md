@@ -206,7 +206,7 @@ test -z "$(git for-each-ref --format='%(refname)' refs/surgeist)"
 test "$(git worktree list --porcelain | rg -c '^worktree ')" -eq 1
 test -z "$(git status --porcelain)"
 zsh <<'SURGEIST_C06_SAFETY'
-set -u
+set -eu
 owned_rust=("${(@f)$(git ls-files --cached --others --exclude-standard '*.rs')}")
 test "${#owned_rust[@]}" -gt 0
 if rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' "${owned_rust[@]}"; then
