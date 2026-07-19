@@ -145,7 +145,7 @@ than defining substitutes.
 | `D-11` | Atomic inline fallback uses the block-end margin edge when no usable inner baseline exists. A non-visible used overflow forces fallback; visible used overflow may use the inner baseline. Top/bottom alignment is resolved after baseline line sizing. |
 | `D-12` | Atomic inline percentage block size receives the containing block's definite physical/logical block basis when present. Anonymous inline-run size is never substituted as that basis. |
 | `D-13` | Float left/right and clear left/right are line-relative values mapped by the containing `FlowAxes`; the public enum spellings remain source-compatible while algorithms do not treat them as physical x sides. |
-| `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query; missing/invalid provider output is a typed layout error. |
+| `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query. Each returned interval retains its originating query privately; a mismatched query, missing provider, or provider failure is a typed layout error. |
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
 | `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator edits are permitted only for their shaped-segment/fragment and exclusion facts. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 
@@ -369,9 +369,10 @@ pub struct FloatExclusionIntervalOf<S: LayoutScalar> { /* private */ }
 
 The query exposes the final physical margin box, containing `FlowAxes`, and a
 finite ordered physical line-band interval. The interval result contains zero or
-one finite ordered physical exclusion interval for that band. Construction clips
-the result to the float margin box and rejects inverted or non-finite endpoints.
-An empty shape intersection is represented by `None`.
+one finite ordered physical exclusion interval for that band and privately
+retains the exact query supplied to its constructor. Construction clips the
+result to that query's float margin box and rejects inverted or non-finite
+endpoints. An empty shape intersection is represented by `None`.
 
 `LayoutTree` adds this default method and layout calls it only for
 `FloatExclusion::Shape`:
@@ -387,9 +388,16 @@ fn float_exclusion_interval(
 ```
 
 Outer `None` means missing provider and is an error for `Shape`; `Ok(None)` means
-a valid empty intersection. The existing measurement error carrier preserves
-the safe underlying provider failure with `LayoutErrorOf` context naming the
-float node and band.
+a valid empty intersection. Layout accepts `Ok(Some(interval))` only when the
+interval's private originating query equals the exact current query. A provider
+can therefore return a representable invalid result by constructing an interval
+for a different valid query; layout rejects it as
+`FloatExclusionIntervalErrorOf::QueryMismatch { expected, actual }` without
+clipping, fallback, or partial output. Non-finite, inverted, and otherwise
+invalid raw endpoints fail at `FloatExclusionIntervalOf::try_new` before a
+provider response exists and are never fabricated as runtime output. The
+existing measurement error carrier preserves a safe underlying provider failure
+with `LayoutErrorOf` context naming the float node and band.
 
 Queries occur only for a line candidate whose block interval overlaps the float
 margin box. The same float/band pair is queried at most once per candidate pass;
@@ -437,8 +445,8 @@ The following are invalid caller inputs:
 - a shape exclusion request without a provider;
 - a changed node supplied to `compute_layout_invalidated` that is not reachable
   from the supplied root;
-- a provider interval outside its validated/queryable band after clipping cannot
-  produce finite ordered endpoints; and
+- a provider interval constructed for a query other than the exact current
+  float/band query; and
 - line-break or boundary flow metadata that differs from its containing inline
   flow after root normalization.
 
@@ -450,14 +458,17 @@ display/participation mismatch to
 `LayoutInvalidInputOf::AtomicInlineParticipation`, and a non-box pairing failure
 to `LayoutInvalidInputOf::NonBoxNodeRole`. Layout maps invalid inline facts to
 `LayoutInvalidInputOf::InlineText`, an invalid shape/float role to
-`LayoutInvalidInputOf::FloatExclusionRole`, an invalid provider interval to
-`LayoutInvalidInputOf::FloatExclusionProviderOutput`, and an absent requested
-provider to `LayoutMissingContext::FloatExclusionProvider`. Provider `Err(M)`
-uses the existing `LayoutErrorKindOf::Measurement(M)`. Every shape-query error
-uses the new exhaustive `LayoutOperation::FloatExclusionQuery` and
+`LayoutInvalidInputOf::FloatExclusionRole`, a provider interval whose private
+originating query differs from the current query to
+`LayoutInvalidInputOf::FloatExclusionProviderOutput` with
+`FloatExclusionIntervalErrorOf::QueryMismatch { expected, actual }`, and an
+absent requested provider to
+`LayoutMissingContext::FloatExclusionProvider`. Provider `Err(M)` uses the
+existing `LayoutErrorKindOf::Measurement(M)`. Every shape-query error uses the
+new exhaustive `LayoutOperation::FloatExclusionQuery` and
 `LayoutErrorSiteOf::ContainerSubject { container, subject: float }`; the query
-value carries the exact band. No path erases the provider source to a string,
-panics, or returns a partial completed batch.
+values preserve the exact expected and actual bands. No path erases the provider
+source to a string, panics, or returns a partial completed batch.
 
 An unreachable invalidation subject uses
 `LayoutInvalidInputOf::InvalidationNodeNotReachable`,
@@ -833,7 +844,7 @@ construction.
 | Percentage basis | Definite containing block resolves atomic percentage block size; indefinite remains unresolved by existing sizing rules |
 | Fixed fast path | Metric controls/text prevent baseline-erasing early return; size-only control case still takes the valid fast path |
 | Rectangular floats | Left/right/opposing/stacked/overwide/clear/float-only auto-height and ordinary line exclusion through block front door |
-| Shape provider | Empty/partial/full intervals, missing provider, invalid result, provider error, cache-context change, and bounded query accounting |
+| Shape provider | Empty/partial/full intervals, missing provider, mismatched-query result, raw endpoint constructor rejection, provider error, cache-context change, and bounded query accounting |
 | BFC avoidance | Current flex/grid/grid-lanes and non-replaced overflow-established block cases avoid floats and shrink auto width; ordinary block edges remain unchanged; floating and atomic boxes trap internal floats through their respective paths |
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
 | Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics |
@@ -883,7 +894,8 @@ permitted.
 | `NodeInputOf::atomic_inline_participation` | Adding the public field breaks exhaustive struct literals. Its real default is `None`; callers using `NodeInputOf::default()`, `NodeInputOf::DEFAULT`, or Rust struct-update syntax retain no atomic participation, while every atomic child created by root or fixtures sets a validated `Some` explicitly. |
 | `NodeInputOf::float_exclusion` | Adding the public field breaks exhaustive struct literals. Its real default is `MarginBox`; only a visible in-flow `Float::Left`/`Right` box whose tree can satisfy the provider contract sets `Shape`, and every other shape/role pair is rejected. |
 | `VerticalAlign::Bottom` | Adding a variant breaks exhaustive downstream matches. Every leaf and root/facade match handles `Bottom` explicitly; no compatibility wildcard maps it to baseline or top. |
-| New shaped-text, bidi, break, whitespace, fragment, and exclusion carriers plus default-scalar aliases | Additive names, private invariant-bearing fields, and reviewed constructors/accessors. They have no legacy aliases or permissive conversions. Root facade/API artifacts expose exactly the reviewed names during the later root promotion. |
+| New shaped-text, bidi, break, whitespace, fragment, and exclusion carriers plus default-scalar aliases | Additive names, private invariant-bearing fields, and reviewed constructors/accessors. `FloatExclusionIntervalOf` retains its originating query privately without changing construction or accessors. They have no legacy aliases or permissive conversions. Root facade/API artifacts expose exactly the reviewed names during the later root promotion. |
+| `FloatExclusionIntervalErrorOf::QueryMismatch { expected, actual }` | Breaking expansion of the existing exhaustive public construction/provider-output error. FRI-06 is an intentional pre-release breaking correction; leaf and later root exhaustive matches add the named state, and no wildcard or existing numeric error is reused for mismatched provenance. |
 | `CompletedLayoutBatchOf::{unrounded_inline_fragments, final_inline_fragments}` and their new private storage | Additive read-only phase-specific output. External construction was already impossible; existing node/cache accessors keep their signatures and semantics. Root commits unrounded fragment state with unrounded nodes and consumes final fragment association for render/text integration. |
 | Defaulted `LayoutTree` exclusion-provider method | Source-compatible for existing implementors and returns no provider result. Existing margin-box layouts never call it. Root and fixture trees override it only when supplying `FloatExclusion::Shape`; the default becomes a typed missing-provider error for a requested shape, never a silent margin-box fallback. |
 | Defaulted `LayoutTree::unrounded_inline_fragments` | Source-compatible for existing implementors and returns `None`. Trees without inline text need no override; trees that commit inline text return `Some(slice)`, including `Some(&[])`, so valid warm hits can republish fragments. |
@@ -1078,8 +1090,9 @@ FRI-06 is complete only when:
 7. all clear values map through containing flow and no valid vertical clear path
    panics;
 8. rectangular and provider-backed shape exclusions, invalid shape/float roles,
-   float placement, BFC avoidance/auto width/auto height, nested containment,
-   and logical sides have focused front-door proof;
+   mismatched provider queries, raw endpoint rejection, float placement, BFC
+   avoidance/auto width/auto height, nested containment, and logical sides have
+   focused front-door proof;
 9. baseline/top/bottom alignment, visible/non-visible atomic fallback, bottom
    margin, definite percentage basis, and fixed fast-path baseline behavior are
    exact;
