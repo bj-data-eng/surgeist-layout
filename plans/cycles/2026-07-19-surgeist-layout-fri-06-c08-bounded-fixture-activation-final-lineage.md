@@ -125,7 +125,8 @@ geometry or any source outside the 85-source predicate.
 **RED:** Add `fri06_c08_existing_` helper/serializer and matrix tests proving the
 entry helper rejects the three supported families, misclassifies the baseline
 indentation, lacks the required finite output facts, or cannot serialize them to
-the C06 schema. Tests reconstruct exact 85-source/340-row membership and digest.
+the C06 schema. Tests reconstruct the exact 85-source/340-row membership and
+digest and the baseline-helper subset's exact four sources, 16 rows, and digest.
 
 **Acceptance:** Every source is selected only by the pinned report predicate.
 Helper output uses DOM ranges and computed geometry only for explicit fixture
@@ -139,6 +140,7 @@ No XML/report file changes and no full generation occurs.
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_existing_
 CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate
+CARGO_NET_OFFLINE=true ./scripts/run-cargo-task.sh generator-clippy
 cargo fmt --check
 ```
 
@@ -160,7 +162,10 @@ height, logical clear, and finite shape bands.
 **RED:** Add `fri06_c08_new_` tests that require the exact twelve paths, case IDs,
 source-root ownership, active status, four-variant expansion, 48-row digest, and
 the finite schema facts assigned to each source. Missing, duplicate, extra, or
-cross-family facts fail before generation.
+cross-family facts fail before generation. Reconstruct the 256-row fixture-
+correction predicate from the pinned entry report and the exact new-source rows;
+assert its complete membership, count, and digest without checking the stale
+derived report.
 
 **Acceptance:** The twelve sources are exactly those listed in `FRI-06.11` and
 the manifest replacement count is fixed to 5,712 generated and 16 unsupported.
@@ -175,6 +180,7 @@ Record the replacement manifest SHA-256 in task evidence.
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_new_
 CARGO_NET_OFFLINE=true cargo check --locked -p surgeist-layout --all-targets --features layout-golden-generate
+CARGO_NET_OFFLINE=true ./scripts/run-cargo-task.sh generator-clippy
 cargo fmt --check
 ```
 
@@ -204,8 +210,9 @@ only `Unsupported missing #test-root fixture root`, and zero expected-fail,
 quarantined, or failed-to-generate entries. It records the exact browser, launch
 profile, replacement helper/manifest hashes, and no scoped report. Add a focused
 test that reconstructs the 388-row union and compares every row through the C06
-adapter and public layout front door. Explicitly prove the 16 semantic-
-preservation rows. For all 5,324 base-generated outputs, compare parsed XML after
+adapter and public layout front door. Reconstruct and assert the exact four-
+source, 16-row semantic-preservation membership and digest, then prove those
+rows' semantics. For all 5,324 base-generated outputs, compare parsed XML after
 excluding only the provenance comment against the cycle-base blob; any semantic
 delta blocks. Record the final report/helper/manifest hashes. Do not rerun the
 generator after successful derivation.
@@ -214,10 +221,10 @@ generator after successful derivation.
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_
-CARGO_NET_OFFLINE=true just corpus-check
-CARGO_NET_OFFLINE=true just taffy-check
-CARGO_NET_OFFLINE=true just verify
-CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true ./scripts/run-browser-parity-task.sh corpus-check
+CARGO_NET_OFFLINE=true ./scripts/run-browser-parity-task.sh taffy-check
+CARGO_NET_OFFLINE=true ./scripts/run-verification.sh default
+CARGO_NET_OFFLINE=true ./scripts/run-verification.sh generator
 cargo fmt --check
 ```
 
