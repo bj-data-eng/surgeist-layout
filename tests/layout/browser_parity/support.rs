@@ -113,6 +113,7 @@ pub fn assert_surgeist_matches(golden: &Golden) -> Result<(), Error> {
         &golden.expectations,
         &golden.name,
         golden.use_rounding,
+        batch.final_inline_fragments(),
     )
 }
 
@@ -207,7 +208,21 @@ pub struct Expectation {
     pub width: Option<Scalar>,
     pub height: Option<Scalar>,
     pub scroll_size: Option<Size>,
+    pub fragments: Option<Vec<InlineFragmentExpectation>>,
     pub children: Vec<Expectation>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InlineFragmentExpectation {
+    pub source_segment_id: u64,
+    pub line_index: usize,
+    pub visual_index: usize,
+    pub x: Scalar,
+    pub y: Scalar,
+    pub width: Scalar,
+    pub height: Scalar,
+    pub baseline_x: Scalar,
+    pub baseline_y: Scalar,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -289,18 +304,119 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
         }
     };
 
+    let mut fragments = None;
+    let mut children = Vec::new();
+    for child in xml.children().filter(roxmltree::Node::is_element) {
+        match child.tag_name().name() {
+            "node" => children.push(parse_expectation(child)?),
+            "fragments" if fragments.is_none() => {
+                fragments = Some(parse_fragment_expectations(child)?);
+            }
+            "fragments" => {
+                return Err(Error::new(
+                    "expected at most one `<fragments>` child on `<node>`",
+                ));
+            }
+            tag => {
+                return Err(Error::new(format!(
+                    "unsupported expectation child `<{tag}>`"
+                )));
+            }
+        }
+    }
+
     Ok(Expectation {
         x: optional_number_attr(xml, "x")?,
         y: optional_number_attr(xml, "y")?,
         width: optional_number_attr(xml, "width")?,
         height: optional_number_attr(xml, "height")?,
         scroll_size,
-        children: xml
-            .children()
-            .filter(roxmltree::Node::is_element)
-            .map(parse_expectation)
-            .collect::<Result<Vec<_>, _>>()?,
+        fragments,
+        children,
     })
+}
+
+fn parse_fragment_expectations(
+    xml: roxmltree::Node<'_, '_>,
+) -> Result<Vec<InlineFragmentExpectation>, Error> {
+    expect_tag(xml, "fragments")?;
+    if let Some(attribute) = xml.attributes().next() {
+        return Err(Error::new(format!(
+            "unsupported `<fragments>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    xml.children()
+        .filter(roxmltree::Node::is_element)
+        .map(parse_fragment_expectation)
+        .collect()
+}
+
+fn parse_fragment_expectation(
+    xml: roxmltree::Node<'_, '_>,
+) -> Result<InlineFragmentExpectation, Error> {
+    expect_tag(xml, "fragment")?;
+    let expectation = InlineFragmentExpectation {
+        source_segment_id: parse_fragment_integer(xml, "source_segment_id")?,
+        line_index: parse_fragment_integer(xml, "line_index")?,
+        visual_index: parse_fragment_integer(xml, "visual_index")?,
+        x: parse_fragment_number(xml, "x", false)?,
+        y: parse_fragment_number(xml, "y", false)?,
+        width: parse_fragment_number(xml, "width", true)?,
+        height: parse_fragment_number(xml, "height", true)?,
+        baseline_x: parse_fragment_number(xml, "baseline_x", false)?,
+        baseline_y: parse_fragment_number(xml, "baseline_y", false)?,
+    };
+    const ATTRIBUTES: &[&str] = &[
+        "source_segment_id",
+        "line_index",
+        "visual_index",
+        "x",
+        "y",
+        "width",
+        "height",
+        "baseline_x",
+        "baseline_y",
+    ];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported `<fragment>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    Ok(expectation)
+}
+
+fn parse_fragment_integer<T>(xml: roxmltree::Node<'_, '_>, name: &str) -> Result<T, Error>
+where
+    T: std::str::FromStr,
+{
+    let raw = required_attr(xml, name)?;
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(Error::new(format!(
+            "invalid `{name}` on `<fragment>`: `{raw}`"
+        )));
+    }
+    raw.parse()
+        .map_err(|_| Error::new(format!("invalid `{name}` on `<fragment>`: `{raw}`")))
+}
+
+fn parse_fragment_number(
+    xml: roxmltree::Node<'_, '_>,
+    name: &str,
+    nonnegative: bool,
+) -> Result<Scalar, Error> {
+    let raw = required_attr(xml, name)?;
+    let value = parse_number(raw)?;
+    if !value.is_finite() || (nonnegative && value < 0.0) {
+        return Err(Error::new(format!(
+            "invalid `{name}` on `<fragment>`: `{raw}`"
+        )));
+    }
+    Ok(value)
 }
 
 fn parse_available(raw: &str) -> Result<Available, Error> {
@@ -459,7 +575,9 @@ struct TestNode {
     use_tighter_monospace_wrap: bool,
     cache: layout::Cache,
     unrounded: layout::NodeOutput,
+    unrounded_present: bool,
     final_layout: layout::NodeOutput,
+    final_layout_present: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -524,7 +642,9 @@ impl TestTree {
             use_tighter_monospace_wrap: !inherited.inline_level_text,
             cache: layout::Cache::new(),
             unrounded: layout::NodeOutput::new(),
+            unrounded_present: false,
             final_layout: layout::NodeOutput::new(),
+            final_layout_present: false,
         });
 
         let mut children = node
@@ -583,7 +703,9 @@ impl TestTree {
             use_tighter_monospace_wrap: !inherited_inline_level_text,
             cache: layout::Cache::new(),
             unrounded: layout::NodeOutput::new(),
+            unrounded_present: false,
             final_layout: layout::NodeOutput::new(),
+            final_layout_present: false,
         });
         Ok(id)
     }
@@ -630,9 +752,11 @@ impl TestTree {
     fn apply_completed_batch(&mut self, batch: &layout::CompletedLayoutBatch<usize>) {
         for entry in batch.unrounded_entries() {
             self.nodes[entry.node()].unrounded = entry.output();
+            self.nodes[entry.node()].unrounded_present = true;
         }
         for entry in batch.final_entries() {
             self.nodes[entry.node()].final_layout = entry.output();
+            self.nodes[entry.node()].final_layout_present = true;
         }
         for entry in batch.cache_store_entries() {
             self.nodes[entry.node()].cache.store_with_context(
@@ -904,14 +1028,71 @@ fn compare_expectation(
     expected: &Expectation,
     path: &str,
     use_rounding: bool,
+    final_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
 ) -> Result<(), Error> {
-    // The browser reports a rect for `<br>`, while layout models it as a zero-size
-    // inline control carrying flow and metrics data rather than box geometry.
-    if matches!(
-        tree.nodes[node].layout_input,
-        layout::LayoutInput::LineBreak(_)
-    ) {
-        return Ok(());
+    let mut fragment_cursor = FinalFragmentCursor {
+        entries: final_inline_fragments,
+        next: 0,
+    };
+    compare_expectation_in_source_order(
+        tree,
+        node,
+        expected,
+        path,
+        use_rounding,
+        &mut fragment_cursor,
+    )?;
+    if let Some(entry) = fragment_cursor.entries.get(fragment_cursor.next) {
+        return Err(Error::new(format!(
+            "{path}: unexpected fragment source association at node {}",
+            entry.node()
+        )));
+    }
+    Ok(())
+}
+
+struct FinalFragmentCursor<'a> {
+    entries: &'a [layout::InlineFragmentOutputEntry<usize>],
+    next: usize,
+}
+
+impl<'a> FinalFragmentCursor<'a> {
+    fn take_for_node(&mut self, node: usize) -> &'a [layout::InlineFragmentOutputEntry<usize>] {
+        let start = self.next;
+        while self
+            .entries
+            .get(self.next)
+            .is_some_and(|entry| entry.node() == node)
+        {
+            self.next += 1;
+        }
+        &self.entries[start..self.next]
+    }
+}
+
+fn compare_expectation_in_source_order(
+    tree: &TestTree,
+    node: usize,
+    expected: &Expectation,
+    path: &str,
+    use_rounding: bool,
+    fragment_cursor: &mut FinalFragmentCursor<'_>,
+) -> Result<(), Error> {
+    let selected_output_is_present = if use_rounding {
+        tree.nodes[node].final_layout_present
+    } else {
+        tree.nodes[node].unrounded_present
+    };
+    if !selected_output_is_present
+        && matches!(
+            tree.nodes[node].layout_input,
+            layout::LayoutInput::LineBreak(_) | layout::LayoutInput::InlineBoundary(_)
+        )
+    {
+        let phase = if use_rounding { "final" } else { "unrounded" };
+        return Err(Error::new(format!(
+            "{path}: control geometry mismatch, expected {phase} output"
+        )));
     }
 
     let actual = if use_rounding {
@@ -937,6 +1118,11 @@ fn compare_expectation(
         compare_number(path, "scroll height", y_span, expected_scroll_size.height)?;
     }
 
+    let actual_fragments = fragment_cursor.take_for_node(node);
+    if let Some(expected_fragments) = &expected.fragments {
+        compare_fragment_expectations(path, actual_fragments, expected_fragments)?;
+    }
+
     let children = tree.nodes[node]
         .children
         .iter()
@@ -956,16 +1142,115 @@ fn compare_expectation(
         .zip(expected.children.iter())
         .enumerate()
     {
-        compare_expectation(
+        compare_expectation_in_source_order(
             tree,
             child,
             expected_child,
             &format!("{path}/{index}"),
             use_rounding,
+            fragment_cursor,
         )?;
     }
 
     Ok(())
+}
+
+fn compare_fragment_expectations(
+    path: &str,
+    actual: &[layout::InlineFragmentOutputEntry<usize>],
+    expected: &[InlineFragmentExpectation],
+) -> Result<(), Error> {
+    if actual.len() != expected.len() {
+        return Err(Error::new(format!(
+            "{path}: fragment count mismatch, expected {}, got {}",
+            expected.len(),
+            actual.len()
+        )));
+    }
+
+    for (index, (entry, expected)) in actual.iter().zip(expected).enumerate() {
+        let fragment = entry.fragment();
+        compare_fragment_identity(
+            path,
+            index,
+            "source segment id",
+            fragment.segment_id().get(),
+            expected.source_segment_id,
+        )?;
+        compare_fragment_identity(
+            path,
+            index,
+            "line index",
+            fragment.line_index(),
+            expected.line_index,
+        )?;
+        compare_fragment_identity(
+            path,
+            index,
+            "visual index",
+            fragment.visual_index(),
+            expected.visual_index,
+        )?;
+
+        let rect = fragment.rect();
+        compare_number(
+            path,
+            &format!("fragment[{index}] rect x"),
+            rect.origin().x,
+            expected.x,
+        )?;
+        compare_number(
+            path,
+            &format!("fragment[{index}] rect y"),
+            rect.origin().y,
+            expected.y,
+        )?;
+        compare_number(
+            path,
+            &format!("fragment[{index}] rect width"),
+            rect.size().width,
+            expected.width,
+        )?;
+        compare_number(
+            path,
+            &format!("fragment[{index}] rect height"),
+            rect.size().height,
+            expected.height,
+        )?;
+        compare_number(
+            path,
+            &format!("fragment[{index}] baseline x"),
+            fragment.baseline().x,
+            expected.baseline_x,
+        )?;
+        compare_number(
+            path,
+            &format!("fragment[{index}] baseline y"),
+            fragment.baseline().y,
+            expected.baseline_y,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn compare_fragment_identity<T>(
+    path: &str,
+    index: usize,
+    field: &str,
+    actual: T,
+    expected: T,
+) -> Result<(), Error>
+where
+    T: Copy + std::fmt::Display + Eq,
+{
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(Error::new(format!(
+            "{path}: fragment[{index}] {field} mismatch, expected {expected}, got {actual}"
+        )))
+    }
 }
 
 fn compare_number(path: &str, field: &str, actual: Scalar, expected: Scalar) -> Result<(), Error> {
@@ -3138,9 +3423,455 @@ mod tests {
                 use_tighter_monospace_wrap: false,
                 cache: layout::Cache::new(),
                 unrounded: layout::NodeOutput::new(),
+                unrounded_present: true,
                 final_layout: layout::NodeOutput::new(),
+                final_layout_present: true,
             }],
         }
+    }
+
+    #[test]
+    fn fri06_c06_comparator_wrong_control_x_names_x_mismatch() {
+        let tree = line_break_tree(layout::LineBreakInput::new());
+        let expected = Expectation {
+            x: Some(1.0),
+            y: Some(0.0),
+            width: Some(0.0),
+            height: Some(0.0),
+            scroll_size: None,
+            fragments: None,
+            children: vec![Expectation {
+                x: Some(99.0),
+                y: None,
+                width: None,
+                height: None,
+                scroll_size: None,
+                fragments: None,
+                children: Vec::new(),
+            }],
+        };
+
+        let error = compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[])
+            .expect_err("wrong control x should fail before unrelated child comparison");
+
+        assert_eq!(
+            error.to_string(),
+            "fri06-c06-control: x mismatch, expected 1, got 0"
+        );
+    }
+
+    #[test]
+    fn fri06_c06_comparator_zero_control_geometry_passes_and_missing_output_is_named() {
+        let expected = Expectation {
+            x: Some(0.0),
+            y: Some(0.0),
+            width: Some(0.0),
+            height: Some(0.0),
+            scroll_size: None,
+            fragments: None,
+            children: Vec::new(),
+        };
+        let mut tree = line_break_tree(layout::LineBreakInput::new());
+        compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[])
+            .expect("published zero control geometry should compare");
+
+        tree.nodes[0].final_layout_present = false;
+        let error = compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[])
+            .expect_err("missing control output should fail");
+        assert_eq!(
+            error.to_string(),
+            "fri06-c06-control: control geometry mismatch, expected final output"
+        );
+    }
+
+    fn fri06_c06_fragment_xml(fragment_body: &str) -> String {
+        format!(
+            r#"
+            <test name="fri06-c06-fragment-parser" use-rounding="true">
+                <viewport width="100" height="max-content" />
+                <input><div display="block" /></input>
+                <expectations>
+                    <node>{fragment_body}</node>
+                </expectations>
+            </test>
+            "#
+        )
+    }
+
+    #[test]
+    fn fri06_c06_comparator_parser_distinguishes_absent_and_explicit_empty_fragments() {
+        let absent = Golden::parse(&fri06_c06_fragment_xml(""))
+            .expect("legacy expectation without fragments should parse");
+        let empty = Golden::parse(&fri06_c06_fragment_xml("<fragments />"))
+            .expect("explicit empty fragment state should parse");
+
+        assert_eq!(absent.expectations.fragments, None);
+        assert_eq!(empty.expectations.fragments, Some(Vec::new()));
+    }
+
+    #[test]
+    fn fri06_c06_comparator_parser_requires_every_fragment_field() {
+        let fields = [
+            ("source_segment_id", "11"),
+            ("line_index", "0"),
+            ("visual_index", "2"),
+            ("x", "1.25"),
+            ("y", "2.5"),
+            ("width", "10.25"),
+            ("height", "10"),
+            ("baseline_x", "1.25"),
+            ("baseline_y", "10.5"),
+        ];
+
+        for (missing, _) in fields {
+            let attrs = fields
+                .iter()
+                .filter(|(name, _)| *name != missing)
+                .map(|(name, value)| format!(r#"{name}="{value}""#))
+                .collect::<Vec<_>>()
+                .join(" ");
+            let xml =
+                fri06_c06_fragment_xml(&format!("<fragments><fragment {attrs} /></fragments>"));
+            let error = Golden::parse(&xml).expect_err("missing fragment field should fail");
+
+            assert_eq!(
+                error.to_string(),
+                format!("missing `{missing}` on `<fragment>`")
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c06_comparator_parser_rejects_nonfinite_negative_and_unknown_fragment_facts() {
+        for (fragment, diagnostic) in [
+            (
+                r#"<fragment source_segment_id="11" line_index="0" visual_index="2" x="NaN" y="2.5" width="10.25" height="10" baseline_x="1.25" baseline_y="10.5" />"#,
+                "invalid `x` on `<fragment>`: `NaN`",
+            ),
+            (
+                r#"<fragment source_segment_id="11" line_index="0" visual_index="2" x="1.25" y="2.5" width="-1" height="10" baseline_x="1.25" baseline_y="10.5" />"#,
+                "invalid `width` on `<fragment>`: `-1`",
+            ),
+            (
+                r#"<fragment source_segment_id="11" line_index="0" visual_index="2" x="1.25" y="2.5" width="10.25" height="10" baseline_x="1.25" baseline_y="10.5" fallback="true" />"#,
+                "unsupported `<fragment>` attribute `fallback`",
+            ),
+        ] {
+            let xml = fri06_c06_fragment_xml(&format!("<fragments>{fragment}</fragments>"));
+            let error = Golden::parse(&xml).expect_err("invalid fragment fact should fail");
+            assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    struct Fri06C06FragmentTree {
+        layout_inputs: Vec<layout::LayoutInput>,
+        node_inputs: Vec<layout::NodeInput>,
+        children: Vec<Vec<usize>>,
+    }
+
+    impl layout::Traverse for Fri06C06FragmentTree {
+        type Node = usize;
+        type Scalar = Scalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, usize>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            self.children[node].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[node].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[node][index]
+        }
+    }
+
+    impl layout::LayoutTree for Fri06C06FragmentTree {
+        type MeasureError = std::convert::Infallible;
+
+        fn node_input(&self, node: Self::Node) -> &layout::NodeInput {
+            &self.node_inputs[node]
+        }
+
+        fn layout_input(&self, node: Self::Node) -> layout::LayoutInput {
+            self.layout_inputs[node].clone()
+        }
+    }
+
+    fn fri06_c06_segment(id: u64, extent: Scalar) -> layout::ShapedInlineSegment {
+        layout::ShapedInlineSegment::try_new(
+            layout::InlineSegmentId::new(id),
+            extent,
+            layout::InlineMetrics::from_ascent_descent(8.0, 2.0).unwrap(),
+            layout::BidiLevel::try_new(0).unwrap(),
+            layout::InlineWhitespaceEdge::Preserve,
+            layout::InlineBreakOpportunity::prohibited(),
+        )
+        .unwrap()
+    }
+
+    fn fri06_c06_fragment_observation()
+    -> (TestTree, layout::CompletedLayoutBatch<usize>, Expectation) {
+        let root_input = layout::NodeInput {
+            display: layout::Display::Block,
+            ..layout::NodeInput::default()
+        };
+        let text = |id, extent| {
+            layout::LayoutInput::inline_text(
+                layout::InlineTextInput::try_new(vec![fri06_c06_segment(id, extent)]).unwrap(),
+            )
+        };
+        let metrics = layout::InlineMetrics::from_ascent_descent(8.0, 2.0).unwrap();
+        let source = Fri06C06FragmentTree {
+            layout_inputs: vec![
+                layout::LayoutInput::box_input(root_input.clone()),
+                text(11, 10.25),
+                layout::LayoutInput::inline_boundary(layout::InlineBoundaryInput::new(
+                    layout::InlineBoundaryKind::Start,
+                    metrics,
+                )),
+                text(22, 5.0),
+            ],
+            node_inputs: vec![
+                root_input,
+                layout::NodeInput::non_box(),
+                layout::NodeInput::non_box(),
+                layout::NodeInput::non_box(),
+            ],
+            children: vec![vec![1, 2, 3], Vec::new(), Vec::new(), Vec::new()],
+        };
+        let request = layout::LayoutRootRequest::viewport(layout::Size::new(
+            layout::Available::definite(100.0),
+            layout::Available::MaxContent,
+        ))
+        .unwrap();
+        let batch = layout::compute_layout(&source, 0, request).unwrap();
+        let nodes = source
+            .layout_inputs
+            .iter()
+            .enumerate()
+            .map(|(node, layout_input)| TestNode {
+                layout_input: layout_input.clone(),
+                font_family: FontFamily::Ahem,
+                font_size: TextMeasure::LINE_HEIGHT,
+                line_height: TextMeasure::LINE_HEIGHT,
+                text: None,
+                children: source.children[node].clone(),
+                synthetic: false,
+                preserve_fractional_min_content: false,
+                use_tighter_monospace_wrap: false,
+                cache: layout::Cache::new(),
+                unrounded: batch
+                    .unrounded_entries()
+                    .iter()
+                    .find(|entry| entry.node() == node)
+                    .map_or_else(layout::NodeOutput::new, |entry| entry.output()),
+                unrounded_present: batch
+                    .unrounded_entries()
+                    .iter()
+                    .any(|entry| entry.node() == node),
+                final_layout: batch
+                    .final_entries()
+                    .iter()
+                    .find(|entry| entry.node() == node)
+                    .map_or_else(layout::NodeOutput::new, |entry| entry.output()),
+                final_layout_present: batch
+                    .final_entries()
+                    .iter()
+                    .any(|entry| entry.node() == node),
+            })
+            .collect();
+        let tree = TestTree { nodes };
+
+        fn expected_for(
+            tree: &TestTree,
+            batch: &layout::CompletedLayoutBatch<usize>,
+            node: usize,
+        ) -> Expectation {
+            let fragments = batch
+                .final_inline_fragments()
+                .iter()
+                .filter(|entry| entry.node() == node)
+                .map(|entry| {
+                    let fragment = entry.fragment();
+                    let rect = fragment.rect();
+                    InlineFragmentExpectation {
+                        source_segment_id: fragment.segment_id().get(),
+                        line_index: fragment.line_index(),
+                        visual_index: fragment.visual_index(),
+                        x: rect.origin().x,
+                        y: rect.origin().y,
+                        width: rect.size().width,
+                        height: rect.size().height,
+                        baseline_x: fragment.baseline().x,
+                        baseline_y: fragment.baseline().y,
+                    }
+                })
+                .collect();
+            Expectation {
+                x: None,
+                y: None,
+                width: None,
+                height: None,
+                scroll_size: None,
+                fragments: Some(fragments),
+                children: tree.nodes[node]
+                    .children
+                    .iter()
+                    .copied()
+                    .map(|child| expected_for(tree, batch, child))
+                    .collect(),
+            }
+        }
+
+        let expected = expected_for(&tree, &batch, 0);
+        (tree, batch, expected)
+    }
+
+    fn fri06_c06_compare_fragments(
+        tree: &TestTree,
+        batch: &layout::CompletedLayoutBatch<usize>,
+        expected: &Expectation,
+    ) -> Result<(), Error> {
+        compare_expectation(
+            tree,
+            0,
+            expected,
+            "fri06-c06-fragments",
+            false,
+            batch.final_inline_fragments(),
+        )
+    }
+
+    #[test]
+    fn fri06_c06_comparator_uses_final_source_order_and_preserves_visual_slots() {
+        let (tree, batch, expected) = fri06_c06_fragment_observation();
+
+        assert_eq!(
+            batch
+                .final_inline_fragments()
+                .iter()
+                .map(|entry| (
+                    entry.node(),
+                    entry.fragment().segment_id().get(),
+                    entry.fragment().visual_index(),
+                ))
+                .collect::<Vec<_>>(),
+            [(1, 11, 0), (3, 22, 2)]
+        );
+        assert_ne!(
+            batch.unrounded_inline_fragments()[0].fragment().rect(),
+            batch.final_inline_fragments()[0].fragment().rect()
+        );
+        fri06_c06_compare_fragments(&tree, &batch, &expected)
+            .expect("final source-associated fragments should match");
+    }
+
+    #[test]
+    fn fri06_c06_comparator_fragment_fields_have_stable_diagnostics() {
+        let (tree, batch, expected) = fri06_c06_fragment_observation();
+        let actual = batch.final_inline_fragments()[0].fragment();
+        let rect = actual.rect();
+        let baseline = actual.baseline();
+
+        let mut cases = Vec::new();
+        let mut changed = expected.clone();
+        changed.children[0].fragments.as_mut().unwrap()[0].source_segment_id = 12;
+        cases.push((
+            changed,
+            "fri06-c06-fragments/0: fragment[0] source segment id mismatch, expected 12, got 11"
+                .to_string(),
+        ));
+        let mut changed = expected.clone();
+        changed.children[0].fragments.as_mut().unwrap()[0].line_index += 1;
+        cases.push((
+            changed,
+            format!(
+                "fri06-c06-fragments/0: fragment[0] line index mismatch, expected {}, got {}",
+                actual.line_index() + 1,
+                actual.line_index()
+            ),
+        ));
+        let mut changed = expected.clone();
+        changed.children[0].fragments.as_mut().unwrap()[0].visual_index += 1;
+        cases.push((
+            changed,
+            format!(
+                "fri06-c06-fragments/0: fragment[0] visual index mismatch, expected {}, got {}",
+                actual.visual_index() + 1,
+                actual.visual_index()
+            ),
+        ));
+
+        for (field, actual_value) in [
+            ("rect x", rect.origin().x),
+            ("rect y", rect.origin().y),
+            ("rect width", rect.size().width),
+            ("rect height", rect.size().height),
+            ("baseline x", baseline.x),
+            ("baseline y", baseline.y),
+        ] {
+            let mut changed = expected.clone();
+            let fragment = &mut changed.children[0].fragments.as_mut().unwrap()[0];
+            match field {
+                "rect x" => fragment.x += 1.0,
+                "rect y" => fragment.y += 1.0,
+                "rect width" => fragment.width += 1.0,
+                "rect height" => fragment.height += 1.0,
+                "baseline x" => fragment.baseline_x += 1.0,
+                "baseline y" => fragment.baseline_y += 1.0,
+                _ => unreachable!(),
+            }
+            cases.push((
+                changed,
+                format!(
+                    "fri06-c06-fragments/0: fragment[0] {field} mismatch, expected {}, got {actual_value}",
+                    actual_value + 1.0
+                ),
+            ));
+        }
+
+        for (changed, diagnostic) in cases {
+            let error = fri06_c06_compare_fragments(&tree, &batch, &changed)
+                .expect_err("wrong fragment field should fail");
+            assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    #[test]
+    fn fri06_c06_comparator_fragment_numeric_tolerance_does_not_relax_identity() {
+        let (tree, batch, mut expected) = fri06_c06_fragment_observation();
+        let fragment = &mut expected.children[0].fragments.as_mut().unwrap()[0];
+        fragment.x += 0.05;
+        fragment.baseline_y += 0.05;
+        fri06_c06_compare_fragments(&tree, &batch, &expected)
+            .expect("fragment geometry and baseline should use browser tolerance");
+
+        expected.children[0].fragments.as_mut().unwrap()[0].visual_index += 1;
+        let error = fri06_c06_compare_fragments(&tree, &batch, &expected)
+            .expect_err("visual identity remains exact");
+        assert!(
+            error
+                .to_string()
+                .contains("fragment[0] visual index mismatch")
+        );
+    }
+
+    #[test]
+    fn fri06_c06_comparator_explicit_empty_checks_while_absent_skips_fragments() {
+        let (tree, batch, mut expected) = fri06_c06_fragment_observation();
+        expected.children[0].fragments = None;
+        fri06_c06_compare_fragments(&tree, &batch, &expected)
+            .expect("absent legacy fragment expectation should preserve current meaning");
+
+        expected.children[0].fragments = Some(Vec::new());
+        let error = fri06_c06_compare_fragments(&tree, &batch, &expected)
+            .expect_err("explicit empty fragment state should compare exactly");
+        assert_eq!(
+            error.to_string(),
+            "fri06-c06-fragments/0: fragment count mismatch, expected 0, got 1"
+        );
     }
 
     #[test]
@@ -4503,7 +5234,9 @@ mod tests {
                 use_tighter_monospace_wrap: false,
                 cache: layout::Cache::new(),
                 unrounded: layout::NodeOutput::new(),
+                unrounded_present: false,
                 final_layout: layout::NodeOutput::new(),
+                final_layout_present: false,
             }],
         };
 
