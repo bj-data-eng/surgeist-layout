@@ -10,9 +10,10 @@ Cycle base: `98b861133d873b387fb0b19891692a59ab7a6587`
 
 Reviewed specification:
 `plans/specs/2026-07-19-surgeist-layout-fri-06-mr02-post-c05-sprawl-containment.md`
-at established-v1 status-normalized SHA-256
-`7aac87eaa5d1f131cb58eab614972b8cb8361a00d8490e306155e42203727c9d`,
-commit `3b2e0d9db`, sections `FRI-06-MR02.1` through `FRI-06-MR02.9`.
+at normalized semantic-content SHA-256
+`bc384962f3e7ac7e3408f0705d7c125f0e4854aa3217108b3233362e482b34b7`,
+commit `3b2e0d9db33af932177b1fa5eb4f7a27a6f52c66`, sections
+`FRI-06-MR02.1` through `FRI-06-MR02.9`.
 
 Implementation sequence: none; this is a one-cycle, single-repository
 sub-initiative in the recorded post-C05 insertion window.
