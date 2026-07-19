@@ -1,6 +1,6 @@
 # FRI-06-C05 Provider-Backed Shape Exclusion
 
-Status: complete
+Status: in_progress
 
 Cycle ID: `FRI-06-C05`
 
