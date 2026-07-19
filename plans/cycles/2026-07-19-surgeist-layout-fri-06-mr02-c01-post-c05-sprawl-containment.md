@@ -1,6 +1,6 @@
 # FRI-06-MR02-C01 Post-C05 Sprawl Containment
 
-Status: reviewed
+Status: in_progress
 
 Cycle ID: `FRI-06-MR02-C01`
 
