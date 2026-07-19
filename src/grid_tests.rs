@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::lanes::*;
 use super::tracks::*;
@@ -12,6 +12,442 @@ use crate::*;
 
 fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Fri06C07HeightFamily {
+    GridLanes { overflow_hidden: bool },
+    SubgridMinContent,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Fri06C07HeightRow {
+    source: &'static str,
+    variant: &'static str,
+    family: Fri06C07HeightFamily,
+    box_sizing: BoxSizing,
+    direction: Direction,
+}
+
+const FRI06_C07_HEIGHT_ROWS: [Fri06C07HeightRow; 12] = [
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_normal_packing",
+        variant: "border_box_ltr",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: false,
+        },
+        box_sizing: BoxSizing::BorderBox,
+        direction: Direction::Ltr,
+    },
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_normal_packing",
+        variant: "content_box_ltr",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: false,
+        },
+        box_sizing: BoxSizing::ContentBox,
+        direction: Direction::Ltr,
+    },
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_normal_packing",
+        variant: "border_box_rtl",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: false,
+        },
+        box_sizing: BoxSizing::BorderBox,
+        direction: Direction::Rtl,
+    },
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_normal_packing",
+        variant: "content_box_rtl",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: false,
+        },
+        box_sizing: BoxSizing::ContentBox,
+        direction: Direction::Rtl,
+    },
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_overflow_hidden_packing",
+        variant: "border_box_ltr",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: true,
+        },
+        box_sizing: BoxSizing::BorderBox,
+        direction: Direction::Ltr,
+    },
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_overflow_hidden_packing",
+        variant: "content_box_ltr",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: true,
+        },
+        box_sizing: BoxSizing::ContentBox,
+        direction: Direction::Ltr,
+    },
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_overflow_hidden_packing",
+        variant: "border_box_rtl",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: true,
+        },
+        box_sizing: BoxSizing::BorderBox,
+        direction: Direction::Rtl,
+    },
+    Fri06C07HeightRow {
+        source: "grid_lanes_not_inhibited_overflow_hidden_packing",
+        variant: "content_box_rtl",
+        family: Fri06C07HeightFamily::GridLanes {
+            overflow_hidden: true,
+        },
+        box_sizing: BoxSizing::ContentBox,
+        direction: Direction::Rtl,
+    },
+    Fri06C07HeightRow {
+        source: "subgrid_auto_track_sizing_min_content_text_runs",
+        variant: "border_box_ltr",
+        family: Fri06C07HeightFamily::SubgridMinContent,
+        box_sizing: BoxSizing::BorderBox,
+        direction: Direction::Ltr,
+    },
+    Fri06C07HeightRow {
+        source: "subgrid_auto_track_sizing_min_content_text_runs",
+        variant: "content_box_ltr",
+        family: Fri06C07HeightFamily::SubgridMinContent,
+        box_sizing: BoxSizing::ContentBox,
+        direction: Direction::Ltr,
+    },
+    Fri06C07HeightRow {
+        source: "subgrid_auto_track_sizing_min_content_text_runs",
+        variant: "border_box_rtl",
+        family: Fri06C07HeightFamily::SubgridMinContent,
+        box_sizing: BoxSizing::BorderBox,
+        direction: Direction::Rtl,
+    },
+    Fri06C07HeightRow {
+        source: "subgrid_auto_track_sizing_min_content_text_runs",
+        variant: "content_box_rtl",
+        family: Fri06C07HeightFamily::SubgridMinContent,
+        box_sizing: BoxSizing::ContentBox,
+        direction: Direction::Rtl,
+    },
+];
+
+#[derive(Clone, Debug)]
+struct Fri06C07HeightTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    inputs: HashMap<u32, LayoutInputOf<S>>,
+    node_inputs: HashMap<u32, NodeInputOf<S>>,
+}
+
+impl<S: LayoutScalar> Traverse for Fri06C07HeightTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri06C07HeightTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.node_inputs[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.inputs[&node].clone()
+    }
+}
+
+fn fri06_c07_height_box_input<S: LayoutScalar>(input: NodeInputOf<S>) -> LayoutInputOf<S> {
+    LayoutInputOf::box_input(input)
+}
+
+fn fri06_c07_height_grid_lanes_tree<S: LayoutScalar>(
+    row: Fri06C07HeightRow,
+    overflow_hidden: bool,
+) -> Fri06C07HeightTree<S> {
+    let scalar = S::from_f64;
+    let overflow = if overflow_hidden {
+        ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden)
+            .expect("hidden overflow is canonical")
+    } else {
+        ComputedOverflow::VISIBLE
+    };
+    let root = NodeInputOf {
+        display: Display::GridLanes,
+        box_sizing: row.box_sizing,
+        direction: row.direction,
+        overflow,
+        size: Size::new(PreferredSizeOf::px(scalar(120.0)), PreferredSizeOf::AUTO),
+        grid_template_columns: vec![
+            TrackComponentOf::px(scalar(60.0)),
+            TrackComponentOf::px(scalar(60.0)),
+        ],
+        justify_content: Some(AlignContent::Start),
+        align_content: Some(AlignContent::Start),
+        justify_items: Some(AlignItems::Start),
+        align_items: Some(AlignItems::Start),
+        ..NodeInputOf::default()
+    };
+    let child = |height| NodeInputOf {
+        display: Display::Block,
+        box_sizing: row.box_sizing,
+        direction: row.direction,
+        size: Size::new(
+            PreferredSizeOf::px(scalar(60.0)),
+            PreferredSizeOf::px(height),
+        ),
+        ..NodeInputOf::default()
+    };
+    let node_inputs = HashMap::from([
+        (0, root.clone()),
+        (1, child(scalar(60.0))),
+        (2, child(scalar(30.0))),
+        (3, child(scalar(30.0))),
+    ]);
+    let inputs = node_inputs
+        .iter()
+        .map(|(node, input)| (*node, fri06_c07_height_box_input(input.clone())))
+        .collect();
+
+    Fri06C07HeightTree {
+        children: HashMap::from([(0, vec![1, 2, 3]), (1, vec![]), (2, vec![]), (3, vec![])]),
+        inputs,
+        node_inputs,
+    }
+}
+
+fn fri06_c07_height_subgrid_tree<S: LayoutScalar>(row: Fri06C07HeightRow) -> Fri06C07HeightTree<S> {
+    let fixture_root = NodeInputOf {
+        display: Display::Block,
+        box_sizing: row.box_sizing,
+        direction: row.direction,
+        size: Size::new(
+            PreferredSizeOf::px(S::from_f64(100.0)),
+            PreferredSizeOf::px(S::from_f64(100.0)),
+        ),
+        ..NodeInputOf::default()
+    };
+    let outer = NodeInputOf {
+        display: Display::Grid,
+        box_sizing: row.box_sizing,
+        direction: row.direction,
+        size: Size::new(PreferredSizeOf::MIN_CONTENT, PreferredSizeOf::AUTO),
+        grid_template_columns: vec![TrackComponentOf::MIN_CONTENT],
+        grid_template_rows: vec![TrackComponentOf::AUTO],
+        ..NodeInputOf::default()
+    };
+    let subgrid = NodeInputOf {
+        display: Display::Grid,
+        box_sizing: row.box_sizing,
+        direction: row.direction,
+        grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+        grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+        grid_column: GridPlacement::try_lines(1, -1).expect("full column subgrid span is valid"),
+        grid_row: GridPlacement::try_lines(1, -1).expect("full row subgrid span is valid"),
+        ..NodeInputOf::default()
+    };
+    let text_container = NodeInputOf {
+        display: Display::Block,
+        box_sizing: row.box_sizing,
+        direction: row.direction,
+        ..NodeInputOf::default()
+    };
+    let segment = |id, inline_extent: f64, following_break| {
+        ShapedInlineSegmentOf::try_new(
+            InlineSegmentId::new(id),
+            S::from_f64(inline_extent),
+            InlineMetricsOf::from_ascent_descent(S::from_f64(20.0), S::from_f64(5.0))
+                .expect("positive text metrics are valid"),
+            BidiLevel::try_new(if row.direction == Direction::Rtl {
+                1
+            } else {
+                0
+            })
+            .expect("base-direction bidi level is valid"),
+            InlineWhitespaceEdge::Preserve,
+            following_break,
+        )
+        .expect("preserved shaped participant is valid")
+    };
+    let text = InlineTextInputOf::try_new(vec![
+        segment(1, 25.0, InlineBreakOpportunityOf::allowed()),
+        segment(2, 100.0, InlineBreakOpportunityOf::allowed()),
+        segment(3, 50.0, InlineBreakOpportunityOf::allowed()),
+        segment(4, 75.0, InlineBreakOpportunityOf::prohibited()),
+    ])
+    .expect("four unique shaped participants are valid");
+    let node_inputs = HashMap::from([
+        (0, fixture_root.clone()),
+        (1, outer.clone()),
+        (2, subgrid.clone()),
+        (3, text_container.clone()),
+        (4, NodeInputOf::non_box()),
+    ]);
+    let inputs = HashMap::from([
+        (0, fri06_c07_height_box_input(fixture_root)),
+        (1, fri06_c07_height_box_input(outer)),
+        (2, fri06_c07_height_box_input(subgrid)),
+        (3, fri06_c07_height_box_input(text_container)),
+        (4, LayoutInputOf::inline_text(text)),
+    ]);
+
+    Fri06C07HeightTree {
+        children: HashMap::from([
+            (0, vec![1]),
+            (1, vec![2]),
+            (2, vec![3]),
+            (3, vec![4]),
+            (4, vec![]),
+        ]),
+        inputs,
+        node_inputs,
+    }
+}
+
+fn fri06_c07_height_output<S: LayoutScalar>(
+    entries: &[LayoutOutputEntryOf<u32, S>],
+    node: u32,
+) -> NodeOutputOf<S> {
+    entries
+        .iter()
+        .find(|entry| entry.node() == node)
+        .expect("public layout batch contains the requested node")
+        .output()
+}
+
+fn assert_fri06_c07_height_grid_lanes<S: LayoutScalar>(
+    row: Fri06C07HeightRow,
+    overflow_hidden: bool,
+) {
+    let scalar = S::from_f64;
+    let tree = fri06_c07_height_grid_lanes_tree(row, overflow_hidden);
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(scalar(120.0)),
+            AvailableOf::MAX_CONTENT,
+        ))
+        .expect("grid-lanes viewport is valid"),
+    )
+    .expect("grid-lanes packing computes through the public front door");
+    let root = fri06_c07_height_output(batch.unrounded_entries(), 0);
+
+    assert_eq!(root.size, Size::new(scalar(120.0), scalar(60.0)), "{row:?}");
+    assert_eq!(
+        root.content_size,
+        Size::new(scalar(120.0), scalar(60.0)),
+        "{row:?}"
+    );
+    let expected_x = if row.direction == Direction::Ltr {
+        [0.0, 60.0, 60.0]
+    } else {
+        [60.0, 0.0, 0.0]
+    };
+    for ((node, x), y) in [1, 2, 3].into_iter().zip(expected_x).zip([0.0, 0.0, 30.0]) {
+        assert_eq!(
+            fri06_c07_height_output(batch.unrounded_entries(), node).location,
+            Point::new(scalar(x), scalar(y)),
+            "{row:?} child {node}"
+        );
+    }
+}
+
+fn assert_fri06_c07_height_subgrid<S: LayoutScalar>(row: Fri06C07HeightRow) {
+    let scalar = S::from_f64;
+    let tree = fri06_c07_height_subgrid_tree(row);
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT))
+            .expect("subgrid intrinsic viewport is valid"),
+    )
+    .expect("subgrid min-content layout computes through the public front door");
+    let grid = fri06_c07_height_output(batch.unrounded_entries(), 1);
+
+    assert_eq!(
+        grid.size,
+        Size::new(scalar(100.0), scalar(100.0)),
+        "{row:?}"
+    );
+    assert_eq!(
+        grid.content_size,
+        Size::new(scalar(100.0), scalar(100.0)),
+        "{row:?}"
+    );
+    let expected_x = if row.direction == Direction::Ltr {
+        [0.0, 0.0, 0.0, 0.0]
+    } else {
+        [75.0, 0.0, 50.0, 25.0]
+    };
+    let fragments = batch
+        .unrounded_inline_fragments()
+        .iter()
+        .filter(|entry| entry.node() == 4)
+        .map(|entry| entry.fragment())
+        .collect::<Vec<_>>();
+    assert_eq!(fragments.len(), 4, "{row:?}");
+    for (((fragment, x), y), width) in fragments
+        .into_iter()
+        .zip(expected_x)
+        .zip([0.0, 25.0, 50.0, 75.0])
+        .zip([25.0, 100.0, 50.0, 75.0])
+    {
+        assert_eq!(
+            fragment.rect().origin(),
+            Point::new(scalar(x), scalar(y)),
+            "{row:?} participant {:?}",
+            fragment.segment_id()
+        );
+        assert_eq!(
+            fragment.rect().size(),
+            Size::new(scalar(width), scalar(25.0)),
+            "{row:?}"
+        );
+    }
+}
+
+fn assert_fri06_c07_height_rows<S: LayoutScalar>() {
+    assert_eq!(FRI06_C07_HEIGHT_ROWS.len(), 12);
+    let unique_rows = FRI06_C07_HEIGHT_ROWS
+        .iter()
+        .map(|row| (row.source, row.variant))
+        .collect::<HashSet<_>>();
+    assert_eq!(unique_rows.len(), 12);
+
+    for row in FRI06_C07_HEIGHT_ROWS {
+        match row.family {
+            Fri06C07HeightFamily::GridLanes { overflow_hidden } => {
+                assert_fri06_c07_height_grid_lanes::<S>(row, overflow_hidden);
+            }
+            Fri06C07HeightFamily::SubgridMinContent => {
+                assert_fri06_c07_height_subgrid::<S>(row);
+            }
+        }
+    }
+}
+
+#[test]
+fn fri06_c07_height_exact_twelve_rows_preserve_packing_and_intrinsic_block_size() {
+    assert_fri06_c07_height_rows::<f32>();
+    assert_fri06_c07_height_rows::<f64>();
 }
 
 fn fri06_mr02_geometry_error_largest_finite<S: LayoutScalar>() -> S {

@@ -703,17 +703,27 @@ where
             GridAxisKind::Row => gap.block,
         },
     )? {
+        let has_explicit_lane_tracks = match lane_report.lane_axis {
+            GridAxisKind::Column => !style.grid_template_columns.is_empty(),
+            GridAxisKind::Row => !style.grid_template_rows.is_empty(),
+        };
         match lane_report.lane_axis.logical_axis() {
             LogicalAxis::Inline => {
                 if lane_report.content_size > Tree::Scalar::ZERO {
-                    logical_content_size.inline =
-                        logical_content_size.inline.max(lane_report.content_size);
+                    logical_content_size.inline = if has_explicit_lane_tracks {
+                        logical_content_size.inline.max(lane_report.content_size)
+                    } else {
+                        lane_report.content_size
+                    };
                 }
             }
             LogicalAxis::Block => {
                 if lane_report.content_size > Tree::Scalar::ZERO {
-                    logical_content_size.block =
-                        logical_content_size.block.max(lane_report.content_size);
+                    logical_content_size.block = if has_explicit_lane_tracks {
+                        logical_content_size.block.max(lane_report.content_size)
+                    } else {
+                        lane_report.content_size
+                    };
                 }
             }
         }
