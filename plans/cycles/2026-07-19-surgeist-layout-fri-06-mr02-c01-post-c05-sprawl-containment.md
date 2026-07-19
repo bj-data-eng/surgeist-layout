@@ -295,7 +295,10 @@ rg -n 'pending_inline_extent|canonical_calc_size_zero|canonical_exclusion_zero|c
 rg -n '^fn round<S: LayoutScalar>' src/compute.rs src/scroll.rs; test $? -eq 1
 git diff --check 98b861133d873b387fb0b19891692a59ab7a6587..HEAD
 git diff --name-only --no-renames 98b861133d873b387fb0b19891692a59ab7a6587..HEAD
-git diff --unified=0 98b861133d873b387fb0b19891692a59ab7a6587..HEAD -- '*.rs' | rg '^\+.*#\s*\[\s*(allow|expect)\s*\('; test $? -eq 1
+test ! -e /tmp/surgeist-layout-fri06-mr02-rust.diff
+git diff --unified=0 98b861133d873b387fb0b19891692a59ab7a6587..HEAD -- '*.rs' > /tmp/surgeist-layout-fri06-mr02-rust.diff
+rg '^\+.*#\s*\[\s*(allow|expect)\s*\(' /tmp/surgeist-layout-fri06-mr02-rust.diff; test $? -eq 1
+rm /tmp/surgeist-layout-fri06-mr02-rust.diff
 rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $(git ls-files --cached --others --exclude-standard '*.rs'); test $? -eq 1
 git status --short
 ```
