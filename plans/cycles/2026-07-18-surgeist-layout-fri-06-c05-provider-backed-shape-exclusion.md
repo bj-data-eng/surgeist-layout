@@ -53,11 +53,12 @@ may not add raw permissive output, shape identity, provider revision, cache-key
 state, a sibling dependency, or a general geometry engine.
 
 C06 owns parser/helper/comparator changes, HTML, fixtures, XML, reports,
-provenance, and the one final full regeneration. No generator command or
+provenance, and the one final full regeneration. C05 corrects only the public
+crate rustdoc that currently describes provider invocation as deferred. No generator command or
 architecture change, authored CSS, shape parsing or resolution, shape margin,
-transform/reference-box policy, text/shaping change, docs, manifest, dependency,
-feature, lockfile, root, sibling, or generated artifact enters C05. No new lint
-allowance or Surgeist-owned `unsafe` is permitted.
+transform/reference-box policy, text/shaping change, README/example docs,
+manifest, dependency, feature, lockfile, root, sibling, or generated artifact
+enters C05. No new lint allowance or Surgeist-owned `unsafe` is permitted.
 
 The validated mechanical opportunities remain recorded in
 `plans/2026-07-18-surgeist-layout-mechanical-refactoring-review-findings.md`.
@@ -72,15 +73,16 @@ exhaustive public `QueryMismatch` error variant is the reviewed intentional
 pre-release breaking correction. Existing `LayoutTree` implementors keep the
 default missing-provider method, and `MarginBox` layouts never call it. The unit
 `CacheKeyContext`, dependencies, features, MSRV, lockfile, browser corpus, docs,
-root handoff ownership, and generated artifacts remain unchanged. Generator
-execution is absent.
+root handoff ownership, and generated artifacts remain unchanged except for the
+required provider-activation crate rustdoc correction. Generator execution is
+absent.
 
 ## Tasks
 
 ### `C05-T1` Activate The Typed Provider Front Door
 
 **Files:** `src/node_input.rs`, `src/compute.rs`, `src/block.rs`, directly
-required `src/inline.rs`, `src/traits.rs`, and focused
+required `src/inline.rs`, `src/traits.rs`, `src/lib.rs`, and focused
 contract/lib/block/root Rust tests.
 
 **Outcome:** Add the exact originating query as private interval provenance and
@@ -101,6 +103,8 @@ The invariant-bearing interval constructor remains the only raw-endpoint
 boundary: non-finite and inverted endpoints fail there. Layout compares private
 query provenance before consuming the already-clipped interval; it does not
 reclip a mismatched value or create a second permissive provider carrier.
+Update crate rustdoc from staged C01 non-invocation language to the active typed
+provider/error/invalidation contract without adding general shape guidance.
 
 **RED:** Add production-front-door tests prefixed
 `fri06_c05_provider_error_` and `fri06_c05_provider_role_` first. At the exact
@@ -117,6 +121,8 @@ failed providers plus a valid interval constructed from a different valid query
 retain exact typed diagnostics and leave all batch state absent. Raw invalid
 endpoints fail only at construction. Static evidence removes only the staged
 C01 non-invocation/later capability assertions and proves no provider fallback.
+The public crate rustdoc names active provider invocation and no longer claims
+that band refinement is deferred.
 
 **Commands:**
 
@@ -239,19 +245,24 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c04_
 CARGO_NET_OFFLINE=true just fmt-check
 git diff --check 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD
 git diff --name-only --no-renames 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD
-git ls-files --others --exclude-standard
-git status --short
+! git diff --name-only --no-renames 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD | rg -q -v '^(plans/(specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs|sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs|cycles/2026-07-18-surgeist-layout-fri-06-c05-provider-backed-shape-exclusion)\.md|src/(block|block_tests|cache_tests|compute|contract_tests|inline|inline_tests|lib|lib_tests|node_input|root_tests|traits)\.rs)$'
+test -z "$(git ls-files --others --exclude-standard)"
+! git diff --unified=0 18032d13dd8bb204187ade7238505ca9210ffddd..HEAD -- '*.rs' | rg -q '^\+.*#\s*\[\s*(allow|expect)\s*\('
+! rg -n 'layout_inline_segments|provider_revision|shape_revision|float_exclusion_revision' src
+! rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $(git ls-files --cached --others --exclude-standard '*.rs')
+test -z "$(git status --porcelain=v1)"
 ```
 
-The changed-path allowlist is exactly this plan plus `src/block.rs`,
+The changed-path allowlist is exactly the revised specification and sequence,
+this plan, plus `src/block.rs`,
 `src/block_tests.rs`, `src/cache_tests.rs`, `src/compute.rs`,
 `src/contract_tests.rs`, `src/inline.rs`, `src/inline_tests.rs`,
-`src/lib_tests.rs`, `src/node_input.rs`, `src/root_tests.rs`, and
+`src/lib.rs`, `src/lib_tests.rs`, `src/node_input.rs`, `src/root_tests.rs`, and
 `src/traits.rs`; allowed paths need not all change. Any other path fails
-completion. The coordinator separately proves no new `allow`/`expect`, no
-legacy second band/provider path, no provider/cache revision state, no
-nonignored untracked file, and no executable unsafe in the complete owned Rust
-manifest. The final worktree is clean.
+completion. The commands fail on a new `allow`/`expect`, legacy second band,
+provider/cache revision state, nonignored untracked file, executable unsafe in
+the complete tracked/nonignored owned Rust set, or dirty worktree. No temporary
+manifest is created.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `18032d13dd8bb204187ade7238505ca9210ffddd..cycle_head`. Prove local `main` is
