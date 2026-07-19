@@ -20,8 +20,8 @@ portions of `FRI-06.14`.
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized semantic-content SHA-256
-`3508b5fb1106c8fc01feb5c701a0f9920cd37f93b5401f01c0f2c325ec20ade1`,
-commit `02876be1b910d243a0b19d49ab571d1514040cf2`, entry
+`2cda27e19919abaef075600816d320d87a36d36be6c79bd27c2962684c66467b`,
+commit `fde445a0ff74f8359bcf8c512e2cf9e331de36e6`, entry
 `FRI-06-C06`.
 
 ## Outcome
