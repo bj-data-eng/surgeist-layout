@@ -11,16 +11,16 @@ Cycle base: `18032d13dd8bb204187ade7238505ca9210ffddd`
 Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`7cb09e0a8e9036a406b39115ed8f6392df805116a762905a3510c7fe7355f970`,
-commit `64a9ca96be3b29765b0ec2e7fb13de7e96934866`, decision `D-14` and the
+`98681bac979f68fa3bc380c349f7a04110f9a1f13d142625751fa9cbc5f1ffaf`,
+commit `cc2a8486f9e4e7719c9a28cc68321b7e630d9ded`, decision `D-14` and the
 shape-provider, error, band, cache, fake, and root-handoff portions of
 `FRI-06.5` through `FRI-06.12`.
 
 Reviewed sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`ed9b4a5bac63617ad5d7d3c76791dd42d93089a210ab16c930a7e727ed7edd57`,
-commit `24bb3ccd0a4c9f54bc9eaa7958a9d2ea740bf859`, entry `FRI-06-C05`.
+`20a17aaab4bd74566f6dbd0820da861ed17e9e6b9845debe06b1ee5177e8db0f`,
+commit `0402af2c16ff53623fde19d7bc3e73c0475a25c8`, entry `FRI-06-C05`.
 
 ## Outcome
 
@@ -46,11 +46,11 @@ capability.
 
 This cycle owns only provider activation, query/result validation and physical
 projection inside the existing ledger, exact query accounting, and provider
-dirty/cache/rounding/failure behavior. It may adjust the invariant-bearing query
-or interval carrier only when narrowly required to validate that a returned
-value belongs to the current query; it may not add raw permissive output, shape
-identity, provider revision, cache-key state, a sibling dependency, or a general
-geometry engine.
+dirty/cache/rounding/failure behavior. It adds the reviewed private originating
+query to `FloatExclusionIntervalOf` and the exhaustive
+`FloatExclusionIntervalErrorOf::QueryMismatch { expected, actual }` state. It
+may not add raw permissive output, shape identity, provider revision, cache-key
+state, a sibling dependency, or a general geometry engine.
 
 C06 owns parser/helper/comparator changes, HTML, fixtures, XML, reports,
 provenance, and the one final full regeneration. No generator command or
@@ -66,49 +66,57 @@ verified; broader MR-002 and MR-003 remain after C07. None enters C05.
 
 ## Impacts
 
-Public provider/query/interval/error shapes remain the reviewed C01 substrate;
-existing `LayoutTree` implementors keep the default missing-provider method.
-`MarginBox` layouts never call it. The unit `CacheKeyContext`, dependencies,
-features, MSRV, lockfile, browser corpus, docs, root handoff ownership, and
-generated artifacts remain unchanged. Generator execution is absent.
+The provider method and query/interval constructors and accessors remain the C01
+surface; `FloatExclusionIntervalOf` gains only private provenance. The new
+exhaustive public `QueryMismatch` error variant is the reviewed intentional
+pre-release breaking correction. Existing `LayoutTree` implementors keep the
+default missing-provider method, and `MarginBox` layouts never call it. The unit
+`CacheKeyContext`, dependencies, features, MSRV, lockfile, browser corpus, docs,
+root handoff ownership, and generated artifacts remain unchanged. Generator
+execution is absent.
 
 ## Tasks
 
 ### `C05-T1` Activate The Typed Provider Front Door
 
-**Files:** `src/compute.rs`, `src/block.rs`, directly required `src/inline.rs`,
-`src/traits.rs`, and focused contract/block/root Rust tests.
+**Files:** `src/node_input.rs`, `src/compute.rs`, `src/block.rs`, directly
+required `src/inline.rs`, `src/traits.rs`, and focused
+contract/lib/block/root Rust tests.
 
-**Outcome:** Allow a valid visible in-flow floating `Shape` role past root
-validation and invoke the existing tree provider only from the canonical
-overlapping-band query. Construct the exact finite ordered physical query from
-the final float margin box, containing `FlowAxes`, and candidate block-axis
-span. Outer `None` maps to
+**Outcome:** Add the exact originating query as private interval provenance and
+the named `QueryMismatch { expected, actual }` construction/provider-output
+error. Allow a valid visible in-flow floating `Shape` role past root validation
+and invoke the existing tree provider only from the canonical overlapping-band
+query. Construct the exact finite ordered physical query from the final float
+margin box, containing `FlowAxes`, and candidate block-axis span. Outer `None` maps to
 `LayoutMissingContext::FloatExclusionProvider`; provider `Err(M)` maps to
-`LayoutErrorKindOf::Measurement(M)`; every provider-output validation failure
-maps to `LayoutInvalidInputOf::FloatExclusionProviderOutput`. Every error uses
+`LayoutErrorKindOf::Measurement(M)`; an interval whose private actual query is
+not the exact expected query maps to
+`LayoutInvalidInputOf::FloatExclusionProviderOutput`. Every error uses
 `LayoutOperation::FloatExclusionQuery` and
 `LayoutErrorSiteOf::ContainerSubject { container, subject: float }`, with no
 margin-box fallback or partial completed batch.
 
 The invariant-bearing interval constructor remains the only raw-endpoint
-boundary: non-finite and inverted endpoints fail there. Layout defensively
-clips/revalidates a returned interval against the exact current query; it does
-not create a second permissive provider carrier.
+boundary: non-finite and inverted endpoints fail there. Layout compares private
+query provenance before consuming the already-clipped interval; it does not
+reclip a mismatched value or create a second permissive provider carrier.
 
 **RED:** Add production-front-door tests prefixed
 `fri06_c05_provider_error_` and `fri06_c05_provider_role_` first. At the exact
 task base, a valid shape returns `LaterFriBehavior` without a query, while
-missing/failed providers cannot reach their reviewed site/operation/kind.
+missing/failed/mismatched providers cannot reach their reviewed
+site/operation/kind.
 Preserve reconstructible RED evidence; retain already-correct invalid-role and
 constructor tests as characterization rather than false RED.
 
 **Acceptance:** Both scalar lanes prove one valid shape reaches the provider;
 hidden, non-floating, and absolute shapes fail before provider/cache activity;
-margin-box and non-overlapping shape cases make zero provider calls; missing,
-failed, and invalid outputs retain exact typed diagnostics and leave all batch
-state absent. Static evidence removes only the staged C01 non-invocation/later
-capability assertions and proves no provider fallback.
+margin-box and non-overlapping shape cases make zero provider calls; missing and
+failed providers plus a valid interval constructed from a different valid query
+retain exact typed diagnostics and leave all batch state absent. Raw invalid
+endpoints fail only at construction. Static evidence removes only the staged
+C01 non-invocation/later capability assertions and proves no provider fallback.
 
 **Commands:**
 
