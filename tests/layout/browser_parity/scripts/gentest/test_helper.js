@@ -1251,8 +1251,6 @@ function layoutReadyTextNodeData(node, parent, segmentId, visualIndex) {
   }
 
   const parentRect = parent.getBoundingClientRect();
-  const root = document.getElementById?.('test-root');
-  const rootRect = root?.getBoundingClientRect?.() ?? parentRect;
   const computedStyle = getComputedStyle(parent);
   const fontSize = parseCssPx(computedStyle.fontSize);
   const lineHeight = resolveLineHeightPx(computedStyle.lineHeight, fontSize);
@@ -1263,7 +1261,7 @@ function layoutReadyTextNodeData(node, parent, segmentId, visualIndex) {
 
   const finite = [
     rect.x, rect.y, rect.width, rect.height,
-    parentRect.x, parentRect.y, rootRect.x, rootRect.y,
+    parentRect.x, parentRect.y,
     inlineExtent, baseline, lineHeight,
   ];
   if (!finite.every(Number.isFinite) || inlineExtent < 0 || baseline < 0 || lineHeight < baseline) {
@@ -1271,8 +1269,8 @@ function layoutReadyTextNodeData(node, parent, segmentId, visualIndex) {
   }
 
   const fragments = fragmentRects.map((fragment) => {
-    const x = fragment.x - rootRect.x;
-    const y = fragment.y - rootRect.y;
+    const x = fragment.x - parentRect.x;
+    const y = fragment.y - parentRect.y;
     const width = fragment.width;
     const height = fragment.height;
     const baselineX = vertical ? x + baseline : x;

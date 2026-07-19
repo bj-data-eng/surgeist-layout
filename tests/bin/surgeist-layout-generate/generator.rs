@@ -6506,6 +6506,66 @@ if (metrics.baseline !== "0px" || metrics.lineHeight !== "0px") {
     }
 
     #[test]
+    fn fri06_c08_existing_helper_emits_parent_local_fragment_and_baseline_coordinates() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const rootRect = { x: 10, y: 20, left: 10, top: 20, right: 210, bottom: 120, width: 200, height: 100 };
+const parentRect = { x: 25, y: 35, left: 25, top: 35, right: 125, bottom: 85, width: 100, height: 50 };
+const textRect = { x: 40, y: 41, left: 40, top: 41, right: 44, bottom: 51, width: 4, height: 10 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return textRect; },
+  getClientRects() { return [textRect]; },
+  detach() {},
+};
+const root = { getBoundingClientRect() { return rootRect; } };
+const document = {
+  styleSheets: [],
+  createRange() { return range; },
+  getElementById(id) { return id === "test-root" ? root : null; },
+};
+const parent = { getBoundingClientRect() { return parentRect; } };
+const text = { nodeType: Node.TEXT_NODE, textContent: "x" };
+function getComputedStyle() {
+  return {
+    direction: "ltr",
+    writingMode: "horizontal-tb",
+    fontSize: "10px",
+    lineHeight: "10px",
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
+const fragment = shaped.fragments[0];
+const fragmentRect = [fragment.x, fragment.y, fragment.width, fragment.height];
+const baseline = [fragment.baselineX, fragment.baselineY];
+if (
+  JSON.stringify(fragmentRect) !== JSON.stringify([15, 6, 4, 10]) ||
+  JSON.stringify(baseline) !== JSON.stringify([15, 14])
+) {
+  throw new Error(
+    `fragment and baseline must be direct-parent-local, got rect=${JSON.stringify(fragmentRect)} baseline=${JSON.stringify(baseline)}`
+  );
+}
+if (JSON.stringify(shaped.unroundedLayout) !== JSON.stringify({ width: 4, height: 10, x: 15, y: 6 })) {
+  throw new Error(`text node layout must retain direct-parent-local geometry, got ${JSON.stringify(shaped.unroundedLayout)}`);
+}
+if (fragment.sourceSegmentId !== 7 || fragment.lineIndex !== 0 || fragment.visualIndex !== 2) {
+  throw new Error(`fragment identity must remain stable, got ${JSON.stringify(fragment)}`);
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-parent-local-fragment", script);
+    }
+
+    #[test]
     fn fri06_c08_existing_serializer_emits_c06_shaped_atomic_control_and_fragment_schema() {
         let node = json!({
             "tagName": "div",
