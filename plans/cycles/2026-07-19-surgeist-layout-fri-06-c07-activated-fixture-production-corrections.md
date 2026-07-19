@@ -1,6 +1,6 @@
 # FRI-06-C07 Activated-Fixture Production Corrections
 
-Status: reviewed
+Status: in_progress
 
 Cycle ID: `FRI-06-C07`
 
