@@ -259,6 +259,7 @@ CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just parity-all
 git diff --check
+zsh <<'SURGEIST_C06_SAFETY'
 set -eu
 set -o pipefail
 added_rust=/tmp/surgeist-layout-fri06-c06-added.rs
@@ -268,9 +269,10 @@ git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' | 
 if rg -n -U --pcre2 '(?<![.\w])(?:allow|expect)\s*\(' "$added_rust"; then exit 1; else rg_status=$?; test "$rg_status" -eq 1; fi
 rm "$added_rust"
 trap - EXIT
-owned_rust=($(git ls-files --cached --others --exclude-standard '*.rs'))
-test "$#owned_rust" -gt 0
-if rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $owned_rust; then exit 1; else rg_status=$?; test "$rg_status" -eq 1; fi
+owned_rust=("${(@f)$(git ls-files --cached --others --exclude-standard '*.rs')}")
+test "${#owned_rust[@]}" -gt 0
+if rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' "${owned_rust[@]}"; then exit 1; else rg_status=$?; test "$rg_status" -eq 1; fi
+SURGEIST_C06_SAFETY
 ```
 
 **Dependency:** T1-T3 are task-clean; every fixture input and focused test is
@@ -294,6 +296,7 @@ CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just parity-all
 git diff --check 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
 git diff --name-only --no-renames 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
+zsh <<'SURGEIST_C06_SAFETY'
 set -eu
 set -o pipefail
 added_rust=/tmp/surgeist-layout-fri06-c06-added.rs
@@ -303,9 +306,10 @@ git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' | 
 if rg -n -U --pcre2 '(?<![.\w])(?:allow|expect)\s*\(' "$added_rust"; then exit 1; else rg_status=$?; test "$rg_status" -eq 1; fi
 rm "$added_rust"
 trap - EXIT
-owned_rust=($(git ls-files --cached --others --exclude-standard '*.rs'))
-test "$#owned_rust" -gt 0
-if rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $owned_rust; then exit 1; else rg_status=$?; test "$rg_status" -eq 1; fi
+owned_rust=("${(@f)$(git ls-files --cached --others --exclude-standard '*.rs')}")
+test "${#owned_rust[@]}" -gt 0
+if rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' "${owned_rust[@]}"; then exit 1; else rg_status=$?; test "$rg_status" -eq 1; fi
+SURGEIST_C06_SAFETY
 git status --short
 ```
 
