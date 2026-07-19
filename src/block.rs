@@ -443,11 +443,28 @@ struct BfcBandPlacement<S: LayoutScalar> {
     available_inline: S,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct BfcBandCandidate<S: LayoutScalar> {
+    block_start: S,
+    size: Size<S>,
+    margin: Edges<S>,
+    clear: Clear,
+    fallback: Point<S>,
+    inline_size_is_auto: bool,
+}
+
+#[derive(Clone, Copy)]
+struct ProviderBandContext<'a, Tree, Node> {
+    tree: &'a Tree,
+    container: Node,
+    enabled: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum FloatBandQueryPurpose {
     PhysicalMarginBoxCollision,
     RectangularLineBand,
-    ProviderLineBand,
+    ProviderBand,
 }
 
 #[derive(Clone, Debug)]
@@ -558,7 +575,14 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
             }));
     }
 
-    fn place_float(&mut self, float: &PendingFloat<Node, S>) -> Point<S> {
+    fn place_float<Tree, M>(
+        &mut self,
+        provider: ProviderBandContext<'_, Tree, Node>,
+        float: &PendingFloat<Node, S>,
+    ) -> LayoutResultOf<Node, Point<S>, S, M>
+    where
+        Tree: Compute<M, Node = Node, Scalar = S>,
+    {
         let side = FloatLedgerSide::from_float(float.side);
         let logical_size = self.flow_axes.logical_size(float.size);
         let logical_margin = self.flow_axes.logical_edges(float.margin);
@@ -569,10 +593,17 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
         let mut candidate_block = self.clearance_block(float.block_start, float.clear);
 
         loop {
-            let band = self.query_physical_margin_box_collisions(
-                candidate_block,
-                candidate_block + margin_box_size.block,
-            );
+            let candidate_block_end = candidate_block + margin_box_size.block;
+            let band = if provider.enabled {
+                self.query_provider_band(
+                    provider.tree,
+                    provider.container,
+                    candidate_block,
+                    candidate_block_end,
+                )?
+            } else {
+                self.query_physical_margin_box_collisions(candidate_block, candidate_block_end)
+            };
             let available_inline = (band.inline_end - band.inline_start).max(S::ZERO);
             if margin_box_size.inline <= available_inline || band.next_transition.is_none() {
                 let margin_box_inline = match side {
@@ -605,11 +636,11 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
                     block_end: candidate_block + margin_box_size.block,
                     ledger_order,
                 });
-                return self.flow_axes.physical_point(
+                return Ok(self.flow_axes.physical_point(
                     content_origin,
                     logical_size,
                     self.containing_size,
-                );
+                ));
             }
             candidate_block = band
                 .next_transition
@@ -617,15 +648,22 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
         }
     }
 
-    fn place_bfc_block(
+    fn place_bfc_block<Tree, M>(
         &self,
-        block_start: S,
-        size: Size<S>,
-        margin: Edges<S>,
-        clear: Clear,
-        fallback: Point<S>,
-        inline_size_is_auto: bool,
-    ) -> BfcBandPlacement<S> {
+        provider: ProviderBandContext<'_, Tree, Node>,
+        candidate: BfcBandCandidate<S>,
+    ) -> LayoutResultOf<Node, BfcBandPlacement<S>, S, M>
+    where
+        Tree: Compute<M, Node = Node, Scalar = S>,
+    {
+        let BfcBandCandidate {
+            block_start,
+            size,
+            margin,
+            clear,
+            fallback,
+            inline_size_is_auto,
+        } = candidate;
         let logical_size = self.flow_axes.logical_size(size);
         let logical_margin = self.flow_axes.logical_edges(margin);
         let margin_box_inline = logical_size.inline + logical_margin.inline_sum();
@@ -635,10 +673,17 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
             .logical_point(fallback, size, self.containing_size);
         let mut candidate_block = self.clearance_block(block_start, clear);
         loop {
-            let band = self.query_physical_margin_box_collisions(
-                candidate_block,
-                candidate_block + margin_box_block,
-            );
+            let candidate_block_end = candidate_block + margin_box_block;
+            let band = if provider.enabled {
+                self.query_provider_band(
+                    provider.tree,
+                    provider.container,
+                    candidate_block,
+                    candidate_block_end,
+                )?
+            } else {
+                self.query_physical_margin_box_collisions(candidate_block, candidate_block_end)
+            };
             let fallback_start = fallback_logical.inline - logical_margin.inline_start;
             let fallback_end =
                 fallback_logical.inline + logical_size.inline + logical_margin.inline_end;
@@ -657,26 +702,26 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
                 } else {
                     band.inline_start + logical_margin.inline_start
                 };
-                return BfcBandPlacement {
+                return Ok(BfcBandPlacement {
                     location: self.flow_axes.physical_point(
                         LogicalPointOf::new(inline, candidate_block),
                         logical_size,
                         self.containing_size,
                     ),
                     available_inline,
-                };
+                });
             }
             if let Some(next_transition) = band.next_transition {
                 candidate_block = next_transition;
             } else {
-                return BfcBandPlacement {
+                return Ok(BfcBandPlacement {
                     location: self.flow_axes.physical_point(
                         LogicalPointOf::new(fallback_logical.inline, candidate_block),
                         logical_size,
                         self.containing_size,
                     ),
                     available_inline,
-                };
+                });
             }
         }
     }
@@ -722,7 +767,7 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
         )
     }
 
-    fn query_provider_line_band<Tree, M>(
+    fn query_provider_band<Tree, M>(
         &self,
         tree: &Tree,
         container: Node,
@@ -735,7 +780,7 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
         self.query_band_for(
             block_start,
             block_end,
-            FloatBandQueryPurpose::ProviderLineBand,
+            FloatBandQueryPurpose::ProviderBand,
             |subject, expected| {
                 let site = LayoutErrorSiteOf::ContainerSubject { container, subject };
                 match tree.float_exclusion_interval(subject, expected) {
@@ -837,11 +882,11 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
                     Some((entry.inline_start, entry.inline_end))
                 }
                 (FloatBandQueryPurpose::RectangularLineBand, FloatExclusion::MarginBox)
-                | (FloatBandQueryPurpose::ProviderLineBand, FloatExclusion::MarginBox) => {
+                | (FloatBandQueryPurpose::ProviderBand, FloatExclusion::MarginBox) => {
                     Some((entry.inline_start, entry.inline_end))
                 }
                 (FloatBandQueryPurpose::RectangularLineBand, FloatExclusion::Shape) => None,
-                (FloatBandQueryPurpose::ProviderLineBand, FloatExclusion::Shape) => {
+                (FloatBandQueryPurpose::ProviderBand, FloatExclusion::Shape) => {
                     let query = self.provider_query(entry, block_start, block_end);
                     shape_provider(entry.node, query)?
                         .map(|interval| self.logical_inline_interval(interval))
@@ -1593,13 +1638,20 @@ where
             let inline_size_is_auto =
                 parent_inline_preferred_size_is_auto(&child_style, constants.flow_axes);
             let placement = float_exclusions.place_bfc_block(
-                preview_cursor_block,
-                output.size,
-                child_margin,
-                child_style.clear,
-                preview_fallback,
-                inline_size_is_auto,
-            );
+                ProviderBandContext {
+                    tree,
+                    container: node,
+                    enabled: true,
+                },
+                BfcBandCandidate {
+                    block_start: preview_cursor_block,
+                    size: output.size,
+                    margin: child_margin,
+                    clear: child_style.clear,
+                    fallback: preview_fallback,
+                    inline_size_is_auto,
+                },
+            )?;
 
             if inline_size_is_auto {
                 let parent_non_auto_margin =
@@ -1683,7 +1735,14 @@ where
                 style: Box::new(child_style),
                 child_compute_geometry: output.scroll_geometry,
             };
-            let float_location = float_exclusions.place_float(&pending_float);
+            let float_location = float_exclusions.place_float(
+                ProviderBandContext {
+                    tree,
+                    container: node,
+                    enabled: set_layout,
+                },
+                &pending_float,
+            )?;
             if set_layout {
                 pending_floats.push(pending_float);
             }
@@ -1766,16 +1825,26 @@ where
         );
         let location = if avoids_float_exclusions {
             let placement = float_exclusions.place_bfc_block(
-                cursor_block,
-                output.size,
-                child_margin,
-                child_style.clear,
-                Point::new(
-                    fallback_location.x - inset_offset.x,
-                    fallback_location.y - inset_offset.y,
-                ),
-                parent_inline_preferred_size_is_auto(&child_style, constants.flow_axes),
-            );
+                ProviderBandContext {
+                    tree,
+                    container: node,
+                    enabled: set_layout,
+                },
+                BfcBandCandidate {
+                    block_start: cursor_block,
+                    size: output.size,
+                    margin: child_margin,
+                    clear: child_style.clear,
+                    fallback: Point::new(
+                        fallback_location.x - inset_offset.x,
+                        fallback_location.y - inset_offset.y,
+                    ),
+                    inline_size_is_auto: parent_inline_preferred_size_is_auto(
+                        &child_style,
+                        constants.flow_axes,
+                    ),
+                },
+            )?;
             Point::new(
                 placement.location.x + inset_offset.x,
                 placement.location.y + inset_offset.y,
@@ -2155,7 +2224,7 @@ where
             let band = if !set_layout || provider_error.is_some() {
                 float_exclusions.query_rectangular_line_band(query_block_start, query_block_end)
             } else {
-                match float_exclusions.query_provider_line_band(
+                match float_exclusions.query_provider_band(
                     tree,
                     container,
                     query_block_start,
@@ -2480,7 +2549,14 @@ where
     );
 
     for float in floats {
-        let location = float_exclusions.place_float(float);
+        let location = float_exclusions.place_float(
+            ProviderBandContext {
+                tree,
+                container,
+                enabled: true,
+            },
+            float,
+        )?;
         let scroll_geometry = retained_child_scroll_geometry(
             &float.style,
             float.size,
