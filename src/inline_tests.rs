@@ -3,11 +3,455 @@ use crate::inline::{
     AtomicInlineBoxParticipant, InlineControlAlignment, InlineParticipant,
     InlineParticipantLayoutKind, InlineRunInput, LogicalLineBandQueryResultOf,
     MixedInlineParticipantOf, MixedInlineRunInputOf, PostLineClearIntent,
-    inline_run_max_content_width, inline_run_min_content_width, layout_inline_run,
-    layout_mixed_inline_run, layout_mixed_inline_run_with_band_source,
-    mapped_post_line_clear_intent,
+    inline_candidate_scan_visits, inline_run_max_content_width, inline_run_min_content_width,
+    layout_inline_run, layout_mixed_inline_run, layout_mixed_inline_run_with_band_source,
+    mapped_post_line_clear_intent, reset_inline_candidate_scan_visits,
 };
 use crate::*;
+
+fn mr02_text<S: LayoutScalar>(
+    source_index: usize,
+    id: u64,
+    extent: f64,
+    bidi_level: u8,
+    whitespace_edge: InlineWhitespaceEdge,
+    following_break: InlineBreakOpportunityOf<S>,
+) -> MixedInlineParticipantOf<S> {
+    MixedInlineParticipantOf::ShapedText(crate::inline::ShapedTextParticipantOf {
+        source_index,
+        segment: ShapedInlineSegmentOf::try_new(
+            InlineSegmentId::new(id),
+            S::from_f64(extent),
+            InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap(),
+            BidiLevel::try_new(bidi_level).unwrap(),
+            whitespace_edge,
+            following_break,
+        )
+        .unwrap(),
+    })
+}
+
+fn mr02_atomic<S: LayoutScalar>(
+    source_index: usize,
+    extent: f64,
+    block_extent: f64,
+    baseline: f64,
+    bidi_level: u8,
+    following_break: InlineBreakOpportunityOf<S>,
+) -> MixedInlineParticipantOf<S> {
+    MixedInlineParticipantOf::Atomic {
+        item: AtomicInlineBoxParticipant {
+            source_index,
+            size: Size::new(S::from_f64(extent), S::from_f64(block_extent)),
+            content_size: Size::new(S::from_f64(extent), S::from_f64(block_extent)),
+            margin: Edges::ZERO,
+            padding: Edges::ZERO,
+            border: Edges::ZERO,
+            scrollbar_size: Size::ZERO,
+            first_baseline: Some(S::from_f64(baseline)),
+            alignment: InlineControlAlignment::Baseline,
+        },
+        participation: AtomicInlineParticipationOf::try_new(
+            BidiLevel::try_new(bidi_level).unwrap(),
+            following_break,
+        )
+        .unwrap(),
+    }
+}
+
+fn mr02_input<S: LayoutScalar>(
+    available_inline_extent: AvailableOf<S>,
+    participants: Vec<MixedInlineParticipantOf<S>>,
+) -> MixedInlineRunInputOf<S> {
+    MixedInlineRunInputOf {
+        available_inline_extent,
+        flow_axes: FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+        text_align: TextAlign::Auto,
+        participants,
+    }
+}
+
+#[test]
+fn fri06_mr02_inline_linear_empty_strut_and_forced_clear_preserve_metrics_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let metrics =
+            InlineMetricsOf::from_ascent_descent(S::from_f64(9.0), S::from_f64(3.0)).unwrap();
+        let report = layout_mixed_inline_run(mr02_input(
+            AvailableOf::MAX_CONTENT,
+            vec![mixed_forced_line_break(7, flow_axes, metrics, Clear::Both)],
+        ));
+
+        assert_eq!(report.inline_extent, S::ZERO);
+        assert_eq!(report.block_extent, S::from_f64(24.0));
+        assert_eq!(report.first_baseline, Some(S::from_f64(9.0)));
+        assert_eq!(report.last_baseline, Some(S::from_f64(21.0)));
+        assert!(report.fragments.is_empty());
+        assert!(report.anchors.is_empty());
+        assert_eq!(report.controls.len(), 1);
+        assert_eq!(report.controls[0].source_index, 7);
+        assert_eq!(report.controls[0].line_index, 0);
+        assert_eq!(report.controls[0].visual_index, None);
+        assert_eq!(
+            report.post_line_clear_intents,
+            [PostLineClearIntent::Both, PostLineClearIntent::None]
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_mr02_inline_linear_discard_break_replacement_and_overwide_progress_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let discarded = layout_mixed_inline_run(mr02_input(
+            AvailableOf::definite(S::from_f64(15.0)),
+            vec![
+                mr02_text(
+                    10,
+                    10,
+                    4.0,
+                    0,
+                    InlineWhitespaceEdge::DiscardAtLineStart,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+                mr02_text(
+                    11,
+                    11,
+                    10.0,
+                    0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                mr02_text(
+                    12,
+                    12,
+                    5.0,
+                    0,
+                    InlineWhitespaceEdge::DiscardAtLineEnd,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                mr02_text(
+                    13,
+                    13,
+                    30.0,
+                    0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ],
+        ));
+        assert_eq!(discarded.fragments.len(), 2);
+        assert_eq!(discarded.fragments[0].source_index, 11);
+        assert_eq!(discarded.fragments[0].inline_start, S::ZERO);
+        assert_eq!(discarded.fragments[0].line_index, 0);
+        assert_eq!(discarded.fragments[1].source_index, 13);
+        assert_eq!(discarded.fragments[1].line_index, 1);
+        assert_eq!(discarded.fragments[1].inline_extent, S::from_f64(30.0));
+        assert_eq!(discarded.anchors.len(), 4);
+        assert_eq!(discarded.anchors[0].source_index, 10);
+        assert_eq!(discarded.anchors[0].inline_start, S::ZERO);
+        assert_eq!(discarded.anchors[2].source_index, 12);
+        assert_eq!(discarded.anchors[2].inline_start, S::from_f64(10.0));
+        assert_eq!(discarded.line_bands.len(), 2);
+
+        let replacement = S::from_f64(4.0);
+        let replaced = layout_mixed_inline_run(mr02_input(
+            AvailableOf::definite(S::from_f64(15.0)),
+            vec![
+                mr02_text(
+                    20,
+                    20,
+                    12.0,
+                    0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::try_allowed_with_replacement(replacement).unwrap(),
+                ),
+                mr02_text(
+                    21,
+                    21,
+                    20.0,
+                    0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ],
+        ));
+        assert_eq!(replaced.fragments.len(), 2);
+        assert_eq!(replaced.fragments[0].line_index, 0);
+        assert_eq!(
+            replaced.fragments[0].replacement_inline_extent,
+            Some(replacement)
+        );
+        assert_eq!(replaced.fragments[1].line_index, 1);
+        assert_eq!(replaced.fragments[1].replacement_inline_extent, None);
+        assert_eq!(replaced.inline_extent, S::from_f64(20.0));
+
+        let endpoint_breaks = layout_mixed_inline_run(mr02_input(
+            AvailableOf::definite(S::from_f64(5.0)),
+            vec![
+                mr02_text(
+                    30,
+                    30,
+                    5.0,
+                    0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::allowed(),
+                ),
+                mr02_text(
+                    31,
+                    31,
+                    6.0,
+                    0,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::mandatory(),
+                ),
+            ],
+        ));
+        assert_eq!(endpoint_breaks.fragments.len(), 2);
+        assert_eq!(endpoint_breaks.fragments[0].line_index, 0);
+        assert_eq!(endpoint_breaks.fragments[1].line_index, 1);
+        assert_eq!(endpoint_breaks.line_bands.len(), 3);
+        assert_eq!(endpoint_breaks.first_baseline, Some(S::from_f64(8.0)));
+        assert_eq!(endpoint_breaks.last_baseline, Some(S::from_f64(28.0)));
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_mr02_inline_linear_bidi_mixed_sources_preserve_visual_order_and_baselines_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let boundary_metrics =
+            InlineMetricsOf::from_ascent_descent(S::from_f64(6.0), S::from_f64(2.0)).unwrap();
+        let report = layout_mixed_inline_run(mr02_input(
+            AvailableOf::MAX_CONTENT,
+            vec![
+                mr02_text(
+                    40,
+                    40,
+                    10.0,
+                    1,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+                mixed_boundary(
+                    41,
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Rtl),
+                    boundary_metrics,
+                ),
+                mr02_atomic(
+                    42,
+                    5.0,
+                    12.0,
+                    9.0,
+                    2,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+                mr02_text(
+                    43,
+                    43,
+                    7.0,
+                    1,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                ),
+            ],
+        ));
+
+        assert_eq!(report.inline_extent, S::from_f64(22.0));
+        assert_eq!(report.block_extent, S::from_f64(12.0));
+        assert_eq!(report.first_baseline, Some(S::from_f64(9.0)));
+        assert_eq!(report.last_baseline, Some(S::from_f64(9.0)));
+        assert_eq!(report.fragments.len(), 2);
+        assert_eq!(report.fragments[0].source_index, 40);
+        assert_eq!(report.fragments[0].inline_start, S::from_f64(12.0));
+        assert_eq!(report.fragments[0].block_start, S::from_f64(1.0));
+        assert_eq!(report.fragments[0].visual_index, 3);
+        assert_eq!(report.fragments[1].source_index, 43);
+        assert_eq!(report.fragments[1].inline_start, S::ZERO);
+        assert_eq!(report.fragments[1].visual_index, 0);
+        assert_eq!(report.atomics.len(), 1);
+        assert_eq!(report.atomics[0].item.source_index, 42);
+        assert_eq!(report.atomics[0].inline_start, S::from_f64(7.0));
+        assert_eq!(report.atomics[0].visual_index, 1);
+        assert_eq!(report.controls.len(), 1);
+        assert_eq!(report.controls[0].source_index, 41);
+        assert_eq!(report.controls[0].inline_start, S::from_f64(12.0));
+        assert_eq!(report.controls[0].visual_index, Some(2));
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+fn mr02_intrinsic_extents<S: LayoutScalar>() -> (S, S) {
+    let replacement = S::from_f64(0.05);
+    let participants = vec![
+        mr02_text(
+            50,
+            50,
+            100.0,
+            0,
+            InlineWhitespaceEdge::DiscardAtLineStart,
+            InlineBreakOpportunityOf::prohibited(),
+        ),
+        mr02_text(
+            51,
+            51,
+            0.1,
+            0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        ),
+        mr02_text(
+            52,
+            52,
+            0.2,
+            0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::try_allowed_with_replacement(replacement).unwrap(),
+        ),
+        mr02_text(
+            53,
+            53,
+            0.3,
+            0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::mandatory(),
+        ),
+        mixed_forced_line_break(
+            54,
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap(),
+            Clear::None,
+        ),
+        mr02_text(
+            55,
+            55,
+            0.4,
+            0,
+            InlineWhitespaceEdge::DiscardAtLineEnd,
+            InlineBreakOpportunityOf::prohibited(),
+        ),
+    ];
+    let min = layout_mixed_inline_run(mr02_input(AvailableOf::MIN_CONTENT, participants.clone()));
+    let max = layout_mixed_inline_run(mr02_input(AvailableOf::MAX_CONTENT, participants));
+    (min.inline_extent, max.inline_extent)
+}
+
+#[test]
+fn fri06_mr02_inline_linear_intrinsic_extents_preserve_scalar_addition_order_both_scalars() {
+    let (min_f32, max_f32) = mr02_intrinsic_extents::<f32>();
+    let expected_min_f32 = ((0.0_f32 + 0.1) + 0.2) + 0.05;
+    let expected_max_f32 = ((0.0_f32 + 0.1) + 0.2) + 0.3;
+    assert_eq!(min_f32.to_bits(), expected_min_f32.to_bits());
+    assert_eq!(max_f32.to_bits(), expected_max_f32.to_bits());
+
+    let (min_f64, max_f64) = mr02_intrinsic_extents::<f64>();
+    let expected_min_f64 = ((0.0_f64 + 0.1) + 0.2) + 0.05;
+    let expected_max_f64 = ((0.0_f64 + 0.1) + 0.2) + 0.3;
+    assert_eq!(min_f64.to_bits(), expected_min_f64.to_bits());
+    assert_eq!(max_f64.to_bits(), expected_max_f64.to_bits());
+}
+
+#[test]
+fn fri06_mr02_inline_linear_float_band_retry_preserves_queries_and_reselection_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let mut queries = Vec::new();
+        let report = layout_mixed_inline_run_with_band_source(
+            mr02_input(
+                AvailableOf::definite(S::from_f64(100.0)),
+                vec![
+                    mr02_atomic(60, 30.0, 10.0, 8.0, 0, InlineBreakOpportunityOf::allowed()),
+                    mr02_atomic(61, 30.0, 10.0, 8.0, 0, InlineBreakOpportunityOf::allowed()),
+                    mr02_atomic(
+                        62,
+                        30.0,
+                        10.0,
+                        8.0,
+                        0,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ),
+                ],
+            ),
+            |block_start, block_end| {
+                queries.push((block_start, block_end));
+                if block_start == S::ZERO {
+                    LogicalLineBandQueryResultOf {
+                        inline_start: S::from_f64(50.0),
+                        inline_end: S::from_f64(50.0),
+                        next_transition: Some(S::from_f64(10.0)),
+                    }
+                } else if block_start == S::from_f64(10.0) {
+                    LogicalLineBandQueryResultOf {
+                        inline_start: S::from_f64(20.0),
+                        inline_end: S::from_f64(60.0),
+                        next_transition: None,
+                    }
+                } else {
+                    LogicalLineBandQueryResultOf {
+                        inline_start: S::ZERO,
+                        inline_end: S::from_f64(100.0),
+                        next_transition: None,
+                    }
+                }
+            },
+            |block, _| block,
+        );
+
+        assert_eq!(
+            queries,
+            [
+                (S::ZERO, S::from_f64(10.0)),
+                (S::from_f64(10.0), S::from_f64(20.0)),
+                (S::from_f64(20.0), S::from_f64(30.0)),
+            ]
+        );
+        assert_eq!(report.line_bands.len(), 2);
+        assert_eq!(report.atomics[0].item.source_index, 60);
+        assert_eq!(report.atomics[0].inline_start, S::from_f64(20.0));
+        assert_eq!(report.atomics[0].block_start, S::from_f64(10.0));
+        assert_eq!(report.atomics[1].line_index, 1);
+        assert_eq!(report.atomics[2].line_index, 1);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+fn mr02_candidate_scan_work(participant_count: usize) -> usize {
+    let participants = (0..participant_count)
+        .map(|source_index| {
+            mr02_atomic::<f64>(
+                source_index,
+                1.0,
+                10.0,
+                8.0,
+                0,
+                InlineBreakOpportunityOf::prohibited(),
+            )
+        })
+        .collect();
+    reset_inline_candidate_scan_visits();
+    let report =
+        layout_mixed_inline_run(mr02_input(AvailableOf::definite(1_000_000.0), participants));
+    assert_eq!(report.atomics.len(), participant_count);
+    inline_candidate_scan_visits()
+}
+
+#[test]
+fn fri06_mr02_inline_linear_candidate_scan_work_is_bounded_without_timing() {
+    let work_64 = mr02_candidate_scan_work(64);
+    let work_128 = mr02_candidate_scan_work(128);
+
+    eprintln!("linear candidate scan work: n=64 => {work_64}, n=128 => {work_128}");
+    assert_eq!(work_64, 64 * 2);
+    assert_eq!(work_128, 128 * 2);
+    assert_eq!(work_128, work_64 * 2);
+}
 
 fn forced_line_break(source_index: usize, metrics: InlineMetrics) -> InlineParticipant {
     forced_line_break_for(

@@ -9,6 +9,28 @@ use crate::Point;
 use crate::geometry::FlowAxes;
 #[cfg(test)]
 use crate::geometry::{LogicalPointOf, LogicalSizeOf};
+#[cfg(test)]
+use std::cell::Cell;
+
+#[cfg(test)]
+thread_local! {
+    static INLINE_CANDIDATE_SCAN_VISITS: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+fn observe_inline_candidate_scan_visit() {
+    INLINE_CANDIDATE_SCAN_VISITS.with(|visits| visits.set(visits.get() + 1));
+}
+
+#[cfg(test)]
+pub(super) fn reset_inline_candidate_scan_visits() {
+    INLINE_CANDIDATE_SCAN_VISITS.with(|visits| visits.set(0));
+}
+
+#[cfg(test)]
+pub(super) fn inline_candidate_scan_visits() -> usize {
+    INLINE_CANDIDATE_SCAN_VISITS.with(Cell::get)
+}
 
 #[cfg(test)]
 #[derive(Clone, Debug, PartialEq)]
@@ -138,6 +160,24 @@ struct SelectedInlineLineOf<S: LayoutScalar> {
     after_baseline: S,
     used_inline_extent: S,
     band: LogicalLineBandOf<S>,
+}
+
+#[derive(Clone, Copy)]
+struct InlineLineSummaryOf<S: LayoutScalar> {
+    discarded_start_end: usize,
+    discarded_end_start: usize,
+    line_break: Option<ForcedLineBreakControlOf<S>>,
+    post_line_clear_intent: PostLineClearIntent,
+    baseline: S,
+    after_baseline: S,
+    used_inline_extent: S,
+    selected_terminal_replacement: Option<S>,
+}
+
+impl<S: LayoutScalar> InlineLineSummaryOf<S> {
+    fn is_discarded(self, index: usize) -> bool {
+        index < self.discarded_start_end || index >= self.discarded_end_start
+    }
 }
 
 #[derive(Clone)]
@@ -316,29 +356,13 @@ pub(super) const fn mapped_post_line_clear_intent(
     }
 }
 
-fn select_inline_line<S: LayoutScalar>(
+fn summarize_inline_line<S: LayoutScalar>(
     participants: &[MixedInlineParticipantOf<S>],
     line_break: Option<ForcedLineBreakControlOf<S>>,
     selected_break: bool,
     strut: Option<InlineMetricContributionOf<S>>,
     flow_axes: FlowAxes,
-) -> SelectedInlineLineOf<S> {
-    let mut discarded = vec![false; participants.len()];
-    for (index, participant) in participants.iter().enumerate() {
-        if participant.whitespace_edge().is_some_and(discards_at_start) {
-            discarded[index] = true;
-        } else {
-            break;
-        }
-    }
-    for (index, participant) in participants.iter().enumerate().rev() {
-        if participant.whitespace_edge().is_some_and(discards_at_end) {
-            discarded[index] = true;
-        } else {
-            break;
-        }
-    }
-
+) -> InlineLineSummaryOf<S> {
     let mut metric_groups = InlineLineMetricGroupsOf::from_strut(strut);
     if let Some(control) = line_break {
         metric_groups.include(
@@ -358,32 +382,47 @@ fn select_inline_line<S: LayoutScalar>(
                 .and_then(InlineBreakOpportunityOf::replacement_inline_extent)
         })
         .flatten();
-    let units = participants
-        .iter()
-        .copied()
-        .enumerate()
-        .map(|(index, participant)| {
-            if !discarded[index] {
-                metric_groups.include(participant.alignment(), participant.metrics(flow_axes));
-                used_inline_extent = used_inline_extent + participant.inline_advance(flow_axes);
+    let mut discarded_start_end = 0;
+    let mut discarded_end_start = participants.len();
+    let mut at_line_start = true;
+    let mut before_trailing_metric_groups = metric_groups;
+    let mut before_trailing_inline_extent = used_inline_extent;
+    for (index, participant) in participants.iter().copied().enumerate() {
+        if participant.whitespace_edge().is_some_and(discards_at_end) {
+            if discarded_end_start == participants.len() {
+                discarded_end_start = index;
+                before_trailing_metric_groups = metric_groups;
+                before_trailing_inline_extent = used_inline_extent;
             }
-            let replacement_inline_extent = (index + 1 == participants.len())
-                .then_some(selected_replacement)
-                .flatten();
-            if let Some(replacement) = replacement_inline_extent {
-                used_inline_extent = used_inline_extent + replacement;
-            }
-            SelectedInlineUnitOf {
-                participant,
-                discarded: discarded[index],
-                replacement_inline_extent,
-            }
-        })
-        .collect();
+        } else {
+            discarded_end_start = participants.len();
+        }
+
+        if at_line_start && participant.whitespace_edge().is_some_and(discards_at_start) {
+            discarded_start_end = index + 1;
+        } else {
+            at_line_start = false;
+            metric_groups.include(participant.alignment(), participant.metrics(flow_axes));
+            used_inline_extent = used_inline_extent + participant.inline_advance(flow_axes);
+        }
+        if index + 1 == participants.len()
+            && let Some(replacement) = selected_replacement
+        {
+            used_inline_extent = used_inline_extent + replacement;
+        }
+    }
+    if discarded_end_start < participants.len() {
+        metric_groups = before_trailing_metric_groups;
+        used_inline_extent = before_trailing_inline_extent;
+        if let Some(replacement) = selected_replacement {
+            used_inline_extent = used_inline_extent + replacement;
+        }
+    }
     let metrics = metric_groups.resolve();
 
-    SelectedInlineLineOf {
-        units,
+    InlineLineSummaryOf {
+        discarded_start_end,
+        discarded_end_start,
         line_break,
         post_line_clear_intent: line_break.map_or(PostLineClearIntent::None, |control| {
             mapped_post_line_clear_intent(flow_axes, control.clear())
@@ -391,6 +430,38 @@ fn select_inline_line<S: LayoutScalar>(
         baseline: metrics.baseline,
         after_baseline: metrics.after_baseline,
         used_inline_extent,
+        selected_terminal_replacement: selected_replacement,
+    }
+}
+
+fn select_inline_line<S: LayoutScalar>(
+    participants: &[MixedInlineParticipantOf<S>],
+    line_break: Option<ForcedLineBreakControlOf<S>>,
+    selected_break: bool,
+    strut: Option<InlineMetricContributionOf<S>>,
+    flow_axes: FlowAxes,
+) -> SelectedInlineLineOf<S> {
+    let summary = summarize_inline_line(participants, line_break, selected_break, strut, flow_axes);
+    let units = participants
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(index, participant)| SelectedInlineUnitOf {
+            participant,
+            discarded: summary.is_discarded(index),
+            replacement_inline_extent: (index + 1 == participants.len())
+                .then_some(summary.selected_terminal_replacement)
+                .flatten(),
+        })
+        .collect();
+
+    SelectedInlineLineOf {
+        units,
+        line_break: summary.line_break,
+        post_line_clear_intent: summary.post_line_clear_intent,
+        baseline: summary.baseline,
+        after_baseline: summary.after_baseline,
+        used_inline_extent: summary.used_inline_extent,
         band: LogicalLineBandOf {
             inline_start: S::ZERO,
             inline_end: S::ZERO,
@@ -409,7 +480,7 @@ fn inline_min_content<S: LayoutScalar>(
     for (index, participant) in participants.iter().enumerate() {
         if matches!(participant, MixedInlineParticipantOf::ForcedLineBreak(_)) {
             maximum = maximum.max(
-                select_inline_line(
+                summarize_inline_line(
                     &participants[group_start..index],
                     None,
                     false,
@@ -427,7 +498,7 @@ fn inline_min_content<S: LayoutScalar>(
         if following_break.kind() == InlineBreakKind::Prohibited {
             continue;
         }
-        let line = select_inline_line(
+        let line = summarize_inline_line(
             &participants[group_start..=index],
             None,
             true,
@@ -439,7 +510,7 @@ fn inline_min_content<S: LayoutScalar>(
     }
     if group_start < participants.len() {
         maximum = maximum.max(
-            select_inline_line(&participants[group_start..], None, false, None, flow_axes)
+            summarize_inline_line(&participants[group_start..], None, false, None, flow_axes)
                 .used_inline_extent,
         );
     }
@@ -455,7 +526,7 @@ fn inline_max_content<S: LayoutScalar>(
     for (index, participant) in participants.iter().enumerate() {
         if matches!(participant, MixedInlineParticipantOf::ForcedLineBreak(_)) {
             maximum = maximum.max(
-                select_inline_line(
+                summarize_inline_line(
                     &participants[group_start..index],
                     None,
                     false,
@@ -475,7 +546,7 @@ fn inline_max_content<S: LayoutScalar>(
             continue;
         }
         maximum = maximum.max(
-            select_inline_line(
+            summarize_inline_line(
                 &participants[group_start..=index],
                 None,
                 false,
@@ -488,25 +559,11 @@ fn inline_max_content<S: LayoutScalar>(
     }
     if group_start < participants.len() {
         maximum = maximum.max(
-            select_inline_line(&participants[group_start..], None, false, None, flow_axes)
+            summarize_inline_line(&participants[group_start..], None, false, None, flow_axes)
                 .used_inline_extent,
         );
     }
     maximum
-}
-
-fn pending_inline_extent<S: LayoutScalar>(
-    participants: &[MixedInlineParticipantOf<S>],
-    flow_axes: FlowAxes,
-) -> S {
-    let mut at_line_start = true;
-    participants.iter().fold(S::ZERO, |extent, participant| {
-        if at_line_start && participant.whitespace_edge().is_some_and(discards_at_start) {
-            return extent;
-        }
-        at_line_start = false;
-        extent + participant.inline_advance(flow_axes)
-    })
 }
 
 fn reordered_inline_unit_indices<S: LayoutScalar>(units: &[SelectedInlineUnitOf<S>]) -> Vec<usize> {
@@ -569,6 +626,8 @@ fn select_next_inline_line<S: LayoutScalar>(
 
     let mut scan = source_cursor;
     let mut latest_allowed = None;
+    let mut candidate_inline_extent = S::ZERO;
+    let mut at_line_start = true;
     while scan < participants.len() {
         let participant = participants[scan];
         if let MixedInlineParticipantOf::ForcedLineBreak(control) = participant {
@@ -585,8 +644,13 @@ fn select_next_inline_line<S: LayoutScalar>(
             });
         }
 
-        let candidate_inline_extent =
-            pending_inline_extent(&participants[source_cursor..=scan], flow_axes);
+        #[cfg(test)]
+        observe_inline_candidate_scan_visit();
+        if !(at_line_start && participant.whitespace_edge().is_some_and(discards_at_start)) {
+            at_line_start = false;
+            candidate_inline_extent =
+                candidate_inline_extent + participant.inline_advance(flow_axes);
+        }
         if wraps
             && candidate_inline_extent > available_inline_extent
             && let Some(break_end) = latest_allowed
