@@ -11,8 +11,8 @@ Cycle base: `98b861133d873b387fb0b19891692a59ab7a6587`
 Reviewed specification:
 `plans/specs/2026-07-19-surgeist-layout-fri-06-mr02-post-c05-sprawl-containment.md`
 at established-v1 status-normalized SHA-256
-`2c1a9a25173005b52890990991c2b859f8e75d4766408319088d37fbeca0ff95`,
-commit `c98598d2b`, sections `FRI-06-MR02.1` through `FRI-06-MR02.9`.
+`7aac87eaa5d1f131cb58eab614972b8cb8361a00d8490e306155e42203727c9d`,
+commit `3b2e0d9db`, sections `FRI-06-MR02.1` through `FRI-06-MR02.9`.
 
 Implementation sequence: none; this is a one-cycle, single-repository
 sub-initiative in the recorded post-C05 insertion window.
@@ -167,17 +167,21 @@ rg -n 'ScrollPaddingOf' src/scroll.rs; test $? -eq 1
 `src/grid/child.rs`, `src/grid/lanes.rs`, and focused
 root/block/flex/grid/grid-lanes error tests.
 
-**Outcome:** Add `fri06_mr02_geometry_error_` characterization for every row in
-FRI-06-MR02.5. Add crate-private `layout_own_geometry_error` and
-`layout_child_geometry_error` in compute and remove the duplicated algorithm
-helpers. Keep block's optional inline-subject choice local and leaf/standalone
-mapping unchanged. Route every grid-child and grid-lanes direct caller through
-the same child adapter without changing its container/subject pair.
+**Outcome:** Add `fri06_mr02_geometry_error_` characterization for every
+reachable row in FRI-06-MR02.5 and static provenance plus unchanged-branch proof
+for the proven-unreachable block inline own fallback. Add crate-private
+`layout_own_geometry_error` and `layout_child_geometry_error` in compute and
+remove the duplicated algorithm helpers. Keep block's optional inline-subject
+choice local and leaf/standalone mapping unchanged. Route every grid-child and
+grid-lanes direct caller through the same child adapter without changing its
+container/subject pair.
 
 **Acceptance:** Exact node or container/subject site, run-mode operation,
 `InvalidRootScrollGeometry` versus `InvalidBlockScrollGeometry`, first failure,
 and no-publication behavior remain unchanged. The safe source error is consumed
-as before. Scroll gains no layout error dependency.
+as before. Shaped-fragment construction records `source_index_start + offset`,
+the sole lookup subtracts that same start, and the retained `None` decision arm
+changes only its selected adapter name. Scroll gains no layout error dependency.
 
 **Commands:**
 
