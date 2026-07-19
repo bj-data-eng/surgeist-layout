@@ -8,6 +8,144 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+fn fri06_mr02_geometry_error_largest_finite<S: LayoutScalar>() -> S {
+    if core::mem::size_of::<S>() == core::mem::size_of::<f32>() {
+        S::from_f64(f32::MAX.into())
+    } else {
+        S::from_f64(f64::MAX)
+    }
+}
+
+fn fri06_mr02_geometry_error_input<S: LayoutScalar>(run_mode: RunMode) -> ComputeInputOf<S> {
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    ComputeInputOf::for_child(
+        run_mode,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::splat(Some(largest)),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(AvailableOf::definite(largest)),
+    )
+}
+
+fn fri06_mr02_geometry_error_assert<S: LayoutScalar, M>(
+    error: LayoutErrorOf<u32, S, M>,
+    site: LayoutErrorSiteOf<u32>,
+    operation: LayoutOperation,
+    invariant: LayoutInternalInvariant,
+) {
+    assert_eq!(error.site(), site);
+    assert_eq!(error.operation(), operation);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::InternalInvariant(actual) if *actual == invariant
+    ));
+}
+
+fn assert_fri06_mr02_geometry_error_flex_own<S: LayoutScalar>() {
+    let largest = fri06_mr02_geometry_error_largest_finite();
+    let style = NodeInputOf {
+        display: Display::Flex,
+        size: Size::new(PreferredSizeOf::px(largest), PreferredSizeOf::px(S::ONE)),
+        padding: Edges {
+            left: LengthOf::px(largest),
+            ..Edges::all(LengthOf::ZERO)
+        },
+        border: Edges {
+            left: LengthOf::px(largest),
+            ..Edges::all(LengthOf::ZERO)
+        },
+        ..NodeInputOf::default()
+    };
+
+    for (run_mode, operation, invariant) in [
+        (
+            RunMode::PerformRootLayout,
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        ),
+        (
+            RunMode::PerformLayout,
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        ),
+    ] {
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(7, [])
+            .style(7, style.clone());
+        let error = compute_flex(&mut tree, 7, fri06_mr02_geometry_error_input(run_mode))
+            .expect_err("overflowing flex geometry must fail");
+
+        fri06_mr02_geometry_error_assert(error, LayoutErrorSiteOf::Node(7), operation, invariant);
+    }
+}
+
+fn assert_fri06_mr02_geometry_error_flex_child<S: LayoutScalar>() {
+    let size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(7, [11])
+        .children(11, [])
+        .style(
+            7,
+            NodeInputOf {
+                display: Display::Flex,
+                size: size.map(PreferredSizeOf::px),
+                ..NodeInputOf::default()
+            },
+        )
+        .style(11, NodeInputOf::default())
+        .measure(
+            11,
+            ComputeOutputOf::from_sizes(
+                Size::new(S::from_f64(10.0), S::from_f64(10.0)),
+                Size::splat(S::INFINITY),
+            ),
+        );
+    let error = compute_flex(
+        &mut tree,
+        7,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            Size::NONE,
+            size.map(Some),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            size.map(AvailableOf::definite),
+        ),
+    )
+    .expect_err("invalid retained flex child geometry must fail");
+
+    fri06_mr02_geometry_error_assert(
+        error,
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 7,
+            subject: 11,
+        },
+        LayoutOperation::ChildLayout,
+        LayoutInternalInvariant::InvalidBlockScrollGeometry,
+    );
+}
+
+#[test]
+fn fri06_mr02_geometry_error_flex_own_preserves_root_and_child_mapping_both_scalars() {
+    assert_fri06_mr02_geometry_error_flex_own::<f32>();
+    assert_fri06_mr02_geometry_error_flex_own::<f64>();
+}
+
+#[test]
+fn fri06_mr02_geometry_error_flex_child_preserves_container_subject_both_scalars() {
+    assert_fri06_mr02_geometry_error_flex_child::<f32>();
+    assert_fri06_mr02_geometry_error_flex_child::<f64>();
+}
+
 fn fri06_mr02_scroll_padding_cases<S: LayoutScalar>() -> [(ScrollPaddingOf<S>, Edges<S>); 2] {
     let value = |value| {
         ScrollPaddingValueOf::value(

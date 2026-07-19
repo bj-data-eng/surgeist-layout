@@ -1,13 +1,14 @@
 use super::*;
 use crate::compute::{
-    ResolvedPreferredSize, SizingResolutionError, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_sizing, sizing_resolution_error,
+    ResolvedPreferredSize, SizingResolutionError, layout_child_geometry_error,
+    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_sizing,
+    sizing_resolution_error,
 };
 use crate::geometry::{LogicalAxis, LogicalPointOf, LogicalSizeOf, PhysicalAxis};
 use crate::scroll::UsedOverflow;
 use crate::{
-    GridFlowToleranceOf, LengthResolutionOf, LengthResolutionStatus, MaxTrackSizingOf,
-    MinTrackSizingOf, PercentageBasisOf,
+    GridFlowToleranceOf, LayoutErrorSiteOf, LengthResolutionOf, LengthResolutionStatus,
+    MaxTrackSizingOf, MinTrackSizingOf, PercentageBasisOf,
 };
 use std::num::NonZeroUsize;
 
@@ -1557,7 +1558,7 @@ where
             border,
             output.scroll_geometry,
         )
-        .map_err(|error| grid_child_geometry_error(node, child, error))?;
+        .map_err(|error| layout_child_geometry_error(node, child, error))?;
         output.scroll_geometry = Some(scroll_geometry);
         let logical_output_size = flow_axes.logical_size(output.size);
         let logical_unresolved_margin = flow_axes.logical_edges(item.unresolved_margin);
@@ -1744,7 +1745,7 @@ where
     );
     let mut contributions =
         grid_scroll_contributions(child_contributions, flow_axes, constants.padding)
-            .map_err(|error| grid_child_geometry_error(node, node, error))?;
+            .map_err(|error| layout_child_geometry_error(node, node, error))?;
     let inline_start = column_offsets
         .iter()
         .copied()
@@ -1778,7 +1779,7 @@ where
         containing_size,
     );
     let track_subject = crate::ScrollRectOf::try_new(subject_origin, subject_size)
-        .map_err(|error| grid_child_geometry_error(node, node, error))?;
+        .map_err(|error| layout_child_geometry_error(node, node, error))?;
     if style.justify_content.is_some() {
         contributions.set_active_alignment_subject(flow_axes.inline_axis(), track_subject);
     }
@@ -1787,7 +1788,7 @@ where
     }
     let visible_content_size = contributions
         .content_size_from_anchor(Point::ZERO)
-        .map_err(|error| grid_child_geometry_error(node, node, error))?;
+        .map_err(|error| layout_child_geometry_error(node, node, error))?;
 
     Ok(GridChildrenLayout {
         visible_content_size,

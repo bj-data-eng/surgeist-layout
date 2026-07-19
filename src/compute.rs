@@ -378,6 +378,49 @@ pub enum LayoutInternalInvariant {
     SubgridBaselineInheritance,
 }
 
+pub(crate) fn layout_own_geometry_error<Node, S, M, E>(
+    node: Node,
+    run_mode: RunMode,
+    error: E,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
+        (
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        )
+    } else {
+        (
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        )
+    };
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::Node(node),
+        operation,
+        LayoutErrorKindOf::InternalInvariant(invariant),
+    )
+}
+
+pub(crate) fn layout_child_geometry_error<Node, S, M, E>(
+    container: Node,
+    subject: Node,
+    error: E,
+) -> LayoutErrorOf<Node, S, M>
+where
+    S: LayoutScalar,
+{
+    let _ = error;
+    LayoutErrorOf::new(
+        LayoutErrorSiteOf::ContainerSubject { container, subject },
+        LayoutOperation::ChildLayout,
+        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidBlockScrollGeometry),
+    )
+}
+
 #[expect(
     clippy::type_complexity,
     reason = "the public root boundary preserves the tree node, scalar, and provider error types"

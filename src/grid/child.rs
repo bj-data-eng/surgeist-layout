@@ -1,8 +1,7 @@
 use super::*;
-use crate::BaselinesOf;
 use crate::compute::{
-    SizingResolutionError, resolve_maximum_optional, resolve_minimum_optional,
-    resolve_preferred_optional, sizing_resolution_error,
+    SizingResolutionError, layout_child_geometry_error, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional, sizing_resolution_error,
 };
 use crate::geometry::{
     FlowAxes, LogicalAxis, LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis,
@@ -14,6 +13,10 @@ use crate::scroll::{
     OptimalRegionInsetsOf, OptionalPhysicalContributionIntervalsOf,
     ScrollContributionAccumulatorOf, UsedOverflow, canonical_measured_leaf_scroll_geometry,
     rebuild_canonical_scroll_geometry_for_border_box,
+};
+use crate::{
+    BaselinesOf, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInternalInvariant,
+    LayoutOperation,
 };
 
 pub(super) struct GridChildrenLayout<S: LayoutScalar = Scalar> {
@@ -507,7 +510,7 @@ where
             border,
             output.scroll_geometry,
         )
-        .map_err(|error| grid_child_geometry_error(node, child, error))?;
+        .map_err(|error| layout_child_geometry_error(node, child, error))?;
         output.scroll_geometry = Some(scroll_geometry);
         let logical_output_size = constants.flow_axes.logical_size(output.size);
         let logical_unresolved_margin = constants.flow_axes.logical_edges(item.unresolved_margin);
@@ -716,7 +719,7 @@ where
 
     let mut contributions =
         grid_scroll_contributions(child_contributions, constants.flow_axes, constants.padding)
-            .map_err(|error| grid_child_geometry_error(node, node, error))?;
+            .map_err(|error| layout_child_geometry_error(node, node, error))?;
     let inline_start = logical_column_offsets
         .iter()
         .copied()
@@ -750,7 +753,7 @@ where
         containing_size,
     );
     let track_subject = crate::ScrollRectOf::try_new(subject_origin, subject_size)
-        .map_err(|error| grid_child_geometry_error(node, node, error))?;
+        .map_err(|error| layout_child_geometry_error(node, node, error))?;
     if style.justify_content.is_some() {
         contributions
             .set_active_alignment_subject(constants.flow_axes.inline_axis(), track_subject);
@@ -760,7 +763,7 @@ where
     }
     let visible_content_size = contributions
         .content_size_from_anchor(Point::ZERO)
-        .map_err(|error| grid_child_geometry_error(node, node, error))?;
+        .map_err(|error| layout_child_geometry_error(node, node, error))?;
 
     let layout = GridChildrenLayout {
         visible_content_size,
@@ -919,7 +922,7 @@ where
             border,
             output.scroll_geometry,
         )
-        .map_err(|error| grid_child_geometry_error(input.node, item.node, error))?;
+        .map_err(|error| layout_child_geometry_error(input.node, item.node, error))?;
         output.scroll_geometry = Some(scroll_geometry);
         let alignment = grid_item_physical_alignment(
             input.container_style.writing_mode,
@@ -2544,23 +2547,6 @@ pub(super) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
     })
 }
 
-pub(super) fn grid_child_geometry_error<Node, S, M, E>(
-    container: Node,
-    subject: Node,
-    error: E,
-) -> LayoutErrorOf<Node, S, M>
-where
-    Node: Copy,
-    S: LayoutScalar,
-{
-    let _ = error;
-    LayoutErrorOf::new(
-        LayoutErrorSiteOf::ContainerSubject { container, subject },
-        LayoutOperation::ChildLayout,
-        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidBlockScrollGeometry),
-    )
-}
-
 pub(super) fn layout_absolute_grid_child<Tree, M>(
     tree: &mut Tree,
     child: <Tree as Traverse>::Node,
@@ -2793,7 +2779,7 @@ where
         border,
         output.scroll_geometry,
     )
-    .map_err(|error| grid_child_geometry_error(child, child, error))?;
+    .map_err(|error| layout_child_geometry_error(child, child, error))?;
     tree.set_unrounded(
         child,
         NodeOutputOf {

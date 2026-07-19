@@ -14,6 +14,214 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+fn fri06_mr02_geometry_error_largest_finite<S: LayoutScalar>() -> S {
+    if core::mem::size_of::<S>() == core::mem::size_of::<f32>() {
+        S::from_f64(f32::MAX.into())
+    } else {
+        S::from_f64(f64::MAX)
+    }
+}
+
+fn fri06_mr02_geometry_error_input<S: LayoutScalar>(run_mode: RunMode) -> ComputeInputOf<S> {
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    ComputeInputOf::for_child(
+        run_mode,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        Size::NONE,
+        Size::splat(Some(largest)),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        Size::splat(AvailableOf::definite(largest)),
+    )
+}
+
+fn fri06_mr02_geometry_error_assert<S: LayoutScalar, M>(
+    error: LayoutErrorOf<u32, S, M>,
+    site: LayoutErrorSiteOf<u32>,
+    operation: LayoutOperation,
+    invariant: LayoutInternalInvariant,
+) {
+    assert_eq!(error.site(), site);
+    assert_eq!(error.operation(), operation);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::InternalInvariant(actual) if *actual == invariant
+    ));
+}
+
+fn assert_fri06_mr02_geometry_error_grid_own<S: LayoutScalar>() {
+    let largest = fri06_mr02_geometry_error_largest_finite();
+    let style = NodeInputOf {
+        display: Display::Grid,
+        size: Size::new(PreferredSizeOf::px(largest), PreferredSizeOf::px(S::ONE)),
+        padding: Edges {
+            left: LengthOf::px(largest),
+            ..Edges::all(LengthOf::ZERO)
+        },
+        border: Edges {
+            left: LengthOf::px(largest),
+            ..Edges::all(LengthOf::ZERO)
+        },
+        ..NodeInputOf::default()
+    };
+
+    for (run_mode, operation, invariant) in [
+        (
+            RunMode::PerformRootLayout,
+            LayoutOperation::RootLayout,
+            LayoutInternalInvariant::InvalidRootScrollGeometry,
+        ),
+        (
+            RunMode::PerformLayout,
+            LayoutOperation::ChildLayout,
+            LayoutInternalInvariant::InvalidBlockScrollGeometry,
+        ),
+    ] {
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(7, [])
+            .style(7, style.clone());
+        let error = compute_grid(&mut tree, 7, fri06_mr02_geometry_error_input(run_mode))
+            .expect_err("overflowing grid geometry must fail");
+
+        fri06_mr02_geometry_error_assert(error, LayoutErrorSiteOf::Node(7), operation, invariant);
+    }
+}
+
+fn assert_fri06_mr02_geometry_error_grid_child<S: LayoutScalar>(display: Display) {
+    let size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(7, [11])
+        .children(11, [])
+        .style(
+            7,
+            NodeInputOf {
+                display,
+                size: size.map(PreferredSizeOf::px),
+                grid_template_columns: vec![TrackComponentOf::AUTO],
+                grid_template_rows: vec![TrackComponentOf::AUTO],
+                ..NodeInputOf::default()
+            },
+        )
+        .style(11, NodeInputOf::default())
+        .measure_when(
+            11,
+            crate::test_support::layout_tree::OracleMeasurementOf::new(
+                ComputeOutputOf::from_sizes(
+                    Size::new(S::from_f64(10.0), S::from_f64(10.0)),
+                    Size::splat(S::INFINITY),
+                ),
+            )
+            .run_mode(RunMode::PerformLayout),
+        )
+        .measure(
+            11,
+            ComputeOutputOf::from_outer_size(Size::new(S::from_f64(10.0), S::from_f64(10.0))),
+        );
+    let error = compute_grid(
+        &mut tree,
+        7,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            size.map(Some),
+            size.map(Some),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            size.map(AvailableOf::definite),
+        ),
+    )
+    .expect_err("invalid retained grid child geometry must fail");
+
+    fri06_mr02_geometry_error_assert(
+        error,
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 7,
+            subject: 11,
+        },
+        LayoutOperation::ChildLayout,
+        LayoutInternalInvariant::InvalidBlockScrollGeometry,
+    );
+}
+
+fn assert_fri06_mr02_geometry_error_grid_track_subject<S: LayoutScalar>(display: Display) {
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    let size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+        .children(7, [])
+        .style(
+            7,
+            NodeInputOf {
+                display,
+                size: size.map(PreferredSizeOf::px),
+                grid_template_columns: vec![
+                    TrackComponentOf::px(largest),
+                    TrackComponentOf::px(largest),
+                ],
+                grid_template_rows: if display == Display::Grid {
+                    vec![TrackComponentOf::AUTO]
+                } else {
+                    Vec::new()
+                },
+                ..NodeInputOf::default()
+            },
+        );
+    let error = compute_grid(
+        &mut tree,
+        7,
+        ComputeInputOf::for_child(
+            RunMode::PerformLayout,
+            SizingMode::InherentSize,
+            RequestedAxis::Both,
+            size.map(Some),
+            size.map(Some),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            size.map(AvailableOf::definite),
+        ),
+    )
+    .expect_err("overflowing track subject geometry must fail");
+
+    fri06_mr02_geometry_error_assert(
+        error,
+        LayoutErrorSiteOf::ContainerSubject {
+            container: 7,
+            subject: 7,
+        },
+        LayoutOperation::ChildLayout,
+        LayoutInternalInvariant::InvalidBlockScrollGeometry,
+    );
+}
+
+#[test]
+fn fri06_mr02_geometry_error_grid_own_preserves_root_and_child_mapping_both_scalars() {
+    assert_fri06_mr02_geometry_error_grid_own::<f32>();
+    assert_fri06_mr02_geometry_error_grid_own::<f64>();
+}
+
+#[test]
+fn fri06_mr02_geometry_error_grid_child_preserves_container_subject_both_scalars() {
+    for display in [Display::Grid, Display::GridLanes] {
+        assert_fri06_mr02_geometry_error_grid_child::<f32>(display);
+        assert_fri06_mr02_geometry_error_grid_child::<f64>(display);
+    }
+}
+
+#[test]
+fn fri06_mr02_geometry_error_grid_track_subject_preserves_node_identities_both_scalars() {
+    for display in [Display::Grid, Display::GridLanes] {
+        assert_fri06_mr02_geometry_error_grid_track_subject::<f32>(display);
+        assert_fri06_mr02_geometry_error_grid_track_subject::<f64>(display);
+    }
+}
+
 fn fri06_mr02_scroll_padding_cases<S: LayoutScalar>() -> [(ScrollPaddingOf<S>, Edges<S>); 2] {
     let value = |value| {
         ScrollPaddingValueOf::value(

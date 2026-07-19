@@ -10997,6 +10997,111 @@ fn overflowing_scroll_edges() -> Edges<Length> {
     }
 }
 
+fn fri06_mr02_geometry_error_largest_finite<S: LayoutScalar>() -> S {
+    if core::mem::size_of::<S>() == core::mem::size_of::<f32>() {
+        S::from_f64(f32::MAX.into())
+    } else {
+        S::from_f64(f64::MAX)
+    }
+}
+
+fn assert_fri06_mr02_geometry_error_public_root_has_no_batch<S: LayoutScalar>() {
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    for display in [
+        Display::Block,
+        Display::Flex,
+        Display::Grid,
+        Display::GridLanes,
+    ] {
+        let style = NodeInputOf {
+            display,
+            size: Size::new(PreferredSizeOf::px(largest), PreferredSizeOf::px(S::ONE)),
+            padding: Edges {
+                left: LengthOf::px(largest),
+                ..Edges::all(LengthOf::ZERO)
+            },
+            border: Edges {
+                left: LengthOf::px(largest),
+                ..Edges::all(LengthOf::ZERO)
+            },
+            grid_template_columns: vec![TrackComponentOf::AUTO],
+            ..NodeInputOf::default()
+        };
+        let tree = Fri06C02TextTree {
+            inputs: HashMap::from([(0, LayoutInputOf::box_input(style.clone()))]),
+            node_inputs: HashMap::from([(0, style)]),
+            children: HashMap::from([(0, Vec::new())]),
+        };
+        let request = LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(largest),
+            AvailableOf::definite(S::ONE),
+        ))
+        .unwrap();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            compute_layout(&tree, 0, request)
+        }));
+        let error = match outcome {
+            Ok(Err(error)) => error,
+            Ok(Ok(_)) => panic!("{display:?} overflow must publish no completed batch"),
+            Err(_) => panic!("{display:?} overflow must not unwind"),
+        };
+
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(0));
+        assert_eq!(error.operation(), LayoutOperation::RootLayout);
+        assert!(matches!(
+            error.kind(),
+            LayoutErrorKindOf::InternalInvariant(
+                LayoutInternalInvariant::InvalidRootScrollGeometry
+            )
+        ));
+    }
+}
+
+fn assert_fri06_mr02_geometry_error_leaf_standalone_mapping<S: LayoutScalar>() {
+    let largest = fri06_mr02_geometry_error_largest_finite::<S>();
+    let size = Size::new(largest, S::ONE);
+    let style = NodeInputOf {
+        padding: Edges {
+            left: LengthOf::px(largest),
+            ..Edges::all(LengthOf::ZERO)
+        },
+        ..NodeInputOf::default()
+    };
+    let input = ComputeInputOf::leaf_layout(
+        size.map(Some),
+        size.map(Some),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        size.map(AvailableOf::definite),
+    )
+    .unwrap();
+    let error = compute_leaf(input, &style, |_measurement| {
+        Ok::<_, ()>(Size::new(largest, S::ZERO))
+    })
+    .expect_err("overflowing standalone measured-content geometry must fail");
+
+    assert_eq!(error.site(), LayoutErrorSiteOf::Standalone);
+    assert_eq!(error.operation(), LayoutOperation::LeafMeasurement);
+    assert!(matches!(
+        error.kind(),
+        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidRootScrollGeometry)
+    ));
+}
+
+#[test]
+fn fri06_mr02_geometry_error_public_root_preserves_no_publication_both_scalars() {
+    assert_fri06_mr02_geometry_error_public_root_has_no_batch::<f32>();
+    assert_fri06_mr02_geometry_error_public_root_has_no_batch::<f64>();
+}
+
+#[test]
+fn fri06_mr02_geometry_error_leaf_standalone_mapping_remains_unchanged_both_scalars() {
+    assert_fri06_mr02_geometry_error_leaf_standalone_mapping::<f32>();
+    assert_fri06_mr02_geometry_error_leaf_standalone_mapping::<f64>();
+}
+
 #[test]
 fn scroll_geometry_error_maps_root_block_overflow_through_the_public_front_door() {
     let tree: RootSessionTree = RootSessionTree::default().style(

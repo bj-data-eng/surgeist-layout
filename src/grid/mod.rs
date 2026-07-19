@@ -1,16 +1,15 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, DefaultScalar, Direction, Display, Edges, GridAutoFlow,
-    GridPlacement, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf, LayoutInternalInvariant,
-    LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
+    GridPlacement, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf, LengthResolutionOf,
     LengthResolutionStatus, MaxTrackSizingOf, MinTrackSizingOf, NodeInputOf, NodeOutputOf,
     Overflow, Point, Position, PreferredSizeOf, RequestedAxis, RunMode, Scalar, Size,
     SizingAlgorithm, SizingMode, TrackComponentOf, TrackRepeat, TrackSizingOf, Traverse,
 };
 use crate::compute::{
-    EdgesResultExt, ResolvedPreferredSize, SizeResultExt, resolve_maximum_optional,
-    resolve_minimum_optional, resolve_preferred_optional, resolve_preferred_sizing,
-    sizing_resolution_error,
+    EdgesResultExt, ResolvedPreferredSize, SizeResultExt, layout_own_geometry_error,
+    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_optional,
+    resolve_preferred_sizing, sizing_resolution_error,
 };
 use crate::geometry::{LogicalAxis, LogicalSizeOf, PhysicalAxis};
 use crate::node_input::item_order_permutation;
@@ -146,7 +145,7 @@ where
             || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
                 geometry, next_state,
             )
-            .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?
         {
             return Ok(GridComputationOf {
                 output: result.output,
@@ -308,7 +307,7 @@ where
             || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
                 geometry, next_state,
             )
-            .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?
         {
             return Ok(result);
         }
@@ -513,7 +512,7 @@ where
             scrollbar_width: style.scrollbar_width,
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
         })
-        .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?;
+        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         let mut child_layout = layout_grid_container_children(
             tree,
             node,
@@ -555,7 +554,7 @@ where
             content_size,
             geometry
                 .canonical_content_size()
-                .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?,
+                .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?,
         );
         final_scroll_geometry = Some(geometry);
         baselines = child_layout.baselines;
@@ -775,7 +774,7 @@ where
             scrollbar_width: style.scrollbar_width,
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
         })
-        .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?;
+        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         let layout_content_box_size =
             (output_size - constants.content_box_inset.sum_axes()).max(Size::ZERO);
         let logical_layout_content_box_size =
@@ -855,7 +854,7 @@ where
             content_size,
             geometry
                 .canonical_content_size()
-                .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?,
+                .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?,
         );
         final_scroll_geometry = Some(geometry);
         baselines = child_layout.baselines;
@@ -2354,7 +2353,7 @@ impl<S: LayoutScalar> Constants<S> {
                 scrollbar_width: style.scrollbar_width,
                 settled_auto_scrollbars: input.settled_auto_scrollbars(),
             })
-            .map_err(|error| grid_own_geometry_error(node, input.run_mode(), error))?
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?
             .content_box_inset()
         } else {
             legacy_content_box_inset
@@ -2429,34 +2428,7 @@ where
         target_snap_align: style.scroll_snap_align,
         target_snap_stop: style.scroll_snap_stop,
     })
-    .map_err(|error| grid_own_geometry_error(node, run_mode, error))
-}
-
-fn grid_own_geometry_error<Node, S, M, E>(
-    node: Node,
-    run_mode: RunMode,
-    error: E,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    let _ = error;
-    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
-        (
-            LayoutOperation::RootLayout,
-            LayoutInternalInvariant::InvalidRootScrollGeometry,
-        )
-    } else {
-        (
-            LayoutOperation::ChildLayout,
-            LayoutInternalInvariant::InvalidBlockScrollGeometry,
-        )
-    };
-    LayoutErrorOf::new(
-        LayoutErrorSiteOf::Node(node),
-        operation,
-        LayoutErrorKindOf::InternalInvariant(invariant),
-    )
+    .map_err(|error| layout_own_geometry_error(node, run_mode, error))
 }
 
 fn resolve_length_or_zero<S: LayoutScalar>(

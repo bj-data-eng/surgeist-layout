@@ -1,15 +1,14 @@
 use super::{
     AlignContent, AlignItems, AspectRatioOf, AvailableOf, BaselinesOf, BoxSizing, Compute,
     ComputeInputOf, ComputeOutputOf, ComputedOverflow, ContainingLayoutContext, Direction, Edges,
-    FlexDirection, FlexWrap, LayoutErrorKindOf, LayoutErrorOf, LayoutErrorSiteOf,
-    LayoutInternalInvariant, LayoutOperation, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
+    FlexDirection, FlexWrap, LayoutResultOf, LayoutScalar, LengthAutoOf, LengthOf,
     LengthResolutionOf, LengthResolutionStatus, NodeInputOf, NodeOutputOf, ParentFormattingContext,
     Point, Position, RequestedAxis, RunMode, Size, SizingMode, Traverse,
 };
 use crate::compute::{
-    EdgesResultExt, ResolvedFlexBasis, SizeResultExt, SizingAlgorithm, resolve_flex_basis,
-    resolve_maximum_optional, resolve_minimum_optional, resolve_preferred_optional,
-    sizing_resolution_error,
+    EdgesResultExt, ResolvedFlexBasis, SizeResultExt, SizingAlgorithm, layout_child_geometry_error,
+    layout_own_geometry_error, resolve_flex_basis, resolve_maximum_optional,
+    resolve_minimum_optional, resolve_preferred_optional, sizing_resolution_error,
 };
 use crate::geometry::{FlowAxes, LogicalAxis, PhysicalAxis, PhysicalProgression, PhysicalSide};
 use crate::node_input::item_order_permutation;
@@ -123,7 +122,7 @@ where
             || !crate::scroll::settled_auto_scrollbars_change_available_geometry(
                 geometry, next_state,
             )
-            .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?
         {
             return Ok(output);
         }
@@ -242,7 +241,7 @@ where
             &layout_constants,
             scroll_box,
         )
-        .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?;
+        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         contributions.exclude_reserved_gutter_from_range();
         let scroll_geometry = flex_container_scroll_geometry::<_, S, M>(
             node,
@@ -254,7 +253,7 @@ where
         )?;
         let content_size = contributions
             .content_size_from_anchor(scroll_geometry.content_box().origin())
-            .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?;
+            .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         final_geometry_and_content_size = Some((scroll_geometry, content_size));
     }
     let output = container_output(
@@ -399,7 +398,7 @@ impl<S: LayoutScalar> Constants<S> {
             scrollbar_width: style.scrollbar_width,
             settled_auto_scrollbars: input.settled_auto_scrollbars(),
         })
-        .map_err(|error| flex_own_geometry_error(node, input.run_mode(), error))?;
+        .map_err(|error| layout_own_geometry_error(node, input.run_mode(), error))?;
         let scrollport_inset = scroll_box.effective_border() + scroll_box.effective_gutter();
         let non_gutter_box_inset = scroll_box.effective_border() + scroll_box.effective_padding();
         let content_box_inset = scroll_box.content_box_inset();
@@ -2841,7 +2840,7 @@ where
         scrollbar_width: style.scrollbar_width,
         settled_auto_scrollbars: constants.settled_auto_scrollbars,
     })
-    .map_err(|error| flex_own_geometry_error(node, run_mode, error))
+    .map_err(|error| layout_own_geometry_error(node, run_mode, error))
 }
 
 fn flex_scroll_contributions<Node, S: LayoutScalar>(
@@ -3114,50 +3113,7 @@ where
         target_snap_align: style.scroll_snap_align,
         target_snap_stop: style.scroll_snap_stop,
     })
-    .map_err(|error| flex_own_geometry_error(node, run_mode, error))
-}
-
-fn flex_own_geometry_error<Node, S, M, E>(
-    node: Node,
-    run_mode: RunMode,
-    error: E,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    let _ = error;
-    let (operation, invariant) = if run_mode == RunMode::PerformRootLayout {
-        (
-            LayoutOperation::RootLayout,
-            LayoutInternalInvariant::InvalidRootScrollGeometry,
-        )
-    } else {
-        (
-            LayoutOperation::ChildLayout,
-            LayoutInternalInvariant::InvalidBlockScrollGeometry,
-        )
-    };
-    LayoutErrorOf::new(
-        LayoutErrorSiteOf::Node(node),
-        operation,
-        LayoutErrorKindOf::InternalInvariant(invariant),
-    )
-}
-
-fn flex_child_geometry_error<Node, S, M, E>(
-    container: Node,
-    subject: Node,
-    error: E,
-) -> LayoutErrorOf<Node, S, M>
-where
-    S: LayoutScalar,
-{
-    let _ = error;
-    LayoutErrorOf::new(
-        LayoutErrorSiteOf::ContainerSubject { container, subject },
-        LayoutOperation::ChildLayout,
-        LayoutErrorKindOf::InternalInvariant(LayoutInternalInvariant::InvalidBlockScrollGeometry),
-    )
+    .map_err(|error| layout_own_geometry_error(node, run_mode, error))
 }
 
 fn retained_flex_child_scroll_geometry<S: LayoutScalar>(
@@ -3708,7 +3664,7 @@ where
             item.border,
             output.scroll_geometry,
         )
-        .map_err(|error| flex_child_geometry_error(container_node, item.node, error))?;
+        .map_err(|error| layout_child_geometry_error(container_node, item.node, error))?;
         output = retain_flex_scroll_geometry(output, scroll_geometry);
         tree.set_unrounded(
             item.node,
@@ -3968,7 +3924,7 @@ where
             border,
             output.scroll_geometry,
         )
-        .map_err(|error| flex_child_geometry_error(node, child, error))?;
+        .map_err(|error| layout_child_geometry_error(node, child, error))?;
         let output = retain_flex_scroll_geometry(output, scroll_geometry);
 
         tree.set_unrounded(
