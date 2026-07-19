@@ -389,6 +389,99 @@ fn fri06_c01_inline_model_validates_and_exposes_both_scalar_lanes() {
     assert_fri06_c01_inline_model::<f64>();
 }
 
+fn fri06_mr02_segments<S: LayoutScalar>(
+    ids: impl IntoIterator<Item = u64>,
+) -> Vec<ShapedInlineSegmentOf<S>> {
+    ids.into_iter()
+        .map(|id| {
+            fri06_c01_segment(
+                id,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn fri06_mr02_duplicate_id_empty_input_is_rejected_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_eq!(
+            InlineTextInputOf::<S>::try_new(Vec::new()),
+            Err(InlineTextInputErrorOf::Empty)
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_mr02_duplicate_id_unique_long_input_preserves_order_and_value_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        let segments = fri06_mr02_segments::<S>(0..2_048);
+        let text = InlineTextInputOf::try_new(segments.clone()).unwrap();
+
+        assert_eq!(text.segments(), segments);
+        assert_eq!(text.clone(), text);
+        assert_eq!(
+            text.segments()
+                .iter()
+                .map(|segment| segment.segment_id().get())
+                .collect::<Vec<_>>(),
+            (0..2_048).collect::<Vec<_>>()
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_mr02_duplicate_id_first_possible_repeat_returns_current_id_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_eq!(
+            InlineTextInputOf::try_new(fri06_mr02_segments::<S>([17, 17, 99])),
+            Err(InlineTextInputErrorOf::DuplicateSegmentId {
+                segment_id: InlineSegmentId::new(17),
+            })
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_mr02_duplicate_id_final_repeat_returns_current_id_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_eq!(
+            InlineTextInputOf::try_new(fri06_mr02_segments::<S>([3, 4, 5, 3])),
+            Err(InlineTextInputErrorOf::DuplicateSegmentId {
+                segment_id: InlineSegmentId::new(3),
+            })
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_mr02_duplicate_id_competing_families_return_first_repeat_in_both_scalar_lanes() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_eq!(
+            InlineTextInputOf::try_new(fri06_mr02_segments::<S>([2, 900, 900, 2])),
+            Err(InlineTextInputErrorOf::DuplicateSegmentId {
+                segment_id: InlineSegmentId::new(900),
+            })
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 #[derive(Clone)]
 struct Fri06C01Tree<S: LayoutScalar> {
     inputs: Vec<LayoutInputOf<S>>,

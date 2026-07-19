@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::{
     AspectRatioOf, DefaultScalar, Edges, FiniteScalarErrorOf, FlexBasisOf, FlowAxes, GridLine,
     GridSpan, GridTemplateAreas, LayoutScalar, LengthAutoOf, LengthOf, LengthPercentageOf,
@@ -1105,11 +1107,9 @@ impl<S: LayoutScalar> InlineTextInputOf<S> {
         if segments.is_empty() {
             return Err(InlineTextInputErrorOf::Empty);
         }
-        for (index, segment) in segments.iter().enumerate() {
-            if segments[..index]
-                .iter()
-                .any(|candidate| candidate.segment_id == segment.segment_id)
-            {
+        let mut segment_ids = HashSet::<InlineSegmentId>::with_capacity(segments.len());
+        for segment in &segments {
+            if !segment_ids.insert(segment.segment_id) {
                 return Err(InlineTextInputErrorOf::DuplicateSegmentId {
                     segment_id: segment.segment_id,
                 });
