@@ -281,12 +281,12 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c0
 CARGO_NET_OFFLINE=true just fmt-check
 rg -n 'fn canonical_zero|fn round_layout_coordinate|fn at_physical_side|fn from_scroll_padding|fn layout_own_geometry_error|fn layout_child_geometry_error' src
-rg -n 'pending_inline_extent|canonical_calc_size_zero|canonical_exclusion_zero|canonical_scroll_zero|fn (leaf|block|flex|grid)_scroll_padding|fn (block|flex|grid)_(own|child)_geometry_error|fn edge_at_physical_side|fn physical_edge_value|fn edge_at_side' src
-rg -n '^fn round<S: LayoutScalar>' src/compute.rs src/scroll.rs
+rg -n 'pending_inline_extent|canonical_calc_size_zero|canonical_exclusion_zero|canonical_scroll_zero|fn (leaf|block|flex|grid)_scroll_padding|fn (block|flex|grid)_(own|child)_geometry_error|fn edge_at_physical_side|fn physical_edge_value|fn edge_at_side' src; test $? -eq 1
+rg -n '^fn round<S: LayoutScalar>' src/compute.rs src/scroll.rs; test $? -eq 1
 git diff --check 98b861133d873b387fb0b19891692a59ab7a6587..HEAD
 git diff --name-only --no-renames 98b861133d873b387fb0b19891692a59ab7a6587..HEAD
-git diff --unified=0 98b861133d873b387fb0b19891692a59ab7a6587..HEAD -- '*.rs' | rg '^\+.*#\s*\[\s*(allow|expect)\s*\('
-rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $(git ls-files --cached --others --exclude-standard '*.rs')
+git diff --unified=0 98b861133d873b387fb0b19891692a59ab7a6587..HEAD -- '*.rs' | rg '^\+.*#\s*\[\s*(allow|expect)\s*\('; test $? -eq 1
+rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $(git ls-files --cached --others --exclude-standard '*.rs'); test $? -eq 1
 git status --short
 ```
 
