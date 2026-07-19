@@ -859,15 +859,38 @@ where
         let visual_order = reordered_inline_unit_indices(&line.units);
         let mut visual_indices = vec![0; line.units.len()];
         let mut inline_starts = vec![S::ZERO; line.units.len()];
-        let mut inline_start = line_inline_start;
-        for (visual_index, source_index) in visual_order.into_iter().enumerate() {
-            let selected = line.units[source_index];
+        for (visual_index, source_index) in visual_order.iter().copied().enumerate() {
             visual_indices[source_index] = visual_index;
+        }
+        let mut inline_start = line_inline_start;
+        let mut assign_inline_start = |source_index: usize| {
+            let selected = line.units[source_index];
             inline_starts[source_index] = inline_start;
             if !selected.discarded {
                 inline_start = inline_start
                     + selected.participant.inline_advance(input.flow_axes)
                     + selected.replacement_inline_extent.unwrap_or(S::ZERO);
+            }
+        };
+        let visual_order_opposes_logical_progression = input.flow_axes.direction()
+            == Direction::Rtl
+            && line.units.iter().all(|selected| {
+                matches!(
+                    selected.participant,
+                    MixedInlineParticipantOf::Atomic { .. }
+                )
+            })
+            && line
+                .units
+                .iter()
+                .any(|selected| selected.participant.bidi_level() % 2 == 1);
+        if visual_order_opposes_logical_progression {
+            for source_index in visual_order.into_iter().rev() {
+                assign_inline_start(source_index);
+            }
+        } else {
+            for source_index in visual_order {
+                assign_inline_start(source_index);
             }
         }
         for (source_index, selected) in line.units.into_iter().enumerate() {

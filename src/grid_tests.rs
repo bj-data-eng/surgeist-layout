@@ -449,6 +449,468 @@ fn fri06_c07_height_exact_twelve_rows_preserve_packing_and_intrinsic_block_size(
     assert_fri06_c07_height_rows::<f64>();
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct Fri06C07SubgridRtlRow {
+    source: &'static str,
+    variant: &'static str,
+    self_alignment: AlignItems,
+    item_alignment: AlignItems,
+    box_sizing: BoxSizing,
+}
+
+const FRI06_C07_SUBGRID_RTL_ROWS: [Fri06C07SubgridRtlRow; 32] = [
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_baseline_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_baseline_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_center_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_center_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_end_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_end_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_start_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_baseline_start_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Baseline,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_baseline_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_baseline_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_center_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_center_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_end_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_end_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_start_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_center_start_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Center,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_baseline_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_baseline_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_center_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_center_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_end_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_end_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_start_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_end_start_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::End,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_baseline_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_baseline_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::Baseline,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_center_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_center_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::Center,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_end_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_end_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::End,
+        box_sizing: BoxSizing::ContentBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_start_item.html",
+        variant: "border_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::BorderBox,
+    },
+    Fri06C07SubgridRtlRow {
+        source: "html/subgrid/subgrid_alignment_start_start_item.html",
+        variant: "content_box_rtl",
+        self_alignment: AlignItems::Start,
+        item_alignment: AlignItems::Start,
+        box_sizing: BoxSizing::ContentBox,
+    },
+];
+
+#[derive(Clone, Debug)]
+struct Fri06C07SubgridRtlTree<S: LayoutScalar> {
+    children: HashMap<u32, Vec<u32>>,
+    inputs: HashMap<u32, NodeInputOf<S>>,
+    target_inline_grid: u32,
+    target_subgrid: u32,
+    target_subject: u32,
+}
+
+impl<S: LayoutScalar> Traverse for Fri06C07SubgridRtlTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> LayoutTree for Fri06C07SubgridRtlTree<S> {
+    type MeasureError = ();
+
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.inputs[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        LayoutInputOf::box_input(self.inputs[&node].clone())
+    }
+}
+
+fn fri06_c07_subgrid_rtl_alignment_index(alignment: AlignItems) -> usize {
+    match alignment {
+        AlignItems::Start => 0,
+        AlignItems::End => 1,
+        AlignItems::Center => 2,
+        AlignItems::Baseline => 3,
+        _ => unreachable!("the finite C07-T3 table contains only the four reviewed alignments"),
+    }
+}
+
+fn fri06_c07_subgrid_rtl_expected_origin<S: LayoutScalar>(alignment: AlignItems) -> S {
+    let value = match alignment {
+        AlignItems::Start => 330.0,
+        AlignItems::End => 230.0,
+        AlignItems::Center => 130.0,
+        AlignItems::Baseline => 30.0,
+        _ => unreachable!("the finite C07-T3 table contains only the four reviewed alignments"),
+    };
+    S::from_f64(value)
+}
+
+fn fri06_c07_subgrid_rtl_tree<S: LayoutScalar>(
+    row: Fri06C07SubgridRtlRow,
+) -> Fri06C07SubgridRtlTree<S> {
+    let scalar = S::from_f64;
+    let root = NodeInputOf {
+        display: Display::Block,
+        box_sizing: row.box_sizing,
+        direction: Direction::Rtl,
+        size: Size::new(
+            PreferredSizeOf::px(scalar(400.0)),
+            PreferredSizeOf::px(scalar(400.0)),
+        ),
+        ..NodeInputOf::default()
+    };
+    let alignments = [
+        AlignItems::Start,
+        AlignItems::End,
+        AlignItems::Center,
+        AlignItems::Baseline,
+    ];
+    let mut children = HashMap::new();
+    let mut inputs = HashMap::from([(0, root)]);
+    let inline_grid_nodes = [1, 2, 3, 4];
+    children.insert(0, inline_grid_nodes.to_vec());
+    for (self_index, self_alignment) in alignments.into_iter().enumerate() {
+        let inline_grid_node = inline_grid_nodes[self_index];
+        let first_subgrid_node = 10 + u32::try_from(self_index * 4).expect("finite matrix index");
+        let subgrid_nodes = (first_subgrid_node..first_subgrid_node + 4).collect::<Vec<_>>();
+        let inline_grid = NodeInputOf {
+            display: Display::InlineGrid,
+            box_sizing: row.box_sizing,
+            direction: Direction::Rtl,
+            grid_template_columns: vec![TrackComponentOf::px(scalar(100.0))],
+            grid_auto_rows: vec![TrackComponentOf::px(scalar(100.0))],
+            atomic_inline_participation: Some(
+                AtomicInlineParticipationOf::try_new(
+                    BidiLevel::try_new(1).expect("RTL bidi level is valid"),
+                    InlineBreakOpportunityOf::prohibited(),
+                )
+                .expect("atomic inline participation is valid"),
+            ),
+            ..NodeInputOf::default()
+        };
+        inputs.insert(inline_grid_node, inline_grid);
+        children.insert(inline_grid_node, subgrid_nodes.clone());
+
+        for (item_index, item_alignment) in alignments.into_iter().enumerate() {
+            let subgrid_node = subgrid_nodes[item_index];
+            let subject_node =
+                100 + u32::try_from(self_index * 4 + item_index).expect("finite matrix index");
+            let subgrid = NodeInputOf {
+                display: Display::Grid,
+                box_sizing: row.box_sizing,
+                direction: Direction::Rtl,
+                grid_template_columns: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                grid_template_rows: vec![TrackComponentOf::Subgrid(SubgridTrack::new(vec![]))],
+                align_self: Some(self_alignment),
+                justify_self: Some(item_alignment),
+                margin: Edges::all(LengthAutoOf::px(scalar(10.0))),
+                border: Edges::all(LengthOf::px(scalar(10.0))),
+                padding: Edges::all(LengthOf::px(scalar(10.0))),
+                ..NodeInputOf::default()
+            };
+            let subject = NodeInputOf {
+                display: Display::Block,
+                box_sizing: row.box_sizing,
+                direction: Direction::Rtl,
+                size: Size::new(
+                    PreferredSizeOf::px(scalar(40.0)),
+                    PreferredSizeOf::px(scalar(40.0)),
+                ),
+                justify_self: Some(AlignItems::Start),
+                align_self: Some(AlignItems::Start),
+                ..NodeInputOf::default()
+            };
+            inputs.insert(subgrid_node, subgrid);
+            inputs.insert(subject_node, subject);
+            children.insert(subgrid_node, vec![subject_node]);
+            children.insert(subject_node, vec![]);
+        }
+    }
+
+    let target_self_index = fri06_c07_subgrid_rtl_alignment_index(row.self_alignment);
+    let target_item_index = fri06_c07_subgrid_rtl_alignment_index(row.item_alignment);
+    let target_subgrid =
+        10 + u32::try_from(target_self_index * 4 + target_item_index).expect("finite matrix index");
+    let target_subject = 100
+        + u32::try_from(target_self_index * 4 + target_item_index).expect("finite matrix index");
+
+    Fri06C07SubgridRtlTree {
+        children,
+        inputs,
+        target_inline_grid: inline_grid_nodes[target_self_index],
+        target_subgrid,
+        target_subject,
+    }
+}
+
+fn fri06_c07_subgrid_rtl_mismatches<S: LayoutScalar>() -> Vec<String> {
+    assert_eq!(FRI06_C07_SUBGRID_RTL_ROWS.len(), 32);
+    let unique_rows = FRI06_C07_SUBGRID_RTL_ROWS
+        .iter()
+        .map(|row| (row.source, row.variant))
+        .collect::<HashSet<_>>();
+    assert_eq!(unique_rows.len(), 32);
+
+    let mut physical_inline_mismatches = Vec::new();
+    for row in FRI06_C07_SUBGRID_RTL_ROWS {
+        let tree = fri06_c07_subgrid_rtl_tree::<S>(row);
+        let batch = compute_layout(
+            &tree,
+            0,
+            LayoutRootRequestOf::viewport(Size::splat(AvailableOf::definite(S::from_f64(400.0))))
+                .expect("RTL subgrid viewport is valid"),
+        )
+        .expect("RTL subgrid alignment computes through the public front door");
+        let inline_grid =
+            fri06_c07_height_output(batch.unrounded_entries(), tree.target_inline_grid);
+        let subgrid = fri06_c07_height_output(batch.unrounded_entries(), tree.target_subgrid);
+        let subject = fri06_c07_height_output(batch.unrounded_entries(), tree.target_subject);
+
+        assert_eq!(subject.size, Size::splat(S::from_f64(40.0)), "{row:?}");
+        let root_relative_origin = Point::new(
+            inline_grid.location.x + subgrid.location.x + subject.location.x,
+            inline_grid.location.y + subgrid.location.y + subject.location.y,
+        );
+        assert_eq!(
+            root_relative_origin.y,
+            S::from_f64(match row.item_alignment {
+                AlignItems::Start => 30.0,
+                AlignItems::End => 130.0,
+                AlignItems::Center => 230.0,
+                AlignItems::Baseline => 330.0,
+                _ => unreachable!("finite table alignment"),
+            }),
+            "{row:?} must preserve the logical block origin"
+        );
+        let expected_x = fri06_c07_subgrid_rtl_expected_origin(row.self_alignment);
+        if root_relative_origin.x != expected_x {
+            physical_inline_mismatches.push(format!(
+                "{row:?}: inline-grid x={:?}, subgrid x={:?}, subject x={:?}, root-relative x={:?}, expected x={expected_x:?}",
+                inline_grid.location.x,
+                subgrid.location.x,
+                subject.location.x,
+                root_relative_origin.x,
+            ));
+        }
+    }
+    physical_inline_mismatches
+}
+
+#[test]
+fn fri06_c07_subgrid_rtl_exact_thirty_two_rows_mirror_only_physical_inline_origin() {
+    let mut mismatches = fri06_c07_subgrid_rtl_mismatches::<f32>();
+    mismatches.extend(fri06_c07_subgrid_rtl_mismatches::<f64>());
+    assert!(
+        mismatches.is_empty(),
+        "every row in both scalar lanes must mirror the logical inline origin exactly once: {mismatches:#?}"
+    );
+}
+
 fn fri06_mr02_geometry_error_largest_finite<S: LayoutScalar>() -> S {
     if core::mem::size_of::<S>() == core::mem::size_of::<f32>() {
         S::from_f64(f32::MAX.into())
