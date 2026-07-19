@@ -2,7 +2,8 @@ use super::{
     ComputedOverflow, DefaultScalar, Direction, Edges, FlowAxes, LayoutScalar, LengthPercentageOf,
     LogicalAxis, NumericResolutionOf, Overflow, OverflowClipBox, PercentageBasisOf, PhysicalAxis,
     PhysicalSide, Point, ScrollMarginOf, ScrollSnapAlign, ScrollSnapStop, ScrollSnapType,
-    ScrollbarGutter, ScrollbarWidthOf, Size, scalar::canonical_zero,
+    ScrollbarGutter, ScrollbarWidthOf, Size,
+    scalar::{canonical_zero, round_layout_coordinate},
 };
 use crate::geometry::LogicalEdgesOf;
 
@@ -2743,7 +2744,7 @@ pub(crate) fn rebuild_rounded_canonical_scroll_geometry<S: LayoutScalar>(
             fact: CanonicalScrollRectFact::BorderBox,
             source: error,
         })?;
-    let rounded_scrollbar_width = round(source.scrollbar_width.get());
+    let rounded_scrollbar_width = round_layout_coordinate(source.scrollbar_width.get());
     let scrollbar_width = ScrollbarWidthOf::try_new(rounded_scrollbar_width).map_err(|_| {
         CanonicalScrollGeometryErrorOf::RoundedScrollbarWidth {
             value: rounded_scrollbar_width,
@@ -2783,7 +2784,7 @@ pub(crate) fn rebuild_rounded_canonical_scroll_geometry<S: LayoutScalar>(
         scrollbar_width,
         clip_margin: ClipMarginSourceOf::new(
             source.clip_margin.reference_box,
-            round(source.clip_margin.margin),
+            round_layout_coordinate(source.clip_margin.margin),
         ),
         scroll_padding,
         contributions: round_canonical_contributions(source.contributions, cumulative_origin)?,
@@ -2825,12 +2826,16 @@ fn round_canonical_source_edges<S: LayoutScalar>(
     Edges::new(
         round_canonical_source_coordinate(edges.top, cumulative_origin.y),
         canonical_zero(
-            round(cumulative_origin.x + border_box_size.width)
-                - round(cumulative_origin.x + border_box_size.width - edges.right),
+            round_layout_coordinate(cumulative_origin.x + border_box_size.width)
+                - round_layout_coordinate(
+                    cumulative_origin.x + border_box_size.width - edges.right,
+                ),
         ),
         canonical_zero(
-            round(cumulative_origin.y + border_box_size.height)
-                - round(cumulative_origin.y + border_box_size.height - edges.bottom),
+            round_layout_coordinate(cumulative_origin.y + border_box_size.height)
+                - round_layout_coordinate(
+                    cumulative_origin.y + border_box_size.height - edges.bottom,
+                ),
         ),
         round_canonical_source_coordinate(edges.left, cumulative_origin.x),
     )
@@ -2966,7 +2971,9 @@ fn round_canonical_final_in_flow_end<S: LayoutScalar>(
 }
 
 fn round_canonical_source_coordinate<S: LayoutScalar>(value: S, cumulative: S) -> S {
-    canonical_zero(round(cumulative + value) - round(cumulative))
+    canonical_zero(
+        round_layout_coordinate(cumulative + value) - round_layout_coordinate(cumulative),
+    )
 }
 
 type DefaultCanonicalScrollGeometryFactory =
@@ -3091,10 +3098,6 @@ pub(crate) fn content_box_inset_with_scrollbar<S: LayoutScalar>(
     reservation: ScrollbarReservationOf<S>,
 ) -> Edges<S> {
     padding + border + reservation.inset()
-}
-
-fn round<S: LayoutScalar>(value: S) -> S {
-    (value + S::from_f64(0.5)).floor()
 }
 
 #[cfg(test)]
@@ -5613,6 +5616,29 @@ mod fri05_c02_factory_rounding_tests {
         }
     }
 
+    fn assert_fri06_mr02_layout_round_scroll_publication<S: LayoutScalar>() {
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let source = fractional_source(flow_axes, 0);
+        let unrounded = canonical_scroll_geometry_from_source(source).unwrap();
+        let cumulative_origin = Point::new(scalar(10.25), scalar(-20.35));
+        let expected_source = expected_rounded_source(source, unrounded, cumulative_origin);
+        let expected = canonical_scroll_geometry_from_source(expected_source).unwrap();
+
+        let actual =
+            rebuild_rounded_canonical_scroll_geometry(unrounded, cumulative_origin).unwrap();
+        let output = crate::NodeOutputOf::<S> {
+            size: actual.border_box().size(),
+            ..crate::NodeOutputOf::new()
+        }
+        .with_scroll_geometry(Some(actual));
+
+        assert_eq!(actual.physical_range(), expected.physical_range());
+        assert_eq!(actual.scrollable_overflow(), expected.scrollable_overflow());
+        assert_eq!(output.scroll_geometry, Some(actual));
+        assert_eq!(output.content_box_size(), actual.content_box().size());
+        assert_eq!(output.scrollbar_size(), actual.scrollbar_size());
+    }
+
     #[test]
     fn fri05_c02_rounding_rebuilds_from_expected_sources_in_all_flows_and_scalar_lanes() {
         assert_rounding_contract::<f32>();
@@ -5623,6 +5649,12 @@ mod fri05_c02_factory_rounding_tests {
     fn fri05_c03_round_cache_ranges_and_output_helpers_agree_after_source_rounding() {
         assert_rounding_contract::<f32>();
         assert_rounding_contract::<f64>();
+    }
+
+    #[test]
+    fn fri06_mr02_layout_round_scroll_ranges_and_publication_preserve_cumulative_source_rounding() {
+        assert_fri06_mr02_layout_round_scroll_publication::<f32>();
+        assert_fri06_mr02_layout_round_scroll_publication::<f64>();
     }
 
     fn assert_mismatched_border_box_rebuild_retains_terminal_padding<S: LayoutScalar>() {
@@ -5872,6 +5904,12 @@ mod fri05_c02_factory_rounding_tests {
 
     #[test]
     fn fri05_c02_rounding_reports_finite_coordinate_overflow_without_panic() {
+        assert_rounding_failure::<f32>(f32::MAX);
+        assert_rounding_failure::<f64>(f64::MAX);
+    }
+
+    #[test]
+    fn fri06_mr02_layout_round_scroll_overflow_preserves_typed_error_without_panic() {
         assert_rounding_failure::<f32>(f32::MAX);
         assert_rounding_failure::<f64>(f64::MAX);
     }

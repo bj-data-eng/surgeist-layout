@@ -8,6 +8,7 @@ use super::{
     Size, SizingMode, Traverse,
 };
 use crate::geometry::{FlowAxes, PhysicalAxis, PhysicalSide};
+use crate::scalar::round_layout_coordinate;
 use crate::scroll::{
     CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
     ClipMarginSourceOf, MeasuredLeafContentBoxInsetSourceOf, MeasuredLeafScrollGeometrySourceOf,
@@ -1914,26 +1915,34 @@ where
     let cumulative_x = cumulative_x + unrounded.location.x;
     let cumulative_y = cumulative_y + unrounded.location.y;
 
-    layout.location.x = round(unrounded.location.x);
-    layout.location.y = round(unrounded.location.y);
-    layout.size.width = round(cumulative_x + unrounded.size.width) - round(cumulative_x);
-    layout.size.height = round(cumulative_y + unrounded.size.height) - round(cumulative_y);
+    layout.location.x = round_layout_coordinate(unrounded.location.x);
+    layout.location.y = round_layout_coordinate(unrounded.location.y);
+    layout.size.width = round_layout_coordinate(cumulative_x + unrounded.size.width)
+        - round_layout_coordinate(cumulative_x);
+    layout.size.height = round_layout_coordinate(cumulative_y + unrounded.size.height)
+        - round_layout_coordinate(cumulative_y);
     layout.content_size.width =
-        round(cumulative_x + unrounded.content_size.width) - round(cumulative_x);
+        round_layout_coordinate(cumulative_x + unrounded.content_size.width)
+            - round_layout_coordinate(cumulative_x);
     layout.content_size.height =
-        round(cumulative_y + unrounded.content_size.height) - round(cumulative_y);
-    layout.border.left = round(cumulative_x + unrounded.border.left) - round(cumulative_x);
-    layout.border.right = round(cumulative_x + unrounded.size.width)
-        - round(cumulative_x + unrounded.size.width - unrounded.border.right);
-    layout.border.top = round(cumulative_y + unrounded.border.top) - round(cumulative_y);
-    layout.border.bottom = round(cumulative_y + unrounded.size.height)
-        - round(cumulative_y + unrounded.size.height - unrounded.border.bottom);
-    layout.padding.left = round(cumulative_x + unrounded.padding.left) - round(cumulative_x);
-    layout.padding.right = round(cumulative_x + unrounded.size.width)
-        - round(cumulative_x + unrounded.size.width - unrounded.padding.right);
-    layout.padding.top = round(cumulative_y + unrounded.padding.top) - round(cumulative_y);
-    layout.padding.bottom = round(cumulative_y + unrounded.size.height)
-        - round(cumulative_y + unrounded.size.height - unrounded.padding.bottom);
+        round_layout_coordinate(cumulative_y + unrounded.content_size.height)
+            - round_layout_coordinate(cumulative_y);
+    layout.border.left = round_layout_coordinate(cumulative_x + unrounded.border.left)
+        - round_layout_coordinate(cumulative_x);
+    layout.border.right = round_layout_coordinate(cumulative_x + unrounded.size.width)
+        - round_layout_coordinate(cumulative_x + unrounded.size.width - unrounded.border.right);
+    layout.border.top = round_layout_coordinate(cumulative_y + unrounded.border.top)
+        - round_layout_coordinate(cumulative_y);
+    layout.border.bottom = round_layout_coordinate(cumulative_y + unrounded.size.height)
+        - round_layout_coordinate(cumulative_y + unrounded.size.height - unrounded.border.bottom);
+    layout.padding.left = round_layout_coordinate(cumulative_x + unrounded.padding.left)
+        - round_layout_coordinate(cumulative_x);
+    layout.padding.right = round_layout_coordinate(cumulative_x + unrounded.size.width)
+        - round_layout_coordinate(cumulative_x + unrounded.size.width - unrounded.padding.right);
+    layout.padding.top = round_layout_coordinate(cumulative_y + unrounded.padding.top)
+        - round_layout_coordinate(cumulative_y);
+    layout.padding.bottom = round_layout_coordinate(cumulative_y + unrounded.size.height)
+        - round_layout_coordinate(cumulative_y + unrounded.size.height - unrounded.padding.bottom);
     let scroll_geometry = unrounded
         .scroll_geometry
         .map(|geometry| {
@@ -2007,12 +2016,16 @@ where
     let origin = rect.origin();
     let size = rect.size();
     let rounded_origin = Point::new(
-        round(cumulative_origin.x + origin.x) - round(cumulative_origin.x),
-        round(cumulative_origin.y + origin.y) - round(cumulative_origin.y),
+        round_layout_coordinate(cumulative_origin.x + origin.x)
+            - round_layout_coordinate(cumulative_origin.x),
+        round_layout_coordinate(cumulative_origin.y + origin.y)
+            - round_layout_coordinate(cumulative_origin.y),
     );
     let rounded_end = Point::new(
-        round(cumulative_origin.x + origin.x + size.width) - round(cumulative_origin.x),
-        round(cumulative_origin.y + origin.y + size.height) - round(cumulative_origin.y),
+        round_layout_coordinate(cumulative_origin.x + origin.x + size.width)
+            - round_layout_coordinate(cumulative_origin.x),
+        round_layout_coordinate(cumulative_origin.y + origin.y + size.height)
+            - round_layout_coordinate(cumulative_origin.y),
     );
     let rounded_rect = super::ScrollRectOf::try_new(
         rounded_origin,
@@ -2024,8 +2037,10 @@ where
     .map_err(|_| invalid_rounded_inline_fragment_error(node))?;
     let baseline = fragment.baseline();
     let rounded_baseline = Point::new(
-        round(cumulative_origin.x + baseline.x) - round(cumulative_origin.x),
-        round(cumulative_origin.y + baseline.y) - round(cumulative_origin.y),
+        round_layout_coordinate(cumulative_origin.x + baseline.x)
+            - round_layout_coordinate(cumulative_origin.x),
+        round_layout_coordinate(cumulative_origin.y + baseline.y)
+            - round_layout_coordinate(cumulative_origin.y),
     );
     if !rounded_baseline.x.is_finite() || !rounded_baseline.y.is_finite() {
         return Err(invalid_rounded_inline_fragment_error(node));
@@ -2051,11 +2066,6 @@ where
             LayoutInternalInvariant::InvalidRoundedInlineFragmentGeometry,
         ),
     )
-}
-
-#[inline]
-fn round<S: LayoutScalar>(value: S) -> S {
-    (value + S::from_f64(0.5)).floor()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -3408,6 +3418,86 @@ mod tests {
 
     #[test]
     fn fri06_c02_rounding_overflow_returns_typed_error_without_panic() {
+        assert_fri06_c01_fragment_rounding_overflow(f32::MAX);
+        assert_fri06_c01_fragment_rounding_overflow(f64::MAX);
+    }
+
+    fn assert_fri06_mr02_layout_round_fragment_boundaries<S: LayoutScalar>() {
+        for (value, expected) in [
+            (-2.0, -2.0),
+            (-1.51, -2.0),
+            (-1.5, -1.0),
+            (-1.49, -1.0),
+            (-0.51, -1.0),
+            (-0.5, 0.0),
+            (-0.49, 0.0),
+            (0.0, 0.0),
+            (0.49, 0.0),
+            (0.5, 1.0),
+            (0.51, 1.0),
+            (1.49, 1.0),
+            (1.5, 2.0),
+            (1.51, 2.0),
+            (2.0, 2.0),
+            (-1_048_576.5, -1_048_576.0),
+            (1_048_576.5, 1_048_577.0),
+        ] {
+            let value = S::from_f64(value);
+            let expected = S::from_f64(expected);
+            let fragment = InlineFragmentOutputOf::new(
+                InlineSegmentId::new(1),
+                ScrollRectOf::try_new(Point::new(value, value), Size::ZERO).unwrap(),
+                Point::new(value, value),
+                0,
+                0,
+                None,
+            );
+
+            let rounded = round_inline_fragment::<u32, S, ()>(7, fragment, Point::ZERO).unwrap();
+
+            assert_eq!(rounded.rect().origin(), Point::new(expected, expected));
+            assert_eq!(rounded.baseline(), Point::new(expected, expected));
+        }
+
+        for (value, cumulative, expected) in [
+            (0.25, 0.25, 1.0),
+            (0.5, -0.25, 0.0),
+            (-0.5, -0.25, -1.0),
+            (1.49, 10.25, 2.0),
+            (-1.49, -10.25, -2.0),
+        ] {
+            let value = S::from_f64(value);
+            let cumulative = S::from_f64(cumulative);
+            let expected = S::from_f64(expected);
+            let fragment = InlineFragmentOutputOf::new(
+                InlineSegmentId::new(1),
+                ScrollRectOf::try_new(Point::new(value, value), Size::ZERO).unwrap(),
+                Point::new(value, value),
+                0,
+                0,
+                None,
+            );
+
+            let rounded = round_inline_fragment::<u32, S, ()>(
+                7,
+                fragment,
+                Point::new(cumulative, cumulative),
+            )
+            .unwrap();
+
+            assert_eq!(rounded.rect().origin(), Point::new(expected, expected));
+            assert_eq!(rounded.baseline(), Point::new(expected, expected));
+        }
+    }
+
+    #[test]
+    fn fri06_mr02_layout_round_fragments_baselines_and_cumulative_origins_are_preserved() {
+        assert_fri06_mr02_layout_round_fragment_boundaries::<f32>();
+        assert_fri06_mr02_layout_round_fragment_boundaries::<f64>();
+    }
+
+    #[test]
+    fn fri06_mr02_layout_round_fragment_overflow_preserves_typed_error() {
         assert_fri06_c01_fragment_rounding_overflow(f32::MAX);
         assert_fri06_c01_fragment_rounding_overflow(f64::MAX);
     }

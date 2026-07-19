@@ -41,6 +41,11 @@ pub(crate) fn canonical_zero<S: LayoutScalar>(value: S) -> S {
     if value == S::ZERO { S::ZERO } else { value }
 }
 
+#[inline]
+pub(crate) fn round_layout_coordinate<S: LayoutScalar>(value: S) -> S {
+    (value + S::from_f64(0.5)).floor()
+}
+
 macro_rules! impl_layout_scalar {
     ($ty:ty) => {
         impl private::Sealed for $ty {}
