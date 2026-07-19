@@ -14,6 +14,106 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+fn fri06_mr02_scroll_padding_cases<S: LayoutScalar>() -> [(ScrollPaddingOf<S>, Edges<S>); 2] {
+    let value = |value| {
+        ScrollPaddingValueOf::value(
+            LengthPercentageOf::px(S::from_f64(value)).expect("test scroll padding is finite"),
+        )
+    };
+
+    [
+        (
+            ScrollPaddingOf::new(
+                value(11.0),
+                ScrollPaddingValueOf::AUTO,
+                value(33.0),
+                ScrollPaddingValueOf::AUTO,
+            ),
+            Edges::new(S::from_f64(11.0), S::ZERO, S::from_f64(33.0), S::ZERO),
+        ),
+        (
+            ScrollPaddingOf::new(
+                ScrollPaddingValueOf::AUTO,
+                value(22.0),
+                ScrollPaddingValueOf::AUTO,
+                value(44.0),
+            ),
+            Edges::new(S::ZERO, S::from_f64(22.0), S::ZERO, S::from_f64(44.0)),
+        ),
+    ]
+}
+
+fn fri06_mr02_scroll_padding_input<S: LayoutScalar>(size: Size<S>) -> ComputeInputOf<S> {
+    ComputeInputOf::for_child(
+        RunMode::PerformLayout,
+        SizingMode::InherentSize,
+        RequestedAxis::Both,
+        size.map(Some),
+        size.map(Some),
+        ContainingLayoutContext::new(
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            ParentFormattingContext::NoParent,
+        ),
+        size.map(AvailableOf::definite),
+    )
+}
+
+fn assert_fri06_mr02_scroll_padding_grid<S: LayoutScalar>() {
+    let size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    for (scroll_padding, expected) in fri06_mr02_scroll_padding_cases() {
+        let style = NodeInputOf::<S> {
+            display: Display::Grid,
+            size: Size::new(
+                PreferredSizeOf::px(size.width),
+                PreferredSizeOf::px(size.height),
+            ),
+            scroll_padding,
+            ..NodeInputOf::default()
+        };
+        let mut tree = OracleTreeOf::<S>::new().children(0, []).style(0, style);
+        let output = compute_grid(&mut tree, 0, fri06_mr02_scroll_padding_input(size))
+            .expect("grid scroll-padding characterization succeeds");
+        let geometry = output
+            .scroll_geometry
+            .expect("performed grid layout emits geometry");
+
+        assert_eq!(geometry.resolved_scroll_padding(), expected);
+    }
+}
+
+fn assert_fri06_mr02_scroll_padding_grid_child<S: LayoutScalar>() {
+    let size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    for (scroll_padding, expected) in fri06_mr02_scroll_padding_cases() {
+        let style = NodeInputOf::<S> {
+            scroll_padding,
+            ..NodeInputOf::default()
+        };
+        let geometry = super::child::retained_grid_child_scroll_geometry(
+            &style,
+            size,
+            size,
+            Edges::ZERO,
+            Edges::ZERO,
+            None,
+        )
+        .expect("grid-child scroll-padding characterization succeeds");
+
+        assert_eq!(geometry.resolved_scroll_padding(), expected);
+    }
+}
+
+#[test]
+fn fri06_mr02_scroll_padding_grid_preserves_auto_and_value_on_each_physical_edge() {
+    assert_fri06_mr02_scroll_padding_grid::<f32>();
+    assert_fri06_mr02_scroll_padding_grid::<f64>();
+}
+
+#[test]
+fn fri06_mr02_scroll_padding_grid_child_preserves_auto_and_value_on_each_physical_edge() {
+    assert_fri06_mr02_scroll_padding_grid_child::<f32>();
+    assert_fri06_mr02_scroll_padding_grid_child::<f64>();
+}
+
 fn used_overflow(x: Overflow, y: Overflow) -> crate::scroll::UsedOverflow {
     crate::scroll::UsedOverflow::from_computed(computed_overflow(x, y), false)
 }

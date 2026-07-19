@@ -25,6 +25,26 @@ use crate::traits::UnroundedInlineFragmentState;
 use crate::{CompletedLayoutBatchOf, LayoutTree};
 use crate::{FlexBasisOf, MaxSizeOf, MinSizeOf, PercentageBasisOf, PreferredSizeOf};
 
+impl<S: LayoutScalar> OptimalRegionInsetsOf<S> {
+    pub(crate) fn from_scroll_padding(scroll_padding: crate::ScrollPaddingOf<S>) -> Self {
+        fn inset<S: LayoutScalar>(
+            value: crate::ScrollPaddingValueOf<S>,
+        ) -> OptimalRegionInsetOf<S> {
+            match value {
+                crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
+                crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
+            }
+        }
+
+        Self::new(
+            inset(scroll_padding.top()),
+            inset(scroll_padding.right()),
+            inset(scroll_padding.bottom()),
+            inset(scroll_padding.left()),
+        )
+    }
+}
+
 #[cfg(test)]
 std::thread_local! {
     static HIDDEN_COMPUTE_SESSION_REQUESTS: std::cell::RefCell<Vec<(
@@ -1634,7 +1654,7 @@ where
             style.overflow_clip_margin.clip_box(),
             style.overflow_clip_margin.margin(),
         ),
-        scroll_padding: leaf_scroll_padding(style.scroll_padding),
+        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
         contributions,
         origin_axes: ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
@@ -2398,7 +2418,7 @@ where
                     style.overflow_clip_margin.clip_box(),
                     style.overflow_clip_margin.margin(),
                 ),
-                scroll_padding: leaf_scroll_padding(style.scroll_padding),
+                scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
                 measured_content_size: measured,
                 scroll_snap_type: style.scroll_snap_type,
                 target_scroll_margin: style.scroll_margin,
@@ -2428,24 +2448,6 @@ where
 struct LeafPassInputOf<S: LayoutScalar> {
     content_box_inset_size: Size<S>,
     measurement_input: LeafMeasureInputOf<S>,
-}
-
-fn leaf_scroll_padding<S: LayoutScalar>(
-    scroll_padding: crate::ScrollPaddingOf<S>,
-) -> OptimalRegionInsetsOf<S> {
-    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
-        match value {
-            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
-            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
-        }
-    }
-
-    OptimalRegionInsetsOf::new(
-        inset(scroll_padding.top()),
-        inset(scroll_padding.right()),
-        inset(scroll_padding.bottom()),
-        inset(scroll_padding.left()),
-    )
 }
 
 fn leaf_pass_input<Node, S, M>(

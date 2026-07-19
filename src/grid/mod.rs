@@ -17,8 +17,8 @@ use crate::node_input::item_order_permutation;
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
     CanonicalScrollBoxOf, CanonicalScrollBoxSourceOf, CanonicalScrollGeometrySourceOf,
-    ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf, ScrollOriginAxes,
-    ScrollOriginProgression, ScrollbarReservationOf, canonical_scroll_box_from_source,
+    ClipMarginSourceOf, OptimalRegionInsetsOf, ScrollOriginAxes, ScrollOriginProgression,
+    ScrollbarReservationOf, canonical_scroll_box_from_source,
     canonical_scroll_geometry_from_source, content_box_inset_with_scrollbar,
 };
 
@@ -2416,7 +2416,7 @@ where
             style.overflow_clip_margin.clip_box(),
             style.overflow_clip_margin.margin(),
         ),
-        scroll_padding: grid_scroll_padding(style.scroll_padding),
+        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
         contributions,
         origin_axes: ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
@@ -2430,24 +2430,6 @@ where
         target_snap_stop: style.scroll_snap_stop,
     })
     .map_err(|error| grid_own_geometry_error(node, run_mode, error))
-}
-
-fn grid_scroll_padding<S: LayoutScalar>(
-    scroll_padding: crate::ScrollPaddingOf<S>,
-) -> OptimalRegionInsetsOf<S> {
-    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
-        match value {
-            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
-            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
-        }
-    }
-
-    OptimalRegionInsetsOf::new(
-        inset(scroll_padding.top()),
-        inset(scroll_padding.right()),
-        inset(scroll_padding.bottom()),
-        inset(scroll_padding.left()),
-    )
 }
 
 fn grid_own_geometry_error<Node, S, M, E>(

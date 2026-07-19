@@ -4,6 +4,72 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+fn fri06_mr02_scroll_padding_cases<S: LayoutScalar>() -> [(ScrollPaddingOf<S>, Edges<S>); 2] {
+    let value = |value| {
+        ScrollPaddingValueOf::value(
+            LengthPercentageOf::px(S::from_f64(value)).expect("test scroll padding is finite"),
+        )
+    };
+
+    [
+        (
+            ScrollPaddingOf::new(
+                value(11.0),
+                ScrollPaddingValueOf::AUTO,
+                value(33.0),
+                ScrollPaddingValueOf::AUTO,
+            ),
+            Edges::new(S::from_f64(11.0), S::ZERO, S::from_f64(33.0), S::ZERO),
+        ),
+        (
+            ScrollPaddingOf::new(
+                ScrollPaddingValueOf::AUTO,
+                value(22.0),
+                ScrollPaddingValueOf::AUTO,
+                value(44.0),
+            ),
+            Edges::new(S::ZERO, S::from_f64(22.0), S::ZERO, S::from_f64(44.0)),
+        ),
+    ]
+}
+
+fn assert_fri06_mr02_scroll_padding_leaf<S: LayoutScalar>() {
+    let size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    for (scroll_padding, expected) in fri06_mr02_scroll_padding_cases() {
+        let style = NodeInputOf::<S> {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(size.width),
+                PreferredSizeOf::px(size.height),
+            ),
+            scroll_padding,
+            ..NodeInputOf::default()
+        };
+        let input = ComputeInputOf::leaf_layout(
+            size.map(Some),
+            size.map(Some),
+            ContainingLayoutContext::new(
+                FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                ParentFormattingContext::NoParent,
+            ),
+            size.map(AvailableOf::definite),
+        )
+        .expect("test leaf input is valid");
+        let geometry = compute_leaf(input, &style, |_measurement| Ok::<_, ()>(size))
+            .expect("leaf scroll-padding characterization succeeds")
+            .scroll_geometry
+            .expect("performed leaf layout emits geometry");
+
+        assert_eq!(geometry.resolved_scroll_padding(), expected);
+    }
+}
+
+#[test]
+fn fri06_mr02_scroll_padding_leaf_preserves_auto_and_value_on_each_physical_edge() {
+    assert_fri06_mr02_scroll_padding_leaf::<f32>();
+    assert_fri06_mr02_scroll_padding_leaf::<f64>();
+}
+
 fn assert_measured_leaf_block_margin_collapse_uses_own_logical_block_extent<S: LayoutScalar>() {
     let containing_flow = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
 

@@ -11,7 +11,7 @@ use crate::geometry::{
 use crate::output::PhysicalBaseline;
 use crate::scroll::{
     CanonicalScrollGeometryErrorOf, ClipMarginSourceOf, MeasuredLeafScrollGeometrySourceOf,
-    OptimalRegionInsetOf, OptimalRegionInsetsOf, OptionalPhysicalContributionIntervalsOf,
+    OptimalRegionInsetsOf, OptionalPhysicalContributionIntervalsOf,
     ScrollContributionAccumulatorOf, UsedOverflow, canonical_measured_leaf_scroll_geometry,
     rebuild_canonical_scroll_geometry_for_border_box,
 };
@@ -2505,24 +2505,6 @@ pub(super) struct AbsoluteGridAxisInput<'a, S: LayoutScalar = Scalar> {
     pub(super) explicit_count: usize,
 }
 
-fn grid_scroll_padding<S: LayoutScalar>(
-    scroll_padding: crate::ScrollPaddingOf<S>,
-) -> OptimalRegionInsetsOf<S> {
-    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
-        match value {
-            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
-            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
-        }
-    }
-
-    OptimalRegionInsetsOf::new(
-        inset(scroll_padding.top()),
-        inset(scroll_padding.right()),
-        inset(scroll_padding.bottom()),
-        inset(scroll_padding.left()),
-    )
-}
-
 pub(super) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
     style: &NodeInputOf<S>,
     size: Size<S>,
@@ -2553,7 +2535,7 @@ pub(super) fn retained_grid_child_scroll_geometry<S: LayoutScalar>(
             style.overflow_clip_margin.clip_box(),
             style.overflow_clip_margin.margin(),
         ),
-        scroll_padding: grid_scroll_padding(style.scroll_padding),
+        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
         measured_content_size: content_size,
         scroll_snap_type: style.scroll_snap_type,
         target_scroll_margin: style.scroll_margin,

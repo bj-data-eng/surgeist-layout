@@ -8,6 +8,81 @@ fn computed_overflow(x: Overflow, y: Overflow) -> ComputedOverflow {
     ComputedOverflow::try_new(x, y).expect("test overflow pair must already be canonical")
 }
 
+fn fri06_mr02_scroll_padding_cases<S: LayoutScalar>() -> [(ScrollPaddingOf<S>, Edges<S>); 2] {
+    let value = |value| {
+        ScrollPaddingValueOf::value(
+            LengthPercentageOf::px(S::from_f64(value)).expect("test scroll padding is finite"),
+        )
+    };
+
+    [
+        (
+            ScrollPaddingOf::new(
+                value(11.0),
+                ScrollPaddingValueOf::AUTO,
+                value(33.0),
+                ScrollPaddingValueOf::AUTO,
+            ),
+            Edges::new(S::from_f64(11.0), S::ZERO, S::from_f64(33.0), S::ZERO),
+        ),
+        (
+            ScrollPaddingOf::new(
+                ScrollPaddingValueOf::AUTO,
+                value(22.0),
+                ScrollPaddingValueOf::AUTO,
+                value(44.0),
+            ),
+            Edges::new(S::ZERO, S::from_f64(22.0), S::ZERO, S::from_f64(44.0)),
+        ),
+    ]
+}
+
+fn assert_fri06_mr02_scroll_padding_flex<S: LayoutScalar>() {
+    let size = Size::new(S::from_f64(100.0), S::from_f64(80.0));
+    for (scroll_padding, expected) in fri06_mr02_scroll_padding_cases() {
+        let style = NodeInputOf::<S> {
+            display: Display::Flex,
+            size: Size::new(
+                PreferredSizeOf::px(size.width),
+                PreferredSizeOf::px(size.height),
+            ),
+            scroll_padding,
+            ..NodeInputOf::default()
+        };
+        let mut tree = crate::test_support::layout_tree::OracleTreeOf::<S>::new()
+            .children(0, [])
+            .style(0, style);
+        let output = compute_flex(
+            &mut tree,
+            0,
+            ComputeInputOf::for_child(
+                RunMode::PerformLayout,
+                SizingMode::InherentSize,
+                RequestedAxis::Both,
+                size.map(Some),
+                size.map(Some),
+                ContainingLayoutContext::new(
+                    FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+                    ParentFormattingContext::NoParent,
+                ),
+                size.map(AvailableOf::definite),
+            ),
+        )
+        .expect("flex scroll-padding characterization succeeds");
+        let geometry = output
+            .scroll_geometry
+            .expect("performed flex layout emits geometry");
+
+        assert_eq!(geometry.resolved_scroll_padding(), expected);
+    }
+}
+
+#[test]
+fn fri06_mr02_scroll_padding_flex_preserves_auto_and_value_on_each_physical_edge() {
+    assert_fri06_mr02_scroll_padding_flex::<f32>();
+    assert_fri06_mr02_scroll_padding_flex::<f64>();
+}
+
 fn fri04_c03_flex_value(value: f32) -> SizingCalculation {
     SizingCalculation::value(LengthPercentageOf::px(value).expect("test sizing value is finite"))
 }

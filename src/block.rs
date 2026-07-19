@@ -26,10 +26,10 @@ use crate::compute::{
 use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf, PhysicalAxis, PhysicalSide};
 use crate::scroll::{
     CanonicalScrollBoxSourceOf, CanonicalScrollGeometryErrorOf, CanonicalScrollGeometrySourceOf,
-    ClipMarginSourceOf, OptimalRegionInsetOf, OptimalRegionInsetsOf,
-    ScrollContributionAccumulatorOf, ScrollOriginAxes, ScrollOriginProgression, UsedOverflow,
-    canonical_scroll_box_from_source, canonical_scroll_geometry_from_source,
-    rebuild_canonical_scroll_geometry_for_border_box, scrollbar_size_from_overflow,
+    ClipMarginSourceOf, OptimalRegionInsetsOf, ScrollContributionAccumulatorOf, ScrollOriginAxes,
+    ScrollOriginProgression, UsedOverflow, canonical_scroll_box_from_source,
+    canonical_scroll_geometry_from_source, rebuild_canonical_scroll_geometry_for_border_box,
+    scrollbar_size_from_overflow,
 };
 
 pub(crate) fn compute_block<Tree, M>(
@@ -3019,7 +3019,7 @@ where
             style.overflow_clip_margin.clip_box(),
             style.overflow_clip_margin.margin(),
         ),
-        scroll_padding: block_scroll_padding(style.scroll_padding),
+        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
         contributions,
         origin_axes: ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
@@ -3033,24 +3033,6 @@ where
         target_snap_stop: style.scroll_snap_stop,
     })
     .map_err(|error| block_own_geometry_error(node, run_mode, error))
-}
-
-fn block_scroll_padding<S: LayoutScalar>(
-    scroll_padding: crate::ScrollPaddingOf<S>,
-) -> OptimalRegionInsetsOf<S> {
-    fn inset<S: LayoutScalar>(value: crate::ScrollPaddingValueOf<S>) -> OptimalRegionInsetOf<S> {
-        match value {
-            crate::ScrollPaddingValueOf::Value(value) => OptimalRegionInsetOf::Value(value),
-            crate::ScrollPaddingValueOf::Auto => OptimalRegionInsetOf::Auto,
-        }
-    }
-
-    OptimalRegionInsetsOf::new(
-        inset(scroll_padding.top()),
-        inset(scroll_padding.right()),
-        inset(scroll_padding.bottom()),
-        inset(scroll_padding.left()),
-    )
 }
 
 fn block_own_geometry_error<Node, S, M, E>(
@@ -3166,7 +3148,7 @@ fn retained_child_scroll_geometry<S: LayoutScalar>(
             style.overflow_clip_margin.clip_box(),
             style.overflow_clip_margin.margin(),
         ),
-        scroll_padding: block_scroll_padding(style.scroll_padding),
+        scroll_padding: OptimalRegionInsetsOf::from_scroll_padding(style.scroll_padding),
         contributions,
         origin_axes: ScrollOriginAxes::new(
             ScrollOriginProgression::FlowEndward,
