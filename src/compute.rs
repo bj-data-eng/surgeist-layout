@@ -739,23 +739,30 @@ where
         mut self,
         root: Tree::Node,
     ) -> CompletedLayoutBatchOf<Tree::Node, Tree::Scalar> {
-        let mut source_order = Vec::new();
+        let mut visited = Vec::new();
         let mut pending = vec![root];
+        let mut ordered_unrounded = Vec::with_capacity(self.unrounded_entries.len());
+        let mut ordered_final = Vec::with_capacity(self.final_entries.len());
         while let Some(node) = pending.pop() {
-            source_order.push(node);
+            if visited.contains(&node) {
+                continue;
+            }
+            visited.push(node);
+            if let Some(entry) = take_layout_entry(&mut self.unrounded_entries, node) {
+                ordered_unrounded.push(entry);
+            }
+            if let Some(entry) = take_layout_entry(&mut self.final_entries, node) {
+                ordered_final.push(entry);
+            }
             let children = self.tree.children(node).collect::<Vec<_>>();
             pending.extend(children.into_iter().rev());
         }
-        let source_position = |node| {
-            source_order
-                .iter()
-                .position(|candidate| *candidate == node)
-                .expect("completed output nodes remain reachable from the validated root")
-        };
-        self.unrounded_entries
-            .sort_by_key(|entry| source_position(entry.node()));
-        self.final_entries
-            .sort_by_key(|entry| source_position(entry.node()));
+        assert!(
+            self.unrounded_entries.is_empty() && self.final_entries.is_empty(),
+            "completed output nodes remain reachable from the validated root"
+        );
+        self.unrounded_entries = ordered_unrounded;
+        self.final_entries = ordered_final;
         self.complete()
     }
 
@@ -1286,6 +1293,20 @@ fn set_inline_fragment_group<Node, S>(
     } else {
         groups.push(StagedInlineFragmentGroup { node, fragments });
     }
+}
+
+fn take_layout_entry<Node, S>(
+    entries: &mut Vec<LayoutOutputEntryOf<Node, S>>,
+    node: Node,
+) -> Option<LayoutOutputEntryOf<Node, S>>
+where
+    Node: Copy + Eq,
+    S: LayoutScalar,
+{
+    entries
+        .iter()
+        .position(|entry| entry.node() == node)
+        .map(|index| entries.swap_remove(index))
 }
 
 impl<Tree> CacheAccess<Tree::MeasureError> for ComputeSession<'_, Tree>
@@ -2943,6 +2964,94 @@ mod tests {
         fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<Self::Scalar> {
             LayoutInputOf::box_input(self.input.clone())
         }
+    }
+
+    struct BoundedDagTree {
+        input: NodeInput,
+        children: Vec<Vec<u32>>,
+        adjacency_queries: std::cell::Cell<usize>,
+        remaining_adjacency_budget: std::cell::Cell<usize>,
+    }
+
+    impl Traverse for BoundedDagTree {
+        type Node = u32;
+        type Scalar = DefaultScalar;
+        type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+        fn children(&self, node: Self::Node) -> Self::Children<'_> {
+            let remaining = self.remaining_adjacency_budget.get();
+            assert!(
+                remaining > 0,
+                "completion traversal exceeded one adjacency query per unique node"
+            );
+            self.remaining_adjacency_budget.set(remaining - 1);
+            self.adjacency_queries.set(self.adjacency_queries.get() + 1);
+            self.children[node as usize].iter().copied()
+        }
+
+        fn child_count(&self, node: Self::Node) -> usize {
+            self.children[node as usize].len()
+        }
+
+        fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+            self.children[node as usize][index]
+        }
+    }
+
+    impl LayoutTree for BoundedDagTree {
+        type MeasureError = ();
+
+        fn node_input(&self, _node: Self::Node) -> &NodeInput {
+            &self.input
+        }
+
+        fn layout_input(&self, _node: Self::Node) -> LayoutInputOf<DefaultScalar> {
+            LayoutInputOf::box_input(self.input.clone())
+        }
+    }
+
+    #[test]
+    fn fri06_c04_float_lifecycle_completion_shared_repeated_dag_is_source_ordered_and_bounded() {
+        let tree = BoundedDagTree {
+            input: NodeInput::default(),
+            children: vec![
+                vec![1, 1, 2, 2],
+                vec![2, 2, 3, 3],
+                vec![4, 4],
+                vec![4, 4, 5, 5],
+                vec![5, 5],
+                Vec::new(),
+            ],
+            adjacency_queries: std::cell::Cell::new(0),
+            remaining_adjacency_budget: std::cell::Cell::new(6),
+        };
+        let mut session = ComputeSession::new(&tree, Vec::new());
+        for node in [2, 4, 5, 3, 1, 0] {
+            Compute::set_unrounded(&mut session, node, NodeOutputOf::new());
+            Round::set_final(&mut session, node, NodeOutputOf::new());
+        }
+
+        let batch = session.complete_for_root(0);
+        let expected_source_order = [0, 1, 2, 4, 5, 3];
+
+        assert_eq!(
+            batch
+                .unrounded_entries()
+                .iter()
+                .map(LayoutOutputEntryOf::node)
+                .collect::<Vec<_>>(),
+            expected_source_order
+        );
+        assert_eq!(
+            batch
+                .final_entries()
+                .iter()
+                .map(LayoutOutputEntryOf::node)
+                .collect::<Vec<_>>(),
+            expected_source_order
+        );
+        assert_eq!(tree.adjacency_queries.get(), 6);
+        assert_eq!(tree.remaining_adjacency_budget.get(), 0);
     }
 
     #[test]
