@@ -1,6 +1,6 @@
 # FRI-06 Inline Formatting, Floats, And BFCs Implementation Sequence
 
-Status: reviewed
+Status: draft
 
 Sequence ID: `FRI-06`
 
@@ -249,20 +249,25 @@ remotely verified.
 focused C05 evidence but have not yet faced the activation matrix; C07 owns that
 validation. The browser adapter cannot compare control/fragment output or lower
 shaped text, atomic participation, bottom alignment, and finite shape-band
-tables. Generation inputs and derived artifacts remain frozen.
+tables. Generation inputs and derived artifacts remain frozen. Final
+generator-feature verification also exposed one pre-existing lifecycle test that
+still models implicit file close instead of the generator's explicit lease-release
+front door.
 
 **Bounded outcome:** Extend only the Rust fixture adapter and comparator to parse,
 lower, store, and compare the reviewed control, fragment, shaped-text, atomic,
 bottom-alignment, and finite shape-band facts through production constructors and
-front doors. Do not edit helper, generator, HTML, manifest, XML, report, or
-production source and do not run generation.
+front doors. Correct only that stale generator lifecycle test to use the existing
+explicit release front door. Do not edit generator implementation, helper, HTML,
+manifest, XML, report, or production source and do not run generation.
 
 **Observable exit evidence:** Strict negative controls detect every named
 geometry, identity, schema, role, query, and provider mismatch. Valid controls,
 fragments, shaped/atomic input, bottom alignment, and empty/partial/full shape
 bands agree through the real fixture-tree and production front doors. Default and
 generator-feature verification pass with generation inputs and artifacts
-unchanged.
+unchanged, and the lease lifecycle test covers explicit release and reacquisition
+without relying on implicit file-close timing.
 
 **Handoff:** The finite adapter is stable. Browser activation may now diagnose
 whether the frozen production handoff and proposed fixture inputs satisfy all 388

@@ -1,6 +1,6 @@
 # FRI-06-C06 Finite Fixture Adapter Preparation
 
-Status: in_progress
+Status: draft
 
 Cycle ID: `FRI-06-C06`
 
@@ -29,7 +29,9 @@ commit `02876be1b910d243a0b19d49ab571d1514040cf2`, entry
 Complete and publish the finite Rust browser-fixture adapter that compares
 control and fragment output and lowers shaped text, atomic participation, bottom
 alignment, and finite shape-band tables through production constructors and
-front doors. Keep every generation input and derived artifact unchanged.
+front doors. Align one stale generator lifecycle test with the existing explicit
+lease-release front door. Keep generator implementation, every generation input,
+and every derived artifact unchanged.
 
 ## Boundary
 
@@ -52,19 +54,34 @@ and `refs/surgeist/FRI06-C06-T4-worker-01/red` are absent. C07 creates fresh
 production RED evidence at its published base; C08 creates fresh fixture RED
 evidence at its later published base.
 
-Non-goals are production `src/`; helper, serializer/generator, HTML, manifest,
-XML, and report changes; corpus-generator execution of any scope; dependencies,
-features, lockfile, MSRV, browser policy, task runner, base style, root, siblings,
-docs, public API, expected failures, quarantines, FRI-09 through FRI-13 behavior,
-and generator architecture. `just verify-generator` is read-only Cargo
-feature verification and does not execute the corpus generator.
+After the first holistic review returned `CLEAN`, the required final local
+generator-feature gate exposed a pre-existing intermittent lifecycle-test defect.
+`generation_lock_rejects_an_independent_handle_with_owner_metadata_then_releases`
+failed twice at the same reacquisition after implicit `File` drop: once in
+`just verify-generator` and once on the seventeenth bounded parallel-binary run
+after sixteen passes. The focused test passed 100 consecutive process-isolated
+runs. Source and history show `run_from_env` and the nearest cloned-descriptor
+test deliberately use `GenerationLease::release()` after earlier explicit-unlock
+fixes; only this older test still substitutes `drop(first)`. T4 corrects that
+test contract and does not change the lease implementation.
+
+Non-goals are production `src/`; helper, generator implementation, HTML,
+manifest, XML, and report changes; corpus-generator execution of any scope;
+dependencies, features, lockfile, MSRV, browser policy, task runner, base style,
+root, siblings, docs, public API, expected failures, quarantines, FRI-09 through
+FRI-13 behavior, and generator architecture. The only generator-owned path
+permitted is the exact T4 lifecycle test in
+`tests/bin/surgeist-layout-generate/generator.rs`. `just verify-generator` is
+read-only Cargo feature verification and does not execute the corpus generator.
 
 ## Impacts
 
 - **Public API and production behavior:** unchanged.
 - **Dependencies, features, lockfile, MSRV, and browser policy:** unchanged.
-- **Generated inputs and artifacts:** unchanged; no corpus-generator command is
-  allowed. Read-only generator-feature verification remains required.
+- **Generated inputs and artifacts:** unchanged; generator implementation is
+  unchanged and no corpus-generator command is allowed. One lifecycle test uses
+  the existing explicit release front door. Read-only generator-feature
+  verification remains required.
 - **Docs/examples and root follow-up:** unchanged in C06.
 - **Unsafe and lint policy:** no executable unsafe and no new `allow` or
   `expect` attribute in tracked or non-ignored owned Rust.
@@ -185,11 +202,43 @@ fresh task review returned `CLEAN`.
 
 **Intended commit:** `test(parity): lower finite shape fixture inputs`.
 
+### `C06-T4` Align Lease Lifecycle Test With Explicit Release
+
+**Files:** the exact lifecycle test in
+`tests/bin/surgeist-layout-generate/generator.rs`.
+
+**Outcome:** Make the owner-metadata and reacquisition test exercise the same
+explicit `GenerationLease::release()` lifecycle used by `run_from_env` and the
+stable cloned-descriptor regression.
+
+**RED:** Final `just verify-generator` failed at reacquisition after
+`drop(first)`. A bounded parallel-binary diagnostic reproduced the same failure
+on run 17 after 16 passes, while 100 isolated focused runs passed. The mismatch
+is test lifecycle, not generator output or implementation behavior.
+
+**Acceptance:** Preserve the independent-handle rejection and exact owner
+metadata assertions. Release through the existing fallible front door before
+reacquisition, retain both lock files, and keep production generator code,
+inputs, outputs, and architecture byte-identical. The focused lifecycle test
+and full read-only generator-feature verification pass.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate generator::tests::generation_lock_rejects_an_independent_handle_with_owner_metadata_then_releases -- --exact
+CARGO_NET_OFFLINE=true just verify-generator
+```
+
+**Dependency:** T1-T3 task-clean, initial holistic review clean, and the
+subsequent final-gate diagnosis above.
+
+**Intended commit:** `test(generator): exercise explicit lease release`.
+
 ## Completion
 
-All three task ranges must retain their clean reviews. The cycle head adds only
-the reviewed sequence reconciliation, this plan reconciliation and status
-transitions, and no implementation beyond T1-T3.
+All four task ranges must retain clean reviews. T4 changes only the stale
+generator lifecycle test; generator implementation and every generation input
+and artifact remain unchanged.
 
 Run:
 
@@ -200,7 +249,7 @@ CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
 git diff --check 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
 git diff --quiet -G'(^|[^.[:alnum:]_])(allow|expect)[[:space:]]*\(' 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs'
-test "$(git diff --name-only --no-renames 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD)" = $'plans/cycles/2026-07-19-surgeist-layout-fri-06-c06-finite-fixture-adapter-preparation.md\nplans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md\ntests/layout/browser_parity/support.rs'
+test "$(git diff --name-only --no-renames 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD)" = $'plans/cycles/2026-07-19-surgeist-layout-fri-06-c06-finite-fixture-adapter-preparation.md\nplans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md\ntests/bin/surgeist-layout-generate/generator.rs\ntests/layout/browser_parity/support.rs'
 test ! -e /private/tmp/surgeist-layout-FRI06-C06-T4-worker-01-red.G14eje/worktree
 test -z "$(git for-each-ref --format='%(refname)' refs/surgeist)"
 test "$(git worktree list --porcelain | rg -c '^worktree ')" -eq 1
@@ -219,12 +268,12 @@ SURGEIST_C06_SAFETY
 
 The pickaxe and owned-Rust gates fail on a match or tool error. The exact
 changed-path comparison permits only the reviewed FRI-06 sequence, this
-reconciled C06 plan path, and
-`tests/layout/browser_parity/support.rs`. Production `src/`,
-generator/helper/HTML, manifest/XML/report, Cargo/lockfile, docs, root, sibling,
-task-runner, and unrelated paths fail completion. The worktree/ref predicates
-prove the invalid-attempt resources remain absent and only the canonical
-worktree remains.
+reconciled C06 plan path, the exact T4 generator lifecycle test file, and
+`tests/layout/browser_parity/support.rs`. Production `src/`, generator
+implementation/helper/HTML, manifest/XML/report, Cargo/lockfile, docs, root,
+sibling, task-runner, and unrelated paths fail completion. The worktree/ref
+predicates prove the invalid-attempt resources remain absent and only the
+canonical worktree remains.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `6e3772f509b919ec9a9d027d8298600ed98ee531..cycle_head`. Rerun the complete
