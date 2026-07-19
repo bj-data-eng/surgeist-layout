@@ -3924,8 +3924,13 @@ fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writ
     let has_atomic_placeholders = children
         .iter()
         .any(|child| !child["atomicInlineParticipation"].is_null());
+    let has_shape_bands = node["shapeBands"].as_array().is_some();
 
-    if children.is_empty() && node.get("textContent").is_none() && !has_atomic_placeholders {
+    if children.is_empty()
+        && node.get("textContent").is_none()
+        && !has_atomic_placeholders
+        && !has_shape_bands
+    {
         lines.push(format!("{pad}<{tag}{}/>", attr_text(&attrs)));
         return;
     }
@@ -3936,6 +3941,9 @@ fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writ
     }
     for (child_index, child) in children.iter().enumerate() {
         write_atomic_placeholder(lines, child, child_index, indent + 2);
+    }
+    if let Some(bands) = node["shapeBands"].as_array() {
+        write_shape_bands(lines, bands, indent + 2);
     }
     if let Some(text) = node["textContent"].as_str() {
         lines.push(format!(
@@ -4016,6 +4024,50 @@ fn write_atomic_placeholder(
         " ".repeat(indent),
         attr_text(&attrs)
     ));
+}
+
+fn write_shape_bands(lines: &mut Vec<String>, bands: &[Value], indent: usize) {
+    assert!(
+        !bands.is_empty(),
+        "layout-ready fixture field `shapeBands` must be nonempty"
+    );
+    let pad = " ".repeat(indent);
+    lines.push(format!("{pad}<shape-bands>"));
+    for band in bands {
+        let mut attrs = vec![
+            (
+                "band-minimum",
+                required_finite_number_attr(band, "bandMinimum"),
+            ),
+            (
+                "band-maximum",
+                required_finite_number_attr(band, "bandMaximum"),
+            ),
+        ];
+        match (
+            band.get("intervalMinimum").filter(|value| !value.is_null()),
+            band.get("intervalMaximum").filter(|value| !value.is_null()),
+        ) {
+            (Some(_), Some(_)) => {
+                attrs.push((
+                    "interval-minimum",
+                    required_finite_number_attr(band, "intervalMinimum"),
+                ));
+                attrs.push((
+                    "interval-maximum",
+                    required_finite_number_attr(band, "intervalMaximum"),
+                ));
+            }
+            (None, None) => {}
+            _ => panic!("layout-ready fixture field `shapeBands` requires both interval endpoints"),
+        }
+        lines.push(format!(
+            "{}<shape-band{}/>",
+            " ".repeat(indent + 2),
+            attr_text(&attrs)
+        ));
+    }
+    lines.push(format!("{pad}</shape-bands>"));
 }
 
 fn maybe_break_replacement_attr(attrs: &mut Vec<(&'static str, String)>, value: &Value) {
@@ -4240,6 +4292,9 @@ fn input_attrs_with_parent_writing_mode(
         Some("relative"),
     );
     maybe(&mut attrs, "float", string(style, "cssFloat"), None);
+    if node["shapeBands"].as_array().is_some() {
+        attrs.push(("float-exclusion", "shape".to_string()));
+    }
     maybe(&mut attrs, "clear", string(style, "clear"), None);
     maybe(
         &mut attrs,
@@ -6242,9 +6297,388 @@ if (expectedReason === undefined) {{
         "html/subgrid/subgrid_baseline_standalone_axis_second_item.html",
     ];
 
+    const FRI06_C08_NEW_CASES: [(&str, &str); 12] = [
+        (
+            "block/fri06_inline_mixed_text_atomic_wrap",
+            "block/fri06_inline_mixed_text_atomic_wrap.html",
+        ),
+        (
+            "block/fri06_inline_unequal_line_alignment",
+            "block/fri06_inline_unequal_line_alignment.html",
+        ),
+        (
+            "block/fri06_forced_break_strut",
+            "block/fri06_forced_break_strut.html",
+        ),
+        (
+            "block/fri06_vertical_break_clear",
+            "block/fri06_vertical_break_clear.html",
+        ),
+        (
+            "block/fri06_atomic_inline_baseline",
+            "block/fri06_atomic_inline_baseline.html",
+        ),
+        (
+            "block/fri06_atomic_inline_percentage_block_size",
+            "block/fri06_atomic_inline_percentage_block_size.html",
+        ),
+        (
+            "block/fri06_bidi_mixed_inline",
+            "block/fri06_bidi_mixed_inline.html",
+        ),
+        (
+            "float/fri06_float_line_exclusion",
+            "float/fri06_float_line_exclusion.html",
+        ),
+        (
+            "float/fri06_float_bfc_avoidance",
+            "float/fri06_float_bfc_avoidance.html",
+        ),
+        (
+            "float/fri06_float_auto_height",
+            "float/fri06_float_auto_height.html",
+        ),
+        (
+            "float/fri06_float_logical_clear",
+            "float/fri06_float_logical_clear.html",
+        ),
+        (
+            "float/fri06_float_shape_exclusion",
+            "float/fri06_float_shape_exclusion.html",
+        ),
+    ];
+
     fn fri06_c08_matrix_digest(mut rows: Vec<String>) -> String {
         rows.sort();
         sha256_bytes(format!("{}\n", rows.join("\n")).as_bytes())
+    }
+
+    #[test]
+    fn fri06_c08_new_manifest_owns_exact_active_four_variant_matrix_and_counts() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let raw = fs::read_to_string(root.join("corpus.toml")).expect("corpus manifest");
+        let manifest = parse_corpus_manifest(&raw).expect("valid corpus manifest");
+        let expected = FRI06_C08_NEW_CASES
+            .iter()
+            .copied()
+            .collect::<BTreeMap<_, _>>();
+        let actual = manifest
+            .cases
+            .iter()
+            .filter(|case| case.id.contains("/fri06_"))
+            .map(|case| {
+                assert_eq!(case.source_root, CorpusSourceRoot::Surgeist, "{}", case.id);
+                assert_eq!(
+                    case.generator,
+                    CorpusGenerator::ConstrainedHtml,
+                    "{}",
+                    case.id
+                );
+                assert_eq!(case.status, CorpusStatus::Active, "{}", case.id);
+                assert_eq!(case.reason, None, "{}", case.id);
+                (case.id.as_str(), case.source.as_str())
+            })
+            .collect::<BTreeMap<_, _>>();
+        assert_eq!(actual, expected);
+
+        let rows = FRI06_C08_NEW_CASES
+            .iter()
+            .flat_map(|(_, source)| {
+                fixture_cases()
+                    .into_iter()
+                    .map(move |(variant, _)| format!("html/{source}\t{variant}"))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 48);
+        assert_eq!(
+            fri06_c08_matrix_digest(rows),
+            "17e19f30a6b4f2a97880dc090dc056fac2f5a061679768891f12cccf026261b7"
+        );
+
+        assert_eq!(manifest.generation_reports.full.generated, 5_712);
+        assert_eq!(manifest.generation_reports.full.unsupported, 16);
+        assert_eq!(manifest.generation_reports.full.expected_fail, 0);
+        assert_eq!(manifest.generation_reports.full.quarantined, 0);
+        assert_eq!(manifest.generation_reports.full.failed_to_generate, 0);
+    }
+
+    #[test]
+    fn fri06_c08_new_sources_have_exact_inventory_and_finite_behavior_facts() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let expected_paths = FRI06_C08_NEW_CASES
+            .iter()
+            .map(|(_, source)| PathBuf::from(source))
+            .collect::<BTreeSet<_>>();
+        let actual_paths = collect_relative_html(&root)
+            .expect("HTML inventory")
+            .into_iter()
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("fri06_"))
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(actual_paths, expected_paths);
+
+        let contracts: [(&str, &[&str]); 12] = [
+            (
+                "block/fri06_inline_mixed_text_atomic_wrap.html",
+                &[
+                    "data-surgeist-layout-ready-inline=\"true\"",
+                    "width: 72px",
+                    "display: inline-block; width: 18px; height: 18px",
+                    "display: inline-block; width: 24px; height: 18px",
+                    "display: inline-block; width: 30px; height: 18px",
+                    "text ",
+                ],
+            ),
+            (
+                "block/fri06_inline_unequal_line_alignment.html",
+                &[
+                    "text-align: left",
+                    "text-align: right",
+                    "text-align: center",
+                    "width: 24px; height: 16px",
+                    "width: 92px; height: 16px",
+                ],
+            ),
+            (
+                "block/fri06_forced_break_strut.html",
+                &[
+                    "data-surgeist-layout-ready-inline=\"true\"",
+                    "font: 16px/24px",
+                    "</span><br><br><span",
+                ],
+            ),
+            (
+                "block/fri06_vertical_break_clear.html",
+                &[
+                    "writing-mode: vertical-rl",
+                    "float: inline-start",
+                    "clear: inline-start",
+                    "</span><br><span",
+                ],
+            ),
+            (
+                "block/fri06_atomic_inline_baseline.html",
+                &[
+                    "vertical-align: baseline",
+                    "overflow: hidden",
+                    "vertical-align: top",
+                    "vertical-align: bottom",
+                    "margin-bottom: 6px",
+                ],
+            ),
+            (
+                "block/fri06_atomic_inline_percentage_block_size.html",
+                &[
+                    "height: 80px",
+                    "display: inline-block; width: 20px; height: 50%",
+                ],
+            ),
+            (
+                "block/fri06_bidi_mixed_inline.html",
+                &[
+                    "data-surgeist-layout-ready-inline=\"true\"",
+                    "<bdo dir=\"ltr\">alpha</bdo>",
+                    "<bdo dir=\"rtl\">אבג</bdo>",
+                    "delta",
+                ],
+            ),
+            (
+                "float/fri06_float_line_exclusion.html",
+                &[
+                    "float: left",
+                    "float: right",
+                    "line ",
+                    "width: 28px; height: 16px",
+                    "width: 40px; height: 16px",
+                ],
+            ),
+            (
+                "float/fri06_float_bfc_avoidance.html",
+                &[
+                    "float: left",
+                    "overflow: auto",
+                    "width: auto",
+                    "display: flex",
+                ],
+            ),
+            (
+                "float/fri06_float_auto_height.html",
+                &[
+                    "display: flow-root",
+                    "float: left",
+                    "height: 28px",
+                    "height: 16px",
+                ],
+            ),
+            (
+                "float/fri06_float_logical_clear.html",
+                &[
+                    "writing-mode: vertical-rl",
+                    "float: inline-start",
+                    "clear: inline-start",
+                ],
+            ),
+            (
+                "float/fri06_float_shape_exclusion.html",
+                &[
+                    "data-surgeist-shape-bands=",
+                    "&quot;bandMinimum&quot;:0",
+                    "&quot;bandMaximum&quot;:20",
+                    "&quot;bandMinimum&quot;:40",
+                    "&quot;bandMaximum&quot;:60",
+                    "&quot;intervalMinimum&quot;:0",
+                    "&quot;intervalMaximum&quot;:44",
+                ],
+            ),
+        ];
+
+        for (relative, required) in contracts {
+            let raw = fs::read_to_string(root.join(relative)).expect(relative);
+            assert_eq!(raw.matches("id=\"test-root\"").count(), 1, "{relative}");
+            assert_eq!(raw.matches("test_helper.js").count(), 1, "{relative}");
+            assert_eq!(raw.matches("test_base_style.css").count(), 1, "{relative}");
+            assert!(!raw.contains("NaN"), "{relative}");
+            assert!(!raw.contains("Infinity"), "{relative}");
+            assert!(!raw.contains("shape-outside"), "{relative}");
+            for variant in fixture_cases().map(|(variant, _)| variant) {
+                assert!(!raw.contains(variant), "{relative} hard-codes {variant}");
+            }
+            for fragment in required {
+                assert!(raw.contains(fragment), "{relative} missing {fragment:?}");
+            }
+        }
+
+        let shape_opt_ins = contracts
+            .iter()
+            .filter(|(relative, _)| {
+                fs::read_to_string(root.join(relative))
+                    .expect(relative)
+                    .contains("data-surgeist-shape-bands=")
+            })
+            .map(|(relative, _)| *relative)
+            .collect::<Vec<_>>();
+        assert_eq!(shape_opt_ins, ["float/fri06_float_shape_exclusion.html"]);
+    }
+
+    #[test]
+    fn fri06_c08_new_reconstructs_complete_fixture_correction_matrix_from_entry_report() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let report: Value = serde_json::from_slice(
+            &fs::read(root.join("xml/generation-reports/all.json")).expect("entry report"),
+        )
+        .expect("entry report JSON");
+        let mut rows = report["unsupported"]
+            .as_array()
+            .expect("unsupported rows")
+            .iter()
+            .filter(|row| {
+                matches!(
+                    row["reason"].as_str(),
+                    Some(
+                        "Unsupported vertical <br> line-break semantics"
+                            | "Unsupported <br> outside block inline-run semantics"
+                    )
+                )
+            })
+            .map(|row| {
+                format!(
+                    "{}\t{}",
+                    row["source"].as_str().expect("source"),
+                    row["variant"].as_str().expect("variant")
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 240);
+
+        for source in [
+            "block/fri06_inline_unequal_line_alignment.html",
+            "block/fri06_bidi_mixed_inline.html",
+        ] {
+            rows.extend(
+                fixture_cases()
+                    .into_iter()
+                    .map(|(variant, _)| format!("html/{source}\t{variant}")),
+            );
+        }
+        for source in [
+            "block/fri06_inline_mixed_text_atomic_wrap.html",
+            "block/fri06_atomic_inline_baseline.html",
+            "block/fri06_atomic_inline_percentage_block_size.html",
+            "float/fri06_float_auto_height.html",
+        ] {
+            rows.extend(
+                ["border_box_rtl", "content_box_rtl"]
+                    .into_iter()
+                    .map(|variant| format!("html/{source}\t{variant}")),
+            );
+        }
+        assert_eq!(rows.len(), 256);
+        assert_eq!(
+            fri06_c08_matrix_digest(rows),
+            "35dc887d32232c365e132f38032021ae0b64147480ab7536971765b3fa5d0214"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_new_helper_and_serializer_require_one_finite_shape_bands_field() {
+        let script = [
+            r#"
+const window = {};
+const document = { styleSheets: [] };
+const CSSRule = { STYLE_RULE: 1 };
+const element = {
+  getAttribute(name) {
+    if (name !== "data-surgeist-shape-bands") return null;
+    return '[{"bandMinimum":0,"bandMaximum":20,"intervalMinimum":0,"intervalMaximum":44},{"bandMinimum":20,"bandMaximum":40,"intervalMinimum":0,"intervalMaximum":28},{"bandMinimum":40,"bandMaximum":60}]';
+  },
+};
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const bands = layoutReadyShapeBands(element);
+if (JSON.stringify(bands) !== JSON.stringify([
+  {bandMinimum: 0, bandMaximum: 20, intervalMinimum: 0, intervalMaximum: 44},
+  {bandMinimum: 20, bandMaximum: 40, intervalMinimum: 0, intervalMaximum: 28},
+  {bandMinimum: 40, bandMaximum: 60},
+])) {
+  throw new Error(`shapeBands must preserve the finite physical table, got ${JSON.stringify(bands)}`);
+}
+"#,
+        ]
+        .concat();
+        run_bundled_helper_script("fri06-c08-new-shape-bands", script);
+
+        let node = json!({
+            "tagName": "div",
+            "useRounding": false,
+            "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+            "style": {"display": "block"},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 60},
+            "children": [{
+                "tagName": "div",
+                "style": {"cssFloat": "left"},
+                "shapeBands": [
+                    {"bandMinimum": 0, "bandMaximum": 20, "intervalMinimum": 0, "intervalMaximum": 44},
+                    {"bandMinimum": 20, "bandMaximum": 40, "intervalMinimum": 0, "intervalMaximum": 28},
+                    {"bandMinimum": 40, "bandMaximum": 60},
+                ],
+                "unroundedLayout": {"x": 0, "y": 0, "width": 44, "height": 60},
+                "children": [],
+            }],
+        });
+        let xml = generate_xml("fri06_c08_new_shape_bands", &node);
+        for expected in [
+            r#"float="left" float-exclusion="shape""#,
+            r#"<shape-bands>"#,
+            r#"<shape-band band-minimum="0" band-maximum="20" interval-minimum="0" interval-maximum="44"/>"#,
+            r#"<shape-band band-minimum="20" band-maximum="40" interval-minimum="0" interval-maximum="28"/>"#,
+            r#"<shape-band band-minimum="40" band-maximum="60"/>"#,
+        ] {
+            assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
+        }
     }
 
     #[test]

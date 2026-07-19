@@ -54,8 +54,8 @@ scoped = []
 
 [generation_reports.full]
 file = "all.json"
-generated = 5324
-unsupported = 356
+generated = 5712
+unsupported = 16
 expected_fail = 0
 quarantined = 0
 failed_to_generate = 0
@@ -202,6 +202,90 @@ status = "active"
 id = "block/fri05_scroll_target_geometry"
 source_root = "surgeist"
 source = "block/fri05_scroll_target_geometry.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri06_inline_mixed_text_atomic_wrap"
+source_root = "surgeist"
+source = "block/fri06_inline_mixed_text_atomic_wrap.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri06_inline_unequal_line_alignment"
+source_root = "surgeist"
+source = "block/fri06_inline_unequal_line_alignment.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri06_forced_break_strut"
+source_root = "surgeist"
+source = "block/fri06_forced_break_strut.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri06_vertical_break_clear"
+source_root = "surgeist"
+source = "block/fri06_vertical_break_clear.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri06_atomic_inline_baseline"
+source_root = "surgeist"
+source = "block/fri06_atomic_inline_baseline.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri06_atomic_inline_percentage_block_size"
+source_root = "surgeist"
+source = "block/fri06_atomic_inline_percentage_block_size.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "block/fri06_bidi_mixed_inline"
+source_root = "surgeist"
+source = "block/fri06_bidi_mixed_inline.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "float/fri06_float_line_exclusion"
+source_root = "surgeist"
+source = "float/fri06_float_line_exclusion.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "float/fri06_float_bfc_avoidance"
+source_root = "surgeist"
+source = "float/fri06_float_bfc_avoidance.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "float/fri06_float_auto_height"
+source_root = "surgeist"
+source = "float/fri06_float_auto_height.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "float/fri06_float_logical_clear"
+source_root = "surgeist"
+source = "float/fri06_float_logical_clear.html"
+generator = "constrained-html"
+status = "active"
+
+[[cases]]
+id = "float/fri06_float_shape_exclusion"
+source_root = "surgeist"
+source = "float/fri06_float_shape_exclusion.html"
 generator = "constrained-html"
 status = "active"
 

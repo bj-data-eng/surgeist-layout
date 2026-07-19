@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-06 vertical break and logical clear</title>
+</head>
+<body>
+
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="display: flow-root; writing-mode: vertical-rl; width: 96px; height: 140px; font: 16px/24px monospace;">
+  <span style="display: block; float: inline-start; width: 28px; height: 36px;"></span>
+  <span style="display: inline-block; width: 18px; height: 42px;"></span><br><span style="display: inline-block; width: 18px; height: 30px;"></span>
+  <span style="display: block; clear: inline-start; width: 18px; height: 18px;"></span>
+</div>
+
+</body>
+</html>

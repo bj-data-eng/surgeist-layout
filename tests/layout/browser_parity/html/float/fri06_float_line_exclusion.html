@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../scripts/gentest/test_helper.js"></script>
+  <link rel="stylesheet" type="text/css" href="../../scripts/gentest/test_base_style.css">
+  <title>FRI-06 opposing float line exclusion</title>
+</head>
+<body>
+
+<div id="test-root" data-surgeist-layout-ready-inline="true" style="display: flow-root; width: 180px; font: 16px/20px monospace;">
+  <span style="display: block; float: left; width: 42px; height: 42px;"></span>
+  <span style="display: block; float: right; width: 50px; height: 62px;"></span>
+  line <span style="display: inline-block; width: 28px; height: 16px;"></span><span style="display: inline-block; width: 32px; height: 16px;"></span><span style="display: inline-block; width: 36px; height: 16px;"></span><span style="display: inline-block; width: 40px; height: 16px;"></span>
+</div>
+
+</body>
+</html>

@@ -753,6 +753,52 @@ function brInlineMetricsForElement(e, computedStyle) {
   return undefined;
 }
 
+function layoutReadyShapeBands(e) {
+  const raw = e.getAttribute('data-surgeist-shape-bands');
+  if (raw === null) return undefined;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    throw new Error('data-surgeist-shape-bands must be valid JSON');
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('data-surgeist-shape-bands must be a nonempty finite table');
+  }
+
+  const seen = new Set();
+  return parsed.map((band, index) => {
+    const allowed = new Set(['bandMinimum', 'bandMaximum', 'intervalMinimum', 'intervalMaximum']);
+    if (!band || typeof band !== 'object' || Array.isArray(band) ||
+        Object.keys(band).some((key) => !allowed.has(key))) {
+      throw new Error(`shape band ${index} has an unsupported field`);
+    }
+    const { bandMinimum, bandMaximum, intervalMinimum, intervalMaximum } = band;
+    if (!Number.isFinite(bandMinimum) || !Number.isFinite(bandMaximum) || bandMinimum > bandMaximum) {
+      throw new Error(`shape band ${index} requires finite ordered query endpoints`);
+    }
+    const key = `${bandMinimum}:${bandMaximum}`;
+    if (seen.has(key)) throw new Error(`shape band ${index} duplicates query ${key}`);
+    seen.add(key);
+
+    const hasIntervalMinimum = intervalMinimum !== undefined;
+    const hasIntervalMaximum = intervalMaximum !== undefined;
+    if (hasIntervalMinimum !== hasIntervalMaximum) {
+      throw new Error(`shape band ${index} requires both interval endpoints`);
+    }
+    if (hasIntervalMinimum &&
+        (!Number.isFinite(intervalMinimum) || !Number.isFinite(intervalMaximum) ||
+         intervalMinimum > intervalMaximum)) {
+      throw new Error(`shape band ${index} requires finite ordered interval endpoints`);
+    }
+
+    return hasIntervalMinimum
+      ? { bandMinimum, bandMaximum, intervalMinimum, intervalMaximum }
+      : { bandMinimum, bandMaximum };
+  });
+}
+
 function describeElement(e, expectedElement = null) {
 
   // Get precise, unrounded dimensions for the current element and it's parent
@@ -923,6 +969,8 @@ function describeElement(e, expectedElement = null) {
     useRounding: e.getAttribute("data-test-rounding") !== "false",
 
     viewport: parseViewportConstraint(e, boundingRect),
+
+    shapeBands: layoutReadyShapeBands(e),
 
     children,
   };
