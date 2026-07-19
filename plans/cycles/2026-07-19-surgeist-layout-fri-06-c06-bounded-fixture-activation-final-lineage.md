@@ -259,6 +259,13 @@ CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just parity-all
 git diff --check
+test ! -e /tmp/surgeist-layout-fri06-c06-rust.diff
+git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' > /tmp/surgeist-layout-fri06-c06-rust.diff
+rg '^\+.*#\s*\[\s*(allow|expect)\s*\(' /tmp/surgeist-layout-fri06-c06-rust.diff; test $? -eq 1
+rm /tmp/surgeist-layout-fri06-c06-rust.diff
+owned_rust=$(git ls-files --cached --others --exclude-standard '*.rs')
+test -n "$owned_rust"
+rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $owned_rust; test $? -eq 1
 ```
 
 **Dependency:** T1-T3 are task-clean; every fixture input and focused test is
@@ -282,6 +289,13 @@ CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just parity-all
 git diff --check 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
 git diff --name-only --no-renames 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
+test ! -e /tmp/surgeist-layout-fri06-c06-rust.diff
+git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' > /tmp/surgeist-layout-fri06-c06-rust.diff
+rg '^\+.*#\s*\[\s*(allow|expect)\s*\(' /tmp/surgeist-layout-fri06-c06-rust.diff; test $? -eq 1
+rm /tmp/surgeist-layout-fri06-c06-rust.diff
+owned_rust=$(git ls-files --cached --others --exclude-standard '*.rs')
+test -n "$owned_rust"
+rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $owned_rust; test $? -eq 1
 git status --short
 ```
 
@@ -292,10 +306,11 @@ Production `src/`, Cargo/lockfile, README, scripts/task runner, base style,
 browser policy, root, sibling, API artifacts, expected-failure/quarantine, and
 unrelated paths fail completion.
 
-Static checks must prove no added `allow`/`expect`, no executable `unsafe`, one
-report, exact 1,432/5,712/16/zero bucket counts, only the missing-root reason,
-`filter: null`, the frozen post-input manifest hash, and current generated
-provenance. No generator command is part of completion verification.
+The added-allowance and owned-Rust commands must return no matches; the owned
+manifest must be nonempty. Static checks must also prove one report, exact
+1,432/5,712/16/zero bucket counts, only the missing-root reason, `filter: null`,
+the frozen post-input manifest hash, and current generated provenance. No
+generator command is part of completion verification.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `6e3772f509b919ec9a9d027d8298600ed98ee531..cycle_head`. Rerun the complete
