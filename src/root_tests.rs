@@ -1728,6 +1728,67 @@ fn fri06_c03_clear_all_values_accept_all_containing_flows_without_exclusions_bot
     assert_lane::<f64>();
 }
 
+struct Fri06C07DirectTree<S: LayoutScalar>(Fri06C02TextTree<S>);
+
+impl<S: LayoutScalar> Traverse for Fri06C07DirectTree<S> {
+    type Node = u32;
+    type Scalar = S;
+    type Children<'a> = std::iter::Copied<std::slice::Iter<'a, u32>>;
+
+    fn children(&self, node: Self::Node) -> Self::Children<'_> {
+        self.0
+            .children
+            .get(&node)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+            .iter()
+            .copied()
+    }
+
+    fn child_count(&self, node: Self::Node) -> usize {
+        self.0.children.get(&node).map(Vec::len).unwrap_or(0)
+    }
+
+    fn child(&self, node: Self::Node, index: usize) -> Self::Node {
+        self.0.children[&node][index]
+    }
+}
+
+impl<S: LayoutScalar> Compute<()> for Fri06C07DirectTree<S> {
+    fn node_input(&self, node: Self::Node) -> &NodeInputOf<S> {
+        &self.0.node_inputs[&node]
+    }
+
+    fn layout_input(&self, node: Self::Node) -> LayoutInputOf<S> {
+        self.0.inputs[&node].clone()
+    }
+
+    fn set_unrounded(&mut self, _node: Self::Node, _layout: NodeOutputOf<S>) {}
+
+    fn compute_child(
+        &mut self,
+        node: Self::Node,
+        input: ComputeInputOf<S>,
+    ) -> LayoutResultOf<Self::Node, ComputeOutputOf<S>, S, ()> {
+        match self.0.inputs[&node].clone() {
+            LayoutInputOf::Box(style) => {
+                assert_eq!(style.display.inner_display(), Display::Block);
+                compute_block(self, node, input)
+            }
+            LayoutInputOf::InlineText(_) => {
+                let size = Size::new(
+                    input.known().width.unwrap_or(S::ZERO),
+                    input.known().height.unwrap_or(S::ZERO),
+                );
+                Ok(ComputeOutputOf::from_sizes(size, size))
+            }
+            LayoutInputOf::LineBreak(_) | LayoutInputOf::InlineBoundary(_) => {
+                unreachable!("block layout consumes controls without child computation")
+            }
+        }
+    }
+}
+
 #[test]
 fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() {
     #[derive(Clone, Copy)]
@@ -1804,7 +1865,9 @@ fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() 
         },
     ];
 
-    fn vertical_break_batch<S: LayoutScalar>(row: Row) -> CompletedLayoutBatchOf<u32, S> {
+    fn vertical_break_batch<S: LayoutScalar>(
+        row: Row,
+    ) -> (CompletedLayoutBatchOf<u32, S>, ComputeOutputOf<S>) {
         let flow_axes = FlowAxes::new(WritingMode::VerticalRl, row.direction);
         let root_style = NodeInputOf {
             display: Display::Block,
@@ -1833,35 +1896,51 @@ fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() 
             InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
                 .unwrap();
 
-        fri06_c04_front_door_batch(
-            root_style,
-            LogicalSizeOf::new(
-                AvailableOf::definite(S::from_f64(40.0)),
-                AvailableOf::definite(S::from_f64(40.0)),
+        let break_input = LineBreakInputOf::new()
+            .with_writing_mode(WritingMode::VerticalRl)
+            .with_direction(row.direction)
+            .with_metrics(metrics)
+            .with_clear(Clear::Left);
+        let tree = Fri06C02TextTree {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_style.clone())),
+                (1, LayoutInputOf::box_input(float_style.clone())),
+                (2, text),
+                (3, LayoutInputOf::line_break(break_input)),
+            ]),
+            node_inputs: HashMap::from([
+                (0, root_style),
+                (1, float_style),
+                (2, NodeInputOf::non_box()),
+                (3, NodeInputOf::non_box()),
+            ]),
+            children: HashMap::from([
+                (0, vec![1, 2, 3]),
+                (1, Vec::new()),
+                (2, Vec::new()),
+                (3, Vec::new()),
+            ]),
+        };
+        let available = flow_axes.physical_size(LogicalSizeOf::new(
+            AvailableOf::definite(S::from_f64(40.0)),
+            AvailableOf::definite(S::from_f64(40.0)),
+        ));
+        let batch =
+            compute_layout(&tree, 0, LayoutRootRequestOf::viewport(available).unwrap()).unwrap();
+        let mut direct_tree = Fri06C07DirectTree(tree);
+        let root_output = compute_block(
+            &mut direct_tree,
+            0,
+            ComputeInputOf::root_layout(
+                Size::NONE,
+                available.map(AvailableOf::into_option),
+                ContainingLayoutContext::new(flow_axes, ParentFormattingContext::NoParent),
+                available,
             ),
-            vec![1, 2, 3],
-            vec![
-                (
-                    1,
-                    LayoutInputOf::box_input(float_style.clone()),
-                    float_style,
-                    Vec::new(),
-                ),
-                (2, text, NodeInputOf::non_box(), Vec::new()),
-                (
-                    3,
-                    LayoutInputOf::line_break(
-                        LineBreakInputOf::new()
-                            .with_writing_mode(WritingMode::VerticalRl)
-                            .with_direction(row.direction)
-                            .with_metrics(metrics)
-                            .with_clear(Clear::Left),
-                    ),
-                    NodeInputOf::non_box(),
-                    Vec::new(),
-                ),
-            ],
         )
+        .unwrap();
+
+        (batch, root_output)
     }
 
     fn logical_float_batch<S: LayoutScalar>(
@@ -1937,7 +2016,7 @@ fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() 
         for row in ROWS {
             match row.family {
                 Family::VerticalBreak => {
-                    let batch = vertical_break_batch::<S>(row);
+                    let (batch, root_output) = vertical_break_batch::<S>(row);
                     let break_output = fri06_c02_final_node(&batch, 3);
                     let expected_break = match row.direction {
                         Direction::Ltr => Point::new(S::from_f64(25.0), S::from_f64(10.0)),
@@ -1958,8 +2037,34 @@ fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() 
                         fri06_c02_final_node(&batch, 1).size,
                         Size::new(S::from_f64(20.0), S::ZERO)
                     );
-                    let root_output = fri06_c02_final_node(&batch, 0);
+                    let root_node_output = fri06_c02_final_node(&batch, 0);
+                    assert_eq!(root_node_output.size, Size::splat(S::from_f64(40.0)));
                     assert_eq!(root_output.size, Size::splat(S::from_f64(40.0)));
+                    let baselines = root_output.baselines();
+                    assert_eq!(
+                        baselines,
+                        BaselinesOf {
+                            first: Point::new(Some(S::from_f64(25.0)), None),
+                            last: Point::new(Some(S::from_f64(5.0)), None),
+                        },
+                        "{} {} root baselines",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        root_output.size.width - baselines.first.x.unwrap(),
+                        S::from_f64(15.0),
+                        "{} {} break logical block baseline",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        root_output.size.width - baselines.last.x.unwrap(),
+                        S::from_f64(35.0),
+                        "{} {} following-strut logical block baseline",
+                        row.source,
+                        row.variant,
+                    );
                 }
                 Family::LogicalFloat => {
                     let line_start = logical_float_batch::<S>(
