@@ -1,6 +1,6 @@
 # FRI-06 Inline Formatting, Floats, And BFCs Implementation Sequence
 
-Status: draft
+Status: reviewed
 
 Sequence ID: `FRI-06`
 
