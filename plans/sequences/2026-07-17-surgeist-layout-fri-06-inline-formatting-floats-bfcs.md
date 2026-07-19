@@ -38,6 +38,56 @@ existing-pinned no-fetch lineage after all owned inputs settle. Later closure is
 read-only for generation inputs and outputs; a confirmed input defect returns to
 that artifact cycle and invalidates its prior lineage.
 
+## Activation Recovery Evidence
+
+The immutable entry report is
+`tests/layout/browser_parity/xml/generation-reports/all.json` at SHA-256
+`4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab`.
+Matrix digests below are SHA-256 over sorted, LF-terminated
+`source<TAB>variant` rows. The base-generated digest also appends
+`TABoutput`. The four standard variants are `border_box_ltr`,
+`content_box_ltr`, `border_box_rtl`, and `content_box_rtl`.
+
+- **Activation matrix:** the report's 340 entries carrying one of the three exact
+  D-16 transition reasons plus all four variants of the twelve sources named in
+  `FRI-06.11`; 388 rows, digest
+  `3a0f78a7fdefc9f49feee9f0fcb5a035bc87f381f8fc8d96049eaa0cdcbc2eb1`.
+- **Fixture-correction matrix:** the report's 240 entries carrying either exact
+  vertical/outside-block break reason; all four variants of
+  `fri06_inline_unequal_line_alignment` and `fri06_bidi_mixed_inline`; and both
+  RTL variants of `fri06_inline_mixed_text_atomic_wrap`,
+  `fri06_atomic_inline_baseline`,
+  `fri06_atomic_inline_percentage_block_size`, and
+  `fri06_float_auto_height`; 256 rows, digest
+  `35dc887d32232c365e132f38032021ae0b64147480ab7536971765b3fa5d0214`.
+- **Production-correction matrix:** all four variants of
+  `grid_lanes_not_inhibited_normal_packing`,
+  `grid_lanes_not_inhibited_overflow_hidden_packing`,
+  `subgrid_auto_track_sizing_min_content_text_runs`,
+  `subgrid_baseline_auto_columns_first_item`,
+  `subgrid_baseline_auto_columns_second_item`,
+  `subgrid_baseline_standalone_axis_first_item`,
+  `subgrid_baseline_standalone_axis_second_item`,
+  `fri06_forced_break_strut`, `fri06_vertical_break_clear`, and
+  `fri06_float_logical_clear`; plus both RTL variants of the sixteen
+  `subgrid_alignment_<self>_<item>_item` sources formed by the exact cross product
+  `{baseline,center,end,start}` x `{baseline,center,end,start}`; 72 rows across 26
+  sources, digest
+  `56b464ee7b2e5e4ec640d57f3732ee348c1c4534272ee60c82cc27560265518d`.
+- **Semantic-preservation matrix:** all four variants of
+  `block_br_inline_block_metrics`, `block_br_vertical_lr_inline_block_metrics`,
+  `block_br_vertical_rl_inline_block_metrics`, and
+  `block_br_vertical_rl_rtl_inline_block_metrics`; 16 rows, digest
+  `ff3b0c67a33ed008235891b3019e4491783fd7933a37c7b50589fec6b573a8b1`.
+- **Base-generated matrix:** every generated `source`, `variant`, and `output`
+  tuple in the entry report; 5,324 rows, digest
+  `3381162173bc2c09bbbae736391d9420c5e96c375083fb9fd0b337bcec12cffb`.
+
+These predicates own recovery membership. Later cycle plans may partition them
+into executable tasks but may not add, omit, reclassify, or dynamically widen a
+row. The 408 failures observed by the aggregate diagnostic are not a recovery
+matrix and do not move the final aggregate gate out of FRI-13.
+
 ## Ordered Cycles
 
 ### `FRI-06-C01` Public Inline Model And Transaction Substrate
@@ -183,8 +233,9 @@ and failed provider results; non-float shape rejection; query bounds; cache
 invalidation; failed recomputation; and cold/warm/rounded geometry agree through
 the real provider and block-line front doors in both scalar lanes.
 
-**Handoff:** All FRI-06 production behavior and fixture-facing facts are stable
-before browser adapter and artifact work.
+**Handoff:** The focused C05 production baseline and fixture-facing facts are
+stable for adapter preparation. Activated-fixture validation and any confirmed
+production correction remain explicitly owned by C07.
 
 ### `FRI-06-C06` Finite Fixture Adapter Preparation
 
@@ -194,10 +245,24 @@ before browser adapter and artifact work.
 **Prerequisites:** `FRI-06-C05` and its post-C05 containment window complete and
 remotely verified.
 
-**Entry state:** Product behavior and finite production fixture-facing facts are
-implemented, while the browser adapter cannot compare control/fragment output or
-lower shaped text, atomic participation, bottom alignment, and finite shape-band
+**Entry state:** Product behavior and finite production fixture-facing facts have
+focused C05 evidence but have not yet faced the activation matrix; C07 owns that
+validation. The browser adapter cannot compare control/fragment output or lower
+shaped text, atomic participation, bottom alignment, and finite shape-band
 tables. Generation inputs and derived artifacts remain frozen.
+
+At this sequence revision, C06's three adapter tasks are committed and task-clean
+in the ordered ranges
+`5c13dd8cfa4ff57884c3bbb988a5c806b165c849..69e9d437810d0b5b2cc7a14eda5e7e5d49afe5c1`
+plus
+`69e9d437810d0b5b2cc7a14eda5e7e5d49afe5c1..a04ac60d228ec4f1388c66e6f18f3cc0703aa0e1`,
+`a04ac60d228ec4f1388c66e6f18f3cc0703aa0e1..dab8b10e339842bd7a2d0e7740bab92dbe2f5aa1`,
+and
+`dab8b10e339842bd7a2d0e7740bab92dbe2f5aa1..a49c6c2bd81f27b2962928a31ae6126b26b211fe`.
+The invalid uncommitted derivation was discarded. Before C06 completion, its
+cycle plan must be reconciled to this reviewed sequence revision, preserve these
+task ranges and their clean reviews, receive a fresh plan review, and complete
+normal holistic review, publication, and remote readback.
 
 **Bounded outcome:** Extend only the Rust fixture adapter and comparator to parse,
 lower, store, and compare the reviewed control, fragment, shaped-text, atomic,
