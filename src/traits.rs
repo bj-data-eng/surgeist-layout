@@ -51,6 +51,14 @@ pub trait LayoutTree: Traverse {
         None
     }
 
+    /// Returns committed unrounded output for a node in a warm cached subtree.
+    ///
+    /// `None` prevents reuse of a container cache hit whose descendants could
+    /// not otherwise be restored for source-ordered rounding and publication.
+    fn unrounded_layout(&self, _node: Self::Node) -> Option<NodeOutputOf<Self::Scalar>> {
+        None
+    }
+
     /// Queries one shape-backed float exclusion interval for a physical band.
     ///
     /// Outer `None` means the requested provider is absent. `Ok(None)` means

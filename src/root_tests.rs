@@ -5006,6 +5006,18 @@ struct Fri06C02RetainedTextState<S: LayoutScalar> {
     dirty: Vec<u32>,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+enum Fri06C05ShapeProvider<S: LayoutScalar> {
+    #[default]
+    Disabled,
+    Empty,
+    Interval {
+        minimum: S,
+        maximum: S,
+    },
+    Failure,
+}
+
 #[derive(Clone, Debug)]
 struct Fri06C02StatefulTextTree<S: LayoutScalar> {
     inputs: HashMap<u32, LayoutInputOf<S>>,
@@ -5014,6 +5026,9 @@ struct Fri06C02StatefulTextTree<S: LayoutScalar> {
     retained: Fri06C02RetainedTextState<S>,
     fragment_readbacks: Cell<usize>,
     reject_preparation: bool,
+    shape_provider: Fri06C05ShapeProvider<S>,
+    shape_queries: Cell<usize>,
+    cache_queries: RefCell<Vec<(u32, bool)>>,
 }
 
 impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
@@ -5035,6 +5050,9 @@ impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
             retained: Fri06C02RetainedTextState::default(),
             fragment_readbacks: Cell::new(0),
             reject_preparation: false,
+            shape_provider: Fri06C05ShapeProvider::Disabled,
+            shape_queries: Cell::new(0),
+            cache_queries: RefCell::new(Vec::new()),
         }
     }
 
@@ -5095,6 +5113,9 @@ impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
             retained: Fri06C02RetainedTextState::default(),
             fragment_readbacks: Cell::new(0),
             reject_preparation: false,
+            shape_provider: Fri06C05ShapeProvider::Disabled,
+            shape_queries: Cell::new(0),
+            cache_queries: RefCell::new(Vec::new()),
         }
     }
 
@@ -5135,7 +5156,21 @@ impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
             retained: Fri06C02RetainedTextState::default(),
             fragment_readbacks: Cell::new(0),
             reject_preparation: false,
+            shape_provider: Fri06C05ShapeProvider::Disabled,
+            shape_queries: Cell::new(0),
+            cache_queries: RefCell::new(Vec::new()),
         }
+    }
+
+    fn new_shape_provider(provider: Fri06C05ShapeProvider<S>) -> Self {
+        let mut tree = Self::new_float_mixed();
+        let mut float = tree.node_inputs[&1].clone();
+        float.float_exclusion = FloatExclusion::Shape;
+        tree.inputs
+            .insert(1, LayoutInputOf::box_input(float.clone()));
+        tree.node_inputs.insert(1, float);
+        tree.shape_provider = provider;
+        tree
     }
 
     fn replace_float_inline_extent(&mut self, extent: f64) {
@@ -5245,10 +5280,19 @@ impl<S: LayoutScalar> LayoutTree for Fri06C02StatefulTextTree<S> {
         input: &ComputeInputOf<S>,
         context: CacheKeyContext,
     ) -> Option<ComputeOutputOf<S>> {
-        self.retained
+        let output = self
+            .retained
             .caches
             .get(&node)
-            .and_then(|cache| cache.get_with_context(input, context))
+            .and_then(|cache| cache.get_with_context(input, context));
+        self.cache_queries
+            .borrow_mut()
+            .push((node, output.is_some()));
+        output
+    }
+
+    fn unrounded_layout(&self, node: Self::Node) -> Option<NodeOutputOf<S>> {
+        self.retained.unrounded_nodes.get(&node).copied()
     }
 
     fn unrounded_inline_fragments(&self, node: Self::Node) -> Option<&[InlineFragmentOutputOf<S>]> {
@@ -5258,6 +5302,22 @@ impl<S: LayoutScalar> LayoutTree for Fri06C02StatefulTextTree<S> {
             .unrounded_fragments
             .get(&node)
             .map(Vec::as_slice)
+    }
+
+    fn float_exclusion_interval(
+        &self,
+        _node: Self::Node,
+        query: FloatExclusionQueryOf<S>,
+    ) -> Option<Result<Option<FloatExclusionIntervalOf<S>>, Self::MeasureError>> {
+        self.shape_queries.set(self.shape_queries.get() + 1);
+        match self.shape_provider {
+            Fri06C05ShapeProvider::Disabled => None,
+            Fri06C05ShapeProvider::Empty => Some(Ok(None)),
+            Fri06C05ShapeProvider::Interval { minimum, maximum } => Some(Ok(
+                FloatExclusionIntervalOf::try_new(query, minimum, maximum).unwrap(),
+            )),
+            Fri06C05ShapeProvider::Failure => Some(Err(())),
+        }
     }
 }
 
@@ -5337,6 +5397,178 @@ fn fri06_c02_stateful_request<S: LayoutScalar>() -> LayoutRootRequestOf<S> {
 }
 
 type Fri06C03FragmentIdentity<S> = (u32, InlineSegmentId, usize, usize, Option<S>);
+
+#[test]
+fn fri06_c05_provider_cache_warm_valid_output_reuses_provider_result_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let request = fri06_c02_stateful_request::<S>();
+        let mut tree =
+            Fri06C02StatefulTextTree::new_shape_provider(Fri06C05ShapeProvider::Interval {
+                minimum: S::ZERO,
+                maximum: S::from_f64(8.0),
+            });
+
+        let cold = compute_layout(&tree, 0, request).expect("cold provider layout succeeds");
+        let cold_query_count = tree.shape_queries.get();
+        assert_eq!(
+            cold_query_count, 1,
+            "intrinsic computation and rounding must not add provider queries"
+        );
+        cold.apply_to(&mut tree)
+            .expect("cold provider batch commits");
+
+        let warm = compute_layout(&tree, 0, request).expect("warm provider layout succeeds");
+
+        assert_eq!(warm.unrounded_entries(), cold.unrounded_entries());
+        assert_eq!(warm.final_entries(), cold.final_entries());
+        assert_eq!(
+            warm.unrounded_inline_fragments(),
+            cold.unrounded_inline_fragments()
+        );
+        assert_eq!(warm.final_inline_fragments(), cold.final_inline_fragments());
+        assert_eq!(
+            tree.shape_queries.get(),
+            cold_query_count,
+            "a valid warm output must not rerun the provider"
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c05_provider_dirty_exact_closure_bypasses_stale_hits_and_recomputes_transitions_both_scalars()
+ {
+    fn source_order<S: LayoutScalar>(batch: &CompletedLayoutBatchOf<u32, S>) -> Vec<(u32, usize)> {
+        batch
+            .final_entries()
+            .iter()
+            .map(|entry| (entry.node(), entry.output().source_index.get()))
+            .collect()
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        let request = fri06_c02_stateful_request::<S>();
+        let mut tree = Fri06C02StatefulTextTree::new_shape_provider(Fri06C05ShapeProvider::Empty);
+        let cold = compute_layout(&tree, 0, request).expect("empty provider layout succeeds");
+        let cold_final = cold.final_entries().to_vec();
+        let cold_fragments = cold.final_inline_fragments().to_vec();
+        let expected_source_order = source_order(&cold);
+        cold.apply_to(&mut tree)
+            .expect("empty provider batch commits");
+
+        let warm_queries = tree.shape_queries.get();
+        let warm = compute_layout(&tree, 0, request).expect("empty warm layout succeeds");
+        assert_eq!(tree.shape_queries.get(), warm_queries);
+        assert_eq!(warm.final_entries(), cold_final);
+        assert_eq!(warm.final_inline_fragments(), cold_fragments);
+
+        tree.shape_provider = Fri06C05ShapeProvider::Interval {
+            minimum: S::ZERO,
+            maximum: S::from_f64(8.0),
+        };
+        tree.retained.dirty = vec![1, 1];
+        tree.cache_queries.borrow_mut().clear();
+        let partial_query_start = tree.shape_queries.get();
+        let partial = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("dirty partial provider layout succeeds");
+        assert_eq!(partial.invalidated_nodes(), &[0, 1]);
+        assert_eq!(tree.retained.dirty, [1, 1]);
+        assert_eq!(tree.shape_queries.get() - partial_query_start, 1);
+        assert!(
+            tree.cache_queries
+                .borrow()
+                .iter()
+                .all(|(node, _)| ![0, 1].contains(node)),
+            "the exact closure must bypass stale root and float lookups"
+        );
+        assert_ne!(partial.final_entries(), cold_final);
+        assert_eq!(source_order(&partial), expected_source_order);
+        partial
+            .apply_to(&mut tree)
+            .expect("partial provider replacement commits");
+        assert!(tree.retained.dirty.is_empty());
+
+        tree.shape_provider = Fri06C05ShapeProvider::Interval {
+            minimum: S::ZERO,
+            maximum: S::from_f64(15.25),
+        };
+        tree.retained.dirty = vec![1];
+        tree.cache_queries.borrow_mut().clear();
+        let full_query_start = tree.shape_queries.get();
+        let full = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("dirty full provider layout succeeds");
+        assert_eq!(full.invalidated_nodes(), &[0, 1]);
+        assert_eq!(tree.shape_queries.get() - full_query_start, 1);
+        assert_ne!(full.final_entries(), partial.final_entries());
+        assert_eq!(source_order(&full), expected_source_order);
+        assert_eq!(
+            full.final_inline_fragments()
+                .iter()
+                .map(|entry| (entry.node(), entry.fragment().segment_id()))
+                .collect::<Vec<_>>(),
+            cold_fragments
+                .iter()
+                .map(|entry| (entry.node(), entry.fragment().segment_id()))
+                .collect::<Vec<_>>(),
+            "provider geometry changes must preserve text source association"
+        );
+        full.apply_to(&mut tree)
+            .expect("full provider replacement commits");
+        assert!(tree.retained.dirty.is_empty());
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c05_provider_atomicity_layout_and_preparation_failures_publish_nothing_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let request = fri06_c02_stateful_request::<S>();
+        let mut tree =
+            Fri06C02StatefulTextTree::new_shape_provider(Fri06C05ShapeProvider::Interval {
+                minimum: S::ZERO,
+                maximum: S::from_f64(8.0),
+            });
+        let cold = compute_layout(&tree, 0, request).expect("provider layout succeeds");
+        cold.apply_to(&mut tree).expect("provider batch commits");
+
+        tree.shape_provider = Fri06C05ShapeProvider::Failure;
+        tree.retained.dirty = vec![1];
+        let before_layout_failure = tree.retained.clone();
+        let error = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect_err("provider failure returns no batch");
+        assert_eq!(
+            error.site(),
+            LayoutErrorSiteOf::ContainerSubject {
+                container: 0,
+                subject: 1,
+            }
+        );
+        assert_eq!(error.operation(), LayoutOperation::FloatExclusionQuery);
+        assert_eq!(error.kind(), &LayoutErrorKindOf::Measurement(()));
+        assert_eq!(tree.retained, before_layout_failure);
+        assert_eq!(tree.retained.dirty, [1]);
+
+        tree.shape_provider = Fri06C05ShapeProvider::Empty;
+        let replacement = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("provider recovery stages a complete batch");
+        assert_eq!(replacement.invalidated_nodes(), &[0, 1]);
+        tree.reject_preparation = true;
+        let before_preparation_failure = tree.retained.clone();
+        assert_eq!(
+            replacement.apply_to(&mut tree),
+            Err("C02 retained-state preparation rejected")
+        );
+        assert_eq!(tree.retained, before_preparation_failure);
+        assert_eq!(tree.retained.dirty, [1]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
 
 #[test]
 fn fri06_c03_lifecycle_mixed_cold_warm_rounding_dirty_replacement_scroll_and_failure_are_atomic_both_scalars()

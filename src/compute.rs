@@ -774,6 +774,44 @@ where
             .unwrap_or(crate::SourceIndex::ZERO)
     }
 
+    fn subtree_uses_shape_provider(&self, root: Tree::Node) -> bool {
+        let mut visited = Vec::new();
+        let mut pending = vec![root];
+        while let Some(node) = pending.pop() {
+            if visited.contains(&node) {
+                continue;
+            }
+            visited.push(node);
+            if self.tree.node_input(node).float_exclusion == super::FloatExclusion::Shape {
+                return true;
+            }
+            pending.extend(self.tree.children(node));
+        }
+        false
+    }
+
+    fn restore_committed_subtree(&mut self, root: Tree::Node) -> bool {
+        let mut visited = Vec::new();
+        let mut pending = vec![root];
+        let mut restored = Vec::new();
+        while let Some(node) = pending.pop() {
+            if visited.contains(&node) {
+                continue;
+            }
+            visited.push(node);
+            let Some(output) = self.tree.unrounded_layout(node) else {
+                return false;
+            };
+            restored.push((node, output));
+            let children = self.tree.children(node).collect::<Vec<_>>();
+            pending.extend(children.into_iter().rev());
+        }
+        for (node, output) in restored {
+            self.set_unrounded(node, output);
+        }
+        true
+    }
+
     fn compute_child_uncached(
         &mut self,
         node: Tree::Node,
@@ -1164,10 +1202,22 @@ where
         }
 
         if input.run_mode().is_perform_layout() && self.child_count(node) != 0 {
-            return self.compute_child_uncached(
-                node,
-                input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL),
-            );
+            let input = input.with_settled_auto_scrollbars(SettledAutoScrollbarState::INITIAL);
+            if self.subtree_uses_shape_provider(node) {
+                let context = <Self as CacheAccess<Tree::MeasureError>>::cache_context(self);
+                if let Some(output) = <Self as CacheAccess<Tree::MeasureError>>::cache_get(
+                    self, node, &input, context,
+                ) && self.restore_committed_subtree(node)
+                {
+                    return Ok(output);
+                }
+                let output = self.compute_child_uncached(node, input)?;
+                <Self as CacheAccess<Tree::MeasureError>>::cache_store(
+                    self, node, &input, context, output,
+                );
+                return Ok(output);
+            }
+            return self.compute_child_uncached(node, input);
         }
 
         crate::traits::compute_cached(self, node, input, |session, node, input| {

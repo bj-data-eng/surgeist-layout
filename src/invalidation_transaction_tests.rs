@@ -604,3 +604,28 @@ fn fri06_c01_batch_transaction_owned_commit_replaces_every_class_in_order() {
     );
     assert!(dirty.is_empty());
 }
+
+#[test]
+fn fri06_c05_provider_atomicity_uses_existing_replacement_clear_then_store_commit_order() {
+    let batch = transaction_batch();
+    let mut sink = TransactionSink::default();
+    let mut dirty = vec![1];
+
+    apply_and_release_dirty(&batch, &mut sink, &mut dirty)
+        .expect("a prepared provider replacement commits infallibly");
+
+    assert_eq!(
+        *sink.mutations.borrow(),
+        [
+            Mutation::ReplaceUnrounded(1),
+            Mutation::ReplaceFinal(1),
+            Mutation::ReplaceUnroundedFragments(1),
+            Mutation::ReplaceFinalFragments(1),
+            Mutation::Clear(1),
+            Mutation::Clear(2),
+            Mutation::Store(1),
+            Mutation::Store(2),
+        ]
+    );
+    assert!(dirty.is_empty());
+}
