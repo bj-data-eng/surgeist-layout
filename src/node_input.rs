@@ -5,6 +5,7 @@ use super::{
     GridSpan, GridTemplateAreas, LayoutScalar, LengthAutoOf, LengthOf, LengthPercentageOf,
     MaxSizeOf, MinSizeOf, NonNegativeFiniteScalarErrorOf, NumericResolutionOf, PercentageBasisOf,
     PhysicalAxis, PhysicalSide, PreferredSizeOf, ScrollRectOf, Size, TrackComponentOf,
+    scalar::canonical_zero,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -720,8 +721,8 @@ impl<S: LayoutScalar> FloatExclusionQueryOf<S> {
         Ok(Self {
             margin_box,
             flow_axes,
-            band_minimum: canonical_exclusion_zero(band_minimum),
-            band_maximum: canonical_exclusion_zero(band_maximum),
+            band_minimum: canonical_zero(band_minimum),
+            band_maximum: canonical_zero(band_maximum),
         })
     }
 
@@ -797,8 +798,8 @@ impl<S: LayoutScalar> FloatExclusionIntervalOf<S> {
 
         Ok(Some(Self {
             query,
-            minimum: canonical_exclusion_zero(minimum),
-            maximum: canonical_exclusion_zero(maximum),
+            minimum: canonical_zero(minimum),
+            maximum: canonical_zero(maximum),
         }))
     }
 
@@ -816,10 +817,6 @@ impl<S: LayoutScalar> FloatExclusionIntervalOf<S> {
     pub const fn maximum(self) -> S {
         self.maximum
     }
-}
-
-fn canonical_exclusion_zero<S: LayoutScalar>(value: S) -> S {
-    if value == S::ZERO { S::ZERO } else { value }
 }
 
 impl Float {
@@ -2308,7 +2305,72 @@ impl<S: LayoutScalar> LayoutInputOf<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::SourceIndex;
+    use crate::{Point, SourceIndex};
+
+    fn assert_fri06_mr02_signed_zero_float_exclusion_boundaries<S: LayoutScalar>() {
+        let margin_box = ScrollRectOf::try_new(
+            Point::new(S::from_f64(-10.0), S::from_f64(-8.0)),
+            Size::new(S::from_f64(20.0), S::from_f64(16.0)),
+        )
+        .expect("finite float margin box");
+        let axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let query = FloatExclusionQueryOf::try_new(margin_box, axes, -S::ZERO, S::from_f64(6.0))
+            .expect("finite ordered band");
+        assert_eq!(query.band_minimum(), S::ZERO);
+        assert!(!query.band_minimum().to_f64().is_sign_negative());
+        assert_eq!(query.band_maximum(), S::from_f64(6.0));
+
+        let signed = FloatExclusionIntervalOf::try_new(query, -S::ZERO, S::from_f64(4.0))
+            .expect("finite interval")
+            .expect("overlapping interval");
+        assert_eq!(signed.minimum(), S::ZERO);
+        assert!(!signed.minimum().to_f64().is_sign_negative());
+        assert_eq!(signed.maximum(), S::from_f64(4.0));
+
+        let clipped =
+            FloatExclusionIntervalOf::try_new(query, S::from_f64(-12.0), S::from_f64(-3.0))
+                .expect("finite interval")
+                .expect("partially overlapping interval");
+        assert_eq!(clipped.minimum(), S::from_f64(-10.0));
+        assert_eq!(clipped.maximum(), S::from_f64(-3.0));
+
+        assert!(matches!(
+            FloatExclusionQueryOf::try_new(margin_box, axes, S::NAN, S::INFINITY),
+            Err(FloatExclusionIntervalErrorOf::NonFiniteBandMinimum { value })
+                if value.to_f64().is_nan()
+        ));
+        assert!(matches!(
+            FloatExclusionQueryOf::try_new(margin_box, axes, S::ZERO, -S::INFINITY),
+            Err(FloatExclusionIntervalErrorOf::NonFiniteBandMaximum { value })
+                if value == -S::INFINITY
+        ));
+        assert!(matches!(
+            FloatExclusionQueryOf::try_new(margin_box, axes, S::ONE, S::ZERO),
+            Err(FloatExclusionIntervalErrorOf::InvertedBand { minimum, maximum })
+                if minimum == S::ONE && maximum == S::ZERO
+        ));
+        assert!(matches!(
+            FloatExclusionIntervalOf::try_new(query, -S::INFINITY, S::NAN),
+            Err(FloatExclusionIntervalErrorOf::NonFiniteIntervalMinimum { value })
+                if value == -S::INFINITY
+        ));
+        assert!(matches!(
+            FloatExclusionIntervalOf::try_new(query, S::ZERO, S::NAN),
+            Err(FloatExclusionIntervalErrorOf::NonFiniteIntervalMaximum { value })
+                if value.to_f64().is_nan()
+        ));
+        assert!(matches!(
+            FloatExclusionIntervalOf::try_new(query, S::ONE, S::ZERO),
+            Err(FloatExclusionIntervalErrorOf::InvertedInterval { minimum, maximum })
+                if minimum == S::ONE && maximum == S::ZERO
+        ));
+    }
+
+    #[test]
+    fn fri06_mr02_signed_zero_float_exclusion_validation_clipping_and_order_are_preserved() {
+        assert_fri06_mr02_signed_zero_float_exclusion_boundaries::<f32>();
+        assert_fri06_mr02_signed_zero_float_exclusion_boundaries::<f64>();
+    }
 
     fn assert_fri05_c01_node_input_fields_and_defaults<S: LayoutScalar>(input: &NodeInputOf<S>) {
         let _: &ComputedOverflow = &input.overflow;

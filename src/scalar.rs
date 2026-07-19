@@ -37,6 +37,10 @@ pub trait LayoutScalar:
     fn to_f64(self) -> f64;
 }
 
+pub(crate) fn canonical_zero<S: LayoutScalar>(value: S) -> S {
+    if value == S::ZERO { S::ZERO } else { value }
+}
+
 macro_rules! impl_layout_scalar {
     ($ty:ty) => {
         impl private::Sealed for $ty {}

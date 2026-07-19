@@ -2,7 +2,7 @@ use super::{
     ComputedOverflow, DefaultScalar, Direction, Edges, FlowAxes, LayoutScalar, LengthPercentageOf,
     LogicalAxis, NumericResolutionOf, Overflow, OverflowClipBox, PercentageBasisOf, PhysicalAxis,
     PhysicalSide, Point, ScrollMarginOf, ScrollSnapAlign, ScrollSnapStop, ScrollSnapType,
-    ScrollbarGutter, ScrollbarWidthOf, Size,
+    ScrollbarGutter, ScrollbarWidthOf, Size, scalar::canonical_zero,
 };
 use crate::geometry::LogicalEdgesOf;
 
@@ -204,14 +204,8 @@ impl<S: LayoutScalar> ScrollRectOf<S> {
         }
 
         Ok(Self {
-            origin: Point::new(
-                canonical_scroll_zero(origin.x),
-                canonical_scroll_zero(origin.y),
-            ),
-            size: Size::new(
-                canonical_scroll_zero(size.width),
-                canonical_scroll_zero(size.height),
-            ),
+            origin: Point::new(canonical_zero(origin.x), canonical_zero(origin.y)),
+            size: Size::new(canonical_zero(size.width), canonical_zero(size.height)),
         })
     }
 
@@ -880,7 +874,7 @@ fn saturate_opposing_edges<S: LayoutScalar>(start: S, end: S, dimension: S) -> (
         return (S::ZERO, S::ZERO);
     }
     if start <= dimension && end <= dimension - start {
-        return (canonical_scroll_zero(start), canonical_scroll_zero(end));
+        return (canonical_zero(start), canonical_zero(end));
     }
 
     let largest = start.max(end);
@@ -889,8 +883,8 @@ fn saturate_opposing_edges<S: LayoutScalar>(start: S, end: S, dimension: S) -> (
     let effective_start = dimension * (start_share / (start_share + end_share));
     let effective_end = (dimension - effective_start).max(S::ZERO);
     (
-        canonical_scroll_zero(effective_start),
-        canonical_scroll_zero(effective_end),
+        canonical_zero(effective_start),
+        canonical_zero(effective_end),
     )
 }
 
@@ -1020,10 +1014,7 @@ fn derive_overflow_clip_axis<S: LayoutScalar>(
         .map_err(ScrollBoxClipGutterErrorOf::Clip)?;
 
     Ok(Some(PhysicalClipAxisOf {
-        range: PhysicalScrollAxisRangeOf::new(
-            canonical_scroll_zero(minimum),
-            canonical_scroll_zero(maximum),
-        ),
+        range: PhysicalScrollAxisRangeOf::new(canonical_zero(minimum), canonical_zero(maximum)),
     }))
 }
 
@@ -1069,7 +1060,7 @@ fn resolve_optimal_region_inset<S: LayoutScalar>(
     };
     match resolution {
         NumericResolutionOf::Resolved(value) if value.is_finite() => {
-            Ok(canonical_scroll_zero(value.max(S::ZERO)))
+            Ok(canonical_zero(value.max(S::ZERO)))
         }
         NumericResolutionOf::Resolved(_)
         | NumericResolutionOf::MissingBasis { .. }
@@ -1111,8 +1102,8 @@ impl<S: LayoutScalar> PhysicalContributionIntervalOf<S> {
         validate_physical_scroll_range(axis, minimum, maximum)
             .map_err(ScrollContributionErrorOf::Coordinate)?;
         Ok(Self {
-            minimum: canonical_scroll_zero(minimum),
-            maximum: canonical_scroll_zero(maximum),
+            minimum: canonical_zero(minimum),
+            maximum: canonical_zero(maximum),
         })
     }
 
@@ -1445,7 +1436,7 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
         };
         self.final_in_flow_ends.set(FinalInFlowEndOf {
             side,
-            coordinate: canonical_scroll_zero(coordinate),
+            coordinate: canonical_zero(coordinate),
         });
         Ok(())
     }
@@ -1484,8 +1475,8 @@ impl<S: LayoutScalar> ScrollContributionAccumulatorOf<S> {
             terminal_padding_overflow.include(
                 end.side.axis(),
                 PhysicalContributionIntervalOf {
-                    minimum: canonical_scroll_zero(coordinate),
-                    maximum: canonical_scroll_zero(coordinate),
+                    minimum: canonical_zero(coordinate),
+                    maximum: canonical_zero(coordinate),
                 },
             );
         }
@@ -1849,8 +1840,8 @@ impl<S: LayoutScalar> PhysicalScrollOffsetOf<S> {
         }
 
         Ok(Self {
-            x: canonical_scroll_zero(x),
-            y: canonical_scroll_zero(y),
+            x: canonical_zero(x),
+            y: canonical_zero(y),
         })
     }
 
@@ -1895,8 +1886,8 @@ impl<S: LayoutScalar> FlowRelativeScrollOffsetOf<S> {
         }
 
         Ok(Self {
-            inline: canonical_scroll_zero(inline),
-            block: canonical_scroll_zero(block),
+            inline: canonical_zero(inline),
+            block: canonical_zero(block),
         })
     }
 
@@ -2011,14 +2002,8 @@ impl<S: LayoutScalar> PhysicalScrollRangeOf<S> {
         validate_physical_scroll_range(PhysicalAxis::Vertical, y_minimum, y_maximum)?;
 
         Ok(Self {
-            x: PhysicalScrollAxisRangeOf::new(
-                canonical_scroll_zero(x_minimum),
-                canonical_scroll_zero(x_maximum),
-            ),
-            y: PhysicalScrollAxisRangeOf::new(
-                canonical_scroll_zero(y_minimum),
-                canonical_scroll_zero(y_maximum),
-            ),
+            x: PhysicalScrollAxisRangeOf::new(canonical_zero(x_minimum), canonical_zero(x_maximum)),
+            y: PhysicalScrollAxisRangeOf::new(canonical_zero(y_minimum), canonical_zero(y_maximum)),
         })
     }
 
@@ -2067,12 +2052,12 @@ impl<S: LayoutScalar> FlowRelativeScrollRangeOf<S> {
 
         Ok(Self {
             inline: FlowRelativeScrollAxisRangeOf::new(
-                canonical_scroll_zero(inline_minimum),
-                canonical_scroll_zero(inline_maximum),
+                canonical_zero(inline_minimum),
+                canonical_zero(inline_maximum),
             ),
             block: FlowRelativeScrollAxisRangeOf::new(
-                canonical_scroll_zero(block_minimum),
-                canonical_scroll_zero(block_maximum),
+                canonical_zero(block_minimum),
+                canonical_zero(block_maximum),
             ),
         })
     }
@@ -2150,10 +2135,6 @@ fn validate_flow_relative_scroll_range<S: LayoutScalar>(
     }
 
     Ok(())
-}
-
-fn canonical_scroll_zero<S: LayoutScalar>(value: S) -> S {
-    if value == S::ZERO { S::ZERO } else { value }
 }
 
 impl FlowAxes {
@@ -2251,7 +2232,7 @@ impl FlowAxes {
         } else {
             value
         };
-        canonical_scroll_zero(projected)
+        canonical_zero(projected)
     }
 
     fn project_scroll_range_bounds<S: LayoutScalar>(
@@ -2261,15 +2242,9 @@ impl FlowAxes {
         maximum: S,
     ) -> (S, S) {
         if self.physical_axis_progression(axis).is_decreasing() {
-            (
-                canonical_scroll_zero(-maximum),
-                canonical_scroll_zero(-minimum),
-            )
+            (canonical_zero(-maximum), canonical_zero(-minimum))
         } else {
-            (
-                canonical_scroll_zero(minimum),
-                canonical_scroll_zero(maximum),
-            )
+            (canonical_zero(minimum), canonical_zero(maximum))
         }
     }
 }
@@ -2849,11 +2824,11 @@ fn round_canonical_source_edges<S: LayoutScalar>(
 ) -> Edges<S> {
     Edges::new(
         round_canonical_source_coordinate(edges.top, cumulative_origin.y),
-        canonical_scroll_zero(
+        canonical_zero(
             round(cumulative_origin.x + border_box_size.width)
                 - round(cumulative_origin.x + border_box_size.width - edges.right),
         ),
-        canonical_scroll_zero(
+        canonical_zero(
             round(cumulative_origin.y + border_box_size.height)
                 - round(cumulative_origin.y + border_box_size.height - edges.bottom),
         ),
@@ -2991,7 +2966,7 @@ fn round_canonical_final_in_flow_end<S: LayoutScalar>(
 }
 
 fn round_canonical_source_coordinate<S: LayoutScalar>(value: S, cumulative: S) -> S {
-    canonical_scroll_zero(round(cumulative + value) - round(cumulative))
+    canonical_zero(round(cumulative + value) - round(cumulative))
 }
 
 type DefaultCanonicalScrollGeometryFactory =
@@ -3126,6 +3101,90 @@ fn round<S: LayoutScalar>(value: S) -> S {
 mod fri05_c02_carrier_tests {
     use super::*;
     use crate::{Direction, ScrollSnapAlignValue, WritingMode};
+
+    fn assert_fri06_mr02_signed_zero_scroll_boundaries<S: LayoutScalar>(largest: S) {
+        let zero_rect =
+            ScrollRectOf::try_new(Point::new(-S::ZERO, S::ZERO), Size::new(-S::ZERO, S::ZERO))
+                .expect("signed zero rectangle is valid");
+        for value in [
+            zero_rect.origin().x,
+            zero_rect.origin().y,
+            zero_rect.size().width,
+            zero_rect.size().height,
+        ] {
+            assert_eq!(value, S::ZERO);
+            assert!(!value.to_f64().is_sign_negative());
+        }
+
+        let finite = ScrollRectOf::try_new(
+            Point::new(S::from_f64(-6.5), S::from_f64(4.25)),
+            Size::new(S::from_f64(8.0), S::from_f64(9.5)),
+        )
+        .expect("finite rectangle");
+        assert_eq!(finite.origin().x, S::from_f64(-6.5));
+        assert_eq!(finite.origin().y, S::from_f64(4.25));
+        assert_eq!(finite.size().width, S::from_f64(8.0));
+        assert_eq!(finite.size().height, S::from_f64(9.5));
+
+        assert!(matches!(
+            ScrollRectOf::try_new(
+                Point::new(S::INFINITY, -S::INFINITY),
+                Size::new(S::NAN, S::ZERO),
+            ),
+            Err(ScrollRectErrorOf::NonFiniteOrigin {
+                axis: PhysicalAxis::Horizontal,
+                value,
+            }) if value == S::INFINITY
+        ));
+        assert!(matches!(
+            ScrollRectOf::try_new(Point::ZERO, Size::new(S::NAN, S::INFINITY)),
+            Err(ScrollRectErrorOf::NonFiniteSize {
+                axis: PhysicalAxis::Horizontal,
+                value,
+            }) if value.to_f64().is_nan()
+        ));
+        assert!(matches!(
+            ScrollRectOf::try_new(Point::ZERO, Size::new(S::from_f64(-1.0), S::ZERO)),
+            Err(ScrollRectErrorOf::NegativeSize {
+                axis: PhysicalAxis::Horizontal,
+                value,
+            }) if value == S::from_f64(-1.0)
+        ));
+        assert!(matches!(
+            ScrollRectOf::try_new(
+                Point::new(largest, S::ZERO),
+                Size::new(largest, S::ZERO),
+            ),
+            Err(ScrollRectErrorOf::NonFiniteEnd {
+                axis: PhysicalAxis::Horizontal,
+                value,
+                origin,
+                size,
+            }) if !value.is_finite() && origin == largest && size == largest
+        ));
+
+        let offset = PhysicalScrollOffsetOf::try_new(-S::ZERO, S::from_f64(-3.0))
+            .expect("finite physical offset");
+        assert_eq!(offset.x(), S::ZERO);
+        assert!(!offset.x().to_f64().is_sign_negative());
+        assert_eq!(offset.y(), S::from_f64(-3.0));
+
+        let range =
+            PhysicalScrollRangeOf::try_new(S::from_f64(-4.0), S::from_f64(7.0), -S::ZERO, S::ZERO)
+                .expect("finite ordered physical range");
+        assert_eq!(range.x().minimum(), S::from_f64(-4.0));
+        assert_eq!(range.x().maximum(), S::from_f64(7.0));
+        for value in [range.y().minimum(), range.y().maximum()] {
+            assert_eq!(value, S::ZERO);
+            assert!(!value.to_f64().is_sign_negative());
+        }
+    }
+
+    #[test]
+    fn fri06_mr02_signed_zero_scroll_validation_ranges_and_order_are_preserved() {
+        assert_fri06_mr02_signed_zero_scroll_boundaries::<f32>(f32::MAX);
+        assert_fri06_mr02_signed_zero_scroll_boundaries::<f64>(f64::MAX);
+    }
 
     fn clip_axis<S: LayoutScalar>(
         axis: PhysicalAxis,
@@ -5266,7 +5325,7 @@ mod fri05_c02_factory_rounding_tests {
 
     fn expected_round_coordinate<S: LayoutScalar>(value: S, cumulative: S) -> S {
         let rounded = expected_round_value(cumulative + value) - expected_round_value(cumulative);
-        canonical_scroll_zero(rounded)
+        canonical_zero(rounded)
     }
 
     fn expected_round_rect<S: LayoutScalar>(
@@ -5300,13 +5359,13 @@ mod fri05_c02_factory_rounding_tests {
     ) -> Edges<S> {
         Edges::new(
             expected_round_coordinate(edges.top, cumulative_origin.y),
-            canonical_scroll_zero(
+            canonical_zero(
                 expected_round_value(cumulative_origin.x + border_box_size.width)
                     - expected_round_value(
                         cumulative_origin.x + border_box_size.width - edges.right,
                     ),
             ),
-            canonical_scroll_zero(
+            canonical_zero(
                 expected_round_value(cumulative_origin.y + border_box_size.height)
                     - expected_round_value(
                         cumulative_origin.y + border_box_size.height - edges.bottom,

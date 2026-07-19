@@ -1,4 +1,4 @@
-use super::{DefaultScalar, LayoutScalar};
+use super::{DefaultScalar, LayoutScalar, scalar::canonical_zero};
 use core::num::NonZeroUsize;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -299,10 +299,6 @@ fn finite_scalar<S: LayoutScalar>(value: S) -> Result<S, FiniteScalarErrorOf<S>>
     } else {
         Err(FiniteScalarErrorOf::NonFinite { value })
     }
-}
-
-fn canonical_zero<S: LayoutScalar>(value: S) -> S {
-    if value == S::ZERO { S::ZERO } else { value }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1319,10 +1315,43 @@ fn track_sizing_components_from_tracks<S: LayoutScalar>(
 #[cfg(test)]
 mod value_tests {
     use super::{
-        LengthAutoOf, LengthOf, LengthPercentageOf, LengthResolutionStatus, MaxTrackSizingOf,
-        MinTrackSizingOf, NumericResolutionOf, PercentageBasisOf, TrackFlexFactorOf, TrackSizingOf,
+        LayoutScalar, LengthAutoOf, LengthOf, LengthPercentageOf, LengthResolutionStatus,
+        MaxTrackSizingOf, MinTrackSizingOf, NumericResolutionOf, PercentageBasisOf,
+        TrackFlexFactorOf, TrackSizingOf, canonical_zero,
     };
     use crate::SizingCalculationOf;
+
+    fn assert_fri06_mr02_signed_zero_scalar_and_value_boundaries<S: LayoutScalar>() {
+        for value in [S::ZERO, -S::ZERO] {
+            let canonical = canonical_zero(value);
+            assert_eq!(canonical, S::ZERO);
+            assert!(!canonical.to_f64().is_sign_negative());
+        }
+
+        for value in [S::from_f64(13.5), S::from_f64(-7.25)] {
+            assert_eq!(canonical_zero(value), value);
+        }
+        assert_eq!(canonical_zero(S::INFINITY), S::INFINITY);
+        assert_eq!(canonical_zero(-S::INFINITY), -S::INFINITY);
+        assert!(canonical_zero(S::NAN).to_f64().is_nan());
+
+        let value = LengthPercentageOf::from_coefficients(-S::ZERO, S::from_f64(-0.25))
+            .expect("finite coefficients remain accepted");
+        assert_eq!(value.absolute_px(), S::ZERO);
+        assert!(!value.absolute_px().to_f64().is_sign_negative());
+        assert_eq!(value.percent_fraction(), S::from_f64(-0.25));
+
+        for non_finite in [S::INFINITY, -S::INFINITY, S::NAN] {
+            assert!(LengthPercentageOf::px(non_finite).is_err());
+            assert!(LengthPercentageOf::from_percent_fraction(non_finite).is_err());
+        }
+    }
+
+    #[test]
+    fn fri06_mr02_signed_zero_scalar_primitive_and_value_boundaries_are_preserved() {
+        assert_fri06_mr02_signed_zero_scalar_and_value_boundaries::<f32>();
+        assert_fri06_mr02_signed_zero_scalar_and_value_boundaries::<f64>();
+    }
 
     #[test]
     fn track_sizing_flex_factor_validates_both_scalar_lanes() {

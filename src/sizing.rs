@@ -2,7 +2,7 @@ use crate::{
     CalcSizeBehaviorBasis, DefaultScalar, FiniteScalarErrorOf, LayoutScalar, LengthPercentageOf,
     LengthResolutionOf, LengthResolutionStatus, NonNegativeFiniteOf, NumericResolutionOf,
     PercentageBasisOf, PhysicalAxis, SizingAlgorithm, SizingBehavior, SizingProperty,
-    UnsupportedSizingBehavior,
+    UnsupportedSizingBehavior, scalar::canonical_zero,
 };
 use core::num::NonZeroUsize;
 
@@ -1765,7 +1765,7 @@ impl<S: LayoutScalar> CalcSizeCalculationOf<S> {
                     let bounded_above = maximum.map_or(preferred, |maximum| preferred.min(maximum));
                     let result =
                         minimum.map_or(bounded_above, |minimum| minimum.max(bounded_above));
-                    values.push(canonical_calc_size_zero(result));
+                    values.push(canonical_zero(result));
                 }
             }
         }
@@ -1816,7 +1816,7 @@ impl<S: LayoutScalar> CalcSizeCalculationOf<S> {
 
 fn finite_calc_size_coefficient<S: LayoutScalar>(value: S) -> Result<S, FiniteScalarErrorOf<S>> {
     if value.is_finite() {
-        Ok(canonical_calc_size_zero(value))
+        Ok(canonical_zero(value))
     } else {
         Err(FiniteScalarErrorOf::NonFinite { value })
     }
@@ -1836,7 +1836,7 @@ fn evaluate_calc_size_coefficients<S: LayoutScalar>(
 fn checked_calc_size_product<S: LayoutScalar>(left: S, right: S) -> Result<S, S> {
     let value = left * right;
     if value.is_finite() {
-        Ok(canonical_calc_size_zero(value))
+        Ok(canonical_zero(value))
     } else {
         Err(value)
     }
@@ -1845,7 +1845,7 @@ fn checked_calc_size_product<S: LayoutScalar>(left: S, right: S) -> Result<S, S>
 fn checked_calc_size_sum<S: LayoutScalar>(left: S, right: S) -> Result<S, S> {
     let value = left + right;
     if value.is_finite() {
-        Ok(canonical_calc_size_zero(value))
+        Ok(canonical_zero(value))
     } else {
         Err(value)
     }
@@ -1853,11 +1853,7 @@ fn checked_calc_size_sum<S: LayoutScalar>(left: S, right: S) -> Result<S, S> {
 
 fn canonicalize_last<S: LayoutScalar>(values: &mut [S]) {
     let value = values.last_mut().expect("validated postfix arity");
-    *value = canonical_calc_size_zero(*value);
-}
-
-fn canonical_calc_size_zero<S: LayoutScalar>(value: S) -> S {
-    if value == S::ZERO { S::ZERO } else { value }
+    *value = canonical_zero(*value);
 }
 
 fn reduce_extremum<S: LayoutScalar>(
@@ -3088,6 +3084,91 @@ mod tests {
                 .to_bits(),
             0.0f64.to_bits()
         );
+    }
+
+    fn assert_fri06_mr02_signed_zero_calc_size_boundaries<S: LayoutScalar>(largest: S) {
+        let zeros = CalcSizeCalculationOf::from_coefficients(-S::ZERO, S::ZERO, -S::ZERO)
+            .expect("signed zero coefficients are finite");
+        let resolved = zeros
+            .resolve_against(None, PercentageBasisOf::MISSING)
+            .value
+            .expect("basis-independent signed zero resolves");
+        assert_eq!(resolved, S::ZERO);
+        assert!(!resolved.to_f64().is_sign_negative());
+
+        for expected in [S::from_f64(9.5), S::from_f64(-6.25)] {
+            let calculation = CalcSizeCalculationOf::from_coefficients(expected, S::ZERO, S::ZERO)
+                .expect("finite coefficient");
+            assert_eq!(
+                calculation
+                    .resolve_against(None, PercentageBasisOf::MISSING)
+                    .value,
+                Some(expected)
+            );
+        }
+
+        let cancellation =
+            CalcSizeCalculationOf::from_coefficients(S::from_f64(4.0), S::from_f64(-0.5), S::ZERO)
+                .expect("finite cancellation coefficients");
+        let canceled = cancellation
+            .resolve_against(
+                None,
+                PercentageBasisOf::definite(S::from_f64(8.0)).expect("finite basis"),
+            )
+            .value
+            .expect("finite cancellation resolves");
+        assert_eq!(canceled, S::ZERO);
+        assert!(!canceled.to_f64().is_sign_negative());
+
+        assert!(matches!(
+            CalcSizeCalculationOf::from_coefficients(S::INFINITY, S::NAN, -S::INFINITY),
+            Err(CalcSizeCalculationErrorOf::InvalidAbsolutePx(
+                FiniteScalarErrorOf::NonFinite { value }
+            )) if value == S::INFINITY
+        ));
+        assert!(matches!(
+            CalcSizeCalculationOf::from_coefficients(S::ZERO, S::NAN, -S::INFINITY),
+            Err(CalcSizeCalculationErrorOf::InvalidPercentFraction(
+                FiniteScalarErrorOf::NonFinite { value }
+            )) if value.to_f64().is_nan()
+        ));
+        assert!(matches!(
+            CalcSizeCalculationOf::from_coefficients(S::ZERO, S::ZERO, -S::INFINITY),
+            Err(CalcSizeCalculationErrorOf::InvalidSizeFraction(
+                FiniteScalarErrorOf::NonFinite { value }
+            )) if value == -S::INFINITY
+        ));
+
+        let overflowing = CalcSizeCalculationOf::from_coefficients(S::ZERO, largest, S::ONE)
+            .expect("largest coefficients remain finite");
+        assert_eq!(
+            overflowing
+                .resolve_against(
+                    None,
+                    PercentageBasisOf::definite(S::from_f64(2.0)).expect("finite basis"),
+                )
+                .status(),
+            LengthResolutionStatus::MissingBasis
+        );
+        let overflow_status = overflowing
+            .resolve_against(
+                Some(NonNegativeFiniteOf::new(S::ONE).expect("finite size")),
+                PercentageBasisOf::definite(S::from_f64(2.0)).expect("finite basis"),
+            )
+            .status();
+        assert!(
+            matches!(
+                overflow_status,
+                LengthResolutionStatus::InvalidNumeric { value } if !value.is_finite()
+            ),
+            "available bases preserve invalid-numeric overflow: {overflow_status:?}"
+        );
+    }
+
+    #[test]
+    fn fri06_mr02_signed_zero_calc_size_validation_and_operation_order_are_preserved() {
+        assert_fri06_mr02_signed_zero_calc_size_boundaries::<f32>(f32::MAX);
+        assert_fri06_mr02_signed_zero_calc_size_boundaries::<f64>(f64::MAX);
     }
 
     #[test]
