@@ -1729,6 +1729,329 @@ fn fri06_c03_clear_all_values_accept_all_containing_flows_without_exclusions_bot
 }
 
 #[test]
+fn fri06_c07_logical_clear_vertical_control_and_float_projection_both_scalars() {
+    #[derive(Clone, Copy)]
+    enum Family {
+        VerticalBreak,
+        LogicalFloat,
+    }
+
+    #[derive(Clone, Copy)]
+    struct Row {
+        source: &'static str,
+        variant: &'static str,
+        family: Family,
+        direction: Direction,
+        box_sizing: BoxSizing,
+    }
+
+    const ROWS: [Row; 8] = [
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "border_box_ltr",
+            family: Family::VerticalBreak,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "content_box_ltr",
+            family: Family::VerticalBreak,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::ContentBox,
+        },
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "border_box_rtl",
+            family: Family::VerticalBreak,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/block/fri06_vertical_break_clear.html",
+            variant: "content_box_rtl",
+            family: Family::VerticalBreak,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::ContentBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "border_box_ltr",
+            family: Family::LogicalFloat,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "content_box_ltr",
+            family: Family::LogicalFloat,
+            direction: Direction::Ltr,
+            box_sizing: BoxSizing::ContentBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "border_box_rtl",
+            family: Family::LogicalFloat,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::BorderBox,
+        },
+        Row {
+            source: "html/float/fri06_float_logical_clear.html",
+            variant: "content_box_rtl",
+            family: Family::LogicalFloat,
+            direction: Direction::Rtl,
+            box_sizing: BoxSizing::ContentBox,
+        },
+    ];
+
+    fn vertical_break_batch<S: LayoutScalar>(row: Row) -> CompletedLayoutBatchOf<u32, S> {
+        let flow_axes = FlowAxes::new(WritingMode::VerticalRl, row.direction);
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            box_sizing: row.box_sizing,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(40.0)),
+                PreferredSizeOf::px(S::from_f64(40.0)),
+            ),
+            ..NodeInputOf::default()
+        };
+        let float_style = fri06_c04_line_box(
+            flow_axes,
+            LogicalSizeOf::new(S::ZERO, S::from_f64(20.0)),
+            Float::Left,
+            None,
+        );
+        let text = fri06_c03_text_input(vec![fri06_c02_segment(
+            470,
+            10.0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )]);
+        let metrics =
+            InlineMetricsOf::from_line_height_and_baseline(S::from_f64(20.0), S::from_f64(15.0))
+                .unwrap();
+
+        fri06_c04_front_door_batch(
+            root_style,
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(40.0)),
+                AvailableOf::definite(S::from_f64(40.0)),
+            ),
+            vec![1, 2, 3],
+            vec![
+                (
+                    1,
+                    LayoutInputOf::box_input(float_style.clone()),
+                    float_style,
+                    Vec::new(),
+                ),
+                (2, text, NodeInputOf::non_box(), Vec::new()),
+                (
+                    3,
+                    LayoutInputOf::line_break(
+                        LineBreakInputOf::new()
+                            .with_writing_mode(WritingMode::VerticalRl)
+                            .with_direction(row.direction)
+                            .with_metrics(metrics)
+                            .with_clear(Clear::Left),
+                    ),
+                    NodeInputOf::non_box(),
+                    Vec::new(),
+                ),
+            ],
+        )
+    }
+
+    fn logical_float_batch<S: LayoutScalar>(
+        row: Row,
+        float_side: Float,
+        clear: Clear,
+        float_logical_size: LogicalSizeOf<S>,
+    ) -> CompletedLayoutBatchOf<u32, S> {
+        let flow_axes = FlowAxes::new(WritingMode::VerticalRl, row.direction);
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            box_sizing: row.box_sizing,
+            size: flow_axes
+                .physical_size(LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0)))
+                .map(PreferredSizeOf::px),
+            ..NodeInputOf::default()
+        };
+        let float_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            float: float_side,
+            size: flow_axes
+                .physical_size(float_logical_size)
+                .map(PreferredSizeOf::px),
+            ..NodeInputOf::default()
+        };
+        let cleared_style = NodeInputOf {
+            display: Display::Block,
+            writing_mode: WritingMode::VerticalRl,
+            direction: row.direction,
+            clear,
+            size: flow_axes
+                .physical_size(LogicalSizeOf::new(S::from_f64(50.0), S::from_f64(10.0)))
+                .map(PreferredSizeOf::px),
+            ..NodeInputOf::default()
+        };
+
+        fri06_c04_front_door_batch(
+            root_style,
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(100.0)),
+                AvailableOf::definite(S::from_f64(160.0)),
+            ),
+            vec![1, 2],
+            vec![
+                (
+                    1,
+                    LayoutInputOf::box_input(float_style.clone()),
+                    float_style,
+                    Vec::new(),
+                ),
+                (
+                    2,
+                    LayoutInputOf::box_input(cleared_style.clone()),
+                    cleared_style,
+                    Vec::new(),
+                ),
+            ],
+        )
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        let unique = ROWS
+            .iter()
+            .map(|row| (row.source, row.variant))
+            .collect::<HashSet<_>>();
+        assert_eq!(ROWS.len(), 8);
+        assert_eq!(unique.len(), 8);
+
+        for row in ROWS {
+            match row.family {
+                Family::VerticalBreak => {
+                    let batch = vertical_break_batch::<S>(row);
+                    let break_output = fri06_c02_final_node(&batch, 3);
+                    let expected_break = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(25.0), S::from_f64(10.0)),
+                        Direction::Rtl => Point::new(S::from_f64(25.0), S::from_f64(30.0)),
+                    };
+                    assert_eq!(
+                        break_output.location, expected_break,
+                        "{} {}",
+                        row.source, row.variant
+                    );
+                    assert_eq!(break_output.size, Size::ZERO);
+                    let expected_exclusion = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(20.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(20.0), S::from_f64(40.0)),
+                    };
+                    assert_eq!(fri06_c02_final_node(&batch, 1).location, expected_exclusion);
+                    assert_eq!(
+                        fri06_c02_final_node(&batch, 1).size,
+                        Size::new(S::from_f64(20.0), S::ZERO)
+                    );
+                    let root_output = fri06_c02_final_node(&batch, 0);
+                    assert_eq!(root_output.size, Size::splat(S::from_f64(40.0)));
+                }
+                Family::LogicalFloat => {
+                    let line_start = logical_float_batch::<S>(
+                        row,
+                        Float::Left,
+                        Clear::Left,
+                        LogicalSizeOf::new(S::from_f64(20.0), S::from_f64(20.0)),
+                    );
+                    let line_end = logical_float_batch::<S>(
+                        row,
+                        Float::Right,
+                        Clear::Right,
+                        LogicalSizeOf::new(S::from_f64(30.0), S::from_f64(40.0)),
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 0).size,
+                        Size::new(S::from_f64(160.0), S::from_f64(100.0)),
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 0).size,
+                        Size::new(S::from_f64(160.0), S::from_f64(100.0)),
+                    );
+                    let expected_start_float = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(140.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(140.0), S::from_f64(80.0)),
+                    };
+                    let expected_end_float = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(120.0), S::from_f64(70.0)),
+                        Direction::Rtl => Point::new(S::from_f64(120.0), S::ZERO),
+                    };
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 1).location,
+                        expected_start_float,
+                        "{} {} line-start float",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 1).location,
+                        expected_end_float,
+                        "{} {} line-end float",
+                        row.source,
+                        row.variant,
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 1).size,
+                        Size::splat(S::from_f64(20.0))
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 1).size,
+                        Size::new(S::from_f64(40.0), S::from_f64(30.0))
+                    );
+                    let expected_start = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(130.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(130.0), S::from_f64(50.0)),
+                    };
+                    let expected_end = match row.direction {
+                        Direction::Ltr => Point::new(S::from_f64(110.0), S::ZERO),
+                        Direction::Rtl => Point::new(S::from_f64(110.0), S::from_f64(50.0)),
+                    };
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 2).location,
+                        expected_start,
+                        "{} {} line-start clear",
+                        row.source,
+                        row.variant
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 2).location,
+                        expected_end,
+                        "{} {} line-end clear",
+                        row.source,
+                        row.variant
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_start, 2).size,
+                        Size::new(S::from_f64(10.0), S::from_f64(50.0))
+                    );
+                    assert_eq!(
+                        fri06_c02_final_node(&line_end, 2).size,
+                        Size::new(S::from_f64(10.0), S::from_f64(50.0))
+                    );
+                }
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
 fn fri06_c04_line_band_text_atomic_control_rewrap_transition_and_progress_both_scalars() {
     fn atomic_participation<S: LayoutScalar>(
         following_break: InlineBreakOpportunityOf<S>,

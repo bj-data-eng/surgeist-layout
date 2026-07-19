@@ -727,10 +727,6 @@ impl<S: LayoutScalar, Node: Copy> FloatExclusions<S, Node> {
             .fold(block, S::max)
     }
 
-    fn clearance_y(&self, block: S, clear: Clear) -> S {
-        self.clearance_block(block, clear)
-    }
-
     fn clearance_for_line_intent(&self, block: S, clear: PostLineClearIntent) -> S {
         self.clearance_block(
             block,
@@ -1142,7 +1138,6 @@ where
         LogicalSizeOf::new(inner_inline, constants.logical_node_inner_size().block);
     let node_inner_size = constants.flow_axes.physical_size(logical_node_inner_size);
     let mut cursor_block = constants.logical_content_box_inset().block_start;
-    let mut float_bfc_cursor_y = constants.content_box_inset.top;
     let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut scroll_content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut owned_float_block_end = constants.logical_content_box_inset().block_start;
@@ -1203,7 +1198,6 @@ where
 
                 let collapsed_margin = active_margin.resolve();
                 cursor_block = cursor_block + collapsed_margin;
-                float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
                 if is_collapsing_first_margin {
                     is_collapsing_first_margin = false;
                 }
@@ -1240,7 +1234,6 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1271,7 +1264,6 @@ where
 
                 let collapsed_margin = active_margin.resolve();
                 cursor_block = cursor_block + collapsed_margin;
-                float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
                 if is_collapsing_first_margin {
                     is_collapsing_first_margin = false;
                 }
@@ -1308,7 +1300,6 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1327,7 +1318,6 @@ where
 
                 let collapsed_margin = active_margin.resolve();
                 cursor_block = cursor_block + collapsed_margin;
-                float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
                 if is_collapsing_first_margin {
                     is_collapsing_first_margin = false;
                 }
@@ -1364,7 +1354,6 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1410,7 +1399,6 @@ where
 
             let collapsed_margin = active_margin.resolve();
             cursor_block = cursor_block + collapsed_margin;
-            float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
             if is_collapsing_first_margin {
                 is_collapsing_first_margin = false;
             }
@@ -1445,7 +1433,6 @@ where
             record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
             static_positions.extend(placement.static_positions);
             cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
-            float_bfc_cursor_y = float_bfc_cursor_y + placement.size.height;
             active_margin = CollapsibleMarginOf::<S>::ZERO;
             active_margin_can_collapse_with_parent = false;
             all_in_flow_children_can_collapse_through = false;
@@ -1568,20 +1555,9 @@ where
             let child_logical_location = if child_style.clear == Clear::None {
                 child_logical_location
             } else {
-                let containing_size = constants.containing_size(logical_node_inner_size);
-                let fallback = constants.flow_axes.physical_point(
-                    child_logical_location,
-                    logical_child_size,
-                    containing_size,
-                );
-                constants.flow_axes.logical_point(
-                    Point::new(
-                        fallback.x,
-                        float_exclusions
-                            .clearance_y(float_bfc_cursor_y + collapsed_margin, child_style.clear),
-                    ),
-                    output.size,
-                    containing_size,
+                LogicalPointOf::new(
+                    child_logical_location.inline,
+                    float_exclusions.clearance_block(preview_cursor_block, child_style.clear),
                 )
             };
             let inherited = float_exclusions.for_ordinary_child(child_logical_location);
@@ -1792,7 +1768,6 @@ where
             active_margin.collapse_with(top_margin_set).resolve()
         };
         cursor_block = cursor_block + collapsed_margin;
-        float_bfc_cursor_y = float_bfc_cursor_y + collapsed_margin;
         let logical_location = LogicalPointOf::new(
             in_flow_child_inline_offset(logical_child_size, logical_child_margin, constants),
             cursor_block,
@@ -1834,10 +1809,18 @@ where
                 placement.location.y + inset_offset.y,
             )
         } else if child_style.clear != Clear::None {
+            let cleared_logical_location = LogicalPointOf::new(
+                logical_location.inline,
+                float_exclusions.clearance_block(cursor_block, child_style.clear),
+            );
+            let cleared_location = constants.flow_axes.physical_point(
+                cleared_logical_location,
+                logical_child_size,
+                containing_size,
+            );
             Point::new(
-                fallback_location.x,
-                float_exclusions.clearance_y(float_bfc_cursor_y, child_style.clear)
-                    + inset_offset.y,
+                cleared_location.x + inset_offset.x,
+                cleared_location.y + inset_offset.y,
             )
         } else {
             fallback_location
@@ -1880,7 +1863,6 @@ where
         } else {
             logical_location.block + logical_child_size.block
         };
-        let child_physical_bottom = (location.y - inset_offset.y) + output.size.height;
         let contribution = content_size_contribution(
             Point::new(
                 location.x - constants.content_box_inset.left,
@@ -1916,11 +1898,6 @@ where
             } else {
                 child_block_end
             };
-            float_bfc_cursor_y = if child_style.clear == Clear::None {
-                float_bfc_cursor_y + output.size.height
-            } else {
-                child_physical_bottom
-            };
             active_margin = active_margin
                 .collapse_with(top_margin_set)
                 .collapse_with(bottom_margin_set);
@@ -1928,7 +1905,6 @@ where
         } else {
             all_in_flow_children_can_collapse_through = false;
             cursor_block = child_block_end;
-            float_bfc_cursor_y = child_physical_bottom;
             active_margin = bottom_margin_set;
             active_margin_can_collapse_with_parent = child_margin_can_collapse_with_parent;
         }
