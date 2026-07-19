@@ -251,19 +251,6 @@ validation. The browser adapter cannot compare control/fragment output or lower
 shaped text, atomic participation, bottom alignment, and finite shape-band
 tables. Generation inputs and derived artifacts remain frozen.
 
-At this sequence revision, C06's three adapter tasks are committed and task-clean
-in the ordered ranges
-`5c13dd8cfa4ff57884c3bbb988a5c806b165c849..69e9d437810d0b5b2cc7a14eda5e7e5d49afe5c1`
-plus
-`69e9d437810d0b5b2cc7a14eda5e7e5d49afe5c1..a04ac60d228ec4f1388c66e6f18f3cc0703aa0e1`,
-`a04ac60d228ec4f1388c66e6f18f3cc0703aa0e1..dab8b10e339842bd7a2d0e7740bab92dbe2f5aa1`,
-and
-`dab8b10e339842bd7a2d0e7740bab92dbe2f5aa1..a49c6c2bd81f27b2962928a31ae6126b26b211fe`.
-The invalid uncommitted derivation was discarded. Before C06 completion, its
-cycle plan must be reconciled to this reviewed sequence revision, preserve these
-task ranges and their clean reviews, receive a fresh plan review, and complete
-normal holistic review, publication, and remote readback.
-
 **Bounded outcome:** Extend only the Rust fixture adapter and comparator to parse,
 lower, store, and compare the reviewed control, fragment, shaped-text, atomic,
 bottom-alignment, and finite shape-band facts through production constructors and
