@@ -1,6 +1,6 @@
 # FRI-06-C04 Rectangular Float And BFC Geometry
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-06-C04`
 
