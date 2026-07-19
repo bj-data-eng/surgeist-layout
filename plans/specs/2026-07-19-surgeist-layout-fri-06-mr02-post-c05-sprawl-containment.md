@@ -34,8 +34,9 @@ In scope:
 
 - `src/node_input.rs` duplicate shaped-segment validation;
 - `src/inline.rs` mixed-inline summary, intrinsic, and line-selection scans;
-- crate-private scroll-padding conversion in `src/scroll.rs` and its five
-  existing consumers;
+- crate-private scroll-padding conversion defined at the `src/compute.rs`
+  layout-input boundary as an inherent method on the scroll-owned result type,
+  plus its five existing consumers;
 - compute-owned own/child scroll-geometry error construction used by block,
   flex, grid, and grid lanes;
 - crate-private scalar, rounding, and physical-edge primitives and only their
@@ -163,16 +164,19 @@ linear factor. Wall-clock thresholds are prohibited.
 ### D-04 Scroll-Padding Conversion
 
 `OptimalRegionInsetsOf<S>` owns one crate-private, total conversion from
-`ScrollPaddingOf<S>`. Each physical edge maps independently:
+`ScrollPaddingOf<S>`. Its inherent implementation is defined in `src/compute.rs`,
+where normalized layout input may depend on the scroll-owned result type without
+reversing the lower scroll layer's dependency direction. Each physical edge maps
+independently:
 
 - `ScrollPaddingValueOf::Auto` to `OptimalRegionInsetOf::Auto`; and
 - `ScrollPaddingValueOf::Value(value)` to
   `OptimalRegionInsetOf::Value(value)`.
 
 Top, right, bottom, and left remain in physical order. Leaf, block, flex, grid,
-and grid-child call the same conversion. The lower scroll layer gains no layout
-algorithm or error dependency. No public `From` implementation or public method
-is added.
+and grid-child call the same conversion. `src/scroll.rs` gains no layout-input,
+layout-algorithm, or error dependency. No public `From` implementation or public
+method is added.
 
 ### D-05 Geometry Error Adapters
 
@@ -257,7 +261,9 @@ The dependency direction remains:
 
 - scalar primitives in `scalar.rs` have no domain dependency;
 - typed edge access remains in `geometry.rs`;
-- scroll-padding conversion remains with crate-private scroll types; and
+- scroll-padding conversion remains an inherent crate-private operation on the
+  scroll-owned result type, defined at the compute boundary that owns its layout
+  input dependency; and
 - layout error construction remains in `compute.rs`, above scroll primitives.
 
 No abstraction may combine semantically different size math, rounding, side
