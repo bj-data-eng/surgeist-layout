@@ -174,6 +174,8 @@ pub struct Node {
     pub style: StyleAttrs,
     pub text: Option<String>,
     pub children: Vec<Node>,
+    inline_text: Option<layout::InlineTextInput>,
+    atomic_inline_participation: Option<layout::AtomicInlineParticipation>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -265,6 +267,16 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         tag => return Err(Error::new(format!("unsupported input node `<{tag}>`"))),
     };
 
+    if let Some(layout_input) = xml.attribute("layout-input") {
+        if kind != NodeKind::Text || layout_input != "inline-text" {
+            return Err(Error::new(format!(
+                "invalid `layout-input` on `<{}>`: `{layout_input}`",
+                xml.tag_name().name()
+            )));
+        }
+        return parse_inline_text_node(xml);
+    }
+
     let mut attrs = BTreeMap::new();
     for attr in xml.attributes() {
         attrs.insert(attr.name().to_string(), attr.value().to_string());
@@ -275,18 +287,269 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         .map(str::trim)
         .filter(|text| !text.is_empty())
         .map(ToOwned::to_owned);
-    let children = xml
+    let mut children = xml
         .children()
         .filter(roxmltree::Node::is_element)
+        .filter(|child| !child.has_tag_name("atomic-placeholder"))
         .map(parse_node)
         .collect::<Result<Vec<_>, _>>()?;
+    let mut atomic_indices = std::collections::BTreeSet::new();
+    for placeholder in xml
+        .children()
+        .filter(roxmltree::Node::is_element)
+        .filter(|child| child.has_tag_name("atomic-placeholder"))
+    {
+        let (child_index, participation) = parse_atomic_placeholder(placeholder)?;
+        if !atomic_indices.insert(child_index) {
+            return Err(Error::new(format!(
+                "duplicate atomic child index `{child_index}`"
+            )));
+        }
+        let child = children
+            .get_mut(child_index)
+            .ok_or_else(|| Error::new(format!("unmatched atomic child index `{child_index}`")))?;
+        if child.inline_text.is_some() || child.atomic_inline_participation.is_some() {
+            return Err(Error::new(format!(
+                "unmatched atomic child index `{child_index}`"
+            )));
+        }
+        child.atomic_inline_participation = Some(participation);
+    }
 
     Ok(Node {
         kind,
         style: StyleAttrs { attrs },
         text,
         children,
+        inline_text: None,
+        atomic_inline_participation: None,
     })
+}
+
+fn parse_inline_text_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| attribute.name() != "layout-input")
+    {
+        if attribute.name() == "display" {
+            return Err(Error::new(
+                "inline text must not specify box attribute `display`",
+            ));
+        }
+        return Err(Error::new(format!(
+            "unsupported inline text attribute `{}`",
+            attribute.name()
+        )));
+    }
+    for child in xml.children() {
+        if child.is_text() && child.text().is_some_and(|text| !text.trim().is_empty()) {
+            return Err(Error::new("unsupported non-whitespace text in inline text"));
+        }
+        if child.is_element() && !child.has_tag_name("segment") {
+            let tag = child.tag_name().name();
+            if matches!(tag, "div" | "text") {
+                return Err(Error::new(format!(
+                    "inline text must not contain layout child `<{tag}>`"
+                )));
+            }
+            return Err(Error::new(format!(
+                "unsupported inline text child `<{tag}>`"
+            )));
+        }
+    }
+    let segments = xml
+        .children()
+        .filter(roxmltree::Node::is_element)
+        .map(parse_inline_segment)
+        .collect::<Result<Vec<_>, _>>()?;
+    if segments.is_empty() {
+        return Err(Error::new("inline text requires at least one `<segment>`"));
+    }
+    let inline_text = layout::InlineTextInput::try_new(segments).map_err(|error| match error {
+        layout::InlineTextInputError::DuplicateSegmentId { segment_id } => {
+            Error::new(format!("duplicate segment id `{}`", segment_id.get()))
+        }
+        _ => Error::new(format!("invalid inline text input: {error:?}")),
+    })?;
+    Ok(Node {
+        kind: NodeKind::Text,
+        style: StyleAttrs::default(),
+        text: None,
+        children: Vec::new(),
+        inline_text: Some(inline_text),
+        atomic_inline_participation: None,
+    })
+}
+
+fn parse_inline_segment(
+    xml: roxmltree::Node<'_, '_>,
+) -> Result<layout::ShapedInlineSegment, Error> {
+    expect_tag(xml, "segment")?;
+    const ATTRIBUTES: &[&str] = &[
+        "id",
+        "inline-extent",
+        "inline-baseline",
+        "inline-line-height",
+        "bidi-level",
+        "whitespace-edge",
+        "following-break",
+        "replacement-inline-extent",
+    ];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported `<segment>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_inline_payload(xml)?;
+    let segment_id = layout::InlineSegmentId::new(parse_inline_integer(xml, "id")?);
+    let inline_extent = parse_inline_nonnegative_number(xml, "inline-extent")?;
+    let baseline = parse_inline_nonnegative_number(xml, "inline-baseline")?;
+    let line_height = parse_inline_nonnegative_number(xml, "inline-line-height")?;
+    let metrics = layout::InlineMetrics::try_new(baseline, line_height).map_err(|_| {
+        Error::new(format!(
+            "invalid inline metrics on `<segment>`: baseline `{baseline}`, line height `{line_height}`"
+        ))
+    })?;
+    let bidi_level = parse_bidi_level(xml, "segment")?;
+    let whitespace_edge = match required_attr(xml, "whitespace-edge")? {
+        "preserve" => layout::InlineWhitespaceEdge::Preserve,
+        "discard-at-line-start" => layout::InlineWhitespaceEdge::DiscardAtLineStart,
+        "discard-at-line-end" => layout::InlineWhitespaceEdge::DiscardAtLineEnd,
+        "discard-at-both" => layout::InlineWhitespaceEdge::DiscardAtBoth,
+        raw => {
+            return Err(Error::new(format!(
+                "invalid `whitespace-edge` on `<segment>`: `{raw}`"
+            )));
+        }
+    };
+    let following_break = parse_inline_break(xml, "segment")?;
+    layout::ShapedInlineSegment::try_new(
+        segment_id,
+        inline_extent,
+        metrics,
+        bidi_level,
+        whitespace_edge,
+        following_break,
+    )
+    .map_err(|error| Error::new(format!("invalid segment replacement: {error:?}")))
+}
+
+fn parse_atomic_placeholder(
+    xml: roxmltree::Node<'_, '_>,
+) -> Result<(usize, layout::AtomicInlineParticipation), Error> {
+    const ATTRIBUTES: &[&str] = &[
+        "child-index",
+        "bidi-level",
+        "following-break",
+        "replacement-inline-extent",
+    ];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported `<atomic-placeholder>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_inline_payload(xml)?;
+    let child_index = parse_inline_integer(xml, "child-index")?;
+    let bidi_level = parse_bidi_level(xml, "atomic-placeholder")?;
+    let following_break = parse_inline_break(xml, "atomic-placeholder")?;
+    let participation = layout::AtomicInlineParticipation::try_new(bidi_level, following_break)
+        .map_err(|_| Error::new("atomic placeholder break replacement is not allowed"))?;
+    Ok((child_index, participation))
+}
+
+fn parse_inline_break(
+    xml: roxmltree::Node<'_, '_>,
+    tag: &str,
+) -> Result<layout::InlineBreakOpportunity, Error> {
+    let raw = required_attr(xml, "following-break")?;
+    let replacement = xml.attribute("replacement-inline-extent");
+    match (raw, replacement) {
+        ("prohibited", None) => Ok(layout::InlineBreakOpportunity::prohibited()),
+        ("allowed", None) => Ok(layout::InlineBreakOpportunity::allowed()),
+        ("mandatory", None) => Ok(layout::InlineBreakOpportunity::mandatory()),
+        ("allowed-with-replacement", Some(_)) => {
+            let extent = parse_inline_nonnegative_number(xml, "replacement-inline-extent")?;
+            layout::InlineBreakOpportunity::try_allowed_with_replacement(extent)
+                .map_err(|_| Error::new("invalid `replacement-inline-extent`"))
+        }
+        ("allowed-with-replacement", None) => Err(Error::new(
+            "missing `replacement-inline-extent` for replacement break",
+        )),
+        ("prohibited" | "allowed" | "mandatory", Some(_)) => Err(Error::new(
+            "replacement-inline-extent requires `allowed-with-replacement`",
+        )),
+        _ => Err(Error::new(format!(
+            "invalid `following-break` on `<{tag}>`: `{raw}`"
+        ))),
+    }
+}
+
+fn parse_bidi_level(xml: roxmltree::Node<'_, '_>, tag: &str) -> Result<layout::BidiLevel, Error> {
+    let raw = required_attr(xml, "bidi-level")?;
+    let level = parse_ascii_integer::<u8>(raw)
+        .and_then(|level| layout::BidiLevel::try_new(level).ok())
+        .ok_or_else(|| Error::new(format!("invalid `bidi-level` on `<{tag}>`: `{raw}`")))?;
+    Ok(level)
+}
+
+fn parse_inline_integer<T>(xml: roxmltree::Node<'_, '_>, name: &str) -> Result<T, Error>
+where
+    T: std::str::FromStr,
+{
+    let raw = required_attr(xml, name)?;
+    parse_ascii_integer(raw).ok_or_else(|| {
+        Error::new(format!(
+            "invalid `{name}` on `<{}>`: `{raw}`",
+            xml.tag_name().name()
+        ))
+    })
+}
+
+fn parse_ascii_integer<T: std::str::FromStr>(raw: &str) -> Option<T> {
+    (!raw.is_empty() && raw.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| raw.parse().ok())
+        .flatten()
+}
+
+fn parse_inline_nonnegative_number(
+    xml: roxmltree::Node<'_, '_>,
+    name: &str,
+) -> Result<Scalar, Error> {
+    let raw = required_attr(xml, name)?;
+    let value = parse_number(raw)?;
+    if !value.is_finite() || value < 0.0 {
+        return Err(Error::new(format!(
+            "invalid `{name}` on `<{}>`: `{raw}`",
+            xml.tag_name().name()
+        )));
+    }
+    Ok(value)
+}
+
+fn validate_inline_payload(xml: roxmltree::Node<'_, '_>) -> Result<(), Error> {
+    let tag = xml.tag_name().name();
+    for child in xml.children() {
+        if child.is_text() && child.text().is_some_and(|text| !text.trim().is_empty()) {
+            return Err(Error::new(format!(
+                "unsupported non-whitespace text in `<{tag}>`"
+            )));
+        }
+        if child.is_element() {
+            return Err(Error::new(format!(
+                "unsupported `<{tag}>` child `<{}>`",
+                child.tag_name().name()
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error> {
@@ -587,6 +850,7 @@ fn expect_tag(node: roxmltree::Node<'_, '_>, tag: &str) -> Result<(), Error> {
 
 #[derive(Clone, Debug)]
 struct TestNode {
+    node_input: layout::NodeInput,
     layout_input: layout::LayoutInput,
     font_family: FontFamily,
     font_size: Scalar,
@@ -601,6 +865,8 @@ struct TestNode {
     unrounded_present: bool,
     final_layout: layout::NodeOutput,
     final_layout_present: bool,
+    unrounded_inline_fragments: Option<Vec<layout::InlineFragmentOutput>>,
+    final_inline_fragments: Option<Vec<layout::InlineFragmentOutput>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -644,7 +910,18 @@ impl TestTree {
             None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
-        let layout_input = to_layout_input_in_flow(&node.style, inherited.containing_flow)?;
+        let mut layout_input = match &node.inline_text {
+            Some(input) => layout::LayoutInput::inline_text(input.clone()),
+            None => to_layout_input_in_flow(&node.style, inherited.containing_flow)?,
+        };
+        if let Some(participation) = node.atomic_inline_participation {
+            let Some(input) = layout_input.as_box() else {
+                return Err(Error::new("atomic placeholder must reference a box child"));
+            };
+            let mut input = input.clone();
+            input.atomic_inline_participation = Some(participation);
+            layout_input = layout::LayoutInput::box_input(input);
+        }
         let box_display = layout_input.as_box().map(|input| input.display);
         let containing_flow = layout_input
             .as_box()
@@ -654,6 +931,10 @@ impl TestTree {
         let inline_level_text = inherited.inline_level_text
             || box_display.is_some_and(layout::Display::is_inline_level);
         self.nodes.push(TestNode {
+            node_input: layout_input
+                .as_box()
+                .cloned()
+                .unwrap_or_else(layout::NodeInput::non_box),
             layout_input,
             font_family,
             font_size,
@@ -668,6 +949,8 @@ impl TestTree {
             unrounded_present: false,
             final_layout: layout::NodeOutput::new(),
             final_layout_present: false,
+            unrounded_inline_fragments: None,
+            final_inline_fragments: None,
         });
 
         let mut children = node
@@ -715,6 +998,7 @@ impl TestTree {
     ) -> Result<usize, Error> {
         let id = self.nodes.len();
         self.nodes.push(TestNode {
+            node_input: layout::NodeInput::default(),
             layout_input: layout::LayoutInput::box_input(layout::NodeInput::default()),
             font_family,
             font_size,
@@ -729,6 +1013,8 @@ impl TestTree {
             unrounded_present: false,
             final_layout: layout::NodeOutput::new(),
             final_layout_present: false,
+            unrounded_inline_fragments: None,
+            final_inline_fragments: None,
         });
         Ok(id)
     }
@@ -773,31 +1059,11 @@ impl TestTree {
     }
 
     fn apply_completed_batch(&mut self, batch: &layout::CompletedLayoutBatch<usize>) {
-        for entry in batch.unrounded_entries() {
-            self.nodes[entry.node()].unrounded = entry.output();
-            self.nodes[entry.node()].unrounded_present = true;
-        }
-        for entry in batch.final_entries() {
-            self.nodes[entry.node()].final_layout = entry.output();
-            self.nodes[entry.node()].final_layout_present = true;
-        }
-        for entry in batch.cache_store_entries() {
-            self.nodes[entry.node()].cache.store_with_context(
-                entry.input(),
-                entry.context(),
-                entry.output(),
-            );
-        }
-        for entry in batch.cache_clear_entries() {
-            self.nodes[entry.node()].cache.clear();
-        }
+        batch.apply_to(self).unwrap_or_else(|error| match error {});
     }
 
     fn box_node_input(&self, node: usize) -> &layout::NodeInput {
-        self.nodes[node]
-            .layout_input
-            .as_box()
-            .unwrap_or_else(|| panic!("line break node has no box NodeInput"))
+        &self.nodes[node].node_input
     }
 }
 
@@ -1028,7 +1294,23 @@ impl layout::LayoutTree for TestTree {
         self.nodes[node].cache.get_with_context(input, context)
     }
 
+    fn unrounded_layout(&self, node: Self::Node) -> Option<layout::NodeOutput> {
+        self.nodes[node]
+            .unrounded_present
+            .then_some(self.nodes[node].unrounded)
+    }
+
+    fn unrounded_inline_fragments(
+        &self,
+        node: Self::Node,
+    ) -> Option<&[layout::InlineFragmentOutput]> {
+        self.nodes[node].unrounded_inline_fragments.as_deref()
+    }
+
     fn has_leaf_measurement(&self, node: Self::Node) -> bool {
+        if self.nodes[node].layout_input.as_box().is_none() {
+            return false;
+        }
         can_use_leaf_measurement(
             self.box_node_input(node).display,
             self.nodes[node].children.len(),
@@ -1041,7 +1323,71 @@ impl layout::LayoutTree for TestTree {
         node: Self::Node,
         input: layout::LeafMeasureInput,
     ) -> Option<Result<layout::Size, Self::MeasureError>> {
+        self.nodes[node].layout_input.as_box()?;
         Some(Ok(self.measure(node, input)))
+    }
+}
+
+impl layout::LayoutBatchSink<usize, Scalar> for TestTree {
+    type Error = std::convert::Infallible;
+    type Prepared = Vec<TestNode>;
+
+    fn prepare_layout_batch(
+        &self,
+        batch: &layout::CompletedLayoutBatch<usize>,
+    ) -> Result<Self::Prepared, Self::Error> {
+        let mut prepared = self.nodes.clone();
+        for node in batch.invalidated_nodes() {
+            let state = &mut prepared[*node];
+            state.cache.clear();
+            state.unrounded_present = false;
+            state.final_layout_present = false;
+            state.unrounded_inline_fragments = None;
+            state.final_inline_fragments = None;
+        }
+        for entry in batch.cache_clear_entries() {
+            prepared[entry.node()].cache.clear();
+        }
+        for entry in batch.unrounded_entries() {
+            let state = &mut prepared[entry.node()];
+            state.unrounded = entry.output();
+            state.unrounded_present = true;
+            if matches!(state.layout_input, layout::LayoutInput::InlineText(_)) {
+                state.unrounded_inline_fragments = Some(Vec::new());
+            }
+        }
+        for entry in batch.final_entries() {
+            let state = &mut prepared[entry.node()];
+            state.final_layout = entry.output();
+            state.final_layout_present = true;
+            if matches!(state.layout_input, layout::LayoutInput::InlineText(_)) {
+                state.final_inline_fragments = Some(Vec::new());
+            }
+        }
+        for entry in batch.unrounded_inline_fragments() {
+            prepared[entry.node()]
+                .unrounded_inline_fragments
+                .get_or_insert_with(Vec::new)
+                .push(entry.fragment());
+        }
+        for entry in batch.final_inline_fragments() {
+            prepared[entry.node()]
+                .final_inline_fragments
+                .get_or_insert_with(Vec::new)
+                .push(entry.fragment());
+        }
+        for entry in batch.cache_store_entries() {
+            prepared[entry.node()].cache.store_with_context(
+                entry.input(),
+                entry.context(),
+                entry.output(),
+            );
+        }
+        Ok(prepared)
+    }
+
+    fn commit_layout_batch(&mut self, prepared: Self::Prepared) {
+        self.nodes = prepared;
     }
 }
 
@@ -3435,6 +3781,7 @@ mod tests {
     fn line_break_tree(input: layout::LineBreakInput) -> TestTree {
         TestTree {
             nodes: vec![TestNode {
+                node_input: layout::NodeInput::non_box(),
                 layout_input: layout::LayoutInput::LineBreak(input),
                 font_family: FontFamily::Ahem,
                 font_size: TextMeasure::LINE_HEIGHT,
@@ -3449,6 +3796,8 @@ mod tests {
                 unrounded_present: true,
                 final_layout: layout::NodeOutput::new(),
                 final_layout_present: true,
+                unrounded_inline_fragments: None,
+                final_inline_fragments: None,
             }],
         }
     }
@@ -3723,6 +4072,7 @@ mod tests {
             .iter()
             .enumerate()
             .map(|(node, layout_input)| TestNode {
+                node_input: source.node_inputs[node].clone(),
                 layout_input: layout_input.clone(),
                 font_family: FontFamily::Ahem,
                 font_size: TextMeasure::LINE_HEIGHT,
@@ -3751,6 +4101,27 @@ mod tests {
                     .final_entries()
                     .iter()
                     .any(|entry| entry.node() == node),
+                unrounded_inline_fragments: matches!(
+                    layout_input,
+                    layout::LayoutInput::InlineText(_)
+                )
+                .then(|| {
+                    batch
+                        .unrounded_inline_fragments()
+                        .iter()
+                        .filter(|entry| entry.node() == node)
+                        .map(|entry| entry.fragment())
+                        .collect()
+                }),
+                final_inline_fragments: matches!(layout_input, layout::LayoutInput::InlineText(_))
+                    .then(|| {
+                        batch
+                            .final_inline_fragments()
+                            .iter()
+                            .filter(|entry| entry.node() == node)
+                            .map(|entry| entry.fragment())
+                            .collect()
+                    }),
             })
             .collect();
         let tree = TestTree { nodes };
@@ -3983,11 +4354,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "line break node has no box NodeInput")]
-    fn node_input_panics_for_browser_parity_line_break_node() {
+    fn node_input_returns_canonical_non_box_for_browser_parity_line_break_node() {
         let tree = line_break_tree(layout::LineBreakInput::new());
 
-        let _ = tree.node_input(0);
+        assert_eq!(tree.node_input(0), &layout::NodeInput::non_box());
     }
 
     #[test]
@@ -4307,10 +4677,12 @@ mod tests {
         assert!(cached_batch.cache_store_entries().is_empty());
         assert_surgeist_matches(&golden).expect("unrounded expectations should remain observable");
 
-        tree.nodes[0].layout_input = layout::LayoutInput::box_input(layout::NodeInput {
+        let hidden_input = layout::NodeInput {
             display: layout::Display::None,
             ..layout::NodeInput::default()
-        });
+        };
+        tree.nodes[0].node_input = hidden_input.clone();
+        tree.nodes[0].layout_input = layout::LayoutInput::box_input(hidden_input);
         let hidden_request = root_request(available, RootContext::Root)
             .expect("hidden root request should be valid");
         let hidden_batch = layout::compute_layout(&tree, 0, hidden_request)
@@ -5315,14 +5687,16 @@ mod tests {
 
     #[test]
     fn empty_inline_grid_display_uses_grid_tracks_instead_of_leaf_measurement() {
+        let node_input = layout::NodeInput {
+            display: layout::Display::InlineGrid,
+            grid_template_columns: vec![track_component_px(40.0)],
+            grid_template_rows: vec![track_component_px(20.0)],
+            ..layout::NodeInput::default()
+        };
         let mut tree = TestTree {
             nodes: vec![TestNode {
-                layout_input: layout::LayoutInput::box_input(layout::NodeInput {
-                    display: layout::Display::InlineGrid,
-                    grid_template_columns: vec![track_component_px(40.0)],
-                    grid_template_rows: vec![track_component_px(20.0)],
-                    ..layout::NodeInput::default()
-                }),
+                node_input: node_input.clone(),
+                layout_input: layout::LayoutInput::box_input(node_input),
                 font_family: FontFamily::Ahem,
                 font_size: TextMeasure::LINE_HEIGHT,
                 line_height: TextMeasure::LINE_HEIGHT,
@@ -5336,6 +5710,8 @@ mod tests {
                 unrounded_present: false,
                 final_layout: layout::NodeOutput::new(),
                 final_layout_present: false,
+                unrounded_inline_fragments: None,
+                final_inline_fragments: None,
             }],
         };
 
@@ -5871,5 +6247,462 @@ mod tests {
 
         assert_eq!(node_input.grid_row.start(), None);
         assert_eq!(node_input.grid_row.span(), GridSpan::new(3));
+    }
+
+    fn fri06_c06_inline_input_xml(input: &str) -> String {
+        format!(
+            r#"
+            <test name="fri06-c06-inline-input" use-rounding="true">
+                <viewport width="100" height="max-content" />
+                <input>{input}</input>
+                <expectations><node /></expectations>
+            </test>
+            "#
+        )
+    }
+
+    fn fri06_c06_segment_xml(
+        id: &str,
+        extent: &str,
+        metrics: (&str, &str),
+        bidi: &str,
+        whitespace: &str,
+        following_break: &str,
+        replacement: Option<&str>,
+    ) -> String {
+        let (baseline, line_height) = metrics;
+        let replacement = replacement
+            .map(|value| format!(r#" replacement-inline-extent="{value}""#))
+            .unwrap_or_default();
+        format!(
+            r#"<segment id="{id}" inline-extent="{extent}" inline-baseline="{baseline}" inline-line-height="{line_height}" bidi-level="{bidi}" whitespace-edge="{whitespace}" following-break="{following_break}"{replacement} />"#
+        )
+    }
+
+    fn fri06_c06_inline_text(segments: &str) -> String {
+        format!(r#"<text layout-input="inline-text">{segments}</text>"#)
+    }
+
+    fn fri06_c06_lower(input: &str) -> Result<TestTree, Error> {
+        let golden = Golden::parse(&fri06_c06_inline_input_xml(input))?;
+        TestTree::from_golden(&golden.root)
+    }
+
+    fn fri06_c06_valid_segment() -> String {
+        fri06_c06_segment_xml(
+            "11",
+            "10.25",
+            ("8", "10"),
+            "1",
+            "preserve",
+            "allowed-with-replacement",
+            Some("1.5"),
+        )
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_valid_shaped_text_uses_production_model_and_non_box_pairing() {
+        let segments = [
+            fri06_c06_segment_xml(
+                "11",
+                "10.25",
+                ("8", "10"),
+                "0",
+                "preserve",
+                "prohibited",
+                None,
+            ),
+            fri06_c06_segment_xml(
+                "22",
+                "5",
+                ("7", "9"),
+                "1",
+                "discard-at-line-start",
+                "allowed",
+                None,
+            ),
+            fri06_c06_segment_xml(
+                "33",
+                "4",
+                ("6", "8"),
+                "2",
+                "discard-at-line-end",
+                "mandatory",
+                None,
+            ),
+            fri06_c06_segment_xml(
+                "44",
+                "3",
+                ("5", "7"),
+                "3",
+                "preserve",
+                "allowed-with-replacement",
+                Some("1.5"),
+            ),
+        ]
+        .join("");
+        let tree = fri06_c06_lower(&format!(
+            r#"<div display="block">{}</div>"#,
+            fri06_c06_inline_text(&segments)
+        ))
+        .expect("reviewed shaped input should lower");
+
+        let layout::LayoutInput::InlineText(input) = tree.layout_input(1) else {
+            panic!("valid shaped text must lower as LayoutInput::InlineText");
+        };
+        assert_eq!(tree.node_input(1), &layout::NodeInput::non_box());
+        assert!(tree.nodes[1].children.is_empty());
+        assert!(!tree.has_leaf_measurement(1));
+        assert_eq!(tree.nodes[1].text, None);
+        assert!(!tree.nodes[1].synthetic);
+
+        let segments = input.segments();
+        assert_eq!(segments.len(), 4);
+        assert_eq!(segments[0].segment_id().get(), 11);
+        assert_eq!(segments[0].inline_extent(), 10.25);
+        assert_eq!(segments[0].metrics().baseline(), 8.0);
+        assert_eq!(segments[0].metrics().line_extent(), 10.0);
+        assert_eq!(segments[1].bidi_level().get(), 1);
+        assert_eq!(
+            segments[1].whitespace_edge(),
+            layout::InlineWhitespaceEdge::DiscardAtLineStart
+        );
+        assert_eq!(
+            segments[2].following_break().kind(),
+            layout::InlineBreakKind::Mandatory
+        );
+        assert_eq!(
+            segments[3].following_break().replacement_inline_extent(),
+            Some(1.5)
+        );
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_segment_validation_rejects_empty_and_duplicate_ids() {
+        let empty = fri06_c06_valid_segment().replace("id=\"11\"", "id=\"\"");
+        let error = fri06_c06_lower(&fri06_c06_inline_text(&empty))
+            .expect_err("an empty segment ID must be rejected");
+        assert!(error.to_string().contains("invalid `id` on `<segment>`"));
+
+        let duplicate = format!("{}{}", fri06_c06_valid_segment(), fri06_c06_valid_segment());
+        let error = fri06_c06_lower(&fri06_c06_inline_text(&duplicate))
+            .expect_err("duplicate caller-local segment IDs must be rejected");
+        assert!(error.to_string().contains("duplicate segment id `11`"));
+
+        let error = fri06_c06_lower(&fri06_c06_inline_text(""))
+            .expect_err("an empty shaped text input must be rejected");
+        assert!(
+            error
+                .to_string()
+                .contains("inline text requires at least one `<segment>`")
+        );
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_segment_validation_rejects_partial_and_nonfinite_tuples() {
+        for missing in [
+            "id",
+            "inline-extent",
+            "inline-baseline",
+            "inline-line-height",
+            "bidi-level",
+            "whitespace-edge",
+            "following-break",
+        ] {
+            let needle = format!(r#" {missing}=""#);
+            let segment = fri06_c06_valid_segment();
+            let start = segment.find(&needle).expect("field exists");
+            let value_start = start + needle.len();
+            let value_end = value_start
+                + segment[value_start..]
+                    .find('"')
+                    .expect("field value terminates");
+            let mut partial = segment;
+            partial.replace_range(start..=value_end, "");
+            let error = fri06_c06_lower(&fri06_c06_inline_text(&partial))
+                .expect_err("a partial shaped tuple must be rejected");
+            assert_eq!(
+                error.to_string(),
+                format!("missing `{missing}` on `<segment>`")
+            );
+        }
+
+        for (field, invalid) in [
+            ("inline-extent", "NaN"),
+            ("inline-baseline", "inf"),
+            ("inline-line-height", "NaN"),
+            ("replacement-inline-extent", "-inf"),
+        ] {
+            let mut segment = fri06_c06_valid_segment();
+            let field_prefix = format!(r#"{field}=""#);
+            let start = segment.find(&field_prefix).expect("field exists") + field_prefix.len();
+            let end = start + segment[start..].find('"').expect("field value terminates");
+            segment.replace_range(start..end, invalid);
+            let error = fri06_c06_lower(&fri06_c06_inline_text(&segment))
+                .expect_err("non-finite shaped metrics must be rejected");
+            assert!(error.to_string().contains(&format!("invalid `{field}`")));
+        }
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_segment_validation_rejects_out_of_domain_choices() {
+        for (field, valid, invalid) in [
+            ("bidi-level", "1", "126"),
+            ("whitespace-edge", "preserve", "collapse"),
+            ("following-break", "allowed-with-replacement", "fallback"),
+        ] {
+            let segment = fri06_c06_valid_segment().replace(
+                &format!(r#"{field}="{valid}""#),
+                &format!(r#"{field}="{invalid}""#),
+            );
+            let error = fri06_c06_lower(&fri06_c06_inline_text(&segment))
+                .expect_err("out-of-domain inline fact must be rejected");
+            assert!(error.to_string().contains(&format!("invalid `{field}`")));
+        }
+
+        for segment in [
+            fri06_c06_valid_segment().replace(" replacement-inline-extent=\"1.5\"", ""),
+            fri06_c06_valid_segment().replace(
+                "following-break=\"allowed-with-replacement\"",
+                "following-break=\"allowed\"",
+            ),
+            fri06_c06_valid_segment().replace(
+                "whitespace-edge=\"preserve\"",
+                "whitespace-edge=\"discard-at-both\"",
+            ),
+        ] {
+            let error = fri06_c06_lower(&fri06_c06_inline_text(&segment))
+                .expect_err("contradictory break tuple must be rejected");
+            assert!(error.to_string().contains("replacement"));
+        }
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_schema_validation_rejects_unknown_attributes_and_payload() {
+        for (shaped_text, diagnostic) in [
+            (
+                fri06_c06_inline_text(
+                    &fri06_c06_valid_segment().replace(" />", " glyphs=\"x\" />"),
+                ),
+                "unsupported `<segment>` attribute `glyphs`",
+            ),
+            (
+                format!(
+                    r#"<text layout-input="inline-text" font-family="Ahem">{}</text>"#,
+                    fri06_c06_valid_segment()
+                ),
+                "unsupported inline text attribute `font-family`",
+            ),
+            (
+                format!(
+                    r#"<text layout-input="inline-text">{}authored text</text>"#,
+                    fri06_c06_valid_segment()
+                ),
+                "unsupported non-whitespace text in inline text",
+            ),
+            (
+                format!(
+                    r#"<text layout-input="inline-text">{}<unknown /></text>"#,
+                    fri06_c06_valid_segment()
+                ),
+                "unsupported inline text child `<unknown>`",
+            ),
+            (
+                r#"<text layout-input="inline-text"><segment id="11" inline-extent="1" inline-baseline="1" inline-line-height="1" bidi-level="0" whitespace-edge="preserve" following-break="prohibited">payload</segment></text>"#.to_string(),
+                "unsupported non-whitespace text in `<segment>`",
+            ),
+        ] {
+            let error = fri06_c06_lower(&shaped_text)
+                .expect_err("unknown shaped attributes or payload must fail closed");
+            assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_schema_validation_rejects_box_children_and_measurement() {
+        for (shaped_text, diagnostic) in [
+            (
+                format!(
+                    r#"<text layout-input="inline-text" display="block">{}</text>"#,
+                    fri06_c06_valid_segment()
+                ),
+                "inline text must not specify box attribute `display`",
+            ),
+            (
+                format!(
+                    r#"<text layout-input="inline-text">{}<div /></text>"#,
+                    fri06_c06_valid_segment()
+                ),
+                "inline text must not contain layout child `<div>`",
+            ),
+            (
+                format!(
+                    r#"<text layout-input="inline-text">{}measured leaf text</text>"#,
+                    fri06_c06_valid_segment()
+                ),
+                "unsupported non-whitespace text in inline text",
+            ),
+        ] {
+            let error = fri06_c06_lower(&shaped_text)
+                .expect_err("inline text must reject contradictory box or measurement state");
+            assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    fn fri06_c06_atomic_fixture(atomic_facts: &str) -> String {
+        format!(
+            r#"
+            <div display="block">
+                <div display="inline-block" width="4" height="6" />
+                {}
+                {atomic_facts}
+            </div>
+            "#,
+            fri06_c06_inline_text(&fri06_c06_segment_xml(
+                "22",
+                "5",
+                ("4", "6"),
+                "0",
+                "preserve",
+                "prohibited",
+                None,
+            ))
+        )
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_atomic_binding_uses_exact_child_index_and_preserves_order() {
+        let tree = fri06_c06_lower(&fri06_c06_atomic_fixture(
+            r#"<atomic-placeholder child-index="0" bidi-level="3" following-break="mandatory" />"#,
+        ))
+        .expect("reviewed atomic placeholder should bind");
+
+        assert_eq!(tree.nodes[0].children, vec![1, 2]);
+        let participation = tree
+            .node_input(1)
+            .atomic_inline_participation
+            .expect("the referenced atomic child receives participation");
+        assert_eq!(participation.bidi_level().get(), 3);
+        assert_eq!(
+            participation.following_break().kind(),
+            layout::InlineBreakKind::Mandatory
+        );
+        assert_eq!(tree.node_input(2), &layout::NodeInput::non_box());
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_atomic_binding_rejects_unmatched_duplicate_and_invalid_facts() {
+        for (atomic_facts, diagnostic) in [
+            (
+                r#"<atomic-placeholder child-index="2" bidi-level="0" following-break="allowed" />"#,
+                "unmatched atomic child index `2`",
+            ),
+            (
+                r#"<atomic-placeholder child-index="0" bidi-level="0" following-break="allowed" /><atomic-placeholder child-index="0" bidi-level="1" following-break="mandatory" />"#,
+                "duplicate atomic child index `0`",
+            ),
+            (
+                r#"<atomic-placeholder child-index="0" bidi-level="126" following-break="allowed" />"#,
+                "invalid `bidi-level` on `<atomic-placeholder>`: `126`",
+            ),
+            (
+                r#"<atomic-placeholder child-index="0" bidi-level="0" following-break="fallback" />"#,
+                "invalid `following-break` on `<atomic-placeholder>`: `fallback`",
+            ),
+            (
+                r#"<atomic-placeholder child-index="0" bidi-level="0" following-break="allowed-with-replacement" replacement-inline-extent="1" />"#,
+                "atomic placeholder break replacement is not allowed",
+            ),
+            (
+                r#"<atomic-placeholder child-index="0" bidi-level="0" />"#,
+                "missing `following-break` on `<atomic-placeholder>`",
+            ),
+            (
+                r#"<atomic-placeholder child-index="0" bidi-level="0" following-break="allowed" glyph="x" />"#,
+                "unsupported `<atomic-placeholder>` attribute `glyph`",
+            ),
+            (
+                r#"<atomic-placeholder child-index="0" bidi-level="0" following-break="allowed">payload</atomic-placeholder>"#,
+                "unsupported non-whitespace text in `<atomic-placeholder>`",
+            ),
+        ] {
+            let error = fri06_c06_lower(&fri06_c06_atomic_fixture(atomic_facts))
+                .expect_err("invalid or unmatched atomic facts must fail closed");
+            assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    fn fri06_c06_inline_request() -> layout::LayoutRootRequest {
+        layout::LayoutRootRequest::viewport(layout::Size::new(
+            layout::Available::definite(100.0),
+            layout::Available::MaxContent,
+        ))
+        .expect("valid inline fixture request")
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_fragment_cache_commits_and_restores_nonempty_slices() {
+        let mut tree = fri06_c06_lower(&format!(
+            r#"<div display="block">{}</div>"#,
+            fri06_c06_inline_text(&fri06_c06_segment_xml(
+                "11",
+                "10.25",
+                ("8", "10"),
+                "0",
+                "preserve",
+                "prohibited",
+                None,
+            ))
+        ))
+        .expect("valid shaped fixture should lower");
+        let request = fri06_c06_inline_request();
+        let cold = layout::compute_layout(&tree, 0, request).expect("cold inline layout succeeds");
+        assert_eq!(cold.unrounded_inline_fragments().len(), 1);
+        assert_eq!(cold.final_inline_fragments().len(), 1);
+        assert_ne!(
+            cold.unrounded_inline_fragments()[0].fragment().rect(),
+            cold.final_inline_fragments()[0].fragment().rect()
+        );
+
+        tree.apply_completed_batch(&cold);
+        assert_eq!(
+            tree.unrounded_inline_fragments(1),
+            Some([cold.unrounded_inline_fragments()[0].fragment()].as_slice())
+        );
+
+        let warm = layout::compute_layout(&tree, 0, request).expect("warm inline layout succeeds");
+        assert_eq!(
+            warm.unrounded_inline_fragments(),
+            cold.unrounded_inline_fragments()
+        );
+        assert_eq!(warm.final_inline_fragments(), cold.final_inline_fragments());
+    }
+
+    #[test]
+    fn fri06_c06_inline_input_fragment_cache_distinguishes_committed_empty_from_absent() {
+        let mut tree = fri06_c06_lower(&format!(
+            r#"<div display="block">{}</div>"#,
+            fri06_c06_inline_text(&fri06_c06_segment_xml(
+                "11",
+                "3",
+                ("0", "0"),
+                "0",
+                "discard-at-both",
+                "prohibited",
+                None,
+            ))
+        ))
+        .expect("valid discardable shaped fixture should lower");
+        assert_eq!(tree.unrounded_inline_fragments(1), None);
+
+        let request = fri06_c06_inline_request();
+        let cold = layout::compute_layout(&tree, 0, request).expect("cold empty layout succeeds");
+        assert!(cold.unrounded_inline_fragments().is_empty());
+        tree.apply_completed_batch(&cold);
+        assert_eq!(tree.unrounded_inline_fragments(1), Some([].as_slice()));
+
+        let warm = layout::compute_layout(&tree, 0, request).expect("warm empty layout succeeds");
+        assert!(warm.unrounded_inline_fragments().is_empty());
+        assert!(warm.final_inline_fragments().is_empty());
     }
 }
