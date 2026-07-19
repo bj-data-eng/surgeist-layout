@@ -186,39 +186,102 @@ the real provider and block-line front doors in both scalar lanes.
 **Handoff:** All FRI-06 production behavior and fixture-facing facts are stable
 before browser adapter and artifact work.
 
-### `FRI-06-C06` Bounded Fixture Activation And Final Lineage
+### `FRI-06-C06` Finite Fixture Adapter Preparation
 
 **Specification sources:** `FRI-06.4 D-16`; browser/comparator portions of
 `FRI-06.9` and `FRI-06.10`; `FRI-06.11`; artifact portions of `FRI-06.14`.
 
-**Prerequisites:** `FRI-06-C05` complete and remotely verified; production and
-all generation-input decisions stable.
+**Prerequisites:** `FRI-06-C05` and its post-C05 containment window complete and
+remotely verified.
 
-**Entry state:** Product behavior is complete, while text/control fragments,
-bottom alignment, finite shape bands, the exact 340 existing unsupported
-variants, twelve new four-variant sources, comparator diagnostics, and final
+**Entry state:** Product behavior and finite production fixture-facing facts are
+implemented, while the browser adapter cannot compare control/fragment output or
+lower shaped text, atomic participation, bottom alignment, and finite shape-band
+tables. Generation inputs and derived artifacts remain frozen.
+
+**Bounded outcome:** Extend only the Rust fixture adapter and comparator to parse,
+lower, store, and compare the reviewed control, fragment, shaped-text, atomic,
+bottom-alignment, and finite shape-band facts through production constructors and
+front doors. Do not edit helper, generator, HTML, manifest, XML, report, or
+production source and do not run generation.
+
+**Observable exit evidence:** Strict negative controls detect every named
+geometry, identity, schema, role, query, and provider mismatch. Valid controls,
+fragments, shaped/atomic input, bottom alignment, and empty/partial/full shape
+bands agree through the real fixture-tree and production front doors. Default and
+generator-feature verification pass with generation inputs and artifacts
+unchanged.
+
+**Handoff:** The finite adapter is stable. Browser activation may now diagnose
+whether the frozen production handoff and proposed fixture inputs satisfy all 388
+owned comparisons before any valid final derivation.
+
+### `FRI-06-C07` Activated-Fixture Production Corrections
+
+**Specification sources:** `FRI-06.4 D-03`, `D-06`, `D-07`, and `D-09` through
+`D-13`; line, intrinsic, baseline, bidi, control, flow, and clear portions of
+`FRI-06.7` through `FRI-06.9`; behavioral portions of `FRI-06.14`.
+
+**Prerequisites:** `FRI-06-C06` complete and remotely verified. Its invalid
+diagnostic derivation is discarded and never counts as artifact lineage.
+
+**Entry state:** Focused activation diagnostics prove 72 valid FRI-06 variants
+across 26 sources still miss reviewed production behavior: 12 intrinsic/track
+height results, 20 line/control/baseline placements, and 40 physical/logical
+placements. The 408 pre-existing aggregate failures remain outside this cycle,
+the final aggregate gate remains FRI-13-owned, and the 256 fixture-input failures
+remain C08-owned.
+
+**Bounded outcome:** Correct only the confirmed FRI-06 production paths reached
+by those 26 sources, preserving exact shaped-participant, intrinsic, baseline,
+forced-control, bidi, writing-mode, RTL, and logical-clear semantics through the
+public compute front door. Do not edit fixture inputs or artifacts, run
+generation, absorb inherited aggregate failures, or enter later-owned behavior.
+
+**Observable exit evidence:** Exact source-level regressions prove all 72
+validated production cases in both applicable directions and box models. Default
+and generator-feature verification, formatting, Clippy, unsafe absence, and
+unrelated focused regression suites are clean without fixture or artifact deltas.
+
+**Handoff:** Production behavior required by the 388 owned fixture variants is
+stable before helper, source, manifest, and final-lineage work resumes.
+
+### `FRI-06-C08` Bounded Fixture Activation And Final Lineage
+
+**Specification sources:** `FRI-06.4 D-16`; browser/comparator portions of
+`FRI-06.9` and `FRI-06.10`; `FRI-06.11`; artifact portions of `FRI-06.14`.
+
+**Prerequisites:** `FRI-06-C07` complete and remotely verified; all production
+and finite adapter decisions stable.
+
+**Entry state:** Adapter and product behavior are complete. The failed diagnostic
+candidate proved 256 fixture-owned failures across 66 sources: invalid zero-line-
+height break metrics, collapsed-space advance loss, mismatched bidi/float fixture
+semantics, and atomics-plus-break helper overreach. The exact 340 existing
+unsupported variants, twelve new sources, manifest records, and valid final
 derived artifacts are absent.
 
-**Bounded outcome:** Add only the reviewed finite helper/parser/serializer facts,
-activate all 85 existing FRI-06 sources, add exactly twelve named sources and 48
-variants, compare control/fragment/source/line/visual/baseline geometry, and
-derive the complete corpus once from settled inputs through the existing-pinned
-no-fetch lineage. Generator architecture remains unchanged.
+**Bounded outcome:** Correct only those finite input defects; settle the reviewed
+helper/parser/serializer facts; activate all 85 existing FRI-06 sources; add
+exactly twelve named sources and 48 variants; preserve semantic input for every
+other source; then derive the complete corpus once from settled inputs through
+the existing-pinned no-fetch lineage. Generator architecture remains unchanged.
 
 **Observable exit evidence:** The final full report has 5,712 generated, exactly
 16 immutable missing-root unsupported variants, `filter: null`, reviewed browser
 and helper/manifest provenance, and zero failure classes or scoped reports. All
-388 activated/new variants compare; negative controls detect every named
-geometry/identity mismatch; artifacts are derived rather than hand-edited.
+388 activated/new variants compare through an explicit frozen matrix; the other
+5,324 outputs change only generator provenance; artifacts are derived rather
+than hand-edited. The FRI-13 aggregate gate remains unclaimed.
 
 **Handoff:** Generator inputs and outputs are frozen for read-only initiative
 closure.
 
-### `FRI-06-C07` Public Evidence And Leaf Candidate Closure
+### `FRI-06-C09` Public Evidence And Leaf Candidate Closure
 
 **Specification sources:** `FRI-06.10`; `FRI-06.12` through `FRI-06.14`.
 
-**Prerequisites:** `FRI-06-C06` complete and remotely verified with its valid
+**Prerequisites:** `FRI-06-C08` complete and remotely verified with its valid
 final artifact lineage.
 
 **Entry state:** Behavior and browser artifacts are complete, while aggregate
@@ -243,7 +306,7 @@ integration contract.
 
 ## Sequence Completion
 
-The sequence is complete when `FRI-06-C01` through `FRI-06-C07` satisfy their
+The sequence is complete when `FRI-06-C01` through `FRI-06-C09` satisfy their
 observable exits in order and every `FRI-06.14` criterion is traceable. A later
 cycle cannot begin before its predecessor is published and remotely verified.
 A material specification change returns to specification review before this
