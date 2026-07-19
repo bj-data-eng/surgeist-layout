@@ -11,8 +11,8 @@ Cycle base: `98b861133d873b387fb0b19891692a59ab7a6587`
 Reviewed specification:
 `plans/specs/2026-07-19-surgeist-layout-fri-06-mr02-post-c05-sprawl-containment.md`
 at established-v1 status-normalized SHA-256
-`4cff7fb814d8a206a0013c1cee070115f0afd15a18dc20363d4ca6fa0c78b3f1`,
-commit `1128ab36b`, sections `FRI-06-MR02.1` through `FRI-06-MR02.9`.
+`b5ac1953bb49e0441432c5c1c523e8cc390056d922ef87917374007199b7e632`,
+commit `6870e9732`, sections `FRI-06-MR02.1` through `FRI-06-MR02.9`.
 
 Implementation sequence: none; this is a one-cycle, single-repository
 sub-initiative in the recorded post-C05 insertion window.
@@ -154,13 +154,15 @@ CARGO_NET_OFFLINE=true just fmt-check
 ### `MR02-C01-T4` Use Compute-Owned Geometry Error Adapters
 
 **Files:** `src/compute.rs`, `src/block.rs`, `src/flex.rs`, `src/grid/mod.rs`,
-`src/grid/child.rs`, and focused root/block/flex/grid error tests.
+`src/grid/child.rs`, `src/grid/lanes.rs`, and focused
+root/block/flex/grid/grid-lanes error tests.
 
 **Outcome:** Add `fri06_mr02_geometry_error_` characterization for every row in
 FRI-06-MR02.5. Add crate-private `layout_own_geometry_error` and
 `layout_child_geometry_error` in compute and remove the duplicated algorithm
 helpers. Keep block's optional inline-subject choice local and leaf/standalone
-mapping unchanged.
+mapping unchanged. Route every grid-child and grid-lanes direct caller through
+the same child adapter without changing its container/subject pair.
 
 **Acceptance:** Exact node or container/subject site, run-mode operation,
 `InvalidRootScrollGeometry` versus `InvalidBlockScrollGeometry`, first failure,
@@ -242,16 +244,17 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 ### `MR02-C01-T7` Select Physical Edges Through One Typed Accessor
 
-**Files:** `src/geometry.rs`, `src/block.rs`, `src/compute.rs`, `src/scroll.rs`,
-and focused geometry/block/scroll tests.
+**Files:** `src/geometry.rs`, `src/block.rs`, `src/compute.rs`, `src/flex.rs`,
+`src/scroll.rs`, and focused geometry/block/flex/scroll tests.
 
 **Outcome:** Add `fri06_mr02_physical_edge_` characterization using four distinct
 sentinels and every migrated call-site family. Add crate-private
 `Edges::at_physical_side` and remove only the identical value-selection helpers.
 
 **Acceptance:** Every side returns its physical field. Flow mapping, rect or
-coordinate construction, progression, float-side policy, and other semantic
-matches stay local. No logical-side overload or public method is added.
+coordinate construction, progression, float-side policy, the Flex edge setter,
+Flex axis policy, and other semantic matches stay local. The identical Flex
+getter is removed. No logical-side overload or public method is added.
 
 **Commands:**
 
