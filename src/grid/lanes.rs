@@ -1833,6 +1833,7 @@ where
     let preferred_size = grid_lanes_child_sizing_preflight(child_style, containing_physical_size)
         .map_err(|error| sizing_resolution_error(child, error))?;
     let logical_preferred_size = flow_axes.logical_size(preferred_size);
+    let logical_container_preferred_size = flow_axes.logical_size(container_style.size.clone());
     let (margin, known, parent, available) = {
         let unresolved_margin = flow_axes
             .zip_physical_edges_with_inline_extent(
@@ -1850,12 +1851,16 @@ where
             LogicalSizeOf::new(AvailableOf::MAX_CONTENT, AvailableOf::MAX_CONTENT);
         match lane_axis.logical_axis() {
             LogicalAxis::Inline => {
-                logical_available.inline =
-                    intrinsic_available_for_dimension(logical_preferred_size.inline);
+                logical_available.inline = lane_axis_intrinsic_available(
+                    logical_preferred_size.inline,
+                    &logical_container_preferred_size.inline,
+                );
             }
             LogicalAxis::Block => {
-                logical_available.block =
-                    intrinsic_available_for_dimension(logical_preferred_size.block);
+                logical_available.block = lane_axis_intrinsic_available(
+                    logical_preferred_size.block,
+                    &logical_container_preferred_size.block,
+                );
             }
         }
         match grid_axis.logical_axis() {
@@ -1916,6 +1921,17 @@ where
         lane_axis_size(flow_axes.logical_size(output.size), lane_axis)
             + lane_axis_margin_sum(margin, lane_axis),
     )
+}
+
+fn lane_axis_intrinsic_available<S: LayoutScalar>(
+    child: ResolvedPreferredSize<S>,
+    container: &crate::PreferredSizeOf<S>,
+) -> AvailableOf<S> {
+    if matches!(child, ResolvedPreferredSize::Auto) && container.is_min_content() {
+        AvailableOf::MIN_CONTENT
+    } else {
+        intrinsic_available_for_dimension(child)
+    }
 }
 
 fn lane_child_intrinsic_available<S: LayoutScalar>(

@@ -245,12 +245,11 @@ fn fri06_c07_height_subgrid_tree<S: LayoutScalar>(row: Fri06C07HeightRow) -> Fri
         ..NodeInputOf::default()
     };
     let outer = NodeInputOf {
-        display: Display::Grid,
+        display: Display::GridLanes,
         box_sizing: row.box_sizing,
         direction: row.direction,
         size: Size::new(PreferredSizeOf::MIN_CONTENT, PreferredSizeOf::AUTO),
-        grid_template_columns: vec![TrackComponentOf::MIN_CONTENT],
-        grid_template_rows: vec![TrackComponentOf::AUTO],
+        grid_auto_flow: GridAutoFlow::Column,
         ..NodeInputOf::default()
     };
     let subgrid = NodeInputOf {
