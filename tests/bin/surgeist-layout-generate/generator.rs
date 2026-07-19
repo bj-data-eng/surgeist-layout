@@ -4794,9 +4794,11 @@ mod tests {
         assert!(error.contains("scope=full"));
         assert!(error.contains("started_at_unix_seconds="));
 
-        drop(first);
-        let second =
-            acquire_generation_lease(&config).expect("lease must release when owner drops");
+        first
+            .release()
+            .expect("release generation lease before reacquisition");
+        let second = acquire_generation_lease(&config)
+            .expect("lease must release explicitly before reacquisition");
         drop(second);
         assert!(
             path.is_file(),
