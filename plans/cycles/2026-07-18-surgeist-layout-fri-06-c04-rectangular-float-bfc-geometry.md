@@ -121,7 +121,8 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 ### `C04-T2` Drive Unified Inline Lines And Clear From Rectangular Bands
 
-**Files:** `src/inline.rs`, `src/block.rs`, and focused inline/block/root Rust
+**Files:** `src/inline.rs`, `src/block.rs`, directly required private
+`src/output.rs` and `src/traits.rs` support, and focused inline/block/root Rust
 tests.
 
 **Outcome:** Give each C03 logical line candidate its own rectangular
@@ -272,7 +273,7 @@ git diff --unified=0 5e4a0e97aeb40118ee1bbb660c0c93ea2058cde9..HEAD -- '*.rs' | 
 git diff --check 5e4a0e97aeb40118ee1bbb660c0c93ea2058cde9..HEAD
 git diff --name-only --no-renames 5e4a0e97aeb40118ee1bbb660c0c93ea2058cde9..HEAD
 git ls-files --others --exclude-standard
-test -z "$( (git diff --name-only --no-renames 5e4a0e97aeb40118ee1bbb660c0c93ea2058cde9..HEAD; git ls-files --others --exclude-standard) | LC_ALL=C sort -u | rg -v '^(plans/cycles/2026-07-18-surgeist-layout-fri-06-c04-rectangular-float-bfc-geometry\.md|src/(block|block_tests|compute|contract_tests|inline|inline_tests|lib_tests|root_tests)\.rs)$')"
+test -z "$( (git diff --name-only --no-renames 5e4a0e97aeb40118ee1bbb660c0c93ea2058cde9..HEAD; git ls-files --others --exclude-standard) | LC_ALL=C sort -u | rg -v '^(plans/cycles/2026-07-18-surgeist-layout-fri-06-c04-rectangular-float-bfc-geometry\.md|src/(block|block_tests|compute|contract_tests|inline|inline_tests|lib_tests|output|root_tests|traits)\.rs)$')"
 owned_rust_manifest="$(mktemp -t surgeist-layout-fri06-c04-owned-rust)"
 trap 'rm -f "$owned_rust_manifest"' EXIT
 git ls-files --cached --others --exclude-standard '*.rs' > "$owned_rust_manifest"
@@ -283,9 +284,9 @@ test -z "$(git status --porcelain=v1)"
 
 The sorted changed-path allowlist is exactly this plan plus `src/block.rs`,
 `src/block_tests.rs`, `src/compute.rs`, `src/contract_tests.rs`,
-`src/inline.rs`, `src/inline_tests.rs`, `src/lib_tests.rs`, and
-`src/root_tests.rs`; any changed path outside that set fails completion. Allowed
-paths need not all change. The executable allowlist covers both committed range
+`src/inline.rs`, `src/inline_tests.rs`, `src/lib_tests.rs`, `src/output.rs`,
+`src/root_tests.rs`, and `src/traits.rs`; any changed path outside that set
+fails completion. Allowed paths need not all change. The executable allowlist covers both committed range
 paths, with rename detection disabled so both deletion and addition sides are
 checked, and every nonignored untracked path; the final assertion requires an
 empty worktree. The legacy-bridge, newly added lint-allowance, and unsafe
