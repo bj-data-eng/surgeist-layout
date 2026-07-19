@@ -264,6 +264,14 @@ projection, or error policy merely because syntax resembles a selected helper.
 
 ## FRI-06-MR02.8 Test And Verification Contract
 
+The one-cycle JIT plan derives exactly seven independently reviewed task
+boundaries from this specification: D-01 alone; coupled D-02 plus D-03; D-04
+alone; D-05 alone; D-06 alone; D-07 alone; and D-08 alone. D-02 and D-03 are
+coupled because the summary and incremental selector must share one preservation
+model for candidate extent, discard bounds, metric order, and replacement.
+Their implementation order, dependencies, exact files, and commits belong to
+the cycle plan rather than this specification.
+
 Each task first adds focused passing characterization at its exact base and
 records that evidence before implementation. Focused test prefixes are:
 
