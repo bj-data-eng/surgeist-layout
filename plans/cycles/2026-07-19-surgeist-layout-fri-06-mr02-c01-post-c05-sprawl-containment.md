@@ -199,7 +199,7 @@ body remains.
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_mr02_signed_zero_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri04_c01_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout signed_zero
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri05_c02_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c05_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout
@@ -279,6 +279,7 @@ CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c0
 CARGO_NET_OFFLINE=true just fmt-check
 rg -n 'fn canonical_zero|fn round_layout_coordinate|fn at_physical_side|fn from_scroll_padding|fn layout_own_geometry_error|fn layout_child_geometry_error' src
 rg -n 'pending_inline_extent|canonical_calc_size_zero|canonical_exclusion_zero|canonical_scroll_zero|fn (leaf|block|flex|grid)_scroll_padding|fn (block|flex|grid)_(own|child)_geometry_error|fn edge_at_physical_side|fn physical_edge_value|fn edge_at_side' src
+rg -n '^fn round<S: LayoutScalar>' src/compute.rs src/scroll.rs
 git diff --check 98b861133d873b387fb0b19891692a59ab7a6587..HEAD
 git diff --name-only --no-renames 98b861133d873b387fb0b19891692a59ab7a6587..HEAD
 git diff --unified=0 98b861133d873b387fb0b19891692a59ab7a6587..HEAD -- '*.rs' | rg '^\+.*#\s*\[\s*(allow|expect)\s*\('
@@ -287,11 +288,11 @@ git status --short
 ```
 
 The declaration search must show exactly the intended crate-private owners. The
-legacy, new allowance/expect, and unsafe searches must return no matches. The
-printed changed-path inventory may contain only this specification, this plan,
-the production paths named by T1 through T7, and their directly required focused
-existing Rust test modules. Any other path fails completion. Status must be
-clean. No temporary manifest or generator command is used.
+legacy, local-rounding, new allowance/expect, and unsafe searches must return no
+matches. The printed changed-path inventory may contain only this specification,
+this plan, the production paths named by T1 through T7, and their directly
+required focused existing Rust test modules. Any other path fails completion.
+Status must be clean. No temporary manifest or generator command is used.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `98b861133d873b387fb0b19891692a59ab7a6587..cycle_head`. Rerun the complete final
