@@ -45,22 +45,26 @@ C08 in the reviewed sequence. All 5,730 owned uncommitted candidate paths were
 discarded. No helper, generator, HTML, manifest, XML, report, or production
 `src/` change from that attempt remains.
 
-The temporary test-only RED sidecar from the invalid attempt is not C06 evidence
-or a C06 deliverable and must be compare-cleaned before completion. C07 creates
-fresh production RED evidence at its published base; C08 creates fresh fixture
-RED evidence at its later published base.
+The invalid attempt's test-only RED sidecar was compare-cleaned at exact SHA
+`5ce8ae0f17da9c86f7141e11ec60ac0b1a87c61d`. Its former worktree
+`/private/tmp/surgeist-layout-FRI06-C06-T4-worker-01-red.G14eje/worktree`
+and `refs/surgeist/FRI06-C06-T4-worker-01/red` are absent. C07 creates fresh
+production RED evidence at its published base; C08 creates fresh fixture RED
+evidence at its later published base.
 
 Non-goals are production `src/`; helper, serializer/generator, HTML, manifest,
-XML, and report changes; generation of any scope; dependencies, features,
-lockfile, MSRV, browser policy, task runner, base style, root, siblings, docs,
-public API, expected failures, quarantines, FRI-09 through FRI-13 behavior, and
-generator architecture.
+XML, and report changes; corpus-generator execution of any scope; dependencies,
+features, lockfile, MSRV, browser policy, task runner, base style, root, siblings,
+docs, public API, expected failures, quarantines, FRI-09 through FRI-13 behavior,
+and generator architecture. `just verify-generator` is read-only Cargo
+feature verification and does not execute the corpus generator.
 
 ## Impacts
 
 - **Public API and production behavior:** unchanged.
 - **Dependencies, features, lockfile, MSRV, and browser policy:** unchanged.
-- **Generated inputs and artifacts:** unchanged; no generator command is allowed.
+- **Generated inputs and artifacts:** unchanged; no corpus-generator command is
+  allowed. Read-only generator-feature verification remains required.
 - **Docs/examples and root follow-up:** unchanged in C06.
 - **Unsafe and lint policy:** no executable unsafe and no new `allow` or
   `expect` attribute in tracked or non-ignored owned Rust.
@@ -195,25 +199,39 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
 git diff --check 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
-git diff --name-only --no-renames 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD
-git diff --unified=0 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs' | rg --pcre2 '^\+.*(?<![.\w])(?:allow|expect)\s*\('
-rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' --glob '*.rs'
-git status --short
+git diff --quiet -G'(^|[^.[:alnum:]_])(allow|expect)[[:space:]]*\(' 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD -- '*.rs'
+test "$(git diff --name-only --no-renames 6e3772f509b919ec9a9d027d8298600ed98ee531..HEAD)" = $'plans/cycles/2026-07-19-surgeist-layout-fri-06-c06-finite-fixture-adapter-preparation.md\nplans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md\ntests/layout/browser_parity/support.rs'
+test ! -e /private/tmp/surgeist-layout-FRI06-C06-T4-worker-01-red.G14eje/worktree
+test -z "$(git for-each-ref --format='%(refname)' refs/surgeist)"
+test "$(git worktree list --porcelain | rg -c '^worktree ')" -eq 1
+test -z "$(git status --porcelain)"
+zsh <<'SURGEIST_C06_SAFETY'
+set -u
+owned_rust=("${(@f)$(git ls-files --cached --others --exclude-standard '*.rs')}")
+test "${#owned_rust[@]}" -gt 0
+if rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' "${owned_rust[@]}"; then
+  exit 1
+else
+  test "$?" -eq 1
+fi
+SURGEIST_C06_SAFETY
 ```
 
-The final two `rg` commands must return no matches. The changed-path inventory
-may contain only the reviewed FRI-06 sequence, this reconciled C06 plan path, and
-`tests/layout/browser_parity/support.rs`. The superseded plan filename is a
-rename, not a second active plan. Production `src/`, generator/helper/HTML,
-manifest/XML/report, Cargo/lockfile, docs, root, sibling, task-runner, and
-unrelated paths fail completion.
+The pickaxe and owned-Rust gates fail on a match or tool error. The exact
+changed-path comparison permits only the reviewed FRI-06 sequence, this
+reconciled C06 plan path, and
+`tests/layout/browser_parity/support.rs`. Production `src/`,
+generator/helper/HTML, manifest/XML/report, Cargo/lockfile, docs, root, sibling,
+task-runner, and unrelated paths fail completion. The worktree/ref predicates
+prove the invalid-attempt resources remain absent and only the canonical
+worktree remains.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `6e3772f509b919ec9a9d027d8298600ed98ee531..cycle_head`. Rerun the complete
 read-only set on local `main`, publish the immutable cycle head to authority
 remote `main` with a leased fast-forward, fetch/read back, and prove local
 `main`, its tracking ref, `FETCH_HEAD`, and live remote `main` agree.
-Compare-clean every C06-owned temporary resource.
+Require the recorded temporary-resource absence predicates to pass.
 
 The handoff is the published finite adapter candidate plus the reviewed sequence
 recovery matrices. C07 owns only the 72 production rows; C08 later owns the 256
