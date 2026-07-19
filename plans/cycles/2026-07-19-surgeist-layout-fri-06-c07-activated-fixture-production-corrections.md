@@ -235,14 +235,16 @@ CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
 git diff --check 189787e6de5e83ee39cce9d9771c94847dd799e8..HEAD
 git diff --quiet -G'(^|[^.[:alnum:]_])(allow|expect)[[:space:]]*\(' 189787e6de5e83ee39cce9d9771c94847dd799e8..HEAD -- '*.rs'
-test -z "$(git diff --name-only 189787e6de5e83ee39cce9d9771c94847dd799e8..HEAD -- Cargo.toml Cargo.lock justfile README.md scripts plans/specs plans/sequences tests/bin 'tests/layout/browser_parity/**')"
+test -z "$(git diff --name-only 189787e6de5e83ee39cce9d9771c94847dd799e8..HEAD -- Cargo.toml Cargo.lock justfile README.md scripts plans/specs tests/bin 'tests/layout/browser_parity/**')"
 test -z "$(git status --porcelain)"
 ```
 
 Run the fail-closed owned-Rust executable-unsafe scan from the canonical Surgeist
 gate over every tracked or non-ignored `*.rs` file. Inspect the final changed-path
 inventory and require every implementation/test path to be one of the direct
-owners listed by the three tasks; the cycle plan itself is the only planning path.
+owners listed by the three tasks. The only planning paths may be this cycle plan
+and the exact reviewed sequence pinned in the header; reject every other
+specification, sequence, or cycle-plan path.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `189787e6de5e83ee39cce9d9771c94847dd799e8..cycle_head`. Rerun the complete
