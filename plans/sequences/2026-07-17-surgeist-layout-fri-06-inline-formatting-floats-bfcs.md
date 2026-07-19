@@ -1,6 +1,6 @@
 # FRI-06 Inline Formatting, Floats, And BFCs Implementation Sequence
 
-Status: reviewed
+Status: draft
 
 Sequence ID: `FRI-06`
 
@@ -64,16 +64,12 @@ Matrix digests below are SHA-256 over sorted, LF-terminated
   `grid_lanes_not_inhibited_normal_packing`,
   `grid_lanes_not_inhibited_overflow_hidden_packing`,
   `subgrid_auto_track_sizing_min_content_text_runs`,
-  `subgrid_baseline_auto_columns_first_item`,
-  `subgrid_baseline_auto_columns_second_item`,
-  `subgrid_baseline_standalone_axis_first_item`,
-  `subgrid_baseline_standalone_axis_second_item`,
-  `fri06_forced_break_strut`, `fri06_vertical_break_clear`, and
-  `fri06_float_logical_clear`; plus both RTL variants of the sixteen
+  `fri06_vertical_break_clear`, and `fri06_float_logical_clear`; plus both RTL
+  variants of the sixteen
   `subgrid_alignment_<self>_<item>_item` sources formed by the exact cross product
-  `{baseline,center,end,start}` x `{baseline,center,end,start}`; 72 rows across 26
+  `{baseline,center,end,start}` x `{baseline,center,end,start}`; 52 rows across 21
   sources, digest
-  `56b464ee7b2e5e4ec640d57f3732ee348c1c4534272ee60c82cc27560265518d`.
+  `779de0fbe739b9d7fb86393b278318f0a633432e41c455e29cb082b4ee7d001e`.
 - **Semantic-preservation matrix:** all four variants of
   `block_br_inline_block_metrics`, `block_br_vertical_lr_inline_block_metrics`,
   `block_br_vertical_rl_inline_block_metrics`, and
@@ -85,8 +81,15 @@ Matrix digests below are SHA-256 over sorted, LF-terminated
 
 These predicates own recovery membership. Later cycle plans may partition them
 into executable tasks but may not add, omit, reclassify, or dynamically widen a
-row. The 408 failures observed by the aggregate diagnostic are not a recovery
-matrix and do not move the final aggregate gate out of FRI-13.
+row. C07 exact-base typed probes proved the four baseline sources and
+`fri06_forced_break_strut` already satisfy their production oracles. One bounded
+diagnostic then proved the 16 baseline variants stop at helper whitespace
+classification before Rust lowering; C08 therefore owns that helper correction,
+while its existing twelve-source activation set already owns the four forced-
+break variants. This evidence replaces their invalid production classification;
+it does not add rows or authorize another diagnostic derivation. The 408 failures
+observed by the aggregate diagnostic are not a recovery matrix and do not move
+the final aggregate gate out of FRI-13.
 
 ## Ordered Cycles
 
@@ -275,27 +278,29 @@ owned comparisons before any valid final derivation.
 
 ### `FRI-06-C07` Activated-Fixture Production Corrections
 
-**Specification sources:** `FRI-06.4 D-03`, `D-06`, `D-07`, and `D-09` through
-`D-13`; line, intrinsic, baseline, bidi, control, flow, and clear portions of
+**Specification sources:** `FRI-06.4 D-03`, `D-06`, `D-07`, `D-10`, `D-12`, and
+`D-13`; line, intrinsic, bidi, control, flow, and clear portions of
 `FRI-06.7` through `FRI-06.9`; behavioral portions of `FRI-06.14`.
 
 **Prerequisites:** `FRI-06-C06` complete and remotely verified. Its invalid
 diagnostic derivation is discarded and never counts as artifact lineage.
 
-**Entry state:** Focused activation diagnostics prove 72 valid FRI-06 variants
-across 26 sources still miss reviewed production behavior: 12 intrinsic/track
-height results, 20 line/control/baseline placements, and 40 physical/logical
-placements. The 408 pre-existing aggregate failures remain outside this cycle,
-the final aggregate gate remains FRI-13-owned, and the 256 fixture-input failures
-remain C08-owned.
+**Entry state:** Focused activation diagnostics and exact-base typed probes prove
+52 valid FRI-06 variants across 21 sources still miss reviewed production
+behavior: 12 intrinsic/track height results and 40 physical/logical placements.
+The 16 baseline variants instead require C08 helper correction before lowering,
+and the four forced-break variants require only C08 fixture activation. Their
+typed production oracles already pass. The 408 pre-existing aggregate failures
+remain outside this cycle, the final aggregate gate remains FRI-13-owned, and all
+fixture-input failures remain C08-owned.
 
 **Bounded outcome:** Correct only the confirmed FRI-06 production paths reached
-by those 26 sources, preserving exact shaped-participant, intrinsic, baseline,
-forced-control, bidi, writing-mode, RTL, and logical-clear semantics through the
+by those 21 sources, preserving exact shaped-participant, intrinsic, bidi,
+writing-mode, RTL, control, and logical-clear semantics through the
 public compute front door. Do not edit fixture inputs or artifacts, run
 generation, absorb inherited aggregate failures, or enter later-owned behavior.
 
-**Observable exit evidence:** Exact source-level regressions prove all 72
+**Observable exit evidence:** Exact source-level regressions prove all 52
 validated production cases in both applicable directions and box models. Default
 and generator-feature verification, formatting, Clippy, unsafe absence, and
 unrelated focused regression suites are clean without fixture or artifact deltas.
@@ -311,12 +316,14 @@ stable before helper, source, manifest, and final-lineage work resumes.
 **Prerequisites:** `FRI-06-C07` complete and remotely verified; all production
 and finite adapter decisions stable.
 
-**Entry state:** Adapter and product behavior are complete. The failed diagnostic
-candidate proved 256 fixture-owned failures across 66 sources: invalid zero-line-
-height break metrics, collapsed-space advance loss, mismatched bidi/float fixture
-semantics, and atomics-plus-break helper overreach. The exact 340 existing
-unsupported variants, twelve new sources, manifest records, and valid final
-derived artifacts are absent.
+**Entry state:** Adapter and product behavior are complete. Bounded diagnostics
+proved fixture-owned failures: invalid zero-line-height break metrics, collapsed-
+space advance loss, mismatched bidi/float fixture semantics, atomics-plus-break
+helper overreach, and grid-parent indentation whitespace misclassified as mixed
+inline content for four baseline sources. The exact 340 existing unsupported
+variants, including those 16 baseline variants, twelve new sources including
+`fri06_forced_break_strut`, manifest records, and valid final derived artifacts
+are absent.
 
 **Bounded outcome:** Correct only those finite input defects; settle the reviewed
 helper/parser/serializer facts; activate all 85 existing FRI-06 sources; add
