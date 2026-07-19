@@ -1,6 +1,6 @@
 # FRI-06-C06 Bounded Fixture Activation And Final Lineage
 
-Status: draft
+Status: reviewed
 
 Cycle ID: `FRI-06-C06`
 
