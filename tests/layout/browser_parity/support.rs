@@ -176,6 +176,25 @@ pub struct Node {
     pub children: Vec<Node>,
     inline_text: Option<layout::InlineTextInput>,
     atomic_inline_participation: Option<layout::AtomicInlineParticipation>,
+    shape_bands: Option<Vec<FixtureShapeBand>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FixtureShapeBand {
+    band_minimum: Scalar,
+    band_maximum: Scalar,
+    response: FixtureShapeResponse,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum FixtureShapeResponse {
+    Empty,
+    Interval {
+        minimum: Scalar,
+        maximum: Scalar,
+        originating_band: Option<(Scalar, Scalar)>,
+    },
+    Failure,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -282,6 +301,20 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         attrs.insert(attr.name().to_string(), attr.value().to_string());
     }
 
+    let mut shape_bands = None;
+    for table in xml
+        .children()
+        .filter(roxmltree::Node::is_element)
+        .filter(|child| child.has_tag_name("shape-bands"))
+    {
+        if shape_bands.is_some() {
+            return Err(Error::new(
+                "expected at most one `<shape-bands>` child on an input node",
+            ));
+        }
+        shape_bands = Some(parse_shape_bands(table)?);
+    }
+
     let text = xml
         .text()
         .map(str::trim)
@@ -290,7 +323,9 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
     let mut children = xml
         .children()
         .filter(roxmltree::Node::is_element)
-        .filter(|child| !child.has_tag_name("atomic-placeholder"))
+        .filter(|child| {
+            !child.has_tag_name("atomic-placeholder") && !child.has_tag_name("shape-bands")
+        })
         .map(parse_node)
         .collect::<Result<Vec<_>, _>>()?;
     let mut atomic_indices = std::collections::BTreeSet::new();
@@ -323,6 +358,7 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         children,
         inline_text: None,
         atomic_inline_participation: None,
+        shape_bands,
     })
 }
 
@@ -378,6 +414,7 @@ fn parse_inline_text_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         children: Vec::new(),
         inline_text: Some(inline_text),
         atomic_inline_participation: None,
+        shape_bands: None,
     })
 }
 
@@ -550,6 +587,156 @@ fn validate_inline_payload(xml: roxmltree::Node<'_, '_>) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+fn parse_shape_bands(xml: roxmltree::Node<'_, '_>) -> Result<Vec<FixtureShapeBand>, Error> {
+    expect_tag(xml, "shape-bands")?;
+    if let Some(attribute) = xml.attributes().next() {
+        return Err(Error::new(format!(
+            "unsupported `<shape-bands>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    for child in xml.children() {
+        if child.is_text() && child.text().is_some_and(|text| !text.trim().is_empty()) {
+            return Err(Error::new(
+                "unsupported non-whitespace text in `<shape-bands>`",
+            ));
+        }
+        if child.is_element() && !child.has_tag_name("shape-band") {
+            return Err(Error::new(format!(
+                "unsupported `<shape-bands>` child `<{}>`",
+                child.tag_name().name()
+            )));
+        }
+    }
+
+    let mut bands = Vec::new();
+    for band in xml.children().filter(roxmltree::Node::is_element) {
+        let band = parse_shape_band(band)?;
+        if bands.iter().any(|existing: &FixtureShapeBand| {
+            existing.band_minimum == band.band_minimum && existing.band_maximum == band.band_maximum
+        }) {
+            return Err(Error::new(format!(
+                "duplicate shape query band `{}..{}`",
+                band.band_minimum, band.band_maximum
+            )));
+        }
+        bands.push(band);
+    }
+    Ok(bands)
+}
+
+fn parse_shape_band(xml: roxmltree::Node<'_, '_>) -> Result<FixtureShapeBand, Error> {
+    expect_tag(xml, "shape-band")?;
+    const ATTRIBUTES: &[&str] = &[
+        "band-minimum",
+        "band-maximum",
+        "interval-minimum",
+        "interval-maximum",
+        "origin-band-minimum",
+        "origin-band-maximum",
+        "provider-result",
+    ];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported `<shape-band>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_inline_payload(xml)?;
+
+    let band_minimum = parse_number(required_attr(xml, "band-minimum")?)?;
+    let band_maximum = parse_number(required_attr(xml, "band-maximum")?)?;
+    let validation_margin_box =
+        layout::ScrollRect::try_new(layout::Point::ZERO, layout::Size::ZERO)
+            .expect("zero validation margin box is valid");
+    let query = layout::FloatExclusionQuery::try_new(
+        validation_margin_box,
+        layout::FlowAxes::new(layout::WritingMode::HorizontalTb, layout::Direction::Ltr),
+        band_minimum,
+        band_maximum,
+    )
+    .map_err(|error| Error::new(format!("invalid shape band query: {error:?}")))?;
+
+    let interval = match (
+        xml.attribute("interval-minimum"),
+        xml.attribute("interval-maximum"),
+    ) {
+        (Some(minimum), Some(maximum)) => Some((parse_number(minimum)?, parse_number(maximum)?)),
+        (None, None) => None,
+        _ => {
+            return Err(Error::new("shape interval endpoints must appear together"));
+        }
+    };
+    let originating_band = match (
+        xml.attribute("origin-band-minimum"),
+        xml.attribute("origin-band-maximum"),
+    ) {
+        (Some(minimum), Some(maximum)) => {
+            let minimum = parse_number(minimum)?;
+            let maximum = parse_number(maximum)?;
+            layout::FloatExclusionQuery::try_new(
+                validation_margin_box,
+                query.flow_axes(),
+                minimum,
+                maximum,
+            )
+            .map_err(|error| {
+                Error::new(format!("invalid originating shape band query: {error:?}"))
+            })?;
+            Some((minimum, maximum))
+        }
+        (None, None) => None,
+        _ => {
+            return Err(Error::new(
+                "originating shape band endpoints must appear together",
+            ));
+        }
+    };
+
+    let response = match xml.attribute("provider-result") {
+        Some("failure") => {
+            if interval.is_some() || originating_band.is_some() {
+                return Err(Error::new(
+                    "provider failure must not include an exclusion interval",
+                ));
+            }
+            FixtureShapeResponse::Failure
+        }
+        Some(value) => {
+            return Err(Error::new(format!(
+                "unsupported shape provider result `{value}`"
+            )));
+        }
+        None => match interval {
+            Some((minimum, maximum)) => {
+                layout::FloatExclusionInterval::try_new(query, minimum, maximum).map_err(
+                    |error| Error::new(format!("invalid shape exclusion interval: {error:?}")),
+                )?;
+                FixtureShapeResponse::Interval {
+                    minimum,
+                    maximum,
+                    originating_band,
+                }
+            }
+            None if originating_band.is_some() => {
+                return Err(Error::new(
+                    "originating shape band requires an exclusion interval",
+                ));
+            }
+            None => FixtureShapeResponse::Empty,
+        },
+    };
+
+    Ok(FixtureShapeBand {
+        band_minimum: query.band_minimum(),
+        band_maximum: query.band_maximum(),
+        response,
+    })
 }
 
 fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error> {
@@ -867,6 +1054,7 @@ struct TestNode {
     final_layout_present: bool,
     unrounded_inline_fragments: Option<Vec<layout::InlineFragmentOutput>>,
     final_inline_fragments: Option<Vec<layout::InlineFragmentOutput>>,
+    shape_bands: Option<Vec<FixtureShapeBand>>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -922,6 +1110,18 @@ impl TestTree {
             input.atomic_inline_participation = Some(participation);
             layout_input = layout::LayoutInput::box_input(input);
         }
+        if node.shape_bands.is_some()
+            && !layout_input.as_box().is_some_and(|input| {
+                input.float_exclusion == layout::FloatExclusion::Shape
+                    && input.display != layout::Display::None
+                    && input.position != layout::Position::Absolute
+                    && matches!(input.float, layout::Float::Left | layout::Float::Right)
+            })
+        {
+            return Err(Error::new(
+                "shape band table requires a visible in-flow left/right shape float",
+            ));
+        }
         let box_display = layout_input.as_box().map(|input| input.display);
         let containing_flow = layout_input
             .as_box()
@@ -951,6 +1151,7 @@ impl TestTree {
             final_layout_present: false,
             unrounded_inline_fragments: None,
             final_inline_fragments: None,
+            shape_bands: node.shape_bands.clone(),
         });
 
         let mut children = node
@@ -1015,6 +1216,7 @@ impl TestTree {
             final_layout_present: false,
             unrounded_inline_fragments: None,
             final_inline_fragments: None,
+            shape_bands: None,
         });
         Ok(id)
     }
@@ -1275,7 +1477,7 @@ impl layout::Traverse for TestTree {
 }
 
 impl layout::LayoutTree for TestTree {
-    type MeasureError = std::convert::Infallible;
+    type MeasureError = Error;
 
     fn node_input(&self, node: Self::Node) -> &layout::NodeInput {
         self.box_node_input(node)
@@ -1298,6 +1500,62 @@ impl layout::LayoutTree for TestTree {
         self.nodes[node]
             .unrounded_present
             .then_some(self.nodes[node].unrounded)
+    }
+
+    fn float_exclusion_interval(
+        &self,
+        node: Self::Node,
+        query: layout::FloatExclusionQuery,
+    ) -> Option<Result<Option<layout::FloatExclusionInterval>, Self::MeasureError>> {
+        let table = self.nodes[node].shape_bands.as_ref()?;
+        let Some(band) = table.iter().find(|band| {
+            band.band_minimum == query.band_minimum() && band.band_maximum == query.band_maximum()
+        }) else {
+            return Some(Err(Error::new(format!(
+                "missing fixture shape response for query band `{}..{}`",
+                query.band_minimum(),
+                query.band_maximum()
+            ))));
+        };
+
+        match band.response {
+            FixtureShapeResponse::Empty => Some(Ok(None)),
+            FixtureShapeResponse::Failure => Some(Err(Error::new(format!(
+                "fixture shape provider failure for query band `{}..{}`",
+                query.band_minimum(),
+                query.band_maximum()
+            )))),
+            FixtureShapeResponse::Interval {
+                minimum,
+                maximum,
+                originating_band,
+            } => {
+                let originating_query = match originating_band {
+                    Some((band_minimum, band_maximum)) => {
+                        match layout::FloatExclusionQuery::try_new(
+                            query.margin_box(),
+                            query.flow_axes(),
+                            band_minimum,
+                            band_maximum,
+                        ) {
+                            Ok(query) => query,
+                            Err(error) => {
+                                return Some(Err(Error::new(format!(
+                                    "invalid fixture originating shape query: {error:?}"
+                                ))));
+                            }
+                        }
+                    }
+                    None => query,
+                };
+                Some(
+                    layout::FloatExclusionInterval::try_new(originating_query, minimum, maximum)
+                        .map_err(|error| {
+                            Error::new(format!("invalid fixture shape response: {error:?}"))
+                        }),
+                )
+            }
+        }
     }
 
     fn unrounded_inline_fragments(
@@ -1708,6 +1966,16 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
     }
     if let Some(value) = attrs.get("float") {
         input.float = parse_float(value)?;
+    }
+    if let Some(value) = attrs.get("float-exclusion") {
+        input.float_exclusion = match value {
+            "shape" => layout::FloatExclusion::Shape,
+            _ => {
+                return Err(Error::new(format!(
+                    "unsupported fixture float exclusion `{value}`"
+                )));
+            }
+        };
     }
     if let Some(value) = attrs.get("clear") {
         input.clear = parse_clear(value)?;
@@ -2348,6 +2616,7 @@ fn parse_vertical_align(raw: &str) -> Result<layout::VerticalAlign, Error> {
     match raw {
         "baseline" => Ok(layout::VerticalAlign::Baseline),
         "top" => Ok(layout::VerticalAlign::Top),
+        "bottom" => Ok(layout::VerticalAlign::Bottom),
         _ => Err(Error::new(format!(
             "unsupported parity fixture vertical-align `{raw}`"
         ))),
@@ -3798,6 +4067,7 @@ mod tests {
                 final_layout_present: true,
                 unrounded_inline_fragments: None,
                 final_inline_fragments: None,
+                shape_bands: None,
             }],
         }
     }
@@ -4122,6 +4392,7 @@ mod tests {
                             .map(|entry| entry.fragment())
                             .collect()
                     }),
+                shape_bands: None,
             })
             .collect();
         let tree = TestTree { nodes };
@@ -5712,6 +5983,7 @@ mod tests {
                 final_layout_present: false,
                 unrounded_inline_fragments: None,
                 final_inline_fragments: None,
+                shape_bands: None,
             }],
         };
 
@@ -6704,5 +6976,279 @@ mod tests {
         let warm = layout::compute_layout(&tree, 0, request).expect("warm empty layout succeeds");
         assert!(warm.unrounded_inline_fragments().is_empty());
         assert!(warm.final_inline_fragments().is_empty());
+    }
+
+    fn fri06_c06_shape_input_xml(float_attrs: &str, provider: &str) -> String {
+        format!(
+            r#"
+            <test name="fri06-c06-shape-input" use-rounding="true">
+                <viewport width="100" height="max-content" />
+                <input>
+                    <div display="block" width="100">
+                        <div width="80" height="20" {float_attrs}>
+                            {provider}
+                        </div>
+                        <div display="block" width="30" height="10" float="left" />
+                    </div>
+                </input>
+                <expectations><node /></expectations>
+            </test>
+            "#
+        )
+    }
+
+    fn fri06_c06_shape_input_lower(float_attrs: &str, provider: &str) -> Result<TestTree, Error> {
+        let golden = Golden::parse(&fri06_c06_shape_input_xml(float_attrs, provider))?;
+        TestTree::from_golden(&golden.root)
+    }
+
+    fn fri06_c06_shape_input_query(
+        band_minimum: Scalar,
+        band_maximum: Scalar,
+    ) -> layout::FloatExclusionQuery {
+        layout::FloatExclusionQuery::try_new(
+            layout::ScrollRect::try_new(layout::Point::ZERO, layout::Size::new(80.0, 20.0))
+                .expect("finite test margin box"),
+            layout::FlowAxes::new(layout::WritingMode::HorizontalTb, layout::Direction::Ltr),
+            band_minimum,
+            band_maximum,
+        )
+        .expect("finite test query")
+    }
+
+    fn fri06_c06_shape_input_request() -> layout::LayoutRootRequest {
+        layout::LayoutRootRequest::viewport(layout::Size::new(
+            layout::Available::definite(100.0),
+            layout::Available::MaxContent,
+        ))
+        .expect("finite shape fixture request")
+    }
+
+    #[test]
+    fn fri06_c06_shape_input_bottom_alignment_lowers_exactly_without_widening() {
+        let bottom = fri06_c06_shape_input_lower(r#"float="left" vertical-align="bottom""#, "")
+            .expect("bottom is the reviewed finite alignment addition");
+        assert_eq!(
+            bottom.node_input(1).vertical_align,
+            layout::VerticalAlign::Bottom
+        );
+
+        let error = fri06_c06_shape_input_lower(r#"float="left" vertical-align="middle""#, "")
+            .expect_err("later-owned vertical alignment must remain rejected");
+        assert_eq!(
+            error.to_string(),
+            "unsupported parity fixture vertical-align `middle`"
+        );
+    }
+
+    #[test]
+    fn fri06_c06_shape_input_valid_table_returns_empty_partial_and_full_intervals() {
+        let provider = r#"
+            <shape-bands>
+                <shape-band band-minimum="0" band-maximum="10" />
+                <shape-band band-minimum="10" band-maximum="20"
+                    interval-minimum="0" interval-maximum="40" />
+                <shape-band band-minimum="20" band-maximum="30"
+                    interval-minimum="0" interval-maximum="80" />
+            </shape-bands>
+        "#;
+        let tree = fri06_c06_shape_input_lower(r#"float="left" float-exclusion="shape""#, provider)
+            .expect("finite shape table lowers through production constructors");
+        assert_eq!(
+            tree.node_input(1).float_exclusion,
+            layout::FloatExclusion::Shape
+        );
+
+        let empty = tree
+            .float_exclusion_interval(1, fri06_c06_shape_input_query(0.0, 10.0))
+            .expect("shape table is a provider")
+            .expect("empty intersection is a successful response");
+        assert_eq!(empty, None);
+
+        for (band, expected) in [((10.0, 20.0), (0.0, 40.0)), ((20.0, 30.0), (0.0, 80.0))] {
+            let interval = tree
+                .float_exclusion_interval(1, fri06_c06_shape_input_query(band.0, band.1))
+                .expect("shape table is a provider")
+                .expect("finite interval is a successful response")
+                .expect("partial and full intervals remain nonempty");
+            assert_eq!((interval.minimum(), interval.maximum()), expected);
+        }
+    }
+
+    #[test]
+    fn fri06_c06_shape_input_schema_rejects_partial_nonfinite_duplicate_and_unknown_facts() {
+        let cases = [
+            (
+                r#"<shape-bands><shape-band band-minimum="0" /></shape-bands>"#,
+                "missing `band-maximum` on `<shape-band>`",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="NaN" band-maximum="10" /></shape-bands>"#,
+                "invalid shape band query",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="10" band-maximum="0" /></shape-bands>"#,
+                "invalid shape band query",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" interval-minimum="2" /></shape-bands>"#,
+                "shape interval endpoints must appear together",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" interval-minimum="8" interval-maximum="2" /></shape-bands>"#,
+                "invalid shape exclusion interval",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" origin-band-minimum="1" interval-minimum="0" interval-maximum="5" /></shape-bands>"#,
+                "originating shape band endpoints must appear together",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" /><shape-band band-minimum="0" band-maximum="10" /></shape-bands>"#,
+                "duplicate shape query band `0..10`",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" path="M0 0" /></shape-bands>"#,
+                "unsupported `<shape-band>` attribute `path`",
+            ),
+            (
+                r#"<shape-bands geometry="path"><shape-band band-minimum="0" band-maximum="10" /></shape-bands>"#,
+                "unsupported `<shape-bands>` attribute `geometry`",
+            ),
+            (
+                r#"<shape-bands><path /></shape-bands>"#,
+                "unsupported `<shape-bands>` child `<path>`",
+            ),
+            (
+                r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" provider-result="failure" interval-minimum="0" interval-maximum="5" /></shape-bands>"#,
+                "provider failure must not include an exclusion interval",
+            ),
+        ];
+
+        for (provider, diagnostic) in cases {
+            let error =
+                fri06_c06_shape_input_lower(r#"float="left" float-exclusion="shape""#, provider)
+                    .expect_err("strict finite shape schema must fail closed");
+            assert!(
+                error.to_string().contains(diagnostic),
+                "expected `{diagnostic}`, got `{error}`"
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c06_shape_input_table_binds_only_visible_in_flow_left_or_right_shape_float() {
+        let provider =
+            r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" /></shape-bands>"#;
+        for attrs in [
+            r#"float="none" float-exclusion="shape""#,
+            r#"display="none" float="left" float-exclusion="shape""#,
+            r#"position="absolute" float="right" float-exclusion="shape""#,
+            r#"float="left""#,
+        ] {
+            let error = fri06_c06_shape_input_lower(attrs, provider)
+                .expect_err("shape table must bind only to the reviewed shape-float role");
+            assert_eq!(
+                error.to_string(),
+                "shape band table requires a visible in-flow left/right shape float"
+            );
+        }
+
+        for side in ["left", "right"] {
+            fri06_c06_shape_input_lower(
+                &format!(r#"float="{side}" float-exclusion="shape""#),
+                provider,
+            )
+            .expect("both visible in-flow shape-float sides accept a table");
+        }
+    }
+
+    #[test]
+    fn fri06_c06_shape_input_compute_consumes_partial_table_through_production_provider() {
+        let tree = fri06_c06_shape_input_lower(
+            r#"float="left" float-exclusion="shape""#,
+            r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" interval-minimum="0" interval-maximum="40" /></shape-bands>"#,
+        )
+        .expect("valid partial fixture response lowers");
+        let batch = layout::compute_layout(&tree, 0, fri06_c06_shape_input_request())
+            .expect("production compute consumes the finite provider response");
+        let second_float = batch
+            .final_entries()
+            .iter()
+            .find(|entry| entry.node() == 2)
+            .expect("second float publishes output")
+            .output();
+        assert_eq!(second_float.location, layout::Point::new(40.0, 0.0));
+    }
+
+    #[test]
+    fn fri06_c06_shape_input_compute_reports_missing_mismatch_and_provider_failure() {
+        let missing = fri06_c06_shape_input_lower(r#"float="left" float-exclusion="shape""#, "")
+            .expect("shape without a table represents a missing fixture provider");
+        let error = layout::compute_layout(&missing, 0, fri06_c06_shape_input_request())
+            .expect_err("requested missing provider must fail");
+        assert_eq!(
+            error.site(),
+            layout::LayoutErrorSite::ContainerSubject {
+                container: 0,
+                subject: 1,
+            }
+        );
+        assert_eq!(
+            error.operation(),
+            layout::LayoutOperation::FloatExclusionQuery
+        );
+        assert!(matches!(
+            error.kind(),
+            layout::LayoutErrorKind::MissingContext(
+                layout::LayoutMissingContext::FloatExclusionProvider
+            )
+        ));
+
+        let mismatch = fri06_c06_shape_input_lower(
+            r#"float="left" float-exclusion="shape""#,
+            r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" origin-band-minimum="10" origin-band-maximum="20" interval-minimum="0" interval-maximum="40" /></shape-bands>"#,
+        )
+        .expect("representable mismatched origin lowers");
+        let error = layout::compute_layout(&mismatch, 0, fri06_c06_shape_input_request())
+            .expect_err("production compute must reject a mismatched originating query");
+        let layout::LayoutErrorKind::InvalidInput(
+            layout::LayoutInvalidInput::FloatExclusionProviderOutput {
+                error: layout::FloatExclusionIntervalError::QueryMismatch { expected, actual },
+            },
+        ) = error.kind()
+        else {
+            panic!("unexpected mismatch diagnostic: {error:?}");
+        };
+        assert_eq!(
+            (expected.band_minimum(), expected.band_maximum()),
+            (0.0, 10.0)
+        );
+        assert_eq!((actual.band_minimum(), actual.band_maximum()), (10.0, 20.0));
+
+        let failure = fri06_c06_shape_input_lower(
+            r#"float="left" float-exclusion="shape""#,
+            r#"<shape-bands><shape-band band-minimum="0" band-maximum="10" provider-result="failure" /></shape-bands>"#,
+        )
+        .expect("representable provider failure lowers");
+        let error = layout::compute_layout(&failure, 0, fri06_c06_shape_input_request())
+            .expect_err("production compute must preserve fixture provider failure");
+        assert_eq!(
+            error.site(),
+            layout::LayoutErrorSite::ContainerSubject {
+                container: 0,
+                subject: 1,
+            }
+        );
+        assert_eq!(
+            error.operation(),
+            layout::LayoutOperation::FloatExclusionQuery
+        );
+        let layout::LayoutErrorKind::Measurement(provider_error) = error.kind() else {
+            panic!("unexpected provider failure diagnostic: {error:?}");
+        };
+        assert_eq!(
+            provider_error.to_string(),
+            "fixture shape provider failure for query band `0..10`"
+        );
     }
 }
