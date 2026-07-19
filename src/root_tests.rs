@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 
-use crate::geometry::{LogicalPointOf, LogicalSizeOf};
+use crate::geometry::{LogicalEdgesOf, LogicalPointOf, LogicalSizeOf};
 use crate::test_support::layout_tree::OracleTreeOf;
 use crate::*;
 
@@ -432,6 +432,37 @@ fn fri06_c04_bfc_batch<S: LayoutScalar>(
         &tree,
         0,
         LayoutRootRequestOf::viewport(root_size.map(AvailableOf::definite)).unwrap(),
+    )
+    .unwrap()
+}
+
+type Fri06C04FrontDoorNode<S> = (u32, LayoutInputOf<S>, NodeInputOf<S>, Vec<u32>);
+
+fn fri06_c04_front_door_batch<S: LayoutScalar>(
+    root_style: NodeInputOf<S>,
+    logical_available: LogicalSizeOf<AvailableOf<S>>,
+    root_children: Vec<u32>,
+    nodes: Vec<Fri06C04FrontDoorNode<S>>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let flow_axes = FlowAxes::new(root_style.writing_mode, root_style.direction);
+    let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_style.clone()))]);
+    let mut node_inputs = HashMap::from([(0, root_style)]);
+    let mut children = HashMap::from([(0, root_children)]);
+    for (node, layout_input, node_input, node_children) in nodes {
+        inputs.insert(node, layout_input);
+        node_inputs.insert(node, node_input);
+        children.insert(node, node_children);
+    }
+    let tree = Fri06C02TextTree {
+        inputs,
+        node_inputs,
+        children,
+    };
+
+    compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(flow_axes.physical_size(logical_available)).unwrap(),
     )
     .unwrap()
 }
@@ -2872,6 +2903,621 @@ fn fri06_c04_bfc_nested_bfc_floating_and_atomic_contexts_trap_internal_floats_bo
 }
 
 #[test]
+fn fri06_c04_float_size_auto_block_encloses_inset_float_mixed_and_nested_both_scalars() {
+    fn float_style<S: LayoutScalar>(
+        flow_axes: FlowAxes,
+        inline: f64,
+        block: f64,
+        clear: Clear,
+    ) -> NodeInputOf<S> {
+        NodeInputOf {
+            display: Display::Block,
+            writing_mode: flow_axes.writing_mode(),
+            direction: flow_axes.direction(),
+            float: Float::Left,
+            clear,
+            size: flow_axes
+                .physical_size(LogicalSizeOf::new(S::from_f64(inline), S::from_f64(block)))
+                .map(PreferredSizeOf::px),
+            margin: flow_axes
+                .physical_edges(LogicalEdgesOf::new(
+                    S::from_f64(1.0),
+                    S::from_f64(2.0),
+                    S::from_f64(2.0),
+                    S::from_f64(3.0),
+                ))
+                .map(LengthAutoOf::px),
+            ..NodeInputOf::default()
+        }
+    }
+
+    fn assert_lane<S: LayoutScalar>() {
+        for (writing_mode, direction) in root_writing_mode_directions() {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            let padding = LogicalEdgesOf::new(
+                S::from_f64(1.0),
+                S::from_f64(1.0),
+                S::from_f64(3.0),
+                S::from_f64(5.0),
+            );
+            let border = LogicalEdgesOf::new(
+                S::from_f64(1.0),
+                S::from_f64(1.0),
+                S::from_f64(2.0),
+                S::from_f64(4.0),
+            );
+            let root_style = NodeInputOf {
+                display: Display::Block,
+                writing_mode,
+                direction,
+                size: flow_axes.physical_size(LogicalSizeOf::new(
+                    PreferredSizeOf::px(S::from_f64(80.0)),
+                    PreferredSizeOf::AUTO,
+                )),
+                padding: flow_axes.physical_edges(padding).map(LengthOf::px),
+                border: flow_axes.physical_edges(border).map(LengthOf::px),
+                ..NodeInputOf::default()
+            };
+            let float = float_style(flow_axes, 20.0, 10.0, Clear::None);
+            let float_only = fri06_c04_front_door_batch(
+                root_style.clone(),
+                LogicalSizeOf::new(
+                    AvailableOf::definite(S::from_f64(80.0)),
+                    AvailableOf::MAX_CONTENT,
+                ),
+                vec![1],
+                vec![(
+                    1,
+                    LayoutInputOf::box_input(float.clone()),
+                    float.clone(),
+                    Vec::new(),
+                )],
+            );
+            let root = fri06_c02_final_node(&float_only, 0);
+            assert_eq!(
+                flow_axes.logical_size(root.size).block,
+                S::from_f64(29.0),
+                "float-only auto block size must count the five-unit start inset once for {flow_axes:?}",
+            );
+            let floated = fri06_c02_final_node(&float_only, 1);
+            let floated_origin = flow_axes.logical_point(floated.location, floated.size, root.size);
+            assert_eq!(floated_origin.block, S::from_f64(7.0));
+
+            let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+                940,
+                20.0,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )])
+            .unwrap();
+            let mixed = fri06_c04_front_door_batch(
+                root_style,
+                LogicalSizeOf::new(
+                    AvailableOf::definite(S::from_f64(80.0)),
+                    AvailableOf::MAX_CONTENT,
+                ),
+                vec![1, 2],
+                vec![
+                    (
+                        1,
+                        LayoutInputOf::box_input(float.clone()),
+                        float,
+                        Vec::new(),
+                    ),
+                    (
+                        2,
+                        LayoutInputOf::inline_text(text),
+                        NodeInputOf::non_box(),
+                        Vec::new(),
+                    ),
+                ],
+            );
+            assert_eq!(
+                flow_axes
+                    .logical_size(fri06_c02_final_node(&mixed, 0).size)
+                    .block,
+                S::from_f64(29.0),
+                "mixed normal flow must not hide the taller owned float for {flow_axes:?}",
+            );
+        }
+
+        let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(80.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            ..NodeInputOf::default()
+        };
+        let nested_style = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(60.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            padding: Edges {
+                top: LengthOf::px(S::from_f64(4.0)),
+                bottom: LengthOf::px(S::from_f64(6.0)),
+                ..Edges::all(LengthOf::ZERO)
+            },
+            overflow: ComputedOverflow::try_new(Overflow::Hidden, Overflow::Hidden).unwrap(),
+            ..NodeInputOf::default()
+        };
+        let nested_float = NodeInputOf {
+            margin: Edges {
+                top: LengthAutoOf::px(S::from_f64(1.0)),
+                bottom: LengthAutoOf::px(S::from_f64(2.0)),
+                ..Edges::all(LengthAutoOf::ZERO)
+            },
+            ..float_style(flow_axes, 20.0, 8.0, Clear::Both)
+        };
+        let following_text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+            941,
+            10.0,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )])
+        .unwrap();
+        let nested = fri06_c04_front_door_batch(
+            root_style,
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(80.0)),
+                AvailableOf::MAX_CONTENT,
+            ),
+            vec![1, 3],
+            vec![
+                (
+                    1,
+                    LayoutInputOf::box_input(nested_style.clone()),
+                    nested_style,
+                    vec![2],
+                ),
+                (
+                    2,
+                    LayoutInputOf::box_input(nested_float.clone()),
+                    nested_float,
+                    Vec::new(),
+                ),
+                (
+                    3,
+                    LayoutInputOf::inline_text(following_text),
+                    NodeInputOf::non_box(),
+                    Vec::new(),
+                ),
+            ],
+        );
+        let root = fri06_c02_final_node(&nested, 0);
+        let nested_output = fri06_c02_final_node(&nested, 1);
+        assert_eq!(nested_output.size.height, S::from_f64(21.0));
+        assert_eq!(root.size.height, S::from_f64(31.0));
+        assert_eq!(
+            fri06_c02_final_node(&nested, 3).location,
+            Point::new(S::ZERO, S::from_f64(21.0))
+        );
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_size_intrinsics_keep_logical_clear_and_overwide_contributions_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        for flow_axes in [
+            FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr),
+            FlowAxes::new(WritingMode::VerticalRl, Direction::Rtl),
+        ] {
+            let root_style = NodeInputOf {
+                display: Display::Block,
+                writing_mode: flow_axes.writing_mode(),
+                direction: flow_axes.direction(),
+                ..NodeInputOf::default()
+            };
+            let make_float = |side, clear, inline| {
+                let style = NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: flow_axes.writing_mode(),
+                    direction: flow_axes.direction(),
+                    float: side,
+                    clear,
+                    size: flow_axes
+                        .physical_size(LogicalSizeOf::new(S::from_f64(inline), S::from_f64(5.0)))
+                        .map(PreferredSizeOf::px),
+                    ..NodeInputOf::default()
+                };
+                (LayoutInputOf::box_input(style.clone()), style)
+            };
+            let (first_input, first) = make_float(Float::Left, Clear::None, 30.0);
+            let (second_input, second) = make_float(Float::Right, Clear::None, 40.0);
+            let (overwide_input, overwide) = make_float(Float::Left, Clear::Both, 80.0);
+            let nodes = vec![
+                (1, first_input, first, Vec::new()),
+                (2, second_input, second, Vec::new()),
+                (3, overwide_input, overwide, Vec::new()),
+            ];
+            for (available, expected) in [
+                (AvailableOf::MIN_CONTENT, S::from_f64(80.0)),
+                (AvailableOf::MAX_CONTENT, S::from_f64(80.0)),
+            ] {
+                let batch = fri06_c04_front_door_batch(
+                    root_style.clone(),
+                    LogicalSizeOf::new(available, AvailableOf::MAX_CONTENT),
+                    vec![1, 2, 3],
+                    nodes.clone(),
+                );
+                assert_eq!(
+                    flow_axes
+                        .logical_size(fri06_c02_final_node(&batch, 0).size)
+                        .inline,
+                    expected,
+                    "intrinsic floats remain logical and clear starts a new contribution band for {flow_axes:?}",
+                );
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_scroll_signed_fractional_geometry_and_source_order_both_scalars() {
+    fn assert_lane<S: LayoutScalar>() {
+        let root_style = NodeInputOf {
+            display: Display::Block,
+            direction: Direction::Rtl,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(20.0)),
+                PreferredSizeOf::px(S::from_f64(8.0)),
+            ),
+            overflow: ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto).unwrap(),
+            ..NodeInputOf::default()
+        };
+        let float = NodeInputOf {
+            display: Display::Block,
+            direction: Direction::Rtl,
+            float: Float::Left,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(30.5)),
+                PreferredSizeOf::px(S::from_f64(8.25)),
+            ),
+            margin: Edges {
+                top: LengthAutoOf::px(S::from_f64(0.25)),
+                bottom: LengthAutoOf::px(S::from_f64(0.25)),
+                ..Edges::all(LengthAutoOf::ZERO)
+            },
+            ..NodeInputOf::default()
+        };
+        let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+            950,
+            5.25,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )])
+        .unwrap();
+        let batch = fri06_c04_front_door_batch(
+            root_style,
+            LogicalSizeOf::new(
+                AvailableOf::definite(S::from_f64(20.0)),
+                AvailableOf::definite(S::from_f64(8.0)),
+            ),
+            vec![1, 2],
+            vec![
+                (
+                    1,
+                    LayoutInputOf::box_input(float.clone()),
+                    float,
+                    Vec::new(),
+                ),
+                (
+                    2,
+                    LayoutInputOf::inline_text(text),
+                    NodeInputOf::non_box(),
+                    Vec::new(),
+                ),
+            ],
+        );
+        for entries in [batch.unrounded_entries(), batch.final_entries()] {
+            assert_eq!(
+                entries
+                    .iter()
+                    .map(LayoutOutputEntryOf::node)
+                    .collect::<Vec<_>>(),
+                vec![0, 1, 2],
+            );
+            assert_eq!(
+                public_flow_output(entries, 1).source_index,
+                SourceIndex::new(0)
+            );
+            assert_eq!(
+                public_flow_output(entries, 2).source_index,
+                SourceIndex::new(1)
+            );
+        }
+        let unrounded_float = public_flow_output(batch.unrounded_entries(), 1);
+        let rounded_float = public_flow_output(batch.final_entries(), 1);
+        assert_eq!(
+            unrounded_float.location,
+            Point::new(S::from_f64(-10.5), S::from_f64(0.25))
+        );
+        assert_eq!(
+            rounded_float.location,
+            Point::new(S::from_f64(-10.0), S::ZERO)
+        );
+        let unrounded_root = public_flow_output(batch.unrounded_entries(), 0);
+        let unrounded_geometry = unrounded_root.scroll_geometry.unwrap();
+        assert_eq!(
+            unrounded_geometry.scrollable_overflow().origin().x,
+            S::from_f64(-10.5)
+        );
+        assert_eq!(
+            unrounded_geometry.scrollable_overflow().size().width,
+            S::from_f64(30.5)
+        );
+        assert_eq!(
+            unrounded_geometry.physical_range().x().minimum(),
+            S::from_f64(-10.5)
+        );
+        assert_eq!(unrounded_geometry.physical_range().x().maximum(), S::ZERO);
+        let fragment = batch.unrounded_inline_fragments()[0].fragment();
+        assert_eq!(fragment.line_index(), 0);
+        assert_eq!(fragment.visual_index(), 0);
+        assert_eq!(fragment.rect().origin().y, S::from_f64(8.75));
+        let rounded_fragment = batch.final_inline_fragments()[0].fragment();
+        assert_eq!(rounded_fragment.line_index(), fragment.line_index());
+        assert_eq!(rounded_fragment.visual_index(), fragment.visual_index());
+        assert_eq!(rounded_fragment.rect().origin().y, S::from_f64(9.0));
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_scroll_rounding_preserves_mapped_side_band_and_position_identity_all_flows_both_scalars()
+ {
+    fn assert_lane<S: LayoutScalar>() {
+        for (writing_mode, direction) in root_writing_mode_directions() {
+            let flow_axes = FlowAxes::new(writing_mode, direction);
+            for side in [Float::Left, Float::Right] {
+                let root_style = NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    size: flow_axes.physical_size(LogicalSizeOf::new(
+                        PreferredSizeOf::px(S::from_f64(100.0)),
+                        PreferredSizeOf::px(S::from_f64(40.0)),
+                    )),
+                    ..NodeInputOf::default()
+                };
+                let float = NodeInputOf {
+                    display: Display::Block,
+                    writing_mode,
+                    direction,
+                    float: side,
+                    size: flow_axes
+                        .physical_size(LogicalSizeOf::new(S::from_f64(20.25), S::from_f64(10.25)))
+                        .map(PreferredSizeOf::px),
+                    ..NodeInputOf::default()
+                };
+                let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+                    951,
+                    10.25,
+                    InlineWhitespaceEdge::Preserve,
+                    InlineBreakOpportunityOf::prohibited(),
+                )])
+                .unwrap();
+                let batch = fri06_c04_front_door_batch(
+                    root_style,
+                    LogicalSizeOf::new(
+                        AvailableOf::definite(S::from_f64(100.0)),
+                        AvailableOf::definite(S::from_f64(40.0)),
+                    ),
+                    vec![1, 2],
+                    vec![
+                        (
+                            1,
+                            LayoutInputOf::box_input(float.clone()),
+                            float,
+                            Vec::new(),
+                        ),
+                        (
+                            2,
+                            LayoutInputOf::inline_text(text),
+                            NodeInputOf::non_box(),
+                            Vec::new(),
+                        ),
+                    ],
+                );
+                let container_size = flow_axes
+                    .physical_size(LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(40.0)));
+                for entries in [batch.unrounded_entries(), batch.final_entries()] {
+                    let floated = public_flow_output(entries, 1);
+                    let line = public_flow_output(entries, 2);
+                    assert_eq!(floated.source_index, SourceIndex::new(0));
+                    assert_eq!(line.source_index, SourceIndex::new(1));
+                    let float_origin =
+                        flow_axes.logical_point(floated.location, floated.size, container_size);
+                    let line_origin =
+                        flow_axes.logical_point(line.location, line.size, container_size);
+                    let float_inline = flow_axes.logical_size(floated.size).inline;
+                    match side {
+                        Float::Left => {
+                            assert!(line_origin.inline >= float_origin.inline + float_inline)
+                        }
+                        Float::Right => assert!(line_origin.inline <= float_origin.inline),
+                        Float::None => unreachable!(),
+                    }
+                    assert_eq!(line_origin.block, S::ZERO);
+                }
+                let unrounded_fragment = batch.unrounded_inline_fragments()[0].fragment();
+                let rounded_fragment = batch.final_inline_fragments()[0].fragment();
+                assert_eq!(
+                    (
+                        unrounded_fragment.segment_id(),
+                        unrounded_fragment.line_index(),
+                        unrounded_fragment.visual_index(),
+                    ),
+                    (
+                        rounded_fragment.segment_id(),
+                        rounded_fragment.line_index(),
+                        rounded_fragment.visual_index(),
+                    ),
+                );
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_lifecycle_cold_warm_dirty_failures_baseline_and_content_are_atomic_both_scalars()
+{
+    fn assert_lane<S: LayoutScalar>() {
+        let request = LayoutRootRequestOf::viewport(Size::new(
+            AvailableOf::definite(S::from_f64(40.0)),
+            AvailableOf::MAX_CONTENT,
+        ))
+        .unwrap();
+        let mut tree = Fri06C02StatefulTextTree::new_float_mixed();
+        let cold = compute_layout(&tree, 0, request).expect("cold float/line layout succeeds");
+        let cold_unrounded = cold.unrounded_entries().to_vec();
+        let cold_final = cold.final_entries().to_vec();
+        let cold_fragments = cold.unrounded_inline_fragments().to_vec();
+        assert_eq!(
+            public_flow_output(&cold_unrounded, 0).size.height,
+            S::from_f64(12.5)
+        );
+        assert_eq!(
+            public_flow_output(&cold_unrounded, 0).content_size,
+            Size::new(S::from_f64(40.0), S::from_f64(12.5)),
+        );
+        assert_eq!(cold_fragments[0].fragment().baseline().y, S::from_f64(8.0));
+        assert!(
+            cold.cache_store_entries()
+                .iter()
+                .any(|entry| entry.node() == 1)
+        );
+        cold.apply_to(&mut tree).expect("cold float batch commits");
+
+        let warm = compute_layout(&tree, 0, request).expect("warm float/line layout succeeds");
+        assert_eq!(warm.unrounded_entries(), cold_unrounded);
+        assert_eq!(warm.final_entries(), cold_final);
+        assert_eq!(warm.unrounded_inline_fragments(), cold_fragments);
+        assert!(
+            warm.cache_store_entries()
+                .iter()
+                .all(|entry| entry.node() != 1)
+        );
+        warm.apply_to(&mut tree)
+            .expect("warm float batch recommits");
+
+        let stale_float = tree.retained.unrounded_nodes[&1];
+        let stale_text = tree.retained.unrounded_nodes[&2];
+        tree.replace_float_inline_extent(25.75);
+        tree.retained.dirty = vec![1, 1];
+        let replacement = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("dirty float replacement stages");
+        assert_eq!(replacement.invalidated_nodes(), &[0, 1]);
+        replacement
+            .apply_to(&mut tree)
+            .expect("dirty float replacement commits");
+        assert_ne!(tree.retained.unrounded_nodes[&1], stale_float);
+        assert_eq!(
+            tree.retained.unrounded_nodes[&1].size.width,
+            S::from_f64(25.75)
+        );
+        assert_ne!(
+            tree.retained.unrounded_nodes[&2].location,
+            stale_text.location
+        );
+        assert!(tree.retained.dirty.is_empty());
+
+        tree.replace_float_inline_extent(26.25);
+        tree.retained.dirty = vec![1];
+        tree.add_failing_float_path_control();
+        let before_layout_failure = tree.retained.clone();
+        let error = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect_err("invalid float-path control pairing rejects the whole layout batch");
+        assert_eq!(error.site(), LayoutErrorSiteOf::Node(9));
+        assert_eq!(tree.retained, before_layout_failure);
+
+        tree.remove_failing_float_path_control();
+        let rejected = compute_layout_invalidated(&tree, 0, request, &tree.retained.dirty)
+            .expect("replacement after layout failure stages");
+        tree.reject_preparation = true;
+        let before_preparation_failure = tree.retained.clone();
+        assert_eq!(
+            rejected.apply_to(&mut tree),
+            Err("C02 retained-state preparation rejected")
+        );
+        assert_eq!(tree.retained, before_preparation_failure);
+        assert_eq!(tree.retained.dirty, [1]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c04_float_lifecycle_static_one_ledger_query_and_single_publication_paths() {
+    let block = include_str!("block.rs");
+    assert_eq!(block.matches("struct FloatLedgerEntry<").count(), 1);
+    assert_eq!(block.matches("ledger: Vec<FloatLedgerEntry<S>>").count(), 2);
+    assert_eq!(block.matches("fn query_band_for(").count(), 1);
+    assert_eq!(block.matches("struct FloatExclusions<").count(), 1);
+    for legacy in [
+        concat!("layout_inline_", "segments"),
+        concat!("left_", "floats"),
+        concat!("right_", "floats"),
+        concat!("physical_", "left"),
+        concat!("physical_", "right"),
+        concat!("FloatBand", "Table"),
+    ] {
+        assert!(
+            !block.contains(legacy),
+            "legacy float path remains: {legacy}"
+        );
+    }
+
+    let float_publication = block
+        .split_once("fn layout_floats<")
+        .unwrap()
+        .1
+        .split_once("\nstruct FloatIntrinsics<")
+        .unwrap()
+        .0;
+    assert_eq!(
+        float_publication
+            .matches(".include_in_flow_geometry(location, float.margin, scroll_geometry)")
+            .count(),
+        1,
+    );
+    assert_eq!(float_publication.matches("tree.set_unrounded(").count(), 1);
+
+    let line_publication = block
+        .split_once("fn layout_inline_run_children<")
+        .unwrap()
+        .1
+        .split_once("\nfn record_inline_run_baselines<")
+        .unwrap()
+        .0;
+    assert_eq!(
+        line_publication
+            .matches("contributions.include_direct_line(rect);")
+            .count(),
+        1,
+    );
+
+    let cache = include_str!("cache.rs");
+    assert!(!cache.contains("float_provider"));
+    assert!(!cache.contains("shape_provider"));
+}
+
+#[test]
 fn fri06_c03_mixed_text_atomic_source_gaps_and_repeat_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
         let children = || {
@@ -4447,6 +5093,76 @@ impl<S: LayoutScalar> Fri06C02StatefulTextTree<S> {
         }
     }
 
+    fn new_float_mixed() -> Self {
+        let root_input = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(40.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            overflow: ComputedOverflow::try_new(Overflow::Auto, Overflow::Auto).unwrap(),
+            ..NodeInputOf::default()
+        };
+        let float = NodeInputOf {
+            display: Display::Block,
+            float: Float::Left,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(15.25)),
+                PreferredSizeOf::px(S::from_f64(12.5)),
+            ),
+            ..NodeInputOf::default()
+        };
+        let text = InlineTextInputOf::try_new(vec![fri06_c02_segment(
+            93,
+            20.25,
+            InlineWhitespaceEdge::Preserve,
+            InlineBreakOpportunityOf::prohibited(),
+        )])
+        .unwrap();
+        Self {
+            inputs: HashMap::from([
+                (0, LayoutInputOf::box_input(root_input.clone())),
+                (1, LayoutInputOf::box_input(float.clone())),
+                (2, LayoutInputOf::inline_text(text)),
+            ]),
+            node_inputs: HashMap::from([(0, root_input), (1, float), (2, NodeInputOf::non_box())]),
+            children: HashMap::from([(0, vec![1, 2]), (1, Vec::new()), (2, Vec::new())]),
+            retained: Fri06C02RetainedTextState::default(),
+            fragment_readbacks: Cell::new(0),
+            reject_preparation: false,
+        }
+    }
+
+    fn replace_float_inline_extent(&mut self, extent: f64) {
+        let style = NodeInputOf {
+            display: Display::Block,
+            float: Float::Left,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(extent)),
+                PreferredSizeOf::px(S::from_f64(12.5)),
+            ),
+            ..NodeInputOf::default()
+        };
+        self.inputs
+            .insert(1, LayoutInputOf::box_input(style.clone()));
+        self.node_inputs.insert(1, style);
+    }
+
+    fn add_failing_float_path_control(&mut self) {
+        self.inputs
+            .insert(9, LayoutInputOf::line_break(LineBreakInputOf::new()));
+        self.node_inputs.insert(9, NodeInputOf::default());
+        self.children.get_mut(&0).unwrap().push(9);
+        self.children.insert(9, Vec::new());
+    }
+
+    fn remove_failing_float_path_control(&mut self) {
+        self.inputs.remove(&9);
+        self.node_inputs.remove(&9);
+        self.children.get_mut(&0).unwrap().retain(|node| *node != 9);
+        self.children.remove(&9);
+    }
+
     fn replace_atomic_inline_extent(&mut self, extent: f64) {
         let style = fri06_c03_atomic_style(
             extent,
@@ -4890,7 +5606,7 @@ fn fri06_c02_cache_cold_warm_and_dirty_replacement_use_committed_state_both_scal
         let cold_final_fragments = cold.final_inline_fragments().to_vec();
         assert_eq!(tree.fragment_readbacks.get(), 0);
         cold.apply_to(&mut tree).expect("cold batch commits");
-        assert_eq!(tree.retained.dirty, []);
+        assert!(tree.retained.dirty.is_empty());
         assert_eq!(tree.retained.unrounded_fragments[&1].len(), 1);
         assert!(!tree.retained.caches.is_empty());
 
@@ -5685,7 +6401,7 @@ fn source_index_identity_survives_root_hidden_rounding_and_batch() {
         .iter()
         .map(LayoutOutputEntry::node)
         .collect::<Vec<_>>();
-    assert_ne!(unrounded_nodes, final_nodes);
+    assert_eq!(unrounded_nodes, final_nodes);
     assert_eq!(final_nodes, vec![10, 20, 30, 40]);
 }
 

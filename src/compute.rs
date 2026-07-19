@@ -410,7 +410,7 @@ where
         super::LayoutRoundingMode::NearestCssPixel => round_layout(&mut session, root)?,
     }
 
-    Ok(session.complete())
+    Ok(session.complete_for_root(root))
 }
 
 fn invalidation_closure<Tree>(
@@ -733,6 +733,30 @@ where
             self.cache_clear_entries,
             self.invalidated_nodes,
         )
+    }
+
+    fn complete_for_root(
+        mut self,
+        root: Tree::Node,
+    ) -> CompletedLayoutBatchOf<Tree::Node, Tree::Scalar> {
+        let mut source_order = Vec::new();
+        let mut pending = vec![root];
+        while let Some(node) = pending.pop() {
+            source_order.push(node);
+            let children = self.tree.children(node).collect::<Vec<_>>();
+            pending.extend(children.into_iter().rev());
+        }
+        let source_position = |node| {
+            source_order
+                .iter()
+                .position(|candidate| *candidate == node)
+                .expect("completed output nodes remain reachable from the validated root")
+        };
+        self.unrounded_entries
+            .sort_by_key(|entry| source_position(entry.node()));
+        self.final_entries
+            .sort_by_key(|entry| source_position(entry.node()));
+        self.complete()
     }
 
     fn staged_source_index(&self, node: Tree::Node) -> crate::SourceIndex {

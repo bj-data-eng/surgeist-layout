@@ -812,6 +812,7 @@ impl<S: LayoutScalar> FloatExclusions<S> {
 struct InFlowResult<Node, S: LayoutScalar> {
     content_size: LogicalSizeOf<S>,
     scroll_content_size: LogicalSizeOf<S>,
+    owned_float_block_end: S,
     contributions: ScrollContributionAccumulatorOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
@@ -848,7 +849,8 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
                 self.active_margin.resolve()
             };
         let content_box_inset = constants.logical_content_box_inset();
-        (self.cursor_block + bottom_margin_offset + content_box_inset.block_end)
+        ((self.cursor_block + bottom_margin_offset).max(self.owned_float_block_end)
+            + content_box_inset.block_end)
             .max(content_box_inset.block_sum())
     }
 }
@@ -969,6 +971,7 @@ where
     let mut float_bfc_cursor_y = constants.content_box_inset.top;
     let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut scroll_content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
+    let mut owned_float_block_end = constants.logical_content_box_inset().block_start;
     let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
     let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -1522,8 +1525,13 @@ where
             child_margin = constants.flow_axes.physical_edges(logical_child_margin);
         }
         if !child_style.float.is_none() {
-            let margin_box = output.size + child_margin.sum_axes();
-            float_intrinsics.add(margin_box.width, child_style.float, child_style.clear);
+            let margin_box_inline = logical_child_size.inline + logical_child_margin.inline_sum();
+            float_intrinsics.add(margin_box_inline, child_style.float, child_style.clear);
+            content_size.inline = content_size.inline.max(float_intrinsics.result());
+            if !input.run_mode().is_perform_layout() {
+                index += 1;
+                continue;
+            }
             let pending_float = PendingFloat {
                 node: child,
                 source_index,
@@ -1542,14 +1550,23 @@ where
             if set_layout {
                 pending_floats.push(pending_float);
             }
-            let float_content_size = constants.flow_axes.logical_size(Size::new(
-                float_intrinsics.result(),
-                float_location.y - constants.content_box_inset.top
-                    + output.size.height
-                    + child_margin.bottom,
-            ));
-            content_size.inline = content_size.inline.max(float_content_size.inline);
-            content_size.block = content_size.block.max(float_content_size.block);
+            let containing_size = constants.containing_size(logical_node_inner_size);
+            let logical_location =
+                constants
+                    .flow_axes
+                    .logical_point(float_location, output.size, containing_size);
+            let content_box_inset = constants.logical_content_box_inset();
+            let float_inline_end = logical_location.inline
+                + logical_child_size.inline
+                + logical_child_margin.inline_end
+                - content_box_inset.inline_start;
+            let float_block_end =
+                logical_location.block + logical_child_size.block + logical_child_margin.block_end;
+            content_size.inline = content_size.inline.max(float_inline_end);
+            content_size.block = content_size
+                .block
+                .max(float_block_end - content_box_inset.block_start);
+            owned_float_block_end = owned_float_block_end.max(float_block_end);
             index += 1;
             continue;
         }
@@ -1731,6 +1748,7 @@ where
     Ok(InFlowResult {
         content_size,
         scroll_content_size,
+        owned_float_block_end,
         contributions,
         baselines,
         static_positions,
@@ -2332,23 +2350,42 @@ where
 }
 
 struct FloatIntrinsics<S: LayoutScalar> {
-    available_width: AvailableOf<S>,
+    available_inline: AvailableOf<S>,
     contribution: S,
+    line_start: S,
+    line_end: S,
 }
 
 impl<S: LayoutScalar> FloatIntrinsics<S> {
-    const fn new(available_width: AvailableOf<S>) -> Self {
+    const fn new(available_inline: AvailableOf<S>) -> Self {
         Self {
-            available_width,
+            available_inline,
             contribution: S::ZERO,
+            line_start: S::ZERO,
+            line_end: S::ZERO,
         }
     }
 
-    fn add(&mut self, width: S, _float: Float, _clear: Clear) {
-        match self.available_width {
+    fn add(&mut self, width: S, float: Float, clear: Clear) {
+        match self.available_inline {
             AvailableOf::<S>::Definite(_) => {}
             AvailableOf::<S>::MinContent => self.contribution = self.contribution.max(width),
-            AvailableOf::<S>::MaxContent => self.contribution = self.contribution + width,
+            AvailableOf::<S>::MaxContent => {
+                match clear {
+                    Clear::None => {}
+                    Clear::Left => self.line_start = S::ZERO,
+                    Clear::Right => self.line_end = S::ZERO,
+                    Clear::Both => {
+                        self.line_start = S::ZERO;
+                        self.line_end = S::ZERO;
+                    }
+                }
+                match float {
+                    Float::Left | Float::None => self.line_start = self.line_start + width,
+                    Float::Right => self.line_end = self.line_end + width,
+                }
+                self.contribution = self.contribution.max(self.line_start + self.line_end);
+            }
         }
     }
 

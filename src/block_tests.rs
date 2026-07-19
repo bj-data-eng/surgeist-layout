@@ -5770,7 +5770,7 @@ fn line_break_clear_left_ignores_right_float_and_preserves_alignment() {
         tree.final_layout(4).unwrap().location,
         Point::new(105.0, 10.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 50.0));
 }
 
 #[test]
@@ -5805,7 +5805,7 @@ fn line_break_clear_right_ignores_left_float_and_preserves_alignment() {
         tree.final_layout(4).unwrap().location,
         Point::new(133.0, 10.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 50.0));
 }
 
 #[test]
@@ -5903,7 +5903,7 @@ fn line_break_clear_none_preserves_existing_single_run_layout_near_float() {
         tree.final_layout(4).unwrap().location,
         Point::new(80.0, 10.0)
     );
-    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 20.0));
+    assert_eq!(tree.final_layout(0).unwrap().size, Size::new(200.0, 50.0));
 }
 
 #[test]
