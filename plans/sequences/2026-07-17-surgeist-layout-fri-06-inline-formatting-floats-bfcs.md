@@ -69,7 +69,13 @@ Matrix digests below are SHA-256 over sorted, LF-terminated
   `subgrid_alignment_<self>_<item>_item` sources formed by the exact cross product
   `{baseline,center,end,start}` x `{baseline,center,end,start}`; 52 rows across 21
   sources, digest
-  `779de0fbe739b9d7fb86393b278318f0a633432e41c455e29cb082b4ee7d001e`.
+  `d5cd1140c094fb43fa9960ff7beb21ce52161e6b7d58ddb5f33e7dff2dee761e`.
+- **C08 baseline-helper subset:** all four variants of
+  `html/subgrid/subgrid_baseline_auto_columns_first_item.html`,
+  `html/subgrid/subgrid_baseline_auto_columns_second_item.html`,
+  `html/subgrid/subgrid_baseline_standalone_axis_first_item.html`, and
+  `html/subgrid/subgrid_baseline_standalone_axis_second_item.html`; 16 rows,
+  digest `f9ac335e450b4ffd014ae91ef211e699b513676711f70e2c27414fb64f7455a3`.
 - **Semantic-preservation matrix:** all four variants of
   `block_br_inline_block_metrics`, `block_br_vertical_lr_inline_block_metrics`,
   `block_br_vertical_rl_inline_block_metrics`, and
@@ -81,15 +87,16 @@ Matrix digests below are SHA-256 over sorted, LF-terminated
 
 These predicates own recovery membership. Later cycle plans may partition them
 into executable tasks but may not add, omit, reclassify, or dynamically widen a
-row. C07 exact-base typed probes proved the four baseline sources and
-`fri06_forced_break_strut` already satisfy their production oracles. One bounded
-diagnostic then proved the 16 baseline variants stop at helper whitespace
-classification before Rust lowering; C08 therefore owns that helper correction,
-while its existing twelve-source activation set already owns the four forced-
-break variants. This evidence replaces their invalid production classification;
-it does not add rows or authorize another diagnostic derivation. The 408 failures
-observed by the aggregate diagnostic are not a recovery matrix and do not move
-the final aggregate gate out of FRI-13.
+row. C07 exact-base public-compute probes proved the fixed baseline-helper subset
+and all four variants of `html/block/fri06_forced_break_strut.html` already
+satisfy the production oracles. One bounded diagnostic proved every baseline-
+helper row stops in `unsupportedChildNodesReason` via
+`isSignificantInlineWhitespace` before Rust lowering; C08 therefore owns that
+helper correction, while its existing twelve-source activation set already owns
+the forced-break rows. This evidence replaces their invalid production
+classification; it does not add rows or authorize another diagnostic derivation.
+The 408 failures observed by the aggregate diagnostic are not a recovery matrix
+and do not move the final aggregate gate out of FRI-13.
 
 ## Ordered Cycles
 
@@ -288,9 +295,9 @@ diagnostic derivation is discarded and never counts as artifact lineage.
 **Entry state:** Focused activation diagnostics and exact-base typed probes prove
 52 valid FRI-06 variants across 21 sources still miss reviewed production
 behavior: 12 intrinsic/track height results and 40 physical/logical placements.
-The 16 baseline variants instead require C08 helper correction before lowering,
-and the four forced-break variants require only C08 fixture activation. Their
-typed production oracles already pass. The 408 pre-existing aggregate failures
+The fixed baseline-helper subset instead requires C08 correction before lowering,
+and all variants of `html/block/fri06_forced_break_strut.html` require only C08
+fixture activation. Their typed production oracles already pass. The 408 pre-existing aggregate failures
 remain outside this cycle, the final aggregate gate remains FRI-13-owned, and all
 fixture-input failures remain C08-owned.
 
@@ -320,8 +327,8 @@ and finite adapter decisions stable.
 proved fixture-owned failures: invalid zero-line-height break metrics, collapsed-
 space advance loss, mismatched bidi/float fixture semantics, atomics-plus-break
 helper overreach, and grid-parent indentation whitespace misclassified as mixed
-inline content for four baseline sources. The exact 340 existing unsupported
-variants, including those 16 baseline variants, twelve new sources including
+inline content for the fixed baseline-helper subset. The exact 340 existing
+unsupported variants, including those 16 rows, twelve new sources including
 `fri06_forced_break_strut`, manifest records, and valid final derived artifacts
 are absent.
 
