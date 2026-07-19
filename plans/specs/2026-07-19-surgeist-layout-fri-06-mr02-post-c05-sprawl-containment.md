@@ -189,10 +189,15 @@ method is added.
    `InvalidBlockScrollGeometry`.
 
 Block's optional inline subject continues to select between those two adapters
-without moving the decision. Block, flex, grid, grid-child, and grid-lanes retain
-their current call-site node identities. The safe underlying geometry error
-remains intentionally consumed because the public error contract exposes the
-existing internal invariant, not a new source variant.
+without moving the decision. The reachable shaped-fragment path always supplies
+`Some(subject)`: construction records `source_index_start + offset`, and the sole
+lookup subtracts the same start before indexing that exact run. The retained
+`None` fallback is therefore preserved by static provenance and unchanged-branch
+evidence, not an impossible front-door test; removing it is out of scope. Block,
+flex, grid, grid-child, and grid-lanes retain their current call-site node
+identities. The safe underlying geometry error remains intentionally consumed
+because the public error contract exposes the existing internal invariant, not a
+new source variant.
 
 ### Geometry Preservation Matrix
 
@@ -200,13 +205,16 @@ existing internal invariant, not a new source variant.
 | --- | --- |
 | Root block/flex/grid own geometry | Subject node, `RootLayout` |
 | Non-root block/flex/grid own geometry | Subject node, `ChildLayout` |
-| Block inline own geometry | Container node and current run-mode mapping |
+| Reachable block inline subject geometry | Exact container/subject pair, `ChildLayout` |
+| Proven-unreachable block inline own fallback | Static preservation of container node and current run-mode mapping |
 | Block/flex/grid child geometry | Exact container/subject pair, `ChildLayout` |
 | Grid and grid-lanes track-subject geometry | Existing node-as-container/node-as-subject identities |
 | Leaf/standalone geometry | Existing leaf adapter remains unchanged |
 
-Every mapping is characterized through existing public or algorithm front doors
-before helper extraction. No algorithm-local policy is moved into `scroll.rs`.
+Every reachable mapping is characterized through existing public or algorithm
+front doors before helper extraction. The block inline own fallback uses the
+static provenance proof above plus an unchanged decision-branch diff. No
+algorithm-local policy is moved into `scroll.rs`.
 
 ## FRI-06-MR02.6 Scalar And Geometry Primitives
 
