@@ -1,6 +1,6 @@
 # FRI-06-C08R Final Production Correction And Lineage
 
-Status: draft
+Status: reviewed
 
 Cycle ID: `FRI-06-C08R`
 
