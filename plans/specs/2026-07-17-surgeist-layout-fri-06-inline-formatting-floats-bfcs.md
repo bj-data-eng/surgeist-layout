@@ -147,7 +147,7 @@ than defining substitutes.
 | `D-13` | Float left/right and clear left/right are line-relative values mapped by the containing `FlowAxes`; the public enum spellings remain source-compatible while algorithms do not treat them as physical x sides. |
 | `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query. Each returned interval retains its originating query privately; a mismatched query, missing provider, or provider failure is a typed layout error. |
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
-| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. Inputs settle first, then one full regeneration owns all XML/report deltas. |
+| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. Pinned Chrome is the default geometry oracle. An exact row may instead be a visible known Chrome measurement failure only under the certainty, plan-record, synthetic-substitute, and revalidation contract in `FRI-06.11`; disagreement with layout alone never qualifies. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 
 Rejected alternatives:
 
@@ -855,6 +855,7 @@ construction.
 | Scroll/cache/rounding | Exact dirty-subject path closure bypasses stale hits; failed layout or immutable preparation makes zero mutations and retains dirty subjects; infallible exclusive commit replaces all node/fragment state and clears closure caches before stores; committed nonempty/empty slices republish identically cold/warm and normal/rounded; missing warm fragment state errors; geometry contributes once |
 | Comparator | Wrong/missing line-break position, text fragment, line index, visual index, and baseline each fail with named diagnostics |
 | Fixture-input honesty | Exact-source inventories require every reviewed wrapper/container/strut marker; serializer tests prove the closed mapping in `FRI-06.11`; renamed test names and arbitrary expectation-only mutations preserve identical normalized parsed input; missing/corrupt markers fail source preflight or parser validation; transparent wrappers produce independent normalized input and expectation trees; static/runtime evidence proves no final input-lowering function reads fixture identity or expectations |
+| Chrome oracle exception | Default-zero exact registry; every entry proves the `FRI-06.11` certainty gate, minimized parser-independent reproduction, normative and independent corroborating evidence, exact variant scope, public-front-door synthetic RED/GREEN substitute, visible report/test disposition, and revalidation trigger; negative controls reject layout-only disagreement, ambiguous rounding/coordinates, missing evidence, and overbroad manifest status |
 | Browser corpus | Owned mixed text/atomic/BR, vertical BR, float/BFC, unequal alignment, baseline, percentage atomic, and shape cases parse and compare |
 
 Behavior changes require reconstructed RED evidence at each exact task base. A
@@ -966,11 +967,55 @@ existing direction/box-sizing variants:
 
 This adds 48 generated variants. Starting from 5,324 generated and 356
 unsupported variants, the one settled replacement must therefore report 5,712
-generated, 16 unsupported, and zero expected-fail, quarantined, or
-failed-to-generate variants. The starting manifest SHA-256 is
+generated, 16 unsupported, zero quarantined or failed-to-generate variants, and
+zero expected-fail variants unless the active cycle plan contains one or more
+exact reviewed known Chrome measurement failures under the contract below. In
+that exceptional case, the report's expected-fail inventory and count equal the
+plan registry exactly; no unregistered row or broader source/variant set is
+permitted. The starting manifest SHA-256 is
 `bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`;
 the fixture task records its reviewed replacement hash after adding these twelve
 records.
+
+### Known Chrome Measurement Failure Exception
+
+Chrome remains authoritative unless every item below is satisfied. Uncertainty,
+an implementation disagreement, a Taffy result, or a synthetic expected value
+alone leaves the browser mismatch blocking.
+
+1. Reduce the behavior to one exact source and generated variant set and record
+   pinned Chrome version/platform, browser-observed values, specification-required
+   values, and the smallest reproducer independent of Surgeist fixture parsing.
+2. Cite an unambiguous normative CSS requirement or a pinned WPT test with an
+   authoritative expected result. Supply one independent corroboration: another
+   browser engine, a distinct existing WPT oracle, or a complete invariant
+   derivation whose inputs are directly measured and whose result does not depend
+   on Surgeist output. Two Chrome APIs observing the same implementation are not
+   independent.
+3. Prove the serialized layout-ready input satisfies `FRI-06.11`, parser/name/
+   expectation independence passes, and the discrepancy remains before the
+   comparator. A lowering, coordinate-space, rounding, or tolerance ambiguity
+   disqualifies the exception.
+4. Add a public-front-door synthetic regression using explicit layout-ready
+   input and the specification-required geometry. It must fail before the layout
+   correction and pass afterward; a private line-builder test is not a substitute.
+5. Add a `Known Chrome Measurement Failures` section to the active implementing
+   cycle plan. Each entry names exact source and variants, observed and required
+   values, reason, normative and corroborating evidence, minimized reproduction,
+   synthetic test, manifest/report disposition, and revalidation trigger. `None`
+   is recorded when no entry qualifies.
+6. A fresh task reviewer validates the evidence and substitute, and the holistic
+   reviewer rechecks it. Any dispute or incomplete evidence keeps Chrome
+   authoritative. Quarantine is never an alternative.
+
+An accepted entry uses the existing manifest/report `expected-fail` mechanism
+only when its status scope equals the exact proven source/variant set. If the
+manifest can express only a broader source set, the plan must not mark it there;
+the exact comparator/test registry remains visible instead. The final 388-row
+activation accounting records each row as either browser-pass or one reviewed
+known-Chrome-fail with a passing synthetic substitute. A browser-pin, normative
+specification, corroborating-engine, or WPT-expectation change reopens the entry;
+new authoritative WPT coverage supersedes the synthetic substitute.
 
 The fixture adapter may add only these layout-ready concepts:
 
@@ -1220,19 +1265,24 @@ FRI-06 is complete only when:
     marker is inventory-pinned; malformed or incomplete facts fail closed; and
     the final browser result is calculated from the independently serialized
     layout-ready input;
-14. the bounded HTML/parser/helper/fixture inputs settle before exactly one final
+14. the active implementing plan records `Known Chrome Measurement Failures`;
+    absent a fully reviewed `FRI-06.11` entry the registry and expected-fail
+    count are zero, while every accepted entry has exact browser/correct values,
+    certainty evidence, a passing public-front-door synthetic substitute, visible
+    row accounting, independent reviews, and a future revalidation trigger;
+15. the bounded HTML/parser/helper/fixture inputs settle before exactly one final
     full regeneration; subsequent checks are read-only and provenance-clean;
-15. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
+16. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
     cases leave unsupported accounting and pass focused parity;
-16. public exports and crate/parity docs describe the text/layout/shape/root
+17. public exports and crate/parity docs describe the text/layout/shape/root
     ownership boundary without claiming authored CSS, shaping, rendering, or
     later initiative behavior;
-17. default and generator-feature verification, focused parity, corpus/Taffy,
+18. default and generator-feature verification, focused parity, corpus/Taffy,
     docs, formatting, Clippy with `-F unsafe-code -D warnings`, diff/provenance,
     and the tracked/non-ignored Rust unsafe scan are clean;
-18. all FRI-06-owned dead-code allowances are removed and no new lint suppression
+19. all FRI-06-owned dead-code allowances are removed and no new lint suppression
     or executable `unsafe` exists; and
-19. no dependency, feature, MSRV, generator architecture, root/sibling,
+20. no dependency, feature, MSRV, generator architecture, root/sibling,
     FRI-09/10/11/12 behavior, FRI-13 aggregate gate, or unrelated change enters
     the reviewed range.
 
