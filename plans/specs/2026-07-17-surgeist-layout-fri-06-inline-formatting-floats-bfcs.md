@@ -147,7 +147,7 @@ than defining substitutes.
 | `D-13` | Float left/right and clear left/right are line-relative values mapped by the containing `FlowAxes`; the public enum spellings remain source-compatible while algorithms do not treat them as physical x sides. |
 | `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query. Each returned interval retains its originating query privately; a mismatched query, missing provider, or provider failure is a typed layout error. |
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
-| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Inputs settle first, then one full regeneration owns all XML/report deltas. |
+| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, finite anonymous/inline lowering, control, and exclusion facts. Intermediate diagnostics may synthesize bounded layout-ready facts, but final acceptance serializes those facts explicitly or derives them through generic input-only rules: fixture source/name and expected geometry never select, create, or alter layout input. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 
 Rejected alternatives:
 
@@ -1011,11 +1011,19 @@ The helper emits atomic participation only when the computed/lowered child role
 is atomic, never from authored inline display after blockification. Typed inline
 children replace, rather than accompany, the same legacy measured-text fallback.
 Fixture sources exercise the current overflow-based BFC predicate and never
-require later-owned `flow-root` normalization. The adapter may synthesize only
-the finite anonymous grid text wrapper, secondary inline boundaries, and
-containing strut required by the fixed matrix. Its finite predicates use computed
-display after blockification. Float and clear lowering uses this closed table;
-the public `Left`/`Right` variants in the layout-ready model mean line start/end:
+require later-owned `flow-root` normalization. Intermediate diagnostics may
+synthesize the finite anonymous grid text wrapper, secondary inline boundaries,
+and containing strut required by the fixed matrix. The final lineage instead
+serializes each such layout-ready fact explicitly from an authored finite
+`data-surgeist-*` marker or derives it through a generic input-only rule over the
+computed/lowered role. The parser never dispatches on the test or source name,
+and parsed expectations are not passed to, inspected by, or structurally mutated
+during input lowering. The serializer normalizes any transparent browser-only
+wrapper before writing the independent input and expectation trees. Renaming a
+test or mutating only expectations must leave the parsed layout input identical;
+removing or corrupting a required explicit fact must fail closed rather than
+restore synthesis. Float and clear lowering uses this closed table; the public
+`Left`/`Right` variants in the layout-ready model mean line start/end:
 
 | Fixture token | Layout-ready value |
 | --- | --- |
@@ -1037,7 +1045,9 @@ mappings, the direct line-relative aliases, `none`, and clear-only `both`.
 This lowering is a finite `FlowAxes` projection, not a style engine. The adapter
 must not become a general text shaper, CSS parser, bidi implementation, display
 normalizer, or alternate line algorithm. Rust parser and serializer changes
-remain exact to these finite categories and attributes.
+remain exact to these finite categories and attributes. Final parity evidence
+proves layout calculation from the serialized layout-ready input; it does not
+claim that this crate owns HTML/CSS-to-layout composition.
 
 Final generated artifacts have one full, unfiltered lineage after all owned
 HTML/parser/helper/fixture inputs are settled. Their report has `filter: null`,
