@@ -349,7 +349,7 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
         "grid/fri04_track_math_functions.html",
     ];
 
-    assert_eq!(html.len(), 1420);
+    assert_eq!(html.len(), 1432);
     for source in sources {
         assert!(
             html.contains(&html_root.join(source)),
@@ -364,7 +364,7 @@ fn fri04_c05_fixture_inventory_manifest_and_report_are_final() {
     let manifest_path = corpus_root.join("corpus.toml");
     let manifest = std::fs::read_to_string(&manifest_path)
         .unwrap_or_else(|error| panic!("{} should read: {error}", manifest_path.display()));
-    assert!(manifest.contains("generated = 5324"));
+    assert!(manifest.contains("generated = 5712"));
     for source in sources {
         let case = format!(
             "id = \"{}\"\nsource_root = \"surgeist\"\nsource = \"{source}\"\ngenerator = \"constrained-html\"\nstatus = \"active\"",
@@ -2693,10 +2693,10 @@ fn browser_parity_html_corpus_inventory_is_documented() {
         .filter(|fixture| is_under_suite(fixture, "grid-lanes"))
         .count();
 
-    assert_eq!(taffy_plus_local_count, 1174);
+    assert_eq!(taffy_plus_local_count, 1186);
     assert_eq!(subgrid_count, 219);
     assert_eq!(grid_lanes_count, 27);
-    assert_eq!(fixtures.len(), 1420);
+    assert_eq!(fixtures.len(), 1432);
 
     for source in [
         "flex/fri03_order_modified_flex.html",
