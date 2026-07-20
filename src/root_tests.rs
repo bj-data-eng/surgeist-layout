@@ -4301,6 +4301,181 @@ fn fri06_c03_mixed_bidi_reorders_complete_units_per_line_both_scalars() {
     assert_lane::<f64>();
 }
 
+fn assert_fri06_c08_r1_mixed_unit_traversal<S: LayoutScalar>(
+    flow_axes: FlowAxes,
+    box_sizing: BoxSizing,
+) {
+    let logical_root_size = LogicalSizeOf::new(S::from_f64(100.0), S::from_f64(160.0));
+    let root_size = flow_axes.physical_size(logical_root_size);
+    let root_input = NodeInputOf {
+        display: Display::Block,
+        writing_mode: flow_axes.writing_mode(),
+        direction: flow_axes.direction(),
+        box_sizing,
+        size: root_size.map(PreferredSizeOf::px),
+        ..NodeInputOf::default()
+    };
+    let boundary_metrics =
+        InlineMetricsOf::from_ascent_descent(S::from_f64(8.0), S::from_f64(2.0)).unwrap();
+    let boundary = |kind| {
+        InlineBoundaryInputOf::new(kind, boundary_metrics)
+            .with_writing_mode(flow_axes.writing_mode())
+            .with_direction(flow_axes.direction())
+    };
+    let atomic = fri06_c04_line_box(
+        flow_axes,
+        LogicalSizeOf::new(S::from_f64(5.0), S::from_f64(12.0)),
+        Float::None,
+        Some(fri06_c03_atomic_participation(
+            2,
+            InlineBreakOpportunityOf::prohibited(),
+        )),
+    );
+    let children = vec![
+        (
+            1,
+            fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                901,
+                10.0,
+                1,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )]),
+            NodeInputOf::non_box(),
+        ),
+        (
+            2,
+            LayoutInputOf::inline_boundary(boundary(InlineBoundaryKind::Start)),
+            NodeInputOf::non_box(),
+        ),
+        (3, LayoutInputOf::box_input(atomic.clone()), atomic),
+        (
+            4,
+            LayoutInputOf::inline_boundary(boundary(InlineBoundaryKind::End)),
+            NodeInputOf::non_box(),
+        ),
+        (
+            5,
+            fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                902,
+                7.0,
+                1,
+                InlineWhitespaceEdge::Preserve,
+                InlineBreakOpportunityOf::prohibited(),
+            )]),
+            NodeInputOf::non_box(),
+        ),
+    ];
+    let child_nodes = children
+        .iter()
+        .map(|(node, _, _)| *node)
+        .collect::<Vec<_>>();
+    let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
+    let mut node_inputs = HashMap::from([(0, root_input)]);
+    let mut tree_children = HashMap::from([(0, child_nodes)]);
+    for (node, layout_input, node_input) in children {
+        inputs.insert(node, layout_input);
+        node_inputs.insert(node, node_input);
+        tree_children.insert(node, Vec::new());
+    }
+    let tree = Fri06C02TextTree {
+        inputs,
+        node_inputs,
+        children: tree_children,
+    };
+    let batch = compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(root_size.map(AvailableOf::definite)).unwrap(),
+    )
+    .unwrap();
+
+    let source_starts = if flow_axes.direction() == Direction::Rtl
+        && !fri06_c02_inline_decreases(flow_axes.writing_mode(), flow_axes.direction())
+    {
+        [12.0, 12.0, 7.0, 7.0, 0.0]
+    } else {
+        [0.0, 10.0, 10.0, 15.0, 15.0]
+    };
+    let logical_rects = [
+        (source_starts[0], 4.0, 10.0, 10.0),
+        (source_starts[1], 12.0, 0.0, 0.0),
+        (source_starts[2], 0.0, 5.0, 12.0),
+        (source_starts[3], 12.0, 0.0, 0.0),
+        (source_starts[4], 4.0, 7.0, 10.0),
+    ];
+    for (index, logical_rect) in logical_rects.into_iter().enumerate() {
+        let node = u32::try_from(index + 1).unwrap();
+        let output = fri06_c02_final_node(&batch, node);
+        let (expected_origin, expected_size) = fri06_c02_expected_physical_rect(
+            (flow_axes.writing_mode(), flow_axes.direction()),
+            logical_rect,
+            (100.0, 160.0),
+        );
+        assert_eq!(
+            (output.location, output.size, output.source_index.get()),
+            (expected_origin, expected_size, index),
+            "{flow_axes:?} {box_sizing:?} source unit {index}"
+        );
+    }
+
+    assert_eq!(
+        batch
+            .final_inline_fragments()
+            .iter()
+            .map(|entry| (
+                entry.node(),
+                entry.fragment().segment_id(),
+                entry.fragment().visual_index(),
+            ))
+            .collect::<Vec<_>>(),
+        if flow_axes.direction() == Direction::Rtl {
+            vec![
+                (1, InlineSegmentId::new(901), 4),
+                (5, InlineSegmentId::new(902), 0),
+            ]
+        } else {
+            vec![
+                (1, InlineSegmentId::new(901), 0),
+                (5, InlineSegmentId::new(902), 4),
+            ]
+        },
+        "{flow_axes:?} {box_sizing:?} stable fragment identities"
+    );
+}
+
+#[test]
+fn fri06_c08_r1_bidi_range_four_variants_preserve_complete_unit_geometry() {
+    fn assert_lane<S: LayoutScalar>() {
+        for direction in [Direction::Ltr, Direction::Rtl] {
+            for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+                assert_fri06_c08_r1_mixed_unit_traversal::<S>(
+                    FlowAxes::new(WritingMode::HorizontalTb, direction),
+                    box_sizing,
+                );
+            }
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c08_r1_mixed_units_project_complete_traversal_in_all_flow_mappings() {
+    fn assert_lane<S: LayoutScalar>() {
+        for (writing_mode, direction) in fri06_c02_flow_mappings() {
+            assert_fri06_c08_r1_mixed_unit_traversal::<S>(
+                FlowAxes::new(writing_mode, direction),
+                BoxSizing::ContentBox,
+            );
+        }
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 fn assert_fri06_c08_mixed_inline_atomic_x<S: LayoutScalar>(
     direction: Direction,
     box_sizing: BoxSizing,
@@ -5119,13 +5294,25 @@ fn fri06_c02_flow_projects_rect_baseline_anchor_and_run_extents_in_all_mappings_
                     .collect::<Vec<_>>(),
                 vec![1, 0, 1, 0]
             );
-            for (fragment, (inline_start, inline_extent, block_start, baseline_block)) in
-                fragments.iter().zip([
+            let logical_fragments = if direction == Direction::Rtl
+                && fri06_c02_inline_decreases(writing_mode, direction)
+            {
+                [
+                    (40.0, 10.0, 0.0, 8.0),
+                    (50.0, 10.0, 0.0, 8.0),
+                    (45.0, 4.0, 10.0, 18.0),
+                    (49.0, 6.0, 10.0, 18.0),
+                ]
+            } else {
+                [
                     (50.0, 10.0, 0.0, 8.0),
                     (40.0, 10.0, 0.0, 8.0),
                     (51.0, 4.0, 10.0, 18.0),
                     (45.0, 6.0, 10.0, 18.0),
-                ])
+                ]
+            };
+            for (fragment, (inline_start, inline_extent, block_start, baseline_block)) in
+                fragments.iter().zip(logical_fragments)
             {
                 let expected_rect = fri06_c02_expected_physical_rect(
                     (writing_mode, direction),

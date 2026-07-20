@@ -872,38 +872,12 @@ where
                     + selected.replacement_inline_extent.unwrap_or(S::ZERO);
             }
         };
-        let all_atomic = line.units.iter().all(|selected| {
-            matches!(
-                selected.participant,
-                MixedInlineParticipantOf::Atomic { .. }
-            )
-        });
-        let horizontal_atomic_whitespace = input.flow_axes.writing_mode()
-            == WritingMode::HorizontalTb
-            && line.units.iter().any(|selected| {
-                matches!(
-                    selected.participant,
-                    MixedInlineParticipantOf::Atomic { .. }
-                )
-            })
-            && line
-                .units
-                .iter()
-                .all(|selected| match selected.participant {
-                    MixedInlineParticipantOf::Atomic { .. } => true,
-                    MixedInlineParticipantOf::ShapedText(participant) => {
-                        participant.segment.whitespace_edge() != InlineWhitespaceEdge::Preserve
-                    }
-                    MixedInlineParticipantOf::ForcedLineBreak(_)
-                    | MixedInlineParticipantOf::Boundary(_) => false,
-                });
         let visual_order_opposes_logical_progression = input.flow_axes.direction()
             == Direction::Rtl
             && input
                 .flow_axes
                 .logical_axis_progression(crate::LogicalAxis::Inline)
                 .is_decreasing()
-            && (all_atomic || horizontal_atomic_whitespace)
             && line
                 .units
                 .iter()
