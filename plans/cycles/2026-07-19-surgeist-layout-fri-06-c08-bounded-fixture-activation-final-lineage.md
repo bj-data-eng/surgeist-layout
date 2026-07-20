@@ -227,7 +227,9 @@ composed state; no prior T1/T2 `CLEAN` verdict carries forward.
 **Commands:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_existing_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_new_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_range_ink_
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_range_ink_
 CARGO_NET_OFFLINE=true just generator-check
 CARGO_NET_OFFLINE=true just generator-clippy
