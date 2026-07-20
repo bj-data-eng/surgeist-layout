@@ -983,7 +983,7 @@ struct InFlowResult<Node, S: LayoutScalar> {
     content_size: LogicalSizeOf<S>,
     scroll_content_size: LogicalSizeOf<S>,
     owned_float_block_end: S,
-    has_inline_run: bool,
+    terminal_inline_run_has_mixed_text_atomic_line: bool,
     contributions: ScrollContributionAccumulatorOf<S>,
     baselines: BaselinesOf<S>,
     static_positions: Vec<(Node, Point<S>)>,
@@ -1021,9 +1021,9 @@ impl<Node, S: LayoutScalar> InFlowResult<Node, S> {
             };
         let content_box_inset = constants.logical_content_box_inset();
         let in_flow_block_end = self.cursor_block + bottom_margin_offset;
-        // Preserve the fractional inline-run rounding phase when an integer float edge
+        // Preserve the fractional mixed-line rounding phase when an integer float edge
         // supplies the terminal auto-block extent.
-        let owned_float_block_end = if self.has_inline_run
+        let owned_float_block_end = if self.terminal_inline_run_has_mixed_text_atomic_line
             && self.owned_float_block_end > in_flow_block_end
             && self.owned_float_block_end == self.owned_float_block_end.floor()
             && in_flow_block_end != in_flow_block_end.floor()
@@ -1153,7 +1153,7 @@ where
     let mut content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut scroll_content_size = LogicalSizeOf::new(S::ZERO, S::ZERO);
     let mut owned_float_block_end = constants.logical_content_box_inset().block_start;
-    let mut has_inline_run = false;
+    let mut terminal_inline_run_has_mixed_text_atomic_line = false;
     let mut baselines = BaselinesOf::NONE;
     let mut static_positions = Vec::new();
     let mut active_margin = CollapsibleMarginOf::<S>::ZERO;
@@ -1247,7 +1247,8 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                has_inline_run = true;
+                terminal_inline_run_has_mixed_text_atomic_line =
+                    placement.has_mixed_text_atomic_line;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1314,7 +1315,8 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                has_inline_run = true;
+                terminal_inline_run_has_mixed_text_atomic_line =
+                    placement.has_mixed_text_atomic_line;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1369,7 +1371,8 @@ where
                 static_positions.extend(placement.static_positions);
                 cursor_block =
                     cursor_block + constants.flow_axes.logical_size(placement.size).block;
-                has_inline_run = true;
+                terminal_inline_run_has_mixed_text_atomic_line =
+                    placement.has_mixed_text_atomic_line;
                 active_margin = CollapsibleMarginOf::<S>::ZERO;
                 active_margin_can_collapse_with_parent = false;
                 all_in_flow_children_can_collapse_through = false;
@@ -1449,7 +1452,7 @@ where
             record_inline_run_baselines(&mut baselines, &placement, cursor_block, constants);
             static_positions.extend(placement.static_positions);
             cursor_block = cursor_block + constants.flow_axes.logical_size(placement.size).block;
-            has_inline_run = true;
+            terminal_inline_run_has_mixed_text_atomic_line = placement.has_mixed_text_atomic_line;
             active_margin = CollapsibleMarginOf::<S>::ZERO;
             active_margin_can_collapse_with_parent = false;
             all_in_flow_children_can_collapse_through = false;
@@ -1749,6 +1752,7 @@ where
             index += 1;
             continue;
         }
+        terminal_inline_run_has_mixed_text_atomic_line = false;
         let inset_offset = relative_inset_offset(
             constants
                 .flow_axes
@@ -1932,7 +1936,7 @@ where
         content_size,
         scroll_content_size,
         owned_float_block_end,
-        has_inline_run,
+        terminal_inline_run_has_mixed_text_atomic_line,
         contributions,
         baselines,
         static_positions,
@@ -1953,6 +1957,7 @@ struct InlineRunPlacement<Node, S: LayoutScalar> {
     baselines: BaselinesOf<S>,
     first_baseline: Option<S>,
     last_baseline: Option<S>,
+    has_mixed_text_atomic_line: bool,
 }
 
 struct InlineRunContext<'a, S: LayoutScalar> {
@@ -2238,6 +2243,12 @@ where
     }
     let report_logical_size = LogicalSizeOf::new(report.inline_extent, report.block_extent);
     let report_size = constants.flow_axes.physical_size(report_logical_size);
+    let has_mixed_text_atomic_line = report.fragments.iter().any(|fragment| {
+        report
+            .atomics
+            .iter()
+            .any(|atomic| atomic.line_index == fragment.line_index)
+    });
     let project_point = |inline: S, block: S, size: LogicalSizeOf<S>| {
         constants.flow_axes.physical_point(
             LogicalPointOf::new(
@@ -2468,6 +2479,7 @@ where
         baselines,
         first_baseline: report.first_baseline,
         last_baseline: report.last_baseline,
+        has_mixed_text_atomic_line,
     })
 }
 

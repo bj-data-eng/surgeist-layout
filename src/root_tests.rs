@@ -4530,6 +4530,161 @@ fn assert_fri06_c08_float_line_final_height<S: LayoutScalar>(
     );
 }
 
+fn fri06_c08_float_line_control_batch<S: LayoutScalar>(
+    mut in_flow: Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let flow_axes = FlowAxes::new(WritingMode::HorizontalTb, Direction::Ltr);
+    let left_float = fri06_c04_line_box(
+        flow_axes,
+        LogicalSizeOf::new(S::from_f64(42.0), S::from_f64(42.0)),
+        Float::Left,
+        None,
+    );
+    let right_float = fri06_c04_line_box(
+        flow_axes,
+        LogicalSizeOf::new(S::from_f64(50.0), S::from_f64(62.0)),
+        Float::Right,
+        None,
+    );
+    let mut children = vec![
+        (1, LayoutInputOf::box_input(left_float.clone()), left_float),
+        (
+            2,
+            LayoutInputOf::box_input(right_float.clone()),
+            right_float,
+        ),
+    ];
+    children.append(&mut in_flow);
+    fri06_c03_mixed_batch_with_root(
+        children,
+        AvailableOf::definite(S::from_f64(180.0)),
+        NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(180.0)),
+                PreferredSizeOf::AUTO,
+            ),
+            ..NodeInputOf::default()
+        },
+    )
+}
+
+fn assert_fri06_c08_float_line_control_height<S: LayoutScalar>(
+    in_flow: Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)>,
+) {
+    assert_eq!(
+        public_flow_output(
+            fri06_c08_float_line_control_batch(in_flow).final_entries(),
+            0,
+        )
+        .size,
+        Size::new(S::from_f64(180.0), S::from_f64(62.0)),
+    );
+}
+
+#[test]
+fn fri06_c08_float_line_pure_text_keeps_integral_float_height_at_62() {
+    fn assert_lane<S: LayoutScalar>() {
+        assert_fri06_c08_float_line_control_height::<S>(vec![(
+            3,
+            fri06_c03_text_input::<S>(vec![fri06_c02_segment_with_metrics::<S>(
+                810, 40.0, 14.8, 5.3,
+            )]),
+            NodeInputOf::non_box(),
+        )]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c08_float_line_all_atomic_keeps_integral_float_height_at_62() {
+    fn assert_lane<S: LayoutScalar>() {
+        let atomic: NodeInputOf<S> = fri06_c03_atomic_style(
+            40.0,
+            20.2,
+            0.0,
+            0.0,
+            0,
+            InlineBreakOpportunityOf::prohibited(),
+        );
+        assert_fri06_c08_float_line_control_height::<S>(vec![(
+            3,
+            LayoutInputOf::box_input(atomic.clone()),
+            atomic,
+        )]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c08_float_line_empty_inline_keeps_integral_float_height_at_62() {
+    fn assert_lane<S: LayoutScalar>() {
+        let metrics =
+            InlineMetricsOf::from_ascent_descent(S::from_f64(7.8), S::from_f64(2.3)).unwrap();
+        assert_fri06_c08_float_line_control_height::<S>(vec![
+            (
+                3,
+                fri06_c03_text_input::<S>(vec![fri06_c02_segment_with_metrics::<S>(
+                    812, 1.0, 8.0, 2.0,
+                )]),
+                NodeInputOf::non_box(),
+            ),
+            (
+                4,
+                LayoutInputOf::line_break(LineBreakInputOf::new().with_metrics(metrics)),
+                NodeInputOf::non_box(),
+            ),
+        ]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
+#[test]
+fn fri06_c08_float_line_nonterminal_mixed_inline_keeps_integral_float_height_at_62() {
+    fn assert_lane<S: LayoutScalar>() {
+        let atomic: NodeInputOf<S> = fri06_c03_atomic_style(
+            28.0,
+            16.0,
+            0.0,
+            0.0,
+            0,
+            InlineBreakOpportunityOf::prohibited(),
+        );
+        let terminal_block = NodeInputOf {
+            display: Display::Block,
+            size: Size::new(
+                PreferredSizeOf::px(S::from_f64(10.0)),
+                PreferredSizeOf::px(S::from_f64(1.0)),
+            ),
+            ..NodeInputOf::default()
+        };
+        assert_fri06_c08_float_line_control_height::<S>(vec![
+            (
+                3,
+                fri06_c03_text_input::<S>(vec![fri06_c02_segment_with_metrics::<S>(
+                    811, 40.0, 14.8, 5.2,
+                )]),
+                NodeInputOf::non_box(),
+            ),
+            (4, LayoutInputOf::box_input(atomic.clone()), atomic),
+            (
+                5,
+                LayoutInputOf::box_input(terminal_block.clone()),
+                terminal_block,
+            ),
+        ]);
+    }
+
+    assert_lane::<f32>();
+    assert_lane::<f64>();
+}
+
 #[test]
 fn fri06_c08_float_line_border_box_ltr_rounds_final_height_to_63() {
     assert_fri06_c08_float_line_final_height::<f32>(Direction::Ltr, BoxSizing::BorderBox);
