@@ -221,13 +221,16 @@ Before status completion, prove helper, HTML, serializer, parser, comparator,
 adapter, production-characterization, sequence, manifest, browser, launch,
 base-style, Taffy, stale report, and 5,324 XML hashes. Generated outputs and
 production source remain unchanged from their committed C08 entry states.
+Because the corrected helper hash intentionally differs from the stale report's
+entry provenance, `corpus-check` remains deferred to C08R's one replacement
+lineage; the exact ignored entry-artifact test proves C08 retained those outputs.
 
 Run:
 
 ```sh
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
-CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate generator::tests::c08_entry_preflight::stale_artifact_inventory_matches_committed_entry -- --ignored --exact
 CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just fmt-check
 git diff --check bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD
