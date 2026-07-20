@@ -3297,7 +3297,7 @@ fn fri06_c08_recovery_characterization_percentage_xml(
         r#"<test name="fri06_atomic_inline_percentage_block_size__{box_sizing}_rtl" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
-    <div source-tag="div" display="block"{box_attr} direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="180px" height="80px">
+    <div source-tag="div" layout-ready-inline-root="true" display="block"{box_attr} direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="180px" height="80px">
       <text layout-input="inline-text">
         <segment id="0" inline-extent="57.796875" inline-baseline="14.8" inline-line-height="20" bidi-level="1" whitespace-edge="preserve" following-break="prohibited"/>
       </text>
@@ -3387,7 +3387,7 @@ fn fri06_c08_recovery_characterization_float_xml(
         r#"<test name="fri06_float_line_exclusion__{box_sizing}_{direction}" use-rounding="true">
   <viewport width="max-content" height="max-content"/>
   <input>
-    <div source-tag="div" display="block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="180px">
+    <div source-tag="div" layout-ready-inline-root="true" display="block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="180px">
       <div source-tag="span" display="block"{box_attr} direction="{direction}" float="left" font-family="monospace" font-size="16px" line-height="20px" width="42px" height="42px"/>
       <div source-tag="span" display="block"{box_attr} direction="{direction}" float="right" font-family="monospace" font-size="16px" line-height="20px" width="50px" height="62px"/>
       <text layout-input="inline-text">
@@ -3587,6 +3587,337 @@ fn fri06_c08_recovery_inputs_shape_break_places_34_38_then_42_46_on_two_lines() 
         assert!(
             support::Golden::parse(&malformed).is_err(),
             "shape atomic break parser accepted {label} target"
+        );
+    }
+}
+
+fn fri06_c08_recovery_adapter_variant(variant: &str) -> (&'static str, &'static str, u8) {
+    match variant {
+        "border_box_ltr" => ("border-box", "ltr", 0),
+        "border_box_rtl" => ("border-box", "rtl", 1),
+        "content_box_ltr" => ("content-box", "ltr", 0),
+        "content_box_rtl" => ("content-box", "rtl", 1),
+        other => panic!("unexpected C08 recovery-adapter variant {other}"),
+    }
+}
+
+fn fri06_c08_recovery_adapter_grid_range_xml(source: &str, variant: &str) -> String {
+    let (box_sizing, direction, bidi_level) = fri06_c08_recovery_adapter_variant(variant);
+    let (root_tracks, subgrid_tracks, item_tracks, starts) = if source.contains("standalone_axis") {
+        (
+            r#" grid-template-rows="30px" grid-template-columns="60px""#,
+            r#" grid-template-rows="subgrid" grid-template-columns="repeat(2, 30px)""#,
+            r#" grid-template-rows="auto" grid-template-columns="subgrid""#,
+            if direction == "ltr" {
+                [0.0, 30.0]
+            } else {
+                [15.0, 60.0]
+            },
+        )
+    } else {
+        (
+            r#" grid-template-columns="repeat(2, auto)""#,
+            r#" grid-column-start="1" grid-column-end="-1" grid-template-columns="subgrid""#,
+            "",
+            if direction == "ltr" {
+                [0.0, 15.0]
+            } else {
+                [15.0, 45.0]
+            },
+        )
+    };
+    let edge = if direction == "ltr" { "left" } else { "right" };
+    format!(
+        r#"<test name="{source}__{variant}" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div layout-ready-inline-root="true" display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline"{root_tracks} font-family="ahem" font-size="15px" line-height="15px">
+      <div display="grid" align-items="baseline"{subgrid_tracks}>
+        <div display="grid" align-items="baseline"{item_tracks}>
+          <text layout-input="inline-text">
+            <segment id="0" inline-extent="15" inline-baseline="12" inline-line-height="15" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="prohibited"/>
+          </text>
+        </div>
+        <div display="grid" align-items="baseline"{item_tracks} font-size="30px" line-height="30px">
+          <text layout-input="inline-text">
+            <segment id="0" inline-extent="30" inline-baseline="24" inline-line-height="30" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="prohibited"/>
+          </text>
+        </div>
+      </div>
+    </div>
+  </input>
+  <expectations>
+    <node>
+      <node>
+        <node>
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="0" line_index="0" physical_start_edge="{edge}" start="{}" advance="15"/>
+            </range-inks>
+          </node>
+        </node>
+        <node>
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="0" line_index="0" physical_start_edge="{edge}" start="{}" advance="30"/>
+            </range-inks>
+          </node>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>"#,
+        starts[0], starts[1]
+    )
+}
+
+#[test]
+fn fri06_c08_recovery_adapter_all_16_grid_range_starts_are_explicit_root_relative() {
+    const SOURCES: [&str; 4] = [
+        "subgrid_baseline_auto_columns_first_item",
+        "subgrid_baseline_auto_columns_second_item",
+        "subgrid_baseline_standalone_axis_first_item",
+        "subgrid_baseline_standalone_axis_second_item",
+    ];
+    const VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    let mut compared = 0;
+    let mut failures = Vec::new();
+    for source in SOURCES {
+        for variant in VARIANTS {
+            let xml = fri06_c08_recovery_adapter_grid_range_xml(source, variant);
+            let golden = support::Golden::parse(&xml)
+                .unwrap_or_else(|error| panic!("{source}__{variant} must parse: {error}\n{xml}"));
+            compared += 1;
+            if let Err(error) = support::assert_surgeist_matches(&golden) {
+                failures.push(format!("{}: {error}", golden.name));
+            }
+        }
+    }
+    assert_eq!(compared, 16);
+    assert!(
+        failures.is_empty(),
+        "all 16 generated grid shapes must compare:\n{}",
+        failures.join("\n")
+    );
+
+    let applied_twice = fri06_c08_recovery_adapter_grid_range_xml(
+        "subgrid_baseline_auto_columns_first_item",
+        "border_box_ltr",
+    )
+    .replacen(
+        r#"physical_start_edge="left" start="15" advance="30""#,
+        r#"physical_start_edge="left" start="30" advance="30""#,
+        1,
+    );
+    let applied_twice = support::Golden::parse(&applied_twice)
+        .expect("double-translation negative control should parse");
+    support::assert_surgeist_matches(&applied_twice)
+        .expect_err("ordinary plus synthetic ancestry must not be added twice");
+}
+
+fn fri06_c08_recovery_adapter_nested_rtl_range_xml(variant: &str) -> String {
+    let (box_sizing, direction, bidi_level) = fri06_c08_recovery_adapter_variant(variant);
+    assert_eq!(direction, "rtl");
+    format!(
+        r#"<test name="fri06_atomic_inline_baseline__{variant}" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div layout-ready-inline-root="true" display="block" box-sizing="{box_sizing}" direction="rtl" width="220px" font-family="monospace" font-size="16px" line-height="24px">
+      <div display="inline-block" box-sizing="{box_sizing}" direction="rtl" width="28px" margin-bottom="6px">
+        <div display="block" box-sizing="{box_sizing}" direction="rtl" height="12px">
+          <text layout-input="inline-text">
+            <segment id="0" inline-extent="9.640625" inline-baseline="14.8" inline-line-height="24" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="prohibited"/>
+          </text>
+        </div>
+      </div>
+      <atomic-placeholder child-index="0" bidi-level="{bidi_level}" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node>
+      <node>
+        <node>
+          <node>
+            <range-inks>
+              <range-ink source_segment_id="0" line_index="0" physical_start_edge="right" start="220" advance="9.640625"/>
+            </range-inks>
+          </node>
+        </node>
+      </node>
+    </node>
+  </expectations>
+</test>"#
+    )
+}
+
+#[test]
+fn fri06_c08_recovery_adapter_both_nested_rtl_range_starts_are_explicit_root_relative() {
+    let mut failures = Vec::new();
+    for variant in ["border_box_rtl", "content_box_rtl"] {
+        let xml = fri06_c08_recovery_adapter_nested_rtl_range_xml(variant);
+        let golden = support::Golden::parse(&xml).unwrap_or_else(|error| {
+            panic!("{variant} nested RTL shape must parse: {error}\n{xml}")
+        });
+        if let Err(error) = support::assert_surgeist_matches(&golden) {
+            failures.push(format!("{}: {error}", golden.name));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "both generated nested RTL shapes must compare:\n{}",
+        failures.join("\n")
+    );
+
+    let missing_marker = fri06_c08_recovery_adapter_nested_rtl_range_xml("border_box_rtl")
+        .replacen(r#" layout-ready-inline-root="true""#, "", 1);
+    let missing_marker = support::Golden::parse(&missing_marker)
+        .expect("a missing nested marker remains schema-valid input");
+    assert!(
+        support::assert_surgeist_matches(&missing_marker)
+            .expect_err("nested Range ancestry without its explicit root must fail")
+            .to_string()
+            .contains("requires an explicit inline root marker")
+    );
+}
+
+fn fri06_c08_recovery_adapter_mixed_wrap_xml(variant: &str) -> String {
+    let (box_sizing, direction, bidi_level) = fri06_c08_recovery_adapter_variant(variant);
+    format!(
+        r#"<test name="fri06_inline_mixed_text_atomic_wrap__{variant}" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div layout-ready-inline-root="true" display="block" box-sizing="{box_sizing}" direction="{direction}" width="72px" font-family="monospace" font-size="16px" line-height="20px">
+      <text layout-input="inline-text">
+        <segment id="0" inline-extent="38.53125" inline-baseline="14.8" inline-line-height="20" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="allowed"/>
+      </text>
+      <div display="inline-block" box-sizing="{box_sizing}" direction="{direction}" width="18px" height="18px"/>
+      <div display="inline-block" box-sizing="{box_sizing}" direction="{direction}" width="24px" height="18px"/>
+      <div display="inline-block" box-sizing="{box_sizing}" direction="{direction}" width="30px" height="18px"/>
+      <atomic-placeholder child-index="1" bidi-level="{bidi_level}" following-break="allowed"/>
+      <atomic-placeholder child-index="2" bidi-level="{bidi_level}" following-break="prohibited"/>
+      <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node height="46">
+      <node/>
+      <node/>
+      <node y="23"/>
+      <node y="23"/>
+    </node>
+  </expectations>
+</test>"#
+    )
+}
+
+#[test]
+fn fri06_c08_recovery_adapter_all_four_mixed_wrap_rows_use_root_metric_continuation_strut() {
+    let mut failures = Vec::new();
+    for variant in [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ] {
+        let xml = fri06_c08_recovery_adapter_mixed_wrap_xml(variant);
+        let golden = support::Golden::parse(&xml).unwrap_or_else(|error| {
+            panic!("{variant} mixed-wrap shape must parse: {error}\n{xml}")
+        });
+        if let Err(error) = support::assert_surgeist_matches(&golden) {
+            failures.push(format!("{}: {error}", golden.name));
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "all four mixed-wrap rows must be 46px with y=23 continuation atomics:\n{}",
+        failures.join("\n")
+    );
+
+    let exact = fri06_c08_recovery_adapter_mixed_wrap_xml("border_box_ltr");
+    let altered_name = exact.replacen(
+        "fri06_inline_mixed_text_atomic_wrap__border_box_ltr",
+        "fri06_inline_mixed_text_atomic_wrap_control__border_box_ltr",
+        1,
+    );
+    let altered_name = support::Golden::parse(&altered_name)
+        .expect("an altered fixture name remains schema-valid");
+    support::assert_surgeist_matches(&altered_name)
+        .expect_err("an altered fixture name must not activate the finite strut");
+
+    let altered_topology = exact.replacen(
+        r#"child-index="1" bidi-level="0" following-break="allowed""#,
+        r#"child-index="1" bidi-level="0" following-break="prohibited""#,
+        1,
+    );
+    assert!(
+        support::Golden::parse(&altered_topology).is_err(),
+        "an altered break topology must fail before the finite strut activates"
+    );
+}
+
+fn fri06_c08_recovery_adapter_direct_ltr_range_xml() -> String {
+    r#"<test name="fri06_c08_recovery_adapter_direct_ltr" use-rounding="false">
+  <viewport width="100px" height="max-content"/>
+  <input>
+    <div layout-ready-inline-root="true" display="block" width="100px" font-size="10px" line-height="20px">
+      <text layout-input="inline-text">
+        <segment id="7" inline-extent="10" inline-baseline="8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+    </div>
+  </input>
+  <expectations>
+    <node>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="7" line_index="0" physical_start_edge="left" start="0" advance="10"/>
+        </range-inks>
+      </node>
+    </node>
+  </expectations>
+</test>"#
+        .to_string()
+}
+
+#[test]
+fn fri06_c08_recovery_adapter_direct_ltr_is_zero_and_identity_remains_strict() {
+    let xml = fri06_c08_recovery_adapter_direct_ltr_range_xml();
+    let golden = support::Golden::parse(&xml).expect("direct LTR shape should parse");
+    support::assert_surgeist_matches(&golden)
+        .expect("a direct LTR owner must receive zero ancestor translation");
+
+    for (label, changed) in [
+        (
+            "source",
+            xml.replacen(r#"source_segment_id="7""#, r#"source_segment_id="8""#, 1),
+        ),
+        (
+            "line",
+            xml.replacen(r#"line_index="0""#, r#"line_index="1""#, 1),
+        ),
+        (
+            "edge",
+            xml.replacen(
+                r#"physical_start_edge="left""#,
+                r#"physical_start_edge="right""#,
+                1,
+            ),
+        ),
+        (
+            "advance",
+            xml.replacen(r#"advance="10""#, r#"advance="11""#, 1),
+        ),
+    ] {
+        let changed = support::Golden::parse(&changed)
+            .unwrap_or_else(|error| panic!("mutated {label} identity should parse: {error}"));
+        assert!(
+            support::assert_surgeist_matches(&changed).is_err(),
+            "mutated Range {label} identity must fail"
         );
     }
 }

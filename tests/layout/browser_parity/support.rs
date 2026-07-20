@@ -184,9 +184,10 @@ pub struct Node {
     atomic_inline_participation: Option<layout::AtomicInlineParticipation>,
     shape_bands: Option<Vec<FixtureShapeBand>>,
     inline_boundary: Option<layout::InlineBoundaryKind>,
-    atomic_line_strut: bool,
+    atomic_line_strut: Option<layout::InlineMetrics>,
     anonymous_grid_text_wrapper: bool,
     fixture_synthetic: bool,
+    layout_ready_inline_root: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -342,6 +343,15 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         return parse_inline_text_node(xml);
     }
 
+    let layout_ready_inline_root = match xml.attribute("layout-ready-inline-root") {
+        Some(value) if parse_bool(value)? => true,
+        Some(_) => {
+            return Err(Error::new(
+                "`layout-ready-inline-root` must be `true` when present",
+            ));
+        }
+        None => false,
+    };
     let mut attrs = BTreeMap::new();
     for attr in xml.attributes() {
         attrs.insert(attr.name().to_string(), attr.value().to_string());
@@ -406,9 +416,10 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         atomic_inline_participation: None,
         shape_bands,
         inline_boundary: None,
-        atomic_line_strut: false,
+        atomic_line_strut: None,
         anonymous_grid_text_wrapper: false,
         fixture_synthetic: false,
+        layout_ready_inline_root,
     })
 }
 
@@ -573,12 +584,12 @@ fn lower_fri06_c08_bidi_inline_boundaries(
             }
             children.push(fri06_c08_synthetic_boundary(
                 layout::InlineBoundaryKind::Start,
-                false,
+                None,
             ));
             children.push(child.children.remove(0));
             children.push(fri06_c08_synthetic_boundary(
                 layout::InlineBoundaryKind::End,
-                false,
+                None,
             ));
             lowered_expectations.push(expected.children.remove(0));
         } else {
@@ -613,20 +624,39 @@ fn insert_fri06_c08_atomic_line_strut(root: &mut Node) -> Result<(), Error> {
                 child.style.get("width") == Some(width) && child.style.get("height") == Some("18px")
             })
     });
+    let exact_breaks = root.children.get(1..).is_some_and(|children| {
+        [
+            layout::InlineBreakOpportunity::allowed(),
+            layout::InlineBreakOpportunity::prohibited(),
+            layout::InlineBreakOpportunity::prohibited(),
+        ]
+        .into_iter()
+        .zip(children)
+        .all(|(following_break, child)| {
+            child
+                .atomic_inline_participation
+                .is_some_and(|participation| participation.following_break() == following_break)
+        })
+    });
     if root.style.get("display") != Some("block")
         || root.style.get("width") != Some("72px")
         || root.style.get("font-size") != Some("16px")
         || root.style.get("line-height") != Some("20px")
         || !exact_atomic_children
         || !exact_sizes
+        || !exact_breaks
     {
         return Err(Error::new(
             "FRI-06 C08 strut adapter requires the exact mixed text/atomic structure",
         ));
     }
+    let metrics = fixture_inline_metrics(
+        font_size(&root.style)?.ok_or_else(|| Error::new("missing root font size"))?,
+        line_height(&root.style)?.ok_or_else(|| Error::new("missing root line height"))?,
+    )?;
     root.children.insert(
-        1,
-        fri06_c08_synthetic_boundary(layout::InlineBoundaryKind::Start, true),
+        2,
+        fri06_c08_synthetic_boundary(layout::InlineBoundaryKind::Start, Some(metrics)),
     );
     Ok(())
 }
@@ -675,12 +705,20 @@ fn insert_fri06_c08_float_line_strut(root: &mut Node) -> Result<(), Error> {
     }
     root.children.insert(
         3,
-        fri06_c08_synthetic_boundary(layout::InlineBoundaryKind::Start, true),
+        fri06_c08_synthetic_boundary(
+            layout::InlineBoundaryKind::Start,
+            Some(layout::InlineMetrics::try_new(12.0, 20.0).map_err(|error| {
+                Error::new(format!("invalid finite float-line strut: {error:?}"))
+            })?),
+        ),
     );
     Ok(())
 }
 
-fn fri06_c08_synthetic_boundary(kind: layout::InlineBoundaryKind, atomic_line_strut: bool) -> Node {
+fn fri06_c08_synthetic_boundary(
+    kind: layout::InlineBoundaryKind,
+    atomic_line_strut: Option<layout::InlineMetrics>,
+) -> Node {
     Node {
         kind: NodeKind::Div,
         style: StyleAttrs::default(),
@@ -693,6 +731,7 @@ fn fri06_c08_synthetic_boundary(kind: layout::InlineBoundaryKind, atomic_line_st
         atomic_line_strut,
         anonymous_grid_text_wrapper: false,
         fixture_synthetic: true,
+        layout_ready_inline_root: false,
     }
 }
 
@@ -750,9 +789,10 @@ fn parse_inline_text_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         atomic_inline_participation: None,
         shape_bands: None,
         inline_boundary: None,
-        atomic_line_strut: false,
+        atomic_line_strut: None,
         anonymous_grid_text_wrapper: false,
         fixture_synthetic: false,
+        layout_ready_inline_root: false,
     })
 }
 
@@ -1637,6 +1677,9 @@ struct TestNode {
     text: Option<String>,
     children: Vec<usize>,
     synthetic: bool,
+    parent: Option<usize>,
+    range_root: Option<usize>,
+    explicit_range_root: bool,
     preserve_fractional_min_content: bool,
     use_tighter_monospace_wrap: bool,
     cache: layout::Cache,
@@ -1662,6 +1705,8 @@ struct InheritedTextContext {
     grid_lanes_text: bool,
     inline_level_text: bool,
     containing_flow: Option<layout::FlowAxes>,
+    parent: Option<usize>,
+    range_root: Option<usize>,
 }
 
 impl TestTree {
@@ -1676,6 +1721,8 @@ impl TestTree {
                 grid_lanes_text: false,
                 inline_level_text: false,
                 containing_flow: None,
+                parent: None,
+                range_root: None,
             },
         )?;
         Ok(tree)
@@ -1683,6 +1730,11 @@ impl TestTree {
 
     fn push_node(&mut self, node: &Node, inherited: InheritedTextContext) -> Result<usize, Error> {
         let id = self.nodes.len();
+        let range_root = if node.layout_ready_inline_root {
+            Some(id)
+        } else {
+            inherited.range_root
+        };
         let font_family = font_family(&node.style)?.unwrap_or(inherited.font_family);
         let font_size = font_size(&node.style)?.unwrap_or(inherited.font_size);
         let line_height = match line_height(&node.style)? {
@@ -1695,13 +1747,10 @@ impl TestTree {
                 let flow = inherited.containing_flow.ok_or_else(|| {
                     Error::new("synthetic inline boundary requires a containing flow")
                 })?;
-                let metrics = if node.atomic_line_strut {
-                    layout::InlineMetrics::try_new(12.0, 20.0).map_err(|error| {
-                        Error::new(format!("invalid finite atomic-line strut: {error:?}"))
-                    })?
-                } else {
-                    fixture_inline_metrics(font_size, resolved_line_height)?
-                };
+                let metrics = node
+                    .atomic_line_strut
+                    .map(Ok)
+                    .unwrap_or_else(|| fixture_inline_metrics(font_size, resolved_line_height))?;
                 layout::LayoutInput::inline_boundary(
                     layout::InlineBoundaryInput::new(kind, metrics)
                         .with_direction(flow.direction())
@@ -1758,6 +1807,9 @@ impl TestTree {
             text: node.text.clone(),
             children: Vec::new(),
             synthetic: node.fixture_synthetic,
+            parent: inherited.parent,
+            range_root,
+            explicit_range_root: node.layout_ready_inline_root,
             preserve_fractional_min_content: inherited.grid_lanes_text,
             use_tighter_monospace_wrap: !inherited.inline_level_text,
             cache: layout::Cache::new(),
@@ -1783,6 +1835,8 @@ impl TestTree {
                         grid_lanes_text,
                         inline_level_text,
                         containing_flow,
+                        parent: Some(id),
+                        range_root,
                     },
                 )
             })
@@ -1800,14 +1854,20 @@ impl TestTree {
                     "anonymous grid text wrapper requires direct shaped-text children",
                 ));
             }
+            containing_flow
+                .ok_or_else(|| Error::new("anonymous grid text wrapper requires a grid flow"))?;
             children = vec![self.push_synthetic_grid_text_wrapper(
                 children,
-                font_family,
-                font_size,
-                resolved_line_height,
-                containing_flow.ok_or_else(|| {
-                    Error::new("anonymous grid text wrapper requires a grid flow")
-                })?,
+                InheritedTextContext {
+                    font_family,
+                    font_size,
+                    line_height: LineHeightState::Px(resolved_line_height),
+                    grid_lanes_text,
+                    inline_level_text,
+                    containing_flow,
+                    parent: Some(id),
+                    range_root,
+                },
             )];
         }
         if let Some(text) = &node.text
@@ -1815,11 +1875,16 @@ impl TestTree {
         {
             children.push(self.push_synthetic_text(
                 text,
-                font_family,
-                font_size,
-                resolved_line_height,
-                grid_lanes_text,
-                inline_level_text,
+                InheritedTextContext {
+                    font_family,
+                    font_size,
+                    line_height: LineHeightState::Px(resolved_line_height),
+                    grid_lanes_text,
+                    inline_level_text,
+                    containing_flow,
+                    parent: Some(id),
+                    range_root,
+                },
             )?);
             self.nodes[id].text = None;
         }
@@ -1830,12 +1895,13 @@ impl TestTree {
     fn push_synthetic_grid_text_wrapper(
         &mut self,
         text_children: Vec<usize>,
-        font_family: FontFamily,
-        font_size: Scalar,
-        line_height: Scalar,
-        flow: layout::FlowAxes,
+        inherited: InheritedTextContext,
     ) -> usize {
         let id = self.nodes.len();
+        let flow = inherited
+            .containing_flow
+            .expect("wrapper caller validates its containing flow");
+        let line_height = inherited.line_height.resolve(inherited.font_size);
         let node_input = layout::NodeInput {
             display: layout::Display::Block,
             writing_mode: flow.writing_mode(),
@@ -1846,12 +1912,15 @@ impl TestTree {
             node_input: node_input.clone(),
             layout_input: layout::LayoutInput::box_input(node_input),
             is_br_source: false,
-            font_family,
-            font_size,
+            font_family: inherited.font_family,
+            font_size: inherited.font_size,
             line_height,
             text: None,
             children: text_children,
             synthetic: true,
+            parent: inherited.parent,
+            range_root: inherited.range_root,
+            explicit_range_root: false,
             preserve_fractional_min_content: false,
             use_tighter_monospace_wrap: false,
             cache: layout::Cache::new(),
@@ -1863,31 +1932,36 @@ impl TestTree {
             final_inline_fragments: None,
             shape_bands: None,
         });
+        let wrapper = id;
+        for child in self.nodes[wrapper].children.clone() {
+            self.nodes[child].parent = Some(wrapper);
+            self.nodes[child].range_root = inherited.range_root;
+        }
         id
     }
 
     fn push_synthetic_text(
         &mut self,
         text: &str,
-        font_family: FontFamily,
-        font_size: Scalar,
-        line_height: Scalar,
-        preserve_fractional_min_content: bool,
-        inherited_inline_level_text: bool,
+        inherited: InheritedTextContext,
     ) -> Result<usize, Error> {
         let id = self.nodes.len();
+        let line_height = inherited.line_height.resolve(inherited.font_size);
         self.nodes.push(TestNode {
             node_input: layout::NodeInput::default(),
             layout_input: layout::LayoutInput::box_input(layout::NodeInput::default()),
             is_br_source: false,
-            font_family,
-            font_size,
+            font_family: inherited.font_family,
+            font_size: inherited.font_size,
             line_height,
             text: Some(text.to_string()),
             children: Vec::new(),
             synthetic: true,
-            preserve_fractional_min_content,
-            use_tighter_monospace_wrap: !inherited_inline_level_text,
+            parent: inherited.parent,
+            range_root: inherited.range_root,
+            explicit_range_root: false,
+            preserve_fractional_min_content: inherited.grid_lanes_text,
+            use_tighter_monospace_wrap: !inherited.inline_level_text,
             cache: layout::Cache::new(),
             unrounded: layout::NodeOutput::new(),
             unrounded_present: false,
@@ -2482,7 +2556,7 @@ fn compare_expectation_in_source_order(
         compare_fragment_expectations(path, final_fragments, expected_fragments)?;
     }
     if let Some(expected_range_inks) = &expected.range_inks {
-        compare_range_ink_expectations(path, unrounded_fragments, expected_range_inks)?;
+        compare_range_ink_expectations(tree, node, path, unrounded_fragments, expected_range_inks)?;
     }
     if let Some(expected_browser_control) = expected.browser_control {
         compare_browser_control_expectation(
@@ -2616,9 +2690,22 @@ fn compare_fragment_expectations(
 }
 
 fn compare_range_ink_expectations(
+    tree: &TestTree,
+    owner: usize,
     path: &str,
     actual: &[layout::InlineFragmentOutputEntry<usize>],
     expected: &[InlineRangeInkExpectation],
+) -> Result<(), Error> {
+    compare_range_ink_expectations_with_translation(path, actual, expected, |edge| {
+        range_ink_ancestor_translation(tree, owner, edge)
+    })
+}
+
+fn compare_range_ink_expectations_with_translation(
+    path: &str,
+    actual: &[layout::InlineFragmentOutputEntry<usize>],
+    expected: &[InlineRangeInkExpectation],
+    mut translation: impl FnMut(PhysicalStartEdge) -> Result<Scalar, Error>,
 ) -> Result<(), Error> {
     if actual.len() != expected.len() {
         return Err(Error::new(format!(
@@ -2659,12 +2746,13 @@ fn compare_range_ink_expectations(
             expected.line_index,
         )?;
         let rect = fragment.rect();
-        let (start, advance) = match expected.physical_start_edge {
+        let (owner_start, advance) = match expected.physical_start_edge {
             PhysicalStartEdge::Left => (rect.origin().x, rect.size().width),
             PhysicalStartEdge::Right => (rect.origin().x + rect.size().width, rect.size().width),
             PhysicalStartEdge::Top => (rect.origin().y, rect.size().height),
             PhysicalStartEdge::Bottom => (rect.origin().y + rect.size().height, rect.size().height),
         };
+        let start = owner_start + translation(expected.physical_start_edge)?;
         compare_number(
             path,
             &format!("Range ink[{index}] physical flow-inline start"),
@@ -2680,6 +2768,75 @@ fn compare_range_ink_expectations(
     }
 
     Ok(())
+}
+
+fn range_ink_ancestor_translation(
+    tree: &TestTree,
+    owner: usize,
+    edge: PhysicalStartEdge,
+) -> Result<Scalar, Error> {
+    let owner_node = tree
+        .nodes
+        .get(owner)
+        .ok_or_else(|| Error::new(format!("Range owner node `{owner}` is missing")))?;
+    let Some(root) = owner_node.range_root else {
+        return if owner_node.parent == Some(0) {
+            Ok(0.0)
+        } else {
+            Err(Error::new(
+                "nested Range observation requires an explicit inline root marker",
+            ))
+        };
+    };
+    let root_node = tree
+        .nodes
+        .get(root)
+        .ok_or_else(|| Error::new(format!("Range inline root node `{root}` is missing")))?;
+    if !root_node.explicit_range_root || root_node.range_root != Some(root) {
+        return Err(Error::new(format!(
+            "Range inline root identity `{root}` does not name its explicit marker"
+        )));
+    }
+
+    let mut current = owner_node.parent.ok_or_else(|| {
+        Error::new(format!(
+            "Range owner node `{owner}` has no parent before explicit root `{root}`"
+        ))
+    })?;
+    let mut visited = std::collections::BTreeSet::new();
+    let mut translation = 0.0;
+    while current != root {
+        if !visited.insert(current) {
+            return Err(Error::new(format!(
+                "Range ancestry cycle before explicit root `{root}` at node `{current}`"
+            )));
+        }
+        let ancestor = tree.nodes.get(current).ok_or_else(|| {
+            Error::new(format!(
+                "Range ancestor node `{current}` is missing before explicit root `{root}`"
+            ))
+        })?;
+        if ancestor.range_root != Some(root) || ancestor.explicit_range_root {
+            return Err(Error::new(format!(
+                "Range ancestor node `{current}` has the wrong explicit root identity"
+            )));
+        }
+        if !ancestor.unrounded_present {
+            return Err(Error::new(format!(
+                "Range ancestor node `{current}` has no unrounded location"
+            )));
+        }
+        translation += match edge {
+            PhysicalStartEdge::Left | PhysicalStartEdge::Right => ancestor.unrounded.location.x,
+            PhysicalStartEdge::Top | PhysicalStartEdge::Bottom => ancestor.unrounded.location.y,
+        };
+        current = ancestor.parent.ok_or_else(|| {
+            Error::new(format!(
+                "Range ancestry ended before explicit root `{root}` at node `{current}`"
+            ))
+        })?;
+    }
+    Ok(translation)
 }
 
 fn compare_browser_control_expectation(
@@ -5179,6 +5336,9 @@ mod tests {
                 text: None,
                 children: Vec::new(),
                 synthetic: false,
+                parent: None,
+                range_root: None,
+                explicit_range_root: false,
                 preserve_fractional_min_content: false,
                 use_tighter_monospace_wrap: false,
                 cache: layout::Cache::new(),
@@ -5273,7 +5433,7 @@ mod tests {
             <test name="fri06-c08-range-ink" use-rounding="false">
                 <viewport width="100px" height="max-content" />
                 <input>
-                    <div display="block" width="100px">
+                    <div layout-ready-inline-root="true" display="block" width="100px">
                         <text layout-input="inline-text">
                             <segment id="11" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited" />
                         </text>
@@ -5310,7 +5470,7 @@ mod tests {
             <test name="fri06-c08-unrounded-range-ink" use-rounding="true">
                 <viewport width="100px" height="max-content" />
                 <input>
-                    <div display="block" width="100px">
+                    <div layout-ready-inline-root="true" display="block" width="100px">
                         <text layout-input="inline-text">
                             <segment id="11" inline-extent="9.640625" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited" />
                         </text>
@@ -5393,8 +5553,13 @@ mod tests {
             .collect::<Vec<_>>();
         expected.reverse();
 
-        compare_range_ink_expectations("fri06-c08-r0-range", &actual, &expected)
-            .expect("Range source order must not become a model visual-index assertion");
+        compare_range_ink_expectations_with_translation(
+            "fri06-c08-r0-range",
+            &actual,
+            &expected,
+            |_| Ok(0.0),
+        )
+        .expect("Range source order must not become a model visual-index assertion");
 
         for field in ["source", "line", "start", "advance"] {
             let mut changed = expected.clone();
@@ -5406,7 +5571,13 @@ mod tests {
                 _ => unreachable!(),
             }
             assert!(
-                compare_range_ink_expectations("fri06-c08-r0-range", &actual, &changed).is_err(),
+                compare_range_ink_expectations_with_translation(
+                    "fri06-c08-r0-range",
+                    &actual,
+                    &changed,
+                    |_| Ok(0.0),
+                )
+                .is_err(),
                 "Range {field} association must remain strict"
             );
         }
@@ -6043,6 +6214,9 @@ mod tests {
                 text: None,
                 children: source.children[node].clone(),
                 synthetic: false,
+                parent: (node != 0).then_some(0),
+                range_root: None,
+                explicit_range_root: false,
                 preserve_fractional_min_content: false,
                 use_tighter_monospace_wrap: false,
                 cache: layout::Cache::new(),
@@ -7707,6 +7881,9 @@ mod tests {
                 text: None,
                 children: Vec::new(),
                 synthetic: false,
+                parent: None,
+                range_root: None,
+                explicit_range_root: false,
                 preserve_fractional_min_content: false,
                 use_tighter_monospace_wrap: false,
                 cache: layout::Cache::new(),
@@ -9020,7 +9197,7 @@ mod tests {
         let input = if standalone_axis {
             format!(
                 r#"
-                <div display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-rows="30px" grid-template-columns="60px" font-family="ahem" font-size="15px" line-height="15px">
+                <div layout-ready-inline-root="true" display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-rows="30px" grid-template-columns="60px" font-family="ahem" font-size="15px" line-height="15px">
                     <div display="grid" align-items="baseline" grid-template-rows="subgrid" grid-template-columns="repeat(2, 30px)">
                         <div display="grid" align-items="baseline" grid-template-rows="auto" grid-template-columns="subgrid">{}</div>
                         <div display="grid" align-items="baseline" grid-template-rows="auto" grid-template-columns="subgrid" font-size="30px" line-height="30px">{}</div>
@@ -9049,7 +9226,7 @@ mod tests {
         } else {
             format!(
                 r#"
-                <div display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-columns="repeat(2, auto)" font-family="ahem" font-size="15px" line-height="15px">
+                <div layout-ready-inline-root="true" display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-columns="repeat(2, auto)" font-family="ahem" font-size="15px" line-height="15px">
                     <div display="grid" align-items="baseline" grid-column-start="1" grid-column-end="-1" grid-template-columns="subgrid">
                         <div display="grid" align-items="baseline">{}</div>
                         <div display="grid" align-items="baseline" font-size="30px" line-height="30px">{}</div>
@@ -9129,12 +9306,12 @@ mod tests {
         let bidi_level = u8::from(direction == "rtl");
         let input = format!(
             r#"
-            <div source-tag="div" display="block" box-sizing="{box_sizing}" direction="{direction}" width="72px" font-family="monospace" font-size="16px" line-height="20px">
+            <div source-tag="div" layout-ready-inline-root="true" display="block" box-sizing="{box_sizing}" direction="{direction}" width="72px" font-family="monospace" font-size="16px" line-height="20px">
                 {}
                 <div source-tag="span" display="inline-block" width="18px" height="18px" />
                 <div source-tag="span" display="inline-block" width="24px" height="18px" />
                 <div source-tag="span" display="inline-block" width="30px" height="18px" />
-                <atomic-placeholder child-index="1" bidi-level="{bidi_level}" following-break="prohibited" />
+                <atomic-placeholder child-index="1" bidi-level="{bidi_level}" following-break="allowed" />
                 <atomic-placeholder child-index="2" bidi-level="{bidi_level}" following-break="prohibited" />
                 <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="prohibited" />
             </div>
@@ -9223,6 +9400,10 @@ mod tests {
 
     fn fri06_c08_adapter_compute(xml: &str) -> Result<TestTree, Error> {
         let golden = Golden::parse(xml)?;
+        fri06_c08_adapter_compute_from_golden(&golden)
+    }
+
+    fn fri06_c08_adapter_compute_from_golden(golden: &Golden) -> Result<TestTree, Error> {
         let mut tree = TestTree::from_golden(&golden.root)?;
         let request = root_request(
             layout::Size::splat(layout::Available::MaxContent),
@@ -9307,7 +9488,7 @@ mod tests {
         let name = "subgrid_baseline_auto_columns_first_item__border_box_ltr";
         let computed_grid = fri06_c08_adapter_grid_xml(name, false);
         let authored_inline_grid =
-            computed_grid.replacen("<div display=\"grid\"", "<div display=\"inline-grid\"", 1);
+            computed_grid.replacen("display=\"grid\"", "display=\"inline-grid\"", 1);
         let error = Golden::parse(&authored_inline_grid)
             .expect_err("authored inline-grid must not satisfy the computed-grid predicate");
         assert!(error.to_string().contains("exact baseline helper root"));
@@ -9486,7 +9667,15 @@ mod tests {
                     .collect::<Vec<_>>();
                 assert_eq!(struts.len(), 1, "{name} continuation strut count");
                 assert_eq!(struts[0].metrics().line_extent(), 20.0, "{name}");
-                assert_eq!(struts[0].metrics().baseline(), 12.0, "{name}");
+                assert_eq!(
+                    struts[0].metrics().baseline(),
+                    if source == "fri06_inline_mixed_text_atomic_wrap" {
+                        14.8
+                    } else {
+                        12.0
+                    },
+                    "{name}"
+                );
             }
         }
     }
@@ -9599,7 +9788,169 @@ mod tests {
                 .collect::<Vec<_>>();
             assert_eq!(struts.len(), 1, "{name} containing strut count");
             assert_eq!(struts[0].metrics().line_extent(), 20.0, "{name}");
-            assert_eq!(struts[0].metrics().baseline(), 12.0, "{name}");
+            assert_eq!(struts[0].metrics().baseline(), 14.8, "{name}");
+        }
+    }
+
+    #[test]
+    fn fri06_c08_recovery_adapter_ancestry_identity_is_validated_and_added_once() {
+        let xml = fri06_c08_adapter_grid_xml(
+            "subgrid_baseline_auto_columns_first_item__border_box_ltr",
+            false,
+        );
+        let tree = fri06_c08_adapter_compute(&xml).expect("grid ancestry should compute");
+        let owners = tree
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, node)| node.unrounded_inline_fragments.is_some())
+            .map(|(node, _)| node)
+            .collect::<Vec<_>>();
+        assert_eq!(owners.len(), 2);
+        assert_eq!(
+            owners
+                .iter()
+                .map(|owner| range_ink_ancestor_translation(&tree, *owner, PhysicalStartEdge::Left))
+                .collect::<Result<Vec<_>, _>>()
+                .expect("both text owners must reach the marked root"),
+            [0.0, 15.0]
+        );
+
+        let translated_owner = owners[1];
+        let mut owner_union_changed = tree.clone();
+        owner_union_changed.nodes[translated_owner]
+            .unrounded
+            .location
+            .x = 1_000.0;
+        assert_eq!(
+            range_ink_ancestor_translation(
+                &owner_union_changed,
+                translated_owner,
+                PhysicalStartEdge::Left,
+            )
+            .expect("the text union is not an ancestor translation"),
+            15.0
+        );
+
+        let mut missing_marker = tree.clone();
+        missing_marker.nodes[0].explicit_range_root = false;
+        assert!(
+            range_ink_ancestor_translation(
+                &missing_marker,
+                translated_owner,
+                PhysicalStartEdge::Left,
+            )
+            .expect_err("a missing explicit marker must fail")
+            .to_string()
+            .contains("does not name its explicit marker")
+        );
+
+        let mut wrong_root = tree.clone();
+        wrong_root.nodes[translated_owner].range_root = Some(translated_owner);
+        assert!(
+            range_ink_ancestor_translation(&wrong_root, translated_owner, PhysicalStartEdge::Left,)
+                .expect_err("the owner must not name itself as the root")
+                .to_string()
+                .contains("does not name its explicit marker")
+        );
+
+        let mut wrong_ancestor_identity = tree.clone();
+        let synthetic_parent = wrong_ancestor_identity.nodes[translated_owner]
+            .parent
+            .expect("grid text has a synthetic wrapper parent");
+        wrong_ancestor_identity.nodes[synthetic_parent].range_root = None;
+        assert!(
+            range_ink_ancestor_translation(
+                &wrong_ancestor_identity,
+                translated_owner,
+                PhysicalStartEdge::Left,
+            )
+            .expect_err("every synthetic ancestor must retain root identity")
+            .to_string()
+            .contains("wrong explicit root identity")
+        );
+
+        let mut cycle = tree.clone();
+        cycle.nodes[synthetic_parent].parent = Some(synthetic_parent);
+        assert!(
+            range_ink_ancestor_translation(&cycle, translated_owner, PhysicalStartEdge::Left)
+                .expect_err("a synthetic ancestry cycle must fail")
+                .to_string()
+                .contains("ancestry cycle")
+        );
+
+        let direct = Golden::parse(
+            r#"
+            <test name="fri06_c08_recovery_adapter_direct_ltr" use-rounding="false">
+                <viewport width="100px" height="max-content" />
+                <input>
+                    <div layout-ready-inline-root="true" display="block" width="100px">
+                        <text layout-input="inline-text">
+                            <segment id="7" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited" />
+                        </text>
+                    </div>
+                </input>
+                <expectations><node><node /></node></expectations>
+            </test>
+            "#,
+        )
+        .expect("direct LTR fixture should parse");
+        let direct = fri06_c08_adapter_compute_from_golden(&direct)
+            .expect("direct LTR fixture should compute");
+        let direct_owner = direct
+            .nodes
+            .iter()
+            .position(|node| node.unrounded_inline_fragments.is_some())
+            .expect("direct text owner");
+        assert_eq!(
+            range_ink_ancestor_translation(&direct, direct_owner, PhysicalStartEdge::Left)
+                .expect("a direct child reaches its root without translation"),
+            0.0
+        );
+    }
+
+    #[test]
+    fn fri06_c08_recovery_adapter_mixed_wrap_uses_root_metrics_on_the_second_line() {
+        for variant in FRI06_C08_ADAPTER_VARIANTS {
+            let name = format!("fri06_inline_mixed_text_atomic_wrap__{variant}");
+            let xml = fri06_c08_adapter_atomic_xml(&name);
+            let tree = fri06_c08_adapter_compute(&xml)
+                .unwrap_or_else(|error| panic!("{name} must lower: {error}"));
+            let children = &tree.nodes[0].children;
+            assert_eq!(children.len(), 5, "{name}");
+            assert!(
+                tree.nodes[children[0]]
+                    .layout_input
+                    .as_inline_text()
+                    .is_some()
+            );
+            assert!(tree.nodes[children[1]].layout_input.as_box().is_some());
+            let strut = tree.nodes[children[2]]
+                .layout_input
+                .as_inline_boundary()
+                .expect("strut must follow the first 18px atomic");
+            assert_eq!(strut.metrics().baseline(), 14.8, "{name}");
+            assert_eq!(strut.metrics().line_extent(), 20.0, "{name}");
+            for child in &children[3..] {
+                assert_eq!(tree.nodes[*child].unrounded.location.y, 23.2, "{name}");
+                assert_eq!(tree.nodes[*child].final_layout.location.y, 23.0, "{name}");
+            }
+            assert_eq!(tree.nodes[0].unrounded.size.height, 46.4, "{name}");
+            assert_eq!(tree.nodes[0].final_layout.size.height, 46.0, "{name}");
+
+            let altered_topology = xml.replacen(
+                "child-index=\"1\" bidi-level=\"0\" following-break=\"allowed\"",
+                "child-index=\"1\" bidi-level=\"0\" following-break=\"prohibited\"",
+                1,
+            );
+            if variant.ends_with("ltr") {
+                assert!(
+                    Golden::parse(&altered_topology)
+                        .expect_err("altered mixed-wrap topology must not activate the strut")
+                        .to_string()
+                        .contains("exact mixed text/atomic structure")
+                );
+            }
         }
     }
 
@@ -9624,7 +9975,7 @@ mod tests {
         );
         let tree =
             fri06_c08_adapter_compute(&atomic).expect("unlisted atomic control should lower");
-        assert_eq!(tree.nodes[0].final_layout.size.height, 38.0);
+        assert_eq!(tree.nodes[0].final_layout.size.height, 41.0);
         assert!(
             tree.nodes
                 .iter()
