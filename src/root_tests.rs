@@ -4884,6 +4884,450 @@ fn fri06_c08_float_line_content_box_rtl_rounds_final_height_to_63() {
     assert_fri06_c08_float_line_final_height::<f64>(Direction::Rtl, BoxSizing::ContentBox);
 }
 
+fn fri06_c08_recovery_characterization_batch<S: LayoutScalar>(
+    children: Vec<(u32, LayoutInputOf<S>, NodeInputOf<S>)>,
+    root_input: NodeInputOf<S>,
+) -> CompletedLayoutBatchOf<u32, S> {
+    let child_nodes = children
+        .iter()
+        .map(|(node, _, _)| *node)
+        .collect::<Vec<_>>();
+    let mut inputs = HashMap::from([(0, LayoutInputOf::box_input(root_input.clone()))]);
+    let mut node_inputs = HashMap::from([(0, root_input)]);
+    let mut tree_children = HashMap::from([(0, child_nodes)]);
+    for (node, layout_input, node_input) in children {
+        inputs.insert(node, layout_input);
+        node_inputs.insert(node, node_input);
+        tree_children.insert(node, Vec::new());
+    }
+    let tree = Fri06C02TextTree {
+        inputs,
+        node_inputs,
+        children: tree_children,
+    };
+    compute_layout(
+        &tree,
+        0,
+        LayoutRootRequestOf::viewport(Size::splat(AvailableOf::MAX_CONTENT)).unwrap(),
+    )
+    .unwrap()
+}
+
+fn fri06_c08_recovery_characterization_segment<S: LayoutScalar>(
+    id: u64,
+    inline_extent: f64,
+    baseline: f64,
+    line_height: f64,
+    bidi_level: u8,
+    following_break: InlineBreakOpportunityOf<S>,
+) -> ShapedInlineSegmentOf<S> {
+    ShapedInlineSegmentOf::try_new(
+        InlineSegmentId::new(id),
+        S::from_f64(inline_extent),
+        InlineMetricsOf::from_line_height_and_baseline(
+            S::from_f64(line_height),
+            S::from_f64(baseline),
+        )
+        .unwrap(),
+        BidiLevel::try_new(bidi_level).unwrap(),
+        InlineWhitespaceEdge::Preserve,
+        following_break,
+    )
+    .unwrap()
+}
+
+#[test]
+fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lanes() {
+    fn assert_percentage_lane<S: LayoutScalar>() {
+        for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+            let text = |id, extent| {
+                fri06_c08_recovery_characterization_segment(
+                    id,
+                    extent,
+                    14.8,
+                    20.0,
+                    1,
+                    InlineBreakOpportunityOf::prohibited(),
+                )
+            };
+            let atomic = NodeInputOf {
+                display: Display::InlineBlock,
+                direction: Direction::Rtl,
+                box_sizing,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(20.0)),
+                    PreferredSizeOf::percent(S::from_f64(0.5)),
+                ),
+                atomic_inline_participation: Some(fri06_c03_atomic_participation(
+                    1,
+                    InlineBreakOpportunityOf::prohibited(),
+                )),
+                ..NodeInputOf::default()
+            };
+            let root = NodeInputOf {
+                display: Display::Block,
+                direction: Direction::Rtl,
+                box_sizing,
+                size: Size::new(
+                    PreferredSizeOf::px(S::from_f64(180.0)),
+                    PreferredSizeOf::px(S::from_f64(80.0)),
+                ),
+                ..NodeInputOf::default()
+            };
+            let batch = fri06_c08_recovery_characterization_batch(
+                vec![
+                    (
+                        1,
+                        fri06_c03_text_input(vec![text(0, 57.796875)]),
+                        NodeInputOf::non_box(),
+                    ),
+                    (2, LayoutInputOf::box_input(atomic.clone()), atomic),
+                    (
+                        3,
+                        fri06_c03_text_input(vec![text(2, 86.703125)]),
+                        NodeInputOf::non_box(),
+                    ),
+                ],
+                root,
+            );
+
+            assert_eq!(
+                fri06_c02_final_node(&batch, 0).size,
+                Size::new(S::from_f64(180.0), S::from_f64(80.0))
+            );
+            let atomic = fri06_c02_final_node(&batch, 2);
+            assert_eq!(atomic.source_index, SourceIndex::new(1));
+            assert_eq!(
+                (atomic.location, atomic.size, atomic.content_size),
+                (
+                    Point::new(S::from_f64(102.0), S::ZERO),
+                    Size::new(S::from_f64(20.0), S::from_f64(40.0)),
+                    Size::new(S::from_f64(20.0), S::from_f64(40.0)),
+                ),
+                "{box_sizing:?} rounded percentage atomic geometry"
+            );
+            let fragments = batch.unrounded_inline_fragments();
+            assert_eq!(fragments.len(), 2);
+            for (index, (node, id, x, width, baseline_x)) in [
+                (1, 0, 122.203125, 57.796875, 180.0),
+                (3, 2, 15.5, 86.703125, 102.203125),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let entry = fragments[index];
+                let fragment = entry.fragment();
+                assert_eq!(
+                    (entry.node(), fragment.segment_id()),
+                    (node, InlineSegmentId::new(id))
+                );
+                assert_eq!(fragment.line_index(), 0);
+                assert_eq!(
+                    fragment.rect(),
+                    ScrollRectOf::try_new(
+                        Point::new(S::from_f64(x), S::from_f64(25.2)),
+                        Size::new(S::from_f64(width), S::from_f64(20.0)),
+                    )
+                    .unwrap()
+                );
+                assert_eq!(
+                    fragment.baseline(),
+                    Point::new(S::from_f64(baseline_x), S::from_f64(40.0))
+                );
+            }
+        }
+    }
+
+    fn assert_vertical_lane<S: LayoutScalar>() {
+        for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+            for direction in [Direction::Ltr, Direction::Rtl] {
+                let axes = FlowAxes::new(WritingMode::VerticalRl, direction);
+                let bidi_level = u8::from(direction == Direction::Rtl);
+                let box_input = |display, width, height, float, clear, participation| NodeInputOf {
+                    display,
+                    writing_mode: WritingMode::VerticalRl,
+                    direction,
+                    box_sizing,
+                    float,
+                    clear,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(width)),
+                        PreferredSizeOf::px(S::from_f64(height)),
+                    ),
+                    atomic_inline_participation: participation,
+                    ..NodeInputOf::default()
+                };
+                let participation = || {
+                    Some(fri06_c03_atomic_participation(
+                        bidi_level,
+                        InlineBreakOpportunityOf::prohibited(),
+                    ))
+                };
+                let floating =
+                    box_input(Display::Block, 28.0, 36.0, Float::Left, Clear::None, None);
+                let first = box_input(
+                    Display::InlineBlock,
+                    18.0,
+                    42.0,
+                    Float::None,
+                    Clear::None,
+                    participation(),
+                );
+                let second = box_input(
+                    Display::InlineBlock,
+                    18.0,
+                    30.0,
+                    Float::None,
+                    Clear::None,
+                    participation(),
+                );
+                let cleared = box_input(Display::Block, 18.0, 18.0, Float::None, Clear::Left, None);
+                let line_break = LineBreakInputOf::new()
+                    .with_writing_mode(WritingMode::VerticalRl)
+                    .with_direction(direction)
+                    .with_metrics(
+                        InlineMetricsOf::from_line_height_and_baseline(
+                            S::from_f64(24.0),
+                            S::from_f64(16.8),
+                        )
+                        .unwrap(),
+                    );
+                let root = NodeInputOf {
+                    display: Display::Block,
+                    writing_mode: WritingMode::VerticalRl,
+                    direction,
+                    box_sizing,
+                    overflow: computed_overflow(Overflow::Auto, Overflow::Auto),
+                    scrollbar_width: ScrollbarWidthOf::try_new(S::from_f64(15.0)).unwrap(),
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(96.0)),
+                        PreferredSizeOf::px(S::from_f64(140.0)),
+                    ),
+                    ..NodeInputOf::default()
+                };
+                let batch = fri06_c08_recovery_characterization_batch(
+                    vec![
+                        (1, LayoutInputOf::box_input(floating.clone()), floating),
+                        (2, LayoutInputOf::box_input(first.clone()), first),
+                        (
+                            3,
+                            LayoutInputOf::line_break(line_break),
+                            NodeInputOf::non_box(),
+                        ),
+                        (4, LayoutInputOf::box_input(second.clone()), second),
+                        (5, LayoutInputOf::box_input(cleared.clone()), cleared),
+                    ],
+                    root,
+                );
+                let (float_y, first_y, second_y, clear_y) = match direction {
+                    Direction::Ltr => (0.0, 36.0, 36.0, 0.0),
+                    Direction::Rtl => (104.0, 62.0, 74.0, 122.0),
+                };
+                assert_eq!(
+                    fri06_c02_final_node(&batch, 0).size,
+                    Size::new(S::from_f64(96.0), S::from_f64(140.0))
+                );
+                for (node, x, y, width, height) in [
+                    (1, 68.0, float_y, 28.0, 36.0),
+                    (2, 78.0, first_y, 18.0, 42.0),
+                    (4, 53.0, second_y, 18.0, 30.0),
+                    (5, 28.0, clear_y, 18.0, 18.0),
+                ] {
+                    let output = fri06_c02_final_node(&batch, node);
+                    assert_eq!(
+                        (output.location, output.size),
+                        (
+                            Point::new(S::from_f64(x), S::from_f64(y)),
+                            Size::new(S::from_f64(width), S::from_f64(height)),
+                        ),
+                        "{axes:?} {box_sizing:?} source {node}"
+                    );
+                }
+                let control = fri06_c02_final_node(&batch, 3);
+                assert_eq!(control.size, Size::ZERO);
+                assert_eq!(
+                    axes.logical_point(
+                        control.location,
+                        control.size,
+                        Size::new(S::from_f64(96.0), S::from_f64(140.0))
+                    )
+                    .block,
+                    S::from_f64(18.0),
+                    "{axes:?} {box_sizing:?} forced-break line band"
+                );
+            }
+        }
+    }
+
+    fn assert_float_lane<S: LayoutScalar>() {
+        for box_sizing in [BoxSizing::BorderBox, BoxSizing::ContentBox] {
+            for direction in [Direction::Ltr, Direction::Rtl] {
+                let axes = FlowAxes::new(WritingMode::HorizontalTb, direction);
+                let bidi_level = u8::from(direction == Direction::Rtl);
+                let floating = |physical_left: bool, width, height| {
+                    let side = match (direction, physical_left) {
+                        (Direction::Ltr, true) | (Direction::Rtl, false) => Float::Left,
+                        (Direction::Ltr, false) | (Direction::Rtl, true) => Float::Right,
+                    };
+                    let mut input = fri06_c04_line_box(
+                        axes,
+                        LogicalSizeOf::new(S::from_f64(width), S::from_f64(height)),
+                        side,
+                        None,
+                    );
+                    input.box_sizing = box_sizing;
+                    input
+                };
+                let atomic = |width, following_break| {
+                    let mut input = fri06_c04_line_box(
+                        axes,
+                        LogicalSizeOf::new(S::from_f64(width), S::from_f64(16.0)),
+                        Float::None,
+                        Some(fri06_c03_atomic_participation(bidi_level, following_break)),
+                    );
+                    input.box_sizing = box_sizing;
+                    input
+                };
+                let left = floating(true, 42.0, 42.0);
+                let right = floating(false, 50.0, 62.0);
+                let atomics = [
+                    atomic(28.0, InlineBreakOpportunityOf::allowed()),
+                    atomic(32.0, InlineBreakOpportunityOf::allowed()),
+                    atomic(36.0, InlineBreakOpportunityOf::allowed()),
+                    atomic(40.0, InlineBreakOpportunityOf::prohibited()),
+                ];
+                let segment = fri06_c08_recovery_characterization_segment(
+                    4,
+                    38.53125,
+                    14.8,
+                    20.0,
+                    bidi_level,
+                    InlineBreakOpportunityOf::allowed(),
+                );
+                let line_strut = InlineBoundaryInputOf::new(
+                    InlineBoundaryKind::Start,
+                    InlineMetricsOf::from_line_height_and_baseline(
+                        S::from_f64(20.0),
+                        S::from_f64(12.0),
+                    )
+                    .unwrap(),
+                )
+                .with_writing_mode(WritingMode::HorizontalTb)
+                .with_direction(direction);
+                let root = NodeInputOf {
+                    display: Display::Block,
+                    direction,
+                    box_sizing,
+                    size: Size::new(
+                        PreferredSizeOf::px(S::from_f64(180.0)),
+                        PreferredSizeOf::AUTO,
+                    ),
+                    ..NodeInputOf::default()
+                };
+                let batch = fri06_c08_recovery_characterization_batch(
+                    vec![
+                        (1, LayoutInputOf::box_input(left.clone()), left),
+                        (2, LayoutInputOf::box_input(right.clone()), right),
+                        (
+                            3,
+                            fri06_c03_text_input(vec![segment]),
+                            NodeInputOf::non_box(),
+                        ),
+                        (
+                            8,
+                            LayoutInputOf::inline_boundary(line_strut),
+                            NodeInputOf::non_box(),
+                        ),
+                        (
+                            4,
+                            LayoutInputOf::box_input(atomics[0].clone()),
+                            atomics[0].clone(),
+                        ),
+                        (
+                            5,
+                            LayoutInputOf::box_input(atomics[1].clone()),
+                            atomics[1].clone(),
+                        ),
+                        (
+                            6,
+                            LayoutInputOf::box_input(atomics[2].clone()),
+                            atomics[2].clone(),
+                        ),
+                        (
+                            7,
+                            LayoutInputOf::box_input(atomics[3].clone()),
+                            atomics[3].clone(),
+                        ),
+                    ],
+                    root,
+                );
+                assert_eq!(
+                    fri06_c02_final_node(&batch, 0).size,
+                    Size::new(S::from_f64(180.0), S::from_f64(62.0))
+                );
+                for (node, x, y, width, height) in
+                    [(1, 0.0, 0.0, 42.0, 42.0), (2, 130.0, 0.0, 50.0, 62.0)]
+                {
+                    let output = fri06_c02_final_node(&batch, node);
+                    assert_eq!(
+                        (output.location, output.size),
+                        (
+                            Point::new(S::from_f64(x), S::from_f64(y)),
+                            Size::new(S::from_f64(width), S::from_f64(height))
+                        )
+                    );
+                }
+                let atomic_x = match direction {
+                    Direction::Ltr => [81.0, 42.0, 74.0, 42.0],
+                    Direction::Rtl => [63.0, 98.0, 62.0, 90.0],
+                };
+                for (index, (node, width, y)) in [
+                    (4, 28.0, 0.0),
+                    (5, 32.0, 24.0),
+                    (6, 36.0, 24.0),
+                    (7, 40.0, 40.0),
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    let output = fri06_c02_final_node(&batch, node);
+                    assert_eq!(
+                        (output.location, output.size),
+                        (
+                            Point::new(S::from_f64(atomic_x[index]), S::from_f64(y)),
+                            Size::new(S::from_f64(width), S::from_f64(16.0))
+                        ),
+                        "{axes:?} {box_sizing:?} atomic {node}"
+                    );
+                }
+                let fragment = batch.unrounded_inline_fragments()[0].fragment();
+                let (x, baseline_x) = match direction {
+                    Direction::Ltr => (42.0, 42.0),
+                    Direction::Rtl => (91.46875, 130.0),
+                };
+                assert_eq!(fragment.line_index(), 0);
+                assert_eq!(fragment.rect().origin().x, S::from_f64(x));
+                assert!(
+                    (fragment.rect().origin().y - S::from_f64(1.2)).abs() <= S::from_f64(0.000_1)
+                );
+                assert_eq!(
+                    fragment.rect().size(),
+                    Size::new(S::from_f64(38.53125), S::from_f64(20.0))
+                );
+                assert_eq!(fragment.baseline().x, S::from_f64(baseline_x));
+                assert!((fragment.baseline().y - S::from_f64(16.0)).abs() <= S::from_f64(0.000_1));
+            }
+        }
+    }
+
+    assert_percentage_lane::<f32>();
+    assert_percentage_lane::<f64>();
+    assert_vertical_lane::<f32>();
+    assert_vertical_lane::<f64>();
+    assert_float_lane::<f32>();
+    assert_float_lane::<f64>();
+}
+
 #[test]
 fn fri06_c07_sideways_lr_rtl_all_atomic_odd_bidi_keeps_visual_placement_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {

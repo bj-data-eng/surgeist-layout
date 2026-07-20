@@ -3277,3 +3277,226 @@ fn fri06_c08_r0_control_probe_matrix_is_exact_72_plus_24_rows() {
     assert_eq!(complete_probe.len(), 96);
     assert_eq!(selected, complete_probe);
 }
+
+fn fri06_c08_recovery_characterization_box_attr(box_sizing: &str) -> &'static str {
+    match box_sizing {
+        "border_box" => "",
+        "content_box" => " box-sizing=\"content-box\"",
+        other => panic!("unexpected C08 characterization box sizing {other}"),
+    }
+}
+
+fn fri06_c08_recovery_characterization_percentage_xml(
+    box_sizing: &str,
+    range_start: f32,
+    atomic_x: u8,
+    trailing_range_start: f32,
+) -> String {
+    let box_attr = fri06_c08_recovery_characterization_box_attr(box_sizing);
+    format!(
+        r#"<test name="fri06_atomic_inline_percentage_block_size__{box_sizing}_rtl" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block"{box_attr} direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="180px" height="80px">
+      <text layout-input="inline-text">
+        <segment id="0" inline-extent="57.796875" inline-baseline="14.8" inline-line-height="20" bidi-level="1" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <div source-tag="span" display="inline-block"{box_attr} direction="rtl" font-family="monospace" font-size="16px" line-height="20px" width="20px" height="50%"/>
+      <text layout-input="inline-text">
+        <segment id="2" inline-extent="86.703125" inline-baseline="14.8" inline-line-height="20" bidi-level="1" whitespace-edge="preserve" following-break="prohibited"/>
+      </text>
+      <atomic-placeholder child-index="1" bidi-level="1" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="80">
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="0" line_index="0" physical_start_edge="right" start="{range_start}" advance="57.796875"/>
+        </range-inks>
+      </node>
+      <node x="{atomic_x}" y="0" width="20" height="40"/>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="2" line_index="0" physical_start_edge="right" start="{trailing_range_start}" advance="86.703125"/>
+        </range-inks>
+      </node>
+    </node>
+  </expectations>
+</test>"#
+    )
+}
+
+fn fri06_c08_recovery_characterization_vertical_xml(
+    box_sizing: &str,
+    direction: &str,
+    first_atomic_x: u8,
+    second_atomic_x: u8,
+    clear_x: u8,
+) -> String {
+    let box_attr = fri06_c08_recovery_characterization_box_attr(box_sizing);
+    let (float_y, first_y, second_y, clear_y, bidi_level) = match direction {
+        "ltr" => (0, 36, 36, 0, 0),
+        "rtl" => (104, 62, 74, 122, 1),
+        other => panic!("unexpected C08 characterization direction {other}"),
+    };
+    format!(
+        r#"<test name="fri06_vertical_break_clear__{box_sizing}_{direction}" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block"{box_attr} direction="{direction}" writing-mode="vertical-rl" overflow-x="auto" overflow-y="auto" scrollbar-width="15" font-family="monospace" font-size="16px" line-height="24px" width="96px" height="140px">
+      <div source-tag="span" display="block"{box_attr} direction="{direction}" writing-mode="vertical-rl" float="inline-start" font-family="monospace" font-size="16px" line-height="24px" width="28px" height="36px"/>
+      <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" writing-mode="vertical-rl" font-family="monospace" font-size="16px" line-height="24px" width="18px" height="42px"/>
+      <div source-tag="br" line-control="forced-break" display="inline"{box_attr} direction="{direction}" writing-mode="vertical-rl" font-family="monospace" font-size="16px" line-height="24px" inline-baseline="16.8px" inline-line-height="24px"/>
+      <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" writing-mode="vertical-rl" font-family="monospace" font-size="16px" line-height="24px" width="18px" height="30px"/>
+      <div source-tag="span" display="block"{box_attr} direction="{direction}" writing-mode="vertical-rl" clear="inline-start" font-family="monospace" font-size="16px" line-height="24px" width="18px" height="18px"/>
+      <atomic-placeholder child-index="1" bidi-level="{bidi_level}" following-break="prohibited"/>
+      <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="96" height="140" scroll_width="0" scroll_height="0">
+      <node x="68" y="{float_y}" width="28" height="36"/>
+      <node x="{first_atomic_x}" y="{first_y}" width="18" height="42"/>
+      <node>
+        <browser-control source_index="2" terminal_visual_slot="2" previous_line="same" next_line="later"/>
+      </node>
+      <node x="{second_atomic_x}" y="{second_y}" width="18" height="30"/>
+      <node x="{clear_x}" y="{clear_y}" width="18" height="18"/>
+    </node>
+  </expectations>
+</test>"#
+    )
+}
+
+fn fri06_c08_recovery_characterization_float_xml(
+    box_sizing: &str,
+    direction: &str,
+    root_height: u8,
+    second_line_y: u8,
+    fourth_atomic_x: u8,
+    third_line_y: u8,
+) -> String {
+    let box_attr = fri06_c08_recovery_characterization_box_attr(box_sizing);
+    let (bidi_level, edge, range_start, atomic_x) = match direction {
+        "ltr" => (0, "left", 42, [81, 42, 74, 0]),
+        "rtl" => (1, "right", 130, [63, 98, 62, 90]),
+        other => panic!("unexpected C08 characterization direction {other}"),
+    };
+    format!(
+        r#"<test name="fri06_float_line_exclusion__{box_sizing}_{direction}" use-rounding="true">
+  <viewport width="max-content" height="max-content"/>
+  <input>
+    <div source-tag="div" display="block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="180px">
+      <div source-tag="span" display="block"{box_attr} direction="{direction}" float="left" font-family="monospace" font-size="16px" line-height="20px" width="42px" height="42px"/>
+      <div source-tag="span" display="block"{box_attr} direction="{direction}" float="right" font-family="monospace" font-size="16px" line-height="20px" width="50px" height="62px"/>
+      <text layout-input="inline-text">
+        <segment id="4" inline-extent="38.53125" inline-baseline="14.8" inline-line-height="20" bidi-level="{bidi_level}" whitespace-edge="preserve" following-break="allowed"/>
+      </text>
+      <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="28px" height="16px"/>
+      <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="32px" height="16px"/>
+      <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="36px" height="16px"/>
+      <div source-tag="span" display="inline-block"{box_attr} direction="{direction}" font-family="monospace" font-size="16px" line-height="20px" width="40px" height="16px"/>
+      <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="allowed"/>
+      <atomic-placeholder child-index="4" bidi-level="{bidi_level}" following-break="allowed"/>
+      <atomic-placeholder child-index="5" bidi-level="{bidi_level}" following-break="allowed"/>
+      <atomic-placeholder child-index="6" bidi-level="{bidi_level}" following-break="prohibited"/>
+    </div>
+  </input>
+  <expectations>
+    <node x="0" y="0" width="180" height="{root_height}">
+      <node x="0" y="0" width="42" height="42"/>
+      <node x="130" y="0" width="50" height="62"/>
+      <node>
+        <range-inks>
+          <range-ink source_segment_id="4" line_index="0" physical_start_edge="{edge}" start="{range_start}" advance="38.53125"/>
+        </range-inks>
+      </node>
+      <node x="{}" y="0" width="28" height="16"/>
+      <node x="{}" y="{second_line_y}" width="32" height="16"/>
+      <node x="{}" y="{second_line_y}" width="36" height="16"/>
+      <node x="{fourth_atomic_x}" y="{third_line_y}" width="40" height="16"/>
+    </node>
+  </expectations>
+</test>"#,
+        atomic_x[0], atomic_x[1], atomic_x[2]
+    )
+}
+
+fn fri06_c08_recovery_characterization_rows(
+    browser_geometry: bool,
+) -> Vec<(String, Option<&'static str>)> {
+    let mut rows = Vec::new();
+    for box_sizing in ["border_box", "content_box"] {
+        rows.push((
+            fri06_c08_recovery_characterization_percentage_xml(
+                box_sizing,
+                if browser_geometry { 73.296875 } else { 180.0 },
+                if browser_geometry { 73 } else { 102 },
+                if browser_geometry { 180.0 } else { 102.203125 },
+            ),
+            browser_geometry.then_some(
+                "Range ink[0] physical flow-inline start mismatch, expected 73.296875, got 180",
+            ),
+        ));
+        for direction in ["ltr", "rtl"] {
+            rows.push((
+                fri06_c08_recovery_characterization_vertical_xml(
+                    box_sizing,
+                    direction,
+                    if browser_geometry { 75 } else { 78 },
+                    if browser_geometry { 51 } else { 53 },
+                    if browser_geometry { 30 } else { 28 },
+                ),
+                browser_geometry.then_some("x mismatch, expected 75, got 78"),
+            ));
+            rows.push((
+                fri06_c08_recovery_characterization_float_xml(
+                    box_sizing,
+                    direction,
+                    if browser_geometry { 63 } else { 62 },
+                    if browser_geometry { 21 } else { 24 },
+                    if browser_geometry || direction == "rtl" {
+                        90
+                    } else {
+                        42
+                    },
+                    if browser_geometry { 42 } else { 40 },
+                ),
+                browser_geometry.then_some("height mismatch, expected 63, got 62"),
+            ));
+        }
+    }
+    rows
+}
+
+#[test]
+fn fri06_c08_recovery_characterization_current_geometry_matches_all_ten_exact_rows() {
+    let rows = fri06_c08_recovery_characterization_rows(false);
+    assert_eq!(rows.len(), 10);
+    for (xml, browser_error) in rows {
+        assert_eq!(browser_error, None);
+        let golden = support::Golden::parse(&xml).expect("exact C08 current fixture should parse");
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} current geometry changed: {error}\n{xml}", golden.name)
+        });
+    }
+}
+
+#[test]
+fn fri06_c08_recovery_characterization_browser_geometry_remains_unaccepted_production() {
+    let rows = fri06_c08_recovery_characterization_rows(true);
+    assert_eq!(rows.len(), 10);
+    for (xml, browser_error) in rows {
+        let golden = support::Golden::parse(&xml).expect("exact C08 browser fixture should parse");
+        let error = support::assert_surgeist_matches(&golden)
+            .expect_err("C08R browser correction must remain unimplemented");
+        assert!(
+            error
+                .to_string()
+                .contains(browser_error.expect("browser mismatch")),
+            "{} exposed a different browser contract: {error}",
+            golden.name
+        );
+    }
+}

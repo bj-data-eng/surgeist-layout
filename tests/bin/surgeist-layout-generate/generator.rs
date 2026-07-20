@@ -12810,4 +12810,169 @@ status = "active"
     fn path_str(path: &Path) -> &str {
         path.to_str().expect("test paths should be utf-8")
     }
+
+    #[test]
+    fn fri06_c08_recovery_characterization_immutable_inputs_match_reviewed_freeze() {
+        const GENERATOR_TEST_MODULE_MARKER: &str = "#[cfg(test)]\nmod tests {";
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let corpus = repository.join("tests/layout/browser_parity");
+        let generator = fs::read_to_string(file!()).expect("generator source");
+        let production = generator
+            .split_once(GENERATOR_TEST_MODULE_MARKER)
+            .expect("generator test module boundary")
+            .0;
+
+        assert_eq!(
+            sha256_bytes(production.as_bytes()),
+            "7a75c6b02bf0986ccbdb60f945580e6faa27537413c0ab4622448bb2be2ae89e",
+            "characterization must not change generator behavior"
+        );
+        for (path, expected) in [
+            (
+                "Cargo.toml",
+                "b1b167837c31ff837c080306536a692150706d49021618074233a001d87d6901",
+            ),
+            (
+                "Cargo.lock",
+                "ab9848a3a892f71b35c9078613f58ba189948fc71b859790d333b9cd9511c673",
+            ),
+            (
+                "Justfile",
+                "faa63c73973a3d2d8629eca5688bf7b09269bf0a6545ef44fbaf61c50c22ae80",
+            ),
+            (
+                "tests/layout/browser_parity/scripts/gentest/test_helper.js",
+                "fd668b064fcccb00ebb1632183e4f2522ce29f1b390f2f0c012bdade906ed18c",
+            ),
+            (
+                "tests/layout/browser_parity/scripts/gentest/test_base_style.css",
+                "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6",
+            ),
+            (
+                "tests/layout/browser_parity/corpus.toml",
+                "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701",
+            ),
+        ] {
+            assert_eq!(
+                sha256_file(&repository.join(path)).expect(path),
+                expected,
+                "{path}"
+            );
+        }
+        assert_eq!(
+            fri06_c08_source_set_digest(
+                &corpus,
+                &FRI06_C08_NEW_CASES
+                    .iter()
+                    .map(|(_, source)| format!("html/{source}"))
+                    .collect()
+            ),
+            "8fc22a25a4d58a22398aca7a468731ce845ee98b3ea6a7d63945fd6650a86fd1"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_recovery_characterization_reconciles_literal_and_executed_censuses() {
+        let literal = include_str!(
+            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        );
+        let executed = include_str!(
+            "../../../plans/2026-07-20-surgeist-layout-fri-06-c08-second-lineage-census.md"
+        );
+        assert_eq!(
+            sha256_bytes(literal.as_bytes()),
+            "e972e8d67e32919ce736f6d5428f017fa9a61ec5112fa75b2ec5b9d43b53e4f5"
+        );
+        assert_eq!(
+            sha256_bytes(executed.as_bytes()),
+            "a56b09ed4d68ee901dbc385db3d78b66bf5faeb82f844f1d531c94aef10a23b9"
+        );
+
+        let mut literal_pass = 0usize;
+        let mut literal_fail = 0usize;
+        for line in literal
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .skip(1)
+        {
+            let fields = line.split('\t').collect::<Vec<_>>();
+            assert_eq!(fields.len(), 6, "literal census row: {line}");
+            match fields[3] {
+                "PASS" => literal_pass += 1,
+                "FAIL" => literal_fail += 1,
+                other => panic!("unexpected literal census result {other}"),
+            }
+        }
+        assert_eq!((literal_pass, literal_fail), (36, 352));
+        for exact in [
+            "| Pass | 104 | `29f9cf9ac175c105317ff38a183048a1f0429707e22fd3b076d85b455e6504a1` |",
+            "| Fail | 284 | `89152d321e60d65d4c6beb238ce20cfbc000aac66c2be7714a3494d437fefca2` |",
+            "Against the literal TSV, 68 rows moved from fail to pass, 284 remained failing,",
+            "36 remained passing, and no literal pass regressed.",
+        ] {
+            assert!(executed.contains(exact), "executed census lacks {exact:?}");
+        }
+        let moved_fail_to_pass = 68usize;
+        assert_eq!(literal_pass + moved_fail_to_pass, 104);
+        assert_eq!(literal_fail - moved_fail_to_pass, 284);
+        assert_eq!(36 + 352, 104 + 284);
+    }
+
+    mod c08_entry_preflight {
+        use super::*;
+
+        #[test]
+        #[ignore = "entry-only stale-artifact preflight; excluded from post-lineage filters"]
+        fn stale_artifact_inventory_matches_committed_entry() {
+            let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+            let corpus = repository.join("tests/layout/browser_parity");
+            assert_eq!(
+                sha256_file(&corpus.join("xml/generation-reports/all.json")).expect("entry report"),
+                "4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab"
+            );
+
+            let xml_count = collect_relative_files(&corpus.join("xml"))
+                .expect("entry XML inventory")
+                .into_iter()
+                .filter(|path| {
+                    path.extension().and_then(|extension| extension.to_str()) == Some("xml")
+                })
+                .count();
+            assert_eq!(xml_count, 5_324);
+            let aggregate = Command::new("sh")
+                .current_dir(repository)
+                .args([
+                    "-c",
+                    "find tests/layout/browser_parity/xml -type f -name '*.xml' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256",
+                ])
+                .output()
+                .expect("entry XML aggregate command");
+            assert!(
+                aggregate.status.success(),
+                "entry XML aggregate should succeed"
+            );
+            assert_eq!(
+                String::from_utf8_lossy(&aggregate.stdout)
+                    .split_whitespace()
+                    .next(),
+                Some("d8fad6bbab9ad0b5bece5299a983e588935cfd591d9430d38ddac900ec9eea1d")
+            );
+        }
+
+        #[test]
+        #[ignore = "entry-only worktree preflight; excluded from post-lineage filters"]
+        fn worktree_is_clean_before_input_recovery() {
+            let output = Command::new("git")
+                .current_dir(env!("CARGO_MANIFEST_DIR"))
+                .args(["status", "--short"])
+                .output()
+                .expect("entry worktree status");
+            assert!(output.status.success(), "git status should succeed");
+            assert!(
+                output.stdout.is_empty(),
+                "entry preflight requires a clean worktree:\n{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+        }
+    }
 }
