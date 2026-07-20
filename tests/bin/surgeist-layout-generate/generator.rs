@@ -6386,6 +6386,18 @@ if (expectedReason === undefined) {{
         ),
     ];
 
+    const FRI06_C08_NEW_LAYOUT_READY_INLINE_SOURCES: [&str; 9] = [
+        "html/block/fri06_atomic_inline_baseline.html",
+        "html/block/fri06_atomic_inline_percentage_block_size.html",
+        "html/block/fri06_bidi_mixed_inline.html",
+        "html/block/fri06_forced_break_strut.html",
+        "html/block/fri06_inline_mixed_text_atomic_wrap.html",
+        "html/block/fri06_inline_unequal_line_alignment.html",
+        "html/block/fri06_vertical_break_clear.html",
+        "html/float/fri06_float_line_exclusion.html",
+        "html/float/fri06_float_shape_exclusion.html",
+    ];
+
     fn fri06_c08_matrix_digest(mut rows: Vec<String>) -> String {
         rows.sort();
         sha256_bytes(format!("{}\n", rows.join("\n")).as_bytes())
@@ -7011,13 +7023,27 @@ console.log(JSON.stringify({
                     .then(|| format!("html/{}", source.to_string_lossy()))
             })
             .collect::<BTreeSet<_>>();
-        assert_eq!(
-            opted_in_sources,
-            activation
-                .iter()
-                .map(|row| row["source"].as_str().expect("source").to_string())
-                .collect::<BTreeSet<_>>()
-        );
+        let new_sources = FRI06_C08_NEW_CASES
+            .iter()
+            .map(|(_, source)| format!("html/{source}"))
+            .collect::<BTreeSet<_>>();
+        let new_layout_ready_inline_sources = FRI06_C08_NEW_LAYOUT_READY_INLINE_SOURCES
+            .into_iter()
+            .map(str::to_string)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(new_layout_ready_inline_sources.len(), 9);
+        assert!(new_layout_ready_inline_sources.is_subset(&new_sources));
+
+        let existing_activation_sources = activation
+            .iter()
+            .map(|row| row["source"].as_str().expect("source").to_string())
+            .collect::<BTreeSet<_>>();
+        assert!(existing_activation_sources.is_disjoint(&new_layout_ready_inline_sources));
+        let expected_opted_in_sources = existing_activation_sources
+            .union(&new_layout_ready_inline_sources)
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        assert_eq!(opted_in_sources, expected_opted_in_sources);
 
         let missing_root = unsupported
             .iter()
