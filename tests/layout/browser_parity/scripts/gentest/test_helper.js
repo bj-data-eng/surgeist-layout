@@ -1374,26 +1374,23 @@ function layoutReadyTextNodeData(node, parent, segmentId, visualIndex, reviewedB
     throw new Error(`layout-ready text segment ${segmentId} requires a complete finite tuple`);
   }
 
-  const fragments = fragmentRects.map((fragment) => {
-    const x = fragment.x - parentRect.x;
-    const y = fragment.y - parentRect.y;
-    const width = fragment.width;
-    const height = fragment.height;
-    const baselineX = vertical ? x + baseline : x;
-    const baselineY = vertical ? y : y + baseline;
-    if (![x, y, width, height, baselineX, baselineY].every(Number.isFinite) || width < 0 || height < 0) {
-      throw new Error(`layout-ready text fragment ${segmentId} requires a complete finite tuple`);
+  const rangeInks = fragmentRects.map((fragment) => {
+    const physicalStartEdge = inlineStartEdge(computedStyle);
+    const horizontal = physicalStartEdge === 'left' || physicalStartEdge === 'right';
+    const start = horizontal
+      ? fragment[physicalStartEdge] - parentRect.left
+      : fragment[physicalStartEdge] - parentRect.top;
+    const advance = horizontal ? fragment.width : fragment.height;
+    if (![start, advance].every(Number.isFinite) || advance < 0) {
+      throw new Error(`layout-ready text Range ink ${segmentId} requires a complete finite inline tuple`);
     }
     return {
       sourceSegmentId: segmentId,
       lineIndex: 0,
       visualIndex,
-      x,
-      y,
-      width,
-      height,
-      baselineX,
-      baselineY,
+      physicalStartEdge,
+      start,
+      advance,
     };
   });
 
@@ -1408,27 +1405,8 @@ function layoutReadyTextNodeData(node, parent, segmentId, visualIndex, reviewedB
       whitespaceEdge: whitespace ? 'discard-at-both' : 'preserve',
       ...(reviewedBreak || { followingBreak: whitespace ? 'allowed' : 'prohibited' }),
     }],
-    unroundedLayout: layoutReadyTextLayout(rect, parentRect, false),
-    smartRoundedLayout: layoutReadyTextLayout(rect, parentRect, true),
-    fragments,
+    rangeInks,
     children: [],
-  };
-}
-
-function layoutReadyTextLayout(rect, parentRect, rounded) {
-  if (rounded) {
-    return {
-      width: Math.round(rect.right) - Math.round(rect.left),
-      height: Math.round(rect.bottom) - Math.round(rect.top),
-      x: Math.round(rect.x - parentRect.x),
-      y: Math.round(rect.y - parentRect.y),
-    };
-  }
-  return {
-    width: rect.width,
-    height: rect.height,
-    x: rect.x - parentRect.x,
-    y: rect.y - parentRect.y,
   };
 }
 

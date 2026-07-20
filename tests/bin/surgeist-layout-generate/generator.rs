@@ -4133,6 +4133,31 @@ impl ExpectationWriteContext {
 }
 
 fn write_expectation(lines: &mut Vec<String>, node: &Value, context: ExpectationWriteContext) {
+    if let Some(range_inks) = node["rangeInks"].as_array() {
+        assert_eq!(
+            node["layoutInput"].as_str(),
+            Some("inline-text"),
+            "layout-ready fixture field `rangeInks` is valid only on inline text"
+        );
+        assert!(
+            !range_inks.is_empty(),
+            "layout-ready fixture field `rangeInks` must be nonempty"
+        );
+        assert!(
+            node["fragments"].is_null(),
+            "Range ink and explicit model fragments are distinct expectation categories"
+        );
+        assert!(
+            node["children"].as_array().is_none_or(Vec::is_empty),
+            "layout-ready Range ink text must not contain child expectations"
+        );
+        let pad = " ".repeat(context.indent);
+        lines.push(format!("{pad}<node>"));
+        write_range_ink_expectations(lines, range_inks, context.indent + 2);
+        lines.push(format!("{pad}</node>"));
+        return;
+    }
+
     let layout = if context.use_rounding {
         &node["smartRoundedLayout"]
     } else {
@@ -4251,6 +4276,44 @@ fn write_fragment_expectations(lines: &mut Vec<String>, fragments: &[Value], ind
         ));
     }
     lines.push(format!("{pad}</fragments>"));
+}
+
+fn write_range_ink_expectations(lines: &mut Vec<String>, range_inks: &[Value], indent: usize) {
+    let pad = " ".repeat(indent);
+    lines.push(format!("{pad}<range-inks>"));
+    for range_ink in range_inks {
+        let physical_start_edge = required_string_attr(range_ink, "physicalStartEdge");
+        assert!(
+            matches!(
+                physical_start_edge.as_str(),
+                "left" | "right" | "top" | "bottom"
+            ),
+            "layout-ready fixture field `physicalStartEdge` must name a physical edge"
+        );
+        let attrs = [
+            (
+                "source_segment_id",
+                required_integer_attr(range_ink, "sourceSegmentId"),
+            ),
+            ("line_index", required_integer_attr(range_ink, "lineIndex")),
+            (
+                "visual_index",
+                required_integer_attr(range_ink, "visualIndex"),
+            ),
+            ("physical_start_edge", physical_start_edge),
+            ("start", required_finite_number_attr(range_ink, "start")),
+            (
+                "advance",
+                required_nonnegative_number_attr(range_ink, "advance"),
+            ),
+        ];
+        lines.push(format!(
+            "{}<range-ink{}/>",
+            " ".repeat(indent + 2),
+            attr_text(&attrs)
+        ));
+    }
+    lines.push(format!("{pad}</range-inks>"));
 }
 
 fn required_finite_number_attr(value: &Value, field: &str) -> String {
@@ -6808,7 +6871,6 @@ describeElement = function(element) {
   };
 };
 const children = describeChildNodes(parent);
-children[0].fragments[0].baselineY = 15;
 console.log(JSON.stringify({
   tagName: "div",
   useRounding: false,
@@ -6907,7 +6969,6 @@ describeElement = function(element) {
   };
 };
 const children = describeChildNodes(parent);
-children[2].fragments[0].y = 1;
 console.log(JSON.stringify({
   tagName: "div",
   useRounding: false,
@@ -7177,24 +7238,21 @@ function getComputedStyle() {
             r#"
 const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
 const segment = shaped.inlineSegments[0];
+const rangeInk = shaped.rangeInks[0];
 for (const [name, value] of Object.entries({
   inlineExtent: segment.inlineExtent,
   inlineBaseline: segment.inlineBaseline,
   inlineLineHeight: segment.inlineLineHeight,
-  x: shaped.fragments[0].x,
-  y: shaped.fragments[0].y,
-  width: shaped.fragments[0].width,
-  height: shaped.fragments[0].height,
-  baselineX: shaped.fragments[0].baselineX,
-  baselineY: shaped.fragments[0].baselineY,
+  start: rangeInk.start,
+  advance: rangeInk.advance,
 })) {
   if (!Number.isFinite(value)) throw new Error(`${name} must be finite, got ${value}`);
 }
-if (segment.id !== 7 || shaped.fragments[0].sourceSegmentId !== 7) {
-  throw new Error("text source and fragment segment identity must remain stable");
+if (segment.id !== 7 || rangeInk.sourceSegmentId !== 7) {
+  throw new Error("text source and Range-ink segment identity must remain stable");
 }
-if (shaped.fragments[0].lineIndex !== 0 || shaped.fragments[0].visualIndex !== 2) {
-  throw new Error("fragment line/visual identity must be explicit");
+if (rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 2) {
+  throw new Error("Range-ink line/visual identity must be explicit");
 }
 
 const metrics = brInlineMetricsForElement({ tagName: "BR" }, {
@@ -7212,7 +7270,125 @@ if (metrics.baseline !== "0px" || metrics.lineHeight !== "0px") {
     }
 
     #[test]
-    fn fri06_c08_existing_helper_emits_parent_local_fragment_and_baseline_coordinates() {
+    fn fri06_c08_range_ink_helper_keeps_browser_block_ink_out_of_metric_geometry() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const parentRect = { x: 10, y: 20, left: 10, top: 20, right: 110, bottom: 80, width: 100, height: 60 };
+const rangeRect = { x: 25, y: 33, left: 25, top: 33, right: 34, bottom: 40, width: 9, height: 7 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return rangeRect; },
+  getClientRects() { return [rangeRect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const parent = { getBoundingClientRect() { return parentRect; } };
+const text = { nodeType: Node.TEXT_NODE, textContent: "ink" };
+let flow = { direction: "ltr", writingMode: "horizontal-tb" };
+function getComputedStyle() {
+  return {
+    direction: flow.direction,
+    writingMode: flow.writingMode,
+    fontSize: "16px",
+    lineHeight: "20px",
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+for (const [direction, writingMode, physicalStartEdge, start, advance] of [
+  ["ltr", "horizontal-tb", "left", 15, 9],
+  ["rtl", "horizontal-tb", "right", 24, 9],
+  ["ltr", "vertical-rl", "top", 13, 7],
+  ["rtl", "vertical-rl", "bottom", 20, 7],
+]) {
+  flow = { direction, writingMode };
+  const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
+  if (Object.prototype.hasOwnProperty.call(shaped, "fragments")) {
+    throw new Error("Range y/height/baseline must not be emitted as model fragment geometry");
+  }
+  if (Object.prototype.hasOwnProperty.call(shaped, "unroundedLayout") ||
+      Object.prototype.hasOwnProperty.call(shaped, "smartRoundedLayout")) {
+    throw new Error("Range geometry must not be emitted as text-node metric union geometry");
+  }
+  if (JSON.stringify(shaped.rangeInks) !== JSON.stringify([{
+    sourceSegmentId: 7,
+    lineIndex: 0,
+    visualIndex: 2,
+    physicalStartEdge,
+    start,
+    advance,
+  }])) {
+    throw new Error(`Range ink must retain only source/line/visual and flow-inline facts, got ${JSON.stringify(shaped.rangeInks)}`);
+  }
+  if (shaped.inlineSegments[0].inlineBaseline !== 14.8 ||
+      shaped.inlineSegments[0].inlineLineHeight !== 20) {
+    throw new Error("supplied model line metrics must remain independent from 7px Range ink height");
+  }
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-range-ink-category", script);
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_serializer_emits_only_physical_inline_observations() {
+        let node = json!({
+            "tagName": "div",
+            "useRounding": false,
+            "viewport": {
+                "width": {"unit": "px", "value": 100},
+                "height": {"unit": "max-content"},
+            },
+            "style": {"display": "block"},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+            "children": [{
+                "layoutInput": "inline-text",
+                "inlineSegments": [{
+                    "id": 7,
+                    "inlineExtent": 9,
+                    "inlineBaseline": 14.8,
+                    "inlineLineHeight": 20,
+                    "bidiLevel": 0,
+                    "whitespaceEdge": "preserve",
+                    "followingBreak": "prohibited",
+                }],
+                "rangeInks": [{
+                    "sourceSegmentId": 7,
+                    "lineIndex": 0,
+                    "visualIndex": 2,
+                    "physicalStartEdge": "left",
+                    "start": 15,
+                    "advance": 9,
+                }],
+                "children": [],
+            }],
+        });
+
+        let xml = generate_xml("fri06_c08_range_ink_serializer", &node);
+        assert!(
+            xml.contains(
+                r#"<range-ink source_segment_id="7" line_index="0" visual_index="2" physical_start_edge="left" start="15" advance="9"/>"#
+            ),
+            "missing explicit Range-ink category in\n{xml}"
+        );
+        assert!(
+            !xml.contains("<fragment "),
+            "Range ink must not serialize as a model fragment\n{xml}"
+        );
+        assert!(
+            xml.contains("<node><range-inks>") || xml.contains("<node>\n        <range-inks>"),
+            "Range-backed text-node expectation must not serialize metric union attributes\n{xml}"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_existing_helper_emits_parent_local_range_inline_coordinates_only() {
         let script = [
             r#"
 const window = {};
@@ -7247,28 +7423,21 @@ function getComputedStyle() {
             TEST_HELPER_SOURCE,
             r#"
 const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
-const fragment = shaped.fragments[0];
-const fragmentRect = [fragment.x, fragment.y, fragment.width, fragment.height];
-const baseline = [fragment.baselineX, fragment.baselineY];
-if (
-  JSON.stringify(fragmentRect) !== JSON.stringify([15, 6, 4, 10]) ||
-  JSON.stringify(baseline) !== JSON.stringify([15, 14])
-) {
-  throw new Error(
-    `fragment and baseline must be direct-parent-local, got rect=${JSON.stringify(fragmentRect)} baseline=${JSON.stringify(baseline)}`
-  );
+const rangeInk = shaped.rangeInks[0];
+if (rangeInk.physicalStartEdge !== "left" || rangeInk.start !== 15 || rangeInk.advance !== 4) {
+  throw new Error(`Range ink must retain direct-parent-local flow-inline geometry, got ${JSON.stringify(rangeInk)}`);
 }
-if (JSON.stringify(shaped.unroundedLayout) !== JSON.stringify({ width: 4, height: 10, x: 15, y: 6 })) {
-  throw new Error(`text node layout must retain direct-parent-local geometry, got ${JSON.stringify(shaped.unroundedLayout)}`);
+if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 2) {
+  throw new Error(`Range-ink identity must remain stable, got ${JSON.stringify(rangeInk)}`);
 }
-if (fragment.sourceSegmentId !== 7 || fragment.lineIndex !== 0 || fragment.visualIndex !== 2) {
-  throw new Error(`fragment identity must remain stable, got ${JSON.stringify(fragment)}`);
+if ("y" in rangeInk || "height" in rangeInk || "baselineX" in rangeInk || "baselineY" in rangeInk) {
+  throw new Error(`Range ink must not retain block-axis or baseline geometry, got ${JSON.stringify(rangeInk)}`);
 }
 "#,
         ]
         .concat();
 
-        run_bundled_helper_script("fri06-c08-parent-local-fragment", script);
+        run_bundled_helper_script("fri06-c08-parent-local-range-ink", script);
     }
 
     #[test]

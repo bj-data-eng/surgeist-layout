@@ -230,6 +230,7 @@ pub struct Expectation {
     pub height: Option<Scalar>,
     pub scroll_size: Option<Size>,
     pub fragments: Option<Vec<InlineFragmentExpectation>>,
+    pub range_inks: Option<Vec<InlineRangeInkExpectation>>,
     pub children: Vec<Expectation>,
 }
 
@@ -244,6 +245,24 @@ pub struct InlineFragmentExpectation {
     pub height: Scalar,
     pub baseline_x: Scalar,
     pub baseline_y: Scalar,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PhysicalStartEdge {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InlineRangeInkExpectation {
+    pub source_segment_id: u64,
+    pub line_index: usize,
+    pub visual_index: usize,
+    pub physical_start_edge: PhysicalStartEdge,
+    pub start: Scalar,
+    pub advance: Scalar,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -755,6 +774,7 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
     };
 
     let mut fragments = None;
+    let mut range_inks = None;
     let mut children = Vec::new();
     for child in xml.children().filter(roxmltree::Node::is_element) {
         match child.tag_name().name() {
@@ -767,12 +787,25 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
                     "expected at most one `<fragments>` child on `<node>`",
                 ));
             }
+            "range-inks" if range_inks.is_none() => {
+                range_inks = Some(parse_range_ink_expectations(child)?);
+            }
+            "range-inks" => {
+                return Err(Error::new(
+                    "expected at most one `<range-inks>` child on `<node>`",
+                ));
+            }
             tag => {
                 return Err(Error::new(format!(
                     "unsupported expectation child `<{tag}>`"
                 )));
             }
         }
+    }
+    if fragments.is_some() && range_inks.is_some() {
+        return Err(Error::new(
+            "model fragments and Range ink are distinct expectation categories",
+        ));
     }
 
     Ok(Expectation {
@@ -782,8 +815,106 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
         height: optional_number_attr(xml, "height")?,
         scroll_size,
         fragments,
+        range_inks,
         children,
     })
+}
+
+fn parse_range_ink_expectations(
+    xml: roxmltree::Node<'_, '_>,
+) -> Result<Vec<InlineRangeInkExpectation>, Error> {
+    expect_tag(xml, "range-inks")?;
+    if let Some(attribute) = xml.attributes().next() {
+        return Err(Error::new(format!(
+            "unsupported `<range-inks>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_fragment_payload(xml, Some("range-ink"))?;
+    let range_inks = xml
+        .children()
+        .filter(roxmltree::Node::is_element)
+        .map(parse_range_ink_expectation)
+        .collect::<Result<Vec<_>, _>>()?;
+    if range_inks.is_empty() {
+        return Err(Error::new(
+            "expected at least one `<range-ink>` child on `<range-inks>`",
+        ));
+    }
+    Ok(range_inks)
+}
+
+fn parse_range_ink_expectation(
+    xml: roxmltree::Node<'_, '_>,
+) -> Result<InlineRangeInkExpectation, Error> {
+    expect_tag(xml, "range-ink")?;
+    let physical_start_edge = match required_attr(xml, "physical_start_edge")? {
+        "left" => PhysicalStartEdge::Left,
+        "right" => PhysicalStartEdge::Right,
+        "top" => PhysicalStartEdge::Top,
+        "bottom" => PhysicalStartEdge::Bottom,
+        raw => {
+            return Err(Error::new(format!(
+                "invalid `physical_start_edge` on `<range-ink>`: `{raw}`"
+            )));
+        }
+    };
+    let expectation = InlineRangeInkExpectation {
+        source_segment_id: parse_range_ink_integer(xml, "source_segment_id")?,
+        line_index: parse_range_ink_integer(xml, "line_index")?,
+        visual_index: parse_range_ink_integer(xml, "visual_index")?,
+        physical_start_edge,
+        start: parse_range_ink_number(xml, "start", false)?,
+        advance: parse_range_ink_number(xml, "advance", true)?,
+    };
+    const ATTRIBUTES: &[&str] = &[
+        "source_segment_id",
+        "line_index",
+        "visual_index",
+        "physical_start_edge",
+        "start",
+        "advance",
+    ];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported `<range-ink>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_fragment_payload(xml, None)?;
+    Ok(expectation)
+}
+
+fn parse_range_ink_integer<T>(xml: roxmltree::Node<'_, '_>, name: &str) -> Result<T, Error>
+where
+    T: std::str::FromStr,
+{
+    let raw = required_attr(xml, name)?;
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(Error::new(format!(
+            "invalid `{name}` on `<range-ink>`: `{raw}`"
+        )));
+    }
+    raw.parse()
+        .map_err(|_| Error::new(format!("invalid `{name}` on `<range-ink>`: `{raw}`")))
+}
+
+fn parse_range_ink_number(
+    xml: roxmltree::Node<'_, '_>,
+    name: &str,
+    nonnegative: bool,
+) -> Result<Scalar, Error> {
+    let raw = required_attr(xml, name)?;
+    let value = parse_number(raw)?;
+    if !value.is_finite() || (nonnegative && value < 0.0) {
+        return Err(Error::new(format!(
+            "invalid `{name}` on `<range-ink>`: `{raw}`"
+        )));
+    }
+    Ok(value)
 }
 
 fn parse_fragment_expectations(
@@ -1749,6 +1880,9 @@ fn compare_expectation_in_source_order(
     if let Some(expected_fragments) = &expected.fragments {
         compare_fragment_expectations(path, actual_fragments, expected_fragments)?;
     }
+    if let Some(expected_range_inks) = &expected.range_inks {
+        compare_range_ink_expectations(path, actual_fragments, expected_range_inks)?;
+    }
 
     let children = tree.nodes[node]
         .children
@@ -1859,6 +1993,86 @@ fn compare_fragment_expectations(
     }
 
     Ok(())
+}
+
+fn compare_range_ink_expectations(
+    path: &str,
+    actual: &[layout::InlineFragmentOutputEntry<usize>],
+    expected: &[InlineRangeInkExpectation],
+) -> Result<(), Error> {
+    if actual.len() != expected.len() {
+        return Err(Error::new(format!(
+            "{path}: Range ink count mismatch, expected {}, got {}",
+            expected.len(),
+            actual.len()
+        )));
+    }
+
+    for (index, (entry, expected)) in actual.iter().zip(expected).enumerate() {
+        let fragment = entry.fragment();
+        compare_range_ink_identity(
+            path,
+            index,
+            "source segment id",
+            fragment.segment_id().get(),
+            expected.source_segment_id,
+        )?;
+        compare_range_ink_identity(
+            path,
+            index,
+            "line index",
+            fragment.line_index(),
+            expected.line_index,
+        )?;
+        compare_range_ink_identity(
+            path,
+            index,
+            "visual index",
+            fragment.visual_index(),
+            expected.visual_index,
+        )?;
+
+        let rect = fragment.rect();
+        let (start, advance) = match expected.physical_start_edge {
+            PhysicalStartEdge::Left => (rect.origin().x, rect.size().width),
+            PhysicalStartEdge::Right => (rect.origin().x + rect.size().width, rect.size().width),
+            PhysicalStartEdge::Top => (rect.origin().y, rect.size().height),
+            PhysicalStartEdge::Bottom => (rect.origin().y + rect.size().height, rect.size().height),
+        };
+        compare_number(
+            path,
+            &format!("Range ink[{index}] physical flow-inline start"),
+            start,
+            expected.start,
+        )?;
+        compare_number(
+            path,
+            &format!("Range ink[{index}] advance"),
+            advance,
+            expected.advance,
+        )?;
+    }
+
+    Ok(())
+}
+
+fn compare_range_ink_identity<T>(
+    path: &str,
+    index: usize,
+    field: &str,
+    actual: T,
+    expected: T,
+) -> Result<(), Error>
+where
+    T: Copy + std::fmt::Display + Eq,
+{
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(Error::new(format!(
+            "{path}: Range ink[{index}] {field} mismatch, expected {expected}, got {actual}"
+        )))
+    }
 }
 
 fn compare_fragment_identity<T>(
@@ -4082,6 +4296,7 @@ mod tests {
             height: Some(0.0),
             scroll_size: None,
             fragments: None,
+            range_inks: None,
             children: vec![Expectation {
                 x: Some(99.0),
                 y: None,
@@ -4089,6 +4304,7 @@ mod tests {
                 height: None,
                 scroll_size: None,
                 fragments: None,
+                range_inks: None,
                 children: Vec::new(),
             }],
         };
@@ -4111,6 +4327,7 @@ mod tests {
             height: Some(0.0),
             scroll_size: None,
             fragments: None,
+            range_inks: None,
             children: Vec::new(),
         };
         let mut tree = line_break_tree(layout::LineBreakInput::new());
@@ -4138,6 +4355,121 @@ mod tests {
             </test>
             "#
         )
+    }
+
+    fn fri06_c08_range_ink_golden() -> Golden {
+        Golden::parse(
+            r#"
+            <test name="fri06-c08-range-ink" use-rounding="false">
+                <viewport width="100px" height="max-content" />
+                <input>
+                    <div display="block" width="100px">
+                        <text layout-input="inline-text">
+                            <segment id="11" inline-extent="10" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited" />
+                        </text>
+                    </div>
+                </input>
+                <expectations>
+                    <node>
+                        <node>
+                            <range-inks>
+                                <range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="10" />
+                            </range-inks>
+                        </node>
+                    </node>
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("Range ink should parse as a distinct finite observation category")
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_parser_and_comparator_ignore_browser_block_ink_geometry() {
+        let golden = fri06_c08_range_ink_golden();
+
+        assert_surgeist_matches(&golden).expect(
+            "Range ink should compare source/line/visual and flow-inline facts without browser block ink geometry",
+        );
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_wrong_identity_or_inline_interval_still_fails() {
+        for (field, expected_diagnostic) in [
+            (
+                "source",
+                "Range ink[0] source segment id mismatch, expected 12, got 11",
+            ),
+            (
+                "line",
+                "Range ink[0] line index mismatch, expected 1, got 0",
+            ),
+            (
+                "visual",
+                "Range ink[0] visual index mismatch, expected 1, got 0",
+            ),
+            (
+                "start",
+                "Range ink[0] physical flow-inline start mismatch, expected 1, got 0",
+            ),
+            (
+                "advance",
+                "Range ink[0] advance mismatch, expected 11, got 10",
+            ),
+        ] {
+            let mut golden = fri06_c08_range_ink_golden();
+            let range_ink = &mut golden.expectations.children[0].range_inks.as_mut().unwrap()[0];
+            match field {
+                "source" => range_ink.source_segment_id += 1,
+                "line" => range_ink.line_index += 1,
+                "visual" => range_ink.visual_index += 1,
+                "start" => range_ink.start += 1.0,
+                "advance" => range_ink.advance += 1.0,
+                _ => unreachable!(),
+            }
+
+            let error = assert_surgeist_matches(&golden)
+                .expect_err("wrong Range-ink identity or inline interval should fail");
+            assert!(
+                error.to_string().contains(expected_diagnostic),
+                "unexpected {field} diagnostic: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_parser_is_finite_complete_and_category_exclusive() {
+        let complete = r#"<range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="10" />"#;
+        for (body, diagnostic) in [
+            (
+                "<range-inks />".to_string(),
+                "expected at least one `<range-ink>` child on `<range-inks>`",
+            ),
+            (
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" /></range-inks>"#.to_string(),
+                "missing `advance` on `<range-ink>`",
+            ),
+            (
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="inline" start="0" advance="10" /></range-inks>"#.to_string(),
+                "invalid `physical_start_edge` on `<range-ink>`: `inline`",
+            ),
+            (
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="NaN" advance="10" /></range-inks>"#.to_string(),
+                "invalid `start` on `<range-ink>`: `NaN`",
+            ),
+            (
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="-1" /></range-inks>"#.to_string(),
+                "invalid `advance` on `<range-ink>`: `-1`",
+            ),
+            (
+                format!(r#"<range-inks>{complete}</range-inks><fragments>{}</fragments>"#, fri06_c06_complete_fragment("")),
+                "model fragments and Range ink are distinct expectation categories",
+            ),
+        ] {
+            let error = Golden::parse(&fri06_c06_fragment_xml(&body))
+                .expect_err("invalid or mixed Range-ink category should fail closed");
+            assert_eq!(error.to_string(), diagnostic);
+        }
     }
 
     #[test]
@@ -4429,6 +4761,7 @@ mod tests {
                 height: None,
                 scroll_size: None,
                 fragments: Some(fragments),
+                range_inks: None,
                 children: tree.nodes[node]
                     .children
                     .iter()
@@ -4549,6 +4882,29 @@ mod tests {
             let error = fri06_c06_compare_fragments(&tree, &batch, &changed)
                 .expect_err("wrong fragment field should fail");
             assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_does_not_relax_explicit_model_line_block_or_baseline() {
+        let (tree, batch, expected) = fri06_c06_fragment_observation();
+        for (field, diagnostic) in [
+            ("block", "fragment[0] rect y mismatch"),
+            ("baseline", "fragment[0] baseline y mismatch"),
+        ] {
+            let mut changed = expected.clone();
+            let fragment = &mut changed.children[0].fragments.as_mut().unwrap()[0];
+            match field {
+                "block" => fragment.y += 1.0,
+                "baseline" => fragment.baseline_y += 1.0,
+                _ => unreachable!(),
+            }
+            let error = fri06_c06_compare_fragments(&tree, &batch, &changed)
+                .expect_err("wrong explicit model-line block geometry should fail");
+            assert!(
+                error.to_string().contains(diagnostic),
+                "unexpected {field} diagnostic: {error}"
+            );
         }
     }
 
