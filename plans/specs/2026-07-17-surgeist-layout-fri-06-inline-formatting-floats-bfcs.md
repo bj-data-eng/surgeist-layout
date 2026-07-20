@@ -993,16 +993,51 @@ for the named text/control fragments. A `Range` ink rect never supplies or
 overrides a model fragment's block-axis start, block extent, baseline, or the
 text node's metric-box union. The comparator uses Range data only for its named
 source/line/flow-inline observations; browser Range order never supplies a model
-fragment visual index. A browser `<br>` rect never supplies model control
-geometry. Explicit model-line and model-control expectations remain strict. The
-helper emits atomic participation only when the computed/lowered child role is
-atomic, never from authored inline display after blockification. Fixture sources
-exercise the current overflow-based BFC predicate and never require later-owned
-`flow-root` normalization. The adapter may synthesize only the finite anonymous
-grid text wrapper, secondary inline boundaries, and containing strut required by
-the fixed matrix. It must not become a general text shaper, CSS parser, bidi
-implementation, display normalizer, or alternate line algorithm. Rust parser
-and serializer changes remain exact to these finite categories and attributes.
+fragment visual index. A Range start is physical-flow-relative to the nearest
+explicit layout-ready inline containing root whose child sequence the adapter
+lowers, never to an intermediate DOM text parent that the adapter removes.
+
+A browser `<br>` rect never supplies model control geometry. Explicit model-line
+and model-control expectations remain strict. Model line-control participation is
+a separate explicit fixture fact emitted only when the computed/lowered `<br>`
+role participates as an inline control in that containing formatting context. A
+source tag, ancestor activation marker, or browser-control observation alone does
+not make a blockified `<br>` a model control. For a non-wrapping flex containing
+context, browser terminal-slot and neighboring-line observations are compared
+from source position and flex-line membership without consulting either browser
+BR ink or model control-point geometry; wrapped flex remains fail-closed.
+
+The helper emits atomic participation only when the computed/lowered child role
+is atomic, never from authored inline display after blockification. Typed inline
+children replace, rather than accompany, the same legacy measured-text fallback.
+Fixture sources exercise the current overflow-based BFC predicate and never
+require later-owned `flow-root` normalization. The adapter may synthesize only
+the finite anonymous grid text wrapper, secondary inline boundaries, and
+containing strut required by the fixed matrix. Its finite predicates use computed
+display after blockification. Float and clear lowering uses this closed table;
+the public `Left`/`Right` variants in the layout-ready model mean line start/end:
+
+| Fixture token | Layout-ready value |
+| --- | --- |
+| `none` | `Float::None` or `Clear::None` |
+| `inline-start` | `Float::Left` or `Clear::Left` |
+| `inline-end` | `Float::Right` or `Clear::Right` |
+| `both` | `Clear::Both`; invalid for float |
+| physical `left`/`right` | Map to `Left`/`Right` only when that physical side equals the containing `FlowAxes::inline_start()`/`inline_end()`; otherwise reject as an unsupported fixture-lowering form |
+
+Consequently, `HorizontalTb` LTR maps physical left/right to line start/end and
+`HorizontalTb` RTL maps them to line end/start. For both directions of
+`VerticalRl`, `VerticalLr`, `SidewaysRl`, and `SidewaysLr`, physical left/right
+are block-axis sides and fail closed for both float and clear rather than being
+reinterpreted as inline sides. Focused adapter coverage enumerates all five
+writing modes by both directions for float and clear, including the eight
+vertical/sideways negative mappings, the two horizontal direction-sensitive
+mappings, the direct line-relative aliases, `none`, and clear-only `both`.
+
+This lowering is a finite `FlowAxes` projection, not a style engine. The adapter
+must not become a general text shaper, CSS parser, bidi implementation, display
+normalizer, or alternate line algorithm. Rust parser and serializer changes
+remain exact to these finite categories and attributes.
 
 Final generated artifacts have one full, unfiltered lineage after all owned
 HTML/parser/helper/fixture inputs are settled. Their report has `filter: null`,
