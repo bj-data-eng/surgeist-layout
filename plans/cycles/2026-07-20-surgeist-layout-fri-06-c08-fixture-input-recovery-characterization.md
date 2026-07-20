@@ -172,8 +172,10 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 ### `C08-X3` Correct Range Translation And Continuation Strut
 
-**Files/area:** `tests/layout/browser_parity/support.rs` and focused tests in
-`tests/layout/browser_parity.rs`; no production, HTML, helper, or artifacts.
+**Files/area:** `tests/layout/browser_parity/support.rs`, focused tests in
+`tests/layout/browser_parity.rs`, and only the two manually constructed
+parser-fixture roots in `tests/bin/surgeist-layout-generate/generator.rs`; no
+production, HTML, helper, generator behavior, or artifacts.
 
 **Outcome:** Parse the explicit-root marker and retain private parent/root
 identity through ordinary and synthetic nodes. Translate each fragment from its
@@ -182,7 +184,9 @@ explicit root and never adding the text-node union twice. Preserve strict
 source, line, physical-edge, and advance checks. This corrects exactly 18 rows;
 the two direct-root RTL characterization rows remain unchanged. For mixed-wrap,
 derive the containing strut from serialized root metrics, baseline 14.8 and line
-height 20, and insert it after the first 18px atomic before the 24px atomic.
+height 20, and insert it after the first 18px atomic before the 24px atomic. The
+two existing direct-root parser fixtures carry the same explicit-root marker
+required of serialized fixture input; this is test-input reconciliation only.
 
 **RED:** Exact generated-shape snippets fail on 16 grid plus two nested RTL Range
 starts and four 44-versus-46 mixed-wrap heights. The two direct-root RTL rows
@@ -190,9 +194,11 @@ remain characterized RED for C08R.
 
 **Acceptance:** Nested and synthetic offsets add exactly once; direct-root LTR
 adds zero; wrong root, cycles, missing marker, and mutated source/line/advance
-fail. All 18 translation rows compare. Both mixed lines are 23.2 unrounded,
-round to y 23 and total 46, and altered names/topologies do not activate the
-finite strut.
+fail, including an unmarked direct-root owner. Both manually constructed
+direct-root parser fixtures include the explicit marker and retain their prior
+layout assertions. All 18 translation rows compare. Both mixed lines are 23.2
+unrounded, round to y 23 and total 46, and altered names/topologies do not
+activate the finite strut.
 
 **Commands:**
 
