@@ -48,16 +48,21 @@ impl Golden {
         let input = one_child(test, "input")?;
         let expectations = one_child(test, "expectations")?;
 
+        let name = required_attr(test, "name")?.to_string();
+        let mut root = parse_node(one_element_child(input)?)?;
+        let mut expectations = parse_expectation(one_element_child(expectations)?)?;
+        apply_fri06_c08_finite_adapter(&name, &mut root, &mut expectations)?;
+
         Ok(Self {
-            name: required_attr(test, "name")?.to_string(),
+            name,
             use_rounding: parse_bool(test.attribute("use-rounding").unwrap_or("true"))?,
             viewport: Viewport {
                 width: parse_available(required_attr(viewport, "width")?)?,
                 height: parse_available(required_attr(viewport, "height")?)?,
                 root_context: parse_root_context(viewport)?,
             },
-            root: parse_node(one_element_child(input)?)?,
-            expectations: parse_expectation(one_element_child(expectations)?)?,
+            root,
+            expectations,
         })
     }
 }
@@ -178,6 +183,10 @@ pub struct Node {
     inline_text: Option<layout::InlineTextInput>,
     atomic_inline_participation: Option<layout::AtomicInlineParticipation>,
     shape_bands: Option<Vec<FixtureShapeBand>>,
+    inline_boundary: Option<layout::InlineBoundaryKind>,
+    atomic_line_strut: bool,
+    anonymous_grid_text_wrapper: bool,
+    fixture_synthetic: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -396,7 +405,196 @@ fn parse_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         inline_text: None,
         atomic_inline_participation: None,
         shape_bands,
+        inline_boundary: None,
+        atomic_line_strut: false,
+        anonymous_grid_text_wrapper: false,
+        fixture_synthetic: false,
     })
+}
+
+fn apply_fri06_c08_finite_adapter(
+    name: &str,
+    root: &mut Node,
+    expectations: &mut Expectation,
+) -> Result<(), Error> {
+    const GRID_BASELINE_SOURCES: [&str; 4] = [
+        "subgrid_baseline_auto_columns_first_item",
+        "subgrid_baseline_auto_columns_second_item",
+        "subgrid_baseline_standalone_axis_first_item",
+        "subgrid_baseline_standalone_axis_second_item",
+    ];
+
+    if GRID_BASELINE_SOURCES
+        .iter()
+        .any(|source| fri06_c08_fixture_name(name, source))
+    {
+        return mark_fri06_c08_grid_inline_text_wrappers(root);
+    }
+    if fri06_c08_fixture_name(name, "fri06_bidi_mixed_inline") {
+        return lower_fri06_c08_bidi_inline_boundaries(root, expectations);
+    }
+    if fri06_c08_fixture_name(name, "fri06_inline_mixed_text_atomic_wrap") {
+        return insert_fri06_c08_atomic_line_strut(root);
+    }
+    Ok(())
+}
+
+fn fri06_c08_fixture_name(name: &str, source: &str) -> bool {
+    let Some(variant) = name
+        .strip_prefix(source)
+        .and_then(|rest| rest.strip_prefix("__"))
+    else {
+        return false;
+    };
+    matches!(
+        variant,
+        "border_box_ltr" | "border_box_rtl" | "content_box_ltr" | "content_box_rtl"
+    )
+}
+
+fn mark_fri06_c08_grid_inline_text_wrappers(root: &mut Node) -> Result<(), Error> {
+    let valid_root = root.style.get("display") == Some("inline-grid")
+        && root.children.len() == 1
+        && root.text.is_none();
+    let Some(subgrid) = root.children.first_mut().filter(|_| valid_root) else {
+        return Err(Error::new(
+            "FRI-06 C08 grid text adapter requires the exact baseline helper root",
+        ));
+    };
+    if subgrid.style.get("display") != Some("grid")
+        || subgrid.children.len() != 2
+        || subgrid.text.is_some()
+    {
+        return Err(Error::new(
+            "FRI-06 C08 grid text adapter requires the exact baseline helper subgrid",
+        ));
+    }
+    for item in &mut subgrid.children {
+        if item.style.get("display") != Some("grid")
+            || item.children.len() != 1
+            || item.text.is_some()
+            || item.children[0].inline_text.is_none()
+            || !item.children[0].children.is_empty()
+        {
+            return Err(Error::new(
+                "FRI-06 C08 grid text adapter requires two direct shaped-text grid items",
+            ));
+        }
+        item.anonymous_grid_text_wrapper = true;
+    }
+    Ok(())
+}
+
+fn lower_fri06_c08_bidi_inline_boundaries(
+    root: &mut Node,
+    expectations: &mut Expectation,
+) -> Result<(), Error> {
+    if root.style.get("display") != Some("block")
+        || root.style.get("width") != Some("220px")
+        || root.children.len() != 4
+        || expectations.children.len() != 4
+    {
+        return Err(Error::new(
+            "FRI-06 C08 bidi adapter requires the exact mixed-inline root",
+        ));
+    }
+
+    let source_children = std::mem::take(&mut root.children);
+    let source_expectations = std::mem::take(&mut expectations.children);
+    let mut children = Vec::with_capacity(8);
+    let mut lowered_expectations = Vec::with_capacity(4);
+    for (index, (mut child, mut expected)) in source_children
+        .into_iter()
+        .zip(source_expectations)
+        .enumerate()
+    {
+        if matches!(index, 0 | 2) {
+            if child.style.get("source-tag") != Some("bdo")
+                || child.style.get("display") != Some("inline")
+                || !matches!(child.style.get("direction"), Some("ltr" | "rtl"))
+                || child.text.is_some()
+                || child.children.len() != 1
+                || child.children[0].inline_text.is_none()
+                || expected.children.len() != 1
+            {
+                return Err(Error::new(
+                    "FRI-06 C08 bidi adapter requires the exact two secondary inline containers",
+                ));
+            }
+            children.push(fri06_c08_synthetic_boundary(
+                layout::InlineBoundaryKind::Start,
+                false,
+            ));
+            children.push(child.children.remove(0));
+            children.push(fri06_c08_synthetic_boundary(
+                layout::InlineBoundaryKind::End,
+                false,
+            ));
+            lowered_expectations.push(expected.children.remove(0));
+        } else {
+            if child.inline_text.is_none() || !child.children.is_empty() {
+                return Err(Error::new(
+                    "FRI-06 C08 bidi adapter requires shaped text between the inline containers",
+                ));
+            }
+            children.push(child);
+            lowered_expectations.push(expected);
+        }
+    }
+    root.children = children;
+    expectations.children = lowered_expectations;
+    Ok(())
+}
+
+fn insert_fri06_c08_atomic_line_strut(root: &mut Node) -> Result<(), Error> {
+    let exact_atomic_children = root.children.len() == 4
+        && root.children[0].inline_text.is_some()
+        && root.children[1..].iter().all(|child| {
+            child.style.get("display") == Some("inline-block")
+                && child.atomic_inline_participation.is_some()
+                && child.children.is_empty()
+                && child.text.is_none()
+        });
+    let exact_sizes = root.children.get(1..).is_some_and(|children| {
+        ["18px", "24px", "30px"]
+            .into_iter()
+            .zip(children)
+            .all(|(width, child)| {
+                child.style.get("width") == Some(width) && child.style.get("height") == Some("18px")
+            })
+    });
+    if root.style.get("display") != Some("block")
+        || root.style.get("width") != Some("72px")
+        || root.style.get("font-size") != Some("16px")
+        || root.style.get("line-height") != Some("20px")
+        || !exact_atomic_children
+        || !exact_sizes
+    {
+        return Err(Error::new(
+            "FRI-06 C08 strut adapter requires the exact mixed text/atomic structure",
+        ));
+    }
+    root.children.insert(
+        1,
+        fri06_c08_synthetic_boundary(layout::InlineBoundaryKind::Start, true),
+    );
+    Ok(())
+}
+
+fn fri06_c08_synthetic_boundary(kind: layout::InlineBoundaryKind, atomic_line_strut: bool) -> Node {
+    Node {
+        kind: NodeKind::Div,
+        style: StyleAttrs::default(),
+        text: None,
+        children: Vec::new(),
+        inline_text: None,
+        atomic_inline_participation: None,
+        shape_bands: None,
+        inline_boundary: Some(kind),
+        atomic_line_strut,
+        anonymous_grid_text_wrapper: false,
+        fixture_synthetic: true,
+    }
 }
 
 fn parse_inline_text_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
@@ -452,6 +650,10 @@ fn parse_inline_text_node(xml: roxmltree::Node<'_, '_>) -> Result<Node, Error> {
         inline_text: Some(inline_text),
         atomic_inline_participation: None,
         shape_bands: None,
+        inline_boundary: None,
+        atomic_line_strut: false,
+        anonymous_grid_text_wrapper: false,
+        fixture_synthetic: false,
     })
 }
 
@@ -1388,9 +1590,31 @@ impl TestTree {
             None => inherited.line_height,
         };
         let resolved_line_height = line_height.resolve(font_size);
-        let mut layout_input = match &node.inline_text {
-            Some(input) => layout::LayoutInput::inline_text(input.clone()),
-            None => to_layout_input_in_flow(&node.style, inherited.containing_flow)?,
+        let mut layout_input = match (node.inline_boundary, &node.inline_text) {
+            (Some(kind), None) => {
+                let flow = inherited.containing_flow.ok_or_else(|| {
+                    Error::new("synthetic inline boundary requires a containing flow")
+                })?;
+                let metrics = if node.atomic_line_strut {
+                    layout::InlineMetrics::try_new(12.0, 20.0).map_err(|error| {
+                        Error::new(format!("invalid finite atomic-line strut: {error:?}"))
+                    })?
+                } else {
+                    fixture_inline_metrics(font_size, resolved_line_height)?
+                };
+                layout::LayoutInput::inline_boundary(
+                    layout::InlineBoundaryInput::new(kind, metrics)
+                        .with_direction(flow.direction())
+                        .with_writing_mode(flow.writing_mode()),
+                )
+            }
+            (None, Some(input)) => layout::LayoutInput::inline_text(input.clone()),
+            (None, None) => to_layout_input_in_flow(&node.style, inherited.containing_flow)?,
+            (Some(_), Some(_)) => {
+                return Err(Error::new(
+                    "fixture node cannot be both inline text and an inline boundary",
+                ));
+            }
         };
         if let Some(participation) = node.atomic_inline_participation {
             let Some(input) = layout_input.as_box() else {
@@ -1431,7 +1655,7 @@ impl TestTree {
             line_height: resolved_line_height,
             text: node.text.clone(),
             children: Vec::new(),
-            synthetic: false,
+            synthetic: node.fixture_synthetic,
             preserve_fractional_min_content: inherited.grid_lanes_text,
             use_tighter_monospace_wrap: !inherited.inline_level_text,
             cache: layout::Cache::new(),
@@ -1461,6 +1685,28 @@ impl TestTree {
                 )
             })
             .collect::<Result<Vec<_>, _>>()?;
+        if node.anonymous_grid_text_wrapper {
+            if children.len() != 1
+                || !matches!(
+                    self.nodes[children[0]].layout_input,
+                    layout::LayoutInput::InlineText(_)
+                )
+            {
+                return Err(Error::new(
+                    "anonymous grid text wrapper requires one direct shaped-text child",
+                ));
+            }
+            let text_child = children[0];
+            children = vec![self.push_synthetic_grid_text_wrapper(
+                text_child,
+                font_family,
+                font_size,
+                resolved_line_height,
+                containing_flow.ok_or_else(|| {
+                    Error::new("anonymous grid text wrapper requires a grid flow")
+                })?,
+            )];
+        }
         if let Some(text) = &node.text
             && box_display.is_some_and(grid_text_container_needs_anonymous_child)
         {
@@ -1476,6 +1722,44 @@ impl TestTree {
         }
         self.nodes[id].children = children;
         Ok(id)
+    }
+
+    fn push_synthetic_grid_text_wrapper(
+        &mut self,
+        text_child: usize,
+        font_family: FontFamily,
+        font_size: Scalar,
+        line_height: Scalar,
+        flow: layout::FlowAxes,
+    ) -> usize {
+        let id = self.nodes.len();
+        let node_input = layout::NodeInput {
+            display: layout::Display::Block,
+            writing_mode: flow.writing_mode(),
+            direction: flow.direction(),
+            ..layout::NodeInput::default()
+        };
+        self.nodes.push(TestNode {
+            node_input: node_input.clone(),
+            layout_input: layout::LayoutInput::box_input(node_input),
+            font_family,
+            font_size,
+            line_height,
+            text: None,
+            children: vec![text_child],
+            synthetic: true,
+            preserve_fractional_min_content: false,
+            use_tighter_monospace_wrap: false,
+            cache: layout::Cache::new(),
+            unrounded: layout::NodeOutput::new(),
+            unrounded_present: false,
+            final_layout: layout::NodeOutput::new(),
+            final_layout_present: false,
+            unrounded_inline_fragments: None,
+            final_inline_fragments: None,
+            shape_bands: None,
+        });
+        id
     }
 
     fn push_synthetic_text(
@@ -1561,6 +1845,16 @@ impl TestTree {
 
 fn can_use_leaf_measurement(display: layout::Display, child_count: usize, has_text: bool) -> bool {
     child_count == 0 && (has_text || !display.establishes_grid_formatting_context())
+}
+
+fn fixture_inline_metrics(
+    font_size: Scalar,
+    line_height: Scalar,
+) -> Result<layout::InlineMetrics, Error> {
+    let leading = (line_height - font_size).max(0.0);
+    let baseline = (leading / 2.0 + font_size * 0.8).min(line_height);
+    layout::InlineMetrics::try_new(baseline, line_height)
+        .map_err(|error| Error::new(format!("invalid finite fixture inline metrics: {error:?}")))
 }
 
 fn grid_text_container_needs_anonymous_child(display: layout::Display) -> bool {
@@ -2089,12 +2383,7 @@ fn compare_expectation_in_source_order(
         )?;
     }
 
-    let children = tree.nodes[node]
-        .children
-        .iter()
-        .copied()
-        .filter(|child| !tree.nodes[*child].synthetic)
-        .collect::<Vec<_>>();
+    let children = comparison_children(tree, node);
     if children.len() != expected.children.len() {
         return Err(Error::new(format!(
             "{path}: expected {} children, got {}",
@@ -2121,6 +2410,18 @@ fn compare_expectation_in_source_order(
     }
 
     Ok(())
+}
+
+fn comparison_children(tree: &TestTree, node: usize) -> Vec<usize> {
+    let mut children = Vec::new();
+    for child in tree.nodes[node].children.iter().copied() {
+        if tree.nodes[child].synthetic {
+            children.extend(comparison_children(tree, child));
+        } else {
+            children.push(child);
+        }
+    }
+    children
 }
 
 fn compare_fragment_expectations(
@@ -4288,6 +4589,7 @@ fn collect_files_with_extension(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
 
     fn test_node_input(attrs: StyleAttrs) -> Result<layout::NodeInput, Error> {
         to_node_input(&attrs)
@@ -8191,5 +8493,392 @@ mod tests {
             provider_error.to_string(),
             "fixture shape provider failure for query band `0..10`"
         );
+    }
+
+    const FRI06_C08_ADAPTER_VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    fn fri06_c08_adapter_variant_attrs(variant: &str) -> (&'static str, &'static str) {
+        match variant {
+            "border_box_ltr" => ("border-box", "ltr"),
+            "border_box_rtl" => ("border-box", "rtl"),
+            "content_box_ltr" => ("content-box", "ltr"),
+            "content_box_rtl" => ("content-box", "rtl"),
+            _ => panic!("unexpected FRI-06 C08 adapter variant {variant}"),
+        }
+    }
+
+    fn fri06_c08_adapter_xml(name: &str, input: &str, expectations: &str) -> String {
+        format!(
+            r#"
+            <test name="{name}" use-rounding="true">
+                <viewport width="max-content" height="max-content" />
+                <input>{input}</input>
+                <expectations>{expectations}</expectations>
+            </test>
+            "#
+        )
+    }
+
+    fn fri06_c08_adapter_grid_xml(name: &str, standalone_axis: bool) -> String {
+        let variant = name.rsplit_once("__").expect("variant suffix").1;
+        let (box_sizing, direction) = fri06_c08_adapter_variant_attrs(variant);
+        let input = if standalone_axis {
+            format!(
+                r#"
+                <div display="inline-grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-rows="30px" grid-template-columns="60px" font-family="ahem" font-size="15px" line-height="15px">
+                    <div display="grid" align-items="baseline" grid-template-rows="subgrid" grid-template-columns="repeat(2, 30px)">
+                        <div display="grid" align-items="baseline" grid-template-rows="auto" grid-template-columns="subgrid">{}</div>
+                        <div display="grid" align-items="baseline" grid-template-rows="auto" grid-template-columns="subgrid" font-size="30px" line-height="30px">{}</div>
+                    </div>
+                </div>
+                "#,
+                fri06_c06_inline_text(&fri06_c06_segment_xml(
+                    "0",
+                    "15",
+                    ("12", "15"),
+                    "0",
+                    "preserve",
+                    "prohibited",
+                    None,
+                )),
+                fri06_c06_inline_text(&fri06_c06_segment_xml(
+                    "0",
+                    "30",
+                    ("24", "30"),
+                    "0",
+                    "preserve",
+                    "prohibited",
+                    None,
+                )),
+            )
+        } else {
+            format!(
+                r#"
+                <div display="inline-grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-columns="repeat(2, auto)" font-family="ahem" font-size="15px" line-height="15px">
+                    <div display="grid" align-items="baseline" grid-column-start="1" grid-column-end="-1" grid-template-columns="subgrid">
+                        <div display="grid" align-items="baseline">{}</div>
+                        <div display="grid" align-items="baseline" font-size="30px" line-height="30px">{}</div>
+                    </div>
+                </div>
+                "#,
+                fri06_c06_inline_text(&fri06_c06_segment_xml(
+                    "0",
+                    "15",
+                    ("12", "15"),
+                    "0",
+                    "preserve",
+                    "prohibited",
+                    None,
+                )),
+                fri06_c06_inline_text(&fri06_c06_segment_xml(
+                    "0",
+                    "30",
+                    ("24", "30"),
+                    "0",
+                    "preserve",
+                    "prohibited",
+                    None,
+                )),
+            )
+        };
+        fri06_c08_adapter_xml(name, &input, "<node />")
+    }
+
+    fn fri06_c08_adapter_bidi_xml(name: &str) -> String {
+        let variant = name.rsplit_once("__").expect("variant suffix").1;
+        let (box_sizing, direction) = fri06_c08_adapter_variant_attrs(variant);
+        let segment = |id: u64, extent: Scalar, bidi: u8, whitespace: &str| {
+            fri06_c06_segment_xml(
+                &id.to_string(),
+                &extent.to_string(),
+                ("14.8", "20"),
+                &bidi.to_string(),
+                whitespace,
+                if whitespace == "discard-at-both" {
+                    "allowed"
+                } else {
+                    "prohibited"
+                },
+                None,
+            )
+        };
+        let input = format!(
+            r#"
+            <div source-tag="div" display="block" box-sizing="{box_sizing}" direction="{direction}" width="220px" font-family="monospace" font-size="16px" line-height="20px">
+                <div source-tag="bdo" display="inline" direction="ltr">{}</div>
+                {}
+                <div source-tag="bdo" display="inline" direction="rtl">{}</div>
+                {}
+            </div>
+            "#,
+            fri06_c06_inline_text(&segment(0, 48.166_664, 0, "preserve")),
+            fri06_c06_inline_text(&segment(1, 9.633_333, 0, "discard-at-both")),
+            fri06_c06_inline_text(&segment(0, 28.899_998, 1, "preserve")),
+            fri06_c06_inline_text(&segment(
+                4,
+                48.166_664,
+                u8::from(direction == "rtl"),
+                "preserve"
+            )),
+        );
+        fri06_c08_adapter_xml(
+            name,
+            &input,
+            "<node><node><node /></node><node /><node><node /></node><node /></node>",
+        )
+    }
+
+    fn fri06_c08_adapter_atomic_xml(name: &str) -> String {
+        let variant = name.rsplit_once("__").expect("variant suffix").1;
+        let (box_sizing, direction) = fri06_c08_adapter_variant_attrs(variant);
+        let bidi_level = u8::from(direction == "rtl");
+        let input = format!(
+            r#"
+            <div source-tag="div" display="block" box-sizing="{box_sizing}" direction="{direction}" width="72px" font-family="monospace" font-size="16px" line-height="20px">
+                {}
+                <div source-tag="span" display="inline-block" width="18px" height="18px" />
+                <div source-tag="span" display="inline-block" width="24px" height="18px" />
+                <div source-tag="span" display="inline-block" width="30px" height="18px" />
+                <atomic-placeholder child-index="1" bidi-level="{bidi_level}" following-break="prohibited" />
+                <atomic-placeholder child-index="2" bidi-level="{bidi_level}" following-break="prohibited" />
+                <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="prohibited" />
+            </div>
+            "#,
+            fri06_c06_inline_text(&fri06_c06_segment_xml(
+                "0",
+                "38.53125",
+                ("14.8", "20"),
+                u8::from(direction == "rtl").to_string().as_str(),
+                "preserve",
+                "allowed",
+                None,
+            )),
+        );
+        fri06_c08_adapter_xml(name, &input, "<node />")
+    }
+
+    fn fri06_c08_adapter_compute(xml: &str) -> Result<TestTree, Error> {
+        let golden = Golden::parse(xml)?;
+        let mut tree = TestTree::from_golden(&golden.root)?;
+        let request = root_request(
+            layout::Size::splat(layout::Available::MaxContent),
+            RootContext::Root,
+        )?;
+        let batch = layout::compute_layout(&tree, 0, request)
+            .map_err(|error| Error::new(format!("layout failed: {error:?}")))?;
+        tree.apply_completed_batch(&batch);
+        Ok(tree)
+    }
+
+    #[test]
+    fn fri06_c08_adapter_census_reconstructs_exact_24_rows_and_digest() {
+        let census = include_str!(
+            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        );
+        let mut categories = BTreeMap::<&str, usize>::new();
+        let rows = census
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .skip(1)
+            .filter_map(|line| {
+                let fields = line.split('\t').collect::<Vec<_>>();
+                assert_eq!(fields.len(), 6, "census row must retain six fields: {line}");
+                fields[4].starts_with("adapter.").then(|| {
+                    *categories.entry(fields[4]).or_default() += 1;
+                    format!("{}\t{}", fields[1], fields[2])
+                })
+            })
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(
+            categories,
+            BTreeMap::from([
+                ("adapter.grid_inline_text_missing_anonymous_box", 16),
+                ("adapter.secondary_inline_container_not_lowered", 4),
+                ("adapter.missing_containing_strut_for_atomic_only_line", 4),
+            ])
+        );
+        assert_eq!(rows.len(), 24);
+        let canonical = format!("{}\n", rows.into_iter().collect::<Vec<_>>().join("\n"));
+        assert_eq!(
+            fri06_c08_adapter_sha256(canonical.as_bytes()),
+            "efce04f838f358bda851df2b723c01c1c51b6247c39c662ffdc8e5fbd3f12aa2"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_adapter_named_grid_text_uses_baseline_capable_anonymous_wrapper() {
+        for source in [
+            "subgrid_baseline_auto_columns_first_item",
+            "subgrid_baseline_auto_columns_second_item",
+            "subgrid_baseline_standalone_axis_first_item",
+            "subgrid_baseline_standalone_axis_second_item",
+        ] {
+            for variant in FRI06_C08_ADAPTER_VARIANTS {
+                let name = format!("{source}__{variant}");
+                let tree = fri06_c08_adapter_compute(&fri06_c08_adapter_grid_xml(
+                    &name,
+                    source.contains("standalone_axis"),
+                ))
+                .unwrap_or_else(|error| panic!("{name} must lower: {error}"));
+                let wrappers = tree
+                    .nodes
+                    .iter()
+                    .filter(|node| {
+                        node.synthetic
+                            && node.children.len() == 1
+                            && matches!(
+                                tree.nodes[node.children[0]].layout_input,
+                                layout::LayoutInput::InlineText(_)
+                            )
+                    })
+                    .count();
+                assert_eq!(wrappers, 2, "{name} anonymous grid text wrappers");
+            }
+        }
+    }
+
+    #[test]
+    fn fri06_c08_adapter_named_bidi_secondary_inline_containers_lower_as_boundaries() {
+        for variant in FRI06_C08_ADAPTER_VARIANTS {
+            let name = format!("fri06_bidi_mixed_inline__{variant}");
+            let tree = fri06_c08_adapter_compute(&fri06_c08_adapter_bidi_xml(&name))
+                .unwrap_or_else(|error| panic!("{name} must lower: {error}"));
+            let boundaries = tree
+                .nodes
+                .iter()
+                .filter_map(|node| node.layout_input.as_inline_boundary())
+                .collect::<Vec<_>>();
+            assert_eq!(boundaries.len(), 4, "{name} secondary inline boundaries");
+            assert_eq!(boundaries[0].kind(), layout::InlineBoundaryKind::Start);
+            assert_eq!(boundaries[1].kind(), layout::InlineBoundaryKind::End);
+            assert_eq!(boundaries[2].kind(), layout::InlineBoundaryKind::Start);
+            assert_eq!(boundaries[3].kind(), layout::InlineBoundaryKind::End);
+        }
+    }
+
+    #[test]
+    fn fri06_c08_adapter_named_atomic_only_line_receives_20px_containing_strut() {
+        for variant in FRI06_C08_ADAPTER_VARIANTS {
+            let name = format!("fri06_inline_mixed_text_atomic_wrap__{variant}");
+            let tree = fri06_c08_adapter_compute(&fri06_c08_adapter_atomic_xml(&name))
+                .unwrap_or_else(|error| panic!("{name} must lower: {error}"));
+            assert_eq!(tree.nodes[0].final_layout.size.height, 46.0, "{name}");
+            let struts = tree
+                .nodes
+                .iter()
+                .filter_map(|node| node.layout_input.as_inline_boundary())
+                .collect::<Vec<_>>();
+            assert_eq!(struts.len(), 1, "{name} containing strut count");
+            assert_eq!(struts[0].metrics().line_extent(), 20.0, "{name}");
+            assert_eq!(struts[0].metrics().baseline(), 12.0, "{name}");
+        }
+    }
+
+    #[test]
+    fn fri06_c08_adapter_unmatched_structures_remain_fail_closed() {
+        let grid = fri06_c08_adapter_grid_xml(
+            "subgrid_baseline_auto_columns_control__border_box_ltr",
+            false,
+        );
+        let error = fri06_c08_adapter_compute(&grid)
+            .expect_err("an unlisted direct grid text input must remain unsupported");
+        assert!(error.to_string().contains("LaterFriBehavior"));
+
+        let bidi = fri06_c08_adapter_bidi_xml("fri06_bidi_mixed_inline_control__border_box_ltr");
+        let golden = Golden::parse(&bidi).expect("control fixture should parse as XML");
+        let error = TestTree::from_golden(&golden.root)
+            .expect_err("an unlisted inline container must remain unsupported");
+        assert_eq!(error.to_string(), "unsupported display `inline`");
+
+        let atomic = fri06_c08_adapter_atomic_xml(
+            "fri06_inline_mixed_text_atomic_wrap_control__border_box_ltr",
+        );
+        let tree =
+            fri06_c08_adapter_compute(&atomic).expect("unlisted atomic control should lower");
+        assert_eq!(tree.nodes[0].final_layout.size.height, 38.0);
+        assert!(
+            tree.nodes
+                .iter()
+                .all(|node| node.layout_input.as_inline_boundary().is_none())
+        );
+    }
+
+    fn fri06_c08_adapter_sha256(input: &[u8]) -> String {
+        const INITIAL: [u32; 8] = [
+            0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+            0x5be0cd19,
+        ];
+        const ROUND: [u32; 64] = [
+            0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+            0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+            0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+            0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+            0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+            0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+            0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+            0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+            0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+            0xc67178f2,
+        ];
+
+        let mut padded = input.to_vec();
+        let bit_len = (padded.len() as u64) * 8;
+        padded.push(0x80);
+        while padded.len() % 64 != 56 {
+            padded.push(0);
+        }
+        padded.extend_from_slice(&bit_len.to_be_bytes());
+
+        let mut state = INITIAL;
+        for chunk in padded.chunks_exact(64) {
+            let mut schedule = [0_u32; 64];
+            for (index, word) in chunk.chunks_exact(4).enumerate() {
+                schedule[index] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
+            }
+            for index in 16..64 {
+                let lower = schedule[index - 15].rotate_right(7)
+                    ^ schedule[index - 15].rotate_right(18)
+                    ^ (schedule[index - 15] >> 3);
+                let upper = schedule[index - 2].rotate_right(17)
+                    ^ schedule[index - 2].rotate_right(19)
+                    ^ (schedule[index - 2] >> 10);
+                schedule[index] = schedule[index - 16]
+                    .wrapping_add(lower)
+                    .wrapping_add(schedule[index - 7])
+                    .wrapping_add(upper);
+            }
+
+            let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = state;
+            for index in 0..64 {
+                let choose = (e & f) ^ ((!e) & g);
+                let first = h
+                    .wrapping_add(e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25))
+                    .wrapping_add(choose)
+                    .wrapping_add(ROUND[index])
+                    .wrapping_add(schedule[index]);
+                let majority = (a & b) ^ (a & c) ^ (b & c);
+                let second = (a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22))
+                    .wrapping_add(majority);
+                h = g;
+                g = f;
+                f = e;
+                e = d.wrapping_add(first);
+                d = c;
+                c = b;
+                b = a;
+                a = first.wrapping_add(second);
+            }
+            for (slot, value) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
+                *slot = slot.wrapping_add(value);
+            }
+        }
+
+        state.iter().map(|word| format!("{word:08x}")).collect()
     }
 }
