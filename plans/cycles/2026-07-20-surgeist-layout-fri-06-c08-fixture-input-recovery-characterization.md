@@ -213,9 +213,44 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 **Intended commit:** `fix(parity): align C08 root-relative observations`.
 
+### `C08-X4` Normalize The Retained Census Empty Field
+
+**Files/area:**
+`plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv`
+and only its exact hash/accounting assertion in
+`tests/bin/surgeist-layout-generate/generator.rs`.
+
+**Outcome:** Replace the empty `representative_error` field on exactly the 36
+literal PASS rows with the explicit `-` sentinel. Retain six TSV fields, all row
+order and values in the first five fields, every FAIL diagnostic, the exact
+36/352 literal accounting, and every matrix partition. The original
+`e972e8d67e32919ce736f6d5428f017fa9a61ec5112fa75b2ec5b9d43b53e4f5`
+hash remains historical pre-normalization provenance in the retained diagnostic
+census; the focused assertion pins the normalized artifact's new exact hash.
+
+**Evidence:** At cycle head, `git diff --check` reports trailing whitespace for
+the 36 PASS rows because each empty final field is encoded by a terminal tab.
+After normalization, the complete cycle-range check is clean, every row still
+has six fields, PASS rows carry only `-`, and FAIL rows retain nonempty error
+text. No generated output, parser, helper, HTML, production, or generator
+behavior changes, and no generation runs.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_recovery_characterization_reconciles_literal_and_executed_censuses
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just fmt-check
+git diff --check bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD
+```
+
+**Dependency:** X3 is task-clean.
+
+**Intended commit:** `test(parity): normalize C08 census empty fields`.
+
 ## Completion
 
-X1 through X3 each receive a fresh task review. The original task-clean C08
+X1 through X4 each receive a fresh task review. The original task-clean C08
 spans and these tasks remain disjoint review evidence for the composed cycle.
 Before status completion, prove helper, HTML, serializer, parser, comparator,
 adapter, production-characterization, sequence, manifest, browser, launch,
