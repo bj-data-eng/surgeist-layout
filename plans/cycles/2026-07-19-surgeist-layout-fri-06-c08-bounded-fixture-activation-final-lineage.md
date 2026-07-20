@@ -12,15 +12,17 @@ Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized semantic-content SHA-256
 `7090ea13ba7d9e524ce432018c8b7c44c1b3b76428d2c666949d297656ce97c8`,
-commit `cc2a8486f9e4e7719c9a28cc68321b7e630d9ded`: `FRI-06.4 D-16`, browser,
-fixture, and artifact portions of `FRI-06.9` and `FRI-06.10`, all of
-`FRI-06.11`, and artifact acceptance portions of `FRI-06.14`.
+commit `cc2a8486f9e4e7719c9a28cc68321b7e630d9ded`: `FRI-06.4 D-09`, `D-11`, and
+`D-16`; atomic-baseline and physical-placement portions of `FRI-06.7`,
+`FRI-06.9`, and `FRI-06.14`; browser and fixture portions of `FRI-06.9` and
+`FRI-06.10`; all of `FRI-06.11`; and artifact acceptance portions of
+`FRI-06.14`.
 
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at SHA-256
-`c442d1176e66d7d54999e272c1627cd63531e702a7662eefc031528b7b5c079e`,
-commit `42cd301e2fb6eeabba30be381dfbfa8561dd9c3e`, entry `FRI-06-C08` and
+`c6b1f403ceaed9a772135d7e1d2e55cb1268be0a36e297a3d633695b88c51dda`,
+commit `23f9631482e36aabbadc4be4925dcc6294890c66`, entry `FRI-06-C08` and
 the Activation Recovery Evidence matrices.
 
 ## Outcome
@@ -33,11 +35,13 @@ report accounting, and semantic preservation of every pre-existing output.
 
 ## Boundary
 
-FRI-06-C07 is published and remotely verified at the cycle base. Its production
-behavior and C06's finite Rust adapter are stable. C08 owns only fixture inputs,
-the narrow browser helper and generator data serializer needed to express those
-inputs, the manifest, the derived XML/report replacement, and focused parity
-evidence. Production `src/` is read-only.
+FRI-06-C07 is published and remotely verified at the cycle base. C06's finite
+Rust adapter is stable. C08 owns fixture inputs, the narrow browser helper and
+generator data serializer needed to express those inputs, the manifest, the
+derived XML/report replacement, and focused parity evidence. The C08-R1 recovery
+task additionally owns only the confirmed atomic-baseline selection, line-
+metric, and physical-placement defect in `src/block.rs` and `src/inline.rs`, plus
+its focused regressions. All other production `src/` is read-only.
 
 The immutable entry inputs are:
 
@@ -86,24 +90,31 @@ JSON/parser/serializer fields required by the reviewed fixture schema or a
 confirmed genuine bug. No new generator layer, reusable parser, alternate line
 algorithm, text shaper, bidi engine, CSS parser, or shape engine is permitted.
 
-During T1 and T2, a scoped existing-pinned generation may be used only to
-diagnose a concrete input defect that focused tests cannot localize. It must use
-the narrowest matching source or prefix, produces no report, is never acceptance
-evidence, and leaves no committed XML. It is optional and is not a task command.
-Never rerun unchanged inputs. After T1 and T2 are task-clean, T3 runs exactly one
-full unfiltered existing-pinned regeneration. If that attempt proves a genuine
-input defect, its lineage is invalid: discard its artifacts, repair and review
-the input, then run one replacement full regeneration after the new inputs
-settle. There is never more than one valid full lineage.
+During T1, T2, and invalid-lineage diagnosis, a scoped existing-pinned
+generation may diagnose only a concrete input defect that focused tests cannot
+localize. It uses the narrowest source filter, produces no report, is never
+acceptance evidence, and leaves no committed XML.
+
+Two completed full attempts are historical evidence only and authorize no
+command: the first exposed four corrected input defects; the second, at input
+head `498add2d2f62c9747c171174bc40058e3600ec4f`, proved exact 5,712/16 browser
+accounting and unchanged base-output semantics but exposed C08-R1 before
+acceptance. Both artifact sets were discarded. C08-R1 runs next and performs no
+full generation. Only after R1 is task-clean, T3 must run exactly one terminal
+full unfiltered derivation because production output changed and the prior
+artifacts were discarded. T3 retains that artifact set for verification. No
+other full run or unchanged-input retry is permitted; a failure stops for a new
+reviewed correction lineage. There is never more than one accepted full lineage.
 
 ## Impacts
 
-- **Public API and production behavior:** unchanged.
+- **Public API:** unchanged. **Production behavior:** only the C08-R1 atomic-
+  baseline correction may change.
 - **Dependencies, features, lockfile, MSRV, and browser policy:** unchanged.
 - **Generated artifacts:** all XML and the full report are replaced only by T3's
   valid full lineage; no artifact is hand-edited.
-- **Docs/examples and root follow-up:** unchanged in C08; C09 owns public and
-  handoff evidence.
+- **Docs/examples and root follow-up:** only the reviewed sequence recovery
+  amendment changes; C09 owns public and handoff evidence.
 - **Unsafe and lint policy:** no executable unsafe and no new `allow` or `expect`
   attribute in tracked or non-ignored owned Rust.
 
@@ -188,14 +199,62 @@ cargo fmt --check
 
 **Intended commit:** `test(parity): add bounded FRI-06 browser sources`.
 
+### `C08-R1` Recover The Atomic Baseline Production Handoff
+
+**Files/area:** `src/block.rs`, `src/inline.rs`, and the narrowest focused Rust
+tests that exercise the public compute front door. All fixture, helper, parser,
+serializer, manifest, generated XML, and report files are read-only.
+
+**Outcome:** Correct the confirmed production defect exposed by the first
+replacement derivation for all four variants of
+`html/block/fri06_atomic_inline_baseline.html`: visible inner baseline plus
+margin, overflow fallback, top/bottom alignment, and direction-aware physical
+inline placement. Preserve the reviewed C07 behavior and all later-owned
+boundaries.
+
+**RED:** Reconstruct the browser-observed atomic participants and geometry at
+the public compute front door. Cover LTR and RTL in both box models. The entry
+implementation must reproduce the observed descendant block-origin mismatch and
+RTL atomic inline-origin mismatch before the fix. A narrow scoped generation of
+the single source is diagnostic only when needed to recover additional browser
+geometry; remove its artifacts and do not cite it as acceptance evidence.
+
+**Acceptance:** All four source-equivalent regressions pass through public
+`compute_layout`; the exact C07 focused evidence and applicable block/inline,
+bidi, writing-mode, and atomic-baseline regressions remain green. No fixture or
+artifact changes, full generation, dependency, feature, public API, generator,
+unsafe, or lint-allowance change occurs.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c08_atomic_baseline_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+cargo fmt --check
+```
+
+**Dependency:** T1/T2 input corrections task-clean and the parity-blocked
+replacement-lineage evidence independently adjudicated.
+
+**Intended commit:** `fix(layout): recover atomic inline baseline parity`.
+
 ### `C08-T3` Derive And Verify The Final Lineage
 
 **Files/area:** generated XML, `xml/generation-reports/all.json`, and focused
-matrix/parity tests in `tests/layout/browser_parity.rs`. All T1/T2 inputs are
-read-only at their task-clean commits.
+matrix/parity tests in `tests/layout/browser_parity.rs`. All T1/T2 inputs and R1
+production paths are read-only at their task-clean commits.
 
 **Outcome:** Run the one full unfiltered existing-pinned derivation and prove its
 report, provenance, fixed activation comparisons, and pre-existing semantics.
+
+**RED:** After R1 is task-clean and before generation, complete the focused
+lineage and generator-accounting tests, then run both `fri06_c08_` families
+against the restored entry artifacts. They must fail only because the report
+still records 5,324/356 and the 388 activated outputs are absent; fixed matrix
+membership and cycle-base semantic checks remain valid. This recorded stale-
+artifact RED precedes the non-repeatable derivation. The terminal full run is the
+GREEN transition, after which both focused families must pass.
 
 **Acceptance:** Before generation, verify the exact cached executable exists and
 reports `Google Chrome for Testing 149.0.7827.115`; both cache/version override
@@ -212,7 +271,8 @@ profile, replacement helper/manifest hashes, and no scoped report. Add a focused
 test that reconstructs the 388-row union and compares every row through the C06
 adapter and public layout front door. Reconstruct and assert the exact four-
 source, 16-row semantic-preservation membership and digest, then prove those
-rows' semantics. For all 5,324 base-generated outputs, compare parsed XML after
+rows' browser-output semantics against their cycle-base XML without invoking
+public layout. For all 5,324 base-generated outputs, compare parsed XML after
 excluding only the provenance comment against the cycle-base blob; any semantic
 delta blocks. Record the final report/helper/manifest hashes. Do not rerun the
 generator after successful derivation.
@@ -228,31 +288,45 @@ CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
 ```
 
-**Dependency:** T1 and T2 task-clean with all inputs frozen.
+**Dependency:** T1 and T2 task-clean with all inputs frozen, and R1 task-clean
+with the all-388 production handoff re-established.
 
 **Intended commit:** `test(parity): derive final FRI-06 browser lineage`.
 
 ## Completion
 
-All three task ranges must be independently `CLEAN`. T3's input freeze must equal
-the reviewed T1/T2 heads, and its generated changes must be one complete valid
-lineage. There is no scoped report, hand-edited artifact, changed production
-path, unexpected source, inherited-failure reclassification, or generator
-architecture expansion.
+All four task ranges must be independently `CLEAN`. T3's input freeze must equal
+the reviewed T1/T2 correction head, R1's production freeze must equal its
+reviewed head, and T3's generated changes must be one complete valid lineage.
+There is no scoped report, hand-edited artifact, production change outside R1,
+unexpected source, inherited-failure reclassification, or generator architecture
+expansion.
 
 Run the T3 command set, then:
 
 ```sh
 git diff --check bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD
 git diff --quiet -G'(^|[^.[:alnum:]_])(allow|expect)[[:space:]]*\(' bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- '*.rs'
-test -z "$(git diff --name-only bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- src Cargo.toml Cargo.lock Justfile README.md scripts plans/specs plans/sequences)"
+test -z "$(git diff --name-only bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- Cargo.toml Cargo.lock Justfile README.md scripts plans/specs)"
 test -z "$(git status --porcelain)"
 ```
 
 Run the canonical fail-closed unsafe scan over every tracked or non-ignored owned
-Rust file. Inspect the full changed-path inventory: only this cycle plan, the
-exact T1/T2 input and focused-test paths, the complete generated XML replacement,
-and `all.json` are allowed.
+Rust file:
+
+```sh
+owned_rust_manifest="$(mktemp)"
+trap 'rm "$owned_rust_manifest"' EXIT
+git ls-files -co --exclude-standard -z -- '*.rs' ':(exclude)target/**' ':(exclude)vendor/**' > "$owned_rust_manifest"
+test -s "$owned_rust_manifest"
+xargs -0 sh -c 'rg -n --pcre2 "#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:\"[^\"]*\")?\s*\{" -- "$@"; status=$?; test "$status" -eq 1' sh < "$owned_rust_manifest"
+```
+
+Record the manifest count, scan result, and Clippy `-F unsafe-code` evidence.
+Inspect the full changed-path inventory: only the reviewed sequence
+amendment, this cycle plan, the exact T1/T2 input and focused-test paths, the
+C08-R1 production and focused regression paths, the complete generated XML
+replacement, and `all.json` are allowed.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
 `bcdba3c49be09ad119c03ecdc4c77da803159132..cycle_head`. Rerun all read-only
