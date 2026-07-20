@@ -3891,6 +3891,16 @@ fn fri06_c08_recovery_adapter_direct_ltr_is_zero_and_identity_remains_strict() {
     support::assert_surgeist_matches(&golden)
         .expect("a direct LTR owner must receive zero ancestor translation");
 
+    let missing_marker = xml.replacen(r#" layout-ready-inline-root="true""#, "", 1);
+    let missing_marker = support::Golden::parse(&missing_marker)
+        .expect("a missing direct marker remains schema-valid input");
+    assert!(
+        support::assert_surgeist_matches(&missing_marker)
+            .expect_err("a direct Range owner without its explicit root must fail")
+            .to_string()
+            .contains("requires an explicit inline root marker")
+    );
+
     for (label, changed) in [
         (
             "source",

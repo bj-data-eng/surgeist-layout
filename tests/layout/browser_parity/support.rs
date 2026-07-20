@@ -2780,13 +2780,9 @@ fn range_ink_ancestor_translation(
         .get(owner)
         .ok_or_else(|| Error::new(format!("Range owner node `{owner}` is missing")))?;
     let Some(root) = owner_node.range_root else {
-        return if owner_node.parent == Some(0) {
-            Ok(0.0)
-        } else {
-            Err(Error::new(
-                "nested Range observation requires an explicit inline root marker",
-            ))
-        };
+        return Err(Error::new(
+            "Range observation requires an explicit inline root marker",
+        ));
     };
     let root_node = tree
         .nodes
