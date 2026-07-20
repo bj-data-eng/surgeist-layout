@@ -7008,6 +7008,18 @@ const atomics = [
   { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 24, x: 18, y: 20 },
   { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 30, x: 42, y: 20 },
 ];
+for (const atomic of atomics) {
+  atomic.getBoundingClientRect = () => ({
+    x: atomic.x,
+    y: atomic.y,
+    left: atomic.x,
+    top: atomic.y,
+    right: atomic.x + atomic.width,
+    bottom: atomic.y + 18,
+    width: atomic.width,
+    height: 18,
+  });
+}
 const parent = {
   childNodes: [text, ...atomics],
   getBoundingClientRect() { return parentRect; },
@@ -7100,6 +7112,18 @@ const atomics = [
   { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 36, x: 74, y: 21.2 },
   { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 40, x: 42, y: 37.2 },
 ];
+for (const atomic of atomics) {
+  atomic.getBoundingClientRect = () => ({
+    x: atomic.x,
+    y: atomic.y,
+    left: atomic.x,
+    top: atomic.y,
+    right: atomic.x + atomic.width,
+    bottom: atomic.y + 16,
+    width: atomic.width,
+    height: 16,
+  });
+}
 const parent = {
   childNodes: [ignored, floating[0], ignored, floating[1], text, ...atomics],
   getBoundingClientRect() { return parentRect; },
@@ -7327,6 +7351,261 @@ console.log(JSON.stringify({
     }
 
     #[test]
+    fn fri06_c08_existing_census_intersection_assigns_only_exact_input_rows() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
+        let report: Value = serde_json::from_slice(
+            &fs::read(root.join("xml/generation-reports/all.json")).expect("entry report"),
+        )
+        .expect("entry report JSON");
+        let existing_sources = report["unsupported"]
+            .as_array()
+            .expect("unsupported rows")
+            .iter()
+            .filter(|row| {
+                row["reason"]
+                    .as_str()
+                    .is_some_and(|reason| FRI06_C08_EXISTING_REASONS.contains(&reason))
+            })
+            .map(|row| row["source"].as_str().expect("source"))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(existing_sources.len(), 85);
+
+        let census = include_str!(
+            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        );
+        let mut global = BTreeMap::<&str, usize>::new();
+        let mut existing = BTreeMap::<&str, usize>::new();
+        let mut existing_rows = 0;
+        for line in census.lines().filter(|line| !line.starts_with('#')).skip(1) {
+            let fields = line.split('\t').collect::<Vec<_>>();
+            assert_eq!(fields.len(), 6, "census row must retain six fields: {line}");
+            let category = fields[4];
+            *global.entry(category).or_default() += 1;
+            if existing_sources.contains(fields[1]) {
+                existing_rows += 1;
+                *existing.entry(category).or_default() += 1;
+            }
+        }
+
+        assert_eq!(
+            global.get("artifact.atomic_marker_on_blockified_non_atomic"),
+            Some(&252)
+        );
+        assert_eq!(
+            global.get("identity.helper_source_order_as_visual_order"),
+            Some(&38)
+        );
+        assert_eq!(
+            global.get("later_owned.flow_root_display_normalization"),
+            Some(&20)
+        );
+        assert_eq!(
+            global.get("artifact.box_children_replace_required_shaped_text"),
+            Some(&4)
+        );
+
+        assert_eq!(existing_rows, 340);
+        assert_eq!(
+            existing.get("artifact.atomic_marker_on_blockified_non_atomic"),
+            Some(&248)
+        );
+        assert_eq!(
+            existing.get("identity.helper_source_order_as_visual_order"),
+            Some(&36)
+        );
+        assert_eq!(
+            existing.get("artifact.box_children_replace_required_shaped_text"),
+            Some(&4)
+        );
+        assert_eq!(
+            existing.get("later_owned.flow_root_display_normalization"),
+            None
+        );
+        assert_eq!(
+            existing.get("adapter.grid_inline_text_missing_anonymous_box"),
+            Some(&16)
+        );
+        assert_eq!(existing.get("pass"), Some(&36));
+    }
+
+    #[test]
+    fn fri06_c08_existing_blockified_authored_inline_is_not_atomic_or_breakable() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const document = { styleSheets: [] };
+const blockified = {
+  nodeType: Node.ELEMENT_NODE,
+  tagName: "SPAN",
+  style: { display: "inline-block" },
+};
+const br = {
+  nodeType: Node.ELEMENT_NODE,
+  tagName: "BR",
+  style: { display: "inline" },
+};
+let authoredBreaks = null;
+const parent = {
+  childNodes: [blockified, br],
+  parentElement: null,
+  getAttribute(name) {
+    if (name === "data-surgeist-layout-ready-inline") return "true";
+    if (name === "data-surgeist-inline-breaks") return authoredBreaks;
+    return null;
+  },
+};
+function getComputedStyle(element) {
+  return {
+    display: element === blockified ? "block" : "inline",
+    direction: "ltr",
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+describeElement = function(element) {
+  return { tagName: element.tagName.toLowerCase(), children: [] };
+};
+
+const children = describeChildNodes(parent);
+if (Object.prototype.hasOwnProperty.call(children[0], "atomicInlineParticipation")) {
+  throw new Error("authored-inline/computed-block child received an atomic placeholder");
+}
+
+authoredBreaks = '[{"sourceIndex":0,"followingBreak":"allowed"}]';
+let rejected = false;
+try {
+  describeChildNodes(parent);
+} catch (error) {
+  rejected = String(error).includes("must target shaped text or an atomic inline");
+}
+if (!rejected) {
+  throw new Error("authored-inline/computed-block child accepted an authored atomic break fact");
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-blockified-non-atomic", script);
+    }
+
+    #[test]
+    fn fri06_c08_existing_range_source_identity_never_becomes_visual_order() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20 };
+const textRect = { x: 10, y: 0, left: 10, top: 0, right: 35, bottom: 20, width: 25, height: 20 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return textRect; },
+  getClientRects() { return [textRect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const parent = { getBoundingClientRect() { return parentRect; } };
+const text = { nodeType: Node.TEXT_NODE, textContent: "X" };
+function getComputedStyle(element) {
+  if (element === left || element === right) {
+    return { display: "inline-block", direction: "rtl", writingMode: "horizontal-tb" };
+  }
+  return {
+    direction: "rtl",
+    writingMode: "horizontal-tb",
+    fontSize: "25px",
+    lineHeight: "25px",
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const left = {
+  nodeType: Node.ELEMENT_NODE,
+  tagName: "SPAN",
+  getBoundingClientRect() {
+    return { x: 35, y: 0, left: 35, top: 0, right: 60, bottom: 20, width: 25, height: 20 };
+  },
+};
+const right = {
+  nodeType: Node.ELEMENT_NODE,
+  tagName: "SPAN",
+  getBoundingClientRect() {
+    return { x: 60, y: 0, left: 60, top: 0, right: 85, bottom: 20, width: 25, height: 20 };
+  },
+};
+parent.childNodes = [text, left, right];
+const shaped = layoutReadyTextNodeData(text, parent, 7);
+const rangeInk = shaped.rangeInks[0];
+if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0) {
+  throw new Error(`Range source/line identity changed: ${JSON.stringify(rangeInk)}`);
+}
+if (rangeInk.visualIndex !== 2) {
+  throw new Error(`Range source order became visual order: ${JSON.stringify(rangeInk)}`);
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-range-source-not-visual", script);
+    }
+
+    #[test]
+    fn fri06_c08_existing_shaped_text_source_retains_typed_word_segments() {
+        let relative = "subgrid/subgrid_auto_track_sizing_min_content_text_runs.html";
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let raw = fs::read_to_string(root.join(relative)).expect(relative);
+        assert!(
+            !raw.contains("<span"),
+            "{relative} must retain shaped text identity rather than replacement boxes"
+        );
+
+        let inline_marker = r#"<div data-surgeist-inline-breaks="#;
+        let inline_start = raw.find(inline_marker).expect("typed text parent marker");
+        let inline_end = raw[inline_start..]
+            .find("</div>")
+            .map(|offset| inline_start + offset + "</div>".len())
+            .expect("typed text parent close");
+        let document = roxmltree::Document::parse(&raw[inline_start..inline_end])
+            .expect("typed text parent must parse");
+        let inline_parent = document
+            .descendants()
+            .find(|node| {
+                node.is_element()
+                    && node
+                        .attribute("style")
+                        .is_some_and(|style| style.contains("grid-template-rows: subgrid"))
+            })
+            .expect("typed text parent");
+        let children = inline_parent.children().collect::<Vec<_>>();
+        let expected_segments = [(0, "X"), (4, "XXXX"), (8, "XX"), (12, "XXX")];
+        for (source_index, expected_text) in expected_segments {
+            assert_eq!(
+                children[source_index].text(),
+                Some(expected_text),
+                "source segment {source_index}"
+            );
+        }
+        let breaks: Value = serde_json::from_str(
+            inline_parent
+                .attribute("data-surgeist-inline-breaks")
+                .expect("typed text breaks"),
+        )
+        .expect("typed text breaks must parse");
+        assert_eq!(
+            breaks,
+            json!([
+                {"sourceIndex": 0, "followingBreak": "allowed"},
+                {"sourceIndex": 4, "followingBreak": "allowed"},
+                {"sourceIndex": 8, "followingBreak": "allowed"}
+            ])
+        );
+    }
+
+    #[test]
     fn fri06_c08_existing_grid_indentation_is_ignored_without_suppressing_unmarked_inline_space() {
         let script = [
             r#"
@@ -7408,7 +7687,7 @@ function getComputedStyle() {
 "#,
             TEST_HELPER_SOURCE,
             r#"
-const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
+const shaped = layoutReadyTextNodeData(text, parent, 7);
 const segment = shaped.inlineSegments[0];
 const rangeInk = shaped.rangeInks[0];
 for (const [name, value] of Object.entries({
@@ -7423,8 +7702,8 @@ for (const [name, value] of Object.entries({
 if (segment.id !== 7 || rangeInk.sourceSegmentId !== 7) {
   throw new Error("text source and Range-ink segment identity must remain stable");
 }
-if (rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 2) {
-  throw new Error("Range-ink line/visual identity must be explicit");
+if (rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 0) {
+  throw new Error("Range-ink line/geometry-derived visual identity must be explicit");
 }
 
 const metrics = brInlineMetricsForElement({ tagName: "BR" }, {
@@ -7478,7 +7757,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
   ["rtl", "vertical-rl", "bottom", 20, 7],
 ]) {
   flow = { direction, writingMode };
-  const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
+  const shaped = layoutReadyTextNodeData(text, parent, 7);
   if (Object.prototype.hasOwnProperty.call(shaped, "fragments")) {
     throw new Error("Range y/height/baseline must not be emitted as model fragment geometry");
   }
@@ -7489,7 +7768,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
   if (JSON.stringify(shaped.rangeInks) !== JSON.stringify([{
     sourceSegmentId: 7,
     lineIndex: 0,
-    visualIndex: 2,
+    visualIndex: 0,
     physicalStartEdge,
     start,
     advance,
@@ -7753,12 +8032,12 @@ function getComputedStyle() {
 "#,
             TEST_HELPER_SOURCE,
             r#"
-const shaped = layoutReadyTextNodeData(text, parent, 7, 2);
+const shaped = layoutReadyTextNodeData(text, parent, 7);
 const rangeInk = shaped.rangeInks[0];
 if (rangeInk.physicalStartEdge !== "left" || rangeInk.start !== 15 || rangeInk.advance !== 4) {
   throw new Error(`Range ink must retain direct-parent-local flow-inline geometry, got ${JSON.stringify(rangeInk)}`);
 }
-if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 2) {
+if (rangeInk.sourceSegmentId !== 7 || rangeInk.lineIndex !== 0 || rangeInk.visualIndex !== 0) {
   throw new Error(`Range-ink identity must remain stable, got ${JSON.stringify(rangeInk)}`);
 }
 if ("y" in rangeInk || "height" in rangeInk || "baselineX" in rangeInk || "baselineY" in rangeInk) {

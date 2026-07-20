@@ -1279,7 +1279,7 @@ function layoutReadyInlineBreaks(parent, childNodes) {
     }
     const child = childNodes[sourceIndex];
     const text = child.nodeType === Node.TEXT_NODE;
-    const atomic = child.nodeType === Node.ELEMENT_NODE && child.tagName !== 'BR' && isInlineLevel(child);
+    const atomic = child.nodeType === Node.ELEMENT_NODE && child.tagName !== 'BR' && isLoweredAtomicInline(child);
     if (!text && !atomic) {
       throw new Error(`inline break ${recordIndex} must target shaped text or an atomic inline`);
     }
@@ -1305,12 +1305,11 @@ function describeChildNodes(e, expectedElement = null) {
     return child.nodeType === Node.ELEMENT_NODE && child.tagName === 'BR' ||
       child.nodeType === Node.TEXT_NODE && shouldSerializeLayoutReadyText(child, childNodes, index, e);
   });
-  let visualIndex = 0;
   for (let i = 0; i < childNodes.length; i++) {
     let child = childNodes[i];
     if (child.nodeType === Node.ELEMENT_NODE) {
       const described = describeElement(child, expectedElement);
-      if (layoutReadyInlineRun && child.tagName !== 'BR' && isInlineLevel(child)) {
+      if (layoutReadyInlineRun && child.tagName !== 'BR' && isLoweredAtomicInline(child)) {
         described.atomicInlineParticipation = {
           bidiLevel: getComputedStyle(child).direction === 'rtl' ? 1 : 0,
           ...(inlineBreaks.get(i) || { followingBreak: 'prohibited' }),
@@ -1318,16 +1317,14 @@ function describeChildNodes(e, expectedElement = null) {
         inlineBreaks.delete(i);
       }
       children.push(described);
-      if (layoutReadyInlineRun && (child.tagName === 'BR' || isInlineLevel(child))) visualIndex++;
     } else if (
       layoutReadyInlineRun &&
       child.nodeType === Node.TEXT_NODE &&
       shouldSerializeLayoutReadyText(child, childNodes, i, e)
     ) {
-      const described = layoutReadyTextNodeData(child, e, i, visualIndex, inlineBreaks.get(i));
+      const described = layoutReadyTextNodeData(child, e, i, inlineBreaks.get(i));
       if (described) {
         children.push(described);
-        visualIndex++;
         inlineBreaks.delete(i);
       }
     }
@@ -1343,7 +1340,7 @@ function shouldSerializeLayoutReadyText(node, siblings, index, parent) {
   return isSignificantInlineWhitespace(node, siblings, index, parent);
 }
 
-function layoutReadyTextNodeData(node, parent, segmentId, visualIndex, reviewedBreak = undefined) {
+function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefined) {
   const range = document.createRange();
   range.selectNodeContents(node);
   const rect = range.getBoundingClientRect();
@@ -1364,6 +1361,7 @@ function layoutReadyTextNodeData(node, parent, segmentId, visualIndex, reviewedB
   const vertical = isVerticalWritingMode(computedStyle.writingMode);
   const inlineExtent = vertical ? rect.height : rect.width;
   const whitespace = /^\s+$/.test(node.textContent);
+  const visualIndex = layoutReadyTextVisualIndex(node, parent, rect);
 
   const finite = [
     rect.x, rect.y, rect.width, rect.height,
@@ -1492,6 +1490,54 @@ function isInlineLevel(e) {
   let authored = e.style.display;
   let computed = getComputedStyle(e).display;
   return authored.startsWith("inline") || computed.startsWith("inline");
+}
+
+function isLoweredAtomicInline(e) {
+  return ['inline-block', 'inline-grid', 'inline-grid-lanes'].includes(getComputedStyle(e).display);
+}
+
+function layoutReadyTextVisualIndex(node, parent, targetRect) {
+  const siblings = Array.from(parent.childNodes || [node]);
+  const computedStyle = getComputedStyle(parent);
+  const vertical = isVerticalWritingMode(computedStyle.writingMode);
+  const startEdge = inlineStartEdge(computedStyle);
+  const participants = [];
+
+  for (let index = 0; index < siblings.length; index++) {
+    const sibling = siblings[index];
+    let rect;
+    if (sibling.nodeType === Node.TEXT_NODE) {
+      if (sibling !== node && !shouldSerializeLayoutReadyText(sibling, siblings, index, parent)) continue;
+      rect = sibling === node ? targetRect : textNodeRect(sibling);
+    } else if (
+      sibling.nodeType === Node.ELEMENT_NODE &&
+      sibling.tagName !== 'BR' &&
+      isLoweredAtomicInline(sibling)
+    ) {
+      rect = sibling.getBoundingClientRect();
+    } else {
+      continue;
+    }
+
+    const blockMinimum = vertical ? rect.left : rect.top;
+    const blockMaximum = vertical ? rect.right : rect.bottom;
+    const targetBlockMinimum = vertical ? targetRect.left : targetRect.top;
+    const targetBlockMaximum = vertical ? targetRect.right : targetRect.bottom;
+    if (blockMaximum <= targetBlockMinimum || blockMinimum >= targetBlockMaximum) continue;
+
+    const start = rect[startEdge];
+    participants.push({
+      node: sibling,
+      start: startEdge === 'right' || startEdge === 'bottom' ? -start : start,
+    });
+  }
+
+  participants.sort((left, right) => left.start - right.start);
+  const visualIndex = participants.findIndex((participant) => participant.node === node);
+  if (visualIndex < 0) {
+    throw new Error('layout-ready text requires one computed visual slot');
+  }
+  return visualIndex;
 }
 
 function textNodeRect(node) {
