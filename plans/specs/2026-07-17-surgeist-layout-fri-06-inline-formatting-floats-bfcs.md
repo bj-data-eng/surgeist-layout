@@ -1034,6 +1034,24 @@ The three formerly synthesized facts use only this closed final-lineage schema:
 | Transparent secondary inline container | `data-surgeist-transparent-inline-container="true"` on either reviewed inline `bdo` | The container box is absent from `<input>`; one `<inline-boundary kind="start"/>`, its one direct typed-text child, and one `<inline-boundary kind="end"/>` appear in its source position | The value is exactly `true`; computed display is `inline`; source tag is `bdo`; there is exactly one direct shaped-text child and no other text, box, or control. The helper applies the same input-only transparent projection before independently serializing expectations. Invalid role/topology rejects. The exact bidi source inventory rejects either missing marker. |
 | Explicit containing strut | `data-surgeist-inline-struts` on the layout-ready containing root, containing a nonempty JSON array of `{ "beforeSourceIndex": N, "baseline": B, "lineHeight": H }` | `<inline-boundary kind="start" inline-baseline="B" inline-line-height="H"/>` immediately before the one lowered child selected by DOM `sourceIndex` | Each object has exactly those fields; `N` is a unique existing child-node index that lowers to one typed atomic child; `B` and `H` are finite, `H > 0`, and `0 <= B <= H`. Missing target, duplicate target, extra field, nonfinite/out-of-range metric, or non-atomic target rejects. Exact-source inventory requires the reviewed mixed-wrap and float-line records; no topology or fixture name restores an absent record. |
 
+The authored marker inventory is exactly:
+
+| HTML path under `tests/layout/browser_parity/html/` | Required marker count and placement |
+| --- | --- |
+| `subgrid/subgrid_baseline_auto_columns_first_item.html` | Exactly two anonymous-wrapper markers, one on each direct inline-grid item under the sole direct inline-grid subgrid child of `#test-root` |
+| `subgrid/subgrid_baseline_auto_columns_second_item.html` | Exactly two anonymous-wrapper markers at the same two-item topology |
+| `subgrid/subgrid_baseline_standalone_axis_first_item.html` | Exactly two anonymous-wrapper markers at the same two-item topology |
+| `subgrid/subgrid_baseline_standalone_axis_second_item.html` | Exactly two anonymous-wrapper markers at the same two-item topology |
+| `subgrid/subgrid_auto_track_sizing_min_content_text_runs.html` | Exactly one anonymous-wrapper marker on the innermost grid that directly owns the four typed text runs, beneath the sole min-content outer grid |
+| `block/fri06_bidi_mixed_inline.html` | Exactly two transparent-inline-container markers, one on each direct inline `bdo` child of `#test-root` and nowhere else |
+| `block/fri06_inline_mixed_text_atomic_wrap.html` | Exactly one root `data-surgeist-inline-struts` record: `{ "beforeSourceIndex": 2, "baseline": 14.8, "lineHeight": 20 }` |
+| `float/fri06_float_line_exclusion.html` | Exactly one root `data-surgeist-inline-struts` record: `{ "beforeSourceIndex": 5, "baseline": 12, "lineHeight": 20 }` |
+
+The source preflight rejects any missing, extra, duplicate, or differently placed
+marker or strut record in this inventory and rejects these three marker names on
+every other HTML source. The four generated variants of each source inherit the
+same authored marker inventory; direction and box sizing do not alter it.
+
 The generated XML parser recognizes only
 `layout-ready-anonymous-grid-text-wrapper` and the closed `inline-boundary`
 element above for these facts. An `inline-boundary` permits only `kind="start"`
