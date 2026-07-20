@@ -818,9 +818,12 @@ function describeElement(e, expectedElement = null) {
   };
   const children = describeChildNodes(e, expectedElement);
   const brInlineMetrics = brInlineMetricsForElement(e, computedStyle);
+  const lineControlParticipation = layoutReadyLineControlParticipation(e, computedStyle);
+  const hasTypedInlineText = children.some((child) => child.layoutInput === 'inline-text');
 
   return {
     tagName: e.tagName.toLowerCase(),
+    lineControlParticipation,
     unsupportedReason: unsupportedElementReason(e, computedStyle) || unsupportedChildNodesReason(e),
     style: {
       display: parseEnum(computedStyle.display),
@@ -924,7 +927,9 @@ function describeElement(e, expectedElement = null) {
 
     // The textContent is used for generating intrinsic sizing measure funcs
     // So we're only interested in the text content of leaf nodes
-    textContent: e.childElementCount === 0 && e.textContent.length && e.textContent !== "\n" ? e.textContent : undefined,
+    textContent: !hasTypedInlineText && e.childElementCount === 0 && e.textContent.length && e.textContent !== "\n"
+      ? e.textContent
+      : undefined,
 
     // The layout of the node in full precision (floating-point)
     unroundedLayout: {
@@ -1353,8 +1358,10 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
     throw new Error(`layout-ready text segment ${segmentId} must have exactly one fragment`);
   }
 
-  const parentRect = parent.getBoundingClientRect();
+  const containingRoot = layoutReadyInlineContainingRoot(parent) || parent;
+  const containingRootRect = containingRoot.getBoundingClientRect();
   const computedStyle = getComputedStyle(parent);
+  const containingStyle = getComputedStyle(containingRoot);
   const fontSize = parseCssPx(computedStyle.fontSize);
   const lineHeight = resolveLineHeightPx(computedStyle.lineHeight, fontSize);
   const baseline = Math.min(lineHeight, estimateInlineBaselinePx(fontSize, lineHeight));
@@ -1363,7 +1370,7 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
   const whitespace = /^\s+$/.test(node.textContent);
   const finite = [
     rect.x, rect.y, rect.width, rect.height,
-    parentRect.x, parentRect.y,
+    containingRootRect.x, containingRootRect.y,
     inlineExtent, baseline, lineHeight,
   ];
   if (!finite.every(Number.isFinite) || inlineExtent < 0 || baseline < 0 || lineHeight < baseline) {
@@ -1371,11 +1378,11 @@ function layoutReadyTextNodeData(node, parent, segmentId, reviewedBreak = undefi
   }
 
   const rangeInks = fragmentRects.map((fragment) => {
-    const physicalStartEdge = inlineStartEdge(computedStyle);
+    const physicalStartEdge = inlineStartEdge(containingStyle);
     const horizontal = physicalStartEdge === 'left' || physicalStartEdge === 'right';
     const start = horizontal
-      ? fragment[physicalStartEdge] - parentRect.left
-      : fragment[physicalStartEdge] - parentRect.top;
+      ? fragment[physicalStartEdge] - containingRootRect.left
+      : fragment[physicalStartEdge] - containingRootRect.top;
     const advance = horizontal ? fragment.width : fragment.height;
     if (![start, advance].every(Number.isFinite) || advance < 0) {
       throw new Error(`layout-ready text Range ink ${segmentId} requires a complete finite inline tuple`);
@@ -1435,10 +1442,22 @@ function hasLayoutReadyVerticalBrFixture(e) {
 }
 
 function hasLayoutReadyInlineFixture(e) {
+  return layoutReadyInlineContainingRoot(e) !== undefined;
+}
+
+function layoutReadyInlineContainingRoot(e) {
   for (let current = e; current; current = current.parentElement) {
-    if (current.getAttribute?.('data-surgeist-layout-ready-inline') === 'true') return true;
+    if (current.getAttribute?.('data-surgeist-layout-ready-inline') === 'true') return current;
   }
-  return false;
+  return undefined;
+}
+
+function layoutReadyLineControlParticipation(e, computedStyle) {
+  if (e.tagName !== 'BR' || computedStyle.display !== 'inline' ||
+      !layoutReadyInlineContainingRoot(e.parentElement)) {
+    return undefined;
+  }
+  return { kind: 'forced-break' };
 }
 
 function unsupportedChildNodesReason(e) {

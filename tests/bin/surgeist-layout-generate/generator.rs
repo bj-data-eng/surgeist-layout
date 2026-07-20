@@ -3903,33 +3903,37 @@ fn generate_xml_with_provenance(
 }
 
 fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writing_mode: &str) {
+    line_control_kind(node);
     if node["layoutInput"].as_str() == Some("inline-text") {
         write_inline_text_input(lines, node, indent);
         return;
     }
 
+    let children = node["children"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    let has_typed_inline_text = children
+        .iter()
+        .any(|child| child["layoutInput"].as_str() == Some("inline-text"));
+    let text_content = (!has_typed_inline_text)
+        .then(|| node.get("textContent"))
+        .flatten();
     let attrs = input_attrs_with_parent_writing_mode(node, parent_writing_mode);
     let writing_mode =
         string(&node["style"], "writingMode").unwrap_or_else(|| "horizontal-tb".to_string());
-    let tag = if node.get("textContent").is_some() && !direct_text_requires_container(node) {
+    let tag = if text_content.is_some() && !direct_text_requires_container(node) {
         "text"
     } else {
         "div"
     };
     let pad = " ".repeat(indent);
-    let children = node["children"]
-        .as_array()
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
     let has_atomic_placeholders = children
         .iter()
         .any(|child| !child["atomicInlineParticipation"].is_null());
     let has_shape_bands = node["shapeBands"].as_array().is_some();
 
-    if children.is_empty()
-        && node.get("textContent").is_none()
-        && !has_atomic_placeholders
-        && !has_shape_bands
+    if children.is_empty() && text_content.is_none() && !has_atomic_placeholders && !has_shape_bands
     {
         lines.push(format!("{pad}<{tag}{}/>", attr_text(&attrs)));
         return;
@@ -3945,7 +3949,7 @@ fn write_input(lines: &mut Vec<String>, node: &Value, indent: usize, parent_writ
     if let Some(bands) = node["shapeBands"].as_array() {
         write_shape_bands(lines, bands, indent + 2);
     }
-    if let Some(text) = node["textContent"].as_str() {
+    if let Some(text) = text_content.and_then(Value::as_str) {
         lines.push(format!(
             "{}{}",
             " ".repeat(indent + 2),
@@ -4133,6 +4137,7 @@ impl ExpectationWriteContext {
 }
 
 fn write_expectation(lines: &mut Vec<String>, node: &Value, context: ExpectationWriteContext) {
+    line_control_kind(node);
     if let Some(range_inks) = node["rangeInks"].as_array() {
         assert_eq!(
             node["layoutInput"].as_str(),
@@ -4265,7 +4270,7 @@ fn write_expectation(lines: &mut Vec<String>, node: &Value, context: Expectation
         write_fragment_expectations(lines, fragments, context.indent + 2);
     }
     for (source_index, child) in children.iter().enumerate() {
-        if child["tagName"].as_str() == Some("br") {
+        if line_control_kind(child).is_some() {
             write_browser_control_expectation(
                 lines,
                 node,
@@ -4295,6 +4300,11 @@ fn write_browser_control_expectation(
 ) {
     let control = &siblings[source_index];
     assert_eq!(
+        line_control_kind(control),
+        Some("forced-break"),
+        "browser control observation requires explicit line-control participation"
+    );
+    assert_eq!(
         control["tagName"].as_str(),
         Some("br"),
         "browser control observation requires a BR source"
@@ -4307,7 +4317,7 @@ fn write_browser_control_expectation(
     let current_line_candidates = siblings[..source_index]
         .iter()
         .rev()
-        .take_while(|sibling| sibling["tagName"].as_str() != Some("br"))
+        .take_while(|sibling| line_control_kind(sibling).is_none())
         .collect::<Vec<_>>();
     let terminal_visual_slot = current_line_candidates
         .iter()
@@ -4505,7 +4515,16 @@ fn input_attrs_with_parent_writing_mode(
 ) -> Vec<(&'static str, String)> {
     let style = &node["style"];
     let mut attrs = Vec::new();
-    maybe(&mut attrs, "source-tag", string(node, "tagName"), None);
+    let source_tag = string(node, "tagName");
+    let is_br = source_tag.as_deref() == Some("br");
+    let br_serializes_as_control =
+        is_br && matches!(style["display"].as_str(), Some("inline" | "none"));
+    if !is_br || br_serializes_as_control {
+        maybe(&mut attrs, "source-tag", source_tag, None);
+    }
+    if let Some(kind) = line_control_kind(node) {
+        attrs.push(("line-control", kind.to_string()));
+    }
     maybe(&mut attrs, "display", string(style, "display"), None);
     maybe(
         &mut attrs,
@@ -4621,18 +4640,20 @@ fn input_attrs_with_parent_writing_mode(
         dimension(&style["lineHeight"]),
         Some("10px"),
     );
-    maybe(
-        &mut attrs,
-        "inline-baseline",
-        dimension_or_non_empty_string(&style["inlineBaseline"]),
-        None,
-    );
-    maybe(
-        &mut attrs,
-        "inline-line-height",
-        dimension_or_non_empty_string(&style["inlineLineHeight"]),
-        None,
-    );
+    if !is_br || br_serializes_as_control {
+        maybe(
+            &mut attrs,
+            "inline-baseline",
+            dimension_or_non_empty_string(&style["inlineBaseline"]),
+            None,
+        );
+        maybe(
+            &mut attrs,
+            "inline-line-height",
+            dimension_or_non_empty_string(&style["inlineLineHeight"]),
+            None,
+        );
+    }
     maybe(&mut attrs, "align-items", string(style, "alignItems"), None);
     maybe(&mut attrs, "align-self", string(style, "alignSelf"), None);
     maybe(
@@ -4812,6 +4833,37 @@ fn input_attrs_with_parent_writing_mode(
         None,
     );
     attrs
+}
+
+fn line_control_kind(node: &Value) -> Option<&str> {
+    let participation = node.get("lineControlParticipation")?;
+    let participation = participation
+        .as_object()
+        .expect("layout-ready fixture field `lineControlParticipation` must be an object");
+    assert_eq!(
+        participation.len(),
+        1,
+        "layout-ready fixture field `lineControlParticipation` has unsupported fields"
+    );
+    assert_eq!(
+        node["tagName"].as_str(),
+        Some("br"),
+        "line-control participation requires a BR source"
+    );
+    assert_eq!(
+        node["style"]["display"].as_str(),
+        Some("inline"),
+        "line-control participation requires a computed inline BR role"
+    );
+    let kind = participation
+        .get("kind")
+        .and_then(Value::as_str)
+        .expect("layout-ready fixture field `lineControlParticipation.kind` must be a string");
+    assert_eq!(
+        kind, "forced-break",
+        "unsupported layout-ready line-control participation kind"
+    );
+    Some(kind)
 }
 
 fn writing_mode_attr(style: &Value, parent_writing_mode: &str) -> Option<String> {
@@ -5847,7 +5899,7 @@ mod tests {
         let reports = generation_report_manifest(&manifest).expect("report manifest");
         assert_eq!(reports.all_files().len(), 1);
         assert_eq!(reports.full.file, "all.json");
-        assert_eq!(reports.full.generated, 5324);
+        assert_eq!(reports.full.generated, 5712);
         assert!(reports.scoped.is_empty());
     }
 
@@ -5919,8 +5971,8 @@ mod tests {
         let reports = generation_report_manifest(&manifest).expect("report manifest");
         assert_eq!(reports.all_files(), BTreeSet::from(["all.json"]));
         assert!(reports.scoped.is_empty());
-        assert_eq!(reports.full.generated, 5324);
-        assert_eq!(reports.full.unsupported, 356);
+        assert_eq!(reports.full.generated, 5712);
+        assert_eq!(reports.full.unsupported, 16);
         assert_eq!(reports.full.expected_fail, 0);
         assert_eq!(reports.full.quarantined, 0);
         assert_eq!(reports.full.failed_to_generate, 0);
@@ -7153,7 +7205,7 @@ if (expectedReason === undefined) {{
         );
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
-            "ee9976421ff6cfbf8d58e26aa10f11204452242ca80d8c2994f5abc4f5be28ac"
+            "fd668b064fcccb00ebb1632183e4f2522ce29f1b390f2f0c012bdade906ed18c"
         );
         assert_eq!(
             sha256_file(&root.join("corpus.toml")).expect("manifest"),
@@ -7962,6 +8014,360 @@ if (metrics.baseline !== "0px" || metrics.lineHeight !== "0px") {
     }
 
     #[test]
+    fn fri06_c08_t1_range_start_uses_nearest_explicit_inline_root() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const rootRect = { x: 10, y: 20, left: 10, top: 20, right: 210, bottom: 120, width: 200, height: 100 };
+const parentRect = { x: 25, y: 35, left: 25, top: 35, right: 125, bottom: 85, width: 100, height: 50 };
+const textRect = { x: 40, y: 41, left: 40, top: 41, right: 44, bottom: 51, width: 4, height: 10 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return textRect; },
+  getClientRects() { return [textRect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const root = {
+  parentElement: null,
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+  getBoundingClientRect() { return rootRect; },
+};
+const parent = {
+  parentElement: root,
+  getAttribute() { return null; },
+  getBoundingClientRect() { return parentRect; },
+};
+const text = { nodeType: Node.TEXT_NODE, textContent: "x", parentElement: parent };
+let flow = { direction: "ltr", writingMode: "horizontal-tb" };
+function getComputedStyle() {
+  return {
+    direction: flow.direction,
+    writingMode: flow.writingMode,
+    fontSize: "10px",
+    lineHeight: "10px",
+  };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+for (const [direction, writingMode, physicalStartEdge, start, advance] of [
+  ["ltr", "horizontal-tb", "left", 30, 4],
+  ["rtl", "horizontal-tb", "right", 34, 4],
+  ["ltr", "vertical-rl", "top", 21, 10],
+  ["rtl", "vertical-rl", "bottom", 31, 10],
+]) {
+  flow = { direction, writingMode };
+  const rangeInk = layoutReadyTextNodeData(text, parent, 7).rangeInks[0];
+  if (rangeInk.physicalStartEdge !== physicalStartEdge ||
+      rangeInk.start !== start || rangeInk.advance !== advance) {
+    throw new Error(`Range start must be local to the explicit inline root, got ${JSON.stringify(rangeInk)}`);
+  }
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-t1-root-local-range", script);
+    }
+
+    #[test]
+    fn fri06_c08_t1_helper_emits_control_fact_only_for_lowered_inline_br() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const document = { styleSheets: [] };
+const root = {
+  parentElement: null,
+  getAttribute(name) { return name === "data-surgeist-layout-ready-inline" ? "true" : null; },
+};
+const parent = { parentElement: root, getAttribute() { return null; } };
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+const inlineBr = { tagName: "BR", parentElement: parent };
+const blockifiedBr = { tagName: "BR", parentElement: parent };
+const unactivatedBr = { tagName: "BR", parentElement: { parentElement: null, getAttribute() { return null; } } };
+const activatedSpan = { tagName: "SPAN", parentElement: parent };
+
+const valid = layoutReadyLineControlParticipation(inlineBr, { display: "inline" });
+if (JSON.stringify(valid) !== JSON.stringify({ kind: "forced-break" })) {
+  throw new Error(`computed inline BR must emit an explicit control fact, got ${JSON.stringify(valid)}`);
+}
+for (const [name, element, style] of [
+  ["blockified BR", blockifiedBr, { display: "block" }],
+  ["source tag alone", unactivatedBr, { display: "inline" }],
+  ["activation ancestor alone", activatedSpan, { display: "inline" }],
+]) {
+  const actual = layoutReadyLineControlParticipation(element, style);
+  if (actual !== undefined) {
+    throw new Error(`${name} must not emit model control participation, got ${JSON.stringify(actual)}`);
+  }
+}
+"#,
+        ]
+        .concat();
+
+        run_bundled_helper_script("fri06-c08-t1-explicit-control-role", script);
+    }
+
+    #[test]
+    fn fri06_c08_t1_serializer_gates_control_on_explicit_fact() {
+        let root = |child: Value| {
+            json!({
+                "tagName": "div",
+                "useRounding": false,
+                "viewport": {
+                    "width": {"unit": "px", "value": 100},
+                    "height": {"unit": "max-content"},
+                },
+                "style": {"display": "block", "direction": "ltr", "writingMode": "horizontal-tb"},
+                "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+                "children": [child],
+            })
+        };
+        let br = |participation: Option<Value>, display: &str| {
+            let mut node = json!({
+                "tagName": "br",
+                "style": {
+                    "display": display,
+                    "inlineBaseline": "8px",
+                    "inlineLineHeight": "10px",
+                },
+                "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
+                "children": [],
+            });
+            if let Some(participation) = participation {
+                node["lineControlParticipation"] = participation;
+            }
+            node
+        };
+
+        let ordinary = generate_xml(
+            "fri06_c08_t1_source_tag_negative",
+            &root(br(None, "inline")),
+        );
+        assert!(
+            ordinary.contains(r#"source-tag="br""#),
+            "legacy BR input changed\n{ordinary}"
+        );
+        assert!(
+            !ordinary.contains("line-control="),
+            "source tag alone promoted a control\n{ordinary}"
+        );
+        assert!(
+            !ordinary.contains("<browser-control"),
+            "source tag alone promoted a browser control\n{ordinary}"
+        );
+
+        let explicit = generate_xml(
+            "fri06_c08_t1_explicit_control",
+            &root(br(Some(json!({"kind": "forced-break"})), "inline")),
+        );
+        assert!(
+            explicit.contains(r#"line-control="forced-break""#),
+            "missing explicit line control\n{explicit}"
+        );
+        assert!(
+            explicit.contains("<browser-control"),
+            "missing explicit browser control observation\n{explicit}"
+        );
+
+        let blockified = generate_xml("fri06_c08_t1_blockified_br", &root(br(None, "block")));
+        assert!(
+            blockified.contains(r#"<div display="block""#),
+            "blockified BR lost its ordinary box\n{blockified}"
+        );
+        assert!(
+            !blockified.contains(r#"source-tag="br""#),
+            "blockified BR retained line-break lowering data\n{blockified}"
+        );
+        assert!(
+            !blockified.contains("inline-baseline="),
+            "blockified BR retained control metrics\n{blockified}"
+        );
+        assert!(
+            !blockified.contains("<browser-control"),
+            "blockified BR retained a control observation\n{blockified}"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_t1_serializer_rejects_malformed_and_non_br_control_facts() {
+        let root = |child: Value| {
+            json!({
+                "tagName": "div",
+                "useRounding": false,
+                "viewport": {
+                    "width": {"unit": "px", "value": 100},
+                    "height": {"unit": "max-content"},
+                },
+                "style": {"display": "block", "direction": "ltr", "writingMode": "horizontal-tb"},
+                "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+                "children": [child],
+            })
+        };
+        let br = |participation: Value, display: &str| {
+            json!({
+                "tagName": "br",
+                "lineControlParticipation": participation,
+                "style": {
+                    "display": display,
+                    "inlineBaseline": "8px",
+                    "inlineLineHeight": "10px",
+                },
+                "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
+                "children": [],
+            })
+        };
+
+        for (label, child) in [
+            ("non-object", br(json!(true), "inline")),
+            ("wrong kind", br(json!({"kind": "boundary"}), "inline")),
+            (
+                "extra field",
+                br(json!({"kind": "forced-break", "sourceTag": "br"}), "inline"),
+            ),
+            ("blockified", br(json!({"kind": "forced-break"}), "block")),
+            (
+                "non-BR",
+                json!({
+                    "tagName": "span",
+                    "lineControlParticipation": {"kind": "forced-break"},
+                    "style": {"display": "inline"},
+                    "unroundedLayout": {"x": 10, "y": 0, "width": 10, "height": 10},
+                    "children": [],
+                }),
+            ),
+            (
+                "inline text",
+                json!({
+                    "layoutInput": "inline-text",
+                    "lineControlParticipation": {"kind": "forced-break"},
+                    "inlineSegments": [{
+                        "id": 0,
+                        "inlineExtent": 10,
+                        "inlineBaseline": 8,
+                        "inlineLineHeight": 10,
+                        "bidiLevel": 0,
+                        "whitespaceEdge": "preserve",
+                        "followingBreak": "prohibited",
+                    }],
+                    "children": [],
+                }),
+            ),
+        ] {
+            let result = std::panic::catch_unwind(|| {
+                generate_xml("fri06_c08_t1_malformed_control", &root(child))
+            });
+            assert!(
+                result.is_err(),
+                "serializer accepted malformed control state {label}"
+            );
+        }
+    }
+
+    #[test]
+    fn fri06_c08_t1_typed_inline_children_replace_legacy_raw_fallback() {
+        let typed_parent = json!({
+            "tagName": "div",
+            "useRounding": false,
+            "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+            "style": {"display": "block"},
+            "textContent": "duplicate raw fallback",
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+            "children": [{
+                "layoutInput": "inline-text",
+                "inlineSegments": [{
+                    "id": 0,
+                    "inlineExtent": 10,
+                    "inlineBaseline": 8,
+                    "inlineLineHeight": 10,
+                    "bidiLevel": 0,
+                    "whitespaceEdge": "preserve",
+                    "followingBreak": "prohibited",
+                }],
+                "children": [],
+            }],
+        });
+        let typed_xml = generate_xml("fri06_c08_t1_typed_replacement", &typed_parent);
+        assert!(typed_xml.contains(r#"<text layout-input="inline-text">"#));
+        assert!(
+            !typed_xml.contains("duplicate raw fallback"),
+            "typed text retained duplicate raw fallback\n{typed_xml}"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_t1_spill_matrix_preserves_64_legacy_variants() {
+        let families = [
+            "block_basic_with_br",
+            "block_border_fixed_size_with_br",
+            "block_br_empty_lines_metrics",
+            "block_br_inline_block_metrics",
+            "block_br_vertical_lr_inline_block_metrics",
+            "block_br_vertical_rl_empty_lines_metrics",
+            "block_br_vertical_rl_inline_block_metrics",
+            "block_br_vertical_rl_rtl_inline_block_metrics",
+            "block_direction_rtl_with_br",
+            "block_margin_x_fixed_auto_left_and_right_with_br",
+            "block_margin_x_fixed_auto_left_with_br",
+            "block_margin_y_collapse_through_blocked_by_padding_bottom_with_br",
+            "block_margin_y_collapse_through_positive_with_br",
+            "block_margin_y_simple_positive_with_br",
+            "block_padding_border_fixed_size_with_br",
+            "block_padding_fixed_size_with_br",
+        ];
+        let variants = [
+            "border_box_ltr",
+            "border_box_rtl",
+            "content_box_ltr",
+            "content_box_rtl",
+        ];
+        let mut cases = 0;
+        for family in families {
+            for variant in variants {
+                let node = json!({
+                    "tagName": "div",
+                    "useRounding": false,
+                    "viewport": {"width": {"unit": "px", "value": 100}, "height": {"unit": "max-content"}},
+                    "style": {"display": "block", "direction": "ltr", "writingMode": "horizontal-tb"},
+                    "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+                    "children": [{
+                        "tagName": "br",
+                        "style": {
+                            "display": "inline",
+                            "inlineBaseline": "0px",
+                            "inlineLineHeight": "0px",
+                        },
+                        "unroundedLayout": {"x": 0, "y": 10, "width": 0, "height": 0},
+                        "children": [],
+                    }],
+                });
+                let xml = generate_xml(&format!("{family}__{variant}"), &node);
+                assert!(
+                    xml.contains(r#"source-tag="br""#),
+                    "legacy BR input changed for {family}__{variant}\n{xml}"
+                );
+                assert!(
+                    !xml.contains("line-control="),
+                    "legacy source gained model control fact for {family}__{variant}\n{xml}"
+                );
+                assert!(
+                    !xml.contains("<browser-control"),
+                    "legacy source gained browser control observation for {family}__{variant}\n{xml}"
+                );
+                cases += 1;
+            }
+        }
+        assert_eq!(cases, 64);
+    }
+
+    #[test]
     fn fri06_c08_range_ink_helper_keeps_browser_block_ink_out_of_metric_geometry() {
         let script = [
             r#"
@@ -8177,6 +8583,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
                 },
                 {
                     "tagName": "br",
+                    "lineControlParticipation": {"kind": "forced-break"},
                     "style": {"display": "inline"},
                     "smartRoundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
                     "unroundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
@@ -8184,6 +8591,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
                 },
                 {
                     "tagName": "br",
+                    "lineControlParticipation": {"kind": "forced-break"},
                     "style": {"display": "inline"},
                     "smartRoundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
                     "unroundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
@@ -8248,6 +8656,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
                 },
                 {
                     "tagName": "br",
+                    "lineControlParticipation": {"kind": "forced-break"},
                     "style": {"display": "inline"},
                     "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
                     "children": [],
@@ -8524,6 +8933,7 @@ if ("y" in rangeInk || "height" in rangeInk || "baselineX" in rangeInk || "basel
                 },
                 {
                     "tagName": "br",
+                    "lineControlParticipation": {"kind": "forced-break"},
                     "style": {
                         "display": "inline",
                         "inlineBaseline": "0px",
@@ -8540,7 +8950,7 @@ if ("y" in rangeInk || "height" in rangeInk || "baselineX" in rangeInk || "basel
             r#"<text layout-input="inline-text">"#,
             r#"<segment id="7" inline-extent="4.5" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="discard-at-both" following-break="allowed"/>"#,
             r#"<atomic-placeholder child-index="1" bidi-level="1" following-break="prohibited"/>"#,
-            r#"<div source-tag="br" display="inline" inline-baseline="0px" inline-line-height="0px"/>"#,
+            r#"<div source-tag="br" line-control="forced-break" display="inline" inline-baseline="0px" inline-line-height="0px"/>"#,
             r#"<fragment source_segment_id="7" line_index="0" visual_index="1" x="20" y="4" width="4.5" height="10" baseline_x="20" baseline_y="12"/>"#,
         ] {
             assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
