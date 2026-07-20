@@ -1,6 +1,6 @@
 # FRI-06-C08 Bounded Fixture Activation And Final Lineage
 
-Status: in_progress
+Status: superseded
 
 Cycle ID: `FRI-06-C08`
 

@@ -325,22 +325,20 @@ comparator portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`, `FRI-06.10`, and
 `FRI-06.14`; `FRI-06.11`.
 **Prerequisites:** `FRI-06-C07` complete and remotely verified; its production
 and finite adapter decisions are the C08 entry handoff.
-**Entry state:** Reviewed inputs produced one retained diagnostic lineage with
-exact 5,712/16 accounting and valid provenance, but only 94 of the fixed 388
-public comparisons pass. The post-run census at
-`plans/2026-07-20-surgeist-layout-fri-06-c08-post-generation-census.md`, SHA-256
-`2c4179f559c5fa9e93c6933e0ba1a4969b758fc4a4f738d619c2751796b8bf00`,
-commit `96206cb2da33dae354eba90661ff8c5823fe7928`, partitions all rows into
-130 placement, 72 control, 52 height, four scroll, eight float/clear, four
-Range-origin, four shape-band, four finite later-owned adapter, 16 parser, and 94
-pass controls. It validates bounded helper, fixture, comparator, adapter, and
-production causes. The lineage is diagnostic only and has one full invocation.
-**Bounded outcome:** Correct those exact finite categories under the revised
-FRI-06.11 adapter contract, revalidate every affected input and production path,
-discard the invalid diagnostic artifacts, and derive one replacement full corpus
-only after all changed inputs are reviewed and frozen. Scoped generation remains
-diagnostic-only and non-lineage; no unchanged-input retry occurs. Generator
-architecture remains unchanged.
+**Entry state:** Two full runs supplied diagnostic evidence only. The latest
+census at `plans/2026-07-20-surgeist-layout-fri-06-c08-second-lineage-census.md`,
+SHA-256 `8905081ea15e0bef80bffdcc81d624a581d8aab601629ca9d6268e81866318fe`,
+records valid 5,712/16 accounting, exact base-output preservation, and an
+executed 104 pass / 284 fail partition. It corrects the prior prose census's
+inferred 94/294 statement and partitions the remaining rows into 244 blockified
+BR input, 20 Range-coordinate, four Range-line, four shape-break, four strut,
+four vertical-placement, and four float-height failures. No row is later-owned.
+**Bounded outcome:** Restore the diagnostic artifacts; correct those seven exact
+helper, serializer, fixture, comparator, finite-adapter, and production
+boundaries; and derive one replacement full corpus only after every changed
+input is task-clean and frozen. Scoped generation remains diagnostic-only and
+non-lineage; no unchanged-input retry occurs and generator architecture remains
+unchanged.
 **Observable exit evidence:** The final full report has 5,712 generated, exactly
 16 immutable missing-root unsupported variants, `filter: null`, reviewed browser
 and helper/manifest provenance, and zero failure classes or scoped reports. All
