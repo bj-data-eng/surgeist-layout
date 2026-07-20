@@ -11,8 +11,8 @@ Cycle base: `8ffb4bc551a24d2283ad54436870ab3f5e66a473`
 Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`5e89a8a81e5a5a62b38374d56d8dd89b7025e02efc65dfd73e33a887bcb3b87e`,
-commit `213ac89f140465691e72d1569171a94346f5e42c`: `FRI-06.4 D-01`,
+`d8ab88fe8bf6df68f2a4637c740014567bc6e8c78f5de8d3b56cb7d10fd93326`,
+commit `4cad23414cc36a4c2d51853e9fcab1233d43a77e`: `FRI-06.4 D-01`,
 `D-04`, `D-06`, `D-07`, `D-09`, `D-11`, `D-12`, `D-13`, and `D-16`;
 line, metric-fragment, atomic-baseline, physical-placement, comparator,
 fixture, and acceptance portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`
@@ -21,17 +21,19 @@ through `FRI-06.11`, and `FRI-06.14`.
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized SHA-256
-`6e07641d9d0aff921e15f8c94b8df729e7ca99ccb6c991c3d3524ead0e1edbe7`,
-commit `cb7052923ca9d791e45af59b66f80b38cfddcdb8`, entry `FRI-06-C08R`.
+`f18628f13b23f386fa21955fedc0bbf12fc27ffdfe0ccf40c33d1cd1695c2ebe`,
+commit `b924bf23b54f7f78ef1b8bac8cd0913dbbf5314c`, entry `FRI-06-C08R`.
 
 ## Outcome
 
-Correct only the ten C08-characterized production rows: two direct-root RTL
-percentage-block-size rows, four vertical break/clear placement rows, and four
-float-line exclusion rows. Freeze the reviewed inputs, run exactly one full
-unfiltered generation with the already-installed pinned browser, and publish a
-lineage in which all 388 activated public rows pass while the other 5,324 XML
-bodies preserve their entry semantics.
+Replace C08's diagnostic name/expectation synthesis with the specification's
+closed explicit fixture inputs, then correct the ten C08-characterized
+production rows: two direct-root RTL percentage-block-size rows, four vertical
+break/clear placement rows, and four float-line exclusion rows. Freeze the
+reviewed inputs, run exactly one full unfiltered generation with the
+already-installed pinned browser, and publish a lineage in which every 388-row
+activation entry has browser-pass evidence or one reviewed Chrome-failure
+substitute while the other 5,324 XML bodies preserve their entry semantics.
 
 ## Boundary And Evidence
 
@@ -43,7 +45,9 @@ rows. The production-browser assertion
 is exact RED; the companion current-geometry assertion prevents an incomplete
 diagnosis from being mistaken for acceptance.
 
-The direct RTL defect is a redundant physical-direction reversal in
+T1 is task-clean at `70d6e048c249b45fe5202b03063a9c76a926501e`; the amended
+fixture-input and Chrome-oracle contracts do not change its traversal outcome or
+evidence. The direct RTL defect was a redundant physical-direction reversal in
 `src/inline.rs`: `reordered_inline_unit_indices` already yields bidi visual
 order, after which `visual_order_opposes_logical_progression` reverses that
 order again for horizontal RTL. The correction removes that second reversal
@@ -66,29 +70,39 @@ terminal extent of 62.5 and rounded root height 63. The correction derives the
 extent from resolved line/float geometry and does not retain or replace an ad
 hoc content-type or integer-rounding adjustment.
 
-No task changes public API, fixture HTML, parser input, helper serialization,
-manifest, browser policy, launch profile, base style, Taffy source, dependency,
-feature, MSRV, root integration, or later-owned behavior. Generator
-architecture expansion is prohibited. A generator change is allowed only if a
-focused test proves a genuine generator bug blocks the frozen contract; that
-finding returns the plan for semantic revision and review before implementation.
+T1A owns only the eight exact HTML marker sources in `FRI-06.11`, helper and
+narrow existing-generator serialization for the three closed XML forms, strict
+parser support, and focused fixture-input tests. No task changes public API,
+browser policy, launch profile, base style, Taffy source, dependency, feature,
+MSRV, root integration, or later-owned behavior. Generator architecture
+expansion is prohibited. Any generator change beyond those exact serializer
+forms requires a focused test proving a genuine bug and returns the plan for
+semantic revision and review before implementation.
 
 Scoped generation remains an optional diagnostic during an implementation
-iteration, never acceptance evidence. This cycle does not need it. After T1
-through T3 and every T4 input/check change are task-clean and frozen, T4 runs
-one full unfiltered `generate-existing` invocation. No task reruns generation
-over unchanged inputs. A failed process or unexpected output returns the exact
-blocker and preserves the resulting evidence; it is not retried. Any later
-authorized input change requires plan reconciliation before one replacement
-full run.
+iteration, never acceptance evidence. This cycle does not need it. T1A adds the
+explicit path while retaining the exact old adapter only for stale committed XML.
+After T1A through T3 are task-clean, T4 commits its final adapter removal and
+input/check freeze, then runs one full unfiltered `generate-existing` invocation.
+No task reruns generation over unchanged inputs. A failed process or unexpected
+output returns the exact blocker and preserves the resulting evidence; it is not
+retried. Any later authorized input change requires plan reconciliation before
+one replacement full run.
+
+## Known Chrome Measurement Failures
+
+None at this reviewed revision. Chrome remains authoritative. Adding an entry is
+a material plan change requiring all exact `FRI-06.11` proof, substitute,
+disposition, and revalidation evidence plus fresh plan review before
+implementation or generation.
 
 ## Impacts
 
 - **Public API and compatibility:** unchanged.
 - **Production:** narrow inline traversal, line-metric projection, and terminal
   auto-block corrections in existing internal paths.
-- **Tests:** exact ten-row GREEN transitions plus focused controls; one final
-  388-row generated comparator and lineage/provenance checks.
+- **Tests:** explicit-input honesty and malformed-input controls, exact ten-row
+  GREEN transitions, and one final 388-row comparator and lineage/provenance.
 - **Generated artifacts:** T4 alone replaces the 5,712 XML lineage and report;
   no scoped report is accepted.
 - **Dependencies, features, docs, examples, MSRV, and root:** unchanged; C09
@@ -139,6 +153,55 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 **Intended commit:** `fix(layout): consume RTL visual order once`.
 
+### `C08R-T1A` Replace Synthetic Fixture Dispatch With Explicit Inputs
+
+**Files/area:** `tests/layout/browser_parity/support.rs`,
+`tests/layout/browser_parity/scripts/gentest/test_helper.js`, the narrow
+serializer and focused tests in `tests/bin/surgeist-layout-generate/generator.rs`,
+focused tests in `tests/layout/browser_parity.rs`, and only these HTML sources:
+`subgrid/subgrid_baseline_auto_columns_{first,second}_item.html`,
+`subgrid/subgrid_baseline_standalone_axis_{first,second}_item.html`,
+`subgrid/subgrid_auto_track_sizing_min_content_text_runs.html`,
+`block/{fri06_bidi_mixed_inline,fri06_inline_mixed_text_atomic_wrap}.html`, and
+`float/fri06_float_line_exclusion.html`. No production or generated output.
+
+**Outcome:** Serialize and strictly parse the exact anonymous-wrapper,
+transparent-inline-container, and containing-strut schema and inventory in
+`FRI-06.11`. The explicit path parses normalized input and expectations
+independently. Retain `apply_fri06_c08_finite_adapter` and its helpers unchanged
+and exact only to keep stale committed XML executable until T4; no explicit-form
+test may enter that compatibility path.
+
+**RED:** Add the focused `fri06_c08r_fixture_input_` equality and rejection tests
+first. At the task base, the closed XML attributes/boundaries are unsupported,
+explicit marker inventory is unenforced, renaming prevents synthesis, and a
+valid expectation-only structural change can block adapter input lowering.
+
+**Acceptance:** The exact eight-source marker inventory passes and any missing,
+extra, duplicate, misplaced, malformed, or elsewhere-used marker fails. The
+three XML forms accept only the specified attributes, placement, metrics, and
+payload absence. Renaming a test and arbitrary expectation-only mutation produce
+identical normalized parsed input. Transparent browser wrappers normalize input
+and expectation trees independently. Synthetic serializer-to-parser fixtures
+cover all five former adapter source families from explicit facts. Static and
+runtime evidence proves explicit lowering reads neither fixture name nor
+expectations, while the old compatibility block and hashes remain exact. No
+generation or `corpus-check` runs.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08r_fixture_input_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08r_fixture_input_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just fmt-check
+```
+
+**Dependency:** T1 is task-clean.
+
+**Intended commit:** `test(parity): serialize explicit C08R fixture inputs`.
+
 ### `C08R-T2` Preserve Vertical Line-Band Phase
 
 **Files/area:** line metric resolution and physical projection in
@@ -172,7 +235,7 @@ CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T1 is task-clean.
+**Dependency:** T1A is task-clean.
 
 **Intended commit:** `fix(layout): preserve vertical line band phase`.
 
@@ -218,17 +281,19 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 **Files/area:** focused lineage/comparator tests in
 `tests/bin/surgeist-layout-generate/generator.rs` and
-`tests/layout/browser_parity.rs`; generated XML under
+`tests/layout/browser_parity.rs`, final compatibility removal in
+`tests/layout/browser_parity/support.rs`; generated XML under
 `tests/layout/browser_parity/xml/` and the authoritative generation report.
-Production, HTML, helper, parser, manifest, launch profile, base style, and
-generator behavior are frozen.
+Production, HTML, helper, explicit parser behavior, manifest, launch profile,
+base style, and generator behavior are frozen.
 
 **Outcome:** Pin all generation inputs and the normalized 388-row activation
-union before generation. Execute exactly one full unfiltered existing-pinned
-generation, then use read-only tests to prove the complete final lineage.
+union, then remove the complete name/expectation compatibility adapter before
+generation. Execute exactly one full unfiltered existing-pinned generation, then
+use read-only tests to prove the complete final lineage.
 
-**Evidence before the run:** Focused tests pin helper SHA-256
-`d4bc9ec937f5de860f737ff7d886384a861a52d7004b39551e13852a1378acdc`,
+**Evidence before the run:** Focused tests pin the exact task-clean T1A helper,
+eight-source HTML inventory, parser, serializer, and source-preflight hashes;
 corpus manifest
 `99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701`,
 base style
@@ -238,9 +303,12 @@ launch profile
 browser `149.0.7827.115`, Taffy source
 `d1ff7e339b9ee35b33858779f8d7653197e93d92`, and normalized census
 `0630d2606f1e53c56b69cd226665b899bbfd96ed60ad7ac3c80ec5d9423b5691`.
-They prove the filter variables are absent and the ten production expectations
-already pass from frozen serialized inputs. Commit all such test changes before
-the run; no generated output is part of that preflight commit.
+They prove the filter variables are absent, explicit input and expectation
+lowering are independent, all compatibility identifiers and calls are absent,
+and each production row already browser-passes from frozen input or has the exact
+reviewed substitute registry disposition. Commit all such test/parser changes
+before the run; stale checked-in artifacts are the expected task-local RED and
+no generated output is part of that preflight commit.
 
 **Single generation command:**
 
@@ -254,12 +322,15 @@ failure. If it exits nonzero or produces unexpected output, stop with exact
 status, output inventory, hashes, and worktree state.
 
 **Acceptance after the run:** The authoritative report records `filter: null`,
-5,712 generated variants, exactly 16 unsupported missing-root variants, and zero
-expected-fail, quarantined, failed-to-generate, or other failure buckets. Exact
-provenance matches the frozen inputs. All 388 normalized activation rows compare
-against their corresponding generated XML and pass. The other 5,324 XML bodies
-preserve entry semantics; provenance-only byte changes are allowed. No scoped
-report or untracked generated output remains. Record the final report SHA-256,
+5,712 generated variants, exactly 16 unsupported missing-root variants,
+expected-fail inventory exactly equal to the reviewed plan registry (normally
+zero), and zero quarantined, failed-to-generate, or other failure buckets. Exact
+provenance matches the frozen inputs. Each of the 388 normalized activation rows
+is a browser pass or has its reviewed passing synthetic substitute. The other
+5,324 XML bodies preserve entry semantics; provenance-only byte changes are
+allowed. No fixture/source-name dispatch or expectation reader can select,
+create, or alter parsed layout input. No scoped report or untracked generated
+output remains. Record the final report SHA-256,
 5,712-file XML aggregate, 388-row comparison aggregate, and 5,324-body semantic
 aggregate. `FRI-13` remains unclaimed.
 
@@ -275,16 +346,16 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T1 through T3 are task-clean; T4 preflight inputs and tests are
-committed and unchanged.
+**Dependency:** T1, T1A, T2, and T3 are task-clean; T4 preflight inputs and tests
+are committed and unchanged.
 
 **Intended commits:** `test(parity): freeze C08R lineage inputs`, then
 `test(parity): derive final C08R lineage`.
 
 ## Completion
 
-T1 through T4 each receive a fresh task review over their exact ordered task
-range. Before status completion, prove the single-generation command appears
+T1, T1A, T2, T3, and T4 each receive a fresh task review over their exact ordered
+task range. Before status completion, prove the single-generation command appears
 once in execution evidence, generated inputs match the frozen preflight commit,
 and every task acceptance command passes. Make a separate status-only
 `complete` commit, then run:
