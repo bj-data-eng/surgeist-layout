@@ -291,6 +291,40 @@ retain entry accounting. Input-freeze and semantic-oracle tests are green.
 env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
+The first T3 assignment stopped without retry after invoking Cargo with the
+noncanonical browser prefix `target/surgeist-browser/chrome-mac-arm-149.0.7827.115/`.
+Executable canonicalization failed before browser launch or artifact writes;
+the prescribed command above was not executed, and the stale report and XML
+aggregate retained their entry hashes. This reviewed amendment authorizes one
+replacement assignment to preserve the completed RED tests and execute the
+exact command above once. It must first reconfirm the executable, frozen inputs,
+stale artifact hashes, and absence of generator output from the invalid attempt.
+Any failure or unexpected output from the replacement stops the lineage with no
+further invocation.
+
+The replacement preflight is exact. Prove `HEAD^` equals
+`991f31d5fe446efaea09da0f6a59aa451472af63`, `rev-list --count` from that R2
+revision is one, and `diff-tree --name-only` for HEAD contains only this cycle
+plan. Exact porcelain v1 status, including untracked files, must contain only
+unstaged modifications to `tests/bin/surgeist-layout-generate/generator.rs` and
+`tests/layout/browser_parity.rs`; any other line fails. Against R2,
+`git diff --quiet` must pass for `Cargo.toml`, `Cargo.lock`, `Justfile`, `src/`,
+`corpus.toml`, complete `html/` and `scripts/gentest/` trees, `support.rs`, XML,
+and the report. Update and run only
+`fri06_c08_t3_inputs_match_reviewed_terminal_freeze` with all four overrides
+unset: it must separately verify the specification, sequence, census, production
+generator, manifest, helper, base-style, source-set, task-runner, and Rust input
+digests, plus this cycle plan's normalized hash from the fresh review receipt;
+the whole-`plans/` diff check is replaced by those exact planning checks.
+`test -x` for the prescribed browser and `--version` `149.0.7827.115` must pass.
+The stale report hash below and the stale XML aggregate below, computed from
+sorted `shasum -a 256` output for every tracked `*.xml`, must match. Record every
+status and value before the replacement.
+
+```sh
+env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_t3_inputs_match_reviewed_terminal_freeze
+```
+
 **Acceptance:** The report records `filter: null`, 5,712 generated, exactly 16
 missing-root unsupported variants, zero other buckets, and exact browser, launch,
 helper, manifest, base-style, and Taffy provenance. All 388 rows pass; the other
@@ -311,7 +345,11 @@ CARGO_NET_OFFLINE=true just fmt-check
 
 **Dependency:** T1, T2, R0, R1, and R2 are freshly task-clean; every input hash is
 frozen; the pinned browser reports `149.0.7827.115`; no generator override or
-filter is set.
+filter is set. The invalid preflight attempt left report SHA-256
+`4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab` and XML
+aggregate SHA-256
+`d8fad6bbab9ad0b5bece5299a983e588935cfd591d9430d38ddac900ec9eea1d`
+unchanged.
 
 **Intended commit:** `test(parity): derive final FRI-06 browser lineage`.
 
