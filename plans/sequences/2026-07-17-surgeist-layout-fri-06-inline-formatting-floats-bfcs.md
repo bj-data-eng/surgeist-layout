@@ -11,8 +11,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`5947ebb3ad527489634319c10629e438c5ff0cad4fb7e32b4fdc9225f771b56f`,
-committed as `55b0ad29c6f082041a19bb3e2e2e102d8011e582`.
+`af45a7cdfd16fa5b89cb41719b5ed2ccfbc67b138d575d35174d684d6e6bb3b2`,
+committed as `213ac89f140465691e72d1569171a94346f5e42c`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -252,8 +252,11 @@ production correction remain explicitly owned by C07.
 **Specification sources:** `FRI-06.4 D-16`; browser/comparator portions of
 `FRI-06.9` and `FRI-06.10`; `FRI-06.11`; artifact portions of `FRI-06.14`.
 
-**Prerequisites:** `FRI-06-C05` and its post-C05 containment window complete and
-remotely verified.
+**Prerequisites:** `FRI-06-C05` and the `FRI-06-MR02-C01` post-C05 containment
+handoff in `plans/cycles/2026-07-19-surgeist-layout-fri-06-mr02-c01-post-c05-sprawl-containment.md`
+complete, published, and remotely verified at
+`6e3772f509b919ec9a9d027d8298600ed98ee531`, with fixture and generator inputs
+unchanged.
 
 **Entry state:** Product behavior and finite production fixture-facing facts have
 focused C05 evidence but have not yet faced the activation matrix; C07 owns that
@@ -323,28 +326,21 @@ comparator portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`, `FRI-06.10`, and
 **Prerequisites:** `FRI-06-C07` complete and remotely verified; its production
 and finite adapter decisions are the C08 entry handoff.
 **Entry state:** Reviewed inputs produced one retained diagnostic lineage with
-exact 5,712/16 accounting and unchanged base semantics, but only 36 of the fixed
-388 public comparisons pass. Its exact disjoint census is 314 finite input rows
-(`060a024d38f4331a3aefe5971dc9db9a2a740e2a88aa7b5d02e41d0c735e73e2`),
-10 comparator rows (`240c1679d8343049d7ab3343e34a173da20ef49e03bfb45fa2d46a5e97d1a641`),
-24 adapter rows (`efce04f838f358bda851df2b723c01c1c51b6247c39c662ffdc8e5fbd3f12aa2`),
-four production rows (`7b4fc8b3bb27f912d3f39d2aadc05c243ead274fed54c20dfa43bd0825f7c61f`),
-and 36 pass controls (`97177ac281f2908dc5bcda26ef984100d7f36c67e458aa8d5b05a8c75ac59fa4`).
-That lineage is not acceptance evidence.
-Membership is immutable in
-`plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv`,
-SHA-256 `e972e8d67e32919ce736f6d5428f017fa9a61ec5112fa75b2ec5b9d43b53e4f5`,
-commit `5fa1d0bc8b48649d1e0f7335260f8f42ee6d049e`. Input rows select
-`artifact.*`, `identity.*`, and `later_owned.flow_root_display_normalization`;
-the other partitions select exact `comparator.*`, `adapter.*`, `production.*`,
-and `pass` categories.
-**Bounded outcome:** Correct the exact 314 helper/source rows without entering
-later-owned `flow-root`, shaping, or bidi analysis; correct only the exact 10
-observation/comparator, 24 finite adapter, and four production rows; revalidate
-the affected input tasks; then derive and retain one replacement full corpus
-after all changed inputs are reviewed and frozen. No correction task runs
-generation, scoped generation is diagnostic-only and non-lineage, and no
-unchanged-input retry occurs. Generator architecture remains unchanged.
+exact 5,712/16 accounting and valid provenance, but only 94 of the fixed 388
+public comparisons pass. The post-run census at
+`plans/2026-07-20-surgeist-layout-fri-06-c08-post-generation-census.md`, SHA-256
+`2c4179f559c5fa9e93c6933e0ba1a4969b758fc4a4f738d619c2751796b8bf00`,
+commit `96206cb2da33dae354eba90661ff8c5823fe7928`, partitions all rows into
+130 placement, 72 control, 52 height, four scroll, eight float/clear, four
+Range-origin, four shape-band, four finite later-owned adapter, 16 parser, and 94
+pass controls. It validates bounded helper, fixture, comparator, adapter, and
+production causes. The lineage is diagnostic only and has one full invocation.
+**Bounded outcome:** Correct those exact finite categories under the revised
+FRI-06.11 adapter contract, revalidate every affected input and production path,
+discard the invalid diagnostic artifacts, and derive one replacement full corpus
+only after all changed inputs are reviewed and frozen. Scoped generation remains
+diagnostic-only and non-lineage; no unchanged-input retry occurs. Generator
+architecture remains unchanged.
 **Observable exit evidence:** The final full report has 5,712 generated, exactly
 16 immutable missing-root unsupported variants, `filter: null`, reviewed browser
 and helper/manifest provenance, and zero failure classes or scoped reports. All
