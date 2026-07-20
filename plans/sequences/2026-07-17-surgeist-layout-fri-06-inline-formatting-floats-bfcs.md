@@ -11,8 +11,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`5e89a8a81e5a5a62b38374d56d8dd89b7025e02efc65dfd73e33a887bcb3b87e`,
-committed as `213ac89f140465691e72d1569171a94346f5e42c`.
+`d8ab88fe8bf6df68f2a4637c740014567bc6e8c78f5de8d3b56cb7d10fd93326`,
+committed as `4cad23414cc36a4c2d51853e9fcab1233d43a77e`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -31,12 +31,12 @@ FRI-01's unit cache key remains unchanged. Transactional invalidation uses only
 the reviewed FRI-06 entry point, exact ancestor closure, and two-phase batch
 application.
 
-Scoped generation remains optional diagnostic work rather than completion
-evidence. The artifact cycle exclusively owns the bounded HTML/parser/helper,
-manifest, XML, and report changes. Its final artifacts have one full unfiltered
-existing-pinned no-fetch lineage after all owned inputs settle. Later closure is
-read-only for generation inputs and outputs; a confirmed input defect returns to
-that artifact cycle and invalidates its prior lineage.
+Scoped generation remains optional diagnostic work, never completion evidence.
+C08 synthesis is characterization only. C08R replaces name/expectation-driven
+lowering with the closed explicit fixture-input contract, records exact known
+Chrome failures or `None`, and owns the only full unfiltered existing-pinned
+lineage after inputs settle. C09 is read-only for generation inputs and outputs;
+a confirmed input defect returns to C08R and invalidates its lineage.
 
 ## Activation Recovery Evidence
 
@@ -347,14 +347,17 @@ non-generation gates pass, and artifacts retain committed entry hashes.
 physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
 `FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
 **Prerequisites:** `FRI-06-C08` complete and remotely verified.
-**Entry state:** All fixture-side inputs are frozen; exactly ten characterized
-public rows remain at direct RTL, vertical-placement, and float-height boundaries.
-**Bounded outcome:** Correct only those production boundaries, freeze reviewed
-inputs, then run one full unfiltered existing-pinned generation. No unchanged-
-input retry, generator architecture change, or later-owned behavior is permitted.
-**Observable exit evidence:** The report is 5,712/16 with `filter: null`, exact
-provenance and zero failure buckets; all 388 rows pass; the other 5,324 bodies
-preserve semantics; no scoped report remains. The FRI-13 gate stays unclaimed.
+**Entry state:** C08's inputs and ten-row characterization are diagnostic-frozen;
+T1 has corrected direct RTL, while name/expectation-driven final lowering and
+eight vertical/float production rows remain.
+**Bounded outcome:** Serialize the closed input-only fixture facts, record exact
+known Chrome failures or `None`, correct remaining production boundaries, freeze
+inputs, then run one full existing-pinned generation. No unchanged-input retry,
+generator architecture change, or later-owned behavior is permitted.
+**Observable exit evidence:** Report is 5,712/16 and `filter: null`; expected-fail
+inventory exactly equals the reviewed plan registry, normally zero; every 388 row
+is browser-pass or has the reviewed synthetic substitute; the other 5,324 bodies
+preserve semantics; no scoped report remains and FRI-13 stays unclaimed.
 **Handoff:** Generator inputs and outputs are frozen for read-only C09 closure.
 
 ### `FRI-06-C09` Public Evidence And Leaf Candidate Closure
