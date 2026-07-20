@@ -4301,6 +4301,105 @@ fn fri06_c03_mixed_bidi_reorders_complete_units_per_line_both_scalars() {
     assert_lane::<f64>();
 }
 
+fn assert_fri06_c08_mixed_inline_atomic_x<S: LayoutScalar>(
+    direction: Direction,
+    box_sizing: BoxSizing,
+    expected_x: f64,
+) {
+    let mut leading_atomic = fri06_c03_atomic_style(
+        18.0,
+        18.0,
+        0.0,
+        0.0,
+        1,
+        InlineBreakOpportunityOf::prohibited(),
+    );
+    leading_atomic.box_sizing = box_sizing;
+    let mut atomic = fri06_c03_atomic_style(
+        12.0,
+        18.0,
+        0.0,
+        0.0,
+        1,
+        InlineBreakOpportunityOf::prohibited(),
+    );
+    atomic.box_sizing = box_sizing;
+    atomic.margin = match direction {
+        Direction::Ltr => Edges {
+            left: LengthAutoOf::px(S::from_f64(6.0)),
+            ..Edges::all(LengthAutoOf::ZERO)
+        },
+        Direction::Rtl => Edges {
+            right: LengthAutoOf::px(S::from_f64(6.0)),
+            ..Edges::all(LengthAutoOf::ZERO)
+        },
+    };
+    let root = NodeInputOf {
+        display: Display::Block,
+        writing_mode: WritingMode::HorizontalTb,
+        direction,
+        box_sizing,
+        size: Size::new(
+            PreferredSizeOf::px(S::from_f64(210.0)),
+            PreferredSizeOf::AUTO,
+        ),
+        ..NodeInputOf::default()
+    };
+    let batch = fri06_c03_mixed_batch_with_root(
+        vec![
+            (
+                1,
+                LayoutInputOf::box_input(leading_atomic.clone()),
+                leading_atomic,
+            ),
+            (
+                2,
+                fri06_c03_text_input(vec![fri06_c02_segment_with_level(
+                    801,
+                    75.0,
+                    0,
+                    InlineWhitespaceEdge::DiscardAtBoth,
+                    InlineBreakOpportunityOf::prohibited(),
+                )]),
+                NodeInputOf::non_box(),
+            ),
+            (3, LayoutInputOf::box_input(atomic.clone()), atomic),
+        ],
+        AvailableOf::definite(S::from_f64(210.0)),
+        root,
+    );
+
+    assert_eq!(
+        fri06_c02_final_node(&batch, 3).location.x,
+        S::from_f64(expected_x),
+        "{direction:?} {box_sizing:?} mixed-line atomic placement"
+    );
+}
+
+#[test]
+fn fri06_c08_mixed_inline_rtl_border_box_places_atomic_at_visual_line_start() {
+    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Rtl, BoxSizing::BorderBox, 192.0);
+    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Rtl, BoxSizing::BorderBox, 192.0);
+}
+
+#[test]
+fn fri06_c08_mixed_inline_rtl_content_box_places_atomic_at_visual_line_start() {
+    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Rtl, BoxSizing::ContentBox, 192.0);
+    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Rtl, BoxSizing::ContentBox, 192.0);
+}
+
+#[test]
+fn fri06_c08_mixed_inline_ltr_border_box_preserves_logical_placement() {
+    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Ltr, BoxSizing::BorderBox, 99.0);
+    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Ltr, BoxSizing::BorderBox, 99.0);
+}
+
+#[test]
+fn fri06_c08_mixed_inline_ltr_content_box_preserves_logical_placement() {
+    assert_fri06_c08_mixed_inline_atomic_x::<f32>(Direction::Ltr, BoxSizing::ContentBox, 99.0);
+    assert_fri06_c08_mixed_inline_atomic_x::<f64>(Direction::Ltr, BoxSizing::ContentBox, 99.0);
+}
+
 #[test]
 fn fri06_c07_sideways_lr_rtl_all_atomic_odd_bidi_keeps_visual_placement_both_scalars() {
     fn assert_lane<S: LayoutScalar>() {
