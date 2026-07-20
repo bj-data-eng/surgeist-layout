@@ -215,7 +215,7 @@ CARGO_NET_OFFLINE=true just fmt-check
 **Files/area:** focused lineage/comparator tests in
 `tests/bin/surgeist-layout-generate/generator.rs` and
 `tests/layout/browser_parity.rs`; generated XML under
-`tests/layout/browser_parity/expected/` and the authoritative generation report.
+`tests/layout/browser_parity/xml/` and the authoritative generation report.
 Production, HTML, helper, parser, manifest, launch profile, base style, and
 generator behavior are frozen.
 
