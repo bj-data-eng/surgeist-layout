@@ -1,6 +1,6 @@
 # FRI-06-C08 Fixture Input Recovery And Characterization
 
-Status: in_progress
+Status: complete
 
 Cycle ID: `FRI-06-C08`
 
