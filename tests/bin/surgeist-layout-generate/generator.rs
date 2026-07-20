@@ -7325,7 +7325,7 @@ console.log(JSON.stringify({
 const window = {};
 const CSSRule = { STYLE_RULE: 1 };
 const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
-const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 180, bottom: 62, width: 180, height: 62 };
+const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 180, bottom: 62.5, width: 180, height: 62.5 };
 const textRect = { x: 42, y: 1.2, left: 42, top: 1.2, right: 82, bottom: 21.2, width: 40, height: 20 };
 const range = {
   selectNodeContents() {},
@@ -7404,7 +7404,7 @@ console.log(JSON.stringify({
   useRounding: false,
   viewport: { width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
   style: { display: "block", size: { width: { unit: "px", value: 180 } } },
-  unroundedLayout: { x: 0, y: 0, width: 180, height: 62 },
+  unroundedLayout: { x: 0, y: 0, width: 180, height: 62.5 },
   children,
 }));
 "#,
