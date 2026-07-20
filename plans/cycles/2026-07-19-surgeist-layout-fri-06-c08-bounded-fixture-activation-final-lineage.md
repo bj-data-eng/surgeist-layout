@@ -10,342 +10,291 @@ Cycle base: `bcdba3c49be09ad119c03ecdc4c77da803159132`
 
 Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
-at normalized semantic-content SHA-256
-`5947ebb3ad527489634319c10629e438c5ff0cad4fb7e32b4fdc9225f771b56f`,
-commit `55b0ad29c6f082041a19bb3e2e2e102d8011e582`: `FRI-06.4 D-01`,
-`D-04`, `D-09`, `D-11`, and `D-16`; metric-fragment, atomic-baseline,
-physical-placement, browser-comparator, fixture, and acceptance portions of
-`FRI-06.5`, `FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
+at normalized SHA-256
+`af45a7cdfd16fa5b89cb41719b5ed2ccfbc67b138d575d35174d684d6e6bb3b2`,
+commit `213ac89f140465691e72d1569171a94346f5e42c`: `FRI-06.4 D-01`,
+`D-04`, `D-09`, `D-11`, `D-13`, and `D-16`; the applicable metric,
+control, bidi, float, fixture, compatibility, and acceptance portions of
+`FRI-06.5`, `FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and
+`FRI-06.14`.
 
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at SHA-256
-`e63cf81408a8ac1c9ec193ec3e8c026c632940900b285d2325d3a3450ab00b7c`,
-commit `d956d801fdb4e8f5bdc774b89e08182c37cc7cea`, entry `FRI-06-C08` and
-the Activation Recovery Evidence matrices.
+`d8a41dc264976b660f8bdba0a11818f9abcdef95550b561635d4d057474654d0`,
+commit `576c6877275637c82816da4f63ab217bc92c5a4a`, entry `FRI-06-C08`
+and its Activation Recovery Evidence.
 
 ## Outcome
 
-Correct the exact 352 failing rows from the retained diagnostic lineage without
-changing the fixed 388-row union or expanding the generator. Freshly revalidate
-every affected task, freeze all helper/source/parser/adapter/production inputs,
-then derive one replacement full corpus and prove all 388 comparisons, final
-5,712/16 accounting, and semantic preservation of the other 5,324 outputs.
+Correct the exact post-generation categories in the fixed 388-row activation
+union, preserve the affected base-corpus semantics, freeze every changed input,
+then derive one valid full unfiltered 5,712/16 corpus lineage. No unchanged-input
+generation, expected-failure reclassification, or generator architecture
+expansion is permitted.
 
-## Boundary
+## Boundary And Evidence
 
 FRI-06-C07 is published and remotely verified at the cycle base. C08 owns only
-the bounded fixture sources and helper/parser/serializer/comparator facts, the
-finite fixture adapter, two confirmed production corrections, focused evidence,
-and the derived XML/report replacement. The public model and C06 adapter shape
-remain unchanged.
+the bounded helper/serializer, twelve named HTML fixtures, strict
+parser/comparator, finite fixture adapter, confirmed inline traversal correction,
+focused tests, and generated XML/report lineage. Public model shape, dependencies,
+features, lockfile, MSRV, browser policy, launch profile, base style, root,
+siblings, task-runner architecture, and later-owned layout behavior do not change.
 
-The immutable entry inputs are:
+Implementation through `d8941011bd56b9371b8ef3bff9254fab6be08e14`
+received the then-applicable task reviews. The subsequent full run supplied new
+evidence and invalidated acceptance for every correction slice it touches. No
+prior verdict substitutes for the fresh complete task reviews required below.
 
-- report `tests/layout/browser_parity/xml/generation-reports/all.json`, SHA-256
-  `4f18b4299765d7f0cf996fa5c2510724cfadb577651c3a438c3f2904cc4b94ab`;
-- manifest `tests/layout/browser_parity/corpus.toml`, SHA-256
-  `bc39d26ba27e64c85b743c577f20b3cb290fe78326432ad6210f2c2b44e5fbb1`;
-- helper `tests/layout/browser_parity/scripts/gentest/test_helper.js`, SHA-256
-  `b7615b6783d3cf76ec0953533e409b9f1d5a348712fb2dd367cfc730e497584a`;
-- base style, SHA-256
-  `5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6`;
-  it remains byte-identical; and
-- existing-pinned Chrome for Testing `149.0.7827.115` at the manifest-owned
-  repository-relative executable under `target/surgeist-browser`.
+The retained diagnostic run is recorded immutably in
+`plans/2026-07-20-surgeist-layout-fri-06-c08-post-generation-census.md`,
+SHA-256 `2c4179f559c5fa9e93c6933e0ba1a4969b758fc4a4f738d619c2751796b8bf00`,
+commit `96206cb2da33dae354eba90661ff8c5823fe7928`. Its exact facts are:
 
-The retained diagnostic lineage has report SHA-256
-`69d6dc3764e0f119fcba3f6608bc51664d886f6279d18fdf23ac2b7f372e2ff4`,
-`filter: null`, 5,712 generated, and the immutable 16 missing-root unsupported
-rows. It is diagnostic evidence only: 36 of 388 public comparisons pass and 352
-fail. Its generated XML/report remain read-only while T1/T2 correct and freeze
-helper/source inputs; R0 then discards the complete invalid lineage before T3.
+- one full unfiltered invocation, exit zero, and no scoped invocation;
+- report SHA-256
+  `65d88aa1b13f813392e27690d3f5ac9b79a2bbbc1cdb86ad78328665e3aeecd0`;
+- 5,712 generated, exactly 16 missing-root unsupported, and zero other buckets;
+- valid pinned browser, launch, helper, manifest, base-style, and Taffy
+  provenance; and
+- 94 passing and 294 failing rows in the fixed 388-row union, partitioned into
+  130 placement, 72 control, 52 height, four scroll, eight float/clear, four
+  Range-origin, four shape-band, four finite later-owned adapter, and 16 parser
+  rows.
 
-Exact membership is committed in
-`plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv`,
-SHA-256 `e972e8d67e32919ce736f6d5428f017fa9a61ec5112fa75b2ec5b9d43b53e4f5`,
-commit `5fa1d0bc8b48649d1e0f7335260f8f42ee6d049e`. Matrix digests are SHA-256
-over sorted LF-terminated `source<TAB>variant` rows.
+That run is diagnostic only and the committed census is its durable evidence.
+Before T1's first implementation write, its worker restores the uncommitted
+drafts in `tests/bin/surgeist-layout-generate/generator.rs` and
+`tests/layout/browser_parity.rs` plus every tracked generated artifact to HEAD,
+removes only the untracked XML outputs enumerated by the diagnostic report, and
+proves no other path changed. The restored checked-in artifacts become T3's
+stale-entry RED. No worker hand-edits generated XML or a report.
 
-| Partition | Census selector | Rows | Digest |
-| --- | --- | ---: | --- |
-| Input | `artifact.*`, `identity.*`, `later_owned.flow_root_display_normalization` | 314 | `060a024d38f4331a3aefe5971dc9db9a2a740e2a88aa7b5d02e41d0c735e73e2` |
-| Comparator | `comparator.*` | 10 | `240c1679d8343049d7ab3343e34a173da20ef49e03bfb45fa2d46a5e97d1a641` |
-| Adapter | `adapter.*` | 24 | `efce04f838f358bda851df2b723c01c1c51b6247c39c662ffdc8e5fbd3f12aa2` |
-| Production | `production.*` | 4 | `7b4fc8b3bb27f912d3f39d2aadc05c243ead274fed54c20dfa43bd0825f7c61f` |
-| Passing control | `pass` | 36 | `97177ac281f2908dc5bcda26ef984100d7f36c67e458aa8d5b05a8c75ac59fa4` |
-| Activation union | Every census data row | 388 | `3a0f78a7fdefc9f49feee9f0fcb5a035bc87f381f8fc8d96049eaa0cdcbc2eb1` |
-
-The exact existing activation, new-source, semantic-preservation, and 5,324
-base-generated memberships remain those pinned by the sequence. No worker may
-add a source, variant, category, expected failure, quarantine, or fallback after
-seeing output.
-
-Generator architecture, acquisition, browser policy, launch profile, base style,
-dependencies, features, lockfile, MSRV, root, siblings, public API, task runner,
-and later-owned behavior are non-goals. Generator changes are allowed only for
-the reviewed finite parser/serializer fields, focused fixtures, or a confirmed
-genuine bug. No reusable parser, alternate line algorithm, text shaper, bidi
-engine, CSS parser, display normalizer, or shape engine is permitted.
-
-Scoped generation remains an optional diagnostic during implementation. It is
-never acceptance evidence and leaves no retained output. No correction task runs
-full generation. After every changed input is task-clean and frozen, T3 runs one
-full unfiltered replacement derivation. No unchanged-input retry is permitted; a
-failed run stops for a newly reviewed correction lineage.
+Scoped generation is optional during correction work only when a worker needs a
+new diagnostic after a material input change. It is never required, retained, or
+reported as verification evidence. No full generation occurs in T1 through R2.
+After all changed inputs are task-clean and frozen, T3 runs the full generator
+exactly once. A nonzero exit or unexpected output stops the lineage; it is never
+retried unchanged.
 
 ## Impacts
 
-- **Public API:** unchanged.
-- **Production behavior:** C08-R1 retains the mixed-line RTL correction and adds
-  only the exact four float-line final-height rows.
-- **Dependencies, features, lockfile, MSRV, and browser policy:** unchanged.
-- **Generated artifacts:** all XML and the full report are replaced only by T3's
-  valid lineage; no artifact is hand-edited.
-- **Docs/root:** only the reviewed planning and census evidence changes; C09 owns
-  public evidence and handoff closure.
-- **Safety:** no executable unsafe and no new `allow` or `expect` attribute in
-  tracked or non-ignored owned Rust.
+- **Public API and compatibility:** unchanged.
+- **Production behavior:** R1 completes only shaped/boundary RTL traversal
+  already required by FRI-06; no float-rounding or shared compute change.
+- **Fixtures and artifacts:** bounded helper/parser/HTML corrections precede one
+  full derived XML/report replacement.
+- **Generator:** only narrow serializer tests or a confirmed genuine bug may
+  change; architecture, acquisition, browser policy, and task running do not.
+- **Docs and root:** planning evidence only; C09 owns public closure and the leaf
+  candidate handoff.
+- **Safety and lints:** no Surgeist-owned unsafe and no new `allow` or
+  `expect` attribute.
 
 ## Tasks
 
-### `C08-T1` Settle Existing Activation Inputs
+### `C08-T1` Correct Helper And Serializer Semantics
 
-**Files/area:** the exact 85 entry-report HTML sources; helper
-`scripts/gentest/test_helper.js`; narrow JSON/XML serialization in
-`tests/bin/surgeist-layout-generate/generator.rs`; focused generator tests.
+**Files/area:** `tests/layout/browser_parity/scripts/gentest/test_helper.js`,
+narrow serialization in `tests/bin/surgeist-layout-generate/generator.rs`, and
+focused tests.
 
-**Outcome:** The complete T1 range replaces the three exact unsupported families
-with explicit layout-ready facts for all 340 existing rows and corrects every
-input-census row on those sources. Atomic participation/break/visual facts derive
-from computed/lowered atomic role after blockification; Range source order never
-becomes visual order. Preserve stable identity, significant whitespace, the four
-missing-root sources, and byte-identical base style.
+**Precondition:** Preserve the committed census, discard only the two exact draft
+paths and invalid generated lineage named above, and prove the remaining worktree
+matches HEAD before adding RED.
 
-**RED:** At the T1 task base, the focused command exits 101 because the helper
-still classifies the exact activation families as unsupported, lacks finite
-tuples/schema, and treats authored-inline/computed-block children as atomic. Tests
-bind the exact 85-source/340-row digest, baseline subset, census intersection, and
-a blockification negative control before implementation.
+**Outcome:** Make Range starts local to the nearest explicit layout-ready inline
+root; emit model control participation only for an explicitly computed/lowered
+inline BR role; retain blockified BR as an ordinary box; and suppress legacy raw
+text fallback when typed inline children exist. Serializer state rejects malformed
+or non-BR control facts and preserves the 64 spill variants' prior semantics.
 
-**GREEN/acceptance:** The same focused command passes with complete finite tuples,
-parser serialization, and the 5,324-output preservation predicate without reading
-a replacement report. No XML/report change or generation belongs to T1. Freshly
-re-review T1's complete ordered range against this revised plan before T2/R0.
+**RED:** Focused helper/serializer tests reproduce the direct-parent Range
+offset, source-tag BR promotion, malformed control acceptance, and duplicate text
+fallback. Negative controls prove authored tags and activation ancestors are
+insufficient.
 
-**Commands:**
-
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_existing_
-CARGO_NET_OFFLINE=true just generator-check
-CARGO_NET_OFFLINE=true just generator-clippy
-CARGO_NET_OFFLINE=true just fmt-check
-```
-
-**Dependency:** published C07 production candidate and C06 adapter.
-
-**Intended commit:** `test(parity): settle existing FRI-06 activation inputs`.
-
-### `C08-T2` Add Twelve Finite FRI-06 Sources
-
-**Files/area:** exactly twelve `FRI-06.11` HTML paths, twelve matching manifest
-records, and focused manifest/helper tests. T1 helper/parser changes only when a
-T2 RED proves one missing reviewed field.
-
-**Outcome:** The complete T2 range authors the exact 48 variants for mixed text,
-atomic wrapping/baselines/percentage basis, unequal line alignment, forced break,
-vertical clear, bidi identity, line exclusion, BFC avoidance, float auto height,
-logical clear, and finite shape bands, and corrects every input-census row on
-those sources. BFC fixtures use supported overflow rather than `flow-root`.
-
-**RED:** At the T2 task base, the focused command exits 101 because the twelve
-sources, manifest records, 48-row expansion, and assigned finite facts do not yet
-exist. Tests bind exact paths, IDs, ownership, four-variant digest, and accounting.
-
-**GREEN/acceptance:** The same focused command passes with active status, exact
-48-row facts, 5,712/16 replacement accounting, and no cross-family facts without
-reading a replacement report. No XML/report change or generation belongs to T2.
-Freshly re-review T2's complete ordered range before R0.
+**Acceptance:** Exact root-local Range, explicit-control, blockification,
+replacement, and 64-variant preservation matrices pass without XML/report
+changes or generation. A fresh reviewer covers the complete reopened T1 range.
 
 **Commands:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_new_
-CARGO_NET_OFFLINE=true just generator-check
-CARGO_NET_OFFLINE=true just generator-clippy
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_t1_
+CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T1 freshly task-clean under this revised plan.
+**Dependency:** the reviewed plan and committed post-generation census.
 
-**Intended commit:** `test(parity): add bounded FRI-06 browser sources`.
+**Intended commit:** `fix(parity): preserve lowered inline fixture roles`.
 
-### `C08-R0` Correct Exact Input And Comparator Rows
+### `C08-T2` Correct The Named HTML Fixture Oracles
 
-**Files/area:** narrow parser/comparator code and focused tests; three stale
-accounting tests; and complete cleanup of the retained invalid XML/report lineage.
-Frozen T1/T2 helper/source inputs, production, and the 24 adapter rows are
-read-only.
+**Files/area:** only the named FRI-06 mixed-wrap, BFC-avoidance, and shape-
+exclusion HTML sources plus focused source tests.
 
-**Outcome:** Reconcile the frozen exact 314 input corrections supplied by T1/T2:
-252 computed-role atomic markers, 38 non-visual Range identities, 20 supported-
-overflow BFC variants, and four shaped-text identities. Correct exactly six
-unrounded Range advances and four browser `<br>` observations. Range facts retain
-source, line, physical flow-inline start, and unrounded advance only; browser
-Range order supplies no visual index and `<br>` ink no model control geometry.
+**Outcome:** Add the allowed break after the first 18px atomic in
+`fri06_inline_mixed_text_atomic_wrap`; remove text labels that create unintended
+scroll overflow in `fri06_float_bfc_avoidance`; and encode the two observed
+shape query bands `0..21.2` and `21.2..37.2`, both returning `0..44`, in
+`fri06_float_shape_exclusion`. Do not add a source, manifest record, layout
+feature, or general shape representation.
 
-**RED:** Census-bound tests prove all exact selectors/digests and the frozen 314
-input rows, then expose each old parser/comparator behavior with finite controls.
-The three stale accounting tests reconstruct entry or census membership rather
-than consulting the replacement report. Restore tracked XML/report to the cycle
-entry and remove every untracked diagnostic XML file; preserve the census.
+**RED:** Focused source/query-recorder tests fail on the absent break, nonzero
+scroll caused by labels, and guessed `0..20/20..40/40..60` bands.
 
-**Acceptance:** Exact 314/10 membership passes with no spill into adapter,
-production, or 36 controls. Explicit model fragment/control expectations remain
-strict. Record frozen helper, manifest, and source-set hashes. No XML/report
-change and no full generation remain. Append corrections to the existing R0 task
-range, then freshly re-review R0 and the complete T1/T2 ranges in the composed
-parser/comparator state; prior clean verdicts do not carry.
+**Acceptance:** The three exact source matrices and negative controls pass with
+the twelve-source/48-variant inventory and manifest hash otherwise unchanged.
+No generation or artifact change occurs. A fresh reviewer covers complete T2.
 
 **Commands:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_existing_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_new_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_range_ink_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_range_ink_
-CARGO_NET_OFFLINE=true just generator-check
-CARGO_NET_OFFLINE=true just generator-clippy
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_t2_
+CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T1 and T2 freshly task-clean under this revised plan, and the
-committed census. R0's composed changes then require the named post-R0 re-reviews.
+**Dependency:** T1 is task-clean.
 
-**Intended commit:** `test(parity): correct bounded FRI-06 observations`.
+**Intended commit:** `test(parity): correct bounded C08 fixture oracles`.
 
-### `C08-R1` Close Exact Production Rows
+### `C08-R0` Correct Observation, Comparator, And Token Parsing
 
-**Files/area:** `src/inline.rs`, `src/block.rs`, and focused public-compute tests.
-All fixture, helper, adapter, artifact, and unrelated production paths are
-read-only.
+**Files/area:** `tests/layout/browser_parity/support.rs`,
+`tests/layout/browser_parity.rs`, and focused tests.
 
-**Outcome:** Retain the reviewed mixed shaped-text/atomic RTL placement correction
-and correct only the four `fri06_float_line_exclusion` final-height rows, where
-public layout returns 62 instead of browser 63. Preserve LTR, all-atomic RTL,
-baseline/top/bottom selection, C07 boundaries, and all other float geometry.
+**Outcome:** Keep Range observations limited to source, line, flow-inline start,
+and advance. For nonwrapping flex, compare terminal source position and adjacent
+flex-line membership without browser BR ink or model-control geometry; wrapped
+flex remains rejected. Parse `inline-start`/`inline-end` as line-relative
+float/clear aliases, `none` directly, and clear-only `both`; reject unrelated
+tokens.
 
-**RED:** Public-compute tests reproduce both mixed RTL box models and all four
-float-line variants through production code. The float test isolates the first
-incorrect final block geometry and retains horizontal/directional controls.
+**RED:** Exact Range, 72 control, 24 masked RTL flex probes, and token-table tests
+reproduce the current category mixing and missing aliases. Wrapped-flex,
+malformed-token, and BR-geometry controls fail closed.
 
-**Acceptance:** Exact source-equivalent regressions pass through public
-`compute_layout`; applicable C07 and inline/bidi/writing-mode/float suites remain
-green. Append the correction to the existing R1 task range and freshly re-review
-its complete ordered range. No generator run or input/artifact change occurs.
+**Acceptance:** Category boundaries and exact matrices pass without weakening
+model fragment/control assertions. No helper, HTML, production, generated output,
+or general CSS parser changes. A fresh reviewer covers the complete reopened R0
+range.
 
 **Commands:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c08_mixed_inline_rtl_
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c08_float_line_
-CARGO_NET_OFFLINE=true just check
-CARGO_NET_OFFLINE=true just clippy
-CARGO_NET_OFFLINE=true just generator-check
-CARGO_NET_OFFLINE=true just generator-clippy
-CARGO_NET_OFFLINE=true just fmt-check
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_r0_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
 ```
 
-**Dependency:** R0, T1, and T2 freshly task-clean after the composed R0 changes.
+**Dependency:** T2 is task-clean.
 
-**Intended commit:** `fix(layout): close remaining FRI-06 C08 geometry`.
+**Intended commit:** `test(parity): separate C08 browser observations`.
 
-### `C08-R2` Lower Exact Finite Adapter Rows
+### `C08-R1` Complete RTL Shaped-Unit Traversal
 
-**Files/area:** `tests/layout/browser_parity/support.rs` and focused adapter tests
-only. Helper/source/parser, production, generated artifacts, and public model are
-read-only.
+**Files/area:** `src/inline.rs` and focused inline/public-compute tests only.
 
-**Outcome:** For the exact 24 census rows, synthesize only 16 anonymous grid text
-wrappers, four secondary inline boundaries, and four containing 20px struts. No
-general display lowering, text shaping, bidi analysis, or fallback is added.
+**Outcome:** Traverse the complete reordered shaped, boundary, and atomic unit
+sequence whenever the containing RTL inline progression decreases. Preserve
+stable visual identities, source association, LTR, vertical/sideways projection,
+whitespace, baselines, line metrics, rounding phase, and all-float behavior.
 
-**RED:** Census-bound tests reconstruct exact membership/digest and finite
-source-equivalent parsed fixtures reproduce each old adapter rejection. Negative
-controls prove the adapter remains fail-closed outside those named structures.
+**RED:** Public-compute regressions reproduce the four bidi Range rows and the
+affected placement rows with mixed shaped/boundary/atomic units. Existing
+all-atomic and whitespace controls remain green.
 
-**Acceptance:** All exact 24 rows lower through the existing private adapter shape
-with stable identity and no change to other rows. Tests do not require retained
-generated XML and no generation occurs.
+**Acceptance:** Exact mixed-unit RTL geometry passes in both scalar lanes and all
+ten flow mappings without a shared `compute.rs`, float-rounding, fixture, or
+artifact change. A fresh reviewer covers the complete reopened R1 range.
 
 **Commands:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_adapter_
-CARGO_NET_OFFLINE=true just check
-CARGO_NET_OFFLINE=true just clippy
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c08_r1_
+CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** committed census and C06 finite adapter.
+**Dependency:** R0 is task-clean.
 
-**Intended commit:** `test(parity): lower finite FRI-06 adapter forms`.
+**Intended commit:** `fix(layout): complete RTL shaped unit traversal`.
+
+### `C08-R2` Complete The Finite Fixture Adapter
+
+**Files/area:** `tests/layout/browser_parity/support.rs` and focused adapter
+tests only.
+
+**Outcome:** Match computed `grid` after blockification for the exact 16 parser
+rows; keep blockified BR as a box; map physical CSS float/clear left/right only
+when `FlowAxes` identifies that side as inline start/end; reject block-axis
+physical sides in all vertical/sideways flows; add required continuation struts;
+and group the four typed shaped runs in the one finite anonymous grid wrapper
+without duplicate raw text.
+
+**RED:** Source-equivalent adapter tests reproduce all parser, placement, height,
+float/clear, and later-owned rows. The lowering table enumerates all five writing
+modes by both directions, including two horizontal mappings and eight
+vertical/sideways physical-side rejections.
+
+**Acceptance:** Exact finite structures lower through production constructors;
+`inline-grid`, altered topology, wrapped flex, unrelated displays, physical
+block-axis float/clear, and duplicate fallback remain rejected. No general display
+normalizer, CSS parser, text shaper, generator, or artifact change. A fresh
+reviewer covers the complete reopened R2 range.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_r2_
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+```
+
+**Dependency:** R1 is task-clean.
+
+**Intended commit:** `test(parity): complete finite C08 adapter lowering`.
 
 ### `C08-T3` Derive And Verify The Final Lineage
 
-**Files/area:** generated XML, `xml/generation-reports/all.json`, and focused
-matrix/parity/accounting tests. Every reviewed input and production path is
-read-only at its frozen task-clean commit.
+**Files/area:** final-lineage tests in
+`tests/bin/surgeist-layout-generate/generator.rs` and
+`tests/layout/browser_parity.rs`, generated XML, and
+`tests/layout/browser_parity/xml/generation-reports/all.json`. All helper,
+HTML, parser, comparator, adapter, production, and manifest inputs are read-only
+at their reviewed frozen hashes; T3 changes only test modules in the two Rust
+sources and does not alter generator behavior.
 
-**Outcome:** Record stale-entry RED, run one full unfiltered existing-pinned
-derivation, then prove provenance, exact accounting, all 388 public comparisons,
-and preservation of the other 5,324 outputs.
+**Outcome:** Confirm the stale-entry RED and the exact pinned-browser preflight,
+then run one full unfiltered existing-pinned generation. Verify the resulting
+report, all 388 activated comparisons, 5,324 base-output preservation, and the
+absence of scoped reports or untracked artifacts.
 
-**RED:** With entry artifacts restored, `fri06_c08_` lineage/accounting tests fail
-only for stale 5,324/356 report accounting and absent 388 outputs. Fixed matrix,
-cycle-base semantic, and input-freeze tests pass before generation.
+**RED:** Add final-accounting, fixed-matrix, semantic-preservation, and provenance
+tests. Before generation they fail only because the restored report/artifacts
+retain entry accounting. Input-freeze and semantic-oracle tests are green.
 
-```sh
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
-```
-
-**Preflight:** Confirm the manifest-owned Chrome executable reports exactly
-`149.0.7827.115`, no browser cache/version/filter override is set, every task is
-freshly clean, changed helper/source/parser inputs equal the recorded freeze, and
-the worktree contains entry artifacts rather than the invalid diagnostic lineage.
-
-**Preflight commands:**
-
-```sh
-set -e
-test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
-browser_version_file="$(mktemp)"; trap 'rm -f "$browser_version_file"' EXIT
-'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' --version > "$browser_version_file"
-test "$(wc -l < "$browser_version_file")" -eq 1
-grep -Eq '^Google Chrome for Testing 149\.0\.7827\.115[[:blank:]]*$' "$browser_version_file"
-test -z "${SURGEIST_BROWSER_CACHE+x}${SURGEIST_BROWSER_VERSION+x}${SURGEIST_LAYOUT_GENERATE_FILTER+x}${SURGEIST_LAYOUT_BROWSER_PARITY_ROOT+x}"
-```
-
-**Generation:** Run exactly once. A nonzero exit or unexpected output stops for a
-new reviewed correction lineage; never rerun unchanged inputs.
+**Generation:** Run this command exactly once after the task-clean freeze:
 
 ```sh
 env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
-**Acceptance:** The report has `filter: null`, 5,712 generated, exactly 16
-unsupported rows containing only `Unsupported missing #test-root fixture root`,
-and zero other buckets. It records exact browser, launch, helper, and manifest
-provenance with no scoped report. Every exact census row compares through the C06
-adapter and public layout front door. The 16 semantic-preservation rows match
-cycle-base semantics, and all 5,324 base-generated XML documents differ only in
-the provenance comment. Record report/helper/manifest hashes and artifact digest.
+**Acceptance:** The report records `filter: null`, 5,712 generated, exactly 16
+missing-root unsupported variants, zero other buckets, and exact browser, launch,
+helper, manifest, base-style, and Taffy provenance. All 388 rows pass; the other
+5,324 outputs preserve semantics; generated changes are complete and derived.
+The single invocation and output hashes are recorded. A fresh reviewer covers T3.
 
 **Commands after generation:**
 
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
 CARGO_NET_OFFLINE=true just corpus-check
 CARGO_NET_OFFLINE=true just taffy-check
 CARGO_NET_OFFLINE=true just verify
@@ -353,46 +302,46 @@ CARGO_NET_OFFLINE=true just verify-generator
 CARGO_NET_OFFLINE=true just fmt-check
 ```
 
-**Dependency:** T1, T2, R0, R1, and R2 freshly task-clean with all inputs and
-production frozen.
+**Dependency:** T1, T2, R0, R1, and R2 are freshly task-clean; every input hash is
+frozen; the pinned browser reports `149.0.7827.115`; no generator override or
+filter is set.
 
 **Intended commit:** `test(parity): derive final FRI-06 browser lineage`.
 
 ## Completion
 
-All six task ranges are independently `CLEAN`, including fresh complete reviews
-of T1, T2, R0, and R1 after their invalidating changes. T3's input and production
-freeze equals those reviewed heads, and its generated changes form one complete
-valid lineage. There is no scoped report, hand-edited artifact, unexpected
-source, inherited-failure reclassification, or generator architecture expansion.
+All six complete task ranges receive independent `CLEAN` verdicts. T3's
+recorded input hashes equal the reviewed task heads. The cycle has one valid full
+lineage, no retained scoped output, no hand-edited artifact, no new source or
+bucket, no broad lint suppression, and no generator architecture expansion. Make
+the separate status-only `complete` commit and set `cycle_head` before final
+checks. A later failure first receives a status-only `in_progress` commit.
 
-Run the full T3 command set and verify the exact cycle range has no whitespace
-errors, executable unsafe, new Rust `allow`/`expect`, dependency/feature/task-runner
-change, or path outside the reviewed planning, census, fixture/helper/parser/
-comparator, adapter, production regression, generated XML, and report inventory.
-Record the tracked/non-ignored owned-Rust manifest count and Clippy
-`-F unsafe-code -D warnings` evidence. Require a clean worktree.
+Run the configured full gates and focused activation comparison:
 
 ```sh
+CARGO_NET_OFFLINE=true just verify
+CARGO_NET_OFFLINE=true just verify-generator
+CARGO_NET_OFFLINE=true just corpus-check
+CARGO_NET_OFFLINE=true just taffy-check
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_
 git diff --check bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD
-git diff --name-only -z bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD | while IFS= read -r -d '' file_path; do case "$file_path" in plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv|plans/cycles/2026-07-19-surgeist-layout-fri-06-c08-bounded-fixture-activation-final-lineage.md|plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md|plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md|src/block.rs|src/block_tests.rs|src/inline.rs|src/root_tests.rs|tests/bin/surgeist-layout-generate/generator.rs|tests/layout/browser_parity.rs|tests/layout/browser_parity/corpus.toml|tests/layout/browser_parity/support.rs|tests/layout/browser_parity/scripts/gentest/test_helper.js|tests/layout/browser_parity/xml/generation-reports/all.json|tests/layout/browser_parity/xml/*.xml) ;; tests/layout/browser_parity/html/*) rg -q -F "$(printf '\t%s\t' "${file_path#tests/layout/browser_parity/}")" plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv || exit 1 ;; *) exit 1 ;; esac; done
-test -z "$(git diff --unified=0 bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- '*.rs' | rg --pcre2 '^\+(?!\+\+\+).*#\s*\[\s*(allow|expect)\s*\(')"
-test -z "$(git diff --name-only bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- Cargo.toml Cargo.lock Justfile README.md)"
-owned_rust_manifest="$(mktemp)"; trap 'rm -f "$owned_rust_manifest"' EXIT
-git ls-files -co --exclude-standard -z -- '*.rs' ':(exclude)target/**' ':(exclude)vendor/**' > "$owned_rust_manifest"
-test -s "$owned_rust_manifest"; tr '\0' '\n' < "$owned_rust_manifest" | wc -l
-xargs -0 sh -c 'rg -n --pcre2 "#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:\"[^\"]*\")?\s*\{" -- "$@"; status=$?; test "$status" -eq 1' sh < "$owned_rust_manifest"
-CARGO_NET_OFFLINE=true just clippy
-CARGO_NET_OFFLINE=true just generator-clippy
-test -z "$(git status --porcelain)"
+git ls-files --cached --others --exclude-standard '*.rs'
+rg -n --pcre2 '#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b)|\bunsafe\s*(?:\{|fn\b|trait\b|impl\b|extern\b)|\bstatic\s+mut\b|\bextern\s*(?:"[^"]*")?\s*\{' $(git ls-files --cached --others --exclude-standard '*.rs')
+git diff --unified=0 bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- '*.rs' | rg '^\+.*#\s*\[\s*(allow|expect)\s*\('
 ```
 
-A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
-`bcdba3c49be09ad119c03ecdc4c77da803159132..cycle_head`. Rerun all read-only
-checks on local `main`, publish the immutable cycle head to authority remote
-`main` by leased fast-forward, fetch/read back, and prove local `main`, its
-tracking ref, `FETCH_HEAD`, and live remote `main` agree. Remove every temporary
-resource.
+The owned-Rust manifest must be nonempty. The unsafe and added-allowance scans
+must return no matches with status 1; any match or tool error fails. Record their
+outcomes with the exact changed-path inventory, clean worktree, report/artifact
+hashes, test totals, and task verdict scopes. A fresh
+`surgeist-holistic-reviewer` must return `CLEAN` for exact range
+`bcdba3c49be09ad119c03ecdc4c77da803159132..cycle_head`.
 
-The handoff is the published, frozen final browser lineage for C09's read-only
-public evidence and leaf-candidate closure. Blocker: none.
+After the holistic verdict, rerun the required gates on local `main`, push by
+fast-forward to authority `main`, fetch and read back the remote, and prove
+local, tracking, `FETCH_HEAD`, and live remote agreement. Remove every
+cycle-owned temporary resource. The handoff freezes all generator inputs and
+outputs for read-only FRI-06-C09 closure.
+
+Blocker: none at planning time.
