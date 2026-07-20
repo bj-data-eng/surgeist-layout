@@ -11,18 +11,17 @@ Cycle base: `bcdba3c49be09ad119c03ecdc4c77da803159132`
 Reviewed specification:
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at normalized semantic-content SHA-256
-`7090ea13ba7d9e524ce432018c8b7c44c1b3b76428d2c666949d297656ce97c8`,
-commit `cc2a8486f9e4e7719c9a28cc68321b7e630d9ded`: `FRI-06.4 D-09`, `D-11`, and
-`D-16`; atomic-baseline and physical-placement portions of `FRI-06.7`,
-`FRI-06.9`, and `FRI-06.14`; browser and fixture portions of `FRI-06.9` and
-`FRI-06.10`; all of `FRI-06.11`; and artifact acceptance portions of
-`FRI-06.14`.
+`3a02595c9d8aaa82341db3635a5a2c69d9e02f95be92d29941869f8d0926d128`,
+commit `a853f55c88f64ba856e16f24aca65c6aa29cffac`: `FRI-06.4 D-01`, `D-04`,
+`D-09`, `D-11`, and `D-16`; metric-fragment, atomic-baseline, physical-
+placement, browser, fixture, comparator, and artifact portions of `FRI-06.5`,
+`FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
 
 Reviewed implementation sequence:
 `plans/sequences/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`
 at SHA-256
-`c6b1f403ceaed9a772135d7e1d2e55cb1268be0a36e297a3d633695b88c51dda`,
-commit `23f9631482e36aabbadc4be4925dcc6294890c66`, entry `FRI-06-C08` and
+`ef294eb22c20bc656efb459ef2b75ebaa7bd34a5f415189341f17c3650e7d808`,
+commit `2c9815e3c48d37b93c26070bd47321d0f8448014`, entry `FRI-06-C08` and
 the Activation Recovery Evidence matrices.
 
 ## Outcome
@@ -35,13 +34,13 @@ report accounting, and semantic preservation of every pre-existing output.
 
 ## Boundary
 
-FRI-06-C07 is published and remotely verified at the cycle base. C06's finite
-Rust adapter is stable. C08 owns fixture inputs, the narrow browser helper and
-generator data serializer needed to express those inputs, the manifest, the
-derived XML/report replacement, and focused parity evidence. The C08-R1 recovery
-task additionally owns only the confirmed atomic-baseline selection, line-
-metric, and physical-placement defect in `src/block.rs` and `src/inline.rs`, plus
-its focused regressions. All other production `src/` is read-only.
+FRI-06-C07 is published and remotely verified at the cycle base. C08 owns its
+fixture inputs, narrow browser helper/parser/serializer/comparator, manifest,
+derived XML/report replacement, and focused parity evidence. C08-R0 owns only
+the confirmed Range-ink versus metric-fragment category correction in that
+finite adapter. C08-R1 owns only mixed shaped-text/atomic RTL placement in
+`src/inline.rs` plus focused regressions. All other production `src/` is
+read-only; the public model and C06 adapter shape remain unchanged.
 
 The immutable entry inputs are:
 
@@ -83,8 +82,8 @@ helper matrices bind every other correction. A worker may not add a source,
 variant, reason, expected failure, quarantine, or fallback after seeing output.
 
 Generator architecture, acquisition paths, browser policy, launch profile, base
-style, dependencies, features, lockfile, MSRV, root, siblings, production code,
-public API, docs, task runner, and later-owned behavior are non-goals. Changes in
+style, dependencies, features, lockfile, MSRV, root, siblings, public API, docs,
+task runner, and later-owned behavior are non-goals. Changes in
 `tests/bin/surgeist-layout-generate/generator.rs` are allowed only for the narrow
 JSON/parser/serializer fields required by the reviewed fixture schema or a
 confirmed genuine bug. No new generator layer, reusable parser, alternate line
@@ -98,23 +97,22 @@ acceptance evidence, and leaves no committed XML.
 Two completed full attempts are historical evidence only and authorize no
 command: the first exposed four corrected input defects; the second, at input
 head `498add2d2f62c9747c171174bc40058e3600ec4f`, proved exact 5,712/16 browser
-accounting and unchanged base-output semantics but exposed C08-R1 before
-acceptance. Both artifact sets were discarded. C08-R1 runs next and performs no
-full generation. Only after R1 is task-clean, T3 must run exactly one terminal
-full unfiltered derivation because production output changed and the prior
-artifacts were discarded. T3 retains that artifact set for verification. No
-other full run or unchanged-input retry is permitted; a failure stops for a new
-reviewed correction lineage. There is never more than one accepted full lineage.
+accounting and unchanged base-output semantics but exposed the R0 observation-
+category and R1 RTL-placement defects. Both artifact sets were discarded. R0
+settles the finite helper/parser inputs, then R1 changes production; neither runs
+full generation. Only after both are task-clean, T3 must run exactly one terminal
+full unfiltered derivation and retain it. No other full run or unchanged-input
+retry is permitted; a failure stops for a new reviewed correction lineage.
 
 ## Impacts
 
-- **Public API:** unchanged. **Production behavior:** only the C08-R1 atomic-
-  baseline correction may change.
+- **Public API:** unchanged. **Production behavior:** only C08-R1 mixed-line RTL
+  placement may change.
 - **Dependencies, features, lockfile, MSRV, and browser policy:** unchanged.
 - **Generated artifacts:** all XML and the full report are replaced only by T3's
   valid full lineage; no artifact is hand-edited.
-- **Docs/examples and root follow-up:** only the reviewed sequence recovery
-  amendment changes; C09 owns public and handoff evidence.
+- **Docs/examples and root follow-up:** only the reviewed specification and
+  sequence amendments change; C09 owns public and handoff evidence.
 - **Unsafe and lint policy:** no executable unsafe and no new `allow` or `expect`
   attribute in tracked or non-ignored owned Rust.
 
@@ -199,51 +197,85 @@ cargo fmt --check
 
 **Intended commit:** `test(parity): add bounded FRI-06 browser sources`.
 
-### `C08-R1` Recover The Atomic Baseline Production Handoff
+### `C08-R0` Reconcile Range-Ink Observation Semantics
 
-**Files/area:** `src/block.rs`, `src/inline.rs`, and the narrowest focused Rust
-tests that exercise the public compute front door. All fixture, helper, parser,
-serializer, manifest, generated XML, and report files are read-only.
+**Files/area:** `scripts/gentest/test_helper.js`, the narrow JSON/XML fields and
+tests in `tests/bin/surgeist-layout-generate/generator.rs`, comparator parsing and
+comparison in `tests/layout/browser_parity/support.rs`, and focused tests. HTML,
+manifest, production, generated XML, and reports are read-only.
 
-**Outcome:** Correct the confirmed production defect exposed by the first
-replacement derivation for all four variants of
-`html/block/fri06_atomic_inline_baseline.html`: visible inner baseline plus
-margin, overflow fallback, top/bottom alignment, and direction-aware physical
-inline placement. Preserve the reviewed C07 behavior and all later-owned
-boundaries.
+**Outcome:** For explicit layout-ready inline sources, represent browser `Range`
+ink as a distinct source/flow-inline observation. It may assert source identity,
+line/visual identity, physical flow-inline start, and advance. It never supplies
+model-fragment block start/extent/baseline or text-node metric-union geometry.
+Explicit model-line expectations retain strict complete comparison.
 
-**RED:** Reconstruct the browser-observed atomic participants and geometry at
-the public compute front door. Cover LTR and RTL in both box models. The entry
-implementation must reproduce the observed descendant block-origin mismatch and
-RTL atomic inline-origin mismatch before the fix. A narrow scoped generation of
-the single source is diagnostic only when needed to recover additional browser
-geometry; remove its artifacts and do not cite it as acceptance evidence.
+**RED:** Add parser/comparator negative controls with Range y/height differing
+from the supplied baseline/line extent. Entry behavior wrongly serializes and
+compares Range ink as model block geometry. Wrong source/line/visual or flow-
+inline interval must still fail, while explicit model-line block/baseline errors
+must remain detectable.
 
-**Acceptance:** All four source-equivalent regressions pass through public
-`compute_layout`; the exact C07 focused evidence and applicable block/inline,
-bidi, writing-mode, and atomic-baseline regressions remain green. No fixture or
-artifact changes, full generation, dependency, feature, public API, generator,
-unsafe, or lint-allowance change occurs.
+**Acceptance:** The finite category is explicit and fail-closed; no font/glyph
+heuristic, public field, shaper, inferred corpus-wide mode, or ordinary atomic/
+control comparison changes. Re-run both `fri06_c08_existing_` and
+`fri06_c08_new_`; all fixed matrices, manifest accounting, authored semantics,
+and 5,324-output preservation predicate remain exact. Run no generation. After
+R0 review, freshly re-review the complete T1 and T2 ordered ranges in the current
+composed state; no prior T1/T2 `CLEAN` verdict carries forward.
 
 **Commands:**
 
 ```sh
-CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c08_atomic_baseline_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout --test layout fri06_c08_range_ink_
+CARGO_NET_OFFLINE=true just generator-check
+CARGO_NET_OFFLINE=true just generator-clippy
+cargo fmt --check
+```
+
+**Dependency:** T1/T2 implementation and input-fix ranges exist; their reviews
+are invalidated by the clarified specification until R0 and composed re-review.
+
+**Intended commit:** `test(parity): distinguish range ink from metric fragments`.
+
+### `C08-R1` Recover Mixed-Line RTL Placement
+
+**Files/area:** `src/inline.rs` and narrow public-compute regressions. All R0
+adapter/input paths, other production, generated XML, and reports are read-only.
+
+**Outcome:** Correct only visual ordering/physical placement for a horizontal RTL
+line containing shaped whitespace and atomic participants. Preserve LTR, all-
+atomic RTL, baseline/top/bottom selection, and every reviewed C07 boundary.
+
+**RED:** Public-compute tests for both RTL box models reproduce atomic inline x=99
+instead of browser x=192 on the mixed line. The two LTR variants are controls.
+Range block geometry is R0-owned and not a production expectation. No generator
+run occurs because the exact-source diagnostic already localized this defect.
+
+**Acceptance:** All four source-equivalent regressions pass through public
+`compute_layout`; exact C07 and applicable inline/bidi/writing-mode/atomic-
+baseline suites remain green. No adapter/input/artifact, dependency, feature,
+API, generator, unsafe, or lint-allowance change occurs.
+
+**Commands:**
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked -p surgeist-layout fri06_c08_mixed_inline_rtl_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
 ```
 
-**Dependency:** T1/T2 input corrections task-clean and the parity-blocked
-replacement-lineage evidence independently adjudicated.
+**Dependency:** R0, T1, and T2 freshly task-clean under the clarified spec.
 
-**Intended commit:** `fix(layout): recover atomic inline baseline parity`.
+**Intended commit:** `fix(layout): correct mixed-line RTL placement`.
 
 ### `C08-T3` Derive And Verify The Final Lineage
 
 **Files/area:** generated XML, `xml/generation-reports/all.json`, and focused
-matrix/parity tests in `tests/layout/browser_parity.rs`. All T1/T2 inputs and R1
-production paths are read-only at their task-clean commits.
+matrix/parity/accounting tests. All T1/T2/R0 inputs and R1 production paths are
+read-only at their task-clean commits.
 
 **Outcome:** Run the one full unfiltered existing-pinned derivation and prove its
 report, provenance, fixed activation comparisons, and pre-existing semantics.
@@ -255,6 +287,18 @@ still records 5,324/356 and the 388 activated outputs are absent; fixed matrix
 membership and cycle-base semantic checks remain valid. This recorded stale-
 artifact RED precedes the non-repeatable derivation. The terminal full run is the
 GREEN transition, after which both focused families must pass.
+
+**Commands before generation:** Run the first two commands separately and
+record expected exit 101 with only the named stale-report/absent-output failures;
+then require every preflight command to pass.
+
+```sh
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate fri06_c08_
+test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
+test "$('target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' --version)" = 'Google Chrome for Testing 149.0.7827.115'
+test -z "${SURGEIST_BROWSER_CACHE+x}${SURGEIST_BROWSER_VERSION+x}${SURGEIST_LAYOUT_GENERATE_FILTER+x}"
+```
 
 **Acceptance:** Before generation, verify the exact cached executable exists and
 reports `Google Chrome for Testing 149.0.7827.115`; both cache/version override
@@ -288,16 +332,17 @@ CARGO_NET_OFFLINE=true just verify-generator
 cargo fmt --check
 ```
 
-**Dependency:** T1 and T2 task-clean with all inputs frozen, and R1 task-clean
-with the all-388 production handoff re-established.
+**Dependency:** T1, T2, R0, and R1 freshly task-clean with all inputs and
+production frozen.
 
 **Intended commit:** `test(parity): derive final FRI-06 browser lineage`.
 
 ## Completion
 
-All four task ranges must be independently `CLEAN`. T3's input freeze must equal
-the reviewed T1/T2 correction head, R1's production freeze must equal its
-reviewed head, and T3's generated changes must be one complete valid lineage.
+All five task ranges must be independently `CLEAN`, including fresh T1/T2
+re-reviews in the R0-composed state. T3's input freeze must equal the reviewed
+R0 head, R1's production freeze must equal its reviewed head, and T3's generated
+changes must be one complete valid lineage.
 There is no scoped report, hand-edited artifact, production change outside R1,
 unexpected source, inherited-failure reclassification, or generator architecture
 expansion.
@@ -307,7 +352,7 @@ Run the T3 command set, then:
 ```sh
 git diff --check bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD
 git diff --quiet -G'(^|[^.[:alnum:]_])(allow|expect)[[:space:]]*\(' bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- '*.rs'
-test -z "$(git diff --name-only bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- Cargo.toml Cargo.lock Justfile README.md scripts plans/specs)"
+test -z "$(git diff --name-only bcdba3c49be09ad119c03ecdc4c77da803159132..HEAD -- Cargo.toml Cargo.lock Justfile README.md scripts)"
 test -z "$(git status --porcelain)"
 ```
 
@@ -323,9 +368,9 @@ xargs -0 sh -c 'rg -n --pcre2 "#\s*\[\s*(?:unsafe\s*\(|no_mangle\b|export_name\b
 ```
 
 Record the manifest count, scan result, and Clippy `-F unsafe-code` evidence.
-Inspect the full changed-path inventory: only the reviewed sequence
-amendment, this cycle plan, the exact T1/T2 input and focused-test paths, the
-C08-R1 production and focused regression paths, the complete generated XML
+Inspect the full changed-path inventory: only the reviewed specification and
+sequence amendments, this cycle plan, the exact T1/T2 input and focused-test paths, the
+C08-R0 adapter paths, C08-R1 production/regression paths, the generated XML
 replacement, and `all.json` are allowed.
 
 A fresh `surgeist-holistic-reviewer` must return `CLEAN` for exact range
