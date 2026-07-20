@@ -4931,6 +4931,10 @@ fn escape_text(value: impl AsRef<str>) -> String {
 }
 
 #[cfg(test)]
+#[path = "../../layout/browser_parity/support.rs"]
+mod browser_parity_support;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
@@ -6158,6 +6162,40 @@ for (const raw of ["-1fr", "NaNfr", "Infinityfr"]) {
         fs::remove_dir_all(root).ok();
     }
 
+    fn run_bundled_helper_json(name: &str, script: String) -> Value {
+        let root =
+            std::env::temp_dir().join(format!("surgeist-layout-{name}-{}", std::process::id()));
+        fs::create_dir_all(&root).expect("temp dir");
+        let script_path = root.join(format!("{name}.js"));
+        fs::write(&script_path, script).expect("script");
+
+        let output = Command::new("node")
+            .arg(&script_path)
+            .output()
+            .expect("node should run bundled helper JSON test");
+        let cleanup = fs::remove_dir_all(&root);
+
+        assert!(
+            output.status.success(),
+            "node bundled helper JSON test failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        cleanup.expect("helper JSON test temp dir cleanup");
+        serde_json::from_slice(&output.stdout).expect("helper test must emit one JSON value")
+    }
+
+    fn keep_imported_browser_parity_support_reachable(golden: &browser_parity_support::Golden) {
+        let parse_file = |path: &Path| browser_parity_support::Golden::parse_file(path);
+        let _ = parse_file;
+        let _ = browser_parity_support::fixture_files;
+        let _ = browser_parity_support::fixture_files_in;
+        let _ = browser_parity_support::fixture_skip_policy_mentions_x_prefix;
+        let _ = browser_parity_support::fixture_skip_policy_filters_unsupported_constructs;
+        let _ = golden.root.style.display();
+        let _ = golden.root.style.width();
+    }
+
     fn br_helper_smoke_script(
         parent_display: &str,
         writing_mode: &str,
@@ -6425,6 +6463,7 @@ if (expectedReason === undefined) {{
                 "block/fri06_inline_mixed_text_atomic_wrap.html",
                 &[
                     "data-surgeist-layout-ready-inline=\"true\"",
+                    "data-surgeist-inline-breaks='[{\"sourceIndex\":0,\"followingBreak\":\"allowed\"}]'",
                     "width: 72px",
                     "display: inline-block; width: 18px; height: 18px",
                     "display: inline-block; width: 24px; height: 18px",
@@ -6488,6 +6527,8 @@ if (expectedReason === undefined) {{
             (
                 "float/fri06_float_line_exclusion.html",
                 &[
+                    "data-surgeist-inline-breaks='[{\"sourceIndex\":4,\"followingBreak\":\"allowed\"},{\"sourceIndex\":5,\"followingBreak\":\"allowed\"},{\"sourceIndex\":6,\"followingBreak\":\"allowed\"},{\"sourceIndex\":7,\"followingBreak\":\"allowed\"}]'",
+                    "display: block",
                     "float: left",
                     "float: right",
                     "line ",
@@ -6561,6 +6602,23 @@ if (expectedReason === undefined) {{
             .map(|(relative, _)| *relative)
             .collect::<Vec<_>>();
         assert_eq!(shape_opt_ins, ["float/fri06_float_shape_exclusion.html"]);
+
+        let break_opt_ins = contracts
+            .iter()
+            .filter(|(relative, _)| {
+                fs::read_to_string(root.join(relative))
+                    .expect(relative)
+                    .contains("data-surgeist-inline-breaks=")
+            })
+            .map(|(relative, _)| *relative)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            break_opt_ins,
+            [
+                "block/fri06_inline_mixed_text_atomic_wrap.html",
+                "float/fri06_float_line_exclusion.html",
+            ]
+        );
     }
 
     #[test]
@@ -6676,6 +6734,194 @@ if (JSON.stringify(bands) !== JSON.stringify([
             r#"<shape-band band-minimum="0" band-maximum="20" interval-minimum="0" interval-maximum="44"/>"#,
             r#"<shape-band band-minimum="20" band-maximum="40" interval-minimum="0" interval-maximum="28"/>"#,
             r#"<shape-band band-minimum="40" band-maximum="60"/>"#,
+        ] {
+            assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
+        }
+    }
+
+    #[test]
+    fn fri06_c08_new_authored_break_opportunity_serializes_and_wraps_through_public_layout() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 72, bottom: 38, width: 72, height: 38 };
+const textRect = { x: 0, y: 0, left: 0, top: 0, right: 40, bottom: 20, width: 40, height: 20 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return textRect; },
+  getClientRects() { return [textRect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const text = { nodeType: Node.TEXT_NODE, textContent: "text " };
+const atomics = [
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 18, x: 0, y: 20 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 24, x: 18, y: 20 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 30, x: 42, y: 20 },
+];
+const parent = {
+  childNodes: [text, ...atomics],
+  getBoundingClientRect() { return parentRect; },
+  getAttribute(name) {
+    if (name === "data-surgeist-layout-ready-inline") return "true";
+    if (name === "data-surgeist-inline-breaks") {
+      return '[{"sourceIndex":0,"followingBreak":"allowed"}]';
+    }
+    return null;
+  },
+};
+function getComputedStyle(element) {
+  if (element === parent) {
+    return { direction: "ltr", writingMode: "horizontal-tb", fontSize: "16px", lineHeight: "20px", display: "block" };
+  }
+  return { direction: "ltr", writingMode: "horizontal-tb", display: "inline-block" };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+describeElement = function(element) {
+  return {
+    tagName: "span",
+    style: {
+      display: "inline-block",
+      size: {
+        width: { unit: "px", value: element.width },
+        height: { unit: "px", value: 18 },
+      },
+    },
+    unroundedLayout: { x: element.x, y: element.y, width: element.width, height: 18 },
+    children: [],
+  };
+};
+const children = describeChildNodes(parent);
+children[0].fragments[0].baselineY = 15;
+console.log(JSON.stringify({
+  tagName: "div",
+  useRounding: false,
+  viewport: { width: { unit: "px", value: 72 }, height: { unit: "max-content" } },
+  style: { display: "block", size: { width: { unit: "px", value: 72 } } },
+  unroundedLayout: { x: 0, y: 0, width: 72, height: 38 },
+  children,
+}));
+"#,
+        ]
+        .concat();
+        let node = run_bundled_helper_json("fri06-c08-new-authored-break-wrap", script);
+        let xml = generate_xml("fri06_c08_new_authored_break_wrap", &node);
+        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized fixture");
+        keep_imported_browser_parity_support_reachable(&golden);
+        let layout = browser_parity_support::assert_surgeist_matches(&golden);
+
+        assert!(
+            layout.is_ok(),
+            "layout-ready input must serialize the authored allowed boundary and wrap through compute_layout; result={layout:?}\n{xml}"
+        );
+        assert!(
+            xml.contains(
+                r#"<segment id="0" inline-extent="40" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>"#
+            ),
+            "text source/segment identity and exact allowed boundary must be serialized\n{xml}"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_new_float_line_breaks_advance_inside_reduced_band_through_public_layout() {
+        let script = [
+            r#"
+const window = {};
+const CSSRule = { STYLE_RULE: 1 };
+const Node = { ELEMENT_NODE: 1, TEXT_NODE: 3 };
+const parentRect = { x: 0, y: 0, left: 0, top: 0, right: 180, bottom: 62, width: 180, height: 62 };
+const textRect = { x: 42, y: 1.2, left: 42, top: 1.2, right: 82, bottom: 21.2, width: 40, height: 20 };
+const range = {
+  selectNodeContents() {},
+  getBoundingClientRect() { return textRect; },
+  getClientRects() { return [textRect]; },
+  detach() {},
+};
+const document = { styleSheets: [], createRange() { return range; } };
+const ignored = { nodeType: 8 };
+const floating = [
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "block" }, display: "block", cssFloat: "left", width: 42, height: 42, x: 0, y: 0 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "block" }, display: "block", cssFloat: "right", width: 50, height: 62, x: 130, y: 0 },
+];
+const text = { nodeType: Node.TEXT_NODE, textContent: "line " };
+const atomics = [
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 28, x: 82, y: 0 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 32, x: 42, y: 21.2 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 36, x: 74, y: 21.2 },
+  { nodeType: Node.ELEMENT_NODE, tagName: "SPAN", style: { display: "inline-block" }, width: 40, x: 42, y: 37.2 },
+];
+const parent = {
+  childNodes: [ignored, floating[0], ignored, floating[1], text, ...atomics],
+  getBoundingClientRect() { return parentRect; },
+  getAttribute(name) {
+    if (name === "data-surgeist-layout-ready-inline") return "true";
+    if (name === "data-surgeist-inline-breaks") {
+      return '[{"sourceIndex":4,"followingBreak":"allowed"},{"sourceIndex":5,"followingBreak":"allowed"},{"sourceIndex":6,"followingBreak":"allowed"},{"sourceIndex":7,"followingBreak":"allowed"}]';
+    }
+    return null;
+  },
+};
+function getComputedStyle(element) {
+  if (element === parent) {
+    return { direction: "ltr", writingMode: "horizontal-tb", fontSize: "16px", lineHeight: "20px", display: "block" };
+  }
+  return { direction: "ltr", writingMode: "horizontal-tb", display: element.style.display };
+}
+"#,
+            TEST_HELPER_SOURCE,
+            r#"
+describeElement = function(element) {
+  return {
+    tagName: "span",
+    style: {
+      display: element.style.display,
+      cssFloat: element.cssFloat || "none",
+      size: {
+        width: { unit: "px", value: element.width },
+        height: { unit: "px", value: element.height || 16 },
+      },
+    },
+    unroundedLayout: {
+      x: element.x,
+      y: element.y,
+      width: element.width,
+      height: element.height || 16,
+    },
+    children: [],
+  };
+};
+const children = describeChildNodes(parent);
+children[2].fragments[0].y = 1;
+console.log(JSON.stringify({
+  tagName: "div",
+  useRounding: false,
+  viewport: { width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
+  style: { display: "block", size: { width: { unit: "px", value: 180 } } },
+  unroundedLayout: { x: 0, y: 0, width: 180, height: 62 },
+  children,
+}));
+"#,
+        ]
+        .concat();
+        let node = run_bundled_helper_json("fri06-c08-new-float-line-breaks", script);
+        let xml = generate_xml("fri06_c08_new_float_line_breaks", &node);
+        let golden = browser_parity_support::Golden::parse(&xml).expect("serialized fixture");
+        let layout = browser_parity_support::assert_surgeist_matches(&golden);
+
+        assert!(
+            layout.is_ok(),
+            "allowed source boundaries must wrap and advance inside the 88px opposing-float band through compute_layout; result={layout:?}\n{xml}"
+        );
+        for expected in [
+            r#"<segment id="4" inline-extent="40" inline-baseline="14.8" inline-line-height="20" bidi-level="0" whitespace-edge="preserve" following-break="allowed"/>"#,
+            r#"<atomic-placeholder child-index="3" bidi-level="0" following-break="allowed"/>"#,
+            r#"<atomic-placeholder child-index="4" bidi-level="0" following-break="allowed"/>"#,
+            r#"<atomic-placeholder child-index="5" bidi-level="0" following-break="allowed"/>"#,
+            r#"<atomic-placeholder child-index="6" bidi-level="0" following-break="prohibited"/>"#,
         ] {
             assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
         }

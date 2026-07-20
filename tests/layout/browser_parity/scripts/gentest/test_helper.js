@@ -1245,9 +1245,62 @@ function inlineEndEdge(computedStyle) {
   return { left: "right", right: "left", top: "bottom", bottom: "top" }[start];
 }
 
+function layoutReadyInlineBreaks(parent, childNodes) {
+  const raw = parent.getAttribute('data-surgeist-inline-breaks');
+  if (raw === null) return new Map();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    throw new Error('data-surgeist-inline-breaks must be valid JSON');
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error('data-surgeist-inline-breaks must be a nonempty finite table');
+  }
+
+  const breaks = new Map();
+  const breakKinds = new Set(['prohibited', 'allowed', 'allowed-with-replacement', 'mandatory']);
+  for (const [recordIndex, record] of parsed.entries()) {
+    const fields = new Set(['sourceIndex', 'followingBreak', 'replacementInlineExtent']);
+    if (!record || typeof record !== 'object' || Array.isArray(record) ||
+        Object.keys(record).some((key) => !fields.has(key))) {
+      throw new Error(`inline break ${recordIndex} has an unsupported field`);
+    }
+    const { sourceIndex, followingBreak, replacementInlineExtent } = record;
+    if (!Number.isInteger(sourceIndex) || sourceIndex < 0 || sourceIndex >= childNodes.length) {
+      throw new Error(`inline break ${recordIndex} requires an existing non-negative sourceIndex`);
+    }
+    if (breaks.has(sourceIndex)) {
+      throw new Error(`inline break ${recordIndex} duplicates sourceIndex ${sourceIndex}`);
+    }
+    if (!breakKinds.has(followingBreak)) {
+      throw new Error(`inline break ${recordIndex} has invalid followingBreak ${followingBreak}`);
+    }
+    const child = childNodes[sourceIndex];
+    const text = child.nodeType === Node.TEXT_NODE;
+    const atomic = child.nodeType === Node.ELEMENT_NODE && child.tagName !== 'BR' && isInlineLevel(child);
+    if (!text && !atomic) {
+      throw new Error(`inline break ${recordIndex} must target shaped text or an atomic inline`);
+    }
+    if (followingBreak === 'allowed-with-replacement') {
+      if (!text || !Number.isFinite(replacementInlineExtent) || replacementInlineExtent < 0) {
+        throw new Error(`inline break ${recordIndex} replacement requires shaped text and a finite non-negative extent`);
+      }
+    } else if (replacementInlineExtent !== undefined) {
+      throw new Error(`inline break ${recordIndex} replacement requires allowed-with-replacement`);
+    }
+    breaks.set(sourceIndex, replacementInlineExtent === undefined
+      ? { followingBreak }
+      : { followingBreak, replacementInlineExtent });
+  }
+  return breaks;
+}
+
 function describeChildNodes(e, expectedElement = null) {
   let children = [];
   let childNodes = Array.from(e.childNodes);
+  const inlineBreaks = layoutReadyInlineBreaks(e, childNodes);
   const layoutReadyInlineRun = hasLayoutReadyInlineFixture(e) && childNodes.some((child, index) => {
     return child.nodeType === Node.ELEMENT_NODE && child.tagName === 'BR' ||
       child.nodeType === Node.TEXT_NODE && shouldSerializeLayoutReadyText(child, childNodes, index, e);
@@ -1260,8 +1313,9 @@ function describeChildNodes(e, expectedElement = null) {
       if (layoutReadyInlineRun && child.tagName !== 'BR' && isInlineLevel(child)) {
         described.atomicInlineParticipation = {
           bidiLevel: getComputedStyle(child).direction === 'rtl' ? 1 : 0,
-          followingBreak: 'prohibited',
+          ...(inlineBreaks.get(i) || { followingBreak: 'prohibited' }),
         };
+        inlineBreaks.delete(i);
       }
       children.push(described);
       if (layoutReadyInlineRun && (child.tagName === 'BR' || isInlineLevel(child))) visualIndex++;
@@ -1270,12 +1324,16 @@ function describeChildNodes(e, expectedElement = null) {
       child.nodeType === Node.TEXT_NODE &&
       shouldSerializeLayoutReadyText(child, childNodes, i, e)
     ) {
-      const described = layoutReadyTextNodeData(child, e, i, visualIndex);
+      const described = layoutReadyTextNodeData(child, e, i, visualIndex, inlineBreaks.get(i));
       if (described) {
         children.push(described);
         visualIndex++;
+        inlineBreaks.delete(i);
       }
     }
+  }
+  if (inlineBreaks.size !== 0) {
+    throw new Error(`data-surgeist-inline-breaks contains an unused sourceIndex ${inlineBreaks.keys().next().value}`);
   }
   return children;
 }
@@ -1285,7 +1343,7 @@ function shouldSerializeLayoutReadyText(node, siblings, index, parent) {
   return isSignificantInlineWhitespace(node, siblings, index, parent);
 }
 
-function layoutReadyTextNodeData(node, parent, segmentId, visualIndex) {
+function layoutReadyTextNodeData(node, parent, segmentId, visualIndex, reviewedBreak = undefined) {
   const range = document.createRange();
   range.selectNodeContents(node);
   const rect = range.getBoundingClientRect();
@@ -1348,7 +1406,7 @@ function layoutReadyTextNodeData(node, parent, segmentId, visualIndex) {
       inlineLineHeight: lineHeight,
       bidiLevel: computedStyle.direction === 'rtl' ? 1 : 0,
       whitespaceEdge: whitespace ? 'discard-at-both' : 'preserve',
-      followingBreak: whitespace ? 'allowed' : 'prohibited',
+      ...(reviewedBreak || { followingBreak: whitespace ? 'allowed' : 'prohibited' }),
     }],
     unroundedLayout: layoutReadyTextLayout(rect, parentRect, false),
     smartRoundedLayout: layoutReadyTextLayout(rect, parentRect, true),
