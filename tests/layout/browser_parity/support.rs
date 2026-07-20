@@ -430,11 +430,17 @@ fn apply_fri06_c08_finite_adapter(
     {
         return mark_fri06_c08_grid_inline_text_wrappers(root);
     }
+    if fri06_c08_fixture_name(name, "subgrid_auto_track_sizing_min_content_text_runs") {
+        return mark_fri06_c08_four_run_grid_wrapper(root);
+    }
     if fri06_c08_fixture_name(name, "fri06_bidi_mixed_inline") {
         return lower_fri06_c08_bidi_inline_boundaries(root, expectations);
     }
     if fri06_c08_fixture_name(name, "fri06_inline_mixed_text_atomic_wrap") {
         return insert_fri06_c08_atomic_line_strut(root);
+    }
+    if fri06_c08_fixture_name(name, "fri06_float_line_exclusion") {
+        return insert_fri06_c08_float_line_strut(root);
     }
     Ok(())
 }
@@ -453,7 +459,7 @@ fn fri06_c08_fixture_name(name: &str, source: &str) -> bool {
 }
 
 fn mark_fri06_c08_grid_inline_text_wrappers(root: &mut Node) -> Result<(), Error> {
-    let valid_root = root.style.get("display") == Some("inline-grid")
+    let valid_root = root.style.get("display") == Some("grid")
         && root.children.len() == 1
         && root.text.is_none();
     let Some(subgrid) = root.children.first_mut().filter(|_| valid_root) else {
@@ -482,6 +488,50 @@ fn mark_fri06_c08_grid_inline_text_wrappers(root: &mut Node) -> Result<(), Error
         }
         item.anonymous_grid_text_wrapper = true;
     }
+    Ok(())
+}
+
+fn mark_fri06_c08_four_run_grid_wrapper(root: &mut Node) -> Result<(), Error> {
+    if root.style.get("display") != Some("block")
+        || root.style.get("width") != Some("100px")
+        || root.style.get("height") != Some("100px")
+        || root.text.is_some()
+        || root.children.len() != 1
+    {
+        return Err(Error::new(
+            "FRI-06 C08 four-run adapter requires the exact fixed block root",
+        ));
+    }
+    let outer_grid = &mut root.children[0];
+    if outer_grid.style.get("display") != Some("grid")
+        || outer_grid.style.get("width") != Some("min-content")
+        || outer_grid.text.is_some()
+        || outer_grid.children.len() != 1
+    {
+        return Err(Error::new(
+            "FRI-06 C08 four-run adapter requires the exact min-content grid",
+        ));
+    }
+    let run_grid = &mut outer_grid.children[0];
+    if run_grid.text.is_some() {
+        return Err(Error::new(
+            "FRI-06 C08 four-run adapter rejects duplicate raw text fallback",
+        ));
+    }
+    if run_grid.style.get("display") != Some("grid")
+        || run_grid.style.get("grid-template-rows") != Some("subgrid")
+        || run_grid.style.get("grid-template-columns") != Some("subgrid")
+        || run_grid.children.len() != 4
+        || run_grid
+            .children
+            .iter()
+            .any(|child| child.inline_text.is_none() || !child.children.is_empty())
+    {
+        return Err(Error::new(
+            "FRI-06 C08 four-run adapter requires exactly four direct shaped runs",
+        ));
+    }
+    run_grid.anonymous_grid_text_wrapper = true;
     Ok(())
 }
 
@@ -576,6 +626,55 @@ fn insert_fri06_c08_atomic_line_strut(root: &mut Node) -> Result<(), Error> {
     }
     root.children.insert(
         1,
+        fri06_c08_synthetic_boundary(layout::InlineBoundaryKind::Start, true),
+    );
+    Ok(())
+}
+
+fn insert_fri06_c08_float_line_strut(root: &mut Node) -> Result<(), Error> {
+    let exact_floats = root.children.get(..2).is_some_and(|children| {
+        [("left", "42px", "42px"), ("right", "50px", "62px")]
+            .into_iter()
+            .zip(children)
+            .all(|((side, width, height), child)| {
+                child.style.get("display") == Some("block")
+                    && child.style.get("float") == Some(side)
+                    && child.style.get("width") == Some(width)
+                    && child.style.get("height") == Some(height)
+                    && child.text.is_none()
+                    && child.children.is_empty()
+                    && child.atomic_inline_participation.is_none()
+            })
+    });
+    let exact_inline_children = root.children.len() == 7
+        && root.children[2].inline_text.is_some()
+        && root.children[3..].iter().all(|child| {
+            child.style.get("display") == Some("inline-block")
+                && child.style.get("height") == Some("16px")
+                && child.atomic_inline_participation.is_some()
+                && child.children.is_empty()
+                && child.text.is_none()
+        });
+    let exact_atomic_widths = root.children.get(3..).is_some_and(|children| {
+        ["28px", "32px", "36px", "40px"]
+            .into_iter()
+            .zip(children)
+            .all(|(width, child)| child.style.get("width") == Some(width))
+    });
+    if root.style.get("display") != Some("block")
+        || root.style.get("width") != Some("180px")
+        || root.style.get("font-size") != Some("16px")
+        || root.style.get("line-height") != Some("20px")
+        || !exact_floats
+        || !exact_inline_children
+        || !exact_atomic_widths
+    {
+        return Err(Error::new(
+            "FRI-06 C08 float-line strut adapter requires the exact named structure",
+        ));
+    }
+    root.children.insert(
+        3,
         fri06_c08_synthetic_boundary(layout::InlineBoundaryKind::Start, true),
     );
     Ok(())
@@ -1651,7 +1750,8 @@ impl TestTree {
                 .cloned()
                 .unwrap_or_else(layout::NodeInput::non_box),
             layout_input,
-            is_br_source: node.style.get("source-tag") == Some("br"),
+            is_br_source: node.style.get("source-tag") == Some("br")
+                && matches!(node.style.get("display"), Some("inline" | "none")),
             font_family,
             font_size,
             line_height: resolved_line_height,
@@ -1688,19 +1788,20 @@ impl TestTree {
             })
             .collect::<Result<Vec<_>, _>>()?;
         if node.anonymous_grid_text_wrapper {
-            if children.len() != 1
-                || !matches!(
-                    self.nodes[children[0]].layout_input,
-                    layout::LayoutInput::InlineText(_)
-                )
+            if children.is_empty()
+                || children.iter().any(|child| {
+                    !matches!(
+                        self.nodes[*child].layout_input,
+                        layout::LayoutInput::InlineText(_)
+                    )
+                })
             {
                 return Err(Error::new(
-                    "anonymous grid text wrapper requires one direct shaped-text child",
+                    "anonymous grid text wrapper requires direct shaped-text children",
                 ));
             }
-            let text_child = children[0];
             children = vec![self.push_synthetic_grid_text_wrapper(
-                text_child,
+                children,
                 font_family,
                 font_size,
                 resolved_line_height,
@@ -1728,7 +1829,7 @@ impl TestTree {
 
     fn push_synthetic_grid_text_wrapper(
         &mut self,
-        text_child: usize,
+        text_children: Vec<usize>,
         font_family: FontFamily,
         font_size: Scalar,
         line_height: Scalar,
@@ -1749,7 +1850,7 @@ impl TestTree {
             font_size,
             line_height,
             text: None,
-            children: vec![text_child],
+            children: text_children,
             synthetic: true,
             preserve_fractional_min_content: false,
             use_tighter_monospace_wrap: false,
@@ -2857,8 +2958,17 @@ fn to_layout_input_in_flow(
     attrs: &StyleAttrs,
     containing_flow: Option<layout::FlowAxes>,
 ) -> Result<layout::LayoutInput, Error> {
-    let input = to_node_input(attrs)?;
-    if attrs.get("source-tag") == Some("br") {
+    let input = to_node_input_in_flow(attrs, containing_flow)?;
+    let br_is_inline_control = attrs.get("source-tag") == Some("br")
+        && matches!(attrs.get("display"), Some("inline" | "none"));
+    if let Some(kind) = attrs.get("line-control")
+        && (kind != "forced-break" || !br_is_inline_control)
+    {
+        return Err(Error::new(format!(
+            "unsupported explicit fixture line control `{kind}`"
+        )));
+    }
+    if br_is_inline_control {
         let flow = containing_flow
             .unwrap_or_else(|| layout::FlowAxes::new(input.writing_mode, input.direction));
         let mut br = layout::LineBreakInput::new()
@@ -2879,6 +2989,13 @@ fn to_layout_input_in_flow(
 }
 
 fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
+    to_node_input_in_flow(attrs, None)
+}
+
+fn to_node_input_in_flow(
+    attrs: &StyleAttrs,
+    containing_flow: Option<layout::FlowAxes>,
+) -> Result<layout::NodeInput, Error> {
     for name in ["overflow", "scroll-padding", "scroll-margin", "transform"] {
         if attrs.get(name).is_some() {
             return Err(Error::new(format!(
@@ -2911,9 +3028,6 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
     if let Some(value) = attrs.get("position") {
         input.position = parse_position(value)?;
     }
-    if let Some(value) = attrs.get("float") {
-        input.float = parse_float(value)?;
-    }
     if let Some(value) = attrs.get("float-exclusion") {
         input.float_exclusion = match value {
             "shape" => layout::FloatExclusion::Shape,
@@ -2923,9 +3037,6 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
                 )));
             }
         };
-    }
-    if let Some(value) = attrs.get("clear") {
-        input.clear = parse_clear(value)?;
     }
     if let Some(value) = attrs.get("scrollbar-width") {
         input.scrollbar_width = layout::ScrollbarWidth::try_new(parse_number(value)?)
@@ -2966,6 +3077,14 @@ fn to_node_input(attrs: &StyleAttrs) -> Result<layout::NodeInput, Error> {
         input.vertical_align = parse_vertical_align(value)?;
     }
     input.writing_mode = parse_writing_mode(attrs.get("writing-mode"))?;
+    let containing_flow = containing_flow
+        .unwrap_or_else(|| layout::FlowAxes::new(input.writing_mode, input.direction));
+    if let Some(value) = attrs.get("float") {
+        input.float = parse_float(value, containing_flow)?;
+    }
+    if let Some(value) = attrs.get("clear") {
+        input.clear = parse_clear(value, containing_flow)?;
+    }
     if let Some(value) = attrs.get("flex-direction") {
         input.flex_direction = parse_flex_direction(value)?;
     }
@@ -3382,22 +3501,75 @@ fn parse_position(raw: &str) -> Result<layout::Position, Error> {
     }
 }
 
-fn parse_float(raw: &str) -> Result<layout::Float, Error> {
+fn parse_float(raw: &str, containing_flow: layout::FlowAxes) -> Result<layout::Float, Error> {
     match raw {
         "none" => Ok(layout::Float::None),
-        "left" | "inline-start" => Ok(layout::Float::Left),
-        "right" | "inline-end" => Ok(layout::Float::Right),
+        "inline-start" => Ok(layout::Float::Left),
+        "inline-end" => Ok(layout::Float::Right),
+        "left" => lower_physical_fixture_side(
+            layout::PhysicalSide::Left,
+            containing_flow,
+            "float",
+            raw,
+            layout::Float::Left,
+            layout::Float::Right,
+        ),
+        "right" => lower_physical_fixture_side(
+            layout::PhysicalSide::Right,
+            containing_flow,
+            "float",
+            raw,
+            layout::Float::Left,
+            layout::Float::Right,
+        ),
         _ => Err(Error::new(format!("unsupported float `{raw}`"))),
     }
 }
 
-fn parse_clear(raw: &str) -> Result<layout::Clear, Error> {
+fn parse_clear(raw: &str, containing_flow: layout::FlowAxes) -> Result<layout::Clear, Error> {
     match raw {
         "none" => Ok(layout::Clear::None),
-        "left" | "inline-start" => Ok(layout::Clear::Left),
-        "right" | "inline-end" => Ok(layout::Clear::Right),
+        "inline-start" => Ok(layout::Clear::Left),
+        "inline-end" => Ok(layout::Clear::Right),
+        "left" => lower_physical_fixture_side(
+            layout::PhysicalSide::Left,
+            containing_flow,
+            "clear",
+            raw,
+            layout::Clear::Left,
+            layout::Clear::Right,
+        ),
+        "right" => lower_physical_fixture_side(
+            layout::PhysicalSide::Right,
+            containing_flow,
+            "clear",
+            raw,
+            layout::Clear::Left,
+            layout::Clear::Right,
+        ),
         "both" => Ok(layout::Clear::Both),
         _ => Err(Error::new(format!("unsupported clear `{raw}`"))),
+    }
+}
+
+fn lower_physical_fixture_side<T>(
+    physical_side: layout::PhysicalSide,
+    containing_flow: layout::FlowAxes,
+    property: &str,
+    raw: &str,
+    line_start: T,
+    line_end: T,
+) -> Result<T, Error> {
+    if physical_side == containing_flow.inline_start() {
+        Ok(line_start)
+    } else if physical_side == containing_flow.inline_end() {
+        Ok(line_end)
+    } else {
+        Err(Error::new(format!(
+            "unsupported physical fixture-lowering {property} `{raw}` for {:?} {:?}",
+            containing_flow.writing_mode(),
+            containing_flow.direction(),
+        )))
     }
 }
 
@@ -5348,6 +5520,7 @@ mod tests {
 
     #[test]
     fn fri06_c08_r0_float_and_clear_token_tables_are_finite() {
+        let flow = layout::FlowAxes::new(layout::WritingMode::HorizontalTb, layout::Direction::Ltr);
         for (raw, expected) in [
             ("none", layout::Float::None),
             ("left", layout::Float::Left),
@@ -5355,7 +5528,11 @@ mod tests {
             ("inline-start", layout::Float::Left),
             ("inline-end", layout::Float::Right),
         ] {
-            assert_eq!(parse_float(raw).unwrap(), expected, "float token {raw}");
+            assert_eq!(
+                parse_float(raw, flow).unwrap(),
+                expected,
+                "float token {raw}"
+            );
         }
         for (raw, expected) in [
             ("none", layout::Clear::None),
@@ -5365,7 +5542,11 @@ mod tests {
             ("inline-end", layout::Clear::Right),
             ("both", layout::Clear::Both),
         ] {
-            assert_eq!(parse_clear(raw).unwrap(), expected, "clear token {raw}");
+            assert_eq!(
+                parse_clear(raw, flow).unwrap(),
+                expected,
+                "clear token {raw}"
+            );
         }
         for raw in [
             "both",
@@ -5377,7 +5558,10 @@ mod tests {
             "inline-end ",
             "",
         ] {
-            assert!(parse_float(raw).is_err(), "invalid float token {raw:?}");
+            assert!(
+                parse_float(raw, flow).is_err(),
+                "invalid float token {raw:?}"
+            );
         }
         for raw in [
             "start",
@@ -5388,7 +5572,10 @@ mod tests {
             "inline-end ",
             "",
         ] {
-            assert!(parse_clear(raw).is_err(), "invalid clear token {raw:?}");
+            assert!(
+                parse_clear(raw, flow).is_err(),
+                "invalid clear token {raw:?}"
+            );
         }
     }
 
@@ -7212,6 +7399,7 @@ mod tests {
         let input = to_layout_input(&StyleAttrs {
             attrs: BTreeMap::from([
                 ("source-tag".to_string(), "br".to_string()),
+                ("display".to_string(), "inline".to_string()),
                 ("direction".to_string(), "rtl".to_string()),
                 ("writing-mode".to_string(), "vertical-rl".to_string()),
                 ("vertical-align".to_string(), "top".to_string()),
@@ -7237,7 +7425,7 @@ mod tests {
                 <viewport width="100px" height="100px" />
                 <input>
                     <div direction="rtl" writing-mode="vertical-rl">
-                        <div source-tag="br" direction="ltr" writing-mode="horizontal-tb" />
+                        <div source-tag="br" display="inline" direction="ltr" writing-mode="horizontal-tb" />
                     </div>
                 </input>
                 <expectations>
@@ -7303,6 +7491,7 @@ mod tests {
         let input = to_layout_input(&StyleAttrs {
             attrs: BTreeMap::from([
                 ("source-tag".to_string(), "br".to_string()),
+                ("display".to_string(), "inline".to_string()),
                 ("inline-baseline".to_string(), "15px".to_string()),
                 ("inline-line-height".to_string(), "20px".to_string()),
             ]),
@@ -7341,6 +7530,7 @@ mod tests {
         let error = to_layout_input(&StyleAttrs {
             attrs: BTreeMap::from([
                 ("source-tag".to_string(), "br".to_string()),
+                ("display".to_string(), "inline".to_string()),
                 ("inline-baseline".to_string(), "15px".to_string()),
             ]),
         })
@@ -8830,7 +9020,7 @@ mod tests {
         let input = if standalone_axis {
             format!(
                 r#"
-                <div display="inline-grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-rows="30px" grid-template-columns="60px" font-family="ahem" font-size="15px" line-height="15px">
+                <div display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-rows="30px" grid-template-columns="60px" font-family="ahem" font-size="15px" line-height="15px">
                     <div display="grid" align-items="baseline" grid-template-rows="subgrid" grid-template-columns="repeat(2, 30px)">
                         <div display="grid" align-items="baseline" grid-template-rows="auto" grid-template-columns="subgrid">{}</div>
                         <div display="grid" align-items="baseline" grid-template-rows="auto" grid-template-columns="subgrid" font-size="30px" line-height="30px">{}</div>
@@ -8859,7 +9049,7 @@ mod tests {
         } else {
             format!(
                 r#"
-                <div display="inline-grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-columns="repeat(2, auto)" font-family="ahem" font-size="15px" line-height="15px">
+                <div display="grid" box-sizing="{box_sizing}" direction="{direction}" align-items="baseline" grid-template-columns="repeat(2, auto)" font-family="ahem" font-size="15px" line-height="15px">
                     <div display="grid" align-items="baseline" grid-column-start="1" grid-column-end="-1" grid-template-columns="subgrid">
                         <div display="grid" align-items="baseline">{}</div>
                         <div display="grid" align-items="baseline" font-size="30px" line-height="30px">{}</div>
@@ -8962,6 +9152,75 @@ mod tests {
         fri06_c08_adapter_xml(name, &input, "<node />")
     }
 
+    fn fri06_c08_r2_float_line_xml(name: &str) -> String {
+        let variant = name.rsplit_once("__").expect("variant suffix").1;
+        let (box_sizing, direction) = fri06_c08_adapter_variant_attrs(variant);
+        let bidi_level = u8::from(direction == "rtl");
+        let input = format!(
+            r#"
+            <div source-tag="div" display="block" box-sizing="{box_sizing}" direction="{direction}" width="180px" font-family="monospace" font-size="16px" line-height="20px">
+                <div source-tag="span" display="block" float="left" width="42px" height="42px" />
+                <div source-tag="span" display="block" float="right" width="50px" height="62px" />
+                {}
+                <div source-tag="span" display="inline-block" width="28px" height="16px" />
+                <div source-tag="span" display="inline-block" width="32px" height="16px" />
+                <div source-tag="span" display="inline-block" width="36px" height="16px" />
+                <div source-tag="span" display="inline-block" width="40px" height="16px" />
+                <atomic-placeholder child-index="3" bidi-level="{bidi_level}" following-break="allowed" />
+                <atomic-placeholder child-index="4" bidi-level="{bidi_level}" following-break="allowed" />
+                <atomic-placeholder child-index="5" bidi-level="{bidi_level}" following-break="allowed" />
+                <atomic-placeholder child-index="6" bidi-level="{bidi_level}" following-break="allowed" />
+            </div>
+            "#,
+            fri06_c06_inline_text(&fri06_c06_segment_xml(
+                "0",
+                "38.53125",
+                ("14.8", "20"),
+                &bidi_level.to_string(),
+                "preserve",
+                "allowed",
+                None,
+            )),
+        );
+        fri06_c08_adapter_xml(name, &input, "<node />")
+    }
+
+    fn fri06_c08_r2_four_run_grid_xml(name: &str, duplicate_fallback: bool) -> String {
+        let variant = name.rsplit_once("__").expect("variant suffix").1;
+        let (box_sizing, direction) = fri06_c08_adapter_variant_attrs(variant);
+        let bidi_level = u8::from(direction == "rtl");
+        let run = |id: u64, extent: Scalar, following_break: &str| {
+            fri06_c06_inline_text(&fri06_c06_segment_xml(
+                &id.to_string(),
+                &extent.to_string(),
+                ("20", "25"),
+                &bidi_level.to_string(),
+                "preserve",
+                following_break,
+                None,
+            ))
+        };
+        let fallback = if duplicate_fallback {
+            "X XXXX XX XXX"
+        } else {
+            ""
+        };
+        let input = format!(
+            r#"
+            <div source-tag="div" display="block" box-sizing="{box_sizing}" direction="{direction}" width="100px" height="100px">
+                <div source-tag="div" display="grid" width="min-content" font-family="ahem" font-size="25px" line-height="25px">
+                    <div source-tag="div" display="grid" grid-template-rows="subgrid" grid-template-columns="subgrid" grid-row-start="1" grid-row-end="-1" grid-column-start="1" grid-column-end="-1">{fallback}{}{}{}{}</div>
+                </div>
+            </div>
+            "#,
+            run(0, 25.0, "allowed"),
+            run(1, 100.0, "allowed"),
+            run(2, 50.0, "allowed"),
+            run(3, 75.0, "prohibited"),
+        );
+        fri06_c08_adapter_xml(name, &input, "<node />")
+    }
+
     fn fri06_c08_adapter_compute(xml: &str) -> Result<TestTree, Error> {
         let golden = Golden::parse(xml)?;
         let mut tree = TestTree::from_golden(&golden.root)?;
@@ -9012,7 +9271,7 @@ mod tests {
     }
 
     #[test]
-    fn fri06_c08_adapter_named_grid_text_uses_baseline_capable_anonymous_wrapper() {
+    fn fri06_c08_r2_parser16_computed_grid_uses_baseline_capable_anonymous_wrappers() {
         for source in [
             "subgrid_baseline_auto_columns_first_item",
             "subgrid_baseline_auto_columns_second_item",
@@ -9041,6 +9300,270 @@ mod tests {
                 assert_eq!(wrappers, 2, "{name} anonymous grid text wrappers");
             }
         }
+    }
+
+    #[test]
+    fn fri06_c08_r2_parser16_inline_grid_altered_topology_and_name_fail_closed() {
+        let name = "subgrid_baseline_auto_columns_first_item__border_box_ltr";
+        let computed_grid = fri06_c08_adapter_grid_xml(name, false);
+        let authored_inline_grid =
+            computed_grid.replacen("<div display=\"grid\"", "<div display=\"inline-grid\"", 1);
+        let error = Golden::parse(&authored_inline_grid)
+            .expect_err("authored inline-grid must not satisfy the computed-grid predicate");
+        assert!(error.to_string().contains("exact baseline helper root"));
+
+        let altered_topology = computed_grid.replacen(
+            "<div display=\"grid\" align-items=\"baseline\">",
+            "<div display=\"flex\" align-items=\"baseline\">",
+            1,
+        );
+        let error = Golden::parse(&altered_topology)
+            .expect_err("altered parser16 topology must fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("two direct shaped-text grid items")
+        );
+
+        let altered_name = computed_grid.replace(
+            "subgrid_baseline_auto_columns_first_item__border_box_ltr",
+            "subgrid_baseline_auto_columns_control__border_box_ltr",
+        );
+        let error = fri06_c08_adapter_compute(&altered_name)
+            .expect_err("altered parser16 name must not activate the finite adapter");
+        assert!(error.to_string().contains("LaterFriBehavior"));
+    }
+
+    #[test]
+    fn fri06_c08_r2_blockified_br_is_a_box_and_explicit_inline_br_is_a_control() {
+        let blockified = to_layout_input(&StyleAttrs {
+            attrs: BTreeMap::from([
+                ("source-tag".to_string(), "br".to_string()),
+                ("display".to_string(), "block".to_string()),
+            ]),
+        })
+        .expect("blockified BR facts should lower as an ordinary box");
+        assert!(matches!(blockified, layout::LayoutInput::Box(_)));
+
+        let explicit_control = to_layout_input(&StyleAttrs {
+            attrs: BTreeMap::from([
+                ("source-tag".to_string(), "br".to_string()),
+                ("line-control".to_string(), "forced-break".to_string()),
+                ("display".to_string(), "inline".to_string()),
+            ]),
+        })
+        .expect("explicit lowered inline BR facts should lower as a control");
+        assert!(matches!(
+            explicit_control,
+            layout::LayoutInput::LineBreak(_)
+        ));
+    }
+
+    #[test]
+    fn fri06_c08_r2_physical_float_and_clear_follow_all_ten_flow_mappings() {
+        let rows = [
+            (
+                layout::WritingMode::HorizontalTb,
+                layout::Direction::Ltr,
+                Some((layout::Float::Left, layout::Float::Right)),
+            ),
+            (
+                layout::WritingMode::HorizontalTb,
+                layout::Direction::Rtl,
+                Some((layout::Float::Right, layout::Float::Left)),
+            ),
+            (
+                layout::WritingMode::VerticalRl,
+                layout::Direction::Ltr,
+                None,
+            ),
+            (
+                layout::WritingMode::VerticalRl,
+                layout::Direction::Rtl,
+                None,
+            ),
+            (
+                layout::WritingMode::VerticalLr,
+                layout::Direction::Ltr,
+                None,
+            ),
+            (
+                layout::WritingMode::VerticalLr,
+                layout::Direction::Rtl,
+                None,
+            ),
+            (
+                layout::WritingMode::SidewaysRl,
+                layout::Direction::Ltr,
+                None,
+            ),
+            (
+                layout::WritingMode::SidewaysRl,
+                layout::Direction::Rtl,
+                None,
+            ),
+            (
+                layout::WritingMode::SidewaysLr,
+                layout::Direction::Ltr,
+                None,
+            ),
+            (
+                layout::WritingMode::SidewaysLr,
+                layout::Direction::Rtl,
+                None,
+            ),
+        ];
+
+        for (writing_mode, direction, expected) in rows {
+            let flow = layout::FlowAxes::new(writing_mode, direction);
+            for (token, index) in [("left", 0), ("right", 1)] {
+                for property in ["float", "clear"] {
+                    let result = to_layout_input_in_flow(
+                        &StyleAttrs {
+                            attrs: BTreeMap::from([
+                                ("display".to_string(), "block".to_string()),
+                                (property.to_string(), token.to_string()),
+                            ]),
+                        },
+                        Some(flow),
+                    );
+                    match expected {
+                        Some(expected) => {
+                            let input = result
+                                .unwrap_or_else(|error| {
+                                    panic!(
+                                        "{writing_mode:?} {direction:?} {property}={token}: {error}"
+                                    )
+                                })
+                                .as_box()
+                                .expect("mapped physical side should remain a box")
+                                .clone();
+                            if property == "float" {
+                                assert_eq!(input.float, [expected.0, expected.1][index]);
+                            } else {
+                                let expected = match [expected.0, expected.1][index] {
+                                    layout::Float::Left => layout::Clear::Left,
+                                    layout::Float::Right => layout::Clear::Right,
+                                    _ => unreachable!(),
+                                };
+                                assert_eq!(input.clear, expected);
+                            }
+                        }
+                        None => {
+                            let error = result.expect_err(
+                                "vertical/sideways physical float and clear sides must fail closed",
+                            );
+                            assert!(
+                                error.to_string().contains("physical fixture-lowering"),
+                                "unexpected {writing_mode:?} {direction:?} {property}={token} error: {error}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn fri06_c08_r2_named_mixed_wrap_and_float_lines_receive_continuation_struts() {
+        for source in [
+            "fri06_inline_mixed_text_atomic_wrap",
+            "fri06_float_line_exclusion",
+        ] {
+            for variant in FRI06_C08_ADAPTER_VARIANTS {
+                let name = format!("{source}__{variant}");
+                let xml = if source == "fri06_float_line_exclusion" {
+                    fri06_c08_r2_float_line_xml(&name)
+                } else {
+                    fri06_c08_adapter_atomic_xml(&name)
+                };
+                let tree = fri06_c08_adapter_compute(&xml)
+                    .unwrap_or_else(|error| panic!("{name} must lower: {error}"));
+                let struts = tree
+                    .nodes
+                    .iter()
+                    .filter_map(|node| node.layout_input.as_inline_boundary())
+                    .collect::<Vec<_>>();
+                assert_eq!(struts.len(), 1, "{name} continuation strut count");
+                assert_eq!(struts[0].metrics().line_extent(), 20.0, "{name}");
+                assert_eq!(struts[0].metrics().baseline(), 12.0, "{name}");
+            }
+        }
+    }
+
+    #[test]
+    fn fri06_c08_r2_four_typed_runs_use_one_wrapper_without_raw_fallback() {
+        for variant in FRI06_C08_ADAPTER_VARIANTS {
+            let name = format!("subgrid_auto_track_sizing_min_content_text_runs__{variant}");
+            let tree = fri06_c08_adapter_compute(&fri06_c08_r2_four_run_grid_xml(&name, false))
+                .unwrap_or_else(|error| panic!("{name} must lower: {error}"));
+            let wrappers = tree
+                .nodes
+                .iter()
+                .filter(|node| {
+                    node.synthetic
+                        && node.children.len() == 4
+                        && node.children.iter().all(|child| {
+                            matches!(
+                                tree.nodes[*child].layout_input,
+                                layout::LayoutInput::InlineText(_)
+                            )
+                        })
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(wrappers.len(), 1, "{name} anonymous wrapper count");
+            let segment_ids = wrappers[0]
+                .children
+                .iter()
+                .map(|child| {
+                    let layout::LayoutInput::InlineText(input) = &tree.nodes[*child].layout_input
+                    else {
+                        unreachable!("wrapper predicate already requires shaped text");
+                    };
+                    input.segments()[0].segment_id().get()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(segment_ids, [0, 1, 2, 3], "{name} stable run identities");
+            assert!(tree.nodes.iter().all(|node| node.text.is_none()), "{name}");
+        }
+    }
+
+    #[test]
+    fn fri06_c08_r2_wrapper_duplicate_fallback_and_altered_name_fail_closed() {
+        let name = "subgrid_auto_track_sizing_min_content_text_runs__border_box_ltr";
+        let duplicate = fri06_c08_r2_four_run_grid_xml(name, true);
+        let error = fri06_c08_adapter_compute(&duplicate)
+            .expect_err("typed runs plus duplicate raw fallback must fail closed");
+        assert!(error.to_string().contains("duplicate raw text fallback"));
+
+        let altered_name = fri06_c08_r2_four_run_grid_xml(
+            "subgrid_auto_track_sizing_min_content_text_runs_control__border_box_ltr",
+            false,
+        );
+        let error = fri06_c08_adapter_compute(&altered_name)
+            .expect_err("altered four-run fixture name must not activate the wrapper");
+        assert!(error.to_string().contains("LaterFriBehavior"));
+    }
+
+    #[test]
+    fn fri06_c08_r2_wrapped_flex_control_remains_rejected() {
+        let golden = fri06_c08_r0_flex_control_golden("wrap");
+        let tree = TestTree::from_golden(&golden.root).unwrap();
+        let error = compare_expectation(
+            &tree,
+            0,
+            &golden.expectations,
+            &golden.name,
+            golden.use_rounding,
+            &[],
+            &[],
+        )
+        .expect_err("wrapped flex browser-control observations must fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("wrapped flex browser control observations are unsupported")
+        );
     }
 
     #[test]
