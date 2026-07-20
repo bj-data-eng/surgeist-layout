@@ -126,7 +126,7 @@ controls pass. The direction-wide second reversal is absent.
 ```sh
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_recovery_characterization_
 CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --test layout fri06_c08_recovery_characterization_
-CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c05_r1_
+CARGO_NET_OFFLINE=true cargo test --locked --offline -p surgeist-layout --lib fri06_c08_r1_
 CARGO_NET_OFFLINE=true just verify
 CARGO_NET_OFFLINE=true just fmt-check
 ```
