@@ -6501,6 +6501,54 @@ if (expectedReason === undefined) {{
         sha256_bytes(format!("{}\n", rows.join("\n")).as_bytes())
     }
 
+    #[derive(Debug, PartialEq, Eq)]
+    enum Fri06C08DirectRootChild {
+        Text(String),
+        Element(String),
+    }
+
+    fn fri06_c08_direct_test_root(
+        raw: &str,
+        relative: &str,
+    ) -> (Vec<Fri06C08DirectRootChild>, Option<Value>) {
+        let root_marker = r#"<div id="test-root""#;
+        assert_eq!(
+            raw.matches(root_marker).count(),
+            1,
+            "{relative} must contain one exact #test-root element"
+        );
+        let root_start = raw.find(root_marker).expect("checked one root marker");
+        let root_end = raw[root_start..]
+            .rfind("</div>")
+            .map(|offset| root_start + offset + "</div>".len())
+            .unwrap_or_else(|| panic!("{relative} must close #test-root"));
+        let document = roxmltree::Document::parse(&raw[root_start..root_end])
+            .unwrap_or_else(|error| panic!("{relative} #test-root must parse: {error}"));
+        let root = document.root_element();
+        assert_eq!(root.attribute("id"), Some("test-root"), "{relative}");
+
+        let children = root
+            .children()
+            .map(|child| match child.node_type() {
+                roxmltree::NodeType::Text => Fri06C08DirectRootChild::Text(
+                    child
+                        .text()
+                        .expect("text node must contain text")
+                        .to_string(),
+                ),
+                roxmltree::NodeType::Element => {
+                    Fri06C08DirectRootChild::Element(child.tag_name().name().to_string())
+                }
+                other => panic!("{relative} has unexpected direct #test-root child {other:?}"),
+            })
+            .collect();
+        let authored_breaks = root.attribute("data-surgeist-inline-breaks").map(|raw| {
+            serde_json::from_str(raw)
+                .unwrap_or_else(|error| panic!("{relative} authored breaks must parse: {error}"))
+        });
+        (children, authored_breaks)
+    }
+
     #[test]
     fn fri06_c08_new_manifest_owns_exact_active_four_variant_matrix_and_counts() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
@@ -6578,7 +6626,6 @@ if (expectedReason === undefined) {{
                     "display: inline-block; width: 18px; height: 18px",
                     "display: inline-block; width: 24px; height: 18px",
                     "display: inline-block; width: 30px; height: 18px",
-                    "text ",
                 ],
             ),
             (
@@ -6641,7 +6688,6 @@ if (expectedReason === undefined) {{
                     "display: block",
                     "float: left",
                     "float: right",
-                    "line ",
                     "width: 28px; height: 16px",
                     "width: 40px; height: 16px",
                 ],
@@ -6729,6 +6775,97 @@ if (expectedReason === undefined) {{
                 "float/fri06_float_line_exclusion.html",
             ]
         );
+    }
+
+    #[test]
+    fn fri06_c08_new_word_only_segments_preserve_direct_root_sequence_and_break_indices() {
+        use Fri06C08DirectRootChild::{Element, Text};
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let cases = [
+            (
+                "block/fri06_bidi_mixed_inline.html",
+                vec![
+                    Text("\n  ".to_string()),
+                    Element("bdo".to_string()),
+                    Text(" ".to_string()),
+                    Element("bdo".to_string()),
+                    Text("delta".to_string()),
+                ],
+                4,
+                "delta",
+                None,
+            ),
+            (
+                "block/fri06_inline_mixed_text_atomic_wrap.html",
+                vec![
+                    Text("text".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                ],
+                0,
+                "text",
+                Some(json!([{"sourceIndex": 0, "followingBreak": "allowed"}])),
+            ),
+            (
+                "float/fri06_float_line_exclusion.html",
+                vec![
+                    Text("\n  ".to_string()),
+                    Element("span".to_string()),
+                    Text("\n  ".to_string()),
+                    Element("span".to_string()),
+                    Text("line".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                    Text("\n".to_string()),
+                ],
+                4,
+                "line",
+                Some(json!([
+                    {"sourceIndex": 4, "followingBreak": "allowed"},
+                    {"sourceIndex": 5, "followingBreak": "allowed"},
+                    {"sourceIndex": 6, "followingBreak": "allowed"},
+                    {"sourceIndex": 7, "followingBreak": "allowed"}
+                ])),
+            ),
+            (
+                "float/fri06_float_shape_exclusion.html",
+                vec![
+                    Text("\n  ".to_string()),
+                    Element("span".to_string()),
+                    Text("bands".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                    Element("span".to_string()),
+                    Text("\n".to_string()),
+                ],
+                2,
+                "bands",
+                None,
+            ),
+        ];
+
+        for (relative, expected_children, source_index, word, expected_breaks) in cases {
+            let raw = fs::read_to_string(root.join(relative)).expect(relative);
+            let (children, authored_breaks) = fri06_c08_direct_test_root(&raw, relative);
+            assert_eq!(
+                children, expected_children,
+                "{relative} direct #test-root sequence must preserve source indices and element adjacency"
+            );
+            assert_eq!(
+                children.get(source_index),
+                Some(&Text(word.to_string())),
+                "{relative} source segment {source_index} must contain only {word:?} with no boundary whitespace"
+            );
+            assert_eq!(
+                authored_breaks, expected_breaks,
+                "{relative} authored break indices must remain exact"
+            );
+        }
     }
 
     #[test]
