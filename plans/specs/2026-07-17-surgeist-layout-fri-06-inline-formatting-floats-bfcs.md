@@ -132,10 +132,10 @@ than defining substitutes.
 
 | ID | Decision |
 | --- | --- |
-| `D-01` | Text crosses into layout as validated pre-line-layout `InlineTextInputOf<S>` facts. Layout never calls a font or shaping backend and never stores authored text or glyph data. |
+| `D-01` | Text crosses into layout as validated pre-line-layout `InlineTextInputOf<S>` metric facts. Layout never calls a font or shaping backend and never stores authored text, glyph data, ink bounds, or a glyph/content offset. |
 | `D-02` | A text input contains a nonempty ordered list of indivisible shaped segments with caller-local IDs, finite logical metrics, bidi level, whitespace edge behavior, and the break opportunity following each segment. An atomic inline box carries the corresponding bidi level and following break fact in a separate validated participation value. |
 | `D-03` | The root text adapter supplies text segments and atomic participation facts from one composed paragraph in logical source order. Layout flattens tree children in source order, chooses line breaks, then performs stable per-line visual reordering over shaped segments, atomic boxes, and inline-boundary markers. Visible line breaks terminate before reordering and floats/out-of-flow boxes never enter the sequence. |
-| `D-04` | Line fragments are published separately from `NodeOutputOf`: a completed batch owns immutable `InlineFragmentOutputEntryOf<Node,S>` values keyed by source node and segment ID. A text node's ordinary `NodeOutputOf` is the physical union of its fragments and is not treated as a CSS box. |
+| `D-04` | Line fragments are published separately from `NodeOutputOf`: a completed batch owns immutable `InlineFragmentOutputEntryOf<Node,S>` values keyed by source node and segment ID. Their rect and baseline are metric line-fragment geometry derived from the supplied inline extent, baseline, and line extent, never glyph-ink bounds. A text node's ordinary `NodeOutputOf` is the physical union of those fragments and is not treated as a CSS box. |
 | `D-05` | `InlineTextInputOf` is an owned layout-ready value with private fields. It has no `Default`; empty text produces no layout input during root box generation. Construction validates all numeric, ordering, bidi, whitespace, and break invariants atomically. |
 | `D-06` | The line builder is one logical-axis algorithm for all ten flow mappings. Horizontal and vertical physical output differ only through `FlowAxes` projection; the separate forced-column implementation is removed. |
 | `D-07` | Every line independently owns available inline start/end, used inline extent, block extent, baseline, participant list, alignment offset, and float-band provenance. No maximum-line proxy is reused for placement. |
@@ -147,7 +147,7 @@ than defining substitutes.
 | `D-13` | Float left/right and clear left/right are line-relative values mapped by the containing `FlowAxes`; the public enum spellings remain source-compatible while algorithms do not treat them as physical x sides. |
 | `D-14` | Margin-box float exclusion is internal and always available. Non-rectangular exclusion uses an explicit `FloatExclusion::Shape` input and a bounded `LayoutTree` provider query. Each returned interval retains its originating query privately; a mismatched query, missing provider, or provider failure is a typed layout error. |
 | `D-15` | Float interaction is closed over the current model. An in-flow, non-floating, block-level child avoids active floats exactly when it is `Flex`, `Grid`, or `GridLanes`, or when it is non-replaced and its normalized computed overflow pair establishes an independent formatting context. Floats use the float path, atomic inline boxes use the line path while trapping their own internal formatting context, absolute boxes are excluded, and `None` produces no box. Future display roles do not enter this cycle. |
-| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator edits are permitted only for their shaped-segment/fragment and exclusion facts. Inputs settle first, then one full regeneration owns all XML/report deltas. |
+| `D-16` | Browser fixtures remain a finite adapter. FRI-06 activates the exact 340 currently unsupported variants identified below and adds exactly twelve named four-variant sources. Parser/helper/generator/comparator edits are permitted only for their shaped-segment/fragment, browser-observation category, and exclusion facts. Inputs settle first, then one full regeneration owns all XML/report deltas. |
 
 Rejected alternatives:
 
@@ -294,11 +294,17 @@ pub struct InlineFragmentOutputEntryOf<Node, S: LayoutScalar> { /* private */ }
 `InlineFragmentOutputOf` exposes:
 
 - `segment_id()`;
-- physical `rect()` for the used segment content on one line;
+- physical `rect()` for the used metric segment box on one line;
 - physical `baseline()` point;
 - zero-based `line_index()` within the containing inline formatting context;
 - `visual_index()` within that line; and
 - `replacement_inline_extent()` used at the selected break, if any.
+
+For a shaped segment, the logical inline extent is the supplied segment extent,
+the logical block start is the completed line baseline minus the supplied
+segment baseline, and the logical block extent is the supplied line extent.
+Projection makes that metric box and line baseline physical. Neither the
+fragment nor its text-node union represents browser glyph-ink bounds.
 
 One source segment produces at most one fragment because segments are
 indivisible. A whitespace segment discarded at a selected line edge produces no
@@ -970,7 +976,9 @@ The fixture adapter may add only these layout-ready concepts:
 - ordered shaped segments with stable local IDs, logical extent, line metrics,
   bidi level, whitespace edge, and following break opportunity;
 - atomic placeholder bidi/break facts mapped to one child source index;
-- expected fragment rect/baseline/line/visual data;
+- explicit expected model-line fragment rect/baseline/line/visual data;
+- browser `Range` observations categorized separately for source association and
+  flow-inline start/advance only;
 - `vertical-align: bottom` lowering; and
 - a finite shape-exclusion band table for provider tests.
 
@@ -979,9 +987,13 @@ contains validated physical query band/result intervals and is consumed through
 the same `LayoutTree` provider method as root integration.
 
 The JavaScript helper may read browser-computed geometry and DOM ranges needed
-for the named text/control fragments. It must not become a general text shaper,
-CSS parser, bidi implementation, or alternate line algorithm. Rust parser and
-serializer changes remain exact to the new attributes.
+for the named text/control fragments. A `Range` ink rect never supplies or
+overrides a model fragment's block-axis start, block extent, baseline, or the
+text node's metric-box union. The comparator uses Range data only for its named
+source/flow-inline observations and remains strict for every explicit model-line
+expectation. It must not become a general text shaper, CSS parser, bidi
+implementation, or alternate line algorithm. Rust parser and serializer changes
+remain exact to the finite category and attributes.
 
 Final generated artifacts have one full, unfiltered lineage after all owned
 HTML/parser/helper/fixture inputs are settled. Their report has `filter: null`,
@@ -1107,8 +1119,9 @@ FRI-06 is complete only when:
     caller dirty state; valid cold/warm and normal/rounded output agrees for
     lines, restored fragments, controls, floats, baselines, content size, and
     scroll contribution;
-12. comparator negative controls detect wrong/missing control and fragment
-    geometry, source/line/visual identity, and baseline;
+12. comparator negative controls detect wrong/missing control and explicit
+    model-fragment geometry, source/line/visual identity, and baseline, while
+    Range-ink observations cannot masquerade as metric block geometry;
 13. the bounded HTML/parser/helper/fixture inputs settle before exactly one final
     full regeneration; subsequent checks are read-only and provenance-clean;
 14. FRI-06-owned mixed-text, vertical/outside-block BR, and active float/BFC
