@@ -6704,7 +6704,7 @@ if (expectedReason === undefined) {{
             (
                 "float/fri06_float_auto_height.html",
                 &[
-                    "display: flow-root",
+                    "overflow: auto",
                     "float: left",
                     "height: 28px",
                     "height: 16px",
@@ -6775,6 +6775,80 @@ if (expectedReason === undefined) {{
                 "float/fri06_float_line_exclusion.html",
             ]
         );
+    }
+
+    #[test]
+    fn fri06_c08_new_exact_flow_root_census_sources_use_supported_overflow_bfcs() {
+        let html_root =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity/html");
+        let census = include_str!(
+            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        );
+        let actual_rows = census
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .skip(1)
+            .filter_map(|line| {
+                let fields = line.split('\t').collect::<Vec<_>>();
+                assert_eq!(fields.len(), 6, "census row must retain six fields: {line}");
+                (fields[4] == "later_owned.flow_root_display_normalization")
+                    .then(|| format!("{}\t{}", fields[1], fields[2]))
+            })
+            .collect::<BTreeSet<_>>();
+        let expected_sources = [
+            "html/block/fri06_vertical_break_clear.html",
+            "html/float/fri06_float_auto_height.html",
+            "html/float/fri06_float_bfc_avoidance.html",
+            "html/float/fri06_float_logical_clear.html",
+            "html/float/fri06_float_shape_exclusion.html",
+        ];
+        let expected_rows = expected_sources
+            .into_iter()
+            .flat_map(|source| {
+                fixture_cases().map(move |(variant, _)| format!("{source}\t{variant}"))
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(actual_rows.len(), 20);
+        assert_eq!(actual_rows, expected_rows);
+
+        let required_styles: [(&str, &[&str]); 5] = [
+            (
+                "block/fri06_vertical_break_clear.html",
+                &["style=\"display: block; overflow: auto; writing-mode: vertical-rl;"],
+            ),
+            (
+                "float/fri06_float_auto_height.html",
+                &[
+                    "style=\"display: block; overflow: auto; width: 160px;\"",
+                    "style=\"float: right; display: block; overflow: auto; width: 52px;\"",
+                ],
+            ),
+            (
+                "float/fri06_float_bfc_avoidance.html",
+                &["style=\"display: block; overflow: auto; width: 180px;"],
+            ),
+            (
+                "float/fri06_float_logical_clear.html",
+                &["style=\"display: block; overflow: auto; writing-mode: vertical-rl;"],
+            ),
+            (
+                "float/fri06_float_shape_exclusion.html",
+                &["style=\"display: block; overflow: auto; width: 180px;"],
+            ),
+        ];
+        for (relative, required) in required_styles {
+            let raw = fs::read_to_string(html_root.join(relative)).expect(relative);
+            assert!(
+                !raw.contains("flow-root"),
+                "{relative} retains later-owned flow-root"
+            );
+            for fragment in required {
+                assert!(
+                    raw.contains(fragment),
+                    "{relative} lacks supported overflow BFC style {fragment:?}"
+                );
+            }
+        }
     }
 
     #[test]
