@@ -318,16 +318,20 @@ the worktree contains entry artifacts rather than the invalid diagnostic lineage
 **Preflight commands:**
 
 ```sh
+set -e
 test -x 'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
-'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' --version | grep -Fx 'Google Chrome for Testing 149.0.7827.115'
-test -z "${SURGEIST_BROWSER_CACHE+x}${SURGEIST_BROWSER_VERSION+x}${SURGEIST_LAYOUT_GENERATE_FILTER+x}"
+browser_version_file="$(mktemp)"; trap 'rm -f "$browser_version_file"' EXIT
+'target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' --version > "$browser_version_file"
+test "$(wc -l < "$browser_version_file")" -eq 1
+grep -Eq '^Google Chrome for Testing 149\.0\.7827\.115[[:blank:]]*$' "$browser_version_file"
+test -z "${SURGEIST_BROWSER_CACHE+x}${SURGEIST_BROWSER_VERSION+x}${SURGEIST_LAYOUT_GENERATE_FILTER+x}${SURGEIST_LAYOUT_BROWSER_PARITY_ROOT+x}"
 ```
 
 **Generation:** Run exactly once. A nonzero exit or unexpected output stops for a
 new reviewed correction lineage; never rerun unchanged inputs.
 
 ```sh
-env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
+env -u SURGEIST_BROWSER_CACHE -u SURGEIST_BROWSER_VERSION -u SURGEIST_LAYOUT_GENERATE_FILTER -u SURGEIST_LAYOUT_BROWSER_PARITY_ROOT CARGO_NET_OFFLINE=true SURGEIST_BROWSER_PATH='target/surgeist-browser/mac_arm-149.0.7827.115/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing' cargo run --locked --offline -p surgeist-layout --features layout-golden-generate --bin surgeist-layout-generate -- generate-existing
 ```
 
 **Acceptance:** The report has `filter: null`, 5,712 generated, exactly 16
