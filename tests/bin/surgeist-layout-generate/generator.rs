@@ -7382,6 +7382,7 @@ describeElement = function(element) {
 const children = describeChildNodes(parent);
 console.log(JSON.stringify({
   tagName: "div",
+  layoutReadyInlineRoot: true,
   useRounding: false,
   viewport: { width: { unit: "px", value: 72 }, height: { unit: "max-content" } },
   style: { display: "block", size: { width: { unit: "px", value: 72 } } },
@@ -7492,6 +7493,7 @@ describeElement = function(element) {
 const children = describeChildNodes(parent);
 console.log(JSON.stringify({
   tagName: "div",
+  layoutReadyInlineRoot: true,
   useRounding: false,
   viewport: { width: { unit: "px", value: 180 }, height: { unit: "max-content" } },
   style: { display: "block", size: { width: { unit: "px", value: 180 } } },
