@@ -7612,11 +7612,7 @@ console.log(JSON.stringify({
 
     #[test]
     fn fri06_c08_existing_census_intersection_assigns_only_exact_input_rows() {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
-        let report: Value = serde_json::from_slice(
-            &fs::read(root.join("xml/generation-reports/all.json")).expect("entry report"),
-        )
-        .expect("entry report JSON");
+        let report = fri06_c08_cycle_entry_report();
         let existing_sources = report["unsupported"]
             .as_array()
             .expect("unsupported rows")
