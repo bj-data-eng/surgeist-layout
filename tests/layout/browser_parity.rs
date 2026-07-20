@@ -3192,3 +3192,88 @@ fn named_grid_placement_failures_report_actual_kind() {
         "x mismatch"
     );
 }
+
+#[test]
+fn fri06_c08_r0_control_probe_matrix_is_exact_72_plus_24_rows() {
+    const INLINE_COLUMN_SOURCES: [&str; 12] = [
+        "subgrid_baseline_inline_column_inner_col1_first",
+        "subgrid_baseline_inline_column_inner_col1_last",
+        "subgrid_baseline_inline_column_inner_col2_first",
+        "subgrid_baseline_inline_column_inner_col2_last",
+        "subgrid_baseline_inline_column_outer_col3_first",
+        "subgrid_baseline_inline_column_outer_col3_last",
+        "subgrid_baseline_inline_column_parent_col1_first",
+        "subgrid_baseline_inline_column_parent_col1_last",
+        "subgrid_baseline_inline_column_parent_col2_first",
+        "subgrid_baseline_inline_column_parent_col2_last",
+        "subgrid_baseline_inline_column_parent_col3_first",
+        "subgrid_baseline_inline_column_parent_col3_last",
+    ];
+    const NESTED_BLOCK_SOURCES: [&str; 12] = [
+        "subgrid_baseline_nested_block_inner_row1_first",
+        "subgrid_baseline_nested_block_inner_row1_last",
+        "subgrid_baseline_nested_block_inner_row2_first",
+        "subgrid_baseline_nested_block_inner_row2_last",
+        "subgrid_baseline_nested_block_outer_row3_first",
+        "subgrid_baseline_nested_block_outer_row3_last",
+        "subgrid_baseline_nested_block_parent_row1_first",
+        "subgrid_baseline_nested_block_parent_row1_last",
+        "subgrid_baseline_nested_block_parent_row2_first",
+        "subgrid_baseline_nested_block_parent_row2_last",
+        "subgrid_baseline_nested_block_parent_row3_first",
+        "subgrid_baseline_nested_block_parent_row3_last",
+    ];
+    const LTR_VARIANTS: [&str; 2] = ["border_box_ltr", "content_box_ltr"];
+    const RTL_VARIANTS: [&str; 2] = ["border_box_rtl", "content_box_rtl"];
+    const ALL_VARIANTS: [&str; 4] = [
+        "border_box_ltr",
+        "border_box_rtl",
+        "content_box_ltr",
+        "content_box_rtl",
+    ];
+
+    let rows = include_str!(
+        "../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+    )
+    .lines()
+    .filter(|line| !line.starts_with('#'))
+    .skip(1)
+    .map(|line| line.split('\t').collect::<Vec<_>>())
+    .map(|fields| format!("{}\t{}", fields[1], fields[2]))
+    .collect::<BTreeSet<_>>();
+    let expected_rows = |sources: &[&str], variants: &[&str]| {
+        sources
+            .iter()
+            .flat_map(|source| {
+                variants
+                    .iter()
+                    .map(move |variant| format!("html/subgrid/{source}.html\t{variant}"))
+            })
+            .collect::<BTreeSet<_>>()
+    };
+
+    let control = expected_rows(&INLINE_COLUMN_SOURCES, &LTR_VARIANTS)
+        .into_iter()
+        .chain(expected_rows(&NESTED_BLOCK_SOURCES, &ALL_VARIANTS))
+        .collect::<BTreeSet<_>>();
+    let masked_rtl = expected_rows(&INLINE_COLUMN_SOURCES, &RTL_VARIANTS);
+    let selected = rows
+        .iter()
+        .filter(|row| {
+            row.contains("/subgrid_baseline_inline_column_")
+                || row.contains("/subgrid_baseline_nested_block_")
+        })
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let complete_probe = control
+        .iter()
+        .chain(masked_rtl.iter())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(control.len(), 72);
+    assert_eq!(masked_rtl.len(), 24);
+    assert!(control.is_disjoint(&masked_rtl));
+    assert_eq!(complete_probe.len(), 96);
+    assert_eq!(selected, complete_probe);
+}

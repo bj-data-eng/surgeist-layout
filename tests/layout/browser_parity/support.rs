@@ -1531,6 +1531,7 @@ fn expect_tag(node: roxmltree::Node<'_, '_>, tag: &str) -> Result<(), Error> {
 struct TestNode {
     node_input: layout::NodeInput,
     layout_input: layout::LayoutInput,
+    is_br_source: bool,
     font_family: FontFamily,
     font_size: Scalar,
     line_height: Scalar,
@@ -1650,6 +1651,7 @@ impl TestTree {
                 .cloned()
                 .unwrap_or_else(layout::NodeInput::non_box),
             layout_input,
+            is_br_source: node.style.get("source-tag") == Some("br"),
             font_family,
             font_size,
             line_height: resolved_line_height,
@@ -1742,6 +1744,7 @@ impl TestTree {
         self.nodes.push(TestNode {
             node_input: node_input.clone(),
             layout_input: layout::LayoutInput::box_input(node_input),
+            is_br_source: false,
             font_family,
             font_size,
             line_height,
@@ -1775,6 +1778,7 @@ impl TestTree {
         self.nodes.push(TestNode {
             node_input: layout::NodeInput::default(),
             layout_input: layout::LayoutInput::box_input(layout::NodeInput::default()),
+            is_br_source: false,
             font_family,
             font_size,
             line_height,
@@ -2310,6 +2314,7 @@ impl<'a> FragmentCursor<'a> {
 
 #[derive(Clone, Copy)]
 struct BrowserControlContext<'a> {
+    parent: usize,
     source_index: usize,
     siblings: &'a [usize],
 }
@@ -2330,7 +2335,12 @@ fn compare_expectation_in_source_order(
     } else {
         tree.nodes[node].unrounded_present
     };
+    let browser_control_in_flex = expected.browser_control.is_some()
+        && browser_control_context.is_some_and(|context| {
+            tree.nodes[context.parent].node_input.display == layout::Display::Flex
+        });
     if !selected_output_is_present
+        && !browser_control_in_flex
         && matches!(
             tree.nodes[node].layout_input,
             layout::LayoutInput::LineBreak(_) | layout::LayoutInput::InlineBoundary(_)
@@ -2403,6 +2413,7 @@ fn compare_expectation_in_source_order(
             use_rounding,
             fragment_cursors,
             Some(BrowserControlContext {
+                parent: node,
                 source_index: index,
                 siblings: &children,
             }),
@@ -2516,7 +2527,21 @@ fn compare_range_ink_expectations(
         )));
     }
 
-    for (index, (entry, expected)) in actual.iter().zip(expected).enumerate() {
+    let mut matched = vec![false; actual.len()];
+    for (index, expected) in expected.iter().enumerate() {
+        let actual_index = actual
+            .iter()
+            .enumerate()
+            .find(|(actual_index, entry)| {
+                !matched[*actual_index]
+                    && entry.fragment().segment_id().get() == expected.source_segment_id
+                    && entry.fragment().line_index() == expected.line_index
+            })
+            .map(|(actual_index, _)| actual_index)
+            .or_else(|| matched.iter().position(|matched| !matched))
+            .expect("equal Range observation counts leave an unmatched model fragment");
+        matched[actual_index] = true;
+        let entry = &actual[actual_index];
         let fragment = entry.fragment();
         compare_range_ink_identity(
             path,
@@ -2574,6 +2599,56 @@ fn compare_browser_control_expectation(
         context.source_index,
         expected.source_index,
     )?;
+    let parent_input = &tree.nodes[context.parent].node_input;
+    if parent_input.display == layout::Display::Flex {
+        if parent_input.flex_wrap != layout::FlexWrap::NoWrap {
+            return Err(Error::new(format!(
+                "{path}: wrapped flex browser control observations are unsupported"
+            )));
+        }
+        if !tree.nodes[node].is_br_source {
+            return Err(Error::new(format!(
+                "{path}: browser control source mismatch, expected a BR source"
+            )));
+        }
+
+        if let Some(expected_slot) = expected.terminal_visual_slot {
+            compare_browser_control_identity(
+                path,
+                "terminal visual slot",
+                context.source_index,
+                expected_slot,
+            )?;
+        }
+        if expected.previous_line != BrowserNeighborLine::Unobserved {
+            let actual_previous = if context.source_index == 0 {
+                BrowserNeighborLine::Absent
+            } else {
+                BrowserNeighborLine::Same
+            };
+            compare_browser_control_identity(
+                path,
+                "previous neighbor line",
+                actual_previous,
+                expected.previous_line,
+            )?;
+        }
+        if expected.next_line != BrowserNeighborLine::Unobserved {
+            let actual_next = if context.source_index + 1 == context.siblings.len() {
+                BrowserNeighborLine::Absent
+            } else {
+                BrowserNeighborLine::Same
+            };
+            compare_browser_control_identity(
+                path,
+                "next neighbor line",
+                actual_next,
+                expected.next_line,
+            )?;
+        }
+        return Ok(());
+    }
+
     let line_break = match tree.nodes[node].layout_input {
         layout::LayoutInput::LineBreak(line_break) => line_break,
         _ => {
@@ -3310,8 +3385,8 @@ fn parse_position(raw: &str) -> Result<layout::Position, Error> {
 fn parse_float(raw: &str) -> Result<layout::Float, Error> {
     match raw {
         "none" => Ok(layout::Float::None),
-        "left" => Ok(layout::Float::Left),
-        "right" => Ok(layout::Float::Right),
+        "left" | "inline-start" => Ok(layout::Float::Left),
+        "right" | "inline-end" => Ok(layout::Float::Right),
         _ => Err(Error::new(format!("unsupported float `{raw}`"))),
     }
 }
@@ -3319,8 +3394,8 @@ fn parse_float(raw: &str) -> Result<layout::Float, Error> {
 fn parse_clear(raw: &str) -> Result<layout::Clear, Error> {
     match raw {
         "none" => Ok(layout::Clear::None),
-        "left" => Ok(layout::Clear::Left),
-        "right" => Ok(layout::Clear::Right),
+        "left" | "inline-start" => Ok(layout::Clear::Left),
+        "right" | "inline-end" => Ok(layout::Clear::Right),
         "both" => Ok(layout::Clear::Both),
         _ => Err(Error::new(format!("unsupported clear `{raw}`"))),
     }
@@ -4925,6 +5000,7 @@ mod tests {
             nodes: vec![TestNode {
                 node_input: layout::NodeInput::non_box(),
                 layout_input: layout::LayoutInput::LineBreak(input),
+                is_br_source: true,
                 font_family: FontFamily::Ahem,
                 font_size: TextMeasure::LINE_HEIGHT,
                 line_height: TextMeasure::LINE_HEIGHT,
@@ -5094,6 +5170,226 @@ mod tests {
 
         Golden::parse(&xml)
             .expect("Range ink should retain source/line/inline facts without a visual index");
+    }
+
+    #[test]
+    fn fri06_c08_r0_range_observation_order_does_not_supply_model_visual_order() {
+        let root_input = layout::NodeInput {
+            display: layout::Display::Block,
+            ..layout::NodeInput::default()
+        };
+        let source = Fri06C06FragmentTree {
+            layout_inputs: vec![
+                layout::LayoutInput::box_input(root_input.clone()),
+                layout::LayoutInput::inline_text(
+                    layout::InlineTextInput::try_new(vec![
+                        fri06_c06_segment(11, 10.0),
+                        fri06_c06_segment(22, 5.0),
+                    ])
+                    .unwrap(),
+                ),
+            ],
+            node_inputs: vec![root_input, layout::NodeInput::non_box()],
+            children: vec![vec![1], Vec::new()],
+        };
+        let request = layout::LayoutRootRequest::viewport(layout::Size::new(
+            layout::Available::definite(100.0),
+            layout::Available::MaxContent,
+        ))
+        .unwrap();
+        let batch = layout::compute_layout(&source, 0, request).unwrap();
+        let actual = batch
+            .unrounded_inline_fragments()
+            .iter()
+            .filter(|entry| entry.node() == 1)
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(actual.len(), 2);
+
+        let mut expected = actual
+            .iter()
+            .map(|entry| {
+                let fragment = entry.fragment();
+                InlineRangeInkExpectation {
+                    source_segment_id: fragment.segment_id().get(),
+                    line_index: fragment.line_index(),
+                    physical_start_edge: PhysicalStartEdge::Left,
+                    start: fragment.rect().origin().x,
+                    advance: fragment.rect().size().width,
+                }
+            })
+            .collect::<Vec<_>>();
+        expected.reverse();
+
+        compare_range_ink_expectations("fri06-c08-r0-range", &actual, &expected)
+            .expect("Range source order must not become a model visual-index assertion");
+
+        for field in ["source", "line", "start", "advance"] {
+            let mut changed = expected.clone();
+            match field {
+                "source" => changed[0].source_segment_id += 1,
+                "line" => changed[0].line_index += 1,
+                "start" => changed[0].start += 1.0,
+                "advance" => changed[0].advance += 1.0,
+                _ => unreachable!(),
+            }
+            assert!(
+                compare_range_ink_expectations("fri06-c08-r0-range", &actual, &changed).is_err(),
+                "Range {field} association must remain strict"
+            );
+        }
+    }
+
+    fn fri06_c08_r0_flex_control_golden(flex_wrap: &str) -> Golden {
+        Golden::parse(&format!(
+            r#"
+            <test name="fri06-c08-r0-flex-control" use-rounding="true">
+                <viewport width="100" height="max-content" />
+                <input>
+                    <div display="flex" flex-wrap="{flex_wrap}">
+                        <div display="block" />
+                        <div source-tag="br" display="inline" />
+                        <div display="block" />
+                    </div>
+                </input>
+                <expectations>
+                    <node>
+                        <node />
+                        <node><browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="same" /></node>
+                        <node />
+                    </node>
+                </expectations>
+            </test>
+            "#,
+        ))
+        .expect("finite flex control fixture should parse")
+    }
+
+    #[test]
+    fn fri06_c08_r0_nonwrapping_flex_control_uses_source_and_line_membership_without_geometry() {
+        let golden = fri06_c08_r0_flex_control_golden("nowrap");
+        let mut tree = TestTree::from_golden(&golden.root).unwrap();
+
+        compare_expectation(
+            &tree,
+            0,
+            &golden.expectations,
+            &golden.name,
+            golden.use_rounding,
+            &[],
+            &[],
+        )
+        .expect("nonwrapping flex controls must not require model control-point geometry");
+
+        for field in ["source", "terminal", "previous", "next"] {
+            let mut changed = golden.clone();
+            let control = changed.expectations.children[1]
+                .browser_control
+                .as_mut()
+                .unwrap();
+            match field {
+                "source" => control.source_index = 0,
+                "terminal" => control.terminal_visual_slot = Some(0),
+                "previous" => control.previous_line = BrowserNeighborLine::Earlier,
+                "next" => control.next_line = BrowserNeighborLine::Later,
+                _ => unreachable!(),
+            }
+            assert!(
+                compare_expectation(
+                    &tree,
+                    0,
+                    &changed.expectations,
+                    &changed.name,
+                    changed.use_rounding,
+                    &[],
+                    &[],
+                )
+                .is_err(),
+                "nonwrapping flex browser-control {field} must remain strict"
+            );
+        }
+
+        tree.nodes[2].is_br_source = false;
+        let error = compare_expectation(
+            &tree,
+            0,
+            &golden.expectations,
+            &golden.name,
+            golden.use_rounding,
+            &[],
+            &[],
+        )
+        .expect_err("browser-control observations require a BR source association");
+        assert!(error.to_string().contains("expected a BR source"));
+    }
+
+    #[test]
+    fn fri06_c08_r0_wrapped_flex_control_is_rejected() {
+        let golden = fri06_c08_r0_flex_control_golden("wrap");
+        let tree = TestTree::from_golden(&golden.root).unwrap();
+
+        let error = compare_expectation(
+            &tree,
+            0,
+            &golden.expectations,
+            &golden.name,
+            golden.use_rounding,
+            &[],
+            &[],
+        )
+        .expect_err("wrapped flex browser-control observations must fail closed");
+        assert!(
+            error
+                .to_string()
+                .contains("wrapped flex browser control observations are unsupported"),
+            "unexpected wrapped-flex diagnostic: {error}"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_r0_float_and_clear_token_tables_are_finite() {
+        for (raw, expected) in [
+            ("none", layout::Float::None),
+            ("left", layout::Float::Left),
+            ("right", layout::Float::Right),
+            ("inline-start", layout::Float::Left),
+            ("inline-end", layout::Float::Right),
+        ] {
+            assert_eq!(parse_float(raw).unwrap(), expected, "float token {raw}");
+        }
+        for (raw, expected) in [
+            ("none", layout::Clear::None),
+            ("left", layout::Clear::Left),
+            ("right", layout::Clear::Right),
+            ("inline-start", layout::Clear::Left),
+            ("inline-end", layout::Clear::Right),
+            ("both", layout::Clear::Both),
+        ] {
+            assert_eq!(parse_clear(raw).unwrap(), expected, "clear token {raw}");
+        }
+        for raw in [
+            "both",
+            "start",
+            "end",
+            "inline_start",
+            "INLINE-START",
+            " inline-start",
+            "inline-end ",
+            "",
+        ] {
+            assert!(parse_float(raw).is_err(), "invalid float token {raw:?}");
+        }
+        for raw in [
+            "start",
+            "end",
+            "inline_start",
+            "INLINE-END",
+            " inline-start",
+            "inline-end ",
+            "",
+        ] {
+            assert!(parse_clear(raw).is_err(), "invalid clear token {raw:?}");
+        }
     }
 
     #[test]
@@ -5553,6 +5849,7 @@ mod tests {
             .map(|(node, layout_input)| TestNode {
                 node_input: source.node_inputs[node].clone(),
                 layout_input: layout_input.clone(),
+                is_br_source: false,
                 font_family: FontFamily::Ahem,
                 font_size: TextMeasure::LINE_HEIGHT,
                 line_height: TextMeasure::LINE_HEIGHT,
@@ -5765,15 +6062,17 @@ mod tests {
     }
 
     #[test]
-    fn fri06_c08_range_ink_does_not_relax_explicit_model_line_block_or_baseline() {
+    fn fri06_c08_r0_range_ink_does_not_relax_explicit_model_line_visual_block_or_baseline() {
         let (tree, batch, expected) = fri06_c06_fragment_observation();
         for (field, diagnostic) in [
+            ("visual", "fragment[0] visual index mismatch"),
             ("block", "fragment[0] rect y mismatch"),
             ("baseline", "fragment[0] baseline y mismatch"),
         ] {
             let mut changed = expected.clone();
             let fragment = &mut changed.children[0].fragments.as_mut().unwrap()[0];
             match field {
+                "visual" => fragment.visual_index += 1,
                 "block" => fragment.y += 1.0,
                 "baseline" => fragment.baseline_y += 1.0,
                 _ => unreachable!(),
@@ -7211,6 +7510,7 @@ mod tests {
             nodes: vec![TestNode {
                 node_input: node_input.clone(),
                 layout_input: layout::LayoutInput::box_input(node_input),
+                is_br_source: false,
                 font_family: FontFamily::Ahem,
                 font_size: TextMeasure::LINE_HEIGHT,
                 line_height: TextMeasure::LINE_HEIGHT,
