@@ -113,6 +113,7 @@ pub fn assert_surgeist_matches(golden: &Golden) -> Result<(), Error> {
         &golden.expectations,
         &golden.name,
         golden.use_rounding,
+        batch.unrounded_inline_fragments(),
         batch.final_inline_fragments(),
     )
 }
@@ -231,6 +232,7 @@ pub struct Expectation {
     pub scroll_size: Option<Size>,
     pub fragments: Option<Vec<InlineFragmentExpectation>>,
     pub range_inks: Option<Vec<InlineRangeInkExpectation>>,
+    pub browser_control: Option<BrowserControlExpectation>,
     pub children: Vec<Expectation>,
 }
 
@@ -259,10 +261,26 @@ pub enum PhysicalStartEdge {
 pub struct InlineRangeInkExpectation {
     pub source_segment_id: u64,
     pub line_index: usize,
-    pub visual_index: usize,
     pub physical_start_edge: PhysicalStartEdge,
     pub start: Scalar,
     pub advance: Scalar,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BrowserControlExpectation {
+    pub source_index: usize,
+    pub terminal_visual_slot: Option<usize>,
+    pub previous_line: BrowserNeighborLine,
+    pub next_line: BrowserNeighborLine,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BrowserNeighborLine {
+    Absent,
+    Unobserved,
+    Earlier,
+    Same,
+    Later,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -775,6 +793,7 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
 
     let mut fragments = None;
     let mut range_inks = None;
+    let mut browser_control = None;
     let mut children = Vec::new();
     for child in xml.children().filter(roxmltree::Node::is_element) {
         match child.tag_name().name() {
@@ -795,6 +814,14 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
                     "expected at most one `<range-inks>` child on `<node>`",
                 ));
             }
+            "browser-control" if browser_control.is_none() => {
+                browser_control = Some(parse_browser_control_expectation(child)?);
+            }
+            "browser-control" => {
+                return Err(Error::new(
+                    "expected at most one `<browser-control>` child on `<node>`",
+                ));
+            }
             tag => {
                 return Err(Error::new(format!(
                     "unsupported expectation child `<{tag}>`"
@@ -807,6 +834,11 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
             "model fragments and Range ink are distinct expectation categories",
         ));
     }
+    if browser_control.is_some() && (fragments.is_some() || range_inks.is_some()) {
+        return Err(Error::new(
+            "browser control observations and fragment observations are distinct categories",
+        ));
+    }
 
     let expectation = Expectation {
         x: optional_number_attr(xml, "x")?,
@@ -816,10 +848,11 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
         scroll_size,
         fragments,
         range_inks,
+        browser_control,
         children,
     };
-    validate_range_ink_expectation_category(&expectation)?;
-    if expectation.range_inks.is_some()
+    validate_observation_expectation_category(&expectation)?;
+    if (expectation.range_inks.is_some() || expectation.browser_control.is_some())
         && let Some(attribute) = xml.attributes().find(|attribute| {
             !["x", "y", "width", "height", "scroll_width", "scroll_height"]
                 .contains(&attribute.name())
@@ -833,8 +866,8 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
     Ok(expectation)
 }
 
-fn validate_range_ink_expectation_category(expectation: &Expectation) -> Result<(), Error> {
-    if expectation.range_inks.is_none() {
+fn validate_observation_expectation_category(expectation: &Expectation) -> Result<(), Error> {
+    if expectation.range_inks.is_none() && expectation.browser_control.is_none() {
         return Ok(());
     }
     if expectation.x.is_some()
@@ -842,22 +875,110 @@ fn validate_range_ink_expectation_category(expectation: &Expectation) -> Result<
         || expectation.width.is_some()
         || expectation.height.is_some()
     {
-        return Err(Error::new("Range ink must not include node geometry"));
+        return Err(Error::new(if expectation.range_inks.is_some() {
+            "Range ink must not include node geometry"
+        } else {
+            "browser control observations must not include model control geometry"
+        }));
     }
     if expectation.scroll_size.is_some() {
-        return Err(Error::new("Range ink must not include scroll geometry"));
+        return Err(Error::new(if expectation.range_inks.is_some() {
+            "Range ink must not include scroll geometry"
+        } else {
+            "browser control observations must not include scroll geometry"
+        }));
     }
     if expectation.fragments.is_some() {
+        let message = if expectation.range_inks.is_some() {
+            "model fragments and Range ink are distinct expectation categories"
+        } else {
+            "browser control observations and fragment observations are distinct categories"
+        };
+        return Err(Error::new(message));
+    }
+    if expectation.range_inks.is_some() && expectation.browser_control.is_some() {
         return Err(Error::new(
-            "model fragments and Range ink are distinct expectation categories",
+            "browser control observations and fragment observations are distinct categories",
         ));
     }
     if !expectation.children.is_empty() {
-        return Err(Error::new(
-            "Range ink must not include child geometry expectations",
-        ));
+        return Err(Error::new(if expectation.range_inks.is_some() {
+            "Range ink must not include child geometry expectations"
+        } else {
+            "browser control observations must not include child geometry expectations"
+        }));
     }
     Ok(())
+}
+
+fn parse_browser_control_expectation(
+    xml: roxmltree::Node<'_, '_>,
+) -> Result<BrowserControlExpectation, Error> {
+    expect_tag(xml, "browser-control")?;
+    let expectation = BrowserControlExpectation {
+        source_index: parse_observation_integer(xml, "source_index", "browser-control")?,
+        terminal_visual_slot: match required_attr(xml, "terminal_visual_slot")? {
+            "unobserved" => None,
+            _ => Some(parse_observation_integer(
+                xml,
+                "terminal_visual_slot",
+                "browser-control",
+            )?),
+        },
+        previous_line: parse_browser_neighbor_line(xml, "previous_line")?,
+        next_line: parse_browser_neighbor_line(xml, "next_line")?,
+    };
+    const ATTRIBUTES: &[&str] = &[
+        "source_index",
+        "terminal_visual_slot",
+        "previous_line",
+        "next_line",
+    ];
+    if let Some(attribute) = xml
+        .attributes()
+        .find(|attribute| !ATTRIBUTES.contains(&attribute.name()))
+    {
+        return Err(Error::new(format!(
+            "unsupported `<browser-control>` attribute `{}`",
+            attribute.name()
+        )));
+    }
+    validate_fragment_payload(xml, None)?;
+    Ok(expectation)
+}
+
+fn parse_browser_neighbor_line(
+    xml: roxmltree::Node<'_, '_>,
+    name: &str,
+) -> Result<BrowserNeighborLine, Error> {
+    match required_attr(xml, name)? {
+        "absent" => Ok(BrowserNeighborLine::Absent),
+        "unobserved" => Ok(BrowserNeighborLine::Unobserved),
+        "earlier" => Ok(BrowserNeighborLine::Earlier),
+        "same" => Ok(BrowserNeighborLine::Same),
+        "later" => Ok(BrowserNeighborLine::Later),
+        raw => Err(Error::new(format!(
+            "invalid `{name}` on `<browser-control>`: `{raw}`"
+        ))),
+    }
+}
+
+fn parse_observation_integer<T>(
+    xml: roxmltree::Node<'_, '_>,
+    name: &str,
+    tag: &str,
+) -> Result<T, Error>
+where
+    T: std::str::FromStr,
+{
+    let raw = required_attr(xml, name)?;
+    if raw.is_empty() || !raw.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(Error::new(format!(
+            "invalid `{name}` on `<{tag}>`: `{raw}`"
+        )));
+    }
+    raw.parse()
+        .map_err(|_| Error::new(format!("invalid `{name}` on `<{tag}>`: `{raw}`")))
 }
 
 fn parse_range_ink_expectations(
@@ -902,7 +1023,6 @@ fn parse_range_ink_expectation(
     let expectation = InlineRangeInkExpectation {
         source_segment_id: parse_range_ink_integer(xml, "source_segment_id")?,
         line_index: parse_range_ink_integer(xml, "line_index")?,
-        visual_index: parse_range_ink_integer(xml, "visual_index")?,
         physical_start_edge,
         start: parse_range_ink_number(xml, "start", false)?,
         advance: parse_range_ink_number(xml, "advance", true)?,
@@ -910,7 +1030,6 @@ fn parse_range_ink_expectation(
     const ATTRIBUTES: &[&str] = &[
         "source_segment_id",
         "line_index",
-        "visual_index",
         "physical_start_edge",
         "start",
         "advance",
@@ -1826,11 +1945,18 @@ fn compare_expectation(
     expected: &Expectation,
     path: &str,
     use_rounding: bool,
+    unrounded_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
     final_inline_fragments: &[layout::InlineFragmentOutputEntry<usize>],
 ) -> Result<(), Error> {
-    let mut fragment_cursor = FinalFragmentCursor {
-        entries: final_inline_fragments,
-        next: 0,
+    let mut fragment_cursors = FragmentCursors {
+        unrounded: FragmentCursor {
+            entries: unrounded_inline_fragments,
+            next: 0,
+        },
+        final_output: FragmentCursor {
+            entries: final_inline_fragments,
+            next: 0,
+        },
     };
     compare_expectation_in_source_order(
         tree,
@@ -1838,9 +1964,24 @@ fn compare_expectation(
         expected,
         path,
         use_rounding,
-        &mut fragment_cursor,
+        &mut fragment_cursors,
+        None,
     )?;
-    if let Some(entry) = fragment_cursor.entries.get(fragment_cursor.next) {
+    if let Some(entry) = fragment_cursors
+        .unrounded
+        .entries
+        .get(fragment_cursors.unrounded.next)
+    {
+        return Err(Error::new(format!(
+            "{path}: unexpected unrounded fragment source association at node {}",
+            entry.node()
+        )));
+    }
+    if let Some(entry) = fragment_cursors
+        .final_output
+        .entries
+        .get(fragment_cursors.final_output.next)
+    {
         return Err(Error::new(format!(
             "{path}: unexpected fragment source association at node {}",
             entry.node()
@@ -1849,12 +1990,17 @@ fn compare_expectation(
     Ok(())
 }
 
-struct FinalFragmentCursor<'a> {
+struct FragmentCursor<'a> {
     entries: &'a [layout::InlineFragmentOutputEntry<usize>],
     next: usize,
 }
 
-impl<'a> FinalFragmentCursor<'a> {
+struct FragmentCursors<'a> {
+    unrounded: FragmentCursor<'a>,
+    final_output: FragmentCursor<'a>,
+}
+
+impl<'a> FragmentCursor<'a> {
     fn take_for_node(&mut self, node: usize) -> &'a [layout::InlineFragmentOutputEntry<usize>] {
         let start = self.next;
         while self
@@ -1868,15 +2014,22 @@ impl<'a> FinalFragmentCursor<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
+struct BrowserControlContext<'a> {
+    source_index: usize,
+    siblings: &'a [usize],
+}
+
 fn compare_expectation_in_source_order(
     tree: &TestTree,
     node: usize,
     expected: &Expectation,
     path: &str,
     use_rounding: bool,
-    fragment_cursor: &mut FinalFragmentCursor<'_>,
+    fragment_cursors: &mut FragmentCursors<'_>,
+    browser_control_context: Option<BrowserControlContext<'_>>,
 ) -> Result<(), Error> {
-    validate_range_ink_expectation_category(expected)
+    validate_observation_expectation_category(expected)
         .map_err(|error| Error::new(format!("{path}: {error}")))?;
     let selected_output_is_present = if use_rounding {
         tree.nodes[node].final_layout_present
@@ -1918,12 +2071,22 @@ fn compare_expectation_in_source_order(
         compare_number(path, "scroll height", y_span, expected_scroll_size.height)?;
     }
 
-    let actual_fragments = fragment_cursor.take_for_node(node);
+    let unrounded_fragments = fragment_cursors.unrounded.take_for_node(node);
+    let final_fragments = fragment_cursors.final_output.take_for_node(node);
     if let Some(expected_fragments) = &expected.fragments {
-        compare_fragment_expectations(path, actual_fragments, expected_fragments)?;
+        compare_fragment_expectations(path, final_fragments, expected_fragments)?;
     }
     if let Some(expected_range_inks) = &expected.range_inks {
-        compare_range_ink_expectations(path, actual_fragments, expected_range_inks)?;
+        compare_range_ink_expectations(path, unrounded_fragments, expected_range_inks)?;
+    }
+    if let Some(expected_browser_control) = expected.browser_control {
+        compare_browser_control_expectation(
+            tree,
+            node,
+            path,
+            expected_browser_control,
+            browser_control_context,
+        )?;
     }
 
     let children = tree.nodes[node]
@@ -1940,10 +2103,8 @@ fn compare_expectation_in_source_order(
         )));
     }
 
-    for (index, (child, expected_child)) in children
-        .into_iter()
-        .zip(expected.children.iter())
-        .enumerate()
+    for (index, (&child, expected_child)) in
+        children.iter().zip(expected.children.iter()).enumerate()
     {
         compare_expectation_in_source_order(
             tree,
@@ -1951,7 +2112,11 @@ fn compare_expectation_in_source_order(
             expected_child,
             &format!("{path}/{index}"),
             use_rounding,
-            fragment_cursor,
+            fragment_cursors,
+            Some(BrowserControlContext {
+                source_index: index,
+                siblings: &children,
+            }),
         )?;
     }
 
@@ -2066,14 +2231,6 @@ fn compare_range_ink_expectations(
             fragment.line_index(),
             expected.line_index,
         )?;
-        compare_range_ink_identity(
-            path,
-            index,
-            "visual index",
-            fragment.visual_index(),
-            expected.visual_index,
-        )?;
-
         let rect = fragment.rect();
         let (start, advance) = match expected.physical_start_edge {
             PhysicalStartEdge::Left => (rect.origin().x, rect.size().width),
@@ -2096,6 +2253,164 @@ fn compare_range_ink_expectations(
     }
 
     Ok(())
+}
+
+fn compare_browser_control_expectation(
+    tree: &TestTree,
+    node: usize,
+    path: &str,
+    expected: BrowserControlExpectation,
+    context: Option<BrowserControlContext<'_>>,
+) -> Result<(), Error> {
+    let context = context.ok_or_else(|| {
+        Error::new(format!(
+            "{path}: browser control source mismatch, expected a source child"
+        ))
+    })?;
+    compare_browser_control_identity(
+        path,
+        "source index",
+        context.source_index,
+        expected.source_index,
+    )?;
+    let line_break = match tree.nodes[node].layout_input {
+        layout::LayoutInput::LineBreak(line_break) => line_break,
+        _ => {
+            return Err(Error::new(format!(
+                "{path}: browser control source mismatch, expected a line break"
+            )));
+        }
+    };
+    if !tree.nodes[node].unrounded_present {
+        return Err(Error::new(format!(
+            "{path}: browser control observation mismatch, expected unrounded output"
+        )));
+    }
+
+    let flow = layout::FlowAxes::new(line_break.writing_mode(), line_break.direction());
+    let control_interval = output_block_interval(tree.nodes[node].unrounded, flow);
+    let actual_slot = context.siblings[..context.source_index]
+        .iter()
+        .rev()
+        .take_while(|sibling| {
+            !matches!(
+                tree.nodes[**sibling].layout_input,
+                layout::LayoutInput::LineBreak(_)
+            )
+        })
+        .filter(|sibling| {
+            tree.nodes[**sibling].unrounded_present
+                && block_relation(
+                    control_interval,
+                    output_block_interval(tree.nodes[**sibling].unrounded, flow),
+                    flow,
+                ) == BrowserNeighborLine::Same
+        })
+        .count();
+    if let Some(expected_slot) = expected.terminal_visual_slot {
+        compare_browser_control_identity(path, "terminal visual slot", actual_slot, expected_slot)?;
+    }
+
+    let previous = context
+        .source_index
+        .checked_sub(1)
+        .map(|index| context.siblings[index]);
+    let next = context.siblings.get(context.source_index + 1).copied();
+    if expected.previous_line != BrowserNeighborLine::Unobserved {
+        let actual_previous =
+            browser_neighbor_relation(tree, previous, control_interval, flow, path)?;
+        compare_browser_control_identity(
+            path,
+            "previous neighbor line",
+            actual_previous,
+            expected.previous_line,
+        )?;
+    }
+    if expected.next_line != BrowserNeighborLine::Unobserved {
+        let actual_next = browser_neighbor_relation(tree, next, control_interval, flow, path)?;
+        compare_browser_control_identity(
+            path,
+            "next neighbor line",
+            actual_next,
+            expected.next_line,
+        )?;
+    }
+    Ok(())
+}
+
+fn browser_neighbor_relation(
+    tree: &TestTree,
+    neighbor: Option<usize>,
+    control_interval: (Scalar, Scalar),
+    flow: layout::FlowAxes,
+    path: &str,
+) -> Result<BrowserNeighborLine, Error> {
+    let Some(neighbor) = neighbor else {
+        return Ok(BrowserNeighborLine::Absent);
+    };
+    if !tree.nodes[neighbor].unrounded_present {
+        return Err(Error::new(format!(
+            "{path}: browser control neighbor-line mismatch, expected unrounded neighbor output"
+        )));
+    }
+    Ok(block_relation(
+        control_interval,
+        output_block_interval(tree.nodes[neighbor].unrounded, flow),
+        flow,
+    ))
+}
+
+fn output_block_interval(output: layout::NodeOutput, flow: layout::FlowAxes) -> (Scalar, Scalar) {
+    match flow.block_axis() {
+        layout::PhysicalAxis::Horizontal => {
+            (output.location.x, output.location.x + output.size.width)
+        }
+        layout::PhysicalAxis::Vertical => {
+            (output.location.y, output.location.y + output.size.height)
+        }
+    }
+}
+
+fn block_relation(
+    control: (Scalar, Scalar),
+    neighbor: (Scalar, Scalar),
+    flow: layout::FlowAxes,
+) -> BrowserNeighborLine {
+    let tolerance = ComparisonTolerance::browser_parity().value;
+    if neighbor.1 + tolerance >= control.0 && control.1 + tolerance >= neighbor.0 {
+        return BrowserNeighborLine::Same;
+    }
+    let control_center = control.0 + (control.1 - control.0) / 2.0;
+    let neighbor_center = neighbor.0 + (neighbor.1 - neighbor.0) / 2.0;
+    let neighbor_is_earlier = match flow.block_start() {
+        layout::PhysicalSide::Top | layout::PhysicalSide::Left => neighbor_center < control_center,
+        layout::PhysicalSide::Right | layout::PhysicalSide::Bottom => {
+            neighbor_center > control_center
+        }
+    };
+    if neighbor_is_earlier {
+        BrowserNeighborLine::Earlier
+    } else {
+        BrowserNeighborLine::Later
+    }
+}
+
+fn compare_browser_control_identity<T>(
+    path: &str,
+    field: &str,
+    actual: T,
+    expected: T,
+) -> Result<(), Error>
+where
+    T: Copy + std::fmt::Debug + Eq,
+{
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(Error::new(format!(
+            "{path}: browser control {field} mismatch, expected {expected:?}, got {actual:?}"
+        )))
+    }
 }
 
 fn compare_range_ink_identity<T>(
@@ -4339,6 +4654,7 @@ mod tests {
             scroll_size: None,
             fragments: None,
             range_inks: None,
+            browser_control: None,
             children: vec![Expectation {
                 x: Some(99.0),
                 y: None,
@@ -4347,11 +4663,12 @@ mod tests {
                 scroll_size: None,
                 fragments: None,
                 range_inks: None,
+                browser_control: None,
                 children: Vec::new(),
             }],
         };
 
-        let error = compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[])
+        let error = compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[], &[])
             .expect_err("wrong control x should fail before unrelated child comparison");
 
         assert_eq!(
@@ -4370,14 +4687,15 @@ mod tests {
             scroll_size: None,
             fragments: None,
             range_inks: None,
+            browser_control: None,
             children: Vec::new(),
         };
         let mut tree = line_break_tree(layout::LineBreakInput::new());
-        compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[])
+        compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[], &[])
             .expect("published zero control geometry should compare");
 
         tree.nodes[0].final_layout_present = false;
-        let error = compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[])
+        let error = compare_expectation(&tree, 0, &expected, "fri06-c06-control", true, &[], &[])
             .expect_err("missing control output should fail");
         assert_eq!(
             error.to_string(),
@@ -4415,7 +4733,7 @@ mod tests {
                     <node>
                         <node>
                             <range-inks>
-                                <range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="10" />
+                                <range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" advance="10" />
                             </range-inks>
                         </node>
                     </node>
@@ -4436,6 +4754,129 @@ mod tests {
     }
 
     #[test]
+    fn fri06_c08_range_ink_rounded_fixture_compares_unrounded_model_advance() {
+        let golden = Golden::parse(
+            r#"
+            <test name="fri06-c08-unrounded-range-ink" use-rounding="true">
+                <viewport width="100px" height="max-content" />
+                <input>
+                    <div display="block" width="100px">
+                        <text layout-input="inline-text">
+                            <segment id="11" inline-extent="9.640625" inline-baseline="8" inline-line-height="10" bidi-level="0" whitespace-edge="preserve" following-break="prohibited" />
+                        </text>
+                    </div>
+                </input>
+                <expectations>
+                    <node>
+                        <node>
+                            <range-inks>
+                                <range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" advance="9.640625" />
+                            </range-inks>
+                        </node>
+                    </node>
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("fractional Range ink should parse");
+
+        assert_surgeist_matches(&golden)
+            .expect("browser Range advance must compare with the unrounded model fragment");
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_parser_does_not_require_browser_visual_order() {
+        let xml = fri06_c06_fragment_xml(
+            r#"<range-inks><range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" advance="10" /></range-inks>"#,
+        );
+
+        Golden::parse(&xml)
+            .expect("Range ink should retain source/line/inline facts without a visual index");
+    }
+
+    #[test]
+    fn fri06_c08_browser_control_category_observes_slots_and_neighbor_lines_not_br_rects() {
+        let golden = Golden::parse(
+            r#"
+            <test name="fri06-c08-browser-controls" use-rounding="true">
+                <viewport width="max-content" height="max-content" />
+                <input>
+                    <div display="block" direction="ltr" font-family="monospace" font-size="16px" line-height="24px" width="140px">
+                        <div display="inline-block" width="32px" height="12px" />
+                        <div source-tag="br" display="inline" inline-baseline="16.8px" inline-line-height="24px" />
+                        <div source-tag="br" display="inline" inline-baseline="16.8px" inline-line-height="24px" />
+                        <div display="inline-block" width="48px" height="12px" />
+                        <atomic-placeholder child-index="0" bidi-level="0" following-break="prohibited" />
+                        <atomic-placeholder child-index="3" bidi-level="0" following-break="prohibited" />
+                    </div>
+                </input>
+                <expectations>
+                    <node x="0" y="0" width="140" height="72">
+                        <node x="0" y="5" width="32" height="12" />
+                        <node><browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later" /></node>
+                        <node><browser-control source_index="2" terminal_visual_slot="0" previous_line="earlier" next_line="later" /></node>
+                        <node x="0" y="53" width="48" height="12" />
+                    </node>
+                </expectations>
+            </test>
+            "#,
+        )
+        .expect("browser controls should parse as a distinct observation category");
+
+        assert_surgeist_matches(&golden).expect(
+            "browser BR observations should compare source, terminal slot, and neighbor-line effects without comparing the BR ink rectangle",
+        );
+
+        for (field, diagnostic) in [
+            ("source", "browser control source index mismatch"),
+            (
+                "terminal slot",
+                "browser control terminal visual slot mismatch",
+            ),
+            (
+                "previous line",
+                "browser control previous neighbor line mismatch",
+            ),
+            ("next line", "browser control next neighbor line mismatch"),
+        ] {
+            let mut changed = golden.clone();
+            let control = changed.expectations.children[1]
+                .browser_control
+                .as_mut()
+                .expect("first browser control");
+            match field {
+                "source" => control.source_index += 1,
+                "terminal slot" => control.terminal_visual_slot = Some(2),
+                "previous line" => control.previous_line = BrowserNeighborLine::Later,
+                "next line" => control.next_line = BrowserNeighborLine::Same,
+                _ => unreachable!(),
+            }
+            let error = assert_surgeist_matches(&changed)
+                .expect_err("wrong browser control observation should fail");
+            assert!(
+                error.to_string().contains(diagnostic),
+                "unexpected {field} diagnostic: {error}"
+            );
+        }
+
+        let mixed = r#"
+            <test name="fri06-c08-mixed-browser-control" use-rounding="true">
+                <viewport width="100" height="max-content" />
+                <input><div source-tag="br" display="inline" /></input>
+                <expectations>
+                    <node x="1"><browser-control source_index="0" terminal_visual_slot="0" previous_line="absent" next_line="absent" /></node>
+                </expectations>
+            </test>
+        "#;
+        let error = Golden::parse(mixed)
+            .expect_err("browser control observations must not carry model control geometry");
+        assert_eq!(
+            error.to_string(),
+            "browser control observations must not include model control geometry"
+        );
+    }
+
+    #[test]
     fn fri06_c08_range_ink_wrong_identity_or_inline_interval_still_fails() {
         for (field, expected_diagnostic) in [
             (
@@ -4445,10 +4886,6 @@ mod tests {
             (
                 "line",
                 "Range ink[0] line index mismatch, expected 1, got 0",
-            ),
-            (
-                "visual",
-                "Range ink[0] visual index mismatch, expected 1, got 0",
             ),
             (
                 "start",
@@ -4464,7 +4901,6 @@ mod tests {
             match field {
                 "source" => range_ink.source_segment_id += 1,
                 "line" => range_ink.line_index += 1,
-                "visual" => range_ink.visual_index += 1,
                 "start" => range_ink.start += 1.0,
                 "advance" => range_ink.advance += 1.0,
                 _ => unreachable!(),
@@ -4481,26 +4917,26 @@ mod tests {
 
     #[test]
     fn fri06_c08_range_ink_parser_is_finite_complete_and_category_exclusive() {
-        let complete = r#"<range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="10" />"#;
+        let complete = r#"<range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" advance="10" />"#;
         for (body, diagnostic) in [
             (
                 "<range-inks />".to_string(),
                 "expected at least one `<range-ink>` child on `<range-inks>`",
             ),
             (
-                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" /></range-inks>"#.to_string(),
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" /></range-inks>"#.to_string(),
                 "missing `advance` on `<range-ink>`",
             ),
             (
-                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="inline" start="0" advance="10" /></range-inks>"#.to_string(),
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" physical_start_edge="inline" start="0" advance="10" /></range-inks>"#.to_string(),
                 "invalid `physical_start_edge` on `<range-ink>`: `inline`",
             ),
             (
-                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="NaN" advance="10" /></range-inks>"#.to_string(),
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="NaN" advance="10" /></range-inks>"#.to_string(),
                 "invalid `start` on `<range-ink>`: `NaN`",
             ),
             (
-                r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="-1" /></range-inks>"#.to_string(),
+                r#"<range-inks><range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" advance="-1" /></range-inks>"#.to_string(),
                 "invalid `advance` on `<range-ink>`: `-1`",
             ),
             (
@@ -4516,7 +4952,7 @@ mod tests {
 
     #[test]
     fn fri06_c08_range_ink_parser_rejects_mixed_node_scroll_and_nested_geometry() {
-        let range_inks = r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="10" /></range-inks>"#;
+        let range_inks = r#"<range-inks><range-ink source_segment_id="11" line_index="0" physical_start_edge="left" start="0" advance="10" /></range-inks>"#;
         for (node_attributes, nested, diagnostic) in [
             ("x=\"1\"", "", "Range ink must not include node geometry"),
             ("y=\"1\"", "", "Range ink must not include node geometry"),
@@ -4596,6 +5032,7 @@ mod tests {
                     scroll_size: None,
                     fragments: None,
                     range_inks: None,
+                    browser_control: None,
                     children: Vec::new(),
                 }),
                 _ => unreachable!(),
@@ -4900,6 +5337,7 @@ mod tests {
                 scroll_size: None,
                 fragments: Some(fragments),
                 range_inks: None,
+                browser_control: None,
                 children: tree.nodes[node]
                     .children
                     .iter()
@@ -4924,6 +5362,7 @@ mod tests {
             expected,
             "fri06-c06-fragments",
             false,
+            batch.unrounded_inline_fragments(),
             batch.final_inline_fragments(),
         )
     }
@@ -6314,12 +6753,20 @@ mod tests {
 
     #[test]
     fn generation_report_uses_explicit_br_unsupported_buckets() {
-        let report = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/layout/browser_parity/xml/generation-reports/all.json");
-        let raw = std::fs::read_to_string(&report)
-            .unwrap_or_else(|error| panic!("{} should read: {error}", report.display()));
-        let report_json: serde_json::Value = serde_json::from_str(&raw)
-            .unwrap_or_else(|error| panic!("{} should parse as JSON: {error}", report.display()));
+        const CYCLE_BASE: &str = "bcdba3c49be09ad119c03ecdc4c77da803159132";
+        const REPORT: &str = "tests/layout/browser_parity/xml/generation-reports/all.json";
+        let output = std::process::Command::new("git")
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args(["show", &format!("{CYCLE_BASE}:{REPORT}")])
+            .output()
+            .expect("cycle-entry report git show");
+        assert!(
+            output.status.success(),
+            "cycle-entry report should be readable: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let report_json: serde_json::Value = serde_json::from_slice(&output.stdout)
+            .expect("cycle-entry report should parse as JSON");
         let unsupported = report_json["unsupported"]
             .as_array()
             .expect("unsupported report entries should be an array");

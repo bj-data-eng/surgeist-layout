@@ -4264,10 +4264,149 @@ fn write_expectation(lines: &mut Vec<String>, node: &Value, context: Expectation
     if let Some(fragments) = fragments {
         write_fragment_expectations(lines, fragments, context.indent + 2);
     }
-    for child in children {
-        write_expectation(lines, child, context.child(abs_x, abs_y));
+    for (source_index, child) in children.iter().enumerate() {
+        if child["tagName"].as_str() == Some("br") {
+            write_browser_control_expectation(
+                lines,
+                node,
+                children,
+                source_index,
+                context.indent + 2,
+            );
+        } else {
+            write_expectation(lines, child, context.child(abs_x, abs_y));
+        }
     }
     lines.push(format!("{pad}</node>"));
+}
+
+#[derive(Clone, Copy)]
+struct BrowserBlockInterval {
+    minimum: f64,
+    maximum: f64,
+}
+
+fn write_browser_control_expectation(
+    lines: &mut Vec<String>,
+    parent: &Value,
+    siblings: &[Value],
+    source_index: usize,
+    indent: usize,
+) {
+    let control = &siblings[source_index];
+    assert_eq!(
+        control["tagName"].as_str(),
+        Some("br"),
+        "browser control observation requires a BR source"
+    );
+    assert!(
+        control["children"].as_array().is_none_or(Vec::is_empty),
+        "browser control observation must not contain child expectations"
+    );
+    let control_interval = browser_block_interval(parent, control);
+    let current_line_candidates = siblings[..source_index]
+        .iter()
+        .rev()
+        .take_while(|sibling| sibling["tagName"].as_str() != Some("br"))
+        .collect::<Vec<_>>();
+    let terminal_visual_slot = current_line_candidates
+        .iter()
+        .all(|sibling| browser_block_interval_if_present(parent, sibling).is_some())
+        .then(|| {
+            current_line_candidates
+                .iter()
+                .filter(|sibling| {
+                    browser_block_interval_if_present(parent, sibling).is_some_and(|interval| {
+                        browser_block_relation(parent, control_interval, interval) == "same"
+                    })
+                })
+                .count()
+        });
+    let previous_line = source_index
+        .checked_sub(1)
+        .map(|index| browser_block_interval_if_present(parent, &siblings[index]))
+        .map_or("absent", |interval| {
+            interval.map_or("unobserved", |interval| {
+                browser_block_relation(parent, control_interval, interval)
+            })
+        });
+    let next_line = siblings
+        .get(source_index + 1)
+        .map(|sibling| browser_block_interval_if_present(parent, sibling))
+        .map_or("absent", |interval| {
+            interval.map_or("unobserved", |interval| {
+                browser_block_relation(parent, control_interval, interval)
+            })
+        });
+
+    let pad = " ".repeat(indent);
+    lines.push(format!("{pad}<node>"));
+    lines.push(format!(
+        "{}<browser-control{}/>",
+        " ".repeat(indent + 2),
+        attr_text(&[
+            ("source_index", source_index.to_string()),
+            (
+                "terminal_visual_slot",
+                terminal_visual_slot
+                    .map_or_else(|| "unobserved".to_string(), |slot| slot.to_string(),),
+            ),
+            ("previous_line", previous_line.to_string()),
+            ("next_line", next_line.to_string()),
+        ])
+    ));
+    lines.push(format!("{pad}</node>"));
+}
+
+fn browser_block_interval(parent: &Value, node: &Value) -> BrowserBlockInterval {
+    browser_block_interval_if_present(parent, node)
+        .expect("browser control observations require unrounded sibling geometry")
+}
+
+fn browser_block_interval_if_present(parent: &Value, node: &Value) -> Option<BrowserBlockInterval> {
+    let layout = node.get("unroundedLayout")?;
+    let vertical = parent["style"]["writingMode"]
+        .as_str()
+        .is_some_and(|writing_mode| writing_mode != "horizontal-tb");
+    let (minimum, extent) = if vertical {
+        (layout["x"].as_f64()?, layout["width"].as_f64()?)
+    } else {
+        (layout["y"].as_f64()?, layout["height"].as_f64()?)
+    };
+    assert!(
+        minimum.is_finite() && extent.is_finite() && extent >= 0.0,
+        "browser control observations require finite non-negative block geometry"
+    );
+    Some(BrowserBlockInterval {
+        minimum,
+        maximum: minimum + extent,
+    })
+}
+
+fn browser_block_relation(
+    parent: &Value,
+    control: BrowserBlockInterval,
+    neighbor: BrowserBlockInterval,
+) -> &'static str {
+    if neighbor.maximum >= control.minimum && control.maximum >= neighbor.minimum {
+        return "same";
+    }
+    let control_center = control.minimum + (control.maximum - control.minimum) / 2.0;
+    let neighbor_center = neighbor.minimum + (neighbor.maximum - neighbor.minimum) / 2.0;
+    let block_decreases = matches!(
+        parent["style"]["writingMode"].as_str(),
+        Some("vertical-rl" | "sideways-rl")
+    );
+    let neighbor_is_earlier = if block_decreases {
+        neighbor_center > control_center
+    } else {
+        neighbor_center < control_center
+    };
+    if neighbor_is_earlier {
+        "earlier"
+    } else {
+        "later"
+    }
 }
 
 fn write_fragment_expectations(lines: &mut Vec<String>, fragments: &[Value], indent: usize) {
@@ -4331,10 +4470,6 @@ fn write_range_ink_expectations(lines: &mut Vec<String>, range_inks: &[Value], i
                 required_integer_attr(range_ink, "sourceSegmentId"),
             ),
             ("line_index", required_integer_attr(range_ink, "lineIndex")),
-            (
-                "visual_index",
-                required_integer_attr(range_ink, "visualIndex"),
-            ),
             ("physical_start_edge", physical_start_edge),
             ("start", required_finite_number_attr(range_ink, "start")),
             (
@@ -6501,6 +6636,42 @@ if (expectedReason === undefined) {{
         sha256_bytes(format!("{}\n", rows.join("\n")).as_bytes())
     }
 
+    fn fri06_c08_input_category(category: &str) -> bool {
+        category.starts_with("artifact.")
+            || category.starts_with("identity.")
+            || category.starts_with("later_owned.")
+    }
+
+    fn fri06_c08_source_set_digest(root: &Path, sources: &BTreeSet<String>) -> String {
+        fri06_c08_matrix_digest(
+            sources
+                .iter()
+                .map(|source| {
+                    format!(
+                        "{source}\t{}",
+                        sha256_file(&root.join(source)).expect("frozen source hash")
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    fn fri06_c08_cycle_entry_report() -> Value {
+        const CYCLE_BASE: &str = "bcdba3c49be09ad119c03ecdc4c77da803159132";
+        const REPORT: &str = "tests/layout/browser_parity/xml/generation-reports/all.json";
+        let output = Command::new("git")
+            .current_dir(env!("CARGO_MANIFEST_DIR"))
+            .args(["show", &format!("{CYCLE_BASE}:{REPORT}")])
+            .output()
+            .expect("cycle-entry report git show");
+        assert!(
+            output.status.success(),
+            "cycle-entry report should be readable: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).expect("cycle-entry report JSON")
+    }
+
     #[derive(Debug, PartialEq, Eq)]
     enum Fri06C08DirectRootChild {
         Text(String),
@@ -6943,61 +7114,50 @@ if (expectedReason === undefined) {{
     }
 
     #[test]
-    fn fri06_c08_new_reconstructs_complete_fixture_correction_matrix_from_entry_report() {
+    fn fri06_c08_new_reconstructs_exact_input_census_membership() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
-        let report: Value = serde_json::from_slice(
-            &fs::read(root.join("xml/generation-reports/all.json")).expect("entry report"),
-        )
-        .expect("entry report JSON");
-        let mut rows = report["unsupported"]
-            .as_array()
-            .expect("unsupported rows")
-            .iter()
-            .filter(|row| {
-                matches!(
-                    row["reason"].as_str(),
-                    Some(
-                        "Unsupported vertical <br> line-break semantics"
-                            | "Unsupported <br> outside block inline-run semantics"
-                    )
-                )
-            })
-            .map(|row| {
-                format!(
-                    "{}\t{}",
-                    row["source"].as_str().expect("source"),
-                    row["variant"].as_str().expect("variant")
+        let census = include_str!(
+            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        );
+        let mut sources = BTreeSet::new();
+        let rows = census
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .skip(1)
+            .filter_map(|line| {
+                let fields = line.split('\t').collect::<Vec<_>>();
+                assert_eq!(fields.len(), 6, "census row must retain six fields: {line}");
+                (fields[0] == "FRI-06.11 new source" && fri06_c08_input_category(fields[4])).then(
+                    || {
+                        sources.insert(fields[1].to_string());
+                        format!("{}\t{}", fields[1], fields[2])
+                    },
                 )
             })
             .collect::<Vec<_>>();
-        assert_eq!(rows.len(), 240);
-
-        for source in [
-            "block/fri06_inline_unequal_line_alignment.html",
-            "block/fri06_bidi_mixed_inline.html",
-        ] {
-            rows.extend(
-                fixture_cases()
-                    .into_iter()
-                    .map(|(variant, _)| format!("html/{source}\t{variant}")),
-            );
-        }
-        for source in [
-            "block/fri06_inline_mixed_text_atomic_wrap.html",
-            "block/fri06_atomic_inline_baseline.html",
-            "block/fri06_atomic_inline_percentage_block_size.html",
-            "float/fri06_float_auto_height.html",
-        ] {
-            rows.extend(
-                ["border_box_rtl", "content_box_rtl"]
-                    .into_iter()
-                    .map(|variant| format!("html/{source}\t{variant}")),
-            );
-        }
-        assert_eq!(rows.len(), 256);
+        assert_eq!(rows.len(), 26);
         assert_eq!(
             fri06_c08_matrix_digest(rows),
-            "35dc887d32232c365e132f38032021ae0b64147480ab7536971765b3fa5d0214"
+            "11ace08622ea944c9d8ab96d56abfe3d32216bf29b5648a0e99c054dc9223990"
+        );
+        assert_eq!(sources.len(), 7);
+        assert_eq!(
+            fri06_c08_source_set_digest(
+                &root,
+                &FRI06_C08_NEW_CASES
+                    .iter()
+                    .map(|(_, source)| format!("html/{source}"))
+                    .collect()
+            ),
+            "255c2ee209593b0e15434dd0ee02de082fc22d58dbbdd16cb7ab8e4d97c8f7a3"
+        );
+        assert_eq!(
+            sha256_file(&root.join("scripts/gentest/test_helper.js")).expect("helper"),
+            "b0bbcc91652ad55c14f33d99991f46c1f89b8f3fcf91791a22e31745f40446d3"
+        );
+        assert_eq!(
+            sha256_file(&root.join("corpus.toml")).expect("manifest"),
+            "99bb6fda5641c9f81704ddf391930934fb441f719090cf6ca4b84e31636c3701"
         );
     }
 
@@ -7273,10 +7433,7 @@ console.log(JSON.stringify({
     #[test]
     fn fri06_c08_existing_entry_report_reconstructs_exact_activation_and_baseline_matrices() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/layout/browser_parity");
-        let report: Value = serde_json::from_slice(
-            &fs::read(root.join("xml/generation-reports/all.json")).expect("entry report"),
-        )
-        .expect("entry report JSON");
+        let report = fri06_c08_cycle_entry_report();
 
         let unsupported = report["unsupported"].as_array().expect("unsupported rows");
         let activation = unsupported
@@ -7307,6 +7464,16 @@ console.log(JSON.stringify({
         assert_eq!(
             fri06_c08_matrix_digest(activation_rows),
             "2df58c8127c8567a93b21cec2713e1b7ebb7541d8dce19df6d401bf442ae4375"
+        );
+        assert_eq!(
+            fri06_c08_source_set_digest(
+                &root,
+                &activation_sources
+                    .iter()
+                    .map(|source| (*source).to_string())
+                    .collect()
+            ),
+            "3575517b1006a7dad9e3e661467e0f8323ee75c9dfa3c763d981ad129a35719d"
         );
         for (reason, expected_rows) in [
             (FRI06_C08_EXISTING_REASONS[0], 100),
@@ -7421,6 +7588,25 @@ console.log(JSON.stringify({
         assert_eq!(
             sha256_file(&root.join("scripts/gentest/test_base_style.css")).expect("base style"),
             "5d00a3f3c55322b7002b065eacc6b4f3f14ecad83f757c79679b6ec6dee4fec6"
+        );
+
+        let census = include_str!(
+            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        );
+        let input_rows = census
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .skip(1)
+            .filter_map(|line| {
+                let fields = line.split('\t').collect::<Vec<_>>();
+                (fields[0] != "FRI-06.11 new source" && fri06_c08_input_category(fields[4]))
+                    .then(|| format!("{}\t{}", fields[1], fields[2]))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(input_rows.len(), 288);
+        assert_eq!(
+            fri06_c08_matrix_digest(input_rows),
+            "ef4e44f6805f10d04fe9de0943c375fc6e90fb3aa031213083809222a687eef4"
         );
     }
 
@@ -7862,6 +8048,80 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
     }
 
     #[test]
+    fn fri06_c08_range_ink_census_partitions_retain_exact_selectors_counts_and_digests() {
+        let census = include_str!(
+            "../../../plans/2026-07-19-surgeist-layout-fri-06-c08-public-comparison-census.tsv"
+        );
+        let mut partitions = BTreeMap::<&str, Vec<String>>::new();
+        let mut comparator_categories = BTreeMap::<&str, usize>::new();
+        for line in census.lines().filter(|line| !line.starts_with('#')).skip(1) {
+            let fields = line.split('\t').collect::<Vec<_>>();
+            assert_eq!(fields.len(), 6, "census row must retain six fields: {line}");
+            let category = fields[4];
+            let partition = if fri06_c08_input_category(category) {
+                "input"
+            } else if category.starts_with("comparator.") {
+                *comparator_categories.entry(category).or_default() += 1;
+                "comparator"
+            } else if category.starts_with("adapter.") {
+                "adapter"
+            } else if category.starts_with("production.") {
+                "production"
+            } else if category == "pass" {
+                "pass"
+            } else {
+                panic!("unowned census category {category}");
+            };
+            partitions
+                .entry(partition)
+                .or_default()
+                .push(format!("{}\t{}", fields[1], fields[2]));
+        }
+
+        for (partition, count, digest) in [
+            (
+                "input",
+                314,
+                "060a024d38f4331a3aefe5971dc9db9a2a740e2a88aa7b5d02e41d0c735e73e2",
+            ),
+            (
+                "comparator",
+                10,
+                "240c1679d8343049d7ab3343e34a173da20ef49e03bfb45fa2d46a5e97d1a641",
+            ),
+            (
+                "adapter",
+                24,
+                "efce04f838f358bda851df2b723c01c1c51b6247c39c662ffdc8e5fbd3f12aa2",
+            ),
+            (
+                "production",
+                4,
+                "7b4fc8b3bb27f912d3f39d2aadc05c243ead274fed54c20dfa43bd0825f7c61f",
+            ),
+            (
+                "pass",
+                36,
+                "97177ac281f2908dc5bcda26ef984100d7f36c67e458aa8d5b05a8c75ac59fa4",
+            ),
+        ] {
+            let rows = partitions
+                .remove(partition)
+                .expect("known census partition");
+            assert_eq!(rows.len(), count, "{partition} row count");
+            assert_eq!(fri06_c08_matrix_digest(rows), digest, "{partition} digest");
+        }
+        assert!(partitions.is_empty());
+        assert_eq!(
+            comparator_categories,
+            BTreeMap::from([
+                ("comparator.range_ink_rounded_advance", 6),
+                ("comparator.browser_br_rect_as_control_geometry", 4),
+            ])
+        );
+    }
+
+    #[test]
     fn fri06_c08_range_ink_serializer_emits_only_physical_inline_observations() {
         let node = json!({
             "tagName": "div",
@@ -7898,7 +8158,7 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
         let xml = generate_xml("fri06_c08_range_ink_serializer", &node);
         assert!(
             xml.contains(
-                r#"<range-ink source_segment_id="7" line_index="0" visual_index="2" physical_start_edge="left" start="15" advance="9"/>"#
+                r#"<range-ink source_segment_id="7" line_index="0" physical_start_edge="left" start="15" advance="9"/>"#
             ),
             "missing explicit Range-ink category in\n{xml}"
         );
@@ -7909,6 +8169,119 @@ for (const [direction, writingMode, physicalStartEdge, start, advance] of [
         assert!(
             xml.contains("<node><range-inks>") || xml.contains("<node>\n        <range-inks>"),
             "Range-backed text-node expectation must not serialize metric union attributes\n{xml}"
+        );
+    }
+
+    #[test]
+    fn fri06_c08_browser_control_serializer_emits_only_source_slot_and_neighbor_lines() {
+        let node = json!({
+            "tagName": "div",
+            "useRounding": true,
+            "viewport": {
+                "width": {"unit": "px", "value": 140},
+                "height": {"unit": "max-content"},
+            },
+            "style": {
+                "display": "block",
+                "direction": "ltr",
+                "writingMode": "horizontal-tb",
+            },
+            "smartRoundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
+            "unroundedLayout": {"x": 0, "y": 0, "width": 140, "height": 72},
+            "children": [
+                {
+                    "tagName": "span",
+                    "style": {"display": "inline-block"},
+                    "smartRoundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
+                    "unroundedLayout": {"x": 0, "y": 5, "width": 32, "height": 12},
+                    "children": [],
+                },
+                {
+                    "tagName": "br",
+                    "style": {"display": "inline"},
+                    "smartRoundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
+                    "unroundedLayout": {"x": 32, "y": 2, "width": 0, "height": 19},
+                    "children": [],
+                },
+                {
+                    "tagName": "br",
+                    "style": {"display": "inline"},
+                    "smartRoundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
+                    "unroundedLayout": {"x": 0, "y": 26, "width": 0, "height": 19},
+                    "children": [],
+                },
+                {
+                    "tagName": "span",
+                    "style": {"display": "inline-block"},
+                    "smartRoundedLayout": {"x": 0, "y": 53, "width": 48, "height": 12},
+                    "unroundedLayout": {"x": 0, "y": 53, "width": 48, "height": 12},
+                    "children": [],
+                },
+            ],
+        });
+
+        let xml = generate_xml("fri06_c08_browser_control_serializer", &node);
+        for expected in [
+            r#"<browser-control source_index="1" terminal_visual_slot="1" previous_line="same" next_line="later"/>"#,
+            r#"<browser-control source_index="2" terminal_visual_slot="0" previous_line="earlier" next_line="later"/>"#,
+        ] {
+            assert!(xml.contains(expected), "missing {expected:?} in\n{xml}");
+        }
+        assert!(
+            !xml.contains(r#"<node x="32" y="2" width="0" height="19""#)
+                && !xml.contains(r#"<node x="0" y="26" width="0" height="19""#),
+            "browser BR ink rectangles must not serialize as model control geometry\n{xml}"
+        );
+
+        let unobserved = json!({
+            "tagName": "div",
+            "useRounding": false,
+            "viewport": {
+                "width": {"unit": "px", "value": 100},
+                "height": {"unit": "max-content"},
+            },
+            "style": {
+                "display": "block",
+                "direction": "ltr",
+                "writingMode": "horizontal-tb",
+            },
+            "unroundedLayout": {"x": 0, "y": 0, "width": 100, "height": 20},
+            "children": [
+                {
+                    "layoutInput": "inline-text",
+                    "inlineSegments": [{
+                        "id": 0,
+                        "inlineExtent": 10,
+                        "inlineBaseline": 8,
+                        "inlineLineHeight": 10,
+                        "bidiLevel": 0,
+                        "whitespaceEdge": "preserve",
+                        "followingBreak": "prohibited",
+                    }],
+                    "rangeInks": [{
+                        "sourceSegmentId": 0,
+                        "lineIndex": 0,
+                        "visualIndex": 0,
+                        "physicalStartEdge": "left",
+                        "start": 0,
+                        "advance": 10,
+                    }],
+                    "children": [],
+                },
+                {
+                    "tagName": "br",
+                    "style": {"display": "inline"},
+                    "unroundedLayout": {"x": 10, "y": 0, "width": 0, "height": 10},
+                    "children": [],
+                },
+            ],
+        });
+        let xml = generate_xml("fri06_c08_unobserved_control_neighbor", &unobserved);
+        assert!(
+            xml.contains(
+                r#"<browser-control source_index="1" terminal_visual_slot="unobserved" previous_line="unobserved" next_line="absent"/>"#
+            ),
+            "missing finite unobserved control category in\n{xml}"
         );
     }
 
