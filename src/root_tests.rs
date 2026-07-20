@@ -4390,9 +4390,7 @@ fn assert_fri06_c08_r1_mixed_unit_traversal<S: LayoutScalar>(
     )
     .unwrap();
 
-    let source_starts = if flow_axes.direction() == Direction::Rtl
-        && !fri06_c02_inline_decreases(flow_axes.writing_mode(), flow_axes.direction())
-    {
+    let source_starts = if flow_axes.direction() == Direction::Rtl {
         [12.0, 12.0, 7.0, 7.0, 0.0]
     } else {
         [0.0, 10.0, 10.0, 15.0, 15.0]
@@ -4996,21 +4994,34 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                 Size::new(S::from_f64(180.0), S::from_f64(80.0))
             );
             let atomic = fri06_c02_final_node(&batch, 2);
+            let fragments = batch.unrounded_inline_fragments();
+            assert_eq!(fragments.len(), 2);
+            assert_eq!(
+                (
+                    fragments[0].fragment().baseline().x,
+                    atomic.location.x,
+                    fragments[1].fragment().baseline().x,
+                ),
+                (
+                    S::from_f64(73.296875),
+                    S::from_f64(73.0),
+                    S::from_f64(180.0),
+                ),
+                "{box_sizing:?} direct RTL visual starts"
+            );
             assert_eq!(atomic.source_index, SourceIndex::new(1));
             assert_eq!(
                 (atomic.location, atomic.size, atomic.content_size),
                 (
-                    Point::new(S::from_f64(102.0), S::ZERO),
+                    Point::new(S::from_f64(73.0), S::ZERO),
                     Size::new(S::from_f64(20.0), S::from_f64(40.0)),
                     Size::new(S::from_f64(20.0), S::from_f64(40.0)),
                 ),
                 "{box_sizing:?} rounded percentage atomic geometry"
             );
-            let fragments = batch.unrounded_inline_fragments();
-            assert_eq!(fragments.len(), 2);
             for (index, (node, id, x, width, baseline_x)) in [
-                (1, 0, 122.203125, 57.796875, 180.0),
-                (3, 2, 15.5, 86.703125, 102.203125),
+                (1, 0, 15.5, 57.796875, 73.296875),
+                (3, 2, 93.296875, 86.703125, 180.0),
             ]
             .into_iter()
             .enumerate()
@@ -5279,7 +5290,7 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                 }
                 let atomic_x = match direction {
                     Direction::Ltr => [81.0, 42.0, 74.0, 42.0],
-                    Direction::Rtl => [63.0, 98.0, 62.0, 90.0],
+                    Direction::Rtl => [102.0, 98.0, 62.0, 90.0],
                 };
                 for (index, (node, width, y)) in [
                     (4, 28.0, 0.0),
@@ -5303,7 +5314,7 @@ fn fri06_c08_recovery_characterization_exact_public_inputs_cover_both_scalar_lan
                 let fragment = batch.unrounded_inline_fragments()[0].fragment();
                 let (x, baseline_x) = match direction {
                     Direction::Ltr => (42.0, 42.0),
-                    Direction::Rtl => (91.46875, 130.0),
+                    Direction::Rtl => (63.46875, 102.0),
                 };
                 assert_eq!(fragment.line_index(), 0);
                 assert_eq!(fragment.rect().origin().x, S::from_f64(x));
@@ -5738,23 +5749,12 @@ fn fri06_c02_flow_projects_rect_baseline_anchor_and_run_extents_in_all_mappings_
                     .collect::<Vec<_>>(),
                 vec![1, 0, 1, 0]
             );
-            let logical_fragments = if direction == Direction::Rtl
-                && fri06_c02_inline_decreases(writing_mode, direction)
-            {
-                [
-                    (40.0, 10.0, 0.0, 8.0),
-                    (50.0, 10.0, 0.0, 8.0),
-                    (45.0, 4.0, 10.0, 18.0),
-                    (49.0, 6.0, 10.0, 18.0),
-                ]
-            } else {
-                [
-                    (50.0, 10.0, 0.0, 8.0),
-                    (40.0, 10.0, 0.0, 8.0),
-                    (51.0, 4.0, 10.0, 18.0),
-                    (45.0, 6.0, 10.0, 18.0),
-                ]
-            };
+            let logical_fragments = [
+                (50.0, 10.0, 0.0, 8.0),
+                (40.0, 10.0, 0.0, 8.0),
+                (51.0, 4.0, 10.0, 18.0),
+                (45.0, 6.0, 10.0, 18.0),
+            ];
             for (fragment, (inline_start, inline_extent, block_start, baseline_block)) in
                 fragments.iter().zip(logical_fragments)
             {

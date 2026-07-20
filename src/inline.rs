@@ -862,33 +862,56 @@ where
         for (visual_index, source_index) in visual_order.iter().copied().enumerate() {
             visual_indices[source_index] = visual_index;
         }
-        let mut inline_start = line_inline_start;
-        let mut assign_inline_start = |source_index: usize| {
-            let selected = line.units[source_index];
-            inline_starts[source_index] = inline_start;
-            if !selected.discarded {
-                inline_start = inline_start
-                    + selected.participant.inline_advance(input.flow_axes)
-                    + selected.replacement_inline_extent.unwrap_or(S::ZERO);
-            }
-        };
-        let visual_order_opposes_logical_progression = input.flow_axes.direction()
-            == Direction::Rtl
+        let all_atomic = line.units.iter().all(|selected| {
+            matches!(
+                selected.participant,
+                MixedInlineParticipantOf::Atomic { .. }
+            )
+        });
+        let horizontal_atomic_whitespace = input.flow_axes.writing_mode()
+            == WritingMode::HorizontalTb
+            && line.units.iter().any(|selected| {
+                matches!(
+                    selected.participant,
+                    MixedInlineParticipantOf::Atomic { .. }
+                )
+            })
+            && line
+                .units
+                .iter()
+                .all(|selected| match selected.participant {
+                    MixedInlineParticipantOf::Atomic { .. } => true,
+                    MixedInlineParticipantOf::ShapedText(participant) => {
+                        participant.segment.whitespace_edge() != InlineWhitespaceEdge::Preserve
+                    }
+                    MixedInlineParticipantOf::ForcedLineBreak(_)
+                    | MixedInlineParticipantOf::Boundary(_) => false,
+                });
+        let starts_decrease_in_visual_order = input.flow_axes.direction() == Direction::Rtl
             && input
                 .flow_axes
                 .logical_axis_progression(crate::LogicalAxis::Inline)
                 .is_decreasing()
+            && (all_atomic || horizontal_atomic_whitespace)
             && line
                 .units
                 .iter()
                 .any(|selected| selected.participant.bidi_level() % 2 == 1);
-        if visual_order_opposes_logical_progression {
-            for source_index in visual_order.into_iter().rev() {
-                assign_inline_start(source_index);
-            }
+        let mut inline_start = if starts_decrease_in_visual_order {
+            line_inline_start + line.used_inline_extent
         } else {
-            for source_index in visual_order {
-                assign_inline_start(source_index);
+            line_inline_start
+        };
+        for source_index in visual_order {
+            let selected = line.units[source_index];
+            let inline_advance = selected.participant.inline_advance(input.flow_axes)
+                + selected.replacement_inline_extent.unwrap_or(S::ZERO);
+            if starts_decrease_in_visual_order && !selected.discarded {
+                inline_start = inline_start - inline_advance;
+            }
+            inline_starts[source_index] = inline_start;
+            if !starts_decrease_in_visual_order && !selected.discarded {
+                inline_start = inline_start + inline_advance;
             }
         }
         for (source_index, selected) in line.units.into_iter().enumerate() {

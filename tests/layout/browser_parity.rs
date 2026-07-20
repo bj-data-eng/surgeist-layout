@@ -3327,6 +3327,12 @@ fn fri06_c08_recovery_characterization_percentage_xml(
     )
 }
 
+fn fri06_c08_recovery_characterization_percentage_browser_rows() -> [String; 2] {
+    ["border_box", "content_box"].map(|box_sizing| {
+        fri06_c08_recovery_characterization_percentage_xml(box_sizing, 73.296875, 73, 180.0)
+    })
+}
+
 fn fri06_c08_recovery_characterization_vertical_xml(
     box_sizing: &str,
     direction: &str,
@@ -3372,16 +3378,18 @@ fn fri06_c08_recovery_characterization_vertical_xml(
 fn fri06_c08_recovery_characterization_float_xml(
     box_sizing: &str,
     direction: &str,
+    browser_geometry: bool,
     root_height: u8,
     second_line_y: u8,
     fourth_atomic_x: u8,
     third_line_y: u8,
 ) -> String {
     let box_attr = fri06_c08_recovery_characterization_box_attr(box_sizing);
-    let (bidi_level, edge, range_start, atomic_x) = match direction {
-        "ltr" => (0, "left", 42, [81, 42, 74, 0]),
-        "rtl" => (1, "right", 130, [63, 98, 62, 90]),
-        other => panic!("unexpected C08 characterization direction {other}"),
+    let (bidi_level, edge, range_start, atomic_x) = match (direction, browser_geometry) {
+        ("ltr", _) => (0, "left", 42, [81, 42, 74, 0]),
+        ("rtl", true) => (1, "right", 130, [63, 98, 62, 90]),
+        ("rtl", false) => (1, "right", 102, [102, 98, 62, 90]),
+        (other, _) => panic!("unexpected C08 characterization direction {other}"),
     };
     format!(
         r#"<test name="fri06_float_line_exclusion__{box_sizing}_{direction}" use-rounding="true">
@@ -3428,17 +3436,6 @@ fn fri06_c08_recovery_characterization_rows(
 ) -> Vec<(String, Option<&'static str>)> {
     let mut rows = Vec::new();
     for box_sizing in ["border_box", "content_box"] {
-        rows.push((
-            fri06_c08_recovery_characterization_percentage_xml(
-                box_sizing,
-                if browser_geometry { 73.296875 } else { 180.0 },
-                if browser_geometry { 73 } else { 102 },
-                if browser_geometry { 180.0 } else { 102.203125 },
-            ),
-            browser_geometry.then_some(
-                "Range ink[0] physical flow-inline start mismatch, expected 73.296875, got 180",
-            ),
-        ));
         for direction in ["ltr", "rtl"] {
             rows.push((
                 fri06_c08_recovery_characterization_vertical_xml(
@@ -3454,6 +3451,7 @@ fn fri06_c08_recovery_characterization_rows(
                 fri06_c08_recovery_characterization_float_xml(
                     box_sizing,
                     direction,
+                    browser_geometry,
                     if browser_geometry { 63 } else { 62 },
                     if browser_geometry { 21 } else { 24 },
                     if browser_geometry || direction == "rtl" {
@@ -3471,9 +3469,20 @@ fn fri06_c08_recovery_characterization_rows(
 }
 
 #[test]
-fn fri06_c08_recovery_characterization_current_geometry_matches_all_ten_exact_rows() {
+fn fri06_c08_recovery_characterization_direct_rtl_browser_geometry_matches_both_box_models() {
+    for xml in fri06_c08_recovery_characterization_percentage_browser_rows() {
+        let golden =
+            support::Golden::parse(&xml).expect("exact C08 direct RTL fixture should parse");
+        support::assert_surgeist_matches(&golden).unwrap_or_else(|error| {
+            panic!("{} browser geometry mismatch: {error}\n{xml}", golden.name)
+        });
+    }
+}
+
+#[test]
+fn fri06_c08_recovery_characterization_current_geometry_matches_remaining_eight_exact_rows() {
     let rows = fri06_c08_recovery_characterization_rows(false);
-    assert_eq!(rows.len(), 10);
+    assert_eq!(rows.len(), 8);
     for (xml, browser_error) in rows {
         assert_eq!(browser_error, None);
         let golden = support::Golden::parse(&xml).expect("exact C08 current fixture should parse");
@@ -3484,9 +3493,9 @@ fn fri06_c08_recovery_characterization_current_geometry_matches_all_ten_exact_ro
 }
 
 #[test]
-fn fri06_c08_recovery_characterization_browser_geometry_remains_unaccepted_production() {
+fn fri06_c08_recovery_characterization_remaining_browser_geometry_is_unaccepted_production() {
     let rows = fri06_c08_recovery_characterization_rows(true);
-    assert_eq!(rows.len(), 10);
+    assert_eq!(rows.len(), 8);
     for (xml, browser_error) in rows {
         let golden = support::Golden::parse(&xml).expect("exact C08 browser fixture should parse");
         let error = support::assert_surgeist_matches(&golden)
