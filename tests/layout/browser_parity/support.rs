@@ -808,7 +808,7 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
         ));
     }
 
-    Ok(Expectation {
+    let expectation = Expectation {
         x: optional_number_attr(xml, "x")?,
         y: optional_number_attr(xml, "y")?,
         width: optional_number_attr(xml, "width")?,
@@ -817,7 +817,47 @@ fn parse_expectation(xml: roxmltree::Node<'_, '_>) -> Result<Expectation, Error>
         fragments,
         range_inks,
         children,
-    })
+    };
+    validate_range_ink_expectation_category(&expectation)?;
+    if expectation.range_inks.is_some()
+        && let Some(attribute) = xml.attributes().find(|attribute| {
+            !["x", "y", "width", "height", "scroll_width", "scroll_height"]
+                .contains(&attribute.name())
+        })
+    {
+        return Err(Error::new(format!(
+            "unsupported Range ink node expectation attribute `{}`",
+            attribute.name()
+        )));
+    }
+    Ok(expectation)
+}
+
+fn validate_range_ink_expectation_category(expectation: &Expectation) -> Result<(), Error> {
+    if expectation.range_inks.is_none() {
+        return Ok(());
+    }
+    if expectation.x.is_some()
+        || expectation.y.is_some()
+        || expectation.width.is_some()
+        || expectation.height.is_some()
+    {
+        return Err(Error::new("Range ink must not include node geometry"));
+    }
+    if expectation.scroll_size.is_some() {
+        return Err(Error::new("Range ink must not include scroll geometry"));
+    }
+    if expectation.fragments.is_some() {
+        return Err(Error::new(
+            "model fragments and Range ink are distinct expectation categories",
+        ));
+    }
+    if !expectation.children.is_empty() {
+        return Err(Error::new(
+            "Range ink must not include child geometry expectations",
+        ));
+    }
+    Ok(())
 }
 
 fn parse_range_ink_expectations(
@@ -1836,6 +1876,8 @@ fn compare_expectation_in_source_order(
     use_rounding: bool,
     fragment_cursor: &mut FinalFragmentCursor<'_>,
 ) -> Result<(), Error> {
+    validate_range_ink_expectation_category(expected)
+        .map_err(|error| Error::new(format!("{path}: {error}")))?;
     let selected_output_is_present = if use_rounding {
         tree.nodes[node].final_layout_present
     } else {
@@ -4469,6 +4511,102 @@ mod tests {
             let error = Golden::parse(&fri06_c06_fragment_xml(&body))
                 .expect_err("invalid or mixed Range-ink category should fail closed");
             assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_parser_rejects_mixed_node_scroll_and_nested_geometry() {
+        let range_inks = r#"<range-inks><range-ink source_segment_id="11" line_index="0" visual_index="0" physical_start_edge="left" start="0" advance="10" /></range-inks>"#;
+        for (node_attributes, nested, diagnostic) in [
+            ("x=\"1\"", "", "Range ink must not include node geometry"),
+            ("y=\"1\"", "", "Range ink must not include node geometry"),
+            (
+                "width=\"1\"",
+                "",
+                "Range ink must not include node geometry",
+            ),
+            (
+                "height=\"1\"",
+                "",
+                "Range ink must not include node geometry",
+            ),
+            (
+                "scroll_width=\"1\" scroll_height=\"2\"",
+                "",
+                "Range ink must not include scroll geometry",
+            ),
+            (
+                "content_width=\"1\"",
+                "",
+                "unsupported Range ink node expectation attribute `content_width`",
+            ),
+            (
+                "",
+                "<fragments />",
+                "model fragments and Range ink are distinct expectation categories",
+            ),
+            (
+                "",
+                "<node x=\"1\" />",
+                "Range ink must not include child geometry expectations",
+            ),
+        ] {
+            let xml = format!(
+                r#"
+                <test name="fri06-c08-range-ink-parser" use-rounding="true">
+                    <viewport width="100" height="max-content" />
+                    <input><div display="block" /></input>
+                    <expectations>
+                        <node {node_attributes}>{range_inks}{nested}</node>
+                    </expectations>
+                </test>
+                "#,
+            );
+            let error = Golden::parse(&xml)
+                .expect_err("Range ink mixed with another geometry category should fail closed");
+            assert_eq!(error.to_string(), diagnostic);
+        }
+    }
+
+    #[test]
+    fn fri06_c08_range_ink_comparator_rejects_mixed_geometry_before_comparison() {
+        for (category, diagnostic) in [
+            ("node", "Range ink must not include node geometry"),
+            ("scroll", "Range ink must not include scroll geometry"),
+            (
+                "fragments",
+                "model fragments and Range ink are distinct expectation categories",
+            ),
+            (
+                "children",
+                "Range ink must not include child geometry expectations",
+            ),
+        ] {
+            let mut golden = fri06_c08_range_ink_golden();
+            let expected = &mut golden.expectations.children[0];
+            match category {
+                "node" => expected.x = Some(99.0),
+                "scroll" => expected.scroll_size = Some(Size::new(99.0, 99.0)),
+                "fragments" => expected.fragments = Some(Vec::new()),
+                "children" => expected.children.push(Expectation {
+                    x: Some(99.0),
+                    y: None,
+                    width: None,
+                    height: None,
+                    scroll_size: None,
+                    fragments: None,
+                    range_inks: None,
+                    children: Vec::new(),
+                }),
+                _ => unreachable!(),
+            }
+
+            let error = assert_surgeist_matches(&golden)
+                .expect_err("mixed Range-ink comparator state should fail closed");
+            assert!(
+                error.to_string().contains(diagnostic),
+                "unexpected {category} diagnostic: {error}"
+            );
         }
     }
 
