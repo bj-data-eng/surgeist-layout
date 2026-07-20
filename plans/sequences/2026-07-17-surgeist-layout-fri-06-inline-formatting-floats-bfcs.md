@@ -348,8 +348,7 @@ physical-placement, comparator, fixture, and acceptance portions of `FRI-06.5`,
 `FRI-06.7`, `FRI-06.9` through `FRI-06.11`, and `FRI-06.14`.
 **Prerequisites:** `FRI-06-C08` complete and remotely verified.
 **Entry state:** C08's inputs and ten-row characterization are diagnostic-frozen;
-T1 has corrected direct RTL, while name/expectation-driven final lowering and
-eight vertical/float production rows remain.
+name/expectation-driven final lowering and unresolved production rows remain.
 **Bounded outcome:** Serialize the closed input-only fixture facts, record exact
 known Chrome failures or `None`, correct remaining production boundaries, freeze
 inputs, then run one full existing-pinned generation. No unchanged-input retry,
