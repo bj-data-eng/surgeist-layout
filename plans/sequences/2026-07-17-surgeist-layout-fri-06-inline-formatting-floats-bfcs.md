@@ -11,8 +11,8 @@ Owning repository: `surgeist-layout`
 This sequence implements the independently reviewed specification at
 `plans/specs/2026-07-17-surgeist-layout-fri-06-inline-formatting-floats-bfcs.md`,
 normalized semantic-content SHA-256
-`7090ea13ba7d9e524ce432018c8b7c44c1b3b76428d2c666949d297656ce97c8`,
-committed as `cc2a8486f9e4e7719c9a28cc68321b7e630d9ded`.
+`3a02595c9d8aaa82341db3635a5a2c69d9e02f95be92d29941869f8d0926d128`,
+committed as `a853f55c88f64ba856e16f24aca65c6aa29cffac`.
 
 The specification owns behavior, API, compatibility, ownership, artifacts,
 errors, and acceptance. This sequence owns only durable dependency order. Only
@@ -316,10 +316,10 @@ unrelated focused regression suites are clean without fixture or artifact deltas
 stable before helper, source, manifest, and final-lineage work resumes.
 
 ### `FRI-06-C08` Bounded Fixture Activation And Final Lineage
-**Specification sources:** `FRI-06.4 D-09`, `D-11`, and `D-16`; atomic-baseline
-and physical-placement portions of `FRI-06.7`, `FRI-06.9`, and `FRI-06.14`;
-browser/comparator portions of `FRI-06.9` and `FRI-06.10`; `FRI-06.11`; and
-artifact portions of `FRI-06.14`.
+**Specification sources:** `FRI-06.4 D-01`, `D-04`, `D-09`, `D-11`, and
+`D-16`; metric-fragment, atomic-baseline, physical-placement, and browser-
+comparator portions of `FRI-06.5`, `FRI-06.7`, `FRI-06.9`, `FRI-06.10`, and
+`FRI-06.14`; `FRI-06.11`.
 **Prerequisites:** `FRI-06-C07` complete and remotely verified; its production
 and finite adapter decisions are the C08 entry handoff.
 **Entry state:** Adapter and product behavior are complete. Bounded diagnostics
@@ -333,12 +333,13 @@ are absent.
 **Bounded outcome:** Correct only those finite input defects; settle the reviewed
 helper/parser/serializer facts; activate all 85 existing FRI-06 sources; add
 exactly twelve named sources and 48 variants; preserve semantic input for every
-other source; and route the confirmed atomic-baseline defect exposed after the
-reviewed input checkpoint through the sole C08-R1 production-recovery gate before
-retaining the final corpus. R1 may use a scoped existing-pinned diagnostic only
-when focused evidence cannot localize the defect; it retains no report or
-artifact and is never acceptance evidence. It never runs a full generation.
-Generator architecture remains unchanged.
+other source; after the reviewed input checkpoint, distinguish Range-ink
+observations from metric fragment expectations, revalidate affected input tasks,
+and correct only the confirmed mixed-line RTL placement defect before retaining
+the final corpus. A scoped existing-pinned diagnostic is allowed only when
+focused evidence cannot localize a concrete defect; it retains no report or
+artifact and is never acceptance evidence. No recovery task runs a full
+generation. Generator architecture remains unchanged.
 **Observable exit evidence:** The final full report has 5,712 generated, exactly
 16 immutable missing-root unsupported variants, `filter: null`, reviewed browser
 and helper/manifest provenance, and zero failure classes or scoped reports. All
